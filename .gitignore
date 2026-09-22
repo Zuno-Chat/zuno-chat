@@ -83,9 +83,10 @@ graphify-out/
 .claude/
 
 # Internal docs and the AI working notes stay local; only the brand voice
-# guide is public.
+# guide and the feature docs are public.
 docs/*
 !docs/brand-voice.md
+!docs/features/
 /CLAUDE.md
 
 # Brainstorm mockups from the visual companion
