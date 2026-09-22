@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show SocketException;
 
@@ -6,24 +7,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-import 'package:zuno/core/calls/cloudflare/calls_gateway_credentials.dart';
 import 'package:zuno/core/calls/cloudflare/cloudflare_api_client.dart';
 
-CloudflareApiClient _client(
-  http.Client mock, {
-  GatewayAuthorizationProvider? authorizationProvider,
-}) => CloudflareApiClient(
-  baseUri: Uri.parse('https://example.org/calls'),
-  authorizationProvider:
-      authorizationProvider ??
-      ({bool refresh = false}) async => 'Bearer syt_token',
+const _base = '/_synapse/client/zuno/calls/cloudflare';
+
+CloudflareApiClient _client(http.Client mock) => CloudflareApiClient(
+  baseUri: Uri.parse('https://example.org$_base'),
+  authorization: () async => 'Bearer syt_token',
   httpClient: mock,
 );
 
 void main() {
   test('createSession returns the sessionId from a 200 response', () async {
     final mock = MockClient((request) async {
-      expect(request.url.path, '/calls/sessions/new');
+      expect(request.url.path, '$_base/sessions/new');
       expect(request.headers['Authorization'], 'Bearer syt_token');
       return http.Response(jsonEncode({'sessionId': 'sess1'}), 200);
     });
@@ -157,7 +154,7 @@ void main() {
     'closeTracks posts the given mids, force flag, and sessionDescription',
     () async {
       final mock = MockClient((request) async {
-        expect(request.url.path, '/calls/sessions/s1/tracks/close');
+        expect(request.url.path, '$_base/sessions/s1/tracks/close');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['force'], isTrue);
         expect(body['tracks'], [
@@ -301,39 +298,116 @@ void main() {
     });
   });
 
-  test('a 401 refreshes the authorization once and retries', () async {
-    final refreshes = <bool>[];
-    var calls = 0;
-    final mock = MockClient((request) async {
-      calls++;
-      if (request.headers['Authorization'] == 'Bearer fresh') {
+  test(
+    'a 401 is final: no retry, surfaced as CloudflareCallsException',
+    () async {
+      var calls = 0;
+      final mock = MockClient((request) async {
+        calls++;
+        return http.Response('{"errcode":"M_UNKNOWN_TOKEN"}', 401);
+      });
+      await expectLater(
+        _client(mock).createSession(),
+        throwsA(
+          isA<CloudflareCallsException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            401,
+          ),
+        ),
+      );
+      expect(calls, 1);
+    },
+  );
+
+  test('a 429 waits retry_after_ms and then retries', () {
+    fakeAsync((async) {
+      var calls = 0;
+      final mock = MockClient((request) async {
+        calls++;
+        if (calls == 1) {
+          return http.Response(
+            jsonEncode({'errcode': 'M_LIMIT_EXCEEDED', 'retry_after_ms': 400}),
+            429,
+          );
+        }
         return http.Response(jsonEncode({'sessionId': 'sess1'}), 200);
-      }
-      return http.Response('expired', 401);
+      });
+      String? sessionId;
+      _client(mock).createSession().then((id) => sessionId = id);
+
+      async.elapse(const Duration(milliseconds: 399));
+      expect(calls, 1);
+      async.elapse(const Duration(milliseconds: 1));
+      expect(calls, 2);
+      expect(sessionId, 'sess1');
     });
-    final client = _client(
-      mock,
-      authorizationProvider: ({bool refresh = false}) async {
-        refreshes.add(refresh);
-        return refresh ? 'Bearer fresh' : 'Bearer stale';
-      },
-    );
-    expect(await client.createSession(), 'sess1');
-    expect(refreshes, [false, true]);
-    expect(calls, 2);
   });
 
-  test('a second 401 surfaces as CloudflareCallsException', () async {
-    var calls = 0;
-    final mock = MockClient((request) async {
-      calls++;
-      return http.Response('still expired', 401);
+  test('a 429 without retry_after_ms falls back to backoff', () {
+    fakeAsync((async) {
+      var calls = 0;
+      final mock = MockClient((request) async {
+        calls++;
+        if (calls == 1) return http.Response('slow down', 429);
+        return http.Response(jsonEncode({'sessionId': 'sess1'}), 200);
+      });
+      String? sessionId;
+      _client(mock).createSession().then((id) => sessionId = id);
+
+      async.elapse(const Duration(seconds: 5));
+      expect(calls, 2);
+      expect(sessionId, 'sess1');
     });
-    await expectLater(
-      _client(mock).createSession(),
-      throwsA(isA<CloudflareCallsException>()),
-    );
-    expect(calls, 2);
+  });
+
+  test('a persistent 429 exhausts the attempts and surfaces', () {
+    fakeAsync((async) {
+      var calls = 0;
+      final mock = MockClient((request) async {
+        calls++;
+        return http.Response(
+          jsonEncode({'errcode': 'M_LIMIT_EXCEEDED', 'retry_after_ms': 100}),
+          429,
+        );
+      });
+      Object? error;
+      () async {
+        try {
+          await _client(mock).createSession();
+        } catch (e) {
+          error = e;
+        }
+      }();
+
+      async.elapse(const Duration(seconds: 5));
+      expect(calls, 3);
+      expect(error, isA<CloudflareCallsException>());
+    });
+  });
+
+  test('a request the module never answers fails at the deadline', () {
+    fakeAsync((async) {
+      var calls = 0;
+      final mock = MockClient((request) {
+        calls++;
+        return Completer<http.Response>().future;
+      });
+      Object? error;
+      () async {
+        try {
+          await _client(mock).createSession();
+        } catch (e) {
+          error = e;
+        }
+      }();
+
+      async.elapse(const Duration(seconds: 14));
+      expect(error, isNull);
+      async.elapse(const Duration(seconds: 1));
+      expect(error, isA<TimeoutException>());
+      expect(calls, 1);
+    });
   });
 
   test('close leaves an injected http client open', () async {

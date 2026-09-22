@@ -7,10 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-import 'package:zuno/core/calls/cloudflare/calls_gateway_credentials.dart';
+import 'package:zuno/core/matrix/gateway_credentials.dart';
 
-import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/in_memory_secret_store.dart';
+import '../../helpers/fake_matrix.dart';
+import '../../helpers/in_memory_secret_store.dart';
 
 void main() {
   final now = DateTime.utc(2026, 9, 12, 12);
@@ -26,7 +26,7 @@ void main() {
   );
 
   ({
-    CallsGatewayCredentials credentials,
+    GatewayCredentials credentials,
     List<http.Request> requests,
     InMemorySecretStore store,
   })
@@ -40,7 +40,7 @@ void main() {
           ..accessToken = 'syt_abc';
     final requests = <http.Request>[];
     final store = InMemorySecretStore();
-    final credentials = CallsGatewayCredentials(
+    final credentials = GatewayCredentials(
       client: client,
       store: store,
       httpClient: MockClient((request) async {
@@ -366,7 +366,7 @@ void main() {
       final client = buildTestClient(userId: '@alice:example.org')
         ..homeserver = Uri.parse('https://example.org')
         ..accessToken = 'syt_abc';
-      final credentials = CallsGatewayCredentials(
+      final credentials = GatewayCredentials(
         client: client,
         store: InMemorySecretStore(),
         httpClient: MockClient((_) async => ok()),
@@ -411,11 +411,11 @@ void main() {
             ..homeserver = Uri.parse('https://example.org')
             ..accessToken = 'syt_abc';
       final mock = MockClient((_) async => ok());
-      final owned = CallsGatewayCredentials(
+      final owned = GatewayCredentials(
         client: client,
         store: InMemorySecretStore(),
       );
-      final borrowed = CallsGatewayCredentials(
+      final borrowed = GatewayCredentials(
         client: client,
         store: InMemorySecretStore(),
         httpClient: mock,

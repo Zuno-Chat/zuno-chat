@@ -6,14 +6,18 @@ import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 
-void main() {
-  CloudflareCallEngine buildEngine() => CloudflareCallEngine(
-    gatewayBaseUri: Uri.parse('https://example.org/calls'),
-    gatewayAuthorizationProvider: ({bool refresh = false}) async =>
-        'Bearer test-token',
-    kind: CallKind.voice,
-  );
+final _baseUri = Uri.parse(
+  'https://example.org/_synapse/client/zuno/calls/cloudflare',
+);
 
+CloudflareCallEngine _buildEngine({CallKind kind = CallKind.voice}) =>
+    CloudflareCallEngine(
+      baseUri: _baseUri,
+      authorization: () async => 'Bearer test-token',
+      kind: kind,
+    );
+
+void main() {
   const remoteId = VoipParticipantId(userId: '@bob:example.org', deviceId: 'B');
   const remoteFoci = {
     'sessionId': 'remote-session',
@@ -22,19 +26,14 @@ void main() {
 
   group('happy path', () {
     test('the local participant starts on the front camera', () {
-      final engine = CloudflareCallEngine(
-        gatewayBaseUri: Uri.parse('https://example.org/calls'),
-        gatewayAuthorizationProvider: ({bool refresh = false}) async =>
-            'Bearer test-token',
-        kind: CallKind.video,
-      );
+      final engine = _buildEngine(kind: CallKind.video);
       final local = engine.participants.single;
       expect(local.isLocal, isTrue);
       expect(local.frontCamera, isTrue);
     });
 
     test('leaving reports disconnected and drops every participant', () async {
-      final engine = buildEngine();
+      final engine = _buildEngine();
       final statuses = <CallEngineStatus>[];
       engine.statusStream.listen(statuses.add);
 
@@ -50,7 +49,7 @@ void main() {
     });
 
     test('an unchanged membership does not re-emit participants', () async {
-      final engine = buildEngine();
+      final engine = _buildEngine();
       final emissions = <List<CallEngineParticipant>>[];
       engine.participantsStream.listen(emissions.add);
 
@@ -62,7 +61,7 @@ void main() {
     });
 
     test('a changed mute flag re-emits participants', () async {
-      final engine = buildEngine();
+      final engine = _buildEngine();
       final emissions = <List<CallEngineParticipant>>[];
       engine.participantsStream.listen(emissions.add);
 
@@ -78,7 +77,7 @@ void main() {
     });
 
     test('a membership advertising an encryption key marks the participant encrypted', () async {
-      final engine = buildEngine();
+      final engine = _buildEngine();
 
       engine.updateRemoteParticipant(remoteId, {
         ...remoteFoci,
@@ -93,7 +92,7 @@ void main() {
     test(
       'a membership with no key leaves the participant unencrypted',
       () async {
-        final engine = buildEngine();
+        final engine = _buildEngine();
 
         engine.updateRemoteParticipant(remoteId, remoteFoci);
         await pumpEventQueue();
@@ -106,7 +105,7 @@ void main() {
 
   group('sad paths', () {
     test('leaving after dispose does not throw', () async {
-      final engine = buildEngine();
+      final engine = _buildEngine();
       engine.dispose();
       await pumpEventQueue();
 
@@ -114,7 +113,7 @@ void main() {
     });
 
     test('leaving twice tears down once and reports once', () async {
-      final engine = buildEngine();
+      final engine = _buildEngine();
       final statuses = <CallEngineStatus>[];
       engine.statusStream.listen(statuses.add);
 
@@ -128,7 +127,7 @@ void main() {
     test(
       'disposing while participants are still held does not throw',
       () async {
-        final engine = buildEngine();
+        final engine = _buildEngine();
         engine.updateRemoteParticipant(remoteId, remoteFoci);
 
         engine.dispose();
@@ -139,7 +138,7 @@ void main() {
     );
 
     test('a membership arriving after teardown does not re-join', () async {
-      final engine = buildEngine();
+      final engine = _buildEngine();
       await engine.leave();
       engine.dispose();
       await pumpEventQueue();
@@ -151,7 +150,7 @@ void main() {
     });
 
     test('a departure arriving after teardown is a no-op', () async {
-      final engine = buildEngine();
+      final engine = _buildEngine();
       engine.updateRemoteParticipant(remoteId, remoteFoci);
       await engine.leave();
       engine.dispose();

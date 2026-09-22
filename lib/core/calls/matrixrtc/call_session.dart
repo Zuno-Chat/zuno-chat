@@ -10,10 +10,9 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../errors/best_effort.dart';
 import '../../errors/retry_backoff.dart';
-import '../../security/secret_store.dart';
+import '../../matrix/bearer_authorization.dart';
 import '../call_engine.dart';
-import '../cloudflare/calls_gateway.dart';
-import '../cloudflare/calls_gateway_credentials.dart';
+import '../cloudflare/calls_module.dart';
 import '../cloudflare/cloudflare_call_engine.dart';
 import '../models/call_engine_status.dart';
 import '../models/call_kind.dart';
@@ -99,9 +98,7 @@ class CallSession {
   final Duration keyRelayBaseDelay;
   final Duration keyRelayMaxDelay;
   final Duration remoteLeftConfirmDelay;
-  final http.Client? gatewayHttpClient;
-  final SecretStore? secretStore;
-  CallsGatewayCredentials? _credentials;
+  final http.Client? callsHttpClient;
 
   CallSession._({
     required this.room,
@@ -114,8 +111,7 @@ class CallSession {
     this.keyRelayBaseDelay = _defaultKeyRelayBaseDelay,
     this.keyRelayMaxDelay = _defaultKeyRelayMaxDelay,
     this.remoteLeftConfirmDelay = _remoteLeftConfirmDelay,
-    this.gatewayHttpClient,
-    this.secretStore,
+    this.callsHttpClient,
   });
 
   void _setPhase(CallSessionPhase phase) {
@@ -125,24 +121,13 @@ class CallSession {
 
   Future<CallEngine> _buildEngine() async {
     if (engineBuilder case final build?) return build();
-    final credentials = CallsGatewayCredentials(
-      client: client,
-      store: secretStore ?? const SecureSecretStore(),
-      httpClient: gatewayHttpClient,
-    );
-    _credentials = credentials;
-    final iceServers = await resolveIceServers(
-      client,
-      authorizationProvider: credentials.authorization,
-      httpClient: gatewayHttpClient,
-    );
     return CloudflareCallEngine(
-      gatewayBaseUri: callsGatewayBaseUri(client),
-      gatewayAuthorizationProvider: credentials.authorization,
+      baseUri: cloudflareCallsBaseUri(client),
+      authorization: () => bearerAuthorization(client),
       kind: kind,
-      iceServers: iceServers,
+      iceServers: resolveIceServers(client, httpClient: callsHttpClient),
       lowDataMode: lowDataMode,
-      httpClient: gatewayHttpClient,
+      httpClient: callsHttpClient,
     );
   }
 
@@ -154,8 +139,7 @@ class CallSession {
     @visibleForTesting Duration? keyRelayBaseDelay,
     @visibleForTesting Duration? keyRelayMaxDelay,
     @visibleForTesting Duration? remoteLeftConfirmDelay,
-    @visibleForTesting http.Client? gatewayHttpClient,
-    @visibleForTesting SecretStore? secretStore,
+    @visibleForTesting http.Client? callsHttpClient,
   }) {
     final session = CallSession._(
       room: room,
@@ -168,8 +152,7 @@ class CallSession {
       keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
       keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
       remoteLeftConfirmDelay: remoteLeftConfirmDelay ?? _remoteLeftConfirmDelay,
-      gatewayHttpClient: gatewayHttpClient,
-      secretStore: secretStore,
+      callsHttpClient: callsHttpClient,
     );
     session._encryptionKey = _generateCallKey();
     session._listenForDecline();
@@ -235,8 +218,7 @@ class CallSession {
     @visibleForTesting Duration? keyRelayBaseDelay,
     @visibleForTesting Duration? keyRelayMaxDelay,
     @visibleForTesting Duration? remoteLeftConfirmDelay,
-    @visibleForTesting http.Client? gatewayHttpClient,
-    @visibleForTesting SecretStore? secretStore,
+    @visibleForTesting http.Client? callsHttpClient,
   }) {
     return CallSession._(
       room: room,
@@ -249,8 +231,7 @@ class CallSession {
       keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
       keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
       remoteLeftConfirmDelay: remoteLeftConfirmDelay ?? _remoteLeftConfirmDelay,
-      gatewayHttpClient: gatewayHttpClient,
-      secretStore: secretStore,
+      callsHttpClient: callsHttpClient,
     ).._encryptionKey = initialEncryptionKeyForTesting;
   }
 
@@ -621,7 +602,6 @@ class CallSession {
       await engine.leave();
       engine.dispose();
     }
-    _credentials?.close();
 
     final reason = endReason ??= wasRinging || wasUnanswered
         ? CallEndReason.missed
@@ -654,7 +634,6 @@ class CallSession {
     for (final subscription in _subscriptions) {
       unawaited(subscription?.cancel());
     }
-    _credentials?.close();
     _phaseController.close();
     _remoteJoinedController.close();
   }

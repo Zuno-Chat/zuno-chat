@@ -12,6 +12,7 @@ Future<T> retryWithBackoff<T>(
   Duration baseDelay = const Duration(milliseconds: 200),
   Duration maxDelay = const Duration(seconds: 2),
   bool Function(Object error)? retryIf,
+  Duration? Function(Object error)? retryAfter,
   math.Random? random,
 }) async {
   var attempt = 0;
@@ -23,12 +24,18 @@ Future<T> retryWithBackoff<T>(
       final attemptsLeft = attempt < maxAttempts;
       final worthRetrying = retryIf?.call(error) ?? true;
       if (!attemptsLeft || !worthRetrying) rethrow;
-      final delay = backoffDelay(
-        attempt,
-        baseDelay: baseDelay,
-        maxDelay: maxDelay,
-        random: random,
-      );
+      final requested = retryAfter?.call(error);
+      final Duration delay;
+      if (requested == null) {
+        delay = backoffDelay(
+          attempt,
+          baseDelay: baseDelay,
+          maxDelay: maxDelay,
+          random: random,
+        );
+      } else {
+        delay = requested < maxDelay ? requested : maxDelay;
+      }
       debugPrint(
         'zuno/retry: $label failed (attempt $attempt/$maxAttempts), '
         'retrying in $delay: $error',

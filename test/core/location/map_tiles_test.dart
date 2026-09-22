@@ -11,7 +11,7 @@ import '../../helpers/fake_matrix.dart';
 
 void main() {
   group('tile root', () {
-    test('hangs off the homeserver host, like the calls gateway', () {
+    test('hangs off the homeserver host', () {
       final client = buildTestClient()
         ..homeserver = Uri.parse('https://example.org');
 

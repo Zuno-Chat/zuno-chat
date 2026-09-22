@@ -1,28 +1,33 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/ice_servers.dart';
 
 import '../../../helpers/fake_matrix.dart';
 
-Future<String> _authorization({bool refresh = false}) async =>
-    'Bearer syt_token';
+Client _signedInClient() => buildTestClient(userId: '@alice:example.org')
+  ..homeserver = Uri.parse('https://example.org')
+  ..accessToken = 'syt_token';
 
 void main() {
-  test('returns the gateway-minted ICE servers verbatim', () async {
-    final client = buildTestClient(userId: '@alice:example.org')
-      ..homeserver = Uri.parse('https://example.org')
-      ..accessToken = 'syt_token';
+  const credentialsPath =
+      '/_synapse/client/zuno/calls/cloudflare/turn/credentials';
+
+  test('returns the module-minted ICE servers verbatim', () async {
+    final client = _signedInClient();
 
     final servers = await resolveIceServers(
       client,
-      authorizationProvider: _authorization,
       httpClient: MockClient((request) async {
-        expect(request.url.toString(), 'https://example.org/turn/credentials');
+        expect(request.url.toString(), 'https://example.org$credentialsPath');
         expect(request.headers['Authorization'], 'Bearer syt_token');
+        expect(request.body, isEmpty);
         return http.Response(
           jsonEncode({
             'iceServers': [
@@ -44,47 +49,59 @@ void main() {
     expect(servers.last['credential'], 'c1');
   });
 
-  test('an unreachable gateway degrades to no TURN, not an error', () async {
-    final client = buildTestClient(userId: '@alice:example.org')
-      ..homeserver = Uri.parse('https://example.org')
-      ..accessToken = 'syt_token';
+  test('an unreachable module degrades to no TURN, not an error', () async {
+    final client = _signedInClient();
 
     final servers = await resolveIceServers(
       client,
-      authorizationProvider: _authorization,
       httpClient: MockClient((_) async => throw http.ClientException('down')),
     );
 
     expect(servers, isEmpty);
   });
 
-  test('a gateway error response degrades to no TURN too', () async {
-    final client = buildTestClient(userId: '@alice:example.org')
-      ..homeserver = Uri.parse('https://example.org')
-      ..accessToken = 'syt_token';
+  test('a module error response degrades to no TURN too', () async {
+    final client = _signedInClient();
 
     final servers = await resolveIceServers(
       client,
-      authorizationProvider: _authorization,
       httpClient: MockClient((_) async => http.Response('nope', 502)),
     );
 
     expect(servers, isEmpty);
   });
 
-  test(
-    'an authorization failure degrades to no TURN rather than throwing',
-    () async {
-      final client = buildTestClient()
-        ..homeserver = Uri.parse('https://example.org');
+  test('a client without an access token degrades to no TURN', () async {
+    final client = buildTestClient()
+      ..homeserver = Uri.parse('https://example.org');
+    var requests = 0;
 
-      final servers = await resolveIceServers(
+    final servers = await resolveIceServers(
+      client,
+      httpClient: MockClient((_) async {
+        requests++;
+        return http.Response(jsonEncode({'iceServers': []}), 200);
+      }),
+    );
+
+    expect(servers, isEmpty);
+    expect(requests, 0);
+  });
+
+  test('a mint that outlives its budget degrades to no TURN', () {
+    fakeAsync((async) {
+      final client = _signedInClient();
+      List<Map<String, Object?>>? servers;
+
+      resolveIceServers(
         client,
-        authorizationProvider: ({bool refresh = false}) async =>
-            throw StateError('Not logged in'),
-      );
+        httpClient: MockClient((_) => Completer<http.Response>().future),
+      ).then((s) => servers = s);
 
+      async.elapse(const Duration(seconds: 4));
+      expect(servers, isNull);
+      async.elapse(const Duration(seconds: 1));
       expect(servers, isEmpty);
-    },
-  );
+    });
+  });
 }

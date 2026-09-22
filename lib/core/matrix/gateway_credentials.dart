@@ -5,22 +5,12 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
-import '../../errors/retry_backoff.dart';
-import '../../matrix/bearer_authorization.dart';
-import '../../security/secret_store.dart';
-import 'calls_gateway.dart';
+import '../errors/retry_backoff.dart';
+import '../security/secret_store.dart';
+import 'bearer_authorization.dart';
+import 'gateway_origin.dart';
 
 typedef GatewayAuthorizationProvider = Future<String> Function({bool refresh});
-
-typedef GatewayRequest = Future<http.Response> Function({
-  required bool refresh,
-});
-
-Future<http.Response> sendWithTokenRefresh(GatewayRequest send) async {
-  final response = await send(refresh: false);
-  if (response.statusCode != 401) return response;
-  return send(refresh: true);
-}
 
 class GatewayEnrollmentException implements Exception {
   final String message;
@@ -37,12 +27,20 @@ String gatewayTokenStorageKey({
   required String deviceId,
 }) => 'calls_gateway_token:$userId:$deviceId';
 
-Uri gatewayEnrollUri(Client client) =>
-    callsGatewayBaseUri(client).replace(pathSegments: ['calls', 'enroll']);
+Uri gatewayEnrollUri(Client client) {
+  final uri = gatewayOrigin(client, const ['calls', 'enroll']);
+  if (uri == null) {
+    throw StateError(
+      'No homeserver set — the gateway is derived from it. '
+      'checkHomeserver()/login must have run first.',
+    );
+  }
+  return uri;
+}
 
 typedef _StoredToken = ({String token, DateTime expiresAt});
 
-class CallsGatewayCredentials {
+class GatewayCredentials {
   final Client client;
   final SecretStore _store;
   final http.Client _httpClient;
@@ -54,7 +52,7 @@ class CallsGatewayCredentials {
 
   static const _expiryMargin = Duration(minutes: 1);
 
-  CallsGatewayCredentials({
+  GatewayCredentials({
     required this.client,
     this._store = const SecureSecretStore(),
     http.Client? httpClient,
@@ -107,7 +105,7 @@ class CallsGatewayCredentials {
     try {
       return _decode(await _store.read(key));
     } catch (e) {
-      debugPrint('[CallsGatewayCredentials] stored token unreadable: $e');
+      debugPrint('[GatewayCredentials] stored token unreadable: $e');
       return null;
     }
   }
@@ -122,7 +120,7 @@ class CallsGatewayCredentials {
         }),
       );
     } catch (e) {
-      debugPrint('[CallsGatewayCredentials] token not persisted: $e');
+      debugPrint('[GatewayCredentials] token not persisted: $e');
     }
   }
 

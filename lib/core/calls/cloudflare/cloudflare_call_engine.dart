@@ -15,7 +15,6 @@ import '../models/call_kind.dart';
 import '../models/call_quality.dart';
 import '../models/voip_participant_id.dart';
 import 'call_quality_policy.dart';
-import 'calls_gateway_credentials.dart';
 import 'cloudflare_api_client.dart';
 import 'negotiation_lock.dart';
 import 'remote_track_plan.dart';
@@ -58,7 +57,7 @@ class CloudflareCallEngine implements CallEngine {
   final Map<String, FrameCryptor> _frameCryptors = {};
   final Set<String> _senderWrapsInFlight = {};
 
-  final List<Map<String, Object?>> iceServers;
+  final Future<List<Map<String, Object?>>> _iceServers;
   final bool lowDataMode;
 
   Timer? _statsTimer;
@@ -71,17 +70,18 @@ class CloudflareCallEngine implements CallEngine {
   bool _isLiveConnection(RTCPeerConnection pc) => !_left && identical(_pc, pc);
 
   CloudflareCallEngine({
-    required Uri gatewayBaseUri,
-    required GatewayAuthorizationProvider gatewayAuthorizationProvider,
+    required Uri baseUri,
+    required Future<String> Function() authorization,
     required CallKind kind,
-    this.iceServers = const [],
+    Future<List<Map<String, Object?>>>? iceServers,
     this.lowDataMode = false,
     http.Client? httpClient,
   }) : _api = CloudflareApiClient(
-         baseUri: gatewayBaseUri,
-         authorizationProvider: gatewayAuthorizationProvider,
+         baseUri: baseUri,
+         authorization: authorization,
          httpClient: httpClient,
        ),
+       _iceServers = iceServers ?? Future.value(const []),
        _kind = kind,
        _cameraEnabled = kind == CallKind.video;
 
@@ -459,10 +459,12 @@ class CloudflareCallEngine implements CallEngine {
 
   Future<void> _openConnection() async {
     final sessionFuture = _api.createSession();
-    final pcFuture = createPeerConnection({
-      'iceServers': iceServers,
-      'sdpSemantics': 'unified-plan',
-    });
+    final pcFuture = _iceServers.then(
+      (servers) => createPeerConnection({
+        'iceServers': servers,
+        'sdpSemantics': 'unified-plan',
+      }),
+    );
     final results = await Future.wait<Object?>(
       [sessionFuture, pcFuture],
       eagerError: true,

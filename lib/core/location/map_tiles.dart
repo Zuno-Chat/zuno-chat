@@ -3,8 +3,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
-import '../calls/cloudflare/calls_gateway_credentials.dart'
-    show GatewayAuthorizationProvider;
+import '../matrix/gateway_credentials.dart' show GatewayAuthorizationProvider;
 import '../matrix/gateway_origin.dart';
 
 Uri? mapTilesBaseUri(Client client) => gatewayOrigin(client, const ['tiles']);

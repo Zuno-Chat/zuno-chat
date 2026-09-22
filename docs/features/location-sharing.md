@@ -29,7 +29,9 @@ renders a mini map (or the fallback) and tap opens `LocationMapPage`.
 
 Tiles: `GET {homeserver-host}/tiles/{z}/{x}/{y}.png` with
 `Authorization: Bearer <gateway per-device token>` — the `POST /calls/enroll`
-token, the same auth as `/calls/*`. Cached by flutter_map's built-in cache
+token (`GatewayCredentials`, `lib/core/matrix/`). Tiles are the only route
+still enrolled: calls moved to the Synapse module and a Matrix bearer.
+Cached by flutter_map's built-in cache
 (hashed filenames, 64 MB cap, honours `Cache-Control`/`ETag`), purged at
 logout, account deletion, and "Clear media cache".
 The layer runs with `panBuffer: 0` and flutter_map's default
@@ -41,7 +43,8 @@ scrolled out; `MapTilesHttpClient`'s 401 retry rebuilds the request as an
 
 - **Gateway token, not the Matrix access token, for tiles.** The design spec
   predates `docs/decisions/calls-gateway-enrollment.md`; its reason (a
-  gateway breach must not be an account breach) applies to every route.
+  gateway breach must not be an account breach) applies to every route the
+  gateway still serves.
 - **Degrade, never fail.** No proxy (probe ≠ 200 `image/*`) → grid + pin +
   coordinates + Open in Maps. The pin shipped before any server work.
 - **`flutter_map` over `google_maps_flutter`** — no Play Services.

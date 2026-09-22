@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:fake_async/fake_async.dart';
@@ -10,6 +11,10 @@ import 'package:http/testing.dart';
 import 'package:zuno/core/calls/cloudflare/cloudflare_call_engine.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+
+final _baseUri = Uri.parse(
+  'https://example.org/_synapse/client/zuno/calls/cloudflare',
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -34,9 +39,8 @@ void main() {
   ({CloudflareCallEngine engine, List<int> sessions}) build() {
     final sessions = <int>[];
     final engine = CloudflareCallEngine(
-      gatewayBaseUri: Uri.parse('https://example.org/calls'),
-      gatewayAuthorizationProvider: ({bool refresh = false}) async =>
-          'Bearer test-token',
+      baseUri: _baseUri,
+      authorization: () async => 'Bearer test-token',
       kind: CallKind.voice,
       httpClient: MockClient((request) async {
         if (request.url.path.endsWith('/sessions/new')) {
@@ -51,6 +55,56 @@ void main() {
     );
     return (engine: engine, sessions: sessions);
   }
+
+  group('ICE servers', () {
+    test(
+      'session creation never waits for the mint; the peer connection does',
+      () {
+        fakeAsync((async) {
+          Map<Object?, Object?>? configuration;
+          messenger.setMockMethodCallHandler(webrtcChannel, (call) async {
+            if (call.method != 'createPeerConnection') return null;
+            configuration =
+                (call.arguments as Map)['configuration']
+                    as Map<Object?, Object?>?;
+            throw PlatformException(code: 'test', message: 'no native WebRTC');
+          });
+          final servers = Completer<List<Map<String, Object?>>>();
+          final sessions = <int>[];
+          final engine = CloudflareCallEngine(
+            baseUri: _baseUri,
+            authorization: () async => 'Bearer test-token',
+            kind: CallKind.voice,
+            iceServers: servers.future,
+            httpClient: MockClient((request) async {
+              sessions.add(sessions.length + 1);
+              return http.Response(jsonEncode({'sessionId': 's1'}), 200);
+            }),
+          );
+
+          engine.handleConnectionStateForTest(
+            RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+          );
+          async.elapse(const Duration(seconds: 5));
+
+          expect(sessions, hasLength(1));
+          expect(configuration, isNull);
+
+          const turn = [
+            {
+              'urls': 'turn:turn.example.org:3478',
+              'username': 'u',
+              'credential': 'c',
+            },
+          ];
+          servers.complete(turn);
+          async.flushMicrotasks();
+
+          expect(configuration?['iceServers'], turn);
+        });
+      },
+    );
+  });
 
   group('happy path', () {
     test(

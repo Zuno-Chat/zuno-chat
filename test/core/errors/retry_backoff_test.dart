@@ -27,18 +27,17 @@ void main() {
       var calls = 0;
       String? result;
       retryWithBackoff(
-            () async {
-              calls++;
-              if (calls < 3) throw Exception('transient $calls');
-              return 'ok';
-            },
-            label: 'test',
-            maxAttempts: 5,
-            baseDelay: const Duration(milliseconds: 100),
-            maxDelay: const Duration(seconds: 1),
-            random: Random(1),
-          )
-          .then((r) => result = r);
+        () async {
+          calls++;
+          if (calls < 3) throw Exception('transient $calls');
+          return 'ok';
+        },
+        label: 'test',
+        maxAttempts: 5,
+        baseDelay: const Duration(milliseconds: 100),
+        maxDelay: const Duration(seconds: 1),
+        random: Random(1),
+      ).then((r) => result = r);
 
       async.elapse(const Duration(milliseconds: 500));
 
@@ -100,6 +99,69 @@ void main() {
 
       expect(calls, 1);
       expect(error, isA<StateError>());
+    });
+  });
+
+  test('retryAfter overrides the backoff delay for that attempt', () {
+    fakeAsync((async) {
+      var calls = 0;
+      String? result;
+      retryWithBackoff(
+        () async {
+          calls++;
+          if (calls == 1) throw StateError('later');
+          return 'ok';
+        },
+        label: 'test',
+        baseDelay: const Duration(milliseconds: 1),
+        maxDelay: const Duration(seconds: 5),
+        retryAfter: (e) => const Duration(milliseconds: 700),
+      ).then((r) => result = r);
+
+      async.elapse(const Duration(milliseconds: 699));
+      expect(calls, 1);
+      async.elapse(const Duration(milliseconds: 1));
+      expect(calls, 2);
+      expect(result, 'ok');
+    });
+  });
+
+  test('retryAfter is clamped to maxDelay', () {
+    fakeAsync((async) {
+      var calls = 0;
+      retryWithBackoff(
+        () async {
+          calls++;
+          if (calls == 1) throw StateError('later');
+          return 'ok';
+        },
+        label: 'test',
+        maxDelay: const Duration(milliseconds: 300),
+        retryAfter: (e) => const Duration(minutes: 1),
+      );
+
+      async.elapse(const Duration(milliseconds: 300));
+      expect(calls, 2);
+    });
+  });
+
+  test('retryAfter returning null keeps the backoff delay', () {
+    fakeAsync((async) {
+      var calls = 0;
+      retryWithBackoff(
+        () async {
+          calls++;
+          if (calls == 1) throw StateError('later');
+          return 'ok';
+        },
+        label: 'test',
+        baseDelay: const Duration(milliseconds: 100),
+        maxDelay: const Duration(milliseconds: 100),
+        retryAfter: (e) => null,
+      );
+
+      async.elapse(const Duration(milliseconds: 100));
+      expect(calls, 2);
     });
   });
 }

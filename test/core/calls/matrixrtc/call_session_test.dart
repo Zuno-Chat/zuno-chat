@@ -19,7 +19,6 @@ import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 
 import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/in_memory_secret_store.dart';
 
 class _TestDeviceKeys extends DeviceKeys {
   _TestDeviceKeys(super.json, super.client) : super.fromJson();
@@ -2232,16 +2231,13 @@ void main() {
     );
   });
 
-  group('gateway wiring', () {
+  group('module wiring', () {
     const webrtcChannel = MethodChannel('FlutterWebRTC.Method');
-    late Completer<void> createPeerConnectionGate;
 
     setUp(() {
-      createPeerConnectionGate = Completer<void>();
       messenger.setMockMethodCallHandler(webrtcChannel, (call) async {
         switch (call.method) {
           case 'createPeerConnection':
-            await createPeerConnectionGate.future;
             throw PlatformException(
               code: 'test',
               message: 'no native WebRTC in tests',
@@ -2263,28 +2259,24 @@ void main() {
     });
 
     test(
-      'the engine and TURN fetch share the enrolled gateway token',
+      'the engine and TURN mint hit the Synapse module with the Matrix token, '
+      'and the mint never delays session creation',
       () async {
+        const base = '/_synapse/client/zuno/calls/cloudflare';
         final requests = <http.Request>[];
-        final gateway = MockClient((request) async {
+        final sessionCreated = Completer<void>();
+        var turnAnsweredAfterSession = false;
+        final module = MockClient((request) async {
           requests.add(request);
-          if (request.url.path == '/calls/enroll') {
-            return http.Response(
-              jsonEncode({
-                'token': 'gw_1',
-                'expires_at': DateTime.now()
-                    .add(const Duration(hours: 24))
-                    .millisecondsSinceEpoch,
-              }),
-              200,
+          if (request.url.path == '$base/turn/credentials') {
+            await sessionCreated.future.timeout(
+              const Duration(seconds: 2),
+              onTimeout: () {},
             );
-          }
-          if (request.url.path == '/turn/credentials') {
+            turnAnsweredAfterSession = sessionCreated.isCompleted;
             return http.Response(jsonEncode({'iceServers': []}), 200);
           }
-          if (!createPeerConnectionGate.isCompleted) {
-            createPeerConnectionGate.complete();
-          }
+          if (!sessionCreated.isCompleted) sessionCreated.complete();
           return http.Response(jsonEncode({'sessionId': 's1'}), 200);
         });
         client.homeserver = Uri.parse('https://example.org');
@@ -2292,23 +2284,26 @@ void main() {
           room: room,
           callId: 'call-wiring',
           kind: CallKind.voice,
-          gatewayHttpClient: gateway,
-          secretStore: InMemorySecretStore(),
+          callsHttpClient: module,
         );
         addTearDown(session.dispose);
 
         await expectLater(session.accept(), throwsA(anything));
 
-        String? bearer(String path) => requests
-            .where((r) => r.url.path == path)
-            .map((r) => r.headers['Authorization'])
-            .firstOrNull;
-        expect(bearer('/calls/enroll'), 'Bearer test-token');
-        expect(bearer('/turn/credentials'), 'Bearer gw_1');
-        expect(bearer('/calls/sessions/new'), 'Bearer gw_1');
+        expect(turnAnsweredAfterSession, isTrue);
+        expect(requests.map((r) => r.url.path).toSet(), {
+          '$base/turn/credentials',
+          '$base/sessions/new',
+        });
+        expect(requests.map((r) => r.headers['Authorization']).toSet(), {
+          'Bearer test-token',
+        });
         expect(
-          requests.where((r) => r.url.path == '/calls/enroll'),
-          hasLength(1),
+          requests
+              .where((r) => r.url.path == '$base/turn/credentials')
+              .single
+              .body,
+          isEmpty,
         );
       },
     );

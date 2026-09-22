@@ -7,7 +7,7 @@ including 1:1 — are routed through a configured SFU; there is no P2P mode,
 by design. Signaling is a custom, simplified layer loosely modeled on
 MatrixRTC (MSC3401), not a conformant implementation. Media runs through a
 pluggable `CallEngine` abstraction, currently backed by Cloudflare Calls,
-proxied through a homeserver-side gateway so the app never holds SFU
+reached through the `zuno_calls` Synapse module so the app never holds SFU
 credentials.
 
 ## Architecture
@@ -26,13 +26,14 @@ Three layers, matching the CLAUDE.md architecture map:
   interface regardless of which media backend is active. `CloudflareCallEngine`
   (`flutter_webrtc`-backed) is the only implementation shipped; a LiveKit
   adapter was designed for but never built (see Extension Guidance).
-- **`calls_gateway.dart`** — a homeserver-side HTTP proxy in front of the
-  SFU/TURN provider. The app authenticates to it with the user's own Matrix
-  access token as a bearer; the gateway validates that token and holds the
-  actual Cloudflare credentials. Only signaling (SDP/track metadata, small
-  JSON round trips at call setup) is proxied — RTP media flows directly
-  between device and SFU, so the gateway is not in the media path and only
-  affects call-setup latency.
+- **`calls_module.dart`** — the URIs of the `zuno_calls` Synapse module
+  (`/_synapse/client/zuno/calls/cloudflare/…`), a scoped proxy in front of
+  Cloudflare's SFU signaling and TURN mint. The app sends the user's own
+  Matrix access token as the bearer; Synapse validates it on every request
+  and the module holds the actual Cloudflare credentials. Only signaling
+  (SDP/track metadata, small JSON round trips at call setup) is proxied —
+  RTP media flows directly between device and SFU, so the module is not in
+  the media path and only affects call-setup latency.
 
 `CloudflareCallEngine` carries real weight beyond wrapping an SDK: one
 `RTCPeerConnection` + one Cloudflare session per call, with every
@@ -124,7 +125,7 @@ could get away with:
   point is always true and mis-reports every auto-hangup as "missed" even
   when the call was fully conducted.
 - **At most 6 participants** (`maxCallParticipants`, distinct users),
-  enforced client-side only — the gateway has no notion of which call a
+  enforced client-side only — the module has no notion of which call a
   session belongs to. Everyone is still rung; the first 6 in win.
   - `CallSession.accept()` refuses when 6 others hold membership
     (`isCallFull`), before permissions or an engine, ending `failed` with
@@ -192,26 +193,20 @@ them. There is no unencrypted fallback and no red banner.
 
 ## Communication
 
-**Cloudflare Calls dialect via the gateway.** `calls_gateway.dart` derives
-`https://{homeserver-host}/calls` (SFU) and
-`https://{homeserver-host}/turn/credentials` (TURN) from `client.homeserver`
-— the `.well-known`-*resolved* host, not the address typed at login (they
-differ when a homeserver delegates); a homeserver served under a path
-prefix has that prefix dropped, since the gateway is rooted at the host.
-`CloudflareApiClient` keeps Cloudflare's own paths/JSON verbatim; the
-gateway is a signaling proxy with `/apps/{appId}` filled in server-side, so
-engine-side negotiation logic is unchanged by the proxy — only base URL and
-auth changed. Auth is an enrolled per-device gateway token
-(`CallsGatewayCredentials`), not the Matrix access token: the app enrolls
-once per device at `POST /calls/enroll`, stores the returned token in
-secure storage, and sends it as `Authorization: Bearer <token>` on every
-gateway request. Tokens last 24 hours from issue, fixed, no sliding; the
-app re-enrolls when its stored token is within a minute of that expiry,
-and once on a 401. Secure-storage failures never fail a call: an
-unreadable stored token just enrolls again, and a failed write still
-returns the minted token. See
-`docs/decisions/calls-gateway-enrollment.md` for the full contract and
-rationale.
+**Cloudflare Calls dialect via the Synapse module.** `calls_module.dart`
+resolves `_synapse/client/zuno/calls/cloudflare/{sessions/…,turn/credentials}`
+against `client.homeserver` exactly as the SDK resolves `_matrix/…` — the
+`.well-known`-*resolved* base, not the address typed at login, and a path
+prefix behaves the same for both. `CloudflareApiClient` keeps Cloudflare's
+own paths/JSON verbatim; the module is a signaling proxy with
+`/apps/{appId}` filled in server-side, so engine-side negotiation logic is
+unchanged by the proxy — only base URL and auth. Auth is the Matrix access
+token (`bearerAuthorization`, which refreshes a token about to expire
+first); Synapse checks it on every request, so there is no enrollment, no
+stored credential and no remote-logout window. A 401 is final, never
+retried. Module errors are Matrix JSON; the only field the app reads is
+`retry_after_ms` on a 429. Enrollment (`GatewayCredentials`) survives for
+map tiles only — `docs/decisions/calls-gateway-enrollment.md`.
 
 **Negotiation roles differ by direction** — publish (local
 mic/camera → offer → `pushLocalTracks` → answer) is standard
@@ -228,23 +223,31 @@ cutoff (genuinely complete, or ~500ms with no new candidate) before
 sending, with a 3s hard ceiling as backstop for a stalled network.
 
 **Retries**: `lib/core/errors/backoff.dart` (`backoffDelay`, full-jitter
-exponential) + `retry_backoff.dart` (`retryWithBackoff`), wired into the
-calls-gateway HTTP clients only — nothing else in the app retries
-automatically.
-- `CloudflareApiClient._send` retries *only* `SocketException` (request
-  never reached the gateway). A non-2xx status or `http.ClientException`
-  is **not** retried — `/sessions/new` and `/tracks/new` create resources,
-  so retrying a request that may have already landed risks a duplicate
-  session/track server-side. Kept short (3 attempts, sub-2s ceiling)
-  since these calls sit inside live SDP negotiation.
-- `fetchCloudflareIceServers` (TURN) retries more liberally — any network
-  failure or 5xx, not just pre-response — because minting a TURN
-  credential is idempotent. A 4xx is not retried.
+exponential) + `retry_backoff.dart` (`retryWithBackoff`, whose `retryAfter`
+hook lets a server-stated wait replace the backoff, clamped to `maxDelay`),
+wired into the calls-module HTTP clients only — nothing else in the app
+retries automatically.
+- `CloudflareApiClient._send` retries `SocketException` (request never
+  reached the module) and a 429, waiting the module's `retry_after_ms`: the
+  module refuses before calling Cloudflare, so a 429 is retry-safe. Any
+  other non-2xx status or `http.ClientException` is **not** retried —
+  `/sessions/new` and `/tracks/new` create resources, so retrying a request
+  that may have already landed risks a duplicate session/track server-side.
+  Kept short (3 attempts, sub-2s ceiling) since these calls sit inside live
+  SDP negotiation. Every request carries a 15 s deadline, above the
+  module's 10 s upstream timeout, so a dead socket fails the join instead
+  of hanging it forever.
+- `fetchCloudflareIceServers` (TURN) retries transport failures
+  (`SocketException`, `http.ClientException`) and 429 only. A 5xx is
+  final: the module already retried Cloudflare twice on that path (up to
+  3 × 10 s server-side), and app-side retry only multiplied that wait.
 
-**TURN**: `resolveIceServers` (`ice_servers.dart`) fetches credentials
-through the gateway; a failed mint yields an empty ICE list rather than
-failing the call — TURN only matters for the subset of networks that
-can't manage a direct/STUN-assisted path. (A selectable homeserver-vs-Cloudflare
+**TURN**: `resolveIceServers` (`ice_servers.dart`) mints credentials
+through the module concurrently with `sessions/new` — the engine takes a
+`Future` of ICE servers and awaits it only at `createPeerConnection` — and
+caps the mint at 5 s; a failed or late mint yields an empty ICE list rather
+than failing or delaying the call — TURN only matters for the subset of
+networks that can't manage a direct/STUN-assisted path. (A selectable homeserver-vs-Cloudflare
 TURN provider was built and then superseded/pinned to Cloudflare only,
 with the picker UI disabled — see Key Design Decisions.)
 
@@ -389,7 +392,7 @@ instead, so a stale notification can't outlive its call.
 - **TURN provider selection was built, then retired to one path.** A
   per-user `TurnProviderKind` (homeserver vs. Cloudflare) picker existed
   briefly; both branches are now moot — the app derives ICE entirely
-  through the gateway, and which provider is actually behind it is a
+  through the module, and which provider is actually behind it is a
   server-side fact that doesn't need a per-device choice. Deliberately
   *not* built as a `CallEngine`-style polymorphic interface — TURN is one
   fetch at call setup, not a multi-operation lifecycle.
@@ -481,7 +484,7 @@ instead, so a stale notification can't outlive its call.
   `!_left && identical(_pc, pc)`) after *every* await, not just once at
   entry, since the answer can change while suspended. Un-awaited
   post-teardown call sites must go through a best-effort wrapper — a
-  native call already in flight, or a gateway 500, is a live failure mode.
+  native call already in flight, or a module 502, is a live failure mode.
 - **`_setStatus`/notify-style methods must check `isClosed`** — native
   callbacks (connection-state changes, remote-track events) can still
   land after `dispose()` and are not something Dart code can order
@@ -577,8 +580,9 @@ instead, so a stale notification can't outlive its call.
 - **Sending resources (`/sessions/new`, `/tracks/new`) must not be
   retried past the transport-failure boundary** — retrying a request that
   may have already landed server-side risks a duplicate session/track.
-  Only a `SocketException` (never reached the gateway) is safe to retry
-  on these paths.
+  Only a `SocketException` (never reached the module) and a 429 (the
+  module refuses before calling Cloudflare) are safe to retry on these
+  paths.
 - **A call summary must be sent unconditionally on every end path** — it
   is the only signal guaranteed to reach the other side regardless of
   which end reason applies (declined, missed, hangup, caller-cancel
@@ -593,7 +597,7 @@ instead, so a stale notification can't outlive its call.
   content, not via a server-side push rule.
 - **Well-known homeserver lookups (`client.getWellknown()`) already cache
   for 3 days** at the SDK level — worth checking before adding another
-  cache layer on top for gateway host derivation.
+  cache layer on top for module URL derivation.
 
 ## Extension Guidance
 
@@ -625,11 +629,11 @@ instead, so a stale notification can't outlive its call.
   (`cloudflare_call_engine_teardown_test.dart`) — an engine that never
   joined has no native connection underneath, so pure teardown logic is
   actually testable, unlike the rest of the engine.
-- Gateway-side changes (rate limiting, concurrent-call caps, abuse
-  controls) belong in the gateway service itself, not the client — the
-  client only ever holds a Matrix access token and expects the gateway to
-  enforce everything downstream of that. See Dependencies below for the
-  current state of that enforcement.
+- Server-side changes (rate limiting, concurrent-call caps, abuse
+  controls) belong in the `zuno_calls` module, not the client — the client
+  only ever holds a Matrix access token and expects the module to enforce
+  everything downstream of that. See Dependencies below for the current
+  state of that enforcement.
 - `CallPage` is one page across the whole call lifecycle (the portrait
   stage stands in until someone is there, not a separate screen) — a new
   phase or state extends `CallStatus` and `CallView`, never a
@@ -660,14 +664,16 @@ instead, so a stale notification can't outlive its call.
   same power-level model documented for room roles generally — calling
   requires the same state-event send permission the homeserver itself
   enforces on `m.call.member`.
-- **Calls gateway (external, homeserver-side)**: `calls_gateway.dart` is
-  a client against a service that is a separate deployable, not part of
-  this app. It proxies Cloudflare Calls (SFU) and Cloudflare TURN
-  credential minting, authenticated by a gateway-issued per-device token
-  obtained once with the Matrix access token. **Known gap**: the
-  gateway needs per-user/per-account-age minute limits, concurrent-call
-  caps, and a circuit breaker — a free-tier account plus a per-minute-billed
-  SFU is a direct billing-abuse vector with no other victim, and the
-  gateway is the only place that can be enforced. Needs verification
-  against the gateway's actual current deployment/implementation, which
-  lives outside this repo.
+- **`zuno_calls` Synapse module (external, its own repo)**:
+  `calls_module.dart` is a client against a module loaded into the
+  homeserver, not part of this app. It proxies Cloudflare Calls (SFU)
+  signaling and Cloudflare TURN credential minting under
+  `/_synapse/client/zuno/calls/cloudflare/`, authenticated by Synapse's own
+  access-token check, rate-limited per (user, device) with a token bucket
+  (429 + `retry_after_ms`, before Cloudflare is called), and answering 502
+  when Cloudflare is unreachable. **Known gap**: it has no
+  per-account-age minute limits, concurrent-call caps or circuit breaker —
+  a free-tier account plus a per-minute-billed SFU is a direct
+  billing-abuse vector with no other victim, and the module is the only
+  place that can be enforced. The gateway's older `/calls` and `/turn`
+  routes are no longer used by any build.

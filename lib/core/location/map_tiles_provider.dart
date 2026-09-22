@@ -4,7 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../calls/cloudflare/calls_gateway_credentials.dart';
+import '../matrix/gateway_credentials.dart';
 import '../matrix/matrix_client_provider.dart';
 import 'map_tile_cache.dart';
 import 'map_tiles.dart';
@@ -34,7 +34,7 @@ final mapTilesProvider = Provider<MapTiles?>((ref) {
   ref.watch(isLoggedInProvider);
   final base = mapTilesBaseUri(client);
   if (base == null) return null;
-  final credentials = CallsGatewayCredentials(client: client);
+  final credentials = GatewayCredentials(client: client);
   final httpClient = MapTilesHttpClient(
     authorization: credentials.authorization,
   );

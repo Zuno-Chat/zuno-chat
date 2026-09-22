@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/calls/cloudflare/calls_gateway_credentials.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/location/map_tile_cache.dart';
 import '../../../core/matrix/auth_error_message.dart';
+import '../../../core/matrix/gateway_credentials.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
 import '../../../core/security/new_device_alert_provider.dart';
@@ -168,8 +168,8 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
       );
     }
     await runBestEffort(
-      () => CallsGatewayCredentials(client: client).revoke(),
-      label: 'revoke calls gateway token after account deletion',
+      () => GatewayCredentials(client: client).revoke(),
+      label: 'revoke gateway token after account deletion',
     );
     await purgeMapTileCache();
     await client.clear(reason: SessionClearReason.logout);
