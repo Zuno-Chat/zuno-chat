@@ -1,20 +1,32 @@
 # Zuno
 
-Messages that stay between you two.
-
-Zuno is a chat app for Android. Many chat apps are paid for with data about
-the people who use them. Zuno has no advertisers and no investors. Accounts
-are username-only, every chat is end-to-end encrypted, and the encryption is
-Matrix, so anyone can check it.
-
-Accounts live on zuno.chat by default. The homeserver can be changed at
-sign-in.
+A Matrix chat client for Android, written in Flutter.
 
 Android is the only supported platform. iOS is not built yet.
 
-## Build
+## Features
 
-Requires Flutter with Dart 3.13 or later.
+- One-to-one chats and rooms, end-to-end encrypted.
+- Device verification by QR code or emoji, and a recovery code for key backup.
+- Voice and video calls, one-to-one and group.
+- Photos, video, voice messages, files and per-room media galleries.
+- Location pins.
+- Notifications through FCM, UnifiedPush or a background service.
+- Sharing into the app from other apps.
+- Room roles and permissions.
+- Crash reporting that is off by default, release builds only, with message
+  content and identifiers removed.
+
+## Homeservers
+
+The app signs in to any Matrix homeserver. Some features expect extra
+endpoints next to the homeserver's client API: calls and TURN credentials,
+map tiles for location messages, an FCM push gateway and sign-up codes.
+Without them those features are unavailable and everything else works.
+
+## Build and run
+
+Requires Flutter with Dart 3.13 or later, and an Android device or emulator.
 
 ```
 flutter pub get
@@ -24,8 +36,8 @@ flutter analyze
 flutter build apk --release --dart-define-from-file=.env
 ```
 
-- `.env` holds the crash-reporting DSN; copy `.env.example`.
-  Without it a release build ships with crash reporting off.
+- `.env` holds build-time values such as the crash-reporting DSN; copy
+  `.env.example`. Without it a release build ships with crash reporting off.
 - Release builds are signed with `android/key.properties`; see
   `KEYSTORE.md`. Without it the build falls back to the debug key, which
   must never be distributed.
@@ -34,15 +46,41 @@ flutter build apk --release --dart-define-from-file=.env
   still builds, and notifications come through UnifiedPush or the
   background service, picked in Settings.
 
-## Documentation
+## Layout
 
-- `docs/brand-voice.md` — how Zuno sounds.
-- `KEYSTORE.md` — release signing.
+- `lib/core/` — shared logic: the Matrix client, calls, notifications,
+  security, location, theme and motion.
+- `lib/features/<feature>/presentation/` — screens, one folder per feature.
+- `packages/` — three small Android plugins for call-style notifications,
+  conversation shortcuts and vibration.
+- `android/app/src/main/kotlin/` — services, receivers and device checks.
+- `test/` — mirrors `lib/`, with fakes in `test/helpers/`.
+
+There is one `Client` for the whole app and no service layer: screens call
+the Matrix SDK directly, and the SDK's types are the app state.
+
+## Contributing
+
+Issues and pull requests are welcome. For a change to be merged:
+
+- `flutter analyze` is clean and `flutter test` passes.
+- Every change comes with tests: the happy path and a couple of failure
+  paths.
+- No comments in code, including doc comments. Names and tests carry the
+  meaning.
+- User-facing text follows `docs/brand-voice.md`.
+- Widget tests use the fakes in `test/helpers/` rather than a real database,
+  which hangs in sandboxed environments.
+
+## Security
+
+Report a vulnerability privately through the repository's Security tab, not
+in a public issue.
 
 ## License
 
-Zuno is free software under the GNU Affero General Public License, version 3
-or any later version. See [LICENSE](LICENSE).
+Free software under the GNU Affero General Public License, version 3 or any
+later version. See [LICENSE](LICENSE).
 
 Copyright (C) 2026 The Zuno Chat Authors.
 
