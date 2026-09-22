@@ -16,6 +16,7 @@ import 'package:zuno/core/matrix/registration_support.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/auth/presentation/auth_scaffold.dart';
 import 'package:zuno/features/auth/presentation/homeserver_page.dart';
+import 'package:zuno/features/auth/presentation/linked_sign_in_page.dart';
 import 'package:zuno/features/auth/presentation/login_page.dart';
 import 'package:zuno/features/auth/presentation/register_page.dart';
 import 'package:zuno/features/auth/presentation/registration_code_page.dart';
@@ -327,6 +328,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(HomeserverPage), findsOneWidget);
+  });
+
+  testWidgets('offers signing in with a code from the other device', (
+    tester,
+  ) async {
+    await pumpLoginPage(tester);
+
+    final link = find.widgetWithText(
+      TextButton,
+      'Sign in with your other device',
+    );
+    await tester.ensureVisible(link);
+    await tester.tap(link);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LinkedSignInPage), findsOneWidget);
   });
 
   testWidgets('empty fields never reach the network', (tester) async {

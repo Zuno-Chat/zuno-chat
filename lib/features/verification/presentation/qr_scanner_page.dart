@@ -99,20 +99,38 @@ class _QrScannerPageState extends State<QrScannerPage> {
     return Stack(
       children: [
         MobileScanner(controller: _controller, onDetect: _onDetect),
-        Align(
+        const Align(
           alignment: Alignment.bottomCenter,
-          child: Container(
-            width: double.infinity,
-            color: Colors.black54,
-            padding: const EdgeInsets.all(24),
-            child: const Text(
-              'Point the camera at the code on the other device.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white),
-            ),
+          child: ScannerCaption(
+            'Point the camera at the code on the other device.',
           ),
         ),
       ],
+    );
+  }
+}
+
+class ScannerCaption extends StatelessWidget {
+  final String text;
+
+  const ScannerCaption(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: Colors.black54,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
+      ),
     );
   }
 }

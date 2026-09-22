@@ -14,6 +14,7 @@ import '../../../core/matrix/username_field.dart';
 import '../../../core/ui/keyboard.dart';
 import 'auth_scaffold.dart';
 import 'homeserver_page.dart';
+import 'linked_sign_in_page.dart';
 import 'password_field.dart';
 import 'register_page.dart';
 import 'registration_code_page.dart';
@@ -173,6 +174,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
         FilledButton(
           onPressed: _loading || waitingToRetry ? null : _login,
           child: Text(_loading ? 'Signing in…' : 'Sign in'),
+        ),
+        TextButton(
+          onPressed: _loading ? null : () => _open(const LinkedSignInPage()),
+          child: const Text('Sign in with your other device'),
         ),
       ],
     );

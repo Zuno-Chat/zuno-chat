@@ -17,6 +17,7 @@ import '../../../core/ui/card_list_view.dart';
 import '../../verification/presentation/approve_this_device_page.dart';
 import '../../verification/presentation/verification_page.dart';
 import 'session_info.dart';
+import 'sign_in_another_device_page.dart';
 import 'uia_password_prompt.dart';
 
 class ActiveSessionsPage extends ConsumerStatefulWidget {
@@ -137,6 +138,17 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
         const SnackBar(content: Text('Not signed out. Try again.')),
       );
     }
+  }
+
+  Future<void> _showSignInCode() async {
+    final client = ref.read(matrixClientProvider);
+    _uiaSub?.cancel();
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SignInAnotherDevicePage()));
+    if (!mounted) return;
+    _uiaSub = client.onUiaRequest.stream.listen(_handleUia);
+    await _refresh();
   }
 
   Future<void> _approveThisDevice() async {
@@ -299,6 +311,20 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
                         ),
                       ],
                     ),
+                  CardGroup(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.qr_code_2_outlined),
+                        title: const Text('Sign in on another device'),
+                        subtitle: const Text(
+                          'The new device scans a code instead of typing the '
+                          'password.',
+                        ),
+                        trailing: const Icon(Icons.chevron_right_outlined),
+                        onTap: _showSignInCode,
+                      ),
+                    ],
+                  ),
                   if (others.isNotEmpty)
                     CardGroup(
                       children: [
