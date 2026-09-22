@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  package="im.zuno.chat.zuno_notifications">
+    <application>
+        <provider
+            android:name="im.zuno.chat.zuno_notifications.NotificationFileProvider"
+            android:authorities="${applicationId}.zuno_notifications"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/zuno_notification_paths" />
+        </provider>
+    </application>
+</manifest>

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon foreground — assets/logo/ic_launcher_foreground.svg
+  converted by hand (the README there points at Android Studio's Vector
+  Asset import or svg2vectordrawable; this is the same output, done
+  inline so the source stays reviewable in the diff).
+
+  108x108 canvas with the mark drawn at 45dp centred — deliberately NOT
+  the source SVG's own 62dp (`scale(0.72093)`), which its README claims
+  "clears every mask" but doesn't: reported live as the launcher and
+  splash icons being cut off at the corners.
+
+  The mark is a *square* frame, so its corners are its outermost points.
+  Adaptive-icon geometry is a 108dp canvas whose guaranteed-visible safe
+  zone is a circle 66dp across (33dp radius). A 62dp square's corners sit
+  62/2*sqrt(2) = 43.8dp from centre — outside that, and outside even the
+  masked viewport's own 36dp inscribed circle, so a circular or squircle
+  mask has to clip them. The 62dp figure would be right for a *circular*
+  logo; for a square it has to be at most 66/sqrt(2) = 46.7dp.
+
+  45dp puts the corners at 31.8dp, just inside the safe radius, and
+  leaves the mark at a normal 62% of the 72dp masked viewport. Derived
+  from the source's own parametrisation, where the mark's extent is 86
+  units of the shared 100-unit path space (the same path data as every
+  zuno-mark-*.svg): scale = 45/86 = 0.523256, and
+  translate = (108-45)/2 - 7*scale = 27.837 to re-centre it.
+
+  assets/logo/ic_launcher_foreground.svg and that folder's README still
+  carry the 62dp geometry and want the same correction at source.
+
+  The Z is a true knockout (fillType="evenOdd"), so the amber background
+  layer shows through it.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="27.837"
+        android:translateY="27.837"
+        android:scaleX="0.523256"
+        android:scaleY="0.523256">
+        <!-- Left bracket -->
+        <path
+            android:pathData="M44 10 H20 A10 10 0 0 0 10 20 V80 A10 10 0 0 0 20 90 H44"
+            android:strokeColor="#0E1116"
+            android:strokeWidth="6"
+            android:fillColor="#00000000" />
+        <!-- Right bracket -->
+        <path
+            android:pathData="M56 10 H80 A10 10 0 0 1 90 20 V80 A10 10 0 0 1 80 90 H56"
+            android:strokeColor="#0E1116"
+            android:strokeWidth="6"
+            android:fillColor="#00000000" />
+        <!-- Message bubble carrying the knocked-out Z -->
+        <group
+            android:translateX="23.91"
+            android:translateY="23.12"
+            android:scaleX="0.522"
+            android:scaleY="0.522">
+            <path
+                android:pathData="M4 26 A20 20 0 0 1 24 6 H76 A20 20 0 0 1 96 26 V60 A20 20 0 0 1 76 80 H44 L22 97 V80 H24 A20 20 0 0 1 4 60 Z M34 28 L66 28 L66 35 L49 51 L66 51 L66 58 L34 58 L34 51 L51 35 L34 35 Z"
+                android:fillColor="#0E1116"
+                android:fillType="evenOdd" />
+        </group>
+    </group>
+</vector>

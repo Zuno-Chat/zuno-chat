@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cold-start window background, shown until Flutter draws its first frame.
+  Was Flutter's untouched template: a bare `?android:colorBackground`,
+  which resolves to white via LaunchTheme's Theme.Light.NoTitleBar parent
+  (black in values-night) with no icon at all — the reported "white
+  background" on first load.
+
+  Now the icon's own amber with the mark centred on it, so the launch
+  screen matches the icon it animates out of. Amber in both light and
+  dark, deliberately: the mark is ink (#0E1116), which would be invisible
+  against values-night's black.
+
+  Android 12+ ignores this and composes its own splash instead — see
+  values-v31/styles.xml, which paints that one the same amber. So this
+  file only ever runs on API 24-30.
+
+  Uses ic_splash_mark (mark at 96dp on a 288dp canvas, drawn at its
+  intrinsic size) rather than the launcher icon's own foreground, so all
+  three places a cold start shows the mark — here, the Android 12+
+  system splash, and Flutter's _SplashScreen — take their size from one
+  drawable and can't drift apart. The launcher foreground is a different
+  size on purpose: it's shrunk to survive icon masking, which nothing
+  does to a splash.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/ic_launcher_background" />
+    <item
+        android:drawable="@drawable/ic_splash_mark"
+        android:gravity="center" />
+</layer-list>

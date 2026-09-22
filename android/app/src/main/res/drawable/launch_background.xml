@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pre-API-21 copy of drawable-v21/launch_background.xml, kept only so the
+  two can't silently diverge. This app's minSdk is 24, so nothing ever
+  actually resolves to this file — drawable-v21/ always wins.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/ic_launcher_background" />
+    <item
+        android:drawable="@drawable/ic_splash_mark"
+        android:gravity="center" />
+</layer-list>

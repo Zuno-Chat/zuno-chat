@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Status-bar/notification small icon — assets/logo/
+  ic_launcher_foreground_small.svg, the asset that folder's README
+  designates for exactly this ("foreground without the Z, for
+  notification/status densities"), hand-converted to a VectorDrawable.
+
+  The Z is dropped on purpose: it's a knockout in every other mark
+  variant, so at status-bar size it thins out and closes up. Here the
+  bubble is solid and carries the icon on its own — the README's "below
+  ~40px use the _small foreground" rule.
+
+  Geometry is the adaptive-icon canvas as authored (108x108 with the mark
+  at 62dp centred), kept rather than re-cropped so this stays a faithful
+  copy of the source asset and tracks it if it's ever redrawn.
+
+  Colour is irrelevant to how this renders: Android collapses a
+  notification's small icon to an alpha-mask silhouette on API 21+ (RGB
+  discarded, tinted by the system), so the white below is just an opaque
+  carrier for the shape — the source's ink #0E1116 would render
+  identically.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="17.953"
+        android:translateY="17.953"
+        android:scaleX="0.72093"
+        android:scaleY="0.72093">
+        <!-- Left bracket -->
+        <path
+            android:pathData="M44 10 H20 A10 10 0 0 0 10 20 V80 A10 10 0 0 0 20 90 H44"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="6"
+            android:fillColor="#00000000" />
+        <!-- Right bracket -->
+        <path
+            android:pathData="M56 10 H80 A10 10 0 0 1 90 20 V80 A10 10 0 0 1 80 90 H56"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="6"
+            android:fillColor="#00000000" />
+        <!-- Message bubble, solid (no Z knockout) -->
+        <group
+            android:translateX="23.91"
+            android:translateY="23.12"
+            android:scaleX="0.522"
+            android:scaleY="0.522">
+            <path
+                android:pathData="M4 26 A20 20 0 0 1 24 6 H76 A20 20 0 0 1 96 26 V60 A20 20 0 0 1 76 80 H44 L22 97 V80 H24 A20 20 0 0 1 4 60 Z"
+                android:fillColor="#FFFFFF"
+                android:fillType="evenOdd" />
+        </group>
+    </group>
+</vector>

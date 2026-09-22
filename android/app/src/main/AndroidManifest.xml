@@ -1,0 +1,224 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Actual network access (login, sync, sending, calls — everything),
+         not just a dev-tooling convenience: Android enforces this at the
+         kernel/socket level (AID_INET group membership), so without it
+         literally every request fails, and since the app never declared
+         it there's nothing to "grant" either — Settings won't show a
+         permission toggle for a permission the app didn't ask for. This
+         used to live only in src/debug and src/profile's own
+         AndroidManifest.xml (Flutter's own template default, whose
+         comment there undersells it as "required for development" —
+         true for the VM service/hot reload, but it's also the only
+         reason a debug build's own network calls worked at all), which
+         is why a release build could get through the entire dev cycle
+         looking fine and still have no network access the moment it was
+         actually built as one. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- flutter_webrtc's native NetworkMonitor (org.webrtc.NetworkMonitorAutoDetect)
+         queries ConnectivityManager.getActiveNetworkInfo() as soon as the first
+         PeerConnection is created. Without this permission that call throws
+         SecurityException, which libwebrtc's native code doesn't expect across
+         the JNI boundary — it hits a Check failed: false in jvm.cc and aborts
+         the whole process (SIGABRT) instead of failing gracefully. Found via a
+         real crash starting the very first call. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- For recording voice messages, and for calls (Stage 2). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Calls (see docs/features/calls.md): camera for video calls,
+         audio-route switching (speaker/earpiece), the ongoing-call
+         notification, and keeping the screen on during a call. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
+    <!-- BackgroundSyncService (docs/plan-push-full-screen-calls.md's
+         no-external-infra "background sync" delivery mode): keeps the
+         Matrix sync loop alive so calls can still ring once the app isn't
+         in front. Android 14+ requires the permission matching whatever
+         foregroundServiceType a service declares. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- The incoming-call ring notification (CallNotificationService)
+         needs this to actually launch full-screen / wake the device on
+         Android 14+; without it the OS silently downgrades it to a plain
+         heads-up notification instead. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <!-- Lets Settings → Notifications' "Unrestricted battery usage" row
+         show the real ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS system
+         dialog directly (Allow/Deny), instead of only being able to deep-
+         link to a settings screen the way "Full-screen call alerts" and
+         "Background data" have to. Exempts BackgroundSyncService from
+         Doze/App Standby power-saving pauses. Google Play gates this
+         permission to apps whose core function needs it (a messaging app
+         keeping a call/sync loop alive qualifies) — moot here, this app
+         isn't distributed through Play. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+    <application
+        android:label="Zuno Chat"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
+        android:allowBackup="false">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI. -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".ShareActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+        <!-- flutter_local_notifications' own headless-action receiver — its
+             required for the ring notification's Decline action (see
+             call_notification_service.dart's showIncomingCall doc comment
+             on showsUserInterface: false). The plugin stopped bundling
+             this itself from v16 onwards (its own manifest now declares
+             only bare-minimum permissions) — the README says apps that
+             want notification actions must add this line themselves.
+             Found live: with it missing, tapping Decline did nothing at
+             all — the PendingIntent targets this class explicitly, and
+             Android can't resolve/deliver to a receiver that isn't
+             declared anywhere, so the tap was silently dropped with no
+             error surfaced in this app's own logs (confirmed via `aapt2
+             dump xmltree` on the built APK: no such receiver in the final
+             merged manifest at all, only third-party plugins' own). -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
+            android:exported="false" />
+        <!-- Calls (Stage 2): backs the persistent ongoing-call notification;
+             see CallForegroundService.kt. -->
+        <service
+            android:name=".CallForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|camera" />
+        <!-- Backs the Hang up button on that ongoing-call notification.
+             CallStyle.forOngoingCall's second argument is the *hang up*
+             PendingIntent, not a content intent — it used to be handed the
+             app-launch intent, so the button quietly re-opened an app that
+             was already open and never ended the call. The PendingIntent
+             names this receiver explicitly, so like the
+             flutter_local_notifications one above it has to be declared
+             here or the tap is silently dropped. -->
+        <receiver
+            android:name=".CallActionReceiver"
+            android:exported="false" />
+        <!-- "Background sync" delivery mode (Settings → Notifications) —
+             see BackgroundSyncService.kt. -->
+        <service
+            android:name=".BackgroundSyncService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".UploadForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <receiver
+            android:name=".PushNoticeReceiver"
+            android:exported="true"
+            android:permission="com.google.android.c2dm.permission.SEND">
+            <intent-filter android:priority="999">
+                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+            </intent-filter>
+        </receiver>
+        <!-- UnifiedPush delivery. This replaces the unifiedpush_android
+             plugin's own org.unifiedpush.flutter.connector
+             .UnifiedPushService with a subclass of it (ZunoPushService.kt)
+             that takes a partial wakelock around each delivery — the v3
+             bound-service path holds none of its own, and the Dart work a
+             push kicks off (SQLCipher open, vodozemac init, event fetch,
+             decrypt) is seconds long and suspendable in Doze. The plugin's
+             own doc comment names this as the supported way to do it.
+
+             Both halves are required and only work together: the removal
+             below deletes the plugin's manifest entry at merge time, so
+             exactly one service answers PUSH_EVENT. Without it two would
+             match and which one the distributor binds is undefined —
+             quietly getting the un-wakelocked one half the time. Verify
+             after changing either: `aapt2 dump xmltree <apk>
+             AndroidManifest.xml` should show this class and not the
+             plugin's. -->
+        <service
+            android:name=".ZunoPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
+        <service
+            android:name="org.unifiedpush.flutter.connector.UnifiedPushService"
+            tools:node="remove" />
+    </application>
+    <!-- Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Required by url_launcher to open links tapped in HTML messages
+             (Android 11+ package visibility). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="geo"/>
+        </intent>
+        <package android:name="com.topjohnwu.magisk"/>
+        <package android:name="me.weishu.kernelsu"/>
+        <package android:name="me.bmax.apatch"/>
+    </queries>
+</manifest>

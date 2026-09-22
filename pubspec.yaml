@@ -1,0 +1,206 @@
+name: zuno
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.2
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # This app's own Android vibration channel — see its pubspec.yaml and
+  # ZunoVibrationPlugin's doc comment for why it's a real local plugin
+  # rather than app-local Kotlin: firebase_messaging builds its own
+  # background FlutterEngine with no hook to manually attach a channel
+  # to, and only a real, GeneratedPluginRegistrant-registered plugin
+  # reaches every engine anyone builds, that one included.
+  zuno_vibration:
+    path: packages/zuno_vibration
+
+  # The CallStyle ring notification, native-side. A real local plugin for
+  # the same reason as zuno_vibration above — a push-delivered ring runs
+  # on a headless engine this app never constructs.
+  zuno_call_style:
+    path: packages/zuno_call_style
+  # Conversation shortcuts and headless wake locks; a real plugin for the
+  # same reason as the two above.
+  zuno_notifications:
+    path: packages/zuno_notifications
+
+  flutter_riverpod: ^3.4.2
+  matrix: ^12.0.1
+  flutter_secure_storage: ^11.0.0
+  # SQLCipher-backed drop-in for sqflite — the Matrix SDK's local database
+  # (access token, Olm account pickle, every inbound Megolm session,
+  # cached plaintext) was previously stored unencrypted. Its `Database` is
+  # sqflite_common's shared interface, the same type MatrixSdkDatabase
+  # already takes, so this substitutes at the open call and nowhere else.
+  # See lib/core/matrix/database_key.dart.
+  sqflite_sqlcipher: ^3.1.0+1
+  flutter_vodozemac: ^0.8.1
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  image_picker: ^1.2.3
+  # Already a transitive dep of image_picker (XFile's own package) —
+  # listed directly because looks_like_video.dart imports it by name.
+  cross_file: ^0.3.5
+  # Already a transitive dep of image_picker (its Android platform
+  # implementation) — listed directly because main.dart imports it by
+  # name to opt into the real Android Photo Picker (see its own comment).
+  image_picker_android: ^0.8.13
+  # Already a transitive dep of image_picker (the platform-interface base
+  # class) — listed directly for the same reason as image_picker_android
+  # above, ImagePickerPlatform.instance specifically.
+  image_picker_platform_interface: ^2.11.1
+  file_picker: ^12.1.2
+  flutter_html: ^3.0.0
+  url_launcher: ^6.3.2
+  record: ^7.1.1
+  audioplayers: ^6.8.1
+  shared_preferences: ^2.5.5
+  package_info_plus: ^10.2.1
+  http: ^1.6.0
+  share_plus: ^13.3.0
+  gal: ^2.3.3
+  emoji_picker_flutter: ^4.5.3
+  # Calls (see docs/features/calls.md): WebRTC media for the
+  # CallEngine/Cloudflare Calls adapter, runtime camera/mic permission
+  # prompts, the ongoing-call notification, and keeping the screen on
+  # during an active call.
+  flutter_webrtc: ^1.6.0+hotfix.1
+  permission_handler: ^13.0.2
+  flutter_local_notifications: ^22.3.0
+  wakelock_plus: ^1.4.0
+  light_compressor: ^2.2.0
+  video_player: ^2.14.0
+  image: ^4.9.2
+  flutter_svg: ^2.3.0
+  unifiedpush: ^6.2.0
+  # unifiedpush_platform_interface types (PublicKeySet, PushEndpoint) are
+  # used directly for WebPush key sets and for registering callbacks.
+  unifiedpush_platform_interface: ^4.0.0
+  # Verification QR codes (docs/features/security-verification.md). Both are
+  # needed because the Matrix QR payload is raw bytes, not text: qr_flutter
+  # renders from a QrCode built with QrCode.fromUint8List, and
+  # mobile_scanner is read via Barcode.rawBytes — the string-shaped API on
+  # either side silently corrupts the payload (it scans fine and then
+  # fails verification).
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.0.0
+  # Already present transitively (flutter_html depends on it) and already
+  # version-pinned below — listed directly because
+  # sanitize_message_html.dart imports package:html/dom.dart by name to
+  # walk and rebuild a message's formatted_body against an allowlist.
+  html: ^0.15.6
+  # Already present transitively (the matrix SDK depends on it) — listed
+  # directly because attachment_cache.dart hashes cache keys with sha256
+  # so the on-disk filenames carry no metadata.
+  crypto: ^3.0.7
+  firebase_core: ^4.14.0
+  firebase_messaging: ^16.6.0
+  zstandard: ^1.5.0
+  blurhash_dart: ^1.2.1
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
+  geolocator: ^14.0.3
+  sentry_flutter: ^9.30.0
+dev_dependencies:
+  # Deterministic time for the poll/timeout loops on the call paths
+  # (await_room.dart) — a real 10s wait is not a test.
+  fake_async: ^1.3.1
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^6.0.0
+
+
+# flutter_html 3.0.0 reaches into package:html's private
+# src/query_selector.dart for a top-level `matches()` helper that html
+# 0.15.7 removed (only a private-class method survives). Pin to the last
+# version that still has it until flutter_html publishes a fix upstream.
+dependency_overrides:
+  html: 0.15.6
+  # webcrypto 0.6.1 switched from Flutter plugin scaffolding to Dart
+  # native build hooks — so it now needs a real cmake on whatever host
+  # runs `flutter test`, not just at an actual platform build. It only
+  # reaches this graph at all via unifiedpush's *Linux desktop* plugin
+  # (webpush_encryption, for the federated Linux implementation this
+  # Android-only app never uses — see CLAUDE.md: "Android is the only
+  # supported platform for v1"), so it's only ever built for the host
+  # platform `flutter test` resolves against, never for a real Android
+  # build. Pinned to the last version that built without cmake until
+  # either cmake is available in every dev/CI environment or unifiedpush
+  # stops pulling in a desktop implementation for host-side tests.
+  webcrypto: 0.6.0
+
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  assets:
+    - assets/logo/
+    # Recovery-code wordlist — generated, not hand-written, and frozen
+    # once shipped; see tool/generate_wordlist.py and
+    # lib/core/security/recovery_code.dart.
+    - assets/wordlist/
+    # Ringtone/ringback/message tones — synthesized, not sampled; see
+    # tool/generate_tones.py to change them.
+    - assets/sounds/
+    - assets/wallpaper/
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  assets/logo/ic_launcher.xml, dropped in where its own README says it
+  belongs. This is what stops Android 8+ launchers applying "legacy icon
+  treatment" to the app: with only the mipmap-*dpi PNGs (all this app
+  shipped before), a launcher has no separate background/foreground to
+  mask safely, so it generates a white backdrop and shrinks the bitmap
+  inside it — the reported "white background and the icon is smaller".
+  The PNGs stay as the API 24-25 fallback, below adaptive icons entirely.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>

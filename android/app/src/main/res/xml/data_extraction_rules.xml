@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ counterpart to android:allowBackup="false". Both are set:
+  allowBackup covers the legacy backup agent and adb backup, these rules
+  cover cloud backup and device-to-device transfer on API 31+.
+
+  Everything is excluded. The app's data directory holds the Matrix sqlite
+  database — access token, Olm account pickle, every inbound Megolm
+  session, cached plaintext — and none of that should ever leave the
+  device in a form this app doesn't control. A user restoring onto a new
+  device logs in and restores keys from Secure backup, which is the path
+  that is actually designed for it.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

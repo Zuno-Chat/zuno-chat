@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  From assets/logo/colors.xml (see that folder's README) — the adaptive
+  icon's background layer is a flat colour, not a drawable, so it lives
+  here rather than as a converted copy of ic_launcher_background.svg
+  (which is just a 108x108 amber rect). Also reused as the launch/splash
+  background so the cold-start screen matches the icon it animates out of.
+-->
+<resources>
+    <color name="ic_launcher_background">#E8A33D</color>
+</resources>

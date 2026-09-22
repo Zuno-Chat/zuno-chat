@@ -1,0 +1,31 @@
+name: zuno_call_style
+description: >
+  Zuno's incoming-call ring notification, built and posted natively with
+  NotificationCompat.CallStyle (which flutter_local_notifications 22.3.0
+  has no API for). A real plugin rather than a hand-attached channel so
+  ZunoCallStylePlugin is auto-registered on every FlutterEngine the app
+  creates or is created on its behalf (e.g. firebase_messaging's own
+  background engine) — the push-delivered ring runs on one of those.
+  Not published; internal to the Zuno app only.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.13.2
+  flutter: '>=3.3.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: im.zuno.chat.zuno_call_style
+        pluginClass: ZunoCallStylePlugin

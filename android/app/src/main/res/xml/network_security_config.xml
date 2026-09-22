@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Both of these are already the platform default at this app's targetSdk.
+  Stating them explicitly is the point: the defaults are tied to targetSdk,
+  so a future bump (or a library shipping its own manifest) can relax them
+  silently. A messaging client should not inherit that.
+
+  - cleartextTrafficPermitted="false": no plaintext HTTP, ever. The
+    homeserver URL is user-supplied (homeserver_page.dart also rejects an
+    explicit http:// scheme up front), so this is the backstop for anything
+    that reaches the network another way.
+  - system trust anchors only: no user-installed CAs. That deliberately
+    breaks casual proxy interception (mitmproxy, corporate root certs) —
+    which is the intent for an E2EE messenger, and is also why there is no
+    debug-overrides block here.
+
+  Certificate pinning is deliberately absent: the homeserver is chosen by
+  the user at login, so there is no stable certificate or CA to pin to.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

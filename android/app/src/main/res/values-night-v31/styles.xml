@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Needed on its own, not redundant with values-v31: Android ranks the
+  night-mode qualifier *above* the platform-version one, so on an Android
+  12+ device in dark mode values-night/styles.xml would win outright and
+  the splash would silently fall back to white — the exact bug
+  values-v31/styles.xml exists to fix. This is that fix, for the one
+  configuration values-v31 can't reach.
+
+  Keeps values-night's own Theme.Black parent (so NormalTheme, the theme
+  behind Flutter's UI while it initializes, stays black and doesn't flash
+  white) while painting the splash the same amber as light mode.
+-->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <!-- Same override as values-v31 — see that file. -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_mark</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>

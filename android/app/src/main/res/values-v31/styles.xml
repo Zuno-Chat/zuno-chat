@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ composes its own splash screen rather than just showing
+  windowBackground: it draws the launcher icon (an adaptive icon's
+  *foreground* layer only, background dropped) centred on
+  windowSplashScreenBackground. Left unset, that falls back to
+  windowBackground — white here, via LaunchTheme's Theme.Light.NoTitleBar
+  parent — which is the other half of the reported "white background,
+  small icon" on first load.
+
+  Painting it the icon's own amber puts the ink mark back on the
+  background it was drawn for, and matches drawable-v21/
+  launch_background.xml so pre-12 and 12+ cold starts look the same.
+  values-night deliberately has no override: the mark is ink, so amber
+  has to hold in dark mode too.
+-->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <!--
+          Without this the platform falls back to the launcher icon,
+          which it renders soft (an upscaled raster) and at a size
+          dictated by adaptive-icon geometry rather than anything this
+          app chose — see ic_splash_mark.xml for the measurements.
+        -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_mark</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>

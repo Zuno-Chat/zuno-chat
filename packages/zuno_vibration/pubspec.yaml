@@ -1,0 +1,30 @@
+name: zuno_vibration
+description: >
+  Zuno's own Android vibration channel — replaces the `vibration` package,
+  which hardcodes every call as AudioAttributes.USAGE_ALARM with no way to
+  ask for anything else, and gets ZunoVibrationPlugin auto-registered on
+  every FlutterEngine the app creates or is created on its behalf (e.g.
+  firebase_messaging's own background engine), which a hand-attached
+  channel cannot be. Not published; internal to the Zuno app only.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.13.2
+  flutter: '>=3.3.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: im.zuno.chat.zuno_vibration
+        pluginClass: ZunoVibrationPlugin

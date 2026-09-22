@@ -1,0 +1,1 @@
+enum CallKind { voice, video }

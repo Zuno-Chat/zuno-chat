@@ -1,0 +1,99 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+# Gradle's own build output for the android/ subproject — /build/ above
+# only covers the top-level Flutter build dir, not this nested one.
+/android/build/
+devtools_options.yaml
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# Release signing material (see KEYSTORE.md). android/.gitignore already
+# covers key.properties itself; these cover the keystore it points at,
+# wherever someone happens to put it.
+*.jks
+*.keystore
+
+# Credentials that must never be committable: a Firebase admin key is full
+# project admin and can mint tokens for any user.
+*adminsdk*.json
+*service-account*.json
+*serviceaccount*.json
+
+# Firebase project config. Tied to one Firebase project and its push
+# gateway; the app builds and runs without it, with notifications through
+# UnifiedPush or the background service. Get your own with
+# `flutterfire configure`.
+firebase.json
+android/app/google-services.json
+lib/firebase_options.dart
+
+# Environment files hold real values by definition; only their examples
+# belong in git.
+.env
+*.env
+.env.*
+!*.env.example
+
+# graphify-generated knowledge graph (rebuildable, large)
+graphify-out/
+.claude/
+
+# Internal docs and the AI working notes stay local; only the brand voice
+# guide is public.
+docs/*
+!docs/brand-voice.md
+/CLAUDE.md
+
+# Brainstorm mockups from the visual companion
+.superpowers/
+
+# Local release leftovers.
+.wrangler/
+/releases/
+*.apk
+*.aab
+*.sha256

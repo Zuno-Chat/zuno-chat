@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The splash mark, for both cold-start phases — Android's own launch
+  screen and (matched by hand, see lib/app.dart's _SplashScreen) the
+  Flutter one that replaces it. Ink mark on nothing, so it sits on the
+  amber painted behind it; the Z is a knockout, so that amber fills the
+  letter exactly as it does in the launcher icon.
+
+  **Why this exists rather than reusing ic_launcher_foreground.xml.**
+  Left to itself, the Android 12+ splash falls back to the launcher icon
+  and renders the whole 108dp adaptive canvas at 288dp on screen. That
+  had two consequences, both reported live: the mark came out at
+  45 * 288/108 = 120dp (measured: 326px at 2.75px/dp = 118.5dp), nearly
+  double the Flutter splash's 64dp, so the handover between the two was
+  obvious; and it looked soft, because the system upscales a rasterized
+  copy of the launcher icon instead of drawing the vector at that size.
+  Pointing windowSplashScreenAnimatedIcon (values-v31/styles.xml) at this
+  vector instead fixes both: it's drawn as a vector at full size, and the
+  mark's size is set here rather than falling out of adaptive-icon
+  geometry.
+
+  Geometry: 288x288 to match what the platform expects for a splash icon
+  with no icon background, with the mark at 96dp centred — so it renders
+  at 96dp on screen, the size lib/app.dart's _SplashScreen also uses.
+  Well inside the 192dp visible circle the platform guarantees (a 96dp
+  square's corners sit 96/2*sqrt(2) = 67.9dp out, against a 96dp radius),
+  so unlike the launcher icon this needs no safe-zone shrink.
+
+  Derived from the same 100-unit path space as every zuno-mark-*.svg,
+  whose mark spans 86 units: scale = 96/86 = 1.116279, and
+  translate = (288-96)/2 - 7*scale = 88.186 to centre it.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
+    <group
+        android:translateX="88.186"
+        android:translateY="88.186"
+        android:scaleX="1.116279"
+        android:scaleY="1.116279">
+        <!-- Left bracket -->
+        <path
+            android:pathData="M44 10 H20 A10 10 0 0 0 10 20 V80 A10 10 0 0 0 20 90 H44"
+            android:strokeColor="#0E1116"
+            android:strokeWidth="6"
+            android:fillColor="#00000000" />
+        <!-- Right bracket -->
+        <path
+            android:pathData="M56 10 H80 A10 10 0 0 1 90 20 V80 A10 10 0 0 1 80 90 H56"
+            android:strokeColor="#0E1116"
+            android:strokeWidth="6"
+            android:fillColor="#00000000" />
+        <!-- Message bubble carrying the knocked-out Z -->
+        <group
+            android:translateX="23.91"
+            android:translateY="23.12"
+            android:scaleX="0.522"
+            android:scaleY="0.522">
+            <path
+                android:pathData="M4 26 A20 20 0 0 1 24 6 H76 A20 20 0 0 1 96 26 V60 A20 20 0 0 1 76 80 H44 L22 97 V80 H24 A20 20 0 0 1 4 60 Z M34 28 L66 28 L66 35 L49 51 L66 51 L66 58 L34 58 L34 51 L51 35 L34 35 Z"
+                android:fillColor="#0E1116"
+                android:fillType="evenOdd" />
+        </group>
+    </group>
+</vector>
