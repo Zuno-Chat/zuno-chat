@@ -205,8 +205,7 @@ token (`bearerAuthorization`, which refreshes a token about to expire
 first); Synapse checks it on every request, so there is no enrollment, no
 stored credential and no remote-logout window. A 401 is final, never
 retried. Module errors are Matrix JSON; the only field the app reads is
-`retry_after_ms` on a 429. Enrollment (`GatewayCredentials`) survives for
-map tiles only — `docs/decisions/calls-gateway-enrollment.md`.
+`retry_after_ms` on a 429.
 
 **Negotiation roles differ by direction** — publish (local
 mic/camera → offer → `pushLocalTracks` → answer) is standard
@@ -675,5 +674,4 @@ instead, so a stale notification can't outlive its call.
   per-account-age minute limits, concurrent-call caps or circuit breaker —
   a free-tier account plus a per-minute-billed SFU is a direct
   billing-abuse vector with no other victim, and the module is the only
-  place that can be enforced. The gateway's older `/calls` and `/turn`
-  routes are no longer used by any build.
+  place that can be enforced.

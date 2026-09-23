@@ -23,10 +23,10 @@ class LocationMapView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tiles = ref.watch(mapTilesProvider);
-    final available = ref.watch(mapTilesAvailableProvider).value ?? false;
-    if (tiles == null || !available) return _GridFallback(geo: geo);
+    final tiles = ref.watch(mapTilesProvider).value;
+    if (tiles == null) return _GridFallback(geo: geo);
 
+    final attribution = tiles.attribution;
     final colors = Theme.of(context).colorScheme;
     final point = LatLng(geo.latitude, geo.longitude);
     return IgnorePointer(
@@ -62,7 +62,7 @@ class LocationMapView extends ConsumerWidget {
               ),
             ],
           ),
-          if (interactive) const _Attribution(),
+          if (interactive && attribution != null) _Attribution(attribution),
         ],
       ),
     );
@@ -70,7 +70,9 @@ class LocationMapView extends ConsumerWidget {
 }
 
 class _Attribution extends StatelessWidget {
-  const _Attribution();
+  final String credit;
+
+  const _Attribution(this.credit);
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +85,7 @@ class _Attribution extends StatelessWidget {
       child: SimpleAttributionWidget(
         alignment: Alignment.topRight,
         backgroundColor: colors.surface.withValues(alpha: 0.5),
-        source: const Text('OpenStreetMap contributors'),
+        source: Text(credit),
       ),
     );
   }

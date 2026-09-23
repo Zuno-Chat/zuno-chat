@@ -27,10 +27,7 @@ Future<_Opened> _open(
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        mapTilesProvider.overrideWithValue(null),
-        mapTilesAvailableProvider.overrideWith((ref) async => false),
-      ],
+      overrides: [mapTilesProvider.overrideWith((ref) async => null)],
       child: MaterialApp(
         home: Scaffold(
           body: Builder(

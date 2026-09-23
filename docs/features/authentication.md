@@ -42,7 +42,8 @@ The signed-out screens themselves:
   the chosen one is refused by name, never switched to.
 - `RegistrationCodePage`
   (`lib/features/auth/presentation/registration_code_page.dart`) — asks for
-  an email address and has the gateway mail a single-use sign-up code.
+  an email address and has the `zuno_register` Synapse module mail a
+  single-use sign-up code.
   Shown only when the homeserver's registration flow requires one; carries
   a second button past it for someone who already holds a code.
 - `RegisterPage` (`lib/features/auth/presentation/register_page.dart`) —
@@ -70,10 +71,9 @@ Supporting logic lives outside the widgets, in `lib/core/matrix/`:
   `runRegistration` (drives `client.register` until the flow completes,
   resumable through `RegistrationProgress`). No widget holds protocol
   logic.
-- `registration_code_request.dart` — the one call to the gateway's
-  `POST /register/token`, plus its status-to-outcome mapping.
-- `gateway_origin.dart` — the homeserver origin with a path appended,
-  shared with the map-tile proxy.
+- `registration_code_request.dart` — the one call to the module's
+  `POST /_synapse/client/zuno/register/token`, plus its status-to-outcome
+  mapping.
 - `homeserver_input.dart` — parses/validates the homeserver field and
   renders a `Uri` back as typed (`homeserverInputText`), pure and
   table-tested.
@@ -138,12 +138,14 @@ top-level routing decision in the app; everything past sign-in is
   Synapse the full exchange is three round trips: the session-less attempt,
   `m.login.registration_token` with the session, then `m.login.dummy`.
   Without a code it stays the single dummy call it always was.
-- **Sign-up code request**: `POST {homeserver-origin}/register/token` with
-  `{"email": ...}`, unauthenticated, answered by the gateway rather than
-  Synapse. `202` means proceed — **not** that an email was sent: the
-  gateway also answers `202` when it suppressed the send for a
-  rate-limited address. `400`/`413` bad address, `404`/`503` registration
-  closed, `429` too many requests, `5xx` retryable.
+- **Sign-up code request**: `POST /_synapse/client/zuno/register/token`
+  resolved against `client.homeserver` like `_matrix/…`, with
+  `{"email": ...}` as `application/json` (the module refuses any other
+  type with `415`), unauthenticated. `202` means proceed — **not** that an
+  email was sent: the module also answers `202` when it suppressed the
+  send for an address over its limit. `400`/`413` bad address, `404`/`503`
+  registration closed (a module without mail config registers no route),
+  `429` too many requests, `5xx` retryable.
 - **Login**: standard SDK login; failures are re-mapped through
   `auth_error_message.dart` rather than shown raw, as is every sign-up
   code outcome.
@@ -280,8 +282,8 @@ top-level routing decision in the app; everything past sign-in is
   stand in for the server name. User IDs and aliases come from
   `client.userID`'s domain; the signed-out screens show the domain that was
   typed or default, since no account exists yet to read one off. Only
-  gateway URLs (calls, TURN, tiles, `/register/token`, push) still derive
-  from `client.homeserver` — those endpoints live on the API host.
+  module URLs (calls, TURN, sign-up codes) and push still derive from
+  `client.homeserver` — those endpoints live on the API host.
 - **One shared message for wrong username and wrong password**
   (`M_FORBIDDEN` → "Wrong username or password") — Matrix itself won't say
   which one is wrong, to avoid account enumeration; the app preserves that
@@ -329,12 +331,12 @@ top-level routing decision in the app; everything past sign-in is
   once its session is echoed would otherwise have stopped registering.
   Applying the same retry to the token stage would trade a precise "that
   code is not valid" for a generic server error, so it does not.
-- **Nothing tells the app the gateway's code alphabet or lifetime.** The
+- **Nothing tells the app the module's code alphabet or lifetime.** The
   code field filters to `A-HJ-NP-Z2-9` and the copy says "24 hours", both
-  mirroring gateway config. Widening the alphabet server-side silently
-  truncates what people type; the gateway's own `docs/features/
-  registration.md` records that the pair moves together.
-- **The email screen promises nothing about delivery.** The gateway
+  mirroring `zuno_register` (`token_ttl`). Widening the alphabet
+  server-side silently truncates what people type; the module's
+  `docs/design.md` (Client contract) records that the pair moves together.
+- **The email screen promises nothing about delivery.** The module
   answers `202` both for a code it mailed and for one it suppressed under
   a per-address rate limit, so the copy on arrival is "Check <email> for
   your code", true in both cases. A "code sent" confirmation would be a

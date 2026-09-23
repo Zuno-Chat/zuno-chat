@@ -12,13 +12,13 @@ import 'package:zuno/core/matrix/registration_code_request.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
-  test('the code endpoint sits at the homeserver origin', () {
+  test('the code endpoint is the zuno_register module on the homeserver', () {
     final client = buildTestClient()
-      ..homeserver = Uri.parse('https://example.org:8448/_matrix/base');
+      ..homeserver = Uri.parse('https://example.org:8448');
 
     expect(
       registrationCodeUri(client).toString(),
-      'https://example.org:8448/register/token',
+      'https://example.org:8448/_synapse/client/zuno/register/token',
     );
   });
 
@@ -38,7 +38,7 @@ void main() {
     final outcome = await requestRegistrationCode(client, ' alex@example.org ');
 
     expect(outcome, RegistrationCodeOutcome.sent);
-    expect(sent.url.path, '/register/token');
+    expect(sent.url.path, '/_synapse/client/zuno/register/token');
     expect(jsonDecode(sent.body), {'email': 'alex@example.org'});
   });
 
@@ -70,7 +70,7 @@ void main() {
     );
   });
 
-  test('an unreachable gateway reads as offline', () async {
+  test('an unreachable homeserver reads as offline', () async {
     final client = buildTestClient(
       httpClient: MockClient((_) async => throw http.ClientException('down')),
     )..homeserver = Uri.parse('https://example.org');
@@ -99,7 +99,7 @@ void main() {
     }
   });
 
-  test('a gateway that never answers reads as offline', () {
+  test('a homeserver that never answers reads as offline', () {
     fakeAsync((async) {
       final client = buildTestClient(
         httpClient: MockClient((_) => Completer<http.Response>().future),

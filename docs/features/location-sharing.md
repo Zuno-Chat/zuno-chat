@@ -14,9 +14,9 @@ below describes it as shipped.
 | `geo_uri.dart` | Parse/format `geo:lat,lon;u=m` (RFC 5870). Malformed input → `null`, never a throw. |
 | `location_message.dart` | Builds MSC3488 content (`msgtype: m.location`, `geo_uri`, `org.matrix.msc3488.*`). `locationOf(event)` reads a pin from any client, falling back to the MSC3488 block when `geo_uri` is absent. |
 | `current_position.dart` | `findCurrentLocation()` → `LocationFound(geo, approximate)` or `LocationFailed(servicesOff / denied / deniedForever / unavailable)`. Takes a `GeolocatorPlatform` for tests. |
-| `map_tiles.dart` | `mapTilesBaseUri` (`https://{homeserver-host}/tiles`, `null` when unset), `MapTilesHttpClient` (gateway bearer, one retry on 401), `probeMapTiles`. |
-| `map_tiles_provider.dart`, `map_tile_cache.dart` | `mapTilesProvider` (one authed client + tile provider per login), `mapTilesAvailableProvider` (session probe, retried every 5 min while false), `purgeMapTileCache()`. |
-| `lib/features/location/presentation/` | `location_share_sheet.dart` (find → preview → send), `location_bubble.dart`, `location_map_page.dart` (full screen + Open in Maps), `location_map_view.dart` (flutter_map or grid fallback; OSM attribution on the interactive map only, top-right and muted — previews carry none). |
+| `map_tiles.dart` | `fetchTileSource` (the `im.zuno.tiles` well-known entry → `TileSource`, `null` when absent or unusable), `probeMapTiles`. |
+| `map_tiles_provider.dart`, `map_tile_cache.dart` | `mapTilesProvider` (`FutureProvider<MapTiles?>`: source + plain client + tile provider, `null` until a probe succeeds, retried every 5 min while `null`), `purgeMapTileCache()`. |
+| `lib/features/location/presentation/` | `location_share_sheet.dart` (find → preview → send), `location_bubble.dart`, `location_map_page.dart` (full screen + Open in Maps), `location_map_view.dart` (flutter_map or grid fallback; the source's attribution on the interactive map only, top-right and muted — previews carry none). |
 
 ### Data flow
 
@@ -27,24 +27,26 @@ nothing is uploaded. Receiving: `summarize()` returns `MessageKind.location`
 / "Location" for every `m.location`, malformed ones included; the bubble
 renders a mini map (or the fallback) and tap opens `LocationMapPage`.
 
-Tiles: `GET {homeserver-host}/tiles/{z}/{x}/{y}.png` with
-`Authorization: Bearer <gateway per-device token>` — the `POST /calls/enroll`
-token (`GatewayCredentials`, `lib/core/matrix/`). Tiles are the only route
-still enrolled: calls moved to the Synapse module and a Matrix bearer.
-Cached by flutter_map's built-in cache
+Tiles: the server name's `/.well-known/matrix/client` (via
+`client.getWellknown`, read fresh on every provider run, no SDK cache)
+names the source; the app fetches `{z}/{x}/{y}` straight from it, no
+auth header, the key riding in the template's query. Probe: the template
+at `0/0/0`, `200` + `image/*`. Cached by flutter_map's built-in cache
 (hashed filenames, 64 MB cap, honours `Cache-Control`/`ETag`), purged at
 logout, account deletion, and "Clear media cache".
 The layer runs with `panBuffer: 0` and flutter_map's default
 abort-on-obsolete, so a pan fetches only what is visible and cancels what
-scrolled out; `MapTilesHttpClient`'s 401 retry rebuilds the request as an
-`AbortableRequest` so that cancellation survives a token refresh.
+scrolled out.
 
 ### Decisions
 
-- **Gateway token, not the Matrix access token, for tiles.** The design spec
-  predates `docs/decisions/calls-gateway-enrollment.md`; its reason (a
-  gateway breach must not be an account breach) applies to every route the
-  gateway still serves.
+- **The homeserver names the tile source, the app holds no key.** A key
+  rotation or style change is a well-known edit, not a release, and
+  someone on another homeserver never spends Zuno's quota. The key is
+  public by nature (every device sees it); restrict it at MapTiler.
+- **Well-known read fresh, not the SDK's 3-day cache**, so a rotated key
+  reaches devices on the next run or within 5 minutes. One small GET per
+  session, only once a map is shown.
 - **Degrade, never fail.** No proxy (probe ≠ 200 `image/*`) → grid + pin +
   coordinates + Open in Maps. The pin shipped before any server work.
 - **`flutter_map` over `google_maps_flutter`** — no Play Services.
@@ -54,19 +56,22 @@ scrolled out; `MapTilesHttpClient`'s 401 retry rebuilds the request as an
 - **Coarse-only grants still send, labelled approximate**; `u=` carries the
   accuracy either way.
 - **No tile preload beyond the viewport (`panBuffer: 0`).** Every tile
-  costs the gateway a proxied fetch under a per-device rate limit; edges
-  filling in during a pan is the accepted trade.
+  miss is a billed request against the source's quota; edges filling in
+  during a pan is the accepted trade.
 - **Attribution lives on the full-screen map, not on previews.** A bar on
   every thumbnail read as a black footer in dark mode; one tap from any
-  pin keeps the OSM credit visible without that.
+  pin keeps the credit visible without that. No `attribution` in the
+  entry, no bar.
 
-### Gateway contract (server side, outside this repo)
+### Server contract (outside this repo)
 
-Route `/tiles/{z}/{x}/{y}.png`; validate `z` 0..19 and `x`, `y` in range;
-gateway bearer, 401 on unknown/expired; proxy to an OSM raster source with
-the gateway's own `User-Agent`, no client IP forwarded, server-side cache;
-respond `image/png` + `ETag` + `Cache-Control: max-age`; rate-limit per
-device (a map view fetches ~15–30 tiles). Probe URL: `/tiles/0/0/0.png`.
+`/.well-known/matrix/client` on the server name carries
+`"im.zuno.tiles": {"url": "https://…/{z}/{x}/{y}.png?key=…",
+"attribution": "…"}`. `url` must be `https` with all three placeholders,
+else the map falls back to the grid; 256 px raster tiles, zoom up to 19.
+`attribution` is optional and shown after flutter_map's own
+`flutter_map | © ` prefix, so it must not start with `©`. zuno.chat's
+lives in `zuno_web/src/.well-known/matrix/client` (MapTiler).
 
 ### Gotchas
 
@@ -78,11 +83,13 @@ device (a map view fetches ~15–30 tiles). Probe URL: `/tiles/0/0/0.png`.
   `GestureDetector` must be `HitTestBehavior.opaque`; a deferring detector
   never sees the tap once tiles render (the grid fallback only worked
   because its pin icon was hittable).
-- **The probe result is per session**; a newly deployed proxy shows up on
-  the next launch or within 5 minutes.
+- **The probe result is per session**; a newly added or fixed source
+  shows up on the next launch or within 5 minutes.
+- **The tile URL is the well-known's, key included**, so it is in every
+  tile request and in the cache's (hashed) keys. A new key misses the
+  whole cache once.
 - No widget test renders real tiles. Bubble and sheet are tested in the
-  degraded path with `mapTilesProvider`/`mapTilesAvailableProvider`
-  overridden.
+  degraded path with `mapTilesProvider` overridden.
 
 ## Live beacon — designed, not built
 

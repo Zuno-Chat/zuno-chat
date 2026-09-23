@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -9,142 +9,142 @@ import 'package:zuno/core/location/map_tiles.dart';
 
 import '../../helpers/fake_matrix.dart';
 
+const _template =
+    'https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=k1';
+const _credit = 'MapTiler © OpenStreetMap contributors';
+
+http.Response _wellKnown(Map<String, Object?> extra) => http.Response(
+  jsonEncode({
+    'm.homeserver': {'base_url': 'https://api.example.org'},
+    ...extra,
+  }),
+  200,
+  headers: {'content-type': 'application/json'},
+);
+
 void main() {
-  group('tile root', () {
-    test('hangs off the homeserver host', () {
-      final client = buildTestClient()
-        ..homeserver = Uri.parse('https://example.org');
+  group('tile source', () {
+    Future<TileSource?> sourceAnswering(MockClientHandler handler) =>
+        fetchTileSource(
+          buildTestClient(
+            userId: '@a:example.org',
+            httpClient: MockClient(handler),
+          )..homeserver = Uri.parse('https://api.example.org'),
+        );
 
-      expect(mapTilesBaseUri(client).toString(), 'https://example.org/tiles');
-    });
+    Future<TileSource?> sourceFrom(http.Response response) =>
+        sourceAnswering((_) async => response);
 
-    test('carries a non-default port and drops a path prefix', () {
-      final client = buildTestClient()
-        ..homeserver = Uri.parse('https://example.org:8448/matrix');
+    test(
+      'comes from the server name\'s well-known, not the API host',
+      () async {
+        Uri? asked;
+        await sourceAnswering((request) async {
+          asked = request.url;
+          return _wellKnown({
+            'im.zuno.tiles': {'url': _template},
+          });
+        });
 
-      expect(
-        mapTilesBaseUri(client).toString(),
-        'https://example.org:8448/tiles',
-      );
-    });
+        expect(
+          asked.toString(),
+          'https://example.org/.well-known/matrix/client',
+        );
+      },
+    );
 
-    test('is absent rather than guessed when no homeserver is set', () {
-      expect(mapTilesBaseUri(buildTestClient()), isNull);
-    });
-
-    test('template and probe address the same root', () {
-      final base = Uri.parse('https://example.org/tiles');
-
-      expect(
-        mapTileUrlTemplate(base),
-        'https://example.org/tiles/{z}/{x}/{y}.png',
-      );
-      expect(
-        mapTileProbeUri(base).toString(),
-        'https://example.org/tiles/0/0/0.png',
-      );
-    });
-  });
-
-  group('authenticated tile client', () {
-    final url = Uri.parse('https://example.org/tiles/1/2/3.png');
-
-    test('sends the gateway token as a bearer', () async {
-      String? seen;
-      final client = MapTilesHttpClient(
-        authorization: ({bool refresh = false}) async => 'Bearer gw_1',
-        inner: MockClient((request) async {
-          seen = request.headers['Authorization'];
-          return http.Response('png', 200);
+    test('carries the template and the credit to show', () async {
+      final source = await sourceFrom(
+        _wellKnown({
+          'im.zuno.tiles': {'url': _template, 'attribution': _credit},
         }),
       );
 
-      final response = await client.get(url);
-
-      expect(response.statusCode, 200);
-      expect(seen, 'Bearer gw_1');
+      expect(source?.urlTemplate, _template);
+      expect(source?.attribution, _credit);
     });
 
-    test('re-enrolls once and retries on a 401', () async {
-      final tokensSent = <String?>[];
-      var refreshes = 0;
-      final client = MapTilesHttpClient(
-        authorization: ({bool refresh = false}) async {
-          if (refresh) refreshes++;
-          return refresh ? 'Bearer gw_2' : 'Bearer gw_1';
-        },
-        inner: MockClient((request) async {
-          tokensSent.add(request.headers['Authorization']);
-          return request.headers['Authorization'] == 'Bearer gw_2'
-              ? http.Response('png', 200)
-              : http.Response('', 401);
+    test('a missing credit leaves the map uncredited', () async {
+      final source = await sourceFrom(
+        _wellKnown({
+          'im.zuno.tiles': {'url': _template},
         }),
       );
 
-      final response = await client.get(url);
-
-      expect(response.statusCode, 200);
-      expect(refreshes, 1);
-      expect(tokensSent, ['Bearer gw_1', 'Bearer gw_2']);
+      expect(source?.urlTemplate, _template);
+      expect(source?.attribution, isNull);
     });
 
-    test('keeps the retry abortable, so a stale tile can still be cancelled '
-        'mid-refresh', () async {
-      final abort = Completer<void>();
-      http.BaseRequest? retried;
-      final client = MapTilesHttpClient(
-        authorization: ({bool refresh = false}) async =>
-            refresh ? 'Bearer gw_2' : 'Bearer gw_1',
-        inner: MockClient.streaming((request, _) async {
-          if (request.headers['Authorization'] != 'Bearer gw_2') {
-            return http.StreamedResponse(const Stream<List<int>>.empty(), 401);
-          }
-          retried = request;
-          return http.StreamedResponse(const Stream<List<int>>.empty(), 200);
+    test('is none when the server advertises no tiles', () async {
+      expect(await sourceFrom(_wellKnown({})), isNull);
+    });
+
+    test('is none for a template sent in the clear', () async {
+      final source = await sourceFrom(
+        _wellKnown({
+          'im.zuno.tiles': {'url': 'http://tiles.example.org/{z}/{x}/{y}.png'},
         }),
       );
 
-      await client.send(
-        http.AbortableRequest('GET', url, abortTrigger: abort.future),
-      );
-
-      expect(retried, isA<http.Abortable>());
-      expect((retried! as http.Abortable).abortTrigger, same(abort.future));
+      expect(source, isNull);
     });
 
-    test('gives up after one retry instead of looping', () async {
-      var requests = 0;
-      final client = MapTilesHttpClient(
-        authorization: ({bool refresh = false}) async => 'Bearer stale',
-        inner: MockClient((_) async {
-          requests++;
-          return http.Response('', 401);
+    test('is none for a template missing a coordinate', () async {
+      final source = await sourceFrom(
+        _wellKnown({
+          'im.zuno.tiles': {'url': 'https://tiles.example.org/{z}/{x}.png'},
         }),
       );
 
-      final response = await client.get(url);
+      expect(source, isNull);
+    });
 
-      expect(response.statusCode, 401);
-      expect(requests, 2);
+    test('is none when the entry has the wrong shape', () async {
+      final source = await sourceFrom(_wellKnown({'im.zuno.tiles': _template}));
+
+      expect(source, isNull);
+    });
+
+    test('is none when the well-known is not JSON', () async {
+      expect(await sourceFrom(http.Response('<html>', 200)), isNull);
+    });
+
+    test('is none when the well-known cannot be reached', () async {
+      final source = await sourceAnswering(
+        (_) async => throw const SocketException('x'),
+      );
+
+      expect(source, isNull);
+    });
+
+    test('is none before a homeserver is known', () async {
+      expect(await fetchTileSource(buildTestClient()), isNull);
     });
   });
 
   group('availability probe', () {
-    final base = Uri.parse('https://example.org/tiles');
+    const source = TileSource(urlTemplate: _template);
 
-    test('is available when the proxy answers with an image', () async {
+    test('asks for the world tile, keeping the key', () {
+      expect(
+        mapTileProbeUri(source).toString(),
+        'https://api.maptiler.com/maps/streets-v2/256/0/0/0.png?key=k1',
+      );
+    });
+
+    test('is available when the source answers with an image', () async {
       final client = MockClient(
         (_) async =>
             http.Response('png', 200, headers: {'content-type': 'image/png'}),
       );
 
-      expect(await probeMapTiles(client, base), isTrue);
+      expect(await probeMapTiles(client, source), isTrue);
     });
 
-    test('is unavailable when the route does not exist', () async {
-      final client = MockClient((_) async => http.Response('nope', 404));
+    test('is unavailable when the key is refused', () async {
+      final client = MockClient((_) async => http.Response('Invalid key', 403));
 
-      expect(await probeMapTiles(client, base), isFalse);
+      expect(await probeMapTiles(client, source), isFalse);
     });
 
     test(
@@ -158,14 +158,14 @@ void main() {
           ),
         );
 
-        expect(await probeMapTiles(client, base), isFalse);
+        expect(await probeMapTiles(client, source), isFalse);
       },
     );
 
     test('is unavailable when the host cannot be reached', () async {
       final client = MockClient((_) async => throw const SocketException('x'));
 
-      expect(await probeMapTiles(client, base), isFalse);
+      expect(await probeMapTiles(client, source), isFalse);
     });
   });
 }

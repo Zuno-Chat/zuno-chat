@@ -5,8 +5,6 @@ import 'dart:io' show SocketException, TlsException;
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
-import 'gateway_origin.dart';
-
 enum RegistrationCodeOutcome {
   sent,
   invalidEmail,
@@ -16,8 +14,9 @@ enum RegistrationCodeOutcome {
   offline,
 }
 
-Uri? registrationCodeUri(Client client) =>
-    gatewayOrigin(client, const ['register', 'token']);
+Uri? registrationCodeUri(Client client) => client.homeserver?.resolveUri(
+  Uri(pathSegments: const ['_synapse', 'client', 'zuno', 'register', 'token']),
+);
 
 bool looksLikeEmail(String value) {
   final trimmed = value.trim();

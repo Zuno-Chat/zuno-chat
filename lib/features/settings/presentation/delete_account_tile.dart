@@ -5,7 +5,6 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/location/map_tile_cache.dart';
 import '../../../core/matrix/auth_error_message.dart';
-import '../../../core/matrix/gateway_credentials.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
 import '../../../core/security/new_device_alert_provider.dart';
@@ -167,10 +166,6 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
         label: 'forget known devices after account deletion',
       );
     }
-    await runBestEffort(
-      () => GatewayCredentials(client: client).revoke(),
-      label: 'revoke gateway token after account deletion',
-    );
     await purgeMapTileCache();
     await client.clear(reason: SessionClearReason.logout);
   }

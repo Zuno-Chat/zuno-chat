@@ -24,7 +24,7 @@ class LocationBubble extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final geo = this.geo;
-    final hasMap = ref.watch(mapTilesAvailableProvider).value ?? false;
+    final hasMap = ref.watch(mapTilesProvider).value != null;
     final label = geo == null || hasMap ? 'Location' : geo.coordinatesLabel;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

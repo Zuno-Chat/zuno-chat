@@ -19,9 +19,10 @@ Android is the only supported platform. iOS is not built yet.
 
 ## Homeservers
 
-The app signs in to any Matrix homeserver. Some features expect extra
-endpoints next to the homeserver's client API: calls and TURN credentials,
-map tiles for location messages, an FCM push gateway and sign-up codes.
+The app signs in to any Matrix homeserver. Some features expect extras
+from the homeserver: Synapse modules for calls and TURN credentials and for
+sign-up codes, an FCM push gateway, and a tile source for location messages
+advertised under `im.zuno.tiles` in its `.well-known/matrix/client`.
 Without them those features are unavailable and everything else works.
 
 ## Build and run

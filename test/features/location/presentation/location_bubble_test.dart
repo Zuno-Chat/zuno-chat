@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:zuno/core/location/geo_uri.dart';
+import 'package:zuno/core/location/map_tiles.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
 import 'package:zuno/features/location/presentation/location_bubble.dart';
 
@@ -16,17 +17,16 @@ const _geo = GeoUri(
 );
 
 Widget _host(Widget child, {MapTiles? tiles}) => ProviderScope(
-  overrides: [
-    mapTilesProvider.overrideWithValue(tiles),
-    mapTilesAvailableProvider.overrideWith((ref) async => tiles != null),
-  ],
+  overrides: [mapTilesProvider.overrideWith((ref) async => tiles)],
   child: MaterialApp(
     home: Scaffold(body: SizedBox(width: 240, child: child)),
   ),
 );
 
 MapTiles _offlineTiles() => MapTiles(
-  base: Uri.parse('https://example.org/tiles'),
+  source: const TileSource(
+    urlTemplate: 'https://tiles.example.org/{z}/{x}/{y}.png',
+  ),
   httpClient: MockClient((_) async => http.Response('', 404)),
   cachingProvider: const DisabledMapCachingProvider(),
 );

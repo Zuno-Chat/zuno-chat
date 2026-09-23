@@ -4,10 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/feedback.dart';
 import '../../../core/location/map_tile_cache.dart';
-import '../../../core/matrix/gateway_credentials.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
@@ -161,10 +159,6 @@ class SettingsPage extends ConsumerWidget {
     if (userId != null) {
       await ref.read(knownDevicesStoreProvider).forget(userId);
     }
-    await runBestEffort(
-      () => GatewayCredentials(client: client).revoke(),
-      label: 'revoke gateway token on logout',
-    );
     await purgeMapTileCache();
     await client.logout();
   }
