@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,23 @@ import '../../../core/location/map_tiles_provider.dart';
 
 const _pinSize = 40.0;
 const _maxTileZoom = 19.0;
+const _minFullMapZoom = 12.0;
+const _panRadiusMeters = 10000.0;
+const _metersPerDegreeLatitude = 111320.0;
+const _maxMercatorLatitude = 85.0;
+
+LatLngBounds _panBounds(LatLng pin) {
+  const latSpan = _panRadiusMeters / _metersPerDegreeLatitude;
+  final latitude = pin.latitude.clamp(
+    -_maxMercatorLatitude + latSpan,
+    _maxMercatorLatitude - latSpan,
+  );
+  final lonSpan = latSpan / math.cos(latitude * math.pi / 180);
+  return LatLngBounds(
+    LatLng(latitude - latSpan, math.max(pin.longitude - lonSpan, -180)),
+    LatLng(latitude + latSpan, math.min(pin.longitude + lonSpan, 180)),
+  );
+}
 
 class LocationMapView extends ConsumerWidget {
   final GeoUri geo;
@@ -35,7 +54,11 @@ class LocationMapView extends ConsumerWidget {
         options: MapOptions(
           initialCenter: point,
           initialZoom: zoom,
+          minZoom: interactive ? _minFullMapZoom : null,
           maxZoom: _maxTileZoom,
+          cameraConstraint: interactive
+              ? CameraConstraint.contain(bounds: _panBounds(point))
+              : const CameraConstraint.unconstrained(),
           backgroundColor: colors.surfaceContainerHighest,
           interactionOptions: InteractionOptions(
             flags: interactive

@@ -10,6 +10,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../matrix/matrix_client_provider.dart';
+import '../../network/user_agent.dart';
 import '../../notifications/message_notification_action.dart';
 import '../../notifications/message_notification_content.dart';
 import '../../notifications/notification_avatar_cache.dart';
@@ -130,12 +131,16 @@ void _handleBackgroundCallResponse(NotificationResponse response) {
       ?.send({'roomId': roomId, 'callId': callId});
 }
 
-Future<void> _handleBackgroundMessageAction(MessageNotificationAction action) =>
-    runHeadlessMessageAction(
-      action,
-      clientBuilder: () async =>
-          (await createMatrixClient(backgroundSync: false)).client,
-    );
+Future<void> _handleBackgroundMessageAction(
+  MessageNotificationAction action,
+) async {
+  await installUserAgent();
+  await runHeadlessMessageAction(
+    action,
+    clientBuilder: () async =>
+        (await createMatrixClient(backgroundSync: false)).client,
+  );
+}
 
 class CallNotificationService {
   CallNotificationService._();

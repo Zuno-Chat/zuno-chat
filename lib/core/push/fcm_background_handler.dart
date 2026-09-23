@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart' show Client;
 
 import '../errors/crash_reporting.dart';
 import '../matrix/matrix_client_provider.dart';
+import '../network/user_agent.dart';
 import '../notifications/fcm_delivery_provider.dart';
 import 'fcm_push_notification.dart';
 import 'headless_decline_hold.dart';
@@ -68,6 +69,7 @@ void resetFcmBackgroundRunnerForTesting() => _backgroundRunner = null;
 @pragma('vm:entry-point')
 Future<void> fcmBackgroundHandler(RemoteMessage message) async {
   WidgetsFlutterBinding.ensureInitialized();
+  await installUserAgent();
   await initHeadlessCrashReporting();
   final runner = fcmBackgroundRunner();
   if (!await prepareHeadlessPush(runner)) return;

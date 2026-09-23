@@ -5,17 +5,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../matrix/matrix_client_provider.dart';
+import '../network/user_agent.dart';
 import 'map_tile_cache.dart';
 import 'map_tiles.dart';
 
 class MapTiles {
   final TileSource source;
   final http.Client httpClient;
+  final String? userAgent;
   final MapCachingProvider? cachingProvider;
 
   MapTiles({
     required this.source,
     required this.httpClient,
+    this.userAgent,
     this.cachingProvider,
   });
 
@@ -24,6 +27,7 @@ class MapTiles {
   String? get attribution => source.attribution;
 
   late final TileProvider tileProvider = NetworkTileProvider(
+    headers: {'User-Agent': ?userAgent},
     httpClient: httpClient,
     cachingProvider: cachingProvider ?? mapTileCache(),
     silenceExceptions: true,
@@ -39,7 +43,11 @@ final mapTilesProvider = FutureProvider<MapTiles?>((ref) async {
   ref.onDispose(httpClient.close);
   final source = await fetchTileSource(client);
   if (source != null && await probeMapTiles(httpClient, source)) {
-    return MapTiles(source: source, httpClient: httpClient);
+    return MapTiles(
+      source: source,
+      httpClient: httpClient,
+      userAgent: appUserAgent,
+    );
   }
   final timer = Timer(_reprobeAfter, ref.invalidateSelf);
   ref.onDispose(timer.cancel);

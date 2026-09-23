@@ -336,6 +336,17 @@ the ring case, so it was not done.
   `ensureVodozemacInitialized()` (never a bare `vod.init()`), which
   matters because the headless `--unifiedpush-bg` isolate calls
   `createMatrixClient()` once per push.
+- **The User-Agent is per isolate and per client.** `installUserAgent()`
+  (`lib/core/network/user_agent.dart`) sets `HttpOverrides.global`, so
+  every dart:io client created afterwards sends
+  `Zuno/<version> (Android; im.zuno.chat)` — Matrix SDK, modules, images,
+  tiles. It runs first in `_runApp` (covering `--unifiedpush-bg`), in
+  `fcmBackgroundHandler` and in the background notification action; a new
+  isolate entry point must call it before anything builds an HTTP client,
+  or its traffic goes out as `Dart/x.y`. The version comes from
+  `PackageInfo`; unreadable, the agent drops it rather than failing.
+  Sentry sends its own agent. The MapTiler key is restricted to the
+  `im.zuno.chat` substring, so tiles depend on this.
 - **`Client.importantStateEvents` must list any state type a feature
   needs live, synchronously-applied updates for.** The SDK only updates
   `room.states` for a live incoming state event when the room is fully

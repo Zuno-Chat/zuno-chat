@@ -30,7 +30,8 @@ renders a mini map (or the fallback) and tap opens `LocationMapPage`.
 Tiles: the server name's `/.well-known/matrix/client` (via
 `client.getWellknown`, read fresh on every provider run, no SDK cache)
 names the source; the app fetches `{z}/{x}/{y}` straight from it, no
-auth header, the key riding in the template's query. Probe: the template
+auth header, the key riding in the template's query, sent with the app
+User-Agent (the provider's header overrides flutter_map's own). Probe: the template
 at `0/0/0`, `200` + `image/*`. Cached by flutter_map's built-in cache
 (hashed filenames, 64 MB cap, honours `Cache-Control`/`ETag`), purged at
 logout, account deletion, and "Clear media cache".
@@ -44,10 +45,11 @@ scrolled out.
   rotation or style change is a well-known edit, not a release, and
   someone on another homeserver never spends Zuno's quota. The key is
   public by nature (every device sees it); restrict it at MapTiler.
-- **Well-known read fresh, not the SDK's 3-day cache**, so a rotated key
-  reaches devices on the next run or within 5 minutes. One small GET per
-  session, only once a map is shown.
-- **Degrade, never fail.** No proxy (probe ≠ 200 `image/*`) → grid + pin +
+- **Well-known read fresh, not the SDK's 3-day cache**, whenever the
+  provider builds: first map shown per process, login/logout, and every
+  5 minutes while it has no usable tiles. One small GET, only once a map
+  is shown.
+- **Degrade, never fail.** No source (probe ≠ 200 `image/*`) → grid + pin +
   coordinates + Open in Maps. The pin shipped before any server work.
 - **`flutter_map` over `google_maps_flutter`** — no Play Services.
   **`geolocator` owns location**; `permission_handler` stays with camera/mic.
@@ -55,6 +57,11 @@ scrolled out.
   search, no view receipts, no geofences (spec §0).
 - **Coarse-only grants still send, labelled approximate**; `u=` carries the
   accuracy either way.
+- **The full map is fenced: zoom floor 12, a ~10 km-each-way box around
+  the pin** (`CameraConstraint.contain`, so the whole view stays inside,
+  which also stops world wrap). Previews are static and unfenced. Bounds
+  every session's tile spend; on a wide screen the box stops zoom-out
+  before level 12.
 - **No tile preload beyond the viewport (`panBuffer: 0`).** Every tile
   miss is a billed request against the source's quota; edges filling in
   during a pan is the accepted trade.
@@ -83,8 +90,11 @@ lives in `zuno_web/src/.well-known/matrix/client` (MapTiler).
   `GestureDetector` must be `HitTestBehavior.opaque`; a deferring detector
   never sees the tap once tiles render (the grid fallback only worked
   because its pin icon was hittable).
-- **The probe result is per session**; a newly added or fixed source
-  shows up on the next launch or within 5 minutes.
+- **The probe result is per process.** A newly added or fixed source
+  shows up on the next launch or within 5 minutes; but once tiles work,
+  nothing re-reads the well-known, so a revoked key leaves grey tiles
+  (not the grid) until the process restarts. Rotate by keeping the old
+  key alive for a while.
 - **The tile URL is the well-known's, key included**, so it is in every
   tile request and in the cache's (hashed) keys. A new key misses the
   whole cache once.
