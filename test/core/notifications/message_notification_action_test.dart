@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -7,6 +9,24 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/notifications/message_notification_action.dart';
 
 import '../../helpers/fake_matrix.dart';
+
+class _SendCapableFakeDatabaseApi extends TimelineCapableFakeDatabaseApi {
+  @override
+  Future<void> storeEventUpdate(
+    String roomId,
+    StrippedStateEvent event,
+    EventUpdateType type,
+    Client client,
+  ) async {}
+
+  @override
+  Future<void> storeRoomUpdate(
+    String roomId,
+    SyncRoomUpdate roomUpdate,
+    Event? lastEvent,
+    Client client,
+  ) async {}
+}
 
 void main() {
   group('messageNotificationActionFrom', () {
@@ -225,6 +245,52 @@ void main() {
       );
 
       expect(lockCalls, ['acquire', 'release']);
+    });
+  });
+
+  group('replyToRoom', () {
+    late List<Map<String, Object?>> sent;
+
+    Room room() {
+      final client = buildTestClient(
+        userId: '@me:example.org',
+        database: _SendCapableFakeDatabaseApi(),
+        httpClient: MockClient((request) async {
+          if (request.url.path.contains('/send/')) {
+            sent.add(jsonDecode(request.body) as Map<String, Object?>);
+            return http.Response('{"event_id":"\$sent"}', 200);
+          }
+          return http.Response('{}', 200);
+        }),
+      );
+      client.baseUri = Uri.parse('https://example.org');
+      client.bearerToken = 'test-token';
+      final room = buildTestRoom(client);
+      client.rooms.add(room);
+      return room;
+    }
+
+    setUp(() => sent = []);
+
+    test('sends markdown characters as typed', () async {
+      await replyToRoom(room(), '**bold** and _soft_');
+
+      expect(sent.single['body'], '**bold** and _soft_');
+      expect(sent.single.containsKey('formatted_body'), isFalse);
+      expect(sent.single.containsKey('format'), isFalse);
+    });
+
+    test('a leading slash is text, not a command', () async {
+      await replyToRoom(room(), '/shrug hi');
+
+      expect(sent.single['body'], '/shrug hi');
+      expect(sent.single['msgtype'], MessageTypes.Text);
+    });
+
+    test('a plain message goes out unchanged', () async {
+      await replyToRoom(room(), 'on my way');
+
+      expect(sent.single, {'msgtype': MessageTypes.Text, 'body': 'on my way'});
     });
   });
 }

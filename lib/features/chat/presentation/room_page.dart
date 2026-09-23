@@ -536,9 +536,13 @@ class _RoomPageState extends ConsumerState<RoomPage>
     Event? replyingTo,
   }) async {
     await runBestEffort(
-      () => editing != null
-          ? widget.room.sendTextEvent(text, editEventId: editing.eventId)
-          : widget.room.sendTextEvent(text, inReplyTo: replyingTo),
+      () => widget.room.sendTextEvent(
+        text,
+        editEventId: editing?.eventId,
+        inReplyTo: replyingTo,
+        parseMarkdown: false,
+        parseCommands: false,
+      ),
       label: 'sendTextEvent ${widget.room.id}',
     );
   }

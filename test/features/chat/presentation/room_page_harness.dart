@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -19,6 +21,7 @@ import '../../../helpers/fake_matrix.dart';
 class RoomPageHarness {
   final StoredEventsFakeDatabaseApi db;
   final requests = <String>[];
+  final sent = <Map<String, Object?>>[];
   late final Client client;
   late final Room room;
 
@@ -50,6 +53,10 @@ class RoomPageHarness {
       database: this.db,
       httpClient: MockClient((request) async {
         requests.add(request.url.path);
+        if (request.url.path.contains('/send/m.room.message/')) {
+          sent.add(jsonDecode(request.body) as Map<String, Object?>);
+          return http.Response('{"event_id":"\$sent"}', 200);
+        }
         return http.Response('{}', 200);
       }),
     );

@@ -46,7 +46,7 @@ MessageNotificationAction? messageNotificationActionFrom({
 }
 
 Future<void> replyToRoom(Room room, String text, {String? readEventId}) async {
-  await room.sendTextEvent(text);
+  await room.sendTextEvent(text, parseMarkdown: false, parseCommands: false);
   final eventId = readEventId;
   if (eventId == null) return;
   await runBestEffort(

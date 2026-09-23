@@ -170,6 +170,12 @@ what a message looks like, how it's sent, and how the timeline behaves.
 
 - Sending goes straight through SDK methods (`room.sendTextEvent`,
   `room.sendFileEvent`, ...) — no wrapping service layer.
+- **Text goes out as typed.** Every `sendTextEvent` call (composer,
+  notification reply) passes `parseMarkdown: false, parseCommands: false`;
+  the SDK has no client-wide switch, so a new call site must pass both.
+  Commands off is a safety rule, not just a side effect: the SDK's set
+  includes `/leave`, `/logout`, `/ban`, `/clearcache`, which a message
+  starting with that word would otherwise run.
 - **Upload progress**: `matrix_api_lite`'s `uploadContent` has no
   progress hook and sends the whole body as one `http.Request`; this app's
   `UploadProgressHttpClient` wraps the client and slices the body into fixed
@@ -323,10 +329,12 @@ answers the others.
 - **Sending.** The picker inserts the SDK's own mention fragment
   (`User.mentionFragments.first`: `@Name`, or `@[Full Name]` when the
   name has spaces; `@username` only when no display name exists). Only
-  that shape lets `sendTextEvent` resolve it, attach `m.mentions` and
-  write a `matrix.to` pill — which is what earns the recipient a highlight
-  push (`.m.rule.is_user_mention`). Synapse sets new accounts' display
-  name to the username, so this reads as `@username` on this server.
+  that shape lets `sendTextEvent` resolve it and attach `m.mentions` —
+  which is what earns the recipient a highlight push
+  (`.m.rule.is_user_mention`). No `matrix.to` pill is written (markdown
+  is off), so other clients show the fragment as plain text. Synapse sets
+  new accounts' display name to the username, so this reads as
+  `@username` on this server.
 - **Picker cost model.** Candidates are the members sync already delivered
   (`getParticipants`). The full `/members` list is fetched at most once per
   room per session, joined members only, and only when at least two
