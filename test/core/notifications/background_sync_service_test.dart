@@ -2,6 +2,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/notifications/background_sync_service.dart';
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -169,7 +171,10 @@ void main() {
         channel,
         (call) async => call.method == 'hasAutostartSettings',
       );
-      expect(await BackgroundSyncService.instance.hasAutostartSettings(), isTrue);
+      expect(
+        await BackgroundSyncService.instance.hasAutostartSettings(),
+        isTrue,
+      );
     });
 
     test('are not offered when the native side cannot tell', () async {
@@ -188,6 +193,61 @@ void main() {
       });
       await BackgroundSyncService.instance.openAutostartSettings();
       expect(method, 'openAutostartSettings');
+    });
+  });
+
+  group('on a platform without these Android settings', () {
+    final service = BackgroundSyncService(
+      capabilities: capabilitiesFor(AppPlatform.ios),
+    );
+
+    test('every call completes with no native side at all', () async {
+      messenger.setMockMethodCallHandler(channel, null);
+
+      await expectLater(service.start(), completes);
+      await expectLater(service.stop(), completes);
+      await expectLater(service.isIgnoringBatteryOptimizations(), completes);
+      await expectLater(service.requestIgnoreBatteryOptimizations(), completes);
+      await expectLater(
+        service.isPackageIgnoringBatteryOptimizations('io.heckel.ntfy'),
+        completes,
+      );
+      await expectLater(service.openAppSettings('io.heckel.ntfy'), completes);
+      await expectLater(service.isBackgroundDataRestricted(), completes);
+      await expectLater(service.openBackgroundDataSettings(), completes);
+      await expectLater(service.hasAutostartSettings(), completes);
+      await expectLater(service.openAutostartSettings(), completes);
+    });
+
+    test('never reaches the native channel', () async {
+      final methods = <String>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        methods.add(call.method);
+        return true;
+      });
+
+      await service.start();
+      await service.stop();
+      await service.isIgnoringBatteryOptimizations();
+      await service.requestIgnoreBatteryOptimizations();
+      await service.isPackageIgnoringBatteryOptimizations('io.heckel.ntfy');
+      await service.openAppSettings('io.heckel.ntfy');
+      await service.isBackgroundDataRestricted();
+      await service.openBackgroundDataSettings();
+      await service.hasAutostartSettings();
+      await service.openAutostartSettings();
+
+      expect(methods, isEmpty);
+    });
+
+    test('reports nothing for the user to fix', () async {
+      expect(await service.isIgnoringBatteryOptimizations(), isTrue);
+      expect(
+        await service.isPackageIgnoringBatteryOptimizations('io.heckel.ntfy'),
+        isTrue,
+      );
+      expect(await service.isBackgroundDataRestricted(), isFalse);
+      expect(await service.hasAutostartSettings(), isFalse);
     });
   });
 }

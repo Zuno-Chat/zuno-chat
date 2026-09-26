@@ -10,6 +10,7 @@ import '../matrix/matrix_client_provider.dart';
 import '../notifications/notification_delivery_mode.dart';
 import '../notifications/notification_sound_settings.dart';
 import '../notifications/notify_me.dart';
+import '../platform/platform_capabilities.dart';
 import '../security/screen_security_service.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
@@ -161,11 +162,14 @@ class NotificationDeliveryModeNotifier
     extends Notifier<NotificationDeliveryMode> {
   @override
   NotificationDeliveryMode build() {
+    final capabilities = ref.watch(platformCapabilitiesProvider);
     final stored = ref
         .watch(sharedPreferencesProvider)
         .getString(_notificationDeliveryModeKey);
-    return NotificationDeliveryMode.values.asNameMap()[stored] ??
-        NotificationDeliveryMode.fcm;
+    return switch (NotificationDeliveryMode.values.asNameMap()[stored]) {
+      final mode? when capabilities.deliveryModes.contains(mode) => mode,
+      _ => capabilities.defaultDeliveryMode,
+    };
   }
 
   bool get userChose {
@@ -173,7 +177,11 @@ class NotificationDeliveryModeNotifier
     return prefs.getBool(_notificationDeliveryModeChosenKey) ?? false;
   }
 
+  bool _availableHere(NotificationDeliveryMode mode) =>
+      ref.read(platformCapabilitiesProvider).deliveryModes.contains(mode);
+
   Future<void> set(NotificationDeliveryMode mode) async {
+    if (!_availableHere(mode)) return;
     state = mode;
     final prefs = ref.read(sharedPreferencesProvider);
     await prefs.setString(_notificationDeliveryModeKey, mode.name);
@@ -182,6 +190,7 @@ class NotificationDeliveryModeNotifier
   }
 
   Future<void> autoSelect(NotificationDeliveryMode mode) async {
+    if (!_availableHere(mode)) return;
     state = mode;
     final prefs = ref.read(sharedPreferencesProvider);
     await prefs.setString(_notificationDeliveryModeKey, mode.name);

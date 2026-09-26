@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/push/headless_decline_hold.dart';
 import 'package:zuno/core/push/headless_push_runner.dart';
 
@@ -51,7 +52,7 @@ void main() {
     await CallNotificationService.instance.initialize(
       claimDeclinePort: false,
     );
-    await CallNotificationService.instance.showIncomingCall(
+    await const AndroidIncomingCallPresenter().showIncoming(
       callerName: 'Bob',
       callerId: '@bob:example.org',
       isVideo: false,

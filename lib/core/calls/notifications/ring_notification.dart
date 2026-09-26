@@ -1,12 +1,14 @@
 import '../../matrix/room_user_display.dart';
+import '../../platform/platform_capabilities.dart';
 import '../matrixrtc/incoming_call.dart';
 import '../models/call_kind.dart';
-import 'call_notification_service.dart';
+import '../platform/incoming_call_presenter.dart';
 import 'caller_avatar.dart';
 
 Future<void> postRingNotification(
   IncomingCall call, {
   bool allowNetwork = false,
+  IncomingCallPresenter? presenter,
 }) async {
   final caller = await resolveRoomUser(
     call.room,
@@ -16,7 +18,8 @@ Future<void> postRingNotification(
   final avatarBytes = allowNetwork
       ? await fetchCallerAvatarBytes(call.room.client, caller.avatarUrl)
       : null;
-  await CallNotificationService.instance.showIncomingCall(
+  final ring = presenter ?? incomingCallPresenterFor(ambientCapabilities);
+  await ring.showIncoming(
     callerName: caller.calcDisplayname(),
     callerId: call.callerId,
     isVideo: call.kind == CallKind.video,

@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../platform/platform_capabilities.dart';
 import 'connection_monitor.dart';
 import 'matrix_client_provider.dart';
 
@@ -38,7 +38,9 @@ Future<bool> isHomeserverReachable(Client client) async {
 }
 
 final networkAvailabilityProvider = Provider<Stream<bool>>((ref) {
-  if (!Platform.isAndroid) return const Stream.empty();
+  if (!ref.watch(platformCapabilitiesProvider).networkAvailabilityEvents) {
+    return const Stream.empty();
+  }
   return _networkChannel.receiveBroadcastStream().cast<bool>();
 });
 

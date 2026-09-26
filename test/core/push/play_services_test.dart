@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/play_services.dart';
 
 void main() {
@@ -55,5 +57,21 @@ void main() {
     answer = PlatformException(code: 'error');
     await PlayServicesProbe.instance.requestFix();
     expect(calls, ['fixPlayServices']);
+  });
+
+  group('on a platform without Play Services', () {
+    final probe = PlayServicesProbe(
+      capabilities: capabilitiesFor(AppPlatform.ios),
+    );
+
+    test('reports unavailable without asking the native side', () async {
+      expect(await probe.check(), PlayServicesAvailability.unavailable);
+      expect(calls, isEmpty);
+    });
+
+    test('a fix request never reaches the native side', () async {
+      await probe.requestFix();
+      expect(calls, isEmpty);
+    });
   });
 }

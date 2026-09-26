@@ -8,6 +8,8 @@ import 'package:path/path.dart' as p;
 import 'package:zuno/core/matrix/media_processing_exception.dart';
 import 'package:zuno/core/matrix/native_video_tools.dart';
 import 'package:zuno/core/matrix/video_send_preparation.dart';
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -188,6 +190,33 @@ void main() {
     expect(prepared.file.width, 640);
     expect(prepared.file.height, 360);
     expect(prepared.file.duration, 1234);
+  });
+
+  test('without native video tools the clip is re-encoded from the composer '
+      'values and sent with no thumbnail', () async {
+    installNative(probe: probe720);
+    var previews = 0;
+    final prepared = await prepareVideoForSend(
+      '/source.mp4',
+      reduceMediaSize: false,
+      tools: NativeVideoTools.forTest(
+        capabilities: capabilitiesFor(AppPlatform.ios),
+      ),
+      reencoder: fakeReencoder,
+      workDir: workDir,
+      fallbackWidth: 640,
+      fallbackHeight: 360,
+      fallbackDurationMs: 1234,
+      onThumbnail: (_) => previews++,
+    );
+    expect(nativeCalls, ['reencode']);
+    expect(reencodes.single, (width: 640, height: 360, bitrateMbps: 1));
+    expect(prepared.file.bytes, reencodedBytes);
+    expect(prepared.file.width, 640);
+    expect(prepared.file.height, 360);
+    expect(prepared.file.duration, 1234);
+    expect(prepared.thumbnail, isNull);
+    expect(previews, 0);
   });
 
   test('a missing thumbnail does not block the send', () async {

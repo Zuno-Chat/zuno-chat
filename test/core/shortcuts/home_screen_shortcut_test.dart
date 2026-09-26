@@ -1,6 +1,8 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/shortcuts/home_screen_shortcut.dart';
 
 void main() {
@@ -78,4 +80,54 @@ void main() {
       expect(await future, '!live:example.org');
     },
   );
+
+  group('on a platform without home screen shortcuts', () {
+    final ios = capabilitiesFor(AppPlatform.ios);
+    late List<String> calls;
+
+    setUp(() {
+      calls = [];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call.method);
+        return call.method == 'pinShortcut' ? true : '!room:example.org';
+      });
+    });
+
+    test('there is never a launch room', () async {
+      expect(await takeLaunchRoomShortcut(capabilities: ios), isNull);
+      expect(calls, isEmpty);
+    });
+
+    test('pinning reports not added and never calls native', () async {
+      final pinned = await pinRoomShortcut(
+        roomId: '!abc:example.org',
+        label: 'Alice',
+        capabilities: ios,
+      );
+
+      expect(pinned, isFalse);
+      expect(calls, isEmpty);
+    });
+
+    test('no handler is registered for opened shortcuts', () async {
+      channel.setMethodCallHandler(null);
+      initHomeScreenShortcutChannel(capabilities: ios);
+
+      var replied = false;
+      ByteData? reply;
+      await messenger.handlePlatformMessage(
+        channel.name,
+        channel.codec.encodeMethodCall(
+          const MethodCall('openRoom', '!live:example.org'),
+        ),
+        (data) {
+          replied = true;
+          reply = data;
+        },
+      );
+
+      expect(replied, isTrue);
+      expect(reply, isNull);
+    });
+  });
 }

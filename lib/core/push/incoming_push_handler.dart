@@ -10,6 +10,7 @@ import '../calls/matrixrtc/resolved_call_ids_store.dart';
 import '../calls/notifications/call_notification_service.dart';
 import '../calls/notifications/ring_notification.dart';
 import '../calls/notifications/ringing_call_store.dart';
+import '../calls/platform/incoming_call_presenter.dart';
 import '../matrix/room_title.dart';
 import '../matrix/undecryptable_event.dart';
 import '../notifications/invite_notification_provider.dart';
@@ -18,6 +19,7 @@ import '../notifications/message_notification_poster.dart';
 import '../notifications/message_notification_provider.dart';
 import '../notifications/notify_me.dart';
 import '../notifications/verification_request_notification.dart';
+import '../platform/platform_capabilities.dart';
 import 'push_timing.dart';
 
 const defaultPlaceholderAfter = Duration(seconds: 3);
@@ -29,7 +31,10 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
   String? currentlyOpenRoomId,
   Duration placeholderAfter = defaultPlaceholderAfter,
   PushTiming? timing,
+  IncomingCallPresenter? incomingCallPresenter,
 }) async {
+  final ring =
+      incomingCallPresenter ?? incomingCallPresenterFor(ambientCapabilities);
   if (kDebugMode) {
     debugPrint('zuno/push: resolving event ${notification.eventId}');
   }
@@ -81,7 +86,7 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
     if (ringAge != null && ringAge < _ringSummaryGrace) {
       await Future<void>.delayed(_ringSummaryGrace - ringAge);
     }
-    await CallNotificationService.instance.cancelIncomingCall();
+    await ring.cancelIncoming();
     if (callId != null) await _markResolved(callId);
     if (!isMissedCallSummary(event)) {
       await placeholder.retract();
@@ -98,7 +103,7 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
       }
       return IncomingPushOutcome.ignored;
     }
-    await postRingNotification(call);
+    await postRingNotification(call, presenter: ring);
     if (kDebugMode) {
       debugPrint('zuno/push: ring notification posted for ${call.callId}');
     }

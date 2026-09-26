@@ -7,6 +7,7 @@ import '../matrix/matrix_client_provider.dart';
 import '../notifications/background_sync_service.dart';
 import '../notifications/notification_delivery_mode.dart';
 import '../notifications/notification_delivery_provider.dart';
+import '../platform/platform_capabilities.dart';
 import '../security/security_prompt.dart';
 import '../security/security_prompt_provider.dart';
 import '../security/security_providers.dart';
@@ -56,7 +57,10 @@ Future<bool> needsBatteryExemptionFor(
   NotificationDeliveryMode mode, {
   Future<bool> Function()? zunoIgnoresBatteryOptimizations,
   Future<bool> Function()? distributorBatteryRestricted,
+  PlatformCapabilities? capabilities,
 }) async {
+  final supported = (capabilities ?? ambientCapabilities).batteryExemption;
+  if (!supported) return false;
   if (!deliveryDependsOnBatteryExemption(mode)) return false;
   final zunoExempt =
       zunoIgnoresBatteryOptimizations ??
@@ -95,6 +99,7 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
   final store = ref.watch(onboardingStoreProvider);
   final lastPrompted = ref.watch(securityPromptStoreProvider).lastPrompted();
   final permission = await _notificationPermission();
+  final capabilities = ref.watch(platformCapabilitiesProvider);
   return onboardingSteps(
     justRegistered: store.justRegistered(userId),
     notificationsAllowed: permission?.isGranted ?? false,
@@ -102,11 +107,12 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
         permission != null &&
         !permission.isGranted &&
         !permission.isPermanentlyDenied,
+    canChooseDelivery: capabilities.deliveryModes.length > 1,
     needsBatteryExemption: await needsBatteryExemptionFor(
       ref.watch(notificationDeliveryModeProvider),
+      capabilities: capabilities,
     ),
-    needsAutostart: await BackgroundSyncService.instance
-        .hasAutostartSettings(),
+    needsAutostart: await BackgroundSyncService.instance.hasAutostartSettings(),
     securityFacts: facts,
     hasConversations: client.rooms.any(
       (room) => room.membership == Membership.join,

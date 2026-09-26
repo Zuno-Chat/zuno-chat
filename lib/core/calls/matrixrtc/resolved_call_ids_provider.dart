@@ -5,7 +5,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../matrix/matrix_client_provider.dart';
 import '../../settings/app_preferences_provider.dart';
-import '../notifications/call_notification_service.dart';
+import '../platform/incoming_call_presenter.dart';
 import 'call_summary_message.dart';
 import 'resolved_call_ids_store.dart';
 
@@ -28,7 +28,7 @@ class ResolvedCallIdsNotifier extends Notifier<Set<String>> {
     final callId = event.content.tryGet<String>('call_id');
     if (callId == null) return;
     markResolved(callId);
-    unawaited(CallNotificationService.instance.cancelIncomingCall());
+    unawaited(ref.read(incomingCallPresenterProvider).cancelIncoming());
   }
 
   void markResolved(String callId) {

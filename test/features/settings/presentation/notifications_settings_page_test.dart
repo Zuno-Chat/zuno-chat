@@ -8,6 +8,7 @@ import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.da
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/notification_delivery_page.dart';
 import 'package:zuno/features/settings/presentation/notifications_settings_page.dart';
@@ -16,6 +17,7 @@ import '../../../helpers/card_layout.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_unified_push.dart';
+import '../../../helpers/platform_capabilities.dart';
 
 class _FixedDeliveryModeNotifier extends NotificationDeliveryModeNotifier {
   _FixedDeliveryModeNotifier(this._mode);
@@ -39,8 +41,9 @@ void _stubNotificationPermission({required bool granted}) {
 
 Future<void> _pumpPage(
   WidgetTester tester,
-  NotificationDeliveryMode mode,
-) async {
+  NotificationDeliveryMode mode, {
+  PlatformCapabilities? capabilities,
+}) async {
   await tester.binding.setSurfaceSize(const Size(800, 3000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   SharedPreferences.setMockInitialValues({});
@@ -52,6 +55,8 @@ Future<void> _pumpPage(
       notificationDeliveryModeProvider.overrideWith(
         () => _FixedDeliveryModeNotifier(mode),
       ),
+      if (capabilities != null)
+        platformCapabilitiesProvider.overrideWithValue(capabilities),
     ],
   );
   addTearDown(container.dispose);
@@ -134,6 +139,47 @@ void main() {
     await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
     expect(find.widgetWithText(ListTile, 'Delivery'), findsOneWidget);
+    expect(find.text('Full-screen call alerts'), findsOneWidget);
+  });
+
+  group('where calls cannot take over the lock screen', () {
+    testWidgets('there is no Full-screen call alerts row', (tester) async {
+      _stubNotificationPermission(granted: true);
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.fcm,
+        capabilities: capabilitiesLike(
+          androidCapabilities,
+          fullScreenIntent: false,
+        ),
+      );
+
+      expect(find.text('Full-screen call alerts'), findsNothing);
+      expect(find.textContaining('takes over the screen'), findsNothing);
+      expect(find.widgetWithText(ListTile, 'Delivery'), findsOneWidget);
+    });
+
+    testWidgets('iOS has no row either', (tester) async {
+      _stubNotificationPermission(granted: true);
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: iosCapabilities,
+      );
+
+      expect(find.text('Full-screen call alerts'), findsNothing);
+      expect(find.widgetWithText(ListTile, 'Delivery'), findsOneWidget);
+    });
+  });
+
+  testWidgets('Android keeps the Full-screen call alerts row', (tester) async {
+    _stubNotificationPermission(granted: true);
+    await _pumpPage(
+      tester,
+      NotificationDeliveryMode.fcm,
+      capabilities: androidCapabilities,
+    );
+
     expect(find.text('Full-screen call alerts'), findsOneWidget);
   });
 

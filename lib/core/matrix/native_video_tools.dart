@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 
+import '../platform/platform_capabilities.dart';
 import 'native_image_resizer.dart';
 
 const _channel = MethodChannel('zuno/video');
@@ -57,15 +58,25 @@ class VideoProbe {
 }
 
 class NativeVideoTools {
-  NativeVideoTools._();
-  NativeVideoTools.forTest();
+  NativeVideoTools._({PlatformCapabilities? capabilities})
+    : _injectedCapabilities = capabilities;
+  NativeVideoTools.forTest({PlatformCapabilities? capabilities})
+    : this._(capabilities: capabilities);
 
   static final instance = NativeVideoTools._();
 
-  Future<VideoProbe?> probe(String path) async =>
-      VideoProbe.fromChannel(await _invokeMap('probe', {'path': path}));
+  final PlatformCapabilities? _injectedCapabilities;
+
+  PlatformCapabilities get _capabilities =>
+      _injectedCapabilities ?? ambientCapabilities;
+
+  Future<VideoProbe?> probe(String path) async {
+    if (!_capabilities.nativeVideoTools) return null;
+    return VideoProbe.fromChannel(await _invokeMap('probe', {'path': path}));
+  }
 
   Future<bool> remux(String input, String output) async {
+    if (!_capabilities.nativeVideoTools) return false;
     try {
       return await _channel.invokeMethod<bool>('remux', {
             'input': input,
@@ -83,11 +94,14 @@ class NativeVideoTools {
     String path, {
     required int maxDimension,
     required int quality,
-  }) async => ResizedImage.fromChannel(
-    await _invokeMap('thumbnail', {
-      'path': path,
-      'maxDimension': maxDimension,
-      'quality': quality,
-    }),
-  );
+  }) async {
+    if (!_capabilities.nativeVideoTools) return null;
+    return ResizedImage.fromChannel(
+      await _invokeMap('thumbnail', {
+        'path': path,
+        'maxDimension': maxDimension,
+        'quality': quality,
+      }),
+    );
+  }
 }

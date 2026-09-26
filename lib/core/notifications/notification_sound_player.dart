@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart'
     show debugPrint, kDebugMode, visibleForTesting;
 import 'package:flutter/services.dart' show MethodChannel;
 
+import '../platform/platform_capabilities.dart';
 import 'notification_sound_settings.dart';
 
 final ringAudioContext = AudioContext(
@@ -17,22 +18,26 @@ final ringAudioContext = AudioContext(
   ),
 );
 
-const _callsChannel = MethodChannel('zuno/calls');
-
 const _vibrationChannel = MethodChannel('zuno/vibration');
 
 @visibleForTesting
 const ringStopPortName = 'zuno_ring_stop_port';
 
 class NotificationSoundPlayer {
-  NotificationSoundPlayer._();
-  static final instance = NotificationSoundPlayer._();
+  @visibleForTesting
+  NotificationSoundPlayer({PlatformCapabilities? capabilities})
+    : _injectedCapabilities = capabilities;
+  static final instance = NotificationSoundPlayer();
+
+  final PlatformCapabilities? _injectedCapabilities;
+
+  PlatformCapabilities get _capabilities =>
+      _injectedCapabilities ?? ambientCapabilities;
 
   AudioPlayer? _ringPlayer;
 
   Timer? _ringSafetyTimer;
   ReceivePort? _ringStopPort;
-  bool _ringbackPlaying = false;
   DateTime? _lastMessageToneAt;
   String? _lastMessageToneRoomId;
 
@@ -53,7 +58,7 @@ class NotificationSoundPlayer {
         await player.play(AssetSource('sounds/ringtone.wav'));
       });
     }
-    if (settings.callVibration) {
+    if (settings.callVibration && _capabilities.vibrationPatterns) {
       await _guard('ring vibration', () async {
         if (!await _hasVibrator()) {
           if (kDebugMode) {
@@ -82,7 +87,9 @@ class NotificationSoundPlayer {
     _ringSafetyTimer?.cancel();
     _ringSafetyTimer = null;
     await _guard('ring stop', () => _ringPlayer?.stop() ?? Future.value());
-    await _guard('vibration cancel', _cancelVibration);
+    if (_capabilities.vibrationPatterns) {
+      await _guard('vibration cancel', _cancelVibration);
+    }
   }
 
   @visibleForTesting
@@ -106,31 +113,6 @@ class NotificationSoundPlayer {
     }
     port.close();
   }
-
-  Future<void> startRingback() async {
-    if (_ringbackPlaying) return;
-    final settings = await loadNotificationSoundSettings();
-    if (!settings.ringtone) return;
-    _ringbackPlaying = true;
-    debugPrint('zuno/sound: ringback start');
-    await _invokeCallChannel('startRingbackTone');
-  }
-
-  Future<void> stopRingback() async {
-    if (!_ringbackPlaying) return;
-    _ringbackPlaying = false;
-    debugPrint('zuno/sound: ringback stop');
-    await _invokeCallChannel('stopRingbackTone');
-  }
-
-  Future<void> restartRingbackForRouteChange() async {
-    if (!_ringbackPlaying) return;
-    await stopRingback();
-    await startRingback();
-  }
-
-  @visibleForTesting
-  bool get isRingbackPlaying => _ringbackPlaying;
 
   void recordNoticeAlert(String roomId) {
     _lastMessageToneAt = now();
@@ -170,24 +152,21 @@ class NotificationSoundPlayer {
     );
   }
 
-  Future<void> vibrateForMessage() => _guard('message vibration', () async {
-    if (!await _hasVibrator()) {
-      if (kDebugMode) {
-        debugPrint('zuno/sound: message vibration skipped, no vibrator');
+  Future<void> vibrateForMessage() async {
+    if (!_capabilities.vibrationPatterns) return;
+    await _guard('message vibration', () async {
+      if (!await _hasVibrator()) {
+        if (kDebugMode) {
+          debugPrint('zuno/sound: message vibration skipped, no vibrator');
+        }
+        return;
       }
-      return;
-    }
-    await _vibrate(
-      pattern: messageVibrationPattern,
-      repeat: -1,
-      usage: 'notification',
-    );
-  });
-
-  Future<void> _invokeCallChannel(String method) async {
-    try {
-      await _callsChannel.invokeMethod<void>(method);
-    } catch (_) {}
+      await _vibrate(
+        pattern: messageVibrationPattern,
+        repeat: -1,
+        usage: 'notification',
+      );
+    });
   }
 
   Future<bool> _hasVibrator() async {

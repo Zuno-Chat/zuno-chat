@@ -1,12 +1,23 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
+
+import '../platform/platform_capabilities.dart';
 
 const _channel = MethodChannel('zuno/calls');
 
 class ScreenSecurityService {
-  ScreenSecurityService._();
-  static final instance = ScreenSecurityService._();
+  @visibleForTesting
+  ScreenSecurityService({PlatformCapabilities? capabilities})
+    : _injectedCapabilities = capabilities;
+  static final instance = ScreenSecurityService();
+
+  final PlatformCapabilities? _injectedCapabilities;
+
+  PlatformCapabilities get _capabilities =>
+      _injectedCapabilities ?? ambientCapabilities;
 
   Future<void> setPreventScreenshots(bool enabled) async {
+    if (!_capabilities.screenSecurity) return;
     try {
       await _channel.invokeMethod('setPreventScreenshots', {
         'enabled': enabled,

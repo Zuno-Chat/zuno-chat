@@ -7,6 +7,8 @@ import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/notifications/message_notification_action.dart';
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../helpers/fake_matrix.dart';
 
@@ -246,6 +248,23 @@ void main() {
 
       expect(lockCalls, ['acquire', 'release']);
     });
+
+    test(
+      'on a platform without wake locks the action runs with no lock',
+      () async {
+        await runHeadlessMessageAction(
+          markRead,
+          clientBuilder: () async => clientWithRoom(),
+          wakeLock: HeadlessWakeLock(
+            capabilities: capabilitiesFor(AppPlatform.ios),
+          ),
+          retryDelays: const [],
+        );
+
+        expect(lockCalls, ['request']);
+        expect(requests.single, contains('read_markers'));
+      },
+    );
   });
 
   group('replyToRoom', () {

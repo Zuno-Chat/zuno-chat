@@ -25,8 +25,8 @@ import org.json.JSONObject
 //
 // The channel (already registered by CallNotificationService.initialize())
 // and notification id (4002, matching _ringNotificationId in
-// call_notification_service.dart) are unchanged — only how the
-// Notification object for that id gets built.
+// lib/core/calls/platform/incoming_call_presenter.dart) are unchanged —
+// only how the Notification object for that id gets built.
 //
 // Why this is a real local *plugin* — a FlutterPlugin, `pluginClass` in
 // pubspec.yaml, its own package under packages/ — rather than an object

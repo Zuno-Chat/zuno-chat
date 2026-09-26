@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/push_wake_lock.dart';
 
 void main() {
@@ -54,6 +56,31 @@ void main() {
         throw PlatformException(code: 'NO_LOCK');
       });
       await expectLater(releaseFcmPushWakeLock(), completes);
+    });
+  });
+
+  group('on a platform without wake locks', () {
+    const fcmChannel = MethodChannel('zuno/wake_lock');
+    final ios = capabilitiesFor(AppPlatform.ios);
+    late List<String> calls;
+
+    setUp(() {
+      calls = [];
+      for (final lockChannel in [channel, fcmChannel]) {
+        messenger.setMockMethodCallHandler(lockChannel, (call) async {
+          calls.add('${lockChannel.name} ${call.method}');
+          return null;
+        });
+      }
+    });
+
+    tearDown(() => messenger.setMockMethodCallHandler(fcmChannel, null));
+
+    test('releasing either push lock never reaches the native side', () async {
+      await releasePushWakeLock(capabilities: ios);
+      await releaseFcmPushWakeLock(capabilities: ios);
+
+      expect(calls, isEmpty);
     });
   });
 }

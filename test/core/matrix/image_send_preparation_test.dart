@@ -5,6 +5,8 @@ import 'package:image/image.dart' as img;
 import 'package:zuno/core/matrix/image_send_preparation.dart';
 import 'package:zuno/core/matrix/media_processing_exception.dart';
 import 'package:zuno/core/matrix/native_image_resizer.dart';
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
 Uint8List _jpeg(int width, int height) =>
     img.encodeJpg(img.Image(width: width, height: height));
@@ -164,6 +166,52 @@ void main() {
     );
     expect(prepared.thumbnail, isNull);
     expect(prepared.file.width, 1080);
+  });
+
+  group('without native resizing', () {
+    final resizer = NativeImageResizer.forTest(
+      capabilities: capabilitiesFor(AppPlatform.ios),
+    );
+
+    setUp(() => answerWith((max, quality) => jpegReply(1080, 810)));
+
+    test('the photo is sent as picked, with no thumbnail', () async {
+      final picked = _jpeg(1600, 1200);
+      final progress = <double>[];
+      final prepared = await prepareImageForSend(
+        picked,
+        reduceMediaSize: false,
+        resizer: resizer,
+        onProgress: progress.add,
+      );
+      expect(calls, isEmpty);
+      expect(prepared.file.bytes, picked);
+      expect(prepared.file.name, 'photo.jpg');
+      expect(prepared.file.mimeType, 'image/jpeg');
+      expect(prepared.file.width, 1600);
+      expect(prepared.file.height, 1200);
+      expect(prepared.file.blurhash, isNotNull);
+      expect(prepared.thumbnail, isNull);
+      expect(progress, [0, 0.5, 1]);
+    });
+
+    test('a PNG is sent as a PNG', () async {
+      final prepared = await prepareImageForSend(
+        _png(300, 200),
+        reduceMediaSize: true,
+        resizer: resizer,
+      );
+      expect(prepared.file.name, 'photo.png');
+      expect(prepared.file.mimeType, 'image/png');
+    });
+
+    test('bytes that are not a photo are still refused', () async {
+      await expectLater(
+        prepareImageForSend(source, reduceMediaSize: false, resizer: resizer),
+        throwsA(isA<MediaProcessingException>()),
+      );
+      expect(calls, isEmpty);
+    });
   });
 
   test('blurhashOf encodes a decodable image and rejects garbage', () {

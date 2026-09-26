@@ -48,8 +48,8 @@ Not a fixed wizard: most launches show nothing at all.
 | `welcome` | just registered | "Get started" |
 | `profile` | just registered | "Save" (enabled once a name or photo is set) |
 | `notifications` | permission not granted and not permanently denied | OS answers; if full-screen call alerts are still off, one "Open settings" page, advancing on return |
-| `deliveryMethod` | not yet answered on this device (login or registration), and notifications are allowed or asked in this flow | "Continue" after picking a method |
-| `batteryExemption` | chosen mode depends on it and Android hasn't exempted the app; same notifications condition | OS grants it (checked on resume) |
+| `deliveryMethod` | the platform offers more than one mode (`canChooseDelivery`), not yet answered on this device (login or registration), and notifications are allowed or asked in this flow; lists only `capabilities.deliveryModes` | "Continue" after picking a method |
+| `batteryExemption` | the platform has `batteryExemption` **and** the chosen mode depends on it (`deliveryDependsOnBatteryExemption`), two separate checks; Android hasn't exempted the app; same notifications condition | OS grants it (checked on resume) |
 | `autostart` | the maker's autostart screen exists on this device (`AutostartDecision.availableFor`: Xiaomi, Oppo, Vivo, Huawei families); same notifications condition | "Open settings", then advances; Android cannot report the setting, so it is asked once |
 | `approveDevice` | recovery exists, this device lacks identity keys | returning from `ApproveThisDevicePage` |
 | `setUpRecovery` | no recovery, has conversations, prompt not on cooldown | returning from `SecureBackupPage` |

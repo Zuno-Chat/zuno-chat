@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/blocking/presentation/blocked_people_page.dart';
 import 'package:zuno/features/settings/presentation/advanced_security_page.dart';
@@ -12,6 +13,7 @@ import 'package:zuno/features/settings/presentation/security_privacy_settings_pa
 
 import '../../../helpers/card_layout.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +38,7 @@ void main() {
   Future<ProviderContainer> pumpPage(
     WidgetTester tester, {
     Map<String, Object> prefs = const {},
+    PlatformCapabilities? capabilities,
   }) async {
     await tester.binding.setSurfaceSize(const Size(800, 3000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -48,6 +51,8 @@ void main() {
         overrides: [
           matrixClientProvider.overrideWithValue(client),
           sharedPreferencesProvider.overrideWithValue(sharedPrefs),
+          if (capabilities != null)
+            platformCapabilitiesProvider.overrideWithValue(capabilities),
         ],
         child: Builder(
           builder: (context) {
@@ -100,6 +105,37 @@ void main() {
       tile.subtitle,
       isNot(isA<Text>().having((t) => t.data, 'data', 'Coming soon')),
     );
+  });
+
+  group('where the platform cannot block screenshots', () {
+    testWidgets('there is no Prevent screenshots toggle', (tester) async {
+      await pumpPage(
+        tester,
+        capabilities: capabilitiesLike(
+          androidCapabilities,
+          screenSecurity: false,
+        ),
+      );
+
+      expect(switchTile('Prevent screenshots'), findsNothing);
+      expect(
+        find.textContaining('recent apps preview', skipOffstage: false),
+        findsNothing,
+      );
+      expect(switchTile('Incognito keyboard'), findsOneWidget);
+    });
+
+    testWidgets('iOS has no toggle either', (tester) async {
+      await pumpPage(tester, capabilities: iosCapabilities);
+
+      expect(switchTile('Prevent screenshots'), findsNothing);
+    });
+  });
+
+  testWidgets('Android keeps the toggle', (tester) async {
+    await pumpPage(tester, capabilities: androidCapabilities);
+
+    expect(switchTile('Prevent screenshots'), findsOneWidget);
   });
 
   testWidgets('reads a previously-stored false value as off', (tester) async {

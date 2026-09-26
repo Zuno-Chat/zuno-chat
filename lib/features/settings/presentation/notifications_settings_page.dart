@@ -10,6 +10,7 @@ import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_permission.dart';
 import '../../../core/notifications/notification_permission_provider.dart';
 import '../../../core/notifications/notify_me.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
@@ -111,6 +112,7 @@ class _NotificationsSettingsPageState
 
   @override
   Widget build(BuildContext context) {
+    final capabilities = ref.watch(platformCapabilitiesProvider);
     final deliveryMode = ref.watch(notificationDeliveryModeProvider);
     final notifyMe = ref.watch(notifyMeProvider);
     final ringtone = ref.watch(ringtoneEnabledProvider);
@@ -153,22 +155,23 @@ class _NotificationsSettingsPageState
                         .openChannelSettings(channel.id),
                   ),
               if (notificationsEnabled) ...[
-                ListTile(
-                  leading: const Icon(Icons.phone_in_talk_outlined),
-                  title: const Text('Full-screen call alerts'),
-                  subtitle: Text(
-                    _fullScreenIntentAllowed
-                        ? 'A call takes over the screen while the device is '
-                              'locked'
-                        : 'Off. Calls show only as a regular notification, '
-                              'even while locked. Tap to allow.',
+                if (capabilities.fullScreenIntent)
+                  ListTile(
+                    leading: const Icon(Icons.phone_in_talk_outlined),
+                    title: const Text('Full-screen call alerts'),
+                    subtitle: Text(
+                      _fullScreenIntentAllowed
+                          ? 'A call takes over the screen while the device is '
+                                'locked'
+                          : 'Off. Calls show only as a regular notification, '
+                                'even while locked. Tap to allow.',
+                    ),
+                    trailing: _fullScreenIntentAllowed
+                        ? const Icon(Icons.check_circle_outline)
+                        : const Icon(Icons.chevron_right),
+                    onTap: () => CallNotificationService.instance
+                        .openFullScreenIntentSettings(),
                   ),
-                  trailing: _fullScreenIntentAllowed
-                      ? const Icon(Icons.check_circle_outline)
-                      : const Icon(Icons.chevron_right),
-                  onTap: () => CallNotificationService.instance
-                      .openFullScreenIntentSettings(),
-                ),
                 ListTile(
                   leading: const Icon(Icons.cloud_sync_outlined),
                   title: const Text('Delivery'),

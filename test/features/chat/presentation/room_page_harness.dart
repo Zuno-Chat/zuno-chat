@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
@@ -22,10 +23,11 @@ class RoomPageHarness {
   final StoredEventsFakeDatabaseApi db;
   final requests = <String>[];
   final sent = <Map<String, Object?>>[];
+  final PlatformCapabilities? capabilities;
   late final Client client;
   late final Room room;
 
-  RoomPageHarness({StoredEventsFakeDatabaseApi? db})
+  RoomPageHarness({StoredEventsFakeDatabaseApi? db, this.capabilities})
     : db = db ?? StoredEventsFakeDatabaseApi() {
     FlutterLocalNotificationsPlatform.instance =
         AndroidFlutterLocalNotificationsPlugin();
@@ -100,6 +102,8 @@ class RoomPageHarness {
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         sharedPreferencesProvider.overrideWithValue(prefs),
+        if (capabilities case final capabilities?)
+          platformCapabilitiesProvider.overrideWithValue(capabilities),
       ],
     );
     addTearDown(container.dispose);

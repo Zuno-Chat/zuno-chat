@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/settings/app_preferences_provider.dart';
@@ -48,6 +49,7 @@ class _SecurityPrivacySettingsPageState
   Widget build(BuildContext context) {
     final incognitoKeyboard = ref.watch(incognitoKeyboardProvider);
     final preventScreenshots = ref.watch(preventScreenshotsProvider);
+    final capabilities = ref.watch(platformCapabilitiesProvider);
     final status = ref.watch(accountSecurityStatusProvider).value;
     final hasRecovery =
         status != null && status != AccountSecurityStatus.noRecovery;
@@ -107,17 +109,18 @@ class _SecurityPrivacySettingsPageState
                 onChanged: (value) =>
                     ref.read(incognitoKeyboardProvider.notifier).set(value),
               ),
-              SwitchListTile(
-                secondary: const Icon(Icons.screenshot_outlined),
-                title: const Text('Prevent screenshots'),
-                subtitle: const Text(
-                  'Blocks screenshots and screen recording, and hides Zuno in '
-                  'the recent apps preview',
+              if (capabilities.screenSecurity)
+                SwitchListTile(
+                  secondary: const Icon(Icons.screenshot_outlined),
+                  title: const Text('Prevent screenshots'),
+                  subtitle: const Text(
+                    'Blocks screenshots and screen recording, and hides Zuno '
+                    'in the recent apps preview',
+                  ),
+                  value: preventScreenshots,
+                  onChanged: (value) =>
+                      ref.read(preventScreenshotsProvider.notifier).set(value),
                 ),
-                value: preventScreenshots,
-                onChanged: (value) =>
-                    ref.read(preventScreenshotsProvider.notifier).set(value),
-              ),
             ],
           ),
           CardGroup(

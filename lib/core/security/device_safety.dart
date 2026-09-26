@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../errors/best_effort.dart';
+import '../platform/platform_capabilities.dart';
 import '../settings/app_preferences_provider.dart';
 
 enum DeviceRisk { unlockedBootloader, rooted }
@@ -12,7 +13,10 @@ const _acknowledgedKey = 'security.device_warning_acknowledged';
 
 Future<Set<DeviceRisk>> checkDeviceSafety({
   Duration budget = _checkBudget,
+  PlatformCapabilities? capabilities,
 }) async {
+  final supported = (capabilities ?? ambientCapabilities).deviceSafetyChecks;
+  if (!supported) return const {};
   try {
     final names = await _channel
         .invokeListMethod<String>('check')
@@ -29,7 +33,8 @@ Future<Set<DeviceRisk>> checkDeviceSafety({
 }
 
 final deviceRisksProvider = FutureProvider<Set<DeviceRisk>>(
-  (ref) => checkDeviceSafety(),
+  (ref) =>
+      checkDeviceSafety(capabilities: ref.watch(platformCapabilitiesProvider)),
   retry: (_, _) => null,
 );
 

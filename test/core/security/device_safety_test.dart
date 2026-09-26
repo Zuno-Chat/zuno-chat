@@ -1,6 +1,9 @@
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/device_safety.dart';
 
 void main() {
@@ -58,5 +61,43 @@ void main() {
       await checkDeviceSafety(budget: const Duration(milliseconds: 10)),
       isEmpty,
     );
+  });
+
+  group('on a platform without the device check', () {
+    final ios = capabilitiesFor(AppPlatform.ios);
+    late List<String> calls;
+
+    setUp(() {
+      calls = [];
+      answer((call) async {
+        calls.add(call.method);
+        return ['unlockedBootloader', 'rooted'];
+      });
+    });
+
+    test('reports nothing and never asks the native side', () async {
+      expect(await checkDeviceSafety(capabilities: ios), isEmpty);
+      expect(calls, isEmpty);
+    });
+
+    test('the risks provider reports nothing', () async {
+      final container = ProviderContainer(
+        overrides: [platformCapabilitiesProvider.overrideWithValue(ios)],
+      );
+      addTearDown(container.dispose);
+
+      expect(await container.read(deviceRisksProvider.future), isEmpty);
+      expect(calls, isEmpty);
+    });
+  });
+
+  test('the risks provider reports what an android device names', () async {
+    answer((call) async => ['rooted']);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    expect(await container.read(deviceRisksProvider.future), {
+      DeviceRisk.rooted,
+    });
   });
 }

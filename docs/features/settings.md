@@ -78,9 +78,9 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   account-wide, not per-device.
 - **Enum-as-persisted-setting pattern**: `NotificationDeliveryMode` /
   `notificationDeliveryModeProvider` is the model other enum-shaped
-  settings should follow — an unrecognized stored value falls back to the
-  default rather than crashing; no special-casing needed once every enum
-  value has a real implementation behind it.
+  settings should follow — an unrecognized stored value, or one this
+  platform doesn't offer, falls back to the platform default rather than
+  crashing, and storage is left untouched.
 - Profile visibility (planned, stage 3, not built): a three-tier privacy
   setting for display name/avatar (Public / people-I-share-a-room-with /
   direct-chats-only) would live in Settings → Account, directly under the
@@ -130,6 +130,19 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   set once and troubleshooting-shaped, so they stay off the everyday
   page. The delivery banner's "Open settings" opens
   `NotificationDeliveryPage` directly.
+- **Platform-specific rows are capability-gated**
+  (`platformCapabilitiesProvider`, `app-foundation.md`), never
+  `Platform`-checked:
+  - Delivery method picker: lists `capabilities.deliveryModes`; with one
+    mode it becomes a static row naming that mode.
+  - Unrestricted battery usage: keeps its per-mode logic (each mode its
+    own copy, none for `apns`) **and** requires `batteryExemption`. The
+    per-mode and per-platform checks stay separate; neither implies the
+    other.
+  - Background data and distributor battery: `backgroundDataRestriction`
+    and `batteryExemption`.
+  - Prevent screenshots: `screenSecurity`. Full-screen call alerts:
+    `fullScreenIntent`.
 - **Link previews has no row while `linkPreviewsFeatureAvailable` is
   false.** The provider stays: `room_page.dart` reads it.
 - **Security > Advanced is outside the brand voice, on purpose.**

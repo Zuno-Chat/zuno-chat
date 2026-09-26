@@ -53,8 +53,6 @@ Other integration points:
   homeserver's own power-level check for the `m.call.member` event type, so
   the app can refuse to ring/offer-to-join a user who could never actually
   publish membership, instead of connecting and then bouncing.
-- Ringtone/ringback/vibration: `notification_sound_player.dart` +
-  `CallNotificationService` (see Communication below).
 - **Call screens** (`lib/features/calls/presentation/`), always dark
   whatever the app theme. `CallPage` owns the session, the renderers and
   every side effect (foreground service, wakelock, speaker route,
@@ -68,6 +66,26 @@ Other integration points:
   connecting, waiting, encrypting or talking; the lock and `CallTimer`
   show only while talking. `CallControls` is the one button row.
   `IncomingCallPage` shares `CallPortrait`.
+
+**Platform seams** (`lib/core/calls/platform/`): what the OS shows or plays
+for a call goes through three interfaces. Each has an Android class
+wrapping the native path and a no-op, picked by a `*For()` factory on one
+capability (and a provider over it):
+
+| Seam | Methods | Android | Selected by |
+|---|---|---|---|
+| `IncomingCallPresenter` | `showIncoming`, `cancelIncoming`, `activeRing` | `zuno/call_style` ring notification + `notification_sound_player.dart` ringtone/vibration | `fullScreenIntent` |
+| `OngoingCallPresenter` | `start`, `stop` | `CallForegroundService` | `callForegroundService` |
+| `RingbackTonePlayer` | `start`, `stop`, `restartForRouteChange` | `ToneGenerator` | `nativeRingbackTone` |
+
+- Ringback has exactly one gate: its factory. Nothing else reads
+  `nativeRingbackTone`.
+- CallKit arrives as a new branch in each factory, never a flag flip
+  (`app-foundation.md`).
+- Decline routing (the `IsolateNameServer` decline-port claim/release, the
+  headless response handler) deliberately stays in
+  `call_notification_service.dart`: presentation and routing never travel
+  together.
 
 ## Data & State
 
@@ -212,7 +230,9 @@ own paths/JSON verbatim; the module is a signaling proxy with
 unchanged by the proxy — only base URL and auth. Auth is the Matrix access
 token (`bearerAuthorization`, which refreshes a token about to expire
 first); Synapse checks it on every request, so there is no enrollment, no
-stored credential and no remote-logout window. A 401 is final, never
+stored credential and no remote-logout window (enrollment now covers map
+tiles only; decision record:
+[calls-gateway-enrollment.md](../decisions/calls-gateway-enrollment.md)). A 401 is final, never
 retried. Module errors are Matrix JSON; the only field the app reads is
 `retry_after_ms` on a 429.
 
@@ -435,15 +455,15 @@ instead, so a stale notification can't outlive its call.
   with a ring that must continue until answered and toggles that must take
   effect immediately. `calls_ringing` (and its group-call sibling,
   `calls_ringing_group` — see the notifications feature doc) is created
-  with `playSound: false, enableVibration: false`; everything
-  audible/haptic comes from `notification_sound_player.dart`. Ring sound
+  with `playSound: false, enableVibration: false`; the ring's sound and
+  vibration come from `notification_sound_player.dart`. Ring sound
   and ring notification share one start/stop lifecycle, keyed to
-  `CallNotificationService.showIncomingCall`/`cancelIncomingCall` (the
+  `IncomingCallPresenter.showIncoming`/`cancelIncoming` (the
   choke points every path — live sync, push handler, ring page dispose,
   cold-start accept — goes through), with a 60s backstop timer past the
   45s ring timeout.
 - **Ringback is a native `ToneGenerator` on `STREAM_VOICE_CALL`**
-  (`MainActivity.kt`), not a bundled asset played through `audioplayers`
+  (`AndroidRingbackTonePlayer` → `MainActivity.kt`), not a bundled asset played through `audioplayers`
   like every other app sound — it needs to ride the call's own audio
   stream so it follows earpiece/speaker routing and in-call volume for
   free, without touching global audio state or requiring audio focus.
@@ -588,6 +608,14 @@ instead, so a stale notification can't outlive its call.
   the database but is silently dropped from memory on a `Room` this app
   never calls `postLoad()` on, and one side of a call never sees the
   other join.
+- **Every entrypoint initializes `CallNotificationService` before any
+  presenter runs.** `AndroidIncomingCallPresenter` calls `initialize()`
+  itself, and a first `initialize()` on an isolate claims the decline port
+  by default, which would take declines away from the isolate that owns
+  them. `main.dart` initializes (and claims); both headless entries go
+  through `prepareHeadlessPush`, which initializes with
+  `claimDeclinePort: false` before any push is handled. A new entrypoint
+  must do the same.
 - **Push-delivered headless call handling must not serialize the "ring
   down" push behind the "ring up" push's own long-lived hold.** A single
   queue serializing all headless pushes on one client/database, combined
@@ -683,8 +711,8 @@ instead, so a stale notification can't outlive its call.
   by `canPublishCallMemberState`).
 - **Notifications**: `NotificationDeliveryProvider` (FCM/UnifiedPush/
   background-service) is what makes ringing work while backgrounded or
-  killed; `CallNotificationService` and `CallForegroundService.kt` own the
-  ring/ongoing-call notification lifecycle. Calls share the same
+  killed; the platform seams own the ring/ongoing-call notification
+  lifecycle (on Android, `zuno/call_style` and `CallForegroundService.kt`). Calls share the same
   best-effort, cross-isolate sound/vibration infra as message
   notifications (`notification_sound_player.dart`) but with distinct
   settings toggles (Ringtone / Vibrate for calls, vs. Message tone /

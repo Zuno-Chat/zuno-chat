@@ -21,6 +21,7 @@ List<OnboardingStep> onboardingSteps({
   required bool justRegistered,
   required bool notificationsAllowed,
   required bool canAskNotifications,
+  required bool canChooseDelivery,
   required bool needsBatteryExemption,
   required bool needsAutostart,
   required AccountSecurityFacts securityFacts,
@@ -37,7 +38,9 @@ List<OnboardingStep> onboardingSteps({
       !alreadyShown.contains(OnboardingStep.notifications);
   if (askNotifications) steps.add(OnboardingStep.notifications);
   if (notificationsAllowed || askNotifications) {
-    final askDelivery = !alreadyShown.contains(OnboardingStep.deliveryMethod);
+    final askDelivery =
+        canChooseDelivery &&
+        !alreadyShown.contains(OnboardingStep.deliveryMethod);
     if (askDelivery) {
       steps.add(OnboardingStep.deliveryMethod);
     } else if (needsBatteryExemption) {

@@ -4,6 +4,8 @@ import 'package:cross_file/cross_file.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/share/inbound_share.dart';
 
 void main() {
@@ -127,6 +129,54 @@ void main() {
     test('copySharedFilesToCache with no files never calls native', () async {
       messenger.setMockMethodCallHandler(channel, (_) async => fail('called'));
       expect(await copySharedFilesToCache(const []), isEmpty);
+    });
+  });
+
+  group('on a platform without inbound share', () {
+    final ios = capabilitiesFor(AppPlatform.ios);
+    late List<String> calls;
+
+    setUp(() {
+      calls = [];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call.method);
+        return {'text': 'cold'};
+      });
+    });
+
+    test('there is never a launch share', () async {
+      expect(await takeLaunchShare(capabilities: ios), isNull);
+      expect(calls, isEmpty);
+    });
+
+    test('shared files are never copied', () async {
+      final copies = await copySharedFilesToCache(const [
+        SharedFile(uri: 'content://a/1', name: 'a.jpg'),
+      ], capabilities: ios);
+
+      expect(copies, isEmpty);
+      expect(calls, isEmpty);
+    });
+
+    test('no handler is registered for incoming shares', () async {
+      channel.setMethodCallHandler(null);
+      initInboundShareChannel(capabilities: ios);
+
+      ByteData? reply;
+      var replied = false;
+      await messenger.handlePlatformMessage(
+        'zuno/share',
+        const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('share', {'text': 'hello'}),
+        ),
+        (data) {
+          replied = true;
+          reply = data;
+        },
+      );
+
+      expect(replied, isTrue);
+      expect(reply, isNull);
     });
   });
 

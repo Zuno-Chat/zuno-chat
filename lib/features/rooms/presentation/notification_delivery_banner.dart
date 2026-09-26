@@ -53,6 +53,7 @@ class NotificationDeliveryBanner extends ConsumerWidget {
           case NotificationDeliveryMode.unifiedPush:
             await unifiedPushDeliveryProvider.registerNow(client);
           case NotificationDeliveryMode.backgroundService:
+          case NotificationDeliveryMode.apns:
             break;
         }
     }

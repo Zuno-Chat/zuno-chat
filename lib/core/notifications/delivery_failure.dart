@@ -52,7 +52,8 @@ DeliveryFailure? notificationDeliveryFailure({
             restricted: distributorBatteryRestricted,
             distributor: distributor,
           ),
-    NotificationDeliveryMode.backgroundService => null,
+    NotificationDeliveryMode.backgroundService ||
+    NotificationDeliveryMode.apns => null,
   };
   if (failure != null) return failure;
   if (autoSelected != null && autoSelected == mode) {

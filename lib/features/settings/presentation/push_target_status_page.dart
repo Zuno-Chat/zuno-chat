@@ -25,6 +25,7 @@ String? currentPushkeyFor(NotificationDeliveryMode mode) {
     case NotificationDeliveryMode.fcm:
       return fcmDeliveryProvider.token;
     case NotificationDeliveryMode.backgroundService:
+    case NotificationDeliveryMode.apns:
       return null;
   }
 }
@@ -36,6 +37,7 @@ String? lastPusherErrorFor(NotificationDeliveryMode mode) {
     case NotificationDeliveryMode.fcm:
       return fcmDeliveryProvider.lastPusherError;
     case NotificationDeliveryMode.backgroundService:
+    case NotificationDeliveryMode.apns:
       return null;
   }
 }
@@ -101,6 +103,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
       case NotificationDeliveryMode.fcm:
         await fcmDeliveryProvider.stop(client);
       case NotificationDeliveryMode.backgroundService:
+      case NotificationDeliveryMode.apns:
         break;
     }
     if (!mounted) return;
@@ -118,6 +121,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
             "token is dropped.";
       case NotificationDeliveryMode.backgroundService:
         return 'Background sync has nothing registered to remove.';
+      case NotificationDeliveryMode.apns:
+        return 'Apple push has nothing registered to remove.';
     }
   }
 
@@ -303,6 +308,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
       case NotificationDeliveryMode.fcm:
         return fcmGatewayUri(client.homeserver);
       case NotificationDeliveryMode.backgroundService:
+      case NotificationDeliveryMode.apns:
         return null;
     }
   }
@@ -317,6 +323,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
             "registration token";
       case NotificationDeliveryMode.backgroundService:
         return 'Nothing is registered for background sync';
+      case NotificationDeliveryMode.apns:
+        return 'Nothing is registered for Apple push';
     }
   }
 

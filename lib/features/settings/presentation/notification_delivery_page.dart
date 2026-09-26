@@ -10,6 +10,7 @@ import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
 import '../../../core/notifications/unified_push_delivery_provider.dart'
     show UnifiedPushStatus;
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/push/unified_push_distributor_names.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
@@ -84,6 +85,11 @@ class _NotificationDeliveryPageState
   }
 
   Future<void> _refreshUnifiedPushStatus() async {
+    final offered = ref
+        .read(platformCapabilitiesProvider)
+        .deliveryModes
+        .contains(NotificationDeliveryMode.unifiedPush);
+    if (!offered) return;
     final distributor = await unifiedPushDeliveryProvider.knownDistributor();
     if (!mounted) return;
     setState(() => _unifiedPushDistributor = distributor ?? '');
@@ -132,7 +138,8 @@ class _NotificationDeliveryPageState
       builder: (context) => SafeArea(
         child: Wrap(
           children: [
-            for (final mode in NotificationDeliveryMode.values)
+            for (final mode
+                in ref.read(platformCapabilitiesProvider).deliveryModes)
               ListTile(
                 leading: mode == current
                     ? const Icon(Icons.check_outlined)
@@ -150,27 +157,31 @@ class _NotificationDeliveryPageState
     unawaited(kickOffDeliveryMode(ref.read(matrixClientProvider), chosen));
   }
 
-  List<Widget> _deliveryModeSettings(NotificationDeliveryMode mode) {
+  List<Widget> _deliveryModeSettings(
+    NotificationDeliveryMode mode,
+    PlatformCapabilities capabilities,
+  ) {
     switch (mode) {
       case NotificationDeliveryMode.backgroundService:
         return [
-          _batteryExemptionTile(mode),
-          ListTile(
-            leading: const Icon(Icons.wifi_tethering_outlined),
-            title: const Text('Background data'),
-            subtitle: Text(
-              _backgroundDataRestricted
-                  ? 'Data Saver stops background sync from using data while '
-                        'the screen is off. Tap to allow it.'
-                  : 'Background sync can use data even when the screen '
-                        'is off',
+          ..._batteryExemptionRows(mode, capabilities),
+          if (capabilities.backgroundDataRestriction)
+            ListTile(
+              leading: const Icon(Icons.wifi_tethering_outlined),
+              title: const Text('Background data'),
+              subtitle: Text(
+                _backgroundDataRestricted
+                    ? 'Data Saver stops background sync from using data while '
+                          'the screen is off. Tap to allow it.'
+                    : 'Background sync can use data even when the screen '
+                          'is off',
+              ),
+              trailing: _backgroundDataRestricted
+                  ? const Icon(Icons.chevron_right)
+                  : const Icon(Icons.check_circle_outline),
+              onTap: () =>
+                  BackgroundSyncService.instance.openBackgroundDataSettings(),
             ),
-            trailing: _backgroundDataRestricted
-                ? const Icon(Icons.chevron_right)
-                : const Icon(Icons.check_circle_outline),
-            onTap: () =>
-                BackgroundSyncService.instance.openBackgroundDataSettings(),
-          ),
         ];
       case NotificationDeliveryMode.unifiedPush:
         final upStatus = unifiedPushDeliveryProvider.status.value;
@@ -214,30 +225,33 @@ class _NotificationDeliveryPageState
               UnifiedPushStatusAction.open => const Icon(Icons.chevron_right),
             },
           ),
-          _batteryExemptionTile(mode),
-          ValueListenableBuilder<bool>(
-            valueListenable:
-                unifiedPushDeliveryProvider.distributorBatteryRestricted,
-            builder: (context, restricted, _) {
-              final distributor = unifiedPushDeliveryProvider.savedDistributor;
-              if (!restricted || distributor == null) {
-                return const SizedBox.shrink();
-              }
-              return ListTile(
-                leading: const Icon(Icons.battery_alert_outlined),
-                title: Text(
-                  '${unifiedPushDistributorDisplayName(distributor)} battery',
-                ),
-                subtitle: const Text(
-                  'Set its battery use to Unrestricted so notifications reach '
-                  'Zuno while the device sleeps',
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () =>
-                    BackgroundSyncService.instance.openAppSettings(distributor),
-              );
-            },
-          ),
+          ..._batteryExemptionRows(mode, capabilities),
+          if (capabilities.batteryExemption)
+            ValueListenableBuilder<bool>(
+              valueListenable:
+                  unifiedPushDeliveryProvider.distributorBatteryRestricted,
+              builder: (context, restricted, _) {
+                final distributor =
+                    unifiedPushDeliveryProvider.savedDistributor;
+                if (!restricted || distributor == null) {
+                  return const SizedBox.shrink();
+                }
+                return ListTile(
+                  leading: const Icon(Icons.battery_alert_outlined),
+                  title: Text(
+                    '${unifiedPushDistributorDisplayName(distributor)} battery',
+                  ),
+                  subtitle: const Text(
+                    'Set its battery use to Unrestricted so notifications '
+                    'reach Zuno while the device sleeps',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => BackgroundSyncService.instance.openAppSettings(
+                    distributor,
+                  ),
+                );
+              },
+            ),
         ];
       case NotificationDeliveryMode.fcm:
         return [
@@ -270,12 +284,18 @@ class _NotificationDeliveryPageState
               );
             },
           ),
-          _batteryExemptionTile(mode),
+          ..._batteryExemptionRows(mode, capabilities),
         ];
+      case NotificationDeliveryMode.apns:
+        return const [];
     }
   }
 
-  Widget _batteryExemptionTile(NotificationDeliveryMode mode) {
+  List<Widget> _batteryExemptionRows(
+    NotificationDeliveryMode mode,
+    PlatformCapabilities capabilities,
+  ) {
+    if (!capabilities.batteryExemption) return const [];
     final subtitle = switch ((_ignoringBatteryOptimizations, mode)) {
       (true, NotificationDeliveryMode.unifiedPush) =>
         'Android will not put Zuno to sleep, so notifications arrive while '
@@ -293,46 +313,61 @@ class _NotificationDeliveryPageState
       (false, NotificationDeliveryMode.backgroundService) =>
         'Android may pause background sync to save power. Tap to let it run '
             'unrestricted.',
+      (_, NotificationDeliveryMode.apns) => null,
     };
-    return ListTile(
-      leading: const Icon(Icons.battery_charging_full_outlined),
-      title: const Text('Unrestricted battery usage'),
-      subtitle: Text(subtitle),
-      trailing: _ignoringBatteryOptimizations
-          ? const Icon(Icons.check_circle_outline)
-          : const Icon(Icons.chevron_right),
-      onTap: () =>
-          BackgroundSyncService.instance.requestIgnoreBatteryOptimizations(),
-    );
+    if (subtitle == null) return const [];
+    return [
+      ListTile(
+        leading: const Icon(Icons.battery_charging_full_outlined),
+        title: const Text('Unrestricted battery usage'),
+        subtitle: Text(subtitle),
+        trailing: _ignoringBatteryOptimizations
+            ? const Icon(Icons.check_circle_outline)
+            : const Icon(Icons.chevron_right),
+        onTap: () =>
+            BackgroundSyncService.instance.requestIgnoreBatteryOptimizations(),
+      ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     final deliveryMode = ref.watch(notificationDeliveryModeProvider);
+    final capabilities = ref.watch(platformCapabilitiesProvider);
+    final canChoose = capabilities.deliveryModes.length > 1;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Delivery')),
       body: CardListView(
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(28, 12, 28, 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 12, 28, 8),
             child: Text(
-              'How messages and calls reach you while Zuno is closed. '
-              'Background sync needs no setup. UnifiedPush needs a distributor '
-              'app, such as ntfy, installed. Google services needs Google Play '
-              'services.',
+              canChoose
+                  ? 'How messages and calls reach you while Zuno is closed. '
+                        'Background sync needs no setup. UnifiedPush needs a '
+                        'distributor app, such as ntfy, installed. Google '
+                        'services needs Google Play services.'
+                  : 'How messages and calls reach you while Zuno is closed.',
             ),
           ),
           CardGroup(
             children: [
-              ListTile(
-                leading: const Icon(Icons.cloud_sync_outlined),
-                title: const Text('Delivery method'),
-                subtitle: Text(deliveryMode.label),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _chooseDeliveryMode(deliveryMode),
-              ),
-              ..._deliveryModeSettings(deliveryMode),
+              if (canChoose)
+                ListTile(
+                  leading: const Icon(Icons.cloud_sync_outlined),
+                  title: const Text('Delivery method'),
+                  subtitle: Text(deliveryMode.label),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _chooseDeliveryMode(deliveryMode),
+                )
+              else
+                ListTile(
+                  leading: const Icon(Icons.cloud_sync_outlined),
+                  title: Text(deliveryMode.label),
+                  subtitle: Text(deliveryMode.description),
+                ),
+              ..._deliveryModeSettings(deliveryMode, capabilities),
               if (_hasAutostartSettings)
                 ListTile(
                   leading: const Icon(Icons.restart_alt_outlined),

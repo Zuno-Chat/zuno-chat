@@ -14,6 +14,7 @@ import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
 
@@ -123,7 +124,7 @@ CallEngineParticipant remoteParticipant({
 );
 
 class CallPageHarness {
-  CallPageHarness(this.tester) {
+  CallPageHarness(this.tester, {PlatformCapabilities? capabilities}) {
     SharedPreferences.setMockInitialValues({});
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -172,7 +173,12 @@ class CallPageHarness {
     });
     addTearDown(() => messenger.setMockMessageHandler(wakelock, null));
 
-    container = ProviderContainer();
+    container = ProviderContainer(
+      overrides: [
+        if (capabilities != null)
+          platformCapabilitiesProvider.overrideWithValue(capabilities),
+      ],
+    );
     addTearDown(container.dispose);
     addTearDown(
       () => CallNotificationService.instance.inPictureInPicture.value = false,

@@ -16,6 +16,7 @@ import '../../../core/notifications/notification_permission.dart';
 import '../../../core/notifications/notification_permission_provider.dart';
 import '../../../core/onboarding/onboarding_provider.dart';
 import '../../../core/onboarding/onboarding_step.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/push/unified_push_distributor_names.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_prompt_provider.dart';
@@ -108,7 +109,10 @@ class _OnboardingFlowPageState extends ConsumerState<OnboardingFlowPage> {
   }
 
   Future<void> _deliveryChosen(NotificationDeliveryMode mode) async {
-    final needsBattery = await needsBatteryExemptionFor(mode);
+    final needsBattery = await needsBatteryExemptionFor(
+      mode,
+      capabilities: ref.read(platformCapabilitiesProvider),
+    );
     if (!mounted) return;
     setState(() {
       _steps = stepsAfterDeliveryChoice(
@@ -336,7 +340,8 @@ class _DeliveryStepState extends ConsumerState<_DeliveryStep> {
           },
           child: Column(
             children: [
-              for (final mode in NotificationDeliveryMode.values)
+              for (final mode
+                  in ref.watch(platformCapabilitiesProvider).deliveryModes)
                 RadioListTile<NotificationDeliveryMode>(
                   value: mode,
                   title: Text(mode.label),
@@ -631,7 +636,10 @@ class _BatteryStepState extends ConsumerState<_BatteryStep>
 
   Future<void> _finishIfAllowed() async {
     final mode = ref.read(notificationDeliveryModeProvider);
-    final stillNeeded = await needsBatteryExemptionFor(mode);
+    final stillNeeded = await needsBatteryExemptionFor(
+      mode,
+      capabilities: ref.read(platformCapabilitiesProvider),
+    );
     if (!stillNeeded && mounted) await widget.onDone();
   }
 

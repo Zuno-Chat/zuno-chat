@@ -4,9 +4,15 @@ import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../calls/matrixrtc/call_decline.dart';
 import '../calls/notifications/call_notification_service.dart';
+import '../calls/platform/incoming_call_presenter.dart';
+import '../platform/platform_capabilities.dart';
 import 'headless_push_runner.dart';
 
-Future<void> awaitHeadlessDecline(HeadlessPushRunner runner) async {
+Future<void> awaitHeadlessDecline(
+  HeadlessPushRunner runner, {
+  IncomingCallPresenter? presenter,
+}) async {
+  final ring = presenter ?? incomingCallPresenterFor(ambientCapabilities);
   if (!CallNotificationService.instance.claimDeclinePortIfUnclaimed()) return;
   final finished = Completer<HeadlessCallDecline?>();
   void finish(HeadlessCallDecline? decline) {
@@ -21,7 +27,7 @@ Future<void> awaitHeadlessDecline(HeadlessPushRunner runner) async {
       finish(null);
       return;
     }
-    if (await CallNotificationService.instance.activeRingCall() != null) return;
+    if (await ring.activeRing() != null) return;
     finish(null);
   });
   try {
@@ -34,7 +40,7 @@ Future<void> awaitHeadlessDecline(HeadlessPushRunner runner) async {
       final room = client.getRoomById(decline.roomId);
       if (room != null) await declineCall(room, decline.callId);
     });
-    await CallNotificationService.instance.cancelIncomingCall();
+    await ring.cancelIncoming();
   } finally {
     poll.cancel();
     await sub.cancel();

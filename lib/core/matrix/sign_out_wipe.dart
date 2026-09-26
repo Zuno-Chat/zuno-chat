@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../errors/best_effort.dart';
+import '../platform/platform_capabilities.dart';
 import '../settings/app_preferences_provider.dart';
 
 const signedInMarkerKey = 'session.signed_in';
@@ -14,6 +15,8 @@ const _appDataChannel = MethodChannel('zuno/app_data');
 Future<void> _wipeAppData() async {
   await _appDataChannel.invokeMethod<bool>('wipe');
 }
+
+Future<void> _keepAppData() async {}
 
 class SignOutWipe {
   final SharedPreferences _prefs;
@@ -42,5 +45,10 @@ class SignOutWipe {
 }
 
 final signOutWipeProvider = Provider<SignOutWipe>(
-  (ref) => SignOutWipe(ref.watch(sharedPreferencesProvider)),
+  (ref) => SignOutWipe(
+    ref.watch(sharedPreferencesProvider),
+    ref.watch(platformCapabilitiesProvider).nativeSignOutWipe
+        ? _wipeAppData
+        : _keepAppData,
+  ),
 );

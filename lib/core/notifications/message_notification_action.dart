@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/best_effort.dart';
+import '../platform/platform_capabilities.dart';
 
 enum MessageNotificationActionKind { reply, markRead }
 
@@ -64,7 +65,9 @@ const _wakeLockTimeout = Duration(seconds: 30);
 const _wakeLockTag = 'message_action';
 
 class HeadlessWakeLock {
-  const HeadlessWakeLock();
+  const HeadlessWakeLock({this.capabilities});
+
+  final PlatformCapabilities? capabilities;
 
   static const _channel = MethodChannel('zuno/wake_lock');
 
@@ -76,6 +79,8 @@ class HeadlessWakeLock {
   Future<void> release() => _invoke('release', {'tag': _wakeLockTag});
 
   Future<void> _invoke(String method, Map<String, Object?> args) async {
+    final supported = (capabilities ?? ambientCapabilities).headlessWakeLocks;
+    if (!supported) return;
     try {
       await _channel.invokeMethod<void>(method, args);
     } catch (e) {

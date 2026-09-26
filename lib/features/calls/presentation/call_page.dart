@@ -15,8 +15,9 @@ import '../../../core/calls/models/call_kind.dart';
 import '../../../core/calls/models/call_quality.dart';
 import '../../../core/calls/models/voip_participant_id.dart';
 import '../../../core/calls/notifications/call_notification_service.dart';
+import '../../../core/calls/platform/ongoing_call_presenter.dart';
+import '../../../core/calls/platform/ringback_tone_player.dart';
 import '../../../core/matrix/room_title.dart';
-import '../../../core/notifications/notification_sound_player.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'call_audio_route.dart';
 import 'call_picture_in_picture.dart';
@@ -41,6 +42,8 @@ class _CallPageState extends ConsumerState<CallPage> {
   StreamSubscription<List<CallEngineParticipant>>? _participantsSub;
   StreamSubscription<CallEngineStatus>? _statusSub;
   StreamSubscription<void>? _localStateSub;
+  late final OngoingCallPresenter _ongoingCall;
+  late final RingbackTonePlayer _ringback;
   CallEngineStatus? _engineStatus;
   final Map<VoipParticipantId, RTCVideoRenderer> _renderers = {};
   List<CallEngineParticipant> _participants = [];
@@ -57,6 +60,8 @@ class _CallPageState extends ConsumerState<CallPage> {
   @override
   void initState() {
     super.initState();
+    _ongoingCall = ref.read(ongoingCallPresenterProvider);
+    _ringback = ref.read(ringbackTonePlayerProvider);
     _phaseSub = session.phaseStream.listen(_onPhase);
     _remoteJoinedSub = session.remoteJoinedStream.listen((_) {
       _syncRingback();
@@ -108,11 +113,7 @@ class _CallPageState extends ConsumerState<CallPage> {
     if (session.role != CallSessionRole.caller) return;
     final waiting =
         !session.everHadRemote && session.phase != CallSessionPhase.ended;
-    unawaited(
-      waiting
-          ? NotificationSoundPlayer.instance.startRingback()
-          : NotificationSoundPlayer.instance.stopRingback(),
-    );
+    unawaited(waiting ? _ringback.start() : _ringback.stop());
   }
 
   Future<void> _init() async {
@@ -138,8 +139,8 @@ class _CallPageState extends ConsumerState<CallPage> {
   }
 
   Future<void> _startForegroundService() {
-    return CallNotificationService.instance
-        .startOngoingCall(
+    return _ongoingCall
+        .start(
           title: roomTitle(session.room),
           withCamera: session.kind == CallKind.video,
         )
@@ -211,7 +212,7 @@ class _CallPageState extends ConsumerState<CallPage> {
     _finished = true;
     _syncPictureInPicture();
     _syncProximityScreenOff();
-    await CallNotificationService.instance.stopOngoingCall();
+    await _ongoingCall.stop();
     await CallNotificationService.instance.setShowOverLockscreen(false);
     await WakelockPlus.disable();
     ref.read(activeCallProvider.notifier).set(null);
@@ -226,7 +227,7 @@ class _CallPageState extends ConsumerState<CallPage> {
 
   @override
   void dispose() {
-    unawaited(NotificationSoundPlayer.instance.stopRingback());
+    unawaited(_ringback.stop());
     if (_watchingHeadsets &&
         navigator.mediaDevices.ondevicechange == _onAudioDevicesChanged) {
       navigator.mediaDevices.ondevicechange = null;
@@ -299,7 +300,7 @@ class _CallPageState extends ConsumerState<CallPage> {
       CallAudioRoute.wiredHeadset => Helper.selectAudioOutput('wired-headset'),
       CallAudioRoute.bluetooth => Helper.selectAudioOutput('bluetooth'),
     };
-    await NotificationSoundPlayer.instance.restartRingbackForRouteChange();
+    await _ringback.restartForRouteChange();
   }
 
   Future<void> _toggleMute() async {

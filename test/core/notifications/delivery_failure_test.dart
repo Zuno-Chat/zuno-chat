@@ -165,6 +165,37 @@ void main() {
     }
   });
 
+  group('apple push', () {
+    test('never offers an Android fix, whatever the Android transports '
+        'report', () {
+      for (final fcm in FcmStatus.values) {
+        for (final up in UnifiedPushStatus.values) {
+          expect(
+            failureFor(
+              NotificationDeliveryMode.apns,
+              fcm: fcm,
+              unifiedPush: up,
+              distributorBatteryRestricted: true,
+              distributor: 'io.heckel.ntfy',
+            ),
+            isNull,
+            reason: '$fcm/$up',
+          );
+        }
+      }
+    });
+
+    test('a switch recorded for another method is not announced', () {
+      expect(
+        failureFor(
+          NotificationDeliveryMode.apns,
+          autoSelected: NotificationDeliveryMode.unifiedPush,
+        ),
+        isNull,
+      );
+    });
+  });
+
   test('every failure carries a message and exactly one action', () {
     for (final mode in NotificationDeliveryMode.values) {
       for (final fcm in FcmStatus.values) {

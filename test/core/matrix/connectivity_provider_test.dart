@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart' show FlutterError, FlutterErrorDetails;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +12,8 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../helpers/fake_matrix.dart';
 
@@ -141,6 +145,79 @@ void main() {
           status != ConnectionStatus.online,
         );
       }
+    });
+  });
+
+  test('without a handler of its own, a test gets a silent network stream '
+      'instead of a plugin error', () async {
+    expect(ambientCapabilities.networkAvailabilityEvents, isTrue);
+    final errors = <FlutterErrorDetails>[];
+    final reportError = FlutterError.onError;
+    FlutterError.onError = errors.add;
+    addTearDown(() => FlutterError.onError = reportError);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final events = <bool>[];
+
+    final subscription = container
+        .read(networkAvailabilityProvider)
+        .listen(events.add);
+    await pumpEventQueue();
+    await subscription.cancel();
+
+    expect(events, isEmpty);
+    expect(errors, isEmpty);
+  });
+
+  group('networkAvailabilityProvider', () {
+    const networkChannel = EventChannel('zuno/network');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    late int listens;
+
+    setUp(() {
+      listens = 0;
+      messenger.setMockStreamHandler(
+        networkChannel,
+        MockStreamHandler.inline(
+          onListen: (arguments, events) {
+            listens++;
+            events.success(false);
+            events.success(true);
+            events.endOfStream();
+          },
+        ),
+      );
+    });
+
+    tearDown(() => messenger.setMockStreamHandler(networkChannel, null));
+
+    test('with android capabilities it forwards the native events', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      expect(await container.read(networkAvailabilityProvider).toList(), [
+        false,
+        true,
+      ]);
+      expect(listens, 1);
+    });
+
+    test('without network events it stays empty and never listens', () async {
+      final container = ProviderContainer(
+        overrides: [
+          platformCapabilitiesProvider.overrideWithValue(
+            capabilitiesFor(AppPlatform.ios),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(
+        await container.read(networkAvailabilityProvider).toList(),
+        isEmpty,
+      );
+      expect(listens, 0);
     });
   });
 

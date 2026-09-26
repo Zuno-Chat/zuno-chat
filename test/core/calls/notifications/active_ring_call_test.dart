@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
@@ -9,6 +9,7 @@ import '../../../helpers/fake_local_notifications.dart';
 const ringNotificationId = 4002;
 
 void main() {
+  const presenter = AndroidIncomingCallPresenter();
   late RecordedNotifications notifications;
 
   Map<String, Object?> onScreen(int id) => {
@@ -28,7 +29,7 @@ void main() {
     installSilentNotificationSideChannels();
   });
 
-  Future<void> postRing() => CallNotificationService.instance.showIncomingCall(
+  Future<void> postRing() => presenter.showIncoming(
     callerName: 'Bob',
     callerId: '@bob:example.org',
     isVideo: false,
@@ -41,7 +42,7 @@ void main() {
     await postRing();
     notifications.active = [onScreen(ringNotificationId)];
 
-    final ringing = await CallNotificationService.instance.activeRingCall();
+    final ringing = await presenter.activeRing();
 
     expect(ringing, isNotNull);
     expect(ringing!.callId, 'call1');
@@ -54,7 +55,7 @@ void main() {
     await postRing();
     notifications.active = const [];
 
-    expect(await CallNotificationService.instance.activeRingCall(), isNull);
+    expect(await presenter.activeRing(), isNull);
   });
 
   test('is not fooled by an unrelated notification being on screen',
@@ -62,16 +63,16 @@ void main() {
     await postRing();
     notifications.active = [onScreen(12345)];
 
-    expect(await CallNotificationService.instance.activeRingCall(), isNull);
+    expect(await presenter.activeRing(), isNull);
   });
 
   test('forgets the stored call when the ring is cancelled', () async {
     final callStyle = installFakeCallStyleChannel();
     await postRing();
-    await CallNotificationService.instance.cancelIncomingCall();
+    await presenter.cancelIncoming();
     notifications.active = const [];
 
-    expect(await CallNotificationService.instance.activeRingCall(), isNull);
+    expect(await presenter.activeRing(), isNull);
     expect(
       callStyle.calls.map((c) => c.method),
       contains('cancelIncomingCallStyle'),

@@ -3,15 +3,15 @@
 ## Overview
 
 Zuno delivers message and call notifications over one of three
-interchangeable transports, shows messages as Android conversations
+interchangeable Android transports, shows messages as Android conversations
 (`MessagingStyle`, one thread per room, sender avatars, long-lived
 conversation shortcuts), and offers inline Reply and Mark-as-read actions
 that run headless. Also covers the new sign-in alert and the unread badge,
 which is homeserver-driven, not client-computed.
 
 Call *ringing* presentation (full-screen intent, ringback, the
-`showIncomingCall`/`cancelIncomingCall` lifecycle) is in the calls doc; this
-doc covers it only where infra is shared.
+`IncomingCallPresenter` seam) is in the calls doc; this doc covers it only
+where infra is shared.
 
 ## Architecture
 
@@ -22,14 +22,24 @@ singleton per `NotificationDeliveryMode`:
 
 | Mode | Provider | Mechanism |
 |---|---|---|
-| `fcm` (default) | `FcmDeliveryProvider` | FCM via Sygnal on the homeserver |
+| `fcm` (Android default) | `FcmDeliveryProvider` | FCM via Sygnal on the homeserver |
 | `unifiedPush` | `UnifiedPushDeliveryProvider` | Whichever UnifiedPush distributor is installed; the system default distributor is preferred, then the first installed |
 | `backgroundService` | `BackgroundSyncDeliveryProvider` | Always-on `/sync` foreground service |
+| `apns` (iOS default) | `ApnsDeliveryProvider` | None yet: a no-op, the named seam for iOS push |
 
-Enum order is the Settings picker order; the persisted preference is the
-name, so reordering is safe. `stopAllNotificationDelivery` runs *before*
-`Client.logout()`, which invalidates the token before firing
-`onLoginStateChanged`.
+**The platform decides which modes exist.** `capabilities.deliveryModes`
+(in picker order) and `defaultDeliveryMode` (`app-foundation.md`): android
+offers fcm, unifiedPush and backgroundService with fcm as default; ios
+offers apns only.
+- A stored mode the platform doesn't offer resolves to the platform
+  default without rewriting storage.
+- `set()`/`autoSelect()` ignore a mode the platform doesn't offer, so
+  nothing silently starts a dead transport.
+- `stopAllNotificationDelivery` still stops every enum value, offered or
+  not. It runs *before* `Client.logout()`, which invalidates the token
+  before firing `onLoginStateChanged`.
+
+The persisted preference is the name, so reordering is safe.
 
 **Lifecycle hooks in `_AuthGate`** (`app.dart`): `bindAppStateToPushDelivery`
 hands both push runners the open room and an "app is resumed and syncing"
@@ -357,7 +367,8 @@ attached it; a push arrives with the app process dead.
 - **New transport**: implement `NotificationDeliveryProvider` with
   `retryIfFailed` and `recheckRegistration`, add the enum value, wire
   `notificationDeliveryProviderFor`, `retryFailedDelivery`,
-  `recheckDelivery` and `deliveryDependsOnBatteryExemption`.
+  `recheckDelivery` and `deliveryDependsOnBatteryExemption`, and list it
+  in the platform's `deliveryModes` in `capabilitiesFor`.
 - **New producer of message notifications**: build a
   `MessageNotificationContent` and call `postMessageNotification`; never
   `showMessage` directly.
@@ -390,5 +401,5 @@ attached it; a push arrives with the app process dead.
 - **Settings**: `notifications_settings_page.dart` for the permission,
   sound toggles and silenced-channel rows; `notification_delivery_page.dart`
   for mode choice and the transport rows, including the battery row (every
-  mode) and Autostart; `push_target_status_page.dart` for pusher management
+  Android mode) and Autostart; `push_target_status_page.dart` for pusher management
   and Recent pushes.

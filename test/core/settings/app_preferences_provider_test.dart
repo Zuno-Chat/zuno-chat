@@ -8,9 +8,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/platform_capabilities.dart';
 
 Future<ProviderContainer> _containerWith(Map<String, Object> values) async {
   SharedPreferences.setMockInitialValues(values);
@@ -57,6 +59,22 @@ void main() {
   });
 
   group('notificationDeliveryModeProvider', () {
+    Future<ProviderContainer> containerOn(
+      PlatformCapabilities capabilities,
+      Map<String, Object> values,
+    ) async {
+      SharedPreferences.setMockInitialValues(values);
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          platformCapabilitiesProvider.overrideWithValue(capabilities),
+        ],
+      );
+      addTearDown(container.dispose);
+      return container;
+    }
+
     test('defaults to fcm when nothing is stored', () async {
       final container = await _containerWith({});
       addTearDown(container.dispose);
@@ -133,11 +151,220 @@ void main() {
       );
     });
 
+    group('a stored mode this platform cannot use', () {
+      test('UnifiedPush on iOS falls back to Apple push, and the stored '
+          'choice is kept', () async {
+        final container = await containerOn(iosCapabilities, {
+          'settings.notification_delivery_mode': 'unifiedPush',
+          'settings.notification_delivery_mode_chosen': true,
+        });
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.apns,
+        );
+        final prefs = container.read(sharedPreferencesProvider);
+        expect(
+          prefs.getString('settings.notification_delivery_mode'),
+          'unifiedPush',
+        );
+        expect(
+          prefs.getBool('settings.notification_delivery_mode_chosen'),
+          isTrue,
+        );
+      });
+
+      test('every Android method on iOS falls back to Apple push', () async {
+        for (final stored in ['fcm', 'unifiedPush', 'backgroundService']) {
+          final container = await containerOn(iosCapabilities, {
+            'settings.notification_delivery_mode': stored,
+          });
+          expect(
+            container.read(notificationDeliveryModeProvider),
+            NotificationDeliveryMode.apns,
+            reason: stored,
+          );
+        }
+      });
+
+      test('Apple push on Android falls back to Google services, and the '
+          'stored choice is kept', () async {
+        final container = await containerOn(androidCapabilities, {
+          'settings.notification_delivery_mode': 'apns',
+        });
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.fcm,
+        );
+        expect(
+          container
+              .read(sharedPreferencesProvider)
+              .getString('settings.notification_delivery_mode'),
+          'apns',
+        );
+      });
+
+      test('iOS defaults to Apple push when nothing is stored', () async {
+        final container = await containerOn(iosCapabilities, {});
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.apns,
+        );
+        expect(
+          container
+              .read(sharedPreferencesProvider)
+              .getString('settings.notification_delivery_mode'),
+          isNull,
+        );
+      });
+
+      test('iOS falls back to Apple push for a corrupt stored value', () async {
+        final container = await containerOn(iosCapabilities, {
+          'settings.notification_delivery_mode': 'not_a_real_mode',
+        });
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.apns,
+        );
+      });
+
+      test('a stored Apple push on iOS is read as-is', () async {
+        final container = await containerOn(iosCapabilities, {
+          'settings.notification_delivery_mode': 'apns',
+        });
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.apns,
+        );
+      });
+
+      test('the fallback is the platform default, not the first mode it '
+          'offers', () async {
+        final container = await containerOn(
+          capabilitiesLike(
+            androidCapabilities,
+            deliveryModes: const [
+              NotificationDeliveryMode.unifiedPush,
+              NotificationDeliveryMode.backgroundService,
+            ],
+            defaultDeliveryMode: NotificationDeliveryMode.backgroundService,
+          ),
+          {'settings.notification_delivery_mode': 'fcm'},
+        );
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.backgroundService,
+        );
+      });
+
+      test('Android reads each of its own methods as stored', () async {
+        for (final mode in androidCapabilities.deliveryModes) {
+          final container = await containerOn(androidCapabilities, {
+            'settings.notification_delivery_mode': mode.name,
+          });
+          expect(
+            container.read(notificationDeliveryModeProvider),
+            mode,
+            reason: mode.name,
+          );
+        }
+      });
+    });
+
+    group('a mode this platform cannot use is refused', () {
+      test('set(apns) on Android keeps the current mode and what is '
+          'stored', () async {
+        final container = await containerOn(androidCapabilities, {
+          'settings.notification_delivery_mode': 'unifiedPush',
+          'settings.notification_delivery_mode_auto': 'unifiedPush',
+        });
+
+        await container
+            .read(notificationDeliveryModeProvider.notifier)
+            .set(NotificationDeliveryMode.apns);
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.unifiedPush,
+        );
+        final prefs = container.read(sharedPreferencesProvider);
+        expect(
+          prefs.getString('settings.notification_delivery_mode'),
+          'unifiedPush',
+        );
+        expect(
+          prefs.getBool('settings.notification_delivery_mode_chosen'),
+          isNull,
+        );
+        expect(
+          prefs.getString('settings.notification_delivery_mode_auto'),
+          'unifiedPush',
+        );
+      });
+
+      test('autoSelect(apns) on Android is ignored', () async {
+        final container = await containerOn(androidCapabilities, {});
+
+        await container
+            .read(notificationDeliveryModeProvider.notifier)
+            .autoSelect(NotificationDeliveryMode.apns);
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.fcm,
+        );
+        final prefs = container.read(sharedPreferencesProvider);
+        expect(prefs.getString('settings.notification_delivery_mode'), isNull);
+        expect(
+          prefs.getString('settings.notification_delivery_mode_auto'),
+          isNull,
+        );
+      });
+
+      test('on iOS set(unifiedPush) is ignored while set(apns) '
+          'works', () async {
+        final container = await containerOn(iosCapabilities, {});
+        final notifier = container.read(
+          notificationDeliveryModeProvider.notifier,
+        );
+        final prefs = container.read(sharedPreferencesProvider);
+
+        await notifier.set(NotificationDeliveryMode.unifiedPush);
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.apns,
+        );
+        expect(prefs.getString('settings.notification_delivery_mode'), isNull);
+        expect(
+          prefs.getBool('settings.notification_delivery_mode_chosen'),
+          isNull,
+        );
+
+        await notifier.set(NotificationDeliveryMode.apns);
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.apns,
+        );
+        expect(prefs.getString('settings.notification_delivery_mode'), 'apns');
+        expect(
+          prefs.getBool('settings.notification_delivery_mode_chosen'),
+          isTrue,
+        );
+      });
+    });
+
     test('round-trips every mode with no coercion left', () async {
       final container = await _containerWith({});
       addTearDown(container.dispose);
 
-      for (final mode in NotificationDeliveryMode.values) {
+      for (final mode in androidCapabilities.deliveryModes) {
         await container
             .read(notificationDeliveryModeProvider.notifier)
             .set(mode);

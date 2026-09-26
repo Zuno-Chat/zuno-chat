@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
 
+import 'apns_delivery_provider.dart';
 import 'background_sync_delivery_provider.dart';
 import 'fcm_delivery_provider.dart';
 import 'notification_delivery_mode.dart';
@@ -13,6 +14,8 @@ abstract class NotificationDeliveryProvider {
 }
 
 final _backgroundSync = BackgroundSyncDeliveryProvider();
+
+final _apns = ApnsDeliveryProvider();
 
 final unifiedPushDeliveryProvider = UnifiedPushDeliveryProvider();
 
@@ -45,6 +48,7 @@ NotificationDeliveryProvider notificationDeliveryProviderFor(
     NotificationDeliveryMode.backgroundService => _backgroundSync,
     NotificationDeliveryMode.unifiedPush => unifiedPushDeliveryProvider,
     NotificationDeliveryMode.fcm => fcmDeliveryProvider,
+    NotificationDeliveryMode.apns => _apns,
   };
 }
 
@@ -59,6 +63,7 @@ Future<void> retryFailedDelivery(
       case NotificationDeliveryMode.unifiedPush:
         await unifiedPushDeliveryProvider.retryIfFailed(client);
       case NotificationDeliveryMode.backgroundService:
+      case NotificationDeliveryMode.apns:
         break;
     }
   } catch (e) {
@@ -77,6 +82,7 @@ Future<void> recheckDelivery(
       case NotificationDeliveryMode.unifiedPush:
         await unifiedPushDeliveryProvider.recheckRegistration(client);
       case NotificationDeliveryMode.backgroundService:
+      case NotificationDeliveryMode.apns:
         break;
     }
   } catch (e) {
@@ -95,6 +101,7 @@ Future<void> kickOffDeliveryMode(
       case NotificationDeliveryMode.fcm:
         await fcmDeliveryProvider.registerNow(client);
       case NotificationDeliveryMode.backgroundService:
+      case NotificationDeliveryMode.apns:
         break;
     }
   } catch (e) {

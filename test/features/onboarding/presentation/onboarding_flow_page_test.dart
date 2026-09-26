@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/security_prompt_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -16,6 +17,7 @@ import 'package:zuno/core/ui/step_layout.dart';
 import 'package:zuno/features/onboarding/presentation/onboarding_flow_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/platform_capabilities.dart';
 
 const _userId = '@alex:example.org';
 
@@ -47,6 +49,7 @@ void main() {
     WidgetTester tester,
     List<OnboardingStep> steps, {
     http.Client? httpClient,
+    PlatformCapabilities? capabilities,
   }) async {
     final container = ProviderContainer(
       overrides: [
@@ -54,6 +57,8 @@ void main() {
         matrixClientProvider.overrideWithValue(
           buildTestClient(userId: _userId, httpClient: httpClient),
         ),
+        if (capabilities != null)
+          platformCapabilitiesProvider.overrideWithValue(capabilities),
       ],
     );
     addTearDown(container.dispose);
@@ -450,6 +455,59 @@ void main() {
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
+      expect(find.text('Set up recovery'), findsOneWidget);
+    });
+
+    testWidgets('Android offers its three methods and nothing else', (
+      tester,
+    ) async {
+      await pumpFlow(tester, [OnboardingStep.deliveryMethod]);
+
+      expect(
+        find.byType(RadioListTile<NotificationDeliveryMode>),
+        findsNWidgets(3),
+      );
+      expect(find.text('Apple push'), findsNothing);
+    });
+
+    testWidgets('lists only the methods this platform has', (tester) async {
+      await pumpFlow(
+        tester,
+        [OnboardingStep.deliveryMethod],
+        capabilities: capabilitiesLike(
+          androidCapabilities,
+          deliveryModes: const [
+            NotificationDeliveryMode.fcm,
+            NotificationDeliveryMode.backgroundService,
+          ],
+        ),
+      );
+
+      expect(
+        find.byType(RadioListTile<NotificationDeliveryMode>),
+        findsNWidgets(2),
+      );
+      expect(find.text('UnifiedPush'), findsNothing);
+    });
+
+    testWidgets('a platform without a battery exemption never adds the '
+        'battery step', (tester) async {
+      stubBatteryExemption(granted: false);
+      await pumpFlow(
+        tester,
+        [OnboardingStep.deliveryMethod, OnboardingStep.setUpRecovery],
+        capabilities: capabilitiesLike(
+          androidCapabilities,
+          batteryExemption: false,
+        ),
+      );
+
+      await tester.tap(find.text('UnifiedPush'));
+      await tester.pump();
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Let Zuno wake up'), findsNothing);
       expect(find.text('Set up recovery'), findsOneWidget);
     });
 

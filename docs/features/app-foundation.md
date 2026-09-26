@@ -3,8 +3,9 @@
 ## Overview
 Cross-cutting infrastructure the rest of the app sits on: a single
 app-wide Matrix `Client`, cold start, connectivity awareness, global
-error handling, and the Android launch icon/splash. Not a user-facing
-feature — every screen depends on this layer.
+error handling, the android/ios capability layer, and the Android launch
+icon/splash. Not a user-facing feature — every screen depends on this
+layer.
 
 ## Architecture
 One `Client` instance for the whole app's lifetime, built by
@@ -98,6 +99,31 @@ state.
 - `zuno_motion.dart` — `ZunoDurations` and `ZunoSlideTransitionsBuilder`,
   registered in the theme, so every `MaterialPageRoute` slides with no
   call-site change. Movement only, no fade.
+
+**Every platform difference is a capability in `lib/core/platform/`.**
+`AppPlatform {android, ios}` comes from `Platform.isIOS`, so `flutter test`
+runs as android. `PlatformCapabilities` is a const table of 24 required
+fields (22 flags plus `deliveryModes`/`defaultDeliveryMode`) returned by
+the pure `capabilitiesFor(AppPlatform)`: android is all `true`, ios all
+`false` with `apns` only. Required fields force a new flag to be decided
+for both platforms. Why no build flavors, why `foss` was dropped, and the
+capability/seam rules:
+[platform-flavors.md](../decisions/platform-flavors.md).
+- Call sites never read `Platform.isIOS`; only `app_platform.dart` does.
+  Consumers watch `platformCapabilitiesProvider` where a `Ref` is
+  reachable, else take a `PlatformCapabilities` parameter that defaults to
+  `ambientCapabilities`.
+- `ambientCapabilities` is a getter plus a `@visibleForTesting` setter.
+  Production never assigns it; a test sets it to run a flow as iOS end to
+  end.
+
+An iOS `false` is one of two kinds:
+
+| Kind | Flags | On iOS |
+|---|---|---|
+| Awaiting an iOS equivalent | every other flag, e.g. `networkAvailabilityEvents` (offline reads as `unreachable` until then), `nativeSignOutWipe` (sign-out keeps local data until then) | flips to `true` once a native handler exists |
+| Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns` | stays `false` |
+| Permanent: seam selector | `fullScreenIntent`, `callForegroundService`, `nativeRingbackTone` | stays `false`; CallKit arrives as a new branch in each `*For()` factory (`calls.md`), never a flag flip |
 
 ## Data & State
 The SDK's local database (SQLCipher-encrypted `sqflite`) is the

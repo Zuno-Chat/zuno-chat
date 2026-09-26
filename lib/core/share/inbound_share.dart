@@ -5,6 +5,7 @@ import 'package:cross_file/cross_file.dart';
 import 'package:flutter/services.dart';
 
 import '../matrix/looks_like_video.dart';
+import '../platform/platform_capabilities.dart';
 
 const _channel = MethodChannel('zuno/share');
 
@@ -72,7 +73,11 @@ bool isSharedMedia(XFile file) {
   return (media: media, others: others);
 }
 
-void initInboundShareChannel() {
+bool _receivesShares(PlatformCapabilities? capabilities) =>
+    (capabilities ?? ambientCapabilities).inboundShare;
+
+void initInboundShareChannel({PlatformCapabilities? capabilities}) {
+  if (!_receivesShares(capabilities)) return;
   _channel.setMethodCallHandler((call) async {
     if (call.method == 'share') {
       final share = InboundShare.fromChannel(call.arguments);
@@ -82,12 +87,20 @@ void initInboundShareChannel() {
   });
 }
 
-Future<InboundShare?> takeLaunchShare() async => InboundShare.fromChannel(
-  await _channel.invokeMethod<Object?>('takeLaunchShare'),
-);
+Future<InboundShare?> takeLaunchShare({
+  PlatformCapabilities? capabilities,
+}) async {
+  if (!_receivesShares(capabilities)) return null;
+  return InboundShare.fromChannel(
+    await _channel.invokeMethod<Object?>('takeLaunchShare'),
+  );
+}
 
-Future<List<XFile>> copySharedFilesToCache(List<SharedFile> files) async {
-  if (files.isEmpty) return const [];
+Future<List<XFile>> copySharedFilesToCache(
+  List<SharedFile> files, {
+  PlatformCapabilities? capabilities,
+}) async {
+  if (files.isEmpty || !_receivesShares(capabilities)) return const [];
   final paths = await _channel.invokeListMethod<String?>('copyToCache', {
     'uris': [for (final file in files) file.uri],
     'names': [for (final file in files) file.name],

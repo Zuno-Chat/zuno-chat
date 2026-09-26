@@ -16,6 +16,7 @@ import '../../../core/calls/notifications/headless_call_decline_provider.dart';
 import '../../../core/calls/notifications/pending_call_notification_action_provider.dart';
 import '../../../core/calls/notifications/ring_notification.dart';
 import '../../../core/calls/notifications/ringing_call_provider.dart';
+import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/global_error_handler.dart';
 import '../../../core/matrix/force_sync.dart';
@@ -446,7 +447,12 @@ class RoomListPage extends ConsumerWidget {
         return;
       }
 
-      unawaited(postRingNotification(call));
+      unawaited(
+        postRingNotification(
+          call,
+          presenter: ref.read(incomingCallPresenterProvider),
+        ),
+      );
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => IncomingCallPage(call: call)));

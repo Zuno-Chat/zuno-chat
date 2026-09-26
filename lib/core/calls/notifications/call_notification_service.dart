@@ -19,19 +19,17 @@ import '../../notifications/notification_sound_player.dart';
 import '../../notifications/notification_sound_settings.dart';
 import '../../notifications/notification_thread_store.dart';
 import '../../notifications/notified_events_store.dart';
+import '../../platform/platform_capabilities.dart';
 import '../../push/push_timing.dart';
-import 'ringing_call_store.dart';
 
 export '../../notifications/notification_ids.dart'
     show messageNotificationIdFor;
 
 const _channel = MethodChannel('zuno/calls');
-const _callStyleChannel = MethodChannel('zuno/call_style');
 const _conversationsChannel = MethodChannel('zuno/conversations');
 
-const _ringChannelId = 'calls_ringing';
-const _groupRingChannelId = 'calls_ringing_group';
-const _ringNotificationId = 4002;
+const ringChannelId = 'calls_ringing';
+const groupRingChannelId = 'calls_ringing_group';
 const _callsGroupId = 'calls_group';
 
 const _groupMessagesChannelId = 'group_messages';
@@ -158,8 +156,15 @@ Future<void> _handleBackgroundMessageAction(
 }
 
 class CallNotificationService {
-  CallNotificationService._();
-  static final instance = CallNotificationService._();
+  @visibleForTesting
+  CallNotificationService({PlatformCapabilities? capabilities})
+    : _injectedCapabilities = capabilities;
+  static final instance = CallNotificationService();
+
+  final PlatformCapabilities? _injectedCapabilities;
+
+  PlatformCapabilities get _capabilities =>
+      _injectedCapabilities ?? ambientCapabilities;
 
   final _plugin = FlutterLocalNotificationsPlugin();
   final _actionController =
@@ -250,7 +255,7 @@ class CallNotificationService {
 
   static const _channels = [
     AndroidNotificationChannel(
-      _ringChannelId,
+      ringChannelId,
       'Incoming calls',
       description: 'Ringing for a call in a chat',
       importance: Importance.max,
@@ -269,7 +274,7 @@ class CallNotificationService {
       enableVibration: false,
     ),
     AndroidNotificationChannel(
-      _groupRingChannelId,
+      groupRingChannelId,
       'Incoming room calls',
       description: 'Ringing for a call in a room',
       importance: Importance.max,
@@ -368,63 +373,6 @@ class CallNotificationService {
     if (decoded['type'] != 'message') return;
     final roomId = decoded['roomId'];
     if (roomId is String) _messageTapController.add(roomId);
-  }
-
-  Future<void> showIncomingCall({
-    required String callerName,
-    required String callerId,
-    required bool isVideo,
-    required String roomId,
-    required String callId,
-    bool isGroupCall = false,
-    Uint8List? avatarBytes,
-  }) async {
-    await initialize();
-    debugPrint(
-      'zuno/push: posting ring for $callId '
-      '(fullScreenIntentAllowed=${await fullScreenIntentAllowedOrNull()})',
-    );
-    try {
-      await saveRingingCall(await SharedPreferences.getInstance(), (
-        roomId: roomId,
-        callId: callId,
-        callerId: callerId,
-        isVideo: isVideo,
-      ));
-    } catch (_) {}
-    unawaited(NotificationSoundPlayer.instance.startIncomingRing());
-    await _invoke('showIncomingCallStyle', {
-      'channelId': isGroupCall ? _groupRingChannelId : _ringChannelId,
-      'title': isVideo ? 'Incoming video call' : 'Incoming voice call',
-      'callerName': callerName,
-      'callerId': callerId,
-      'isVideo': isVideo,
-      'roomId': roomId,
-      'callId': callId,
-      'avatarBytes': avatarBytes,
-    }, _callStyleChannel);
-  }
-
-  Future<void> cancelIncomingCall() async {
-    await NotificationSoundPlayer.instance.stopIncomingRing();
-    try {
-      await clearRingingCall(await SharedPreferences.getInstance());
-    } catch (_) {}
-    await _invoke('cancelIncomingCallStyle', null, _callStyleChannel);
-  }
-
-  Future<RingingCallInfo?> activeRingCall() async {
-    await initialize();
-    try {
-      final active = await _android?.getActiveNotifications();
-      final showing = active?.any((n) => n.id == _ringNotificationId) ?? false;
-      if (!showing) return null;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.reload();
-      return readRingingCall(prefs);
-    } catch (_) {
-      return null;
-    }
   }
 
   Future<void> showMessage(
@@ -866,21 +814,10 @@ class CallNotificationService {
     );
   }
 
-  Future<void> startOngoingCall({
-    required String title,
-    required bool withCamera,
-  }) {
-    return _invoke('startCallForegroundService', {
-      'title': title,
-      'text': 'Tap to return to the call',
-      'withCamera': withCamera,
-    });
-  }
-
-  Future<void> stopOngoingCall() => _invoke('stopCallForegroundService');
-
   Future<void> setShowOverLockscreen(bool show) =>
-      _invoke('setShowOverLockscreen', {'show': show});
+      _capabilities.lockScreenCallUi
+      ? _invoke('setShowOverLockscreen', {'show': show})
+      : Future.value();
 
   Future<void> setProximityScreenOff(bool enabled) =>
       _invoke('setProximityScreenOff', {'enabled': enabled});
@@ -901,10 +838,13 @@ class CallNotificationService {
       await fullScreenIntentAllowedOrNull() ?? true;
 
   Future<bool?> fullScreenIntentAllowedOrNull() =>
-      _invoke<bool>('canUseFullScreenIntent');
+      _capabilities.fullScreenIntent
+      ? _invoke<bool>('canUseFullScreenIntent')
+      : Future.value();
 
-  Future<void> openFullScreenIntentSettings() =>
-      _invoke('openFullScreenIntentSettings');
+  Future<void> openFullScreenIntentSettings() => _capabilities.fullScreenIntent
+      ? _invoke('openFullScreenIntentSettings')
+      : Future.value();
 
   Future<List<SilencedChannel>> silencedChannels() async {
     try {
@@ -925,10 +865,9 @@ class CallNotificationService {
   Future<T?> _invoke<T>(
     String method, [
     Map<String, Object?>? arguments,
-    MethodChannel channel = _channel,
   ]) async {
     try {
-      return await channel.invokeMethod<T>(method, arguments);
+      return await _channel.invokeMethod<T>(method, arguments);
     } on MissingPluginException {
       return null;
     }

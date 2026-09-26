@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/notification_sound_player.dart';
 import 'package:zuno/core/notifications/notification_sound_settings.dart';
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -13,42 +15,6 @@ void main() {
   final player = NotificationSoundPlayer.instance;
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
-
-  test('the ringtone preference off leaves no ringback to move', () async {
-    SharedPreferences.setMockInitialValues({ringtoneEnabledKey: false});
-
-    await player.startRingback();
-
-    expect(player.isRingbackPlaying, isFalse);
-    await player.restartRingbackForRouteChange();
-    expect(player.isRingbackPlaying, isFalse);
-  });
-
-  test('the ringback starts and stops with the preference on', () async {
-    await player.startRingback();
-    expect(player.isRingbackPlaying, isTrue);
-
-    await player.startRingback();
-    expect(player.isRingbackPlaying, isTrue);
-
-    await player.stopRingback();
-    expect(player.isRingbackPlaying, isFalse);
-  });
-
-  test('a route change restarts a ringing tone', () async {
-    await player.startRingback();
-
-    await player.restartRingbackForRouteChange();
-
-    expect(player.isRingbackPlaying, isTrue);
-    await player.stopRingback();
-  });
-
-  test('stopping clears the flag that makes starting idempotent', () async {
-    await player.stopRingback();
-
-    expect(player.isRingbackPlaying, isFalse);
-  });
 
   group('vibration', () {
     const channel = MethodChannel('zuno/vibration');
@@ -171,6 +137,26 @@ void main() {
           );
         },
       );
+
+      test('a platform without vibration patterns rings with no buzz and no '
+          'native call', () async {
+        SharedPreferences.setMockInitialValues({
+          ringtoneEnabledKey: false,
+          callVibrationEnabledKey: true,
+          messageVibrationEnabledKey: true,
+        });
+        final ios = NotificationSoundPlayer(
+          capabilities: capabilitiesFor(AppPlatform.ios),
+        );
+
+        await ios.startIncomingRing();
+        expect(ios.ownsIncomingRing, isTrue);
+        await ios.vibrateForMessage();
+        await ios.stopIncomingRing();
+
+        expect(ios.ownsIncomingRing, isFalse);
+        expect(calls, isEmpty);
+      });
 
       test('no vibrator on the device skips the buzz, not logged as a '
           'failure', () async {

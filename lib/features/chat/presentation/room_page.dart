@@ -45,6 +45,7 @@ import '../../../core/matrix/send_failure.dart';
 import '../../../core/matrix/send_progress.dart';
 import '../../../core/matrix/upload_foreground_service.dart';
 import '../../../core/matrix/video_send_preparation.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/recovery_code.dart';
 import '../../../core/security/recovery_code_leak.dart';
 import '../../../core/security/security_providers.dart';
@@ -1473,6 +1474,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     final incognitoKeyboard = ref.watch(incognitoKeyboardProvider);
     final linkPreviewsEnabled = ref.watch(linkPreviewsEnabledProvider);
     final showHiddenMessages = ref.watch(showHiddenMessagesProvider);
+    final capabilities = ref.watch(platformCapabilitiesProvider);
     ref.listen<AsyncValue<bool>>(isOfflineProvider, (previous, next) {
       if (becameOnline(previous, next)) _retryAfterReconnect();
     });
@@ -1508,10 +1510,11 @@ class _RoomPageState extends ConsumerState<RoomPage>
               onTap: () => unawaited(_addMembers()),
               child: const Text('Add members'),
             ),
-          PopupMenuItem(
-            onTap: () => unawaited(_addToHomeScreen()),
-            child: const Text('Add to home screen'),
-          ),
+          if (capabilities.homeScreenShortcuts)
+            PopupMenuItem(
+              onTap: () => unawaited(_addToHomeScreen()),
+              child: const Text('Add to home screen'),
+            ),
           PopupMenuItem(
             onTap: () => unawaited(_reinitializeConversation()),
             child: const Text('Reload messages'),

@@ -26,6 +26,13 @@ void main() {
       );
     });
 
+    test('Apple push does not — iOS has no battery exemption to grant', () {
+      expect(
+        deliveryDependsOnBatteryExemption(NotificationDeliveryMode.apns),
+        isFalse,
+      );
+    });
+
     test(
       'FCM does not depend on a battery exemption; both real fallbacks do',
       () {
@@ -47,5 +54,33 @@ void main() {
         );
       },
     );
+  });
+
+  group('copy', () {
+    test('Apple push is named plainly and says what it needs', () {
+      expect(NotificationDeliveryMode.apns.label, 'Apple push');
+      expect(
+        NotificationDeliveryMode.apns.description,
+        'Instant, through Apple, with no setup',
+      );
+    });
+
+    test('the Android methods keep their names', () {
+      expect(NotificationDeliveryMode.fcm.label, 'Google services');
+      expect(NotificationDeliveryMode.unifiedPush.label, 'UnifiedPush');
+      expect(
+        NotificationDeliveryMode.backgroundService.label,
+        'Background sync',
+      );
+    });
+
+    test('no method shouts or uses a contraction', () {
+      for (final mode in NotificationDeliveryMode.values) {
+        for (final text in [mode.label, mode.description]) {
+          expect(text, isNot(contains('!')), reason: '$mode');
+          expect(text, isNot(contains("'")), reason: '$mode');
+        }
+      }
+    });
   });
 }

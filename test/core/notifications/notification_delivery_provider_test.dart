@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/background_sync_delivery_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
@@ -58,6 +59,61 @@ void main() {
       notificationDeliveryProviderFor(NotificationDeliveryMode.fcm),
       same(fcmDeliveryProvider),
     );
+  });
+
+  group('Apple push', () {
+    test('resolves to its own provider, not an Android transport', () {
+      final provider = notificationDeliveryProviderFor(
+        NotificationDeliveryMode.apns,
+      );
+
+      expect(provider, isA<ApnsDeliveryProvider>());
+      expect(
+        provider,
+        same(notificationDeliveryProviderFor(NotificationDeliveryMode.apns)),
+      );
+      for (final other in [
+        NotificationDeliveryMode.fcm,
+        NotificationDeliveryMode.unifiedPush,
+        NotificationDeliveryMode.backgroundService,
+      ]) {
+        expect(provider, isNot(same(notificationDeliveryProviderFor(other))));
+      }
+    });
+
+    test('starting and stopping it touch nothing', () async {
+      final client = _PusherClient();
+      final provider = notificationDeliveryProviderFor(
+        NotificationDeliveryMode.apns,
+      );
+
+      await provider.start(client);
+      await provider.stop(client);
+
+      expect(calls, isEmpty);
+      expect(client.posted, isEmpty);
+      expect(client.deleted, isEmpty);
+    });
+
+    test('retry, recheck and kick-off leave it alone', () async {
+      final client = _PusherClient();
+
+      await retryFailedDelivery(client, NotificationDeliveryMode.apns);
+      await recheckDelivery(client, NotificationDeliveryMode.apns);
+      await kickOffDeliveryMode(client, NotificationDeliveryMode.apns);
+
+      expect(calls, isEmpty);
+      expect(client.posted, isEmpty);
+      expect(client.deleted, isEmpty);
+    });
+  });
+
+  test('stopping all delivery still stops background sync', () async {
+    SharedPreferences.setMockInitialValues({});
+
+    await stopAllNotificationDelivery(_PusherClient());
+
+    expect(calls, contains('stopBackgroundSyncService'));
   });
 
   test('notificationDeliveryProviderFor returns a stable singleton per mode — '
@@ -142,11 +198,15 @@ class _PusherClient extends Client {
 
   final posted = <Pusher>[];
 
+  final deleted = <PusherId>[];
+
   @override
   Future<void> postPusher(Pusher pusher, {bool? append}) async {
     posted.add(pusher);
   }
 
   @override
-  Future<void> deletePusher(PusherId pusherId) async {}
+  Future<void> deletePusher(PusherId pusherId) async {
+    deleted.add(pusherId);
+  }
 }

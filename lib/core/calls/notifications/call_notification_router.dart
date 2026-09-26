@@ -16,6 +16,7 @@ import '../matrixrtc/call_session.dart';
 import '../matrixrtc/incoming_call.dart';
 import '../matrixrtc/resolved_call_ids_provider.dart';
 import '../models/call_kind.dart';
+import '../platform/incoming_call_presenter.dart';
 import 'await_room.dart';
 import 'call_notification_service.dart';
 import 'pending_call_notification_action_provider.dart';
@@ -51,7 +52,7 @@ class CallNotificationRouter extends Notifier<void> {
     if (_checkedLaunchAction) return;
     _checkedLaunchAction = true;
     if (await recheckLaunchAction(instant: instant)) return;
-    final ringing = await CallNotificationService.instance.activeRingCall();
+    final ringing = await ref.read(incomingCallPresenterProvider).activeRing();
     _log('active ring notification: ${ringing?.callId}');
     if (ringing != null && await _showRingingScreen(ringing, instant)) return;
     await releaseLockscreenIfIdle();
@@ -119,7 +120,7 @@ class CallNotificationRouter extends Notifier<void> {
       ref.read(pendingCallNotificationActionProvider.notifier).consume();
     }
 
-    await CallNotificationService.instance.cancelIncomingCall();
+    await ref.read(incomingCallPresenterProvider).cancelIncoming();
 
     final client = ref.read(matrixClientProvider);
     final room = await awaitRoom(client, call.roomId);
@@ -177,7 +178,9 @@ class CallNotificationRouter extends Notifier<void> {
   Future<void> releaseLockscreenIfIdle() async {
     if (ref.read(activeCallProvider) != null) return;
     if (RingingCall.instance.callId != null) return;
-    if (await CallNotificationService.instance.activeRingCall() != null) return;
+    if (await ref.read(incomingCallPresenterProvider).activeRing() != null) {
+      return;
+    }
     await CallNotificationService.instance.setShowOverLockscreen(false);
   }
 

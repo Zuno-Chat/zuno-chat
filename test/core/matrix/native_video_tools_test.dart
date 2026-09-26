@@ -2,6 +2,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/matrix/native_video_tools.dart';
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -101,4 +103,32 @@ void main() {
       isNull,
     );
   });
+
+  test('with android capabilities every call goes native', () async {
+    answer((_) => null);
+    final android = NativeVideoTools.forTest(
+      capabilities: capabilitiesFor(AppPlatform.android),
+    );
+    await android.probe('/tmp/a.mp4');
+    await android.remux('/in.mp4', '/out.mp4');
+    await android.thumbnail('/tmp/a.mp4', maxDimension: 800, quality: 85);
+    expect(calls.map((c) => c.method), ['probe', 'remux', 'thumbnail']);
+  });
+
+  test(
+    'without native video tools nothing is probed, remuxed or thumbnailed',
+    () async {
+      answer((_) => null);
+      final ios = NativeVideoTools.forTest(
+        capabilities: capabilitiesFor(AppPlatform.ios),
+      );
+      expect(await ios.probe('/tmp/a.mp4'), isNull);
+      expect(await ios.remux('/in.mp4', '/out.mp4'), isFalse);
+      expect(
+        await ios.thumbnail('/tmp/a.mp4', maxDimension: 800, quality: 85),
+        isNull,
+      );
+      expect(calls, isEmpty);
+    },
+  );
 }

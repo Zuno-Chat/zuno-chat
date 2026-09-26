@@ -1,11 +1,17 @@
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/sign_out_wipe.dart';
+import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late SharedPreferences prefs;
   late List<String> calls;
   late SignOutWipe wipe;
@@ -90,5 +96,50 @@ void main() {
     final refusing = SignOutWipe(prefs, () async => throw Exception('no'));
 
     await refusing.onLoginState(false, stopDelivery: stopDelivery);
+  });
+
+  group('signOutWipeProvider', () {
+    const channel = MethodChannel('zuno/app_data');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+
+    setUp(() {
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add('native ${call.method}');
+        return true;
+      });
+    });
+
+    tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    SignOutWipe providedWipe({PlatformCapabilities? capabilities}) {
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          if (capabilities != null)
+            platformCapabilitiesProvider.overrideWithValue(capabilities),
+        ],
+      );
+      addTearDown(container.dispose);
+      return container.read(signOutWipeProvider);
+    }
+
+    test('signing out wipes the app data through the native side', () async {
+      await prefs.setBool(signedInMarkerKey, true);
+
+      await providedWipe().onLoginState(false, stopDelivery: stopDelivery);
+
+      expect(calls, ['stop', 'native wipe']);
+    });
+
+    test('without a native wipe, signing out still stops delivery and never '
+        'calls native', () async {
+      await prefs.setBool(signedInMarkerKey, true);
+
+      await providedWipe(capabilities: capabilitiesFor(AppPlatform.ios))
+          .onLoginState(false, stopDelivery: stopDelivery);
+
+      expect(calls, ['stop']);
+    });
   });
 }

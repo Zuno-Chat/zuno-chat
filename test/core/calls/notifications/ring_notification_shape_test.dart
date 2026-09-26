@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
@@ -23,7 +23,7 @@ void main() {
     bool isGroupCall = false,
     Uint8List? avatarBytes,
   }) async {
-    await CallNotificationService.instance.showIncomingCall(
+    await const AndroidIncomingCallPresenter().showIncoming(
       callerName: 'Bob',
       callerId: '@bob:example.org',
       isVideo: isVideo,

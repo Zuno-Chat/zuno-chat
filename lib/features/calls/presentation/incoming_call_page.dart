@@ -15,6 +15,7 @@ import '../../../core/calls/models/call_kind.dart';
 import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/calls/notifications/pending_call_notification_action_provider.dart';
 import '../../../core/calls/notifications/ringing_call_provider.dart';
+import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_user_display.dart';
 import '../../../core/settings/app_preferences_provider.dart';
@@ -35,6 +36,7 @@ class IncomingCallPage extends ConsumerStatefulWidget {
 class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   StreamSubscription<CallNotificationResponse>? _notificationActionSub;
   StreamSubscription<Event>? _callEndedSub;
+  late final IncomingCallPresenter _incomingCallPresenter;
   bool _resolved = false;
   User? _caller;
   bool _handedOffToCall = false;
@@ -42,6 +44,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   @override
   void initState() {
     super.initState();
+    _incomingCallPresenter = ref.read(incomingCallPresenterProvider);
     RingingCall.instance.set(widget.call.callId);
     _caller = widget.call.room.unsafeGetUserFromMemoryOrFallback(
       widget.call.callerId,
@@ -108,7 +111,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   void dispose() {
     _notificationActionSub?.cancel();
     _callEndedSub?.cancel();
-    unawaited(CallNotificationService.instance.cancelIncomingCall());
+    unawaited(_incomingCallPresenter.cancelIncoming());
     RingingCall.instance.clear(widget.call.callId);
     if (!_handedOffToCall) {
       unawaited(CallNotificationService.instance.setShowOverLockscreen(false));

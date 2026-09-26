@@ -22,6 +22,7 @@ List<OnboardingStep> steps({
   bool justRegistered = false,
   bool notificationsAllowed = true,
   bool canAskNotifications = false,
+  bool canChooseDelivery = true,
   bool needsBatteryExemption = false,
   bool needsAutostart = false,
   AccountSecurityFacts? securityFacts,
@@ -32,6 +33,7 @@ List<OnboardingStep> steps({
   justRegistered: justRegistered,
   notificationsAllowed: notificationsAllowed,
   canAskNotifications: canAskNotifications,
+  canChooseDelivery: canChooseDelivery,
   needsBatteryExemption: needsBatteryExemption,
   needsAutostart: needsAutostart,
   securityFacts: securityFacts ?? facts(),
@@ -82,8 +84,7 @@ void main() {
       );
     });
 
-    test('is welcomed and asked for a name even when nothing else applies',
-        () {
+    test('is welcomed and asked for a name even when nothing else applies', () {
       expect(steps(justRegistered: true), [
         OnboardingStep.welcome,
         OnboardingStep.profile,
@@ -147,6 +148,37 @@ void main() {
       expect(steps(needsBatteryExemption: true), [
         OnboardingStep.batteryExemption,
       ]);
+    });
+
+    test('is not asked where there is only one method', () {
+      expect(steps(alreadyShown: const {}, canChooseDelivery: false), isEmpty);
+      expect(
+        steps(
+          justRegistered: true,
+          canAskNotifications: true,
+          alreadyShown: const {},
+          canChooseDelivery: false,
+          securityFacts: lockedDevice,
+        ),
+        [
+          OnboardingStep.welcome,
+          OnboardingStep.profile,
+          OnboardingStep.notifications,
+          OnboardingStep.approveDevice,
+        ],
+      );
+    });
+
+    test('with only one method, the battery step follows it straight '
+        'away', () {
+      expect(
+        steps(
+          alreadyShown: const {},
+          canChooseDelivery: false,
+          needsBatteryExemption: true,
+        ),
+        [OnboardingStep.batteryExemption],
+      );
     });
   });
 
@@ -234,20 +266,20 @@ void main() {
     });
 
     test('never adds it twice', () {
-      final once = stepsAfterDeliveryChoice(before, needsBatteryExemption: true);
+      final once = stepsAfterDeliveryChoice(
+        before,
+        needsBatteryExemption: true,
+      );
       expect(stepsAfterDeliveryChoice(once, needsBatteryExemption: true), once);
     });
 
     test('a method that does not need it drops a pending battery step', () {
       expect(
-        stepsAfterDeliveryChoice(
-          const [
-            OnboardingStep.deliveryMethod,
-            OnboardingStep.batteryExemption,
-            OnboardingStep.approveDevice,
-          ],
-          needsBatteryExemption: false,
-        ),
+        stepsAfterDeliveryChoice(const [
+          OnboardingStep.deliveryMethod,
+          OnboardingStep.batteryExemption,
+          OnboardingStep.approveDevice,
+        ], needsBatteryExemption: false),
         [OnboardingStep.deliveryMethod, OnboardingStep.approveDevice],
       );
     });
@@ -292,10 +324,10 @@ void main() {
 
   group('being allowed to wake up', () {
     test('is asked for right after notifications', () {
-      expect(
-        steps(canAskNotifications: true, needsBatteryExemption: true),
-        [OnboardingStep.notifications, OnboardingStep.batteryExemption],
-      );
+      expect(steps(canAskNotifications: true, needsBatteryExemption: true), [
+        OnboardingStep.notifications,
+        OnboardingStep.batteryExemption,
+      ]);
     });
 
     test('is not asked when Android already exempts the app', () {
@@ -316,10 +348,10 @@ void main() {
     });
 
     test('comes before the security steps, not after them', () {
-      expect(
-        steps(needsBatteryExemption: true, securityFacts: lockedDevice),
-        [OnboardingStep.batteryExemption, OnboardingStep.approveDevice],
-      );
+      expect(steps(needsBatteryExemption: true, securityFacts: lockedDevice), [
+        OnboardingStep.batteryExemption,
+        OnboardingStep.approveDevice,
+      ]);
     });
   });
 
