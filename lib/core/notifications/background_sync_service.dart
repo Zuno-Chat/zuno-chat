@@ -32,4 +32,15 @@ class BackgroundSyncService {
 
   Future<void> openBackgroundDataSettings() =>
       _channel.invokeMethod('openBackgroundDataSettings');
+
+  Future<bool> hasAutostartSettings() async {
+    try {
+      return await _channel.invokeMethod<bool>('hasAutostartSettings') ?? false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  Future<void> openAutostartSettings() =>
+      _channel.invokeMethod('openAutostartSettings');
 }

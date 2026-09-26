@@ -13,6 +13,7 @@ import 'fcm_push_notification.dart';
 import 'headless_decline_hold.dart';
 import 'headless_push_runner.dart';
 import 'incoming_push_handler.dart';
+import 'push_wake_lock.dart';
 
 Future<void> handleFcmMessage(
   HeadlessPushRunner runner,
@@ -69,11 +70,33 @@ void resetFcmBackgroundRunnerForTesting() => _backgroundRunner = null;
 @pragma('vm:entry-point')
 Future<void> fcmBackgroundHandler(RemoteMessage message) async {
   WidgetsFlutterBinding.ensureInitialized();
-  await installUserAgent();
-  await initHeadlessCrashReporting();
-  final runner = fcmBackgroundRunner();
-  if (!await prepareHeadlessPush(runner)) return;
-  await handleFcmMessage(runner, message.data);
+  await runFcmBackgroundPush(message.data, runner: fcmBackgroundRunner());
+}
+
+@visibleForTesting
+Future<void> runFcmBackgroundPush(
+  Map<String, dynamic> data, {
+  required HeadlessPushRunner runner,
+  Future<void> Function() installAgent = installUserAgent,
+  Future<void> Function() initCrashReporting = initHeadlessCrashReporting,
+  Future<bool> Function(HeadlessPushRunner runner) prepare =
+      prepareHeadlessPush,
+  Future<void> Function() releaseWakeLock = releaseFcmPushWakeLock,
+}) async {
+  try {
+    await installAgent();
+    unawaited(
+      initCrashReporting().then(
+        (_) {},
+        onError: (Object error) =>
+            debugPrint('zuno/push: crash reporting not started: $error'),
+      ),
+    );
+    if (!await prepare(runner)) return;
+    await handleFcmMessage(runner, data);
+  } finally {
+    await releaseWakeLock();
+  }
 }
 
 bool _foregroundListenerAttached = false;

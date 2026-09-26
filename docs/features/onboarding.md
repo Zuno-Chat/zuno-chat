@@ -10,14 +10,16 @@ Not a fixed wizard: most launches show nothing at all.
 
 - `lib/core/onboarding/onboarding_step.dart` — the pure decision core.
   `OnboardingStep` enum (`welcome`, `profile`, `notifications`,
-  `deliveryMethod`, `batteryExemption`, `approveDevice`, `setUpRecovery`),
+  `deliveryMethod`, `batteryExemption`, `autostart`, `approveDevice`,
+  `setUpRecovery`),
   `onboardingSteps(...)` (account facts → ordered list) and
   `stepsAfterDeliveryChoice(...)` (adjusts a running flow once a delivery
   method is picked). No `Client`, no platform channel, no
   `SharedPreferences`.
 - `lib/core/onboarding/onboarding_provider.dart` — the wiring. Gathers the
   facts (`OnboardingStore.justRegistered`, askable notification permission,
-  `needsBatteryExemptionFor(mode)`, `AccountSecurityFacts`, joined rooms,
+  `needsBatteryExemptionFor(mode)`, `hasAutostartSettings()`,
+  `AccountSecurityFacts`, joined rooms,
   recovery-prompt cooldown, already-shown steps) into
   `onboardingStepsProvider` (`FutureProvider`, recomputed on every sync
   tick) and holds `OnboardingStore` (persistence + in-flight guard).
@@ -48,6 +50,7 @@ Not a fixed wizard: most launches show nothing at all.
 | `notifications` | permission not granted and not permanently denied | OS answers; if full-screen call alerts are still off, one "Open settings" page, advancing on return |
 | `deliveryMethod` | not yet answered on this device (login or registration) | "Continue" after picking a method |
 | `batteryExemption` | chosen mode depends on it and Android hasn't exempted the app | OS grants it (checked on resume) |
+| `autostart` | the phone's maker blocks closed apps from starting (`AutostartDecision`: Xiaomi, Oppo, Vivo, Huawei families) | "Open settings", then advances; Android cannot report the setting, so it is asked once |
 | `approveDevice` | recovery exists, this device lacks identity keys | returning from `ApproveThisDevicePage` |
 | `setUpRecovery` | no recovery, has conversations, prompt not on cooldown | returning from `SecureBackupPage` |
 

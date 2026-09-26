@@ -52,6 +52,17 @@ class RtcMembership {
   };
 }
 
+String? callMembershipEventId(Room room, String callId, {String? excluding}) {
+  final states = room.states[callMemberEventType] ?? const {};
+  for (final MapEntry(key: userId, value: state) in states.entries) {
+    if (userId == excluding || state is! MatrixEvent) continue;
+    if (parseRtcMemberships(state.content).any((m) => m.callId == callId)) {
+      return state.eventId;
+    }
+  }
+  return null;
+}
+
 List<RtcMembership> parseRtcMemberships(Map<String, Object?>? content) {
   final raw = content?['memberships'];
   if (raw is! List) return [];

@@ -1,16 +1,19 @@
 package im.zuno.chat.zuno_notifications
 
+import android.app.ActivityManager
+import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.media.AudioAttributes
 import android.os.Build
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
-import java.util.concurrent.atomic.AtomicInteger
 
 object PushNotice {
     const val PREFERENCES = "FlutterSharedPreferences"
@@ -22,21 +25,28 @@ object PushNotice {
     private const val SMALL_ICON = "ic_stat_zuno_mark"
     private val vibrationPattern = longArrayOf(0, 300, 150, 300)
 
-    val liveEngines = AtomicInteger()
     private val posted = HashMap<String, String>()
+
+    fun appInFront(context: Context): Boolean {
+        val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        if (keyguard?.isKeyguardLocked == true) return false
+        val state = ActivityManager.RunningAppProcessInfo()
+        ActivityManager.getMyMemoryState(state)
+        return state.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+    }
 
     fun post(
         context: Context,
         roomId: String?,
         eventId: String?,
-        liveEngines: Int = this.liveEngines.get(),
+        appInFront: Boolean = appInFront(context),
     ) {
         try {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val notificationId = roomId?.let { NotificationIds.messageNotificationIdFor(it) }
             val showing =
                 notificationId != null && manager.activeNotifications.any { it.id == notificationId }
-            if (!PushNoticeDecision.shouldPost(roomId, eventId, liveEngines, showing)) return
+            if (!PushNoticeDecision.shouldPost(roomId, eventId, appInFront, showing)) return
             if (roomId == null || eventId == null || notificationId == null) return
             val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
             if (PushNoticeDecision.mutedByNotifyMe(prefs.getString(NOTIFY_ME_KEY, null))) {
@@ -109,8 +119,18 @@ object PushNotice {
                 context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
             }
             if (vibrator == null || !vibrator.hasVibrator()) return
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(vibrationPattern, -1))
+            val effect = VibrationEffect.createWaveform(vibrationPattern, -1)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                vibrator.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_NOTIFICATION))
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(
+                    effect,
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
             } else {
                 @Suppress("DEPRECATION")
                 vibrator.vibrate(vibrationPattern, -1)

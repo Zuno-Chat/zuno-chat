@@ -40,6 +40,7 @@ class _NotificationDeliveryPageState
     with WidgetsBindingObserver {
   bool _ignoringBatteryOptimizations = false;
   bool _backgroundDataRestricted = false;
+  bool _hasAutostartSettings = false;
   String? _unifiedPushDistributor;
 
   @override
@@ -48,6 +49,7 @@ class _NotificationDeliveryPageState
     WidgetsBinding.instance.addObserver(this);
     _refreshBackgroundSyncPermissions();
     _refreshUnifiedPushStatus();
+    _checkAutostartSettings();
     unifiedPushDeliveryProvider.status.addListener(_onUnifiedPushStatusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -97,6 +99,12 @@ class _NotificationDeliveryPageState
       _ignoringBatteryOptimizations = ignoringBatteryOptimizations;
       _backgroundDataRestricted = backgroundDataRestricted;
     });
+  }
+
+  Future<void> _checkAutostartSettings() async {
+    final available = await BackgroundSyncService.instance
+        .hasAutostartSettings();
+    if (mounted) setState(() => _hasAutostartSettings = available);
   }
 
   void _discoverDistributors() {
@@ -262,21 +270,27 @@ class _NotificationDeliveryPageState
               );
             },
           ),
+          _batteryExemptionTile(mode),
         ];
     }
   }
 
   Widget _batteryExemptionTile(NotificationDeliveryMode mode) {
-    final forPush = mode == NotificationDeliveryMode.unifiedPush;
-    final subtitle = switch ((_ignoringBatteryOptimizations, forPush)) {
-      (true, true) =>
+    final subtitle = switch ((_ignoringBatteryOptimizations, mode)) {
+      (true, NotificationDeliveryMode.unifiedPush) =>
         'Android will not put Zuno to sleep, so notifications arrive while '
             'your device is locked',
-      (true, false) => 'Android will not pause background sync to save power',
-      (false, true) =>
+      (true, NotificationDeliveryMode.fcm) =>
+        'Android will not hold notifications back to save power',
+      (true, NotificationDeliveryMode.backgroundService) =>
+        'Android will not pause background sync to save power',
+      (false, NotificationDeliveryMode.unifiedPush) =>
         'Android puts Zuno to sleep after your device has been locked a while, '
             'and notifications stop arriving. Tap to allow.',
-      (false, false) =>
+      (false, NotificationDeliveryMode.fcm) =>
+        'Android can hold notifications back while your device sleeps. Tap to '
+            'let Zuno run unrestricted.',
+      (false, NotificationDeliveryMode.backgroundService) =>
         'Android may pause background sync to save power. Tap to let it run '
             'unrestricted.',
     };
@@ -319,6 +333,19 @@ class _NotificationDeliveryPageState
                 onTap: () => _chooseDeliveryMode(deliveryMode),
               ),
               ..._deliveryModeSettings(deliveryMode),
+              if (_hasAutostartSettings)
+                ListTile(
+                  leading: const Icon(Icons.restart_alt_outlined),
+                  title: const Text('Autostart'),
+                  subtitle: const Text(
+                    'This device stops closed apps from starting when a '
+                    'message arrives. Turn on Autostart for Zuno so '
+                    'notifications are not held until you open it.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () =>
+                      BackgroundSyncService.instance.openAutostartSettings(),
+                ),
             ],
           ),
         ],

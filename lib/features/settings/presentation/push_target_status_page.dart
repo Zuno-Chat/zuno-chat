@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/format/chat_list_time.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
 import '../../../core/push/fcm_gateway.dart';
 import '../../../core/push/matrix_unified_push_gateway.dart';
+import '../../../core/push/push_delivery_log.dart';
 import '../../../core/push/pusher_info.dart';
 import '../../../core/push/pusher_reconciliation.dart';
 import '../../../core/push/unified_push_distributor_names.dart';
@@ -50,6 +53,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
 
   List<PusherInfo>? _pushers;
 
+  List<PushDeliveryRecord>? _deliveries;
+
   bool _removing = false;
 
   @override
@@ -68,10 +73,14 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     final pushers =
         await fetchPushers(ref.read(matrixClientProvider)) ??
         const <PusherInfo>[];
+    final deliveries = _mode == NotificationDeliveryMode.fcm
+        ? await readPushDeliveryLog(await SharedPreferences.getInstance())
+        : const <PushDeliveryRecord>[];
     if (!mounted) return;
     setState(() {
       _distributor = distributor ?? '';
       _pushers = pushers;
+      _deliveries = deliveries;
     });
   }
 
@@ -265,6 +274,11 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
                 ),
               ],
             ),
+            if (mode == NotificationDeliveryMode.fcm)
+              CardGroup(
+                title: 'Recent pushes',
+                children: _deliveryRows(_deliveries),
+              ),
             CardGroup(
               children: [
                 _SectionHeaderWithAction(
@@ -304,6 +318,23 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
       case NotificationDeliveryMode.backgroundService:
         return 'Nothing is registered for background sync';
     }
+  }
+
+  List<Widget> _deliveryRows(List<PushDeliveryRecord>? deliveries) {
+    if (deliveries == null) return const [_EmptyNote('Loading…')];
+    if (deliveries.isEmpty) return const [_EmptyNote('None yet')];
+    final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
+    final colors = Theme.of(context).colorScheme;
+    return [
+      for (final delivery in deliveries.take(_shownDeliveries))
+        ListTile(
+          leading: _deliveryLate(delivery)
+              ? Icon(Icons.schedule_outlined, color: colors.error)
+              : const Icon(Icons.check_circle_outline),
+          title: Text(_receivedLabel(delivery.receivedAt, use24Hour)),
+          subtitle: Text(pushDeliverySummary(delivery)),
+        ),
+    ];
   }
 
   List<Widget> _pusherRows(List<PusherInfo> pushers, bool loading) {
@@ -356,6 +387,18 @@ String _pusherName(PusherInfo pusher) {
   if (pusher.deviceDisplayName.isNotEmpty) return pusher.deviceDisplayName;
   if (pusher.appDisplayName.isNotEmpty) return pusher.appDisplayName;
   return pusher.appId;
+}
+
+const _shownDeliveries = 10;
+
+bool _deliveryLate(PushDeliveryRecord delivery) =>
+    delivery.downgraded ||
+    (delivery.delay ?? Duration.zero) > const Duration(minutes: 1);
+
+String _receivedLabel(DateTime at, bool use24Hour) {
+  final day = chatListTimeLabel(at, now: DateTime.now(), use24Hour: use24Hour);
+  final clock = clockLabel(at.toLocal(), use24Hour);
+  return day == clock ? clock : '$day, $clock';
 }
 
 bool _usesPublicGateway(String? url) {

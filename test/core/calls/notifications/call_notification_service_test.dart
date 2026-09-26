@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -23,9 +24,10 @@ void main() {
     );
   }
 
-  test('registers one sound-bearing channel per chat type, named plainly — '
-      'silence is per post, not per channel. Must run first: initialize() '
-      'only registers channels once per process', () async {
+  test('registers the channels in plain groups: two sound-bearing chat '
+      'channels, a quiet one, and new sign-ins under Account, and removes the '
+      'retired ones — silence is per post, not per channel. Must run first: '
+      'initialize() only registers channels once per process', () async {
     final notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
     SharedPreferences.setMockInitialValues({});
@@ -43,9 +45,11 @@ void main() {
         .toList();
     expect(
       chatChannels.map((c) => c['id']),
-      unorderedEquals([messagesChannelId, 'group_messages']),
+      unorderedEquals([messagesChannelId, 'group_messages', 'quiet_messages']),
     );
-    for (final channel in chatChannels) {
+    for (final channel in chatChannels.where(
+      (c) => c['id'] != 'quiet_messages',
+    )) {
       expect(channel['playSound'], isTrue, reason: '${channel['id']}');
       expect(channel['sound'], 'message_tone');
       expect(channel['soundSource'], 0);
@@ -53,12 +57,66 @@ void main() {
     }
     expect(
       chatChannels.singleWhere((c) => c['id'] == messagesChannelId)['name'],
-      'Messages',
+      'Chat messages',
     );
     expect(
       chatChannels.singleWhere((c) => c['id'] == 'group_messages')['name'],
       'Room messages',
     );
+    final quiet = chatChannels.singleWhere((c) => c['id'] == 'quiet_messages');
+    expect(quiet['name'], 'Quiet messages');
+    expect(quiet['playSound'], isFalse);
+    expect(quiet['importance'], Importance.low.value);
+    final signIns = notifications.channels.singleWhere(
+      (c) => c['id'] == 'security',
+    );
+    expect(signIns['name'], 'New sign-ins');
+    expect(signIns['groupId'], 'account_group');
+    expect(
+      notifications.deletedChannels,
+      unorderedEquals([
+        'messages',
+        'messages_group',
+        'messages_sound_v1',
+        'messages_group_sound_v1',
+      ]),
+    );
+  });
+
+  group('silencedMessageChannels', () {
+    AndroidNotificationChannel channel(String id, Importance importance) =>
+        AndroidNotificationChannel(id, 'Name $id', importance: importance);
+
+    test('names a chat channel the user turned down or off', () {
+      expect(
+        silencedMessageChannels([
+          channel(messagesChannelId, Importance.low),
+          channel('group_messages', Importance.none),
+        ]).map((c) => c.id),
+        [messagesChannelId, 'group_messages'],
+      );
+    });
+
+    test('ignores channels still at a sounding level', () {
+      expect(
+        silencedMessageChannels([
+          channel(messagesChannelId, Importance.high),
+          channel('group_messages', Importance.defaultImportance),
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('ignores the quiet channel, which is low on purpose, and non-chat '
+        'channels', () {
+      expect(
+        silencedMessageChannels([
+          channel('quiet_messages', Importance.low),
+          channel('background_sync', Importance.min),
+        ]),
+        isEmpty,
+      );
+    });
   });
 
   group('showMessage sound channel', () {
@@ -87,7 +145,7 @@ void main() {
 
       final specifics = notifications.lastPlatformSpecifics;
       expect(specifics['channelId'], messagesChannelId);
-      expect(specifics['channelName'], 'Messages');
+      expect(specifics['channelName'], 'Chat messages');
       expect(specifics['silent'], isFalse);
       expect(specifics['onlyAlertOnce'], isFalse);
     });

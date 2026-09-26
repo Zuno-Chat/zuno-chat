@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -84,10 +84,10 @@ MessageNotificationDecision messageNotificationFor(
     );
   }
 
-  final shouldNotify = notifyMe == NotifyMe.mentionsOnly
+  final loud = notifyMe == NotifyMe.mentionsOnly
       ? pushRuleAction.highlight
       : pushRuleAction.notify;
-  if (!shouldNotify) {
+  if (!loud && !pushRuleAction.notify) {
     return const MessageNotificationDecision.refuse(
       MessageNotificationRefusal.pushRule,
     );
@@ -116,6 +116,7 @@ MessageNotificationDecision messageNotificationFor(
       timestamp: event.originServerTs,
       unreadCount: room.notificationCount,
       isPhoto: summary.kind == MessageKind.photo,
+      quiet: !loud,
     ),
   );
 }
@@ -180,6 +181,10 @@ class MessageNotificationNotifier extends Notifier<void> {
       currentlyOpenRoomId: ref.read(currentlyOpenRoomIdProvider),
     ).content;
     if (content == null) return;
+    if (content.quiet &&
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      return;
+    }
     await postMessageNotification(
       content,
       client: client,

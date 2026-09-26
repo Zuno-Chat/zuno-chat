@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,7 @@ import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/message_notification_provider.dart';
 import 'package:zuno/core/notifications/notified_events_store.dart';
+import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_local_notifications.dart';
@@ -90,6 +92,41 @@ void main() {
     await deliver(textEvent(body: 'are you around?'));
 
     expect(notifications.shown.single.body, contains('are you around?'));
+  });
+
+  group('with mentions only', () {
+    setUp(() async {
+      await container
+          .read(notifyMeProvider.notifier)
+          .set(NotifyMe.mentionsOnly);
+    });
+
+    tearDown(
+      () => TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+        AppLifecycleState.resumed,
+      ),
+    );
+
+    test('the app in front leaves other messages alone', () async {
+      TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+        AppLifecycleState.resumed,
+      );
+
+      await deliver(textEvent());
+
+      expect(notifications.shown, isEmpty);
+    });
+
+    test('an app in the background shows other messages quietly, as a push '
+        'would', () async {
+      TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+        AppLifecycleState.paused,
+      );
+
+      await deliver(textEvent());
+
+      expect(notifications.single.android['channelId'], 'quiet_messages');
+    });
   });
 
   test('stays silent for a message you sent yourself', () async {

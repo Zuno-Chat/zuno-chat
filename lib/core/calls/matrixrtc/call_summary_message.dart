@@ -6,6 +6,11 @@ const callSummaryMsgtype = 'im.zuno.call_summary';
 const callInviteMsgtype = 'im.zuno.call_invite';
 const callDeclineMsgtype = 'im.zuno.call_decline';
 
+Map<String, Object?> callReference(String eventId) => {
+  'rel_type': RelationshipTypes.reference,
+  'event_id': eventId,
+};
+
 bool isCallSummaryMessage(String? msgtype) => msgtype == callSummaryMsgtype;
 
 bool isCallInviteMessage(String? msgtype) => msgtype == callInviteMsgtype;
@@ -39,13 +44,15 @@ class CallSummary {
       '$label · ${formatClock(Duration(milliseconds: durationMs))}',
   };
 
-  Map<String, Object?> toMessageContent() => {
+  Map<String, Object?> toMessageContent({String? membershipEventId}) => {
     'msgtype': callSummaryMsgtype,
     'body': displayBody,
     'call_id': callId,
     'kind': kind,
     'status': status.name,
     'duration_ms': durationMs,
+    if (status == CallSummaryStatus.ended && membershipEventId != null)
+      'm.relates_to': callReference(membershipEventId),
   };
 
   static CallSummary? fromEvent(Event event) {

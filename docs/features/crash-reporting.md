@@ -108,3 +108,8 @@ breadcrumbs and all tracing stay off.
   off"**, not "nothing" — feedback does send while it is off.
 - **Obfuscated release stack traces arrive unreadable** until debug
   symbols are uploaded (`sentry_dart_plugin`, not wired up).
+- **With reporting on, release `debugPrint` stops printing.** Sentry's
+  `DebugPrintIntegration` replaces it with a breadcrumb-only function that
+  neither prints nor calls the one it replaced, so logcat goes quiet and
+  any `debugPrint` hook installed earlier is dropped. A hook has to attach
+  after `SentryFlutter.init`.

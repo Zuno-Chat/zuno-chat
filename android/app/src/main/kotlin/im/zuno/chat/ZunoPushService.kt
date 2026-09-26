@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.PowerManager
 import android.util.Log
 import im.zuno.chat.zuno_notifications.PushNotice
-import im.zuno.chat.zuno_notifications.PushNoticeDecision
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodChannel
@@ -14,9 +13,6 @@ import org.unifiedpush.flutter.connector.Plugin
 import org.unifiedpush.flutter.connector.UnifiedPushService
 
 class ZunoPushService : UnifiedPushService() {
-    @Volatile
-    private var bootedForThisPush = false
-
     override fun getEngine(context: Context): FlutterEngine {
         acquireWakeLock()
         return FlutterEngine(context).apply {
@@ -39,7 +35,6 @@ class ZunoPushService : UnifiedPushService() {
     }
 
     override fun onCreate() {
-        bootedForThisPush = PushNotice.liveEngines.get() == 0
         ensureDeliveryEngine()
         super.onCreate()
     }
@@ -91,16 +86,10 @@ class ZunoPushService : UnifiedPushService() {
         try {
             val json = JSONObject(String(message.content, Charsets.UTF_8))
             val notification = json.optJSONObject("notification") ?: json
-            val engines = PushNoticeDecision.enginesFor(
-                bootedForThisPush = bootedForThisPush,
-                liveEngines = PushNotice.liveEngines.get(),
-            )
-            bootedForThisPush = false
             PushNotice.post(
                 applicationContext,
                 notification.optString("room_id").ifEmpty { null },
                 notification.optString("event_id").ifEmpty { null },
-                engines,
             )
         } catch (e: Exception) {
             Log.d(TAG, "No instant notice for this push: ${e.message}")

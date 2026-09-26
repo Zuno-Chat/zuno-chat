@@ -20,6 +20,7 @@ class CallUnreadCorrectionNotifier extends Notifier<Map<String, int>> {
   }
 
   void _handleEvent(Event event) {
+    if (event.relationshipType == RelationshipTypes.reference) return;
     final hidesFromTimeline =
         event.type == EventTypes.Message &&
         event.relationshipType != RelationshipTypes.edit &&

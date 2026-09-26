@@ -1,13 +1,11 @@
 package im.zuno.chat
 
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -39,7 +37,11 @@ class BackgroundSyncService : Service() {
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                BackgroundSyncDecision.foregroundServiceType(Build.VERSION.SDK_INT),
+            )
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -54,11 +56,13 @@ class BackgroundSyncService : Service() {
     }
 
     private fun ensureChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
-        manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Background sync", NotificationManager.IMPORTANCE_MIN),
+        NotificationChannels.ensure(
+            this,
+            NotificationGroup.BACKGROUND,
+            CHANNEL_ID,
+            "Background sync",
+            "Shows while background sync keeps Zuno connected",
+            NotificationManager.IMPORTANCE_MIN,
         )
     }
 

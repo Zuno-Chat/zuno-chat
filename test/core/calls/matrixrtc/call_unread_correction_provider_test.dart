@@ -135,6 +135,41 @@ void main() {
     },
   );
 
+  test('call events that reference the call correct nothing — the server '
+      'never counted them', () async {
+    const reference = {'rel_type': 'm.reference', 'event_id': r'$member'};
+    client.onTimelineEvent.add(
+      buildTestEvent(
+        room,
+        eventId: r'$decline',
+        senderId: '@a:x',
+        content: {
+          'msgtype': callDeclineMsgtype,
+          'call_id': 'c1',
+          'm.relates_to': reference,
+        },
+      ),
+    );
+    client.onTimelineEvent.add(
+      buildTestEvent(
+        room,
+        eventId: r'$summary',
+        senderId: '@a:x',
+        content: const CallSummary(
+          callId: 'c1',
+          kind: 'voice',
+          status: CallSummaryStatus.ended,
+          durationMs: 1000,
+        ).toMessageContent(membershipEventId: r'$member'),
+      ),
+    );
+    await pumpEventQueue();
+    expect(
+      displayedUnreadCount(container.read(callUnreadCorrectionProvider), room),
+      3,
+    );
+  });
+
   test(
     'clearFor removes a room\'s correction (e.g. once it is opened)',
     () async {

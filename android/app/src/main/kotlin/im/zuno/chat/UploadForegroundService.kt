@@ -1,7 +1,6 @@
 package im.zuno.chat
 
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
@@ -100,11 +99,13 @@ class UploadForegroundService : Service() {
         }
 
         private fun ensureChannel(context: Context) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (manager.getNotificationChannel(CHANNEL_ID) != null) return
-            manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Uploads", NotificationManager.IMPORTANCE_LOW),
+            NotificationChannels.ensure(
+                context,
+                NotificationGroup.BACKGROUND,
+                CHANNEL_ID,
+                "Sending files",
+                "Progress while photos, videos and files are sent",
+                NotificationManager.IMPORTANCE_LOW,
             )
         }
     }

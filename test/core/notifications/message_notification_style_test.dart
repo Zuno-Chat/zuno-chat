@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -60,6 +60,7 @@ void main() {
     bool refine = false,
     String? imageUri,
     String? imageMimeType,
+    bool quiet = false,
   }) => CallNotificationService.instance.showMessage(
     MessageNotificationContent(
       roomId: room,
@@ -73,6 +74,7 @@ void main() {
       senderAvatarUrl: senderAvatarUrl,
       timestamp: timestamp ?? noon,
       unreadCount: unreadCount,
+      quiet: quiet,
     ),
     senderAvatar: senderAvatar,
     placeholder: placeholder,
@@ -235,6 +237,71 @@ void main() {
       expect((messages[1]['person'] as Map)['icon'], isNull);
     },
   );
+
+  test('a message right after an instant notice in the same room does not '
+      'chime a second time', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('zuno/conversations'), (
+          call,
+        ) async {
+          if (call.method != 'takePushNotice') return null;
+          return (call.arguments as Map)['eventId'] == r'$1';
+        });
+    showing();
+
+    await post(eventId: r'$1');
+    await post(eventId: r'$2', text: 'and another');
+
+    expect(lastRoomPost()['onlyAlertOnce'], isTrue);
+  });
+
+  group('quiet messages', () {
+    test('go to the quiet channel without alerting', () async {
+      await post(eventId: r'$1', quiet: true);
+
+      expect(lastRoomPost()['channelId'], 'quiet_messages');
+      expect(lastRoomPost()['silent'], isTrue);
+    });
+
+    test('a mention after quiet lines alerts on the chat channel', () async {
+      await post(eventId: r'$1', quiet: true);
+      showing();
+
+      await post(eventId: r'$2', text: 'hey @me');
+
+      expect(lastRoomPost()['channelId'], 'direct_messages');
+      expect(lastRoomPost()['silent'], isFalse);
+      expect(lastRoomPost()['onlyAlertOnce'], isFalse);
+      expect(messagesOf(lastRoomPost()), hasLength(2));
+    });
+
+    test('a quiet line joining a mention stays on the chat channel, '
+        'silently', () async {
+      await post(eventId: r'$1', text: 'hey @me');
+      showing();
+
+      await post(eventId: r'$2', quiet: true);
+
+      expect(lastRoomPost()['channelId'], 'direct_messages');
+      expect(lastRoomPost()['onlyAlertOnce'], isTrue);
+    });
+
+    test('a quiet placeholder that turns out to be a mention alerts', () async {
+      await post(
+        eventId: r'$1',
+        text: 'New message',
+        placeholder: true,
+        quiet: true,
+      );
+      showing();
+
+      await post(eventId: r'$1', text: 'hey @me');
+
+      expect(lastRoomPost()['channelId'], 'direct_messages');
+      expect(lastRoomPost()['onlyAlertOnce'], isFalse);
+      expect(lastRoomPost()['silent'], isFalse);
+    });
+  });
 
   test('cancelling forgets the thread', () async {
     await post(eventId: r'$1');

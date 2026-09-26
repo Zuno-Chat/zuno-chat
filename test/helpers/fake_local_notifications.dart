@@ -31,6 +31,8 @@ class RecordedNotifications {
   final List<String> methods = [];
   final List<Map<String, Object?>> channels = [];
   List<Map<String, Object?>> active = const [];
+  List<Map<String, Object?>> deviceChannels = const [];
+  final List<String> deletedChannels = [];
 
   void clear() {
     shown.clear();
@@ -91,11 +93,16 @@ RecordedNotifications installFakeLocalNotifications() {
         return null;
       case 'getActiveNotifications':
         return recorded.active;
+      case 'getNotificationChannels':
+        return recorded.deviceChannels;
       case 'getNotificationAppLaunchDetails':
         return <String, Object?>{'notificationLaunchedApp': false};
       case 'createNotificationChannel':
         recorded.channels.add((call.arguments as Map).cast<String, Object?>());
         return true;
+      case 'deleteNotificationChannel':
+        recorded.deletedChannels.add(call.arguments as String);
+        return null;
       case 'initialize':
         return true;
       default:
@@ -144,3 +151,23 @@ RecordedMethodCalls installFakeConversationsChannel() {
   addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
   return recorded;
 }
+
+Map<String, Object?> deviceChannel(
+  String id, {
+  required String name,
+  required int importance,
+}) => {
+  'id': id,
+  'name': name,
+  'description': null,
+  'groupId': null,
+  'showBadge': true,
+  'importance': importance,
+  'bypassDnd': false,
+  'playSound': importance >= 3,
+  'enableLights': false,
+  'enableVibration': false,
+  'vibrationPattern': null,
+  'ledColor': 0,
+  'audioAttributesUsage': 5,
+};

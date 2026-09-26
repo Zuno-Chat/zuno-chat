@@ -30,12 +30,15 @@ class _NotificationsSettingsPageState
 
   bool _fullScreenIntentAllowed = true;
 
+  List<SilencedChannel> _silencedChannels = const [];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _refreshStatus();
     _refreshFullScreenIntentStatus();
+    _refreshSilencedChannels();
   }
 
   @override
@@ -49,7 +52,13 @@ class _NotificationsSettingsPageState
     if (state == AppLifecycleState.resumed) {
       _refreshStatus();
       _refreshFullScreenIntentStatus();
+      _refreshSilencedChannels();
     }
+  }
+
+  Future<void> _refreshSilencedChannels() async {
+    final silenced = await CallNotificationService.instance.silencedChannels();
+    if (mounted) setState(() => _silencedChannels = silenced);
   }
 
   Future<void> _refreshFullScreenIntentStatus() async {
@@ -130,6 +139,19 @@ class _NotificationsSettingsPageState
                 value: notificationsEnabled,
                 onChanged: _onToggle,
               ),
+              if (notificationsEnabled)
+                for (final channel in _silencedChannels)
+                  ListTile(
+                    leading: const Icon(Icons.notifications_off_outlined),
+                    title: Text('${channel.name} are silenced'),
+                    subtitle: const Text(
+                      'Android shows them without a sound, or not at all. '
+                      'Tap to change.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => CallNotificationService.instance
+                        .openChannelSettings(channel.id),
+                  ),
               ListTile(
                 leading: const Icon(Icons.phone_in_talk_outlined),
                 title: const Text('Full-screen call alerts'),
@@ -174,6 +196,7 @@ class _NotificationsSettingsPageState
                     ),
                     RadioListTile<NotifyMe>(
                       title: Text('Mentions only'),
+                      subtitle: Text('Other messages show silently'),
                       value: NotifyMe.mentionsOnly,
                     ),
                   ],

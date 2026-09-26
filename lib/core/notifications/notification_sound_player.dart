@@ -132,6 +132,11 @@ class NotificationSoundPlayer {
   @visibleForTesting
   bool get isRingbackPlaying => _ringbackPlaying;
 
+  void recordNoticeAlert(String roomId) {
+    _lastMessageToneAt = now();
+    _lastMessageToneRoomId = roomId;
+  }
+
   Future<MessageAlertPlan> prepareMessageNotification({
     required String roomId,
   }) async {

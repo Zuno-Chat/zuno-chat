@@ -8,6 +8,7 @@ import android.app.RemoteAction
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.BitmapFactory
@@ -163,6 +164,21 @@ class MainActivity : FlutterActivity() {
                             },
                         )
                     }
+                    result.success(null)
+                }
+                "openChannelSettings" -> {
+                    val channelId = call.argument<String>("channelId")
+                    val intent = if (channelId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                            putExtra(Settings.EXTRA_CHANNEL_ID, channelId)
+                        }
+                    } else {
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:$packageName")
+                        }
+                    }
+                    startActivity(intent)
                     result.success(null)
                 }
                 "setPictureInPicture" -> {
@@ -336,6 +352,12 @@ class MainActivity : FlutterActivity() {
                         },
                     )
                     result.success(null)
+                }
+                "hasAutostartSettings" -> {
+                    result.success(AutostartDecision.componentsFor(Build.MANUFACTURER).isNotEmpty())
+                }
+                "openAutostartSettings" -> {
+                    result.success(openAutostartSettings())
                 }
                 "isBackgroundDataRestricted" -> {
                     val connectivityManager =
@@ -612,6 +634,22 @@ class MainActivity : FlutterActivity() {
             .build()
 
         return ShortcutManagerCompat.requestPinShortcut(this, shortcut, null)
+    }
+
+    private fun openAutostartSettings(): Boolean {
+        for ((pkg, cls) in AutostartDecision.componentsFor(Build.MANUFACTURER)) {
+            try {
+                startActivity(Intent().setComponent(ComponentName(pkg, cls)))
+                return true
+            } catch (_: Exception) {
+            }
+        }
+        startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:$packageName")
+            },
+        )
+        return false
     }
 
     companion object {

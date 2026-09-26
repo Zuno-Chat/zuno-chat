@@ -20,7 +20,6 @@ class ZunoNotificationsPlugin : FlutterPlugin, MethodCallHandler {
     private lateinit var context: Context
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        PushNotice.liveEngines.incrementAndGet()
         context = binding.applicationContext
         conversations = MethodChannel(binding.binaryMessenger, CONVERSATIONS_CHANNEL)
         conversations.setMethodCallHandler(this)
@@ -29,7 +28,6 @@ class ZunoNotificationsPlugin : FlutterPlugin, MethodCallHandler {
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        PushNotice.liveEngines.decrementAndGet()
         conversations.setMethodCallHandler(null)
         wakeLocks.setMethodCallHandler(null)
     }
@@ -76,6 +74,10 @@ class ZunoNotificationsPlugin : FlutterPlugin, MethodCallHandler {
             }
             "release" -> {
                 release(call.argument<String>("tag") ?: DEFAULT_TAG)
+                result.success(null)
+            }
+            "releasePush" -> {
+                PushWakeLock.release()
                 result.success(null)
             }
             "takePushNotice" -> {

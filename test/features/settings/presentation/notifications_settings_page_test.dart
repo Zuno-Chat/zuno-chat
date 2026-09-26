@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +13,7 @@ import 'package:zuno/features/settings/presentation/notification_delivery_page.d
 import 'package:zuno/features/settings/presentation/notifications_settings_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_unified_push.dart';
 
@@ -100,5 +103,71 @@ void main() {
 
     expect(find.byType(NotificationDeliveryPage), findsOneWidget);
     expect(find.text('Delivery method'), findsOneWidget);
+  });
+
+  testWidgets('mentions only says other messages still show, silently', (
+    tester,
+  ) async {
+    await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+    expect(find.text('Other messages show silently'), findsOneWidget);
+  });
+
+  group('a silenced chat channel', () {
+    late List<MethodCall> callsMade;
+
+    setUp(() {
+      callsMade = [];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const calls = MethodChannel('zuno/calls');
+      const permissions = MethodChannel(
+        'flutter.baseflow.com/permissions/methods',
+      );
+      messenger.setMockMethodCallHandler(calls, (call) async {
+        callsMade.add(call);
+        return null;
+      });
+      messenger.setMockMethodCallHandler(
+        permissions,
+        (call) async => call.method == 'checkPermissionStatus' ? 1 : null,
+      );
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(calls, null);
+        messenger.setMockMethodCallHandler(permissions, null);
+      });
+    });
+
+    testWidgets('gets a row that opens its system settings', (tester) async {
+      installFakeLocalNotifications().deviceChannels = [
+        deviceChannel('group_messages', name: 'Room messages', importance: 2),
+        deviceChannel('direct_messages', name: 'Chat messages', importance: 4),
+      ];
+      await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+      expect(find.text('Room messages are silenced'), findsOneWidget);
+      expect(find.text('Chat messages are silenced'), findsNothing);
+
+      await tester.tap(find.text('Room messages are silenced'));
+      await tester.pump();
+
+      final open = callsMade.singleWhere(
+        (c) => c.method == 'openChannelSettings',
+      );
+      expect((open.arguments as Map)['channelId'], 'group_messages');
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('shows nothing while every chat channel can alert', (
+      tester,
+    ) async {
+      installFakeLocalNotifications().deviceChannels = [
+        deviceChannel('group_messages', name: 'Room messages', importance: 4),
+      ];
+      await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+      expect(find.textContaining('are silenced'), findsNothing);
+      debugDefaultTargetPlatformOverride = null;
+    });
   });
 }

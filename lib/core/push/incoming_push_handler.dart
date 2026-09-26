@@ -11,11 +11,13 @@ import '../calls/notifications/call_notification_service.dart';
 import '../calls/notifications/ring_notification.dart';
 import '../calls/notifications/ringing_call_store.dart';
 import '../matrix/room_title.dart';
+import '../matrix/undecryptable_event.dart';
 import '../notifications/invite_notification_provider.dart';
 import '../notifications/message_notification_image.dart';
 import '../notifications/message_notification_poster.dart';
 import '../notifications/message_notification_provider.dart';
 import '../notifications/notify_me.dart';
+import '../notifications/verification_request_notification.dart';
 import 'push_timing.dart';
 
 const defaultPlaceholderAfter = Duration(seconds: 3);
@@ -31,7 +33,11 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
   if (kDebugMode) {
     debugPrint('zuno/push: resolving event ${notification.eventId}');
   }
-  final placeholder = _Placeholder(client, notification);
+  final placeholder = _Placeholder(
+    client,
+    notification,
+    quiet: notifyMe == NotifyMe.mentionsOnly,
+  );
   final Event? event;
   try {
     event = await placeholder.race(
@@ -51,10 +57,21 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
     await placeholder.retract();
     return IncomingPushOutcome.ignored;
   }
+  if (isUndecryptableEvent(event)) {
+    if (event.senderId == client.userID) {
+      await placeholder.retract();
+      return IncomingPushOutcome.ignored;
+    }
+    debugPrint('zuno/push: event did not decrypt, keeping "New message"');
+    return await placeholder.post()
+        ? IncomingPushOutcome.message
+        : IncomingPushOutcome.ignored;
+  }
   if (kDebugMode) {
+    final age = DateTime.now().difference(event.originServerTs);
     debugPrint(
       'zuno/push: resolved ${event.type}/${event.messageType} '
-      'in ${event.room.id}',
+      'in ${event.room.id}, sent ${age.inSeconds}s ago',
     );
   }
 
@@ -99,6 +116,17 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
     return IncomingPushOutcome.message;
   }
 
+  final verification = verificationRequestNotificationFor(client, event);
+  if (verification != null) {
+    await postMessageNotification(
+      verification,
+      client: client,
+      includeMessageActions: false,
+    );
+    await placeholder.retract();
+    return IncomingPushOutcome.message;
+  }
+
   final decision = messageNotificationFor(
     client,
     event,
@@ -127,10 +155,11 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
 }
 
 class _Placeholder {
-  _Placeholder(this.client, this.notification);
+  _Placeholder(this.client, this.notification, {required this.quiet});
 
   final Client client;
   final PushNotification notification;
+  final bool quiet;
   bool _posted = false;
 
   Future<Event?> race(
@@ -149,7 +178,11 @@ class _Placeholder {
 
   Future<bool> post() async {
     if (_posted) return true;
-    final content = unresolvedPushNotification(client, notification);
+    final content = unresolvedPushNotification(
+      client,
+      notification,
+      quiet: quiet,
+    );
     if (content == null) return false;
     _posted = true;
     debugPrint('zuno/push: showing a placeholder while the fetch continues');
@@ -197,8 +230,9 @@ Future<void> _markResolved(String callId) async {
 
 MessageNotificationContent? unresolvedPushNotification(
   Client client,
-  PushNotification notification,
-) {
+  PushNotification notification, {
+  bool quiet = false,
+}) {
   final roomId = notification.roomId;
   if (roomId == null) return null;
   final room = client.getRoomById(roomId);
@@ -214,6 +248,7 @@ MessageNotificationContent? unresolvedPushNotification(
     eventId: notification.eventId,
     isDirectChat: room?.isDirectChat ?? true,
     senderName: title,
+    quiet: quiet,
   );
 }
 

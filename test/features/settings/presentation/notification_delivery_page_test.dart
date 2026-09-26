@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -80,11 +81,52 @@ void main() {
     expect(find.text('Background data'), findsOneWidget);
   });
 
-  testWidgets('no battery-exemption row for FCM', (tester) async {
+  testWidgets('FCM offers the battery exemption too, since it keeps a '
+      'sleeping device from holding notifications back', (tester) async {
     await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
-    expect(find.textContaining('battery', findRichText: true), findsNothing);
-    expect(find.text('Unrestricted battery usage'), findsNothing);
+    expect(find.text('Unrestricted battery usage'), findsOneWidget);
+    expect(find.textContaining('can hold notifications back'), findsOneWidget);
+  });
+
+  group('autostart', () {
+    late List<String> calls;
+
+    void mockBackgroundSync({required bool hasAutostart}) {
+      calls = [];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const channel = MethodChannel('zuno/background_sync');
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call.method);
+        return switch (call.method) {
+          'hasAutostartSettings' => hasAutostart,
+          'isIgnoringBatteryOptimizations' => false,
+          'isBackgroundDataRestricted' => false,
+          _ => null,
+        };
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    }
+
+    testWidgets('gets a row on devices that stop closed apps from starting', (
+      tester,
+    ) async {
+      mockBackgroundSync(hasAutostart: true);
+      await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+      await tester.tap(find.text('Autostart'));
+      await tester.pump();
+
+      expect(calls, contains('openAutostartSettings'));
+    });
+
+    testWidgets('has no row elsewhere', (tester) async {
+      mockBackgroundSync(hasAutostart: false);
+      await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+      expect(find.text('Autostart'), findsNothing);
+    });
   });
 
   testWidgets('but there is one for UnifiedPush', (tester) async {

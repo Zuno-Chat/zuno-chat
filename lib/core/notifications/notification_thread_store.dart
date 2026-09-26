@@ -16,6 +16,7 @@ class NotificationLine {
   final bool placeholder;
   final String? imageUri;
   final String? imageMimeType;
+  final bool quiet;
 
   const NotificationLine({
     required this.eventId,
@@ -27,6 +28,7 @@ class NotificationLine {
     this.placeholder = false,
     this.imageUri,
     this.imageMimeType,
+    this.quiet = false,
   });
 
   Map<String, Object?> toJson() => {
@@ -39,6 +41,7 @@ class NotificationLine {
     'placeholder': placeholder,
     'imageUri': imageUri,
     'imageMimeType': imageMimeType,
+    'quiet': quiet,
   };
 
   static NotificationLine? fromJson(Object? json) {
@@ -58,6 +61,7 @@ class NotificationLine {
       placeholder: json['placeholder'] == true,
       imageUri: json['imageUri'] as String?,
       imageMimeType: json['imageMimeType'] as String?,
+      quiet: json['quiet'] == true,
     );
   }
 }

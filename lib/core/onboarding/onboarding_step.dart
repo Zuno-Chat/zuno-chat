@@ -6,6 +6,7 @@ enum OnboardingStep {
   notifications,
   deliveryMethod,
   batteryExemption,
+  autostart,
   approveDevice,
   setUpRecovery,
 }
@@ -14,6 +15,7 @@ List<OnboardingStep> onboardingSteps({
   required bool justRegistered,
   required bool canAskNotifications,
   required bool needsBatteryExemption,
+  required bool needsAutostart,
   required AccountSecurityFacts securityFacts,
   required bool hasConversations,
   required bool recoveryPromptOnCooldown,
@@ -30,6 +32,7 @@ List<OnboardingStep> onboardingSteps({
   } else if (needsBatteryExemption) {
     steps.add(OnboardingStep.batteryExemption);
   }
+  if (needsAutostart) steps.add(OnboardingStep.autostart);
   if (!securityFacts.recoveryExists) {
     if (hasConversations && !recoveryPromptOnCooldown) {
       steps.add(OnboardingStep.setUpRecovery);

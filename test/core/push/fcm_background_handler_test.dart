@@ -122,6 +122,74 @@ void main() {
     });
   });
 
+  group('a background push', () {
+    test('releases the push wake lock once it is handled', () async {
+      final events = <String>[];
+      await runFcmBackgroundPush(
+        const {'event_id': r'$e', 'room_id': '!r:x'},
+        runner: buildFcmBackgroundRunner(
+          clientBuilder: () async => _RecordingClient(),
+        ),
+        installAgent: () async => events.add('agent'),
+        initCrashReporting: () async {},
+        prepare: (_) async {
+          events.add('prepare');
+          return true;
+        },
+        releaseWakeLock: () async => events.add('release'),
+      );
+      expect(events, ['agent', 'prepare', 'release']);
+    });
+
+    test('releases the wake lock when setup fails', () async {
+      var released = false;
+      await runFcmBackgroundPush(
+        const {'event_id': r'$e', 'room_id': '!r:x'},
+        runner: buildFcmBackgroundRunner(
+          clientBuilder: () async => _RecordingClient(),
+        ),
+        installAgent: () async {},
+        initCrashReporting: () async {},
+        prepare: (_) async => false,
+        releaseWakeLock: () async => released = true,
+      );
+      expect(released, isTrue);
+    });
+
+    test('does not wait for crash reporting to start', () async {
+      var prepared = false;
+      await runFcmBackgroundPush(
+        const {'event_id': r'$e', 'room_id': '!r:x'},
+        runner: buildFcmBackgroundRunner(
+          clientBuilder: () async => _RecordingClient(),
+        ),
+        installAgent: () async {},
+        initCrashReporting: () => Completer<void>().future,
+        prepare: (_) async => prepared = true,
+        releaseWakeLock: () async {},
+      ).timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => fail('crash reporting held up the push'),
+      );
+      expect(prepared, isTrue);
+    });
+
+    test('a failing crash-reporting start does not break the push', () async {
+      var released = false;
+      await runFcmBackgroundPush(
+        const {'event_id': r'$e', 'room_id': '!r:x'},
+        runner: buildFcmBackgroundRunner(
+          clientBuilder: () async => _RecordingClient(),
+        ),
+        installAgent: () async {},
+        initCrashReporting: () async => throw StateError('no DSN'),
+        prepare: (_) async => true,
+        releaseWakeLock: () async => released = true,
+      );
+      expect(released, isTrue);
+    });
+  });
+
   group('the foreground listener', () {
     test('subscribes once however many times startup re-enters', () {
       var subscriptions = 0;

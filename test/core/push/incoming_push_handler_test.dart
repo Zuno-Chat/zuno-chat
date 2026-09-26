@@ -409,18 +409,104 @@ void main() {
       },
     );
 
-    test(
-      'stays silent for a plain message when set to mentions only',
-      () async {
-        client.resolved = message();
+    test('shows a plain message quietly when set to mentions only', () async {
+      client.resolved = message();
 
-        expect(
-          await handle(notifyMe: NotifyMe.mentionsOnly),
-          IncomingPushOutcome.ignored,
-        );
+      expect(
+        await handle(notifyMe: NotifyMe.mentionsOnly),
+        IncomingPushOutcome.message,
+      );
+      expect(notifications.single.android['channelId'], 'quiet_messages');
+    });
+  });
+
+  group('an in-room verification request', () {
+    Event request({
+      String senderId = '@bob:example.org',
+      String to = '@me:example.org',
+    }) => buildTestEvent(
+      room,
+      eventId: r'$event',
+      senderId: senderId,
+      content: {
+        'msgtype': 'm.key.verification.request',
+        'body': 'Bob is requesting to verify your key',
+        'to': to,
+        'from_device': 'BOBDEVICE',
+        'methods': ['m.sas.v1'],
+      },
+    );
+
+    test(
+      'from someone else is shown, since nothing else would tell you',
+      () async {
+        client.resolved = request();
+
+        expect(await handle(), IncomingPushOutcome.message);
+        expect(notifications.single.title, 'Bob');
+        expect(notifications.single.body, 'Wants to verify you');
+      },
+    );
+
+    test('alerts even when set to mentions only', () async {
+      client.resolved = request();
+
+      await handle(notifyMe: NotifyMe.mentionsOnly);
+
+      expect(
+        notifications.single.android['channelId'],
+        isNot('quiet_messages'),
+      );
+    });
+
+    test(
+      'stays silent when you sent it or it is meant for someone else',
+      () async {
+        client.resolved = request(senderId: '@me:example.org');
+        expect(await handle(), IncomingPushOutcome.ignored);
+
+        client.resolved = request(to: '@carol:example.org');
+        expect(await handle(), IncomingPushOutcome.ignored);
+
         expect(notifications.shown, isEmpty);
       },
     );
+  });
+
+  group('an event that stays undecryptable', () {
+    Event undecryptable({String senderId = '@bob:example.org'}) =>
+        buildTestEvent(
+          room,
+          eventId: r'$event',
+          senderId: senderId,
+          type: EventTypes.Encrypted,
+          content: {'algorithm': 'm.megolm.v1.aes-sha2', 'ciphertext': 'x'},
+        );
+
+    test('keeps a routable "New message" instead of going silent', () async {
+      client.resolved = undecryptable();
+
+      expect(await handle(), IncomingPushOutcome.message);
+      expect(notifications.single.body, 'Tap to open');
+      expect(notifications.single.payload, contains('!room:example.org'));
+    });
+
+    test('is quiet when set to mentions only', () async {
+      client.resolved = undecryptable();
+
+      expect(
+        await handle(notifyMe: NotifyMe.mentionsOnly),
+        IncomingPushOutcome.message,
+      );
+      expect(notifications.single.android['channelId'], 'quiet_messages');
+    });
+
+    test('stays silent when you sent it yourself', () async {
+      client.resolved = undecryptable(senderId: '@me:example.org');
+
+      expect(await handle(), IncomingPushOutcome.ignored);
+      expect(notifications.shown, isEmpty);
+    });
   });
 
   group('slow resolution', () {
@@ -580,11 +666,28 @@ void main() {
       client.resolved = message();
 
       expect(
-        await handle(notifyMe: NotifyMe.mentionsOnly),
+        await handleIncomingPushNotification(
+          client,
+          push(),
+          notifyMe: NotifyMe.all,
+          currentlyOpenRoomId: room.id,
+        ),
         IncomingPushOutcome.ignored,
       );
-      expect(refusalLine(), contains('push-rule'));
+      expect(refusalLine(), contains('room-open'));
       expect(refusalLine(), isNot(contains('own-message')));
+    });
+
+    test('says how long ago the message was sent, so a server-side delay '
+        'shows up', () async {
+      client.resolved = message(
+        originServerTs: DateTime.now().subtract(const Duration(minutes: 7)),
+      );
+
+      await handle();
+
+      final resolved = lines.singleWhere((l) => l.contains('resolved'));
+      expect(resolved, matches(RegExp(r'sent 4[0-9]{2}s ago')));
     });
 
     test('says nothing when it did notify', () async {

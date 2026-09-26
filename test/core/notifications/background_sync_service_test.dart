@@ -162,4 +162,32 @@ void main() {
     expect(received?.method, 'openAppSettings');
     expect(received?.arguments, {'package': 'io.heckel.ntfy'});
   });
+
+  group('autostart settings', () {
+    test('are offered when the device has a screen for them', () async {
+      messenger.setMockMethodCallHandler(
+        channel,
+        (call) async => call.method == 'hasAutostartSettings',
+      );
+      expect(await BackgroundSyncService.instance.hasAutostartSettings(), isTrue);
+    });
+
+    test('are not offered when the native side cannot tell', () async {
+      messenger.setMockMethodCallHandler(channel, null);
+      expect(
+        await BackgroundSyncService.instance.hasAutostartSettings(),
+        isFalse,
+      );
+    });
+
+    test('open through the native side', () async {
+      String? method;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        method = call.method;
+        return true;
+      });
+      await BackgroundSyncService.instance.openAutostartSettings();
+      expect(method, 'openAutostartSettings');
+    });
+  });
 }

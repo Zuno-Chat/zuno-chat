@@ -84,6 +84,7 @@ class CallSession {
   static const _maxPendingKeys = 8;
 
   String? _lastPublishedMembership;
+  String? _membershipEventId;
   int? _joinedAtMs;
   Timer? _membershipDebounceTimer;
   Timer? _remoteLeftConfirmTimer;
@@ -482,9 +483,14 @@ class CallSession {
       createdAtMs: _joinedAtMs ??= DateTime.now().millisecondsSinceEpoch,
       fociActive: foci,
     );
-    await client.setRoomStateWithKey(room.id, callMemberEventType, _myUserId, {
-      'memberships': [membership.toJson()],
-    });
+    _membershipEventId = await client.setRoomStateWithKey(
+      room.id,
+      callMemberEventType,
+      _myUserId,
+      {
+        'memberships': [membership.toJson()],
+      },
+    );
     _lastPublishedMembership = fingerprint;
   }
 
@@ -623,7 +629,7 @@ class CallSession {
           kind: kind.name,
           status: status,
           durationMs: duration,
-        ).toMessageContent(),
+        ).toMessageContent(membershipEventId: _membershipEventId),
       );
     }
   }

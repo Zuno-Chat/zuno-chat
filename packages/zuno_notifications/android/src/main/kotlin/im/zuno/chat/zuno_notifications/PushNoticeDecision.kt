@@ -14,13 +14,10 @@ object PushNoticeDecision {
     fun shouldPost(
         roomId: String?,
         eventId: String?,
-        liveEngines: Int,
+        appInFront: Boolean,
         showingForRoom: Boolean,
     ): Boolean =
-        !roomId.isNullOrBlank() && !eventId.isNullOrBlank() && liveEngines == 0 && !showingForRoom
-
-    fun enginesFor(bootedForThisPush: Boolean, liveEngines: Int): Int =
-        if (bootedForThisPush) 0 else liveEngines
+        !roomId.isNullOrBlank() && !eventId.isNullOrBlank() && !appInFront && !showingForRoom
 
     fun parseRoomCache(text: String?): Map<String, CachedRoom> {
         if (text.isNullOrEmpty()) return emptyMap()

@@ -1956,6 +1956,27 @@ void main() {
       ),
     );
 
+    test('the summary of this answered call references this device\'s '
+        'membership, so it does not push', () async {
+      final call = await startJoinedCall('call-reference');
+      addTearDown(call.session.dispose);
+
+      bobLeaves(call.room, 'call-reference');
+      client.onSync.add(SyncUpdate(nextBatch: 'b1'));
+      await pumpEventQueue();
+      client.onSync.add(SyncUpdate(nextBatch: 'b2'));
+      await pumpEventQueue();
+
+      final summary = call.room.sentEvents.singleWhere(
+        (content) => content['msgtype'] == callSummaryMsgtype,
+      );
+      expect(summary['status'], CallSummaryStatus.ended.name);
+      expect(summary['m.relates_to'], {
+        'rel_type': 'm.reference',
+        'event_id': r'$evt',
+      });
+    });
+
     test('does not hang up on a single empty reconciliation pass', () async {
       final call = await startJoinedCall('call-empty-1');
       addTearDown(call.session.dispose);

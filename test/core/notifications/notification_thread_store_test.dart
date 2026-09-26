@@ -132,6 +132,36 @@ void main() {
     );
   });
 
+  test(
+    'a quiet line is remembered as one, and older lines read as loud',
+    () async {
+      await writeNotificationThread(
+        prefs,
+        NotificationThread(
+          roomId: '!r:x',
+          title: 'Alice',
+          isGroupChat: false,
+          lines: [
+            _line(r'$1'),
+            NotificationLine(
+              eventId: r'$2',
+              senderId: '@a:x',
+              senderName: 'Alice',
+              text: 'hi',
+              timestamp: DateTime.utc(2031),
+              quiet: true,
+            ),
+          ],
+        ),
+      );
+
+      expect(readNotificationThread(prefs, '!r:x')?.lines.map((l) => l.quiet), [
+        false,
+        true,
+      ]);
+    },
+  );
+
   test('round-trips an image attached to a line', () async {
     await writeNotificationThread(
       prefs,

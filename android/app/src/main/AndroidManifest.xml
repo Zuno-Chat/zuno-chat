@@ -41,6 +41,7 @@
          in front. Android 14+ requires the permission matching whatever
          foregroundServiceType a service declares. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <!-- The incoming-call ring notification (CallNotificationService)
          needs this to actually launch full-screen / wake the device on
          Android 14+; without it the OS silently downgrades it to a plain
@@ -152,7 +153,11 @@
         <service
             android:name=".BackgroundSyncService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps a connection to the user's homeserver so messages and calls arrive on devices without Google Play services" />
+        </service>
         <service
             android:name=".UploadForegroundService"
             android:exported="false"

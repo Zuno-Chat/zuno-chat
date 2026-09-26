@@ -1,7 +1,6 @@
 package im.zuno.chat
 
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
@@ -72,11 +71,13 @@ class CallForegroundService : Service() {
     }
 
     private fun ensureChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
-        manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Calls", NotificationManager.IMPORTANCE_LOW),
+        NotificationChannels.ensure(
+            this,
+            NotificationGroup.CALLS,
+            CHANNEL_ID,
+            "Ongoing call",
+            "Shows while you are in a call",
+            NotificationManager.IMPORTANCE_LOW,
         )
     }
 

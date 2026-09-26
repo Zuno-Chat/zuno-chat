@@ -170,6 +170,7 @@ class _StepPage extends StatelessWidget {
     OnboardingStep.notifications => _NotificationsStep(onDone: onDone),
     OnboardingStep.deliveryMethod => _DeliveryStep(onChosen: onDeliveryChosen),
     OnboardingStep.batteryExemption => _BatteryStep(onDone: onDone),
+    OnboardingStep.autostart => _AutostartStep(onDone: onDone),
     OnboardingStep.approveDevice => _SecurityStep(
       status: AccountSecurityStatus.deviceLocked,
       onDone: onDone,
@@ -630,6 +631,33 @@ class _BatteryStepState extends ConsumerState<_BatteryStep>
         child: const Text('Allow'),
       ),
       children: [if (forUnifiedPush) const _DistributorBatteryNote()],
+    );
+  }
+}
+
+class _AutostartStep extends StatelessWidget {
+  final Future<void> Function() onDone;
+
+  const _AutostartStep({required this.onDone});
+
+  Future<void> _open() async {
+    await BackgroundSyncService.instance.openAutostartSettings();
+    await onDone();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _StepScaffold(
+      icon: Icons.restart_alt_outlined,
+      title: 'Let Zuno start on its own',
+      body:
+          'This device stops closed apps from starting when a message '
+          'arrives. Turn on Autostart for Zuno, or messages and calls will '
+          'wait until you open it.',
+      action: FilledButton(
+        onPressed: _open,
+        child: const Text('Open settings'),
+      ),
     );
   }
 }

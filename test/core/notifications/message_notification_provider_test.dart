@@ -164,10 +164,31 @@ void main() {
     expect(decision.refusal, MessageNotificationRefusal.roomOpen);
   });
 
-  test('mentions-only requires highlight, not just notify', () {
+  test('mentions-only still shows a message that does not mention you, '
+      'quietly', () {
     final decision = decide(
       textEvent(),
       pushRuleAction: actionWith(notify: true, highlight: false),
+      notifyMe: NotifyMe.mentionsOnly,
+    );
+
+    expect(decision.content?.quiet, isTrue);
+  });
+
+  test('mentions-only alerts for a mention', () {
+    final decision = decide(
+      textEvent(),
+      pushRuleAction: actionWith(notify: true, highlight: true),
+      notifyMe: NotifyMe.mentionsOnly,
+    );
+
+    expect(decision.content?.quiet, isFalse);
+  });
+
+  test('mentions-only still skips what the push rules do not notify', () {
+    final decision = decide(
+      textEvent(),
+      pushRuleAction: actionWith(notify: false, highlight: false),
       notifyMe: NotifyMe.mentionsOnly,
     );
 
@@ -175,14 +196,8 @@ void main() {
     expect(decision.refusal, MessageNotificationRefusal.pushRule);
   });
 
-  test('mentions-only notifies when highlight is set', () {
-    final decision = decide(
-      textEvent(),
-      pushRuleAction: actionWith(notify: true, highlight: true),
-      notifyMe: NotifyMe.mentionsOnly,
-    );
-
-    expect(decision.content, isNotNull);
+  test('all messages is never quiet', () {
+    expect(decide(textEvent()).content?.quiet, isFalse);
   });
 
   MessageNotificationDecision decideSummary(CallSummaryStatus status) => decide(

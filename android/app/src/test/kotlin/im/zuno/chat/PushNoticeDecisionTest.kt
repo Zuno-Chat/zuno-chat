@@ -12,33 +12,26 @@ import org.junit.Test
 
 class PushNoticeDecisionTest {
     @Test
-    fun `posts on a cold process for a fresh room`() {
-        assertTrue(PushNoticeDecision.shouldPost("!r:x", "\$e", liveEngines = 0, showingForRoom = false))
+    fun `posts while the app is not in front`() {
+        assertTrue(PushNoticeDecision.shouldPost("!r:x", "\$e", appInFront = false, showingForRoom = false))
     }
 
     @Test
-    fun `a live engine means Dart will handle it`() {
-        assertFalse(PushNoticeDecision.shouldPost("!r:x", "\$e", liveEngines = 1, showingForRoom = false))
+    fun `the app in front handles its own pushes`() {
+        assertFalse(PushNoticeDecision.shouldPost("!r:x", "\$e", appInFront = true, showingForRoom = false))
     }
 
     @Test
     fun `never replaces a thread that is already showing`() {
-        assertFalse(PushNoticeDecision.shouldPost("!r:x", "\$e", liveEngines = 0, showingForRoom = true))
+        assertFalse(PushNoticeDecision.shouldPost("!r:x", "\$e", appInFront = false, showingForRoom = true))
     }
 
     @Test
     fun `badge pushes and malformed data get no notice`() {
-        assertFalse(PushNoticeDecision.shouldPost("!r:x", null, 0, false))
-        assertFalse(PushNoticeDecision.shouldPost("!r:x", "", 0, false))
-        assertFalse(PushNoticeDecision.shouldPost(null, "\$e", 0, false))
-        assertFalse(PushNoticeDecision.shouldPost(" ", "\$e", 0, false))
-    }
-
-    @Test
-    fun `an engine this push booted does not count against the notice`() {
-        assertEquals(0, PushNoticeDecision.enginesFor(bootedForThisPush = true, liveEngines = 1))
-        assertEquals(1, PushNoticeDecision.enginesFor(bootedForThisPush = false, liveEngines = 1))
-        assertEquals(0, PushNoticeDecision.enginesFor(bootedForThisPush = false, liveEngines = 0))
+        assertFalse(PushNoticeDecision.shouldPost("!r:x", null, false, false))
+        assertFalse(PushNoticeDecision.shouldPost("!r:x", "", false, false))
+        assertFalse(PushNoticeDecision.shouldPost(null, "\$e", false, false))
+        assertFalse(PushNoticeDecision.shouldPost(" ", "\$e", false, false))
     }
 
     @Test

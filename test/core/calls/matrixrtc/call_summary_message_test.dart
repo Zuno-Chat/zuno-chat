@@ -56,6 +56,43 @@ void main() {
     expect(parsed?.durationMs, 5000);
   });
 
+  group('the relation that keeps a summary from pushing', () {
+    CallSummary summary(CallSummaryStatus status) => CallSummary(
+      callId: 'c1',
+      kind: 'voice',
+      status: status,
+      durationMs: 5000,
+    );
+
+    test('an answered call references the membership it came from', () {
+      expect(
+        summary(CallSummaryStatus.ended)
+            .toMessageContent(membershipEventId: r'$m')['m.relates_to'],
+        {'rel_type': 'm.reference', 'event_id': r'$m'},
+      );
+    });
+
+    test('missed and declined calls stay pushed, since they alert or stop a '
+        'ring on another device', () {
+      for (final status in [
+        CallSummaryStatus.missed,
+        CallSummaryStatus.declined,
+      ]) {
+        expect(
+          summary(status).toMessageContent(membershipEventId: r'$m'),
+          isNot(contains('m.relates_to')),
+        );
+      }
+    });
+
+    test('without a membership there is nothing to reference', () {
+      expect(
+        summary(CallSummaryStatus.ended).toMessageContent(),
+        isNot(contains('m.relates_to')),
+      );
+    });
+  });
+
   test('fromEvent is null for an event with the wrong msgtype', () {
     final room = buildTestRoom(buildTestClient());
     final event = buildTestEvent(

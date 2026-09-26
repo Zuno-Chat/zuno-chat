@@ -15,6 +15,7 @@ class MessageNotificationContent {
   final DateTime? timestamp;
   final int? unreadCount;
   final bool isPhoto;
+  final bool quiet;
 
   const MessageNotificationContent({
     required this.roomId,
@@ -29,6 +30,7 @@ class MessageNotificationContent {
     this.timestamp,
     this.unreadCount,
     this.isPhoto = false,
+    this.quiet = false,
   });
 
   @override
@@ -45,7 +47,8 @@ class MessageNotificationContent {
       other.senderAvatarUrl == senderAvatarUrl &&
       other.timestamp == timestamp &&
       other.unreadCount == unreadCount &&
-      other.isPhoto == isPhoto;
+      other.isPhoto == isPhoto &&
+      other.quiet == quiet;
 
   @override
   int get hashCode => Object.hash(
@@ -61,5 +64,6 @@ class MessageNotificationContent {
     timestamp,
     unreadCount,
     isPhoto,
+    quiet,
   );
 }

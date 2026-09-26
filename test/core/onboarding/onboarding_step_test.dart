@@ -22,6 +22,7 @@ List<OnboardingStep> steps({
   bool justRegistered = false,
   bool canAskNotifications = false,
   bool needsBatteryExemption = false,
+  bool needsAutostart = false,
   AccountSecurityFacts? securityFacts,
   bool hasConversations = true,
   bool recoveryPromptOnCooldown = false,
@@ -30,6 +31,7 @@ List<OnboardingStep> steps({
   justRegistered: justRegistered,
   canAskNotifications: canAskNotifications,
   needsBatteryExemption: needsBatteryExemption,
+  needsAutostart: needsAutostart,
   securityFacts: securityFacts ?? facts(),
   hasConversations: hasConversations,
   recoveryPromptOnCooldown: recoveryPromptOnCooldown,
@@ -250,6 +252,41 @@ void main() {
         steps(needsBatteryExemption: true, securityFacts: lockedDevice),
         [OnboardingStep.batteryExemption, OnboardingStep.approveDevice],
       );
+    });
+  });
+
+  group('letting Zuno start after it is closed', () {
+    test('is asked on devices that block it, after the battery step and '
+        'before security', () {
+      expect(
+        steps(
+          needsBatteryExemption: true,
+          needsAutostart: true,
+          securityFacts: lockedDevice,
+        ),
+        [
+          OnboardingStep.batteryExemption,
+          OnboardingStep.autostart,
+          OnboardingStep.approveDevice,
+        ],
+      );
+    });
+
+    test('is not asked twice', () {
+      expect(
+        steps(
+          needsAutostart: true,
+          alreadyShown: const {
+            OnboardingStep.deliveryMethod,
+            OnboardingStep.autostart,
+          },
+        ),
+        isEmpty,
+      );
+    });
+
+    test('is not asked on devices that do not block it', () {
+      expect(steps(needsAutostart: false), isEmpty);
     });
   });
 

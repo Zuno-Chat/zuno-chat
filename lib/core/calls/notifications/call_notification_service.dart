@@ -35,8 +35,10 @@ const _ringNotificationId = 4002;
 const _callsGroupId = 'calls_group';
 
 const _groupMessagesChannelId = 'group_messages';
+const _quietMessagesChannelId = 'quiet_messages';
 const _chatsGroupId = 'chats_group';
 const _securityChannelId = 'security';
+const _accountGroupId = 'account_group';
 
 @visibleForTesting
 const messagesChannelId = 'direct_messages';
@@ -101,6 +103,19 @@ CallNotificationResponse? callNotificationResponseFrom({
   if (call == null) return null;
   return CallNotificationResponse(action: action, call: call);
 }
+
+typedef SilencedChannel = ({String id, String name});
+
+const _alertingMessageChannelIds = {messagesChannelId, _groupMessagesChannelId};
+
+List<SilencedChannel> silencedMessageChannels(
+  Iterable<AndroidNotificationChannel> channels,
+) => [
+  for (final channel in channels)
+    if (_alertingMessageChannelIds.contains(channel.id) &&
+        channel.importance.value < Importance.defaultImportance.value)
+      (id: channel.id, name: channel.name),
+];
 
 class HeadlessCallDecline {
   final String roomId;
@@ -210,10 +225,23 @@ class CallNotificationService {
     await android?.createNotificationChannelGroup(
       const AndroidNotificationChannelGroup(_chatsGroupId, 'Chats'),
     );
+    await android?.createNotificationChannelGroup(
+      const AndroidNotificationChannelGroup(_accountGroupId, 'Account'),
+    );
     for (final channel in _channels) {
       await android?.createNotificationChannel(channel);
     }
+    for (final channelId in _retiredChannelIds) {
+      await android?.deleteNotificationChannel(channelId: channelId);
+    }
   }
+
+  static const _retiredChannelIds = [
+    'messages',
+    'messages_group',
+    'messages_sound_v1',
+    'messages_group_sound_v1',
+  ];
 
   AndroidFlutterLocalNotificationsPlugin? get _android => _plugin
       .resolvePlatformSpecificImplementation<
@@ -224,7 +252,7 @@ class CallNotificationService {
     AndroidNotificationChannel(
       _ringChannelId,
       'Incoming calls',
-      description: 'Ringing for an incoming voice or video call',
+      description: 'Ringing for a call in a chat',
       importance: Importance.max,
       groupId: _callsGroupId,
       playSound: false,
@@ -232,8 +260,8 @@ class CallNotificationService {
     ),
     AndroidNotificationChannel(
       messagesChannelId,
-      'Messages',
-      description: 'New messages in chats',
+      'Chat messages',
+      description: 'New messages in one-to-one chats',
       importance: Importance.high,
       groupId: _chatsGroupId,
       playSound: true,
@@ -243,7 +271,7 @@ class CallNotificationService {
     AndroidNotificationChannel(
       _groupRingChannelId,
       'Incoming room calls',
-      description: 'Ringing for an incoming call in a room',
+      description: 'Ringing for a call in a room',
       importance: Importance.max,
       groupId: _callsGroupId,
       playSound: false,
@@ -258,6 +286,24 @@ class CallNotificationService {
       playSound: true,
       sound: RawResourceAndroidNotificationSound('message_tone'),
       enableVibration: false,
+    ),
+    AndroidNotificationChannel(
+      _quietMessagesChannelId,
+      'Quiet messages',
+      description:
+          'Messages that do not mention you, while notifications are set to '
+          'mentions only',
+      importance: Importance.low,
+      groupId: _chatsGroupId,
+      playSound: false,
+      enableVibration: false,
+    ),
+    AndroidNotificationChannel(
+      _securityChannelId,
+      'New sign-ins',
+      description: 'A new device signed in to your account',
+      importance: Importance.max,
+      groupId: _accountGroupId,
     ),
   ];
 
@@ -437,6 +483,7 @@ class CallNotificationService {
       placeholder: placeholder,
       imageUri: imageUri ?? previous?.imageUri,
       imageMimeType: imageMimeType ?? previous?.imageMimeType,
+      quiet: content.quiet,
     );
     if (!replacing &&
         !refine &&
@@ -457,11 +504,23 @@ class CallNotificationService {
         senderAvatar,
       );
     }
-    final plan = replacing || (noticed && showing)
-        ? (alert: MessageAlert.silentUpdate, vibrate: false)
-        : await NotificationSoundPlayer.instance.prepareMessageNotification(
-            roomId: roomId,
-          );
+    if (noticed && showing) {
+      NotificationSoundPlayer.instance.recordNoticeAlert(roomId);
+    }
+    final upgradesQuietLine = previous != null && previous.quiet && !line.quiet;
+    final MessageAlertPlan plan;
+    if (line.quiet) {
+      plan = (
+        alert: showing ? MessageAlert.silentUpdate : MessageAlert.silent,
+        vibrate: false,
+      );
+    } else if ((replacing && !upgradesQuietLine) || (noticed && showing)) {
+      plan = (alert: MessageAlert.silentUpdate, vibrate: false);
+    } else {
+      plan = await NotificationSoundPlayer.instance.prepareMessageNotification(
+        roomId: roomId,
+      );
+    }
     timing?.mark('sound');
     final thread = NotificationThread(
       roomId: roomId,
@@ -574,9 +633,12 @@ class CallNotificationService {
     required PushTiming? timing,
   }) async {
     final roomId = thread.roomId;
-    final (channelId, channelName) = thread.isGroupChat
-        ? (_groupMessagesChannelId, 'Room messages')
-        : (messagesChannelId, 'Messages');
+    final quiet = thread.lines.isNotEmpty && thread.lines.every((l) => l.quiet);
+    final (channelId, channelName) = switch ((quiet, thread.isGroupChat)) {
+      (true, _) => (_quietMessagesChannelId, 'Quiet messages'),
+      (false, true) => (_groupMessagesChannelId, 'Room messages'),
+      (false, false) => (messagesChannelId, 'Chat messages'),
+    };
     final avatars = await _avatarsFor(thread, latest: latestAvatar);
     timing?.mark('avatars');
     final latestLine = thread.lines.isEmpty ? null : thread.lines.last;
@@ -612,8 +674,8 @@ class CallNotificationService {
           channelId,
           channelName,
           category: AndroidNotificationCategory.message,
-          importance: Importance.high,
-          priority: Priority.high,
+          importance: quiet ? Importance.low : Importance.high,
+          priority: quiet ? Priority.low : Priority.high,
           onlyAlertOnce: alert == MessageAlert.silentUpdate,
           silent: alert == MessageAlert.silent,
           styleInformation: MessagingStyleInformation(
@@ -717,8 +779,8 @@ class CallNotificationService {
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _securityChannelId,
-          'Security alerts',
-          channelDescription: 'New sign-ins to your account',
+          'New sign-ins',
+          channelDescription: 'A new device signed in to your account',
           category: AndroidNotificationCategory.status,
           importance: Importance.max,
           priority: Priority.high,
@@ -768,6 +830,7 @@ class CallNotificationService {
   static const _messageChannelIds = {
     messagesChannelId,
     _groupMessagesChannelId,
+    _quietMessagesChannelId,
   };
 
   Future<void> cancelAllMessageNotifications() async {
@@ -842,6 +905,19 @@ class CallNotificationService {
 
   Future<void> openFullScreenIntentSettings() =>
       _invoke('openFullScreenIntentSettings');
+
+  Future<List<SilencedChannel>> silencedChannels() async {
+    try {
+      return silencedMessageChannels(
+        await _android?.getNotificationChannels() ?? const [],
+      );
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> openChannelSettings(String channelId) =>
+      _invoke('openChannelSettings', {'channelId': channelId});
 
   Future<T?> _invoke<T>(
     String method, [

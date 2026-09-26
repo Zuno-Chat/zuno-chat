@@ -101,6 +101,8 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
     needsBatteryExemption: await needsBatteryExemptionFor(
       ref.watch(notificationDeliveryModeProvider),
     ),
+    needsAutostart: await BackgroundSyncService.instance
+        .hasAutostartSettings(),
     securityFacts: facts,
     hasConversations: client.rooms.any(
       (room) => room.membership == Membership.join,

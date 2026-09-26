@@ -103,6 +103,15 @@ unconditionally on every way a call ends, so it's the one signal both
 sides can rely on (used by the callee's ring page to detect an early
 caller-cancel, and by the caller to detect a late decline).
 
+`call_decline` and answered (`ended`) summaries carry an `m.reference`
+relation, to the caller's and to this device's `m.call.member` event
+respectively (`callMembershipEventId`, `_membershipEventId`), so the
+`im.zuno.reference` push rule keeps them off the push path: nobody needs a
+notification for them. Missed and declined summaries have no relation and
+still push, because the declined one is what stops a ring on the callee's
+other devices. With no membership event to point at, an event goes out
+without the relation and pushes as before.
+
 **End reasons** (`CallSession.endReason`) distinguish declined / missed /
 declinedByThem / failed / normal hangup — `failed` carries a user-facing
 `failedMessage` (e.g. permission-denied) surfaced via snackbar.
@@ -589,11 +598,12 @@ instead, so a stale notification can't outlive its call.
   ring-page dismissal-listener depend on it arriving rather than on a
   more specific signal.
 - **Server-side push-rule content conditions cannot fire on call
-  signaling in encrypted rooms** — rooms are encrypted by default, so the
-  server only ever sees `m.room.encrypted` ciphertext for
-  `call_invite`/`call_decline`/`call_summary`; any unread/badge correction
-  keyed on call semantics has to happen client-side against decrypted
-  content, not via a server-side push rule.
+  signaling in encrypted rooms** — the server only ever sees
+  `m.room.encrypted` ciphertext for `call_invite`/`call_decline`/
+  `call_summary`. Only the cleartext `m.relates_to` is visible, which is why
+  silencing goes through the `m.reference` relation, and any unread/badge
+  correction keyed on call semantics happens client-side against decrypted
+  content.
 - **Well-known homeserver lookups (`client.getWellknown()`) already cache
   for 3 days** at the SDK level — worth checking before adding another
   cache layer on top for module URL derivation.

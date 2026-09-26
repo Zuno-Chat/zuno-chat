@@ -33,4 +33,27 @@ void main() {
       await expectLater(releasePushWakeLock(), completes);
     });
   });
+
+  group('the FCM push wake lock', () {
+    const fcmChannel = MethodChannel('zuno/wake_lock');
+
+    tearDown(() => messenger.setMockMethodCallHandler(fcmChannel, null));
+
+    test('is released through the notifications plugin', () async {
+      final calls = <String>[];
+      messenger.setMockMethodCallHandler(fcmChannel, (call) async {
+        calls.add(call.method);
+        return null;
+      });
+      await releaseFcmPushWakeLock();
+      expect(calls, ['releasePush']);
+    });
+
+    test('survives the native side throwing', () async {
+      messenger.setMockMethodCallHandler(fcmChannel, (call) async {
+        throw PlatformException(code: 'NO_LOCK');
+      });
+      await expectLater(releaseFcmPushWakeLock(), completes);
+    });
+  });
 }
