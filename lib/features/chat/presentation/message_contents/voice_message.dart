@@ -31,6 +31,7 @@ class _VoiceMessageState extends State<VoiceMessage> {
   PlayerState _state = PlayerState.stopped;
   Duration _position = Duration.zero;
   Duration? _duration;
+  List<int>? _waveform;
   bool _loading = false;
   StreamSubscription<PlayerState>? _stateSub;
   StreamSubscription<Duration>? _positionSub;
@@ -43,11 +44,13 @@ class _VoiceMessageState extends State<VoiceMessage> {
   void initState() {
     super.initState();
     _duration = voiceMessageDuration(widget.event);
+    _waveform = voiceMessageWaveform(widget.event);
     _stateSub = _player.onPlayerStateChanged.listen((state) {
       if (mounted) setState(() => _state = state);
     });
     _positionSub = _player.onPositionChanged.listen((position) {
-      if (mounted) setState(() => _position = position);
+      if (!mounted || _state == PlayerState.completed) return;
+      setState(() => _position = position);
     });
     _durationSub = _player.onDurationChanged.listen((duration) {
       if (mounted) setState(() => _duration = duration);
@@ -55,6 +58,14 @@ class _VoiceMessageState extends State<VoiceMessage> {
     _completeSub = _player.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _position = Duration.zero);
     });
+  }
+
+  @override
+  void didUpdateWidget(VoiceMessage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.event, widget.event)) {
+      _waveform = voiceMessageWaveform(widget.event);
+    }
   }
 
   @override
@@ -68,10 +79,18 @@ class _VoiceMessageState extends State<VoiceMessage> {
   }
 
   Future<void> _toggle() async {
-    if (_state == PlayerState.playing) {
-      await _player.pause();
-      return;
+    switch (_state) {
+      case PlayerState.playing:
+        await _player.pause();
+      case PlayerState.paused:
+        await _player.resume();
+      default:
+        await _play();
     }
+  }
+
+  Future<bool> _play() async {
+    if (_loading) return false;
     var bytes = AttachmentCache.instance.get(_cacheKey);
     if (bytes == null) {
       setState(() => _loading = true);
@@ -88,23 +107,27 @@ class _VoiceMessageState extends State<VoiceMessage> {
             ),
           );
         }
-        return;
+        return false;
       } finally {
         if (mounted) setState(() => _loading = false);
       }
     }
+    if (!mounted) return false;
     await _player.play(
       BytesSource(
         bytes,
         mimeType: widget.event.infoMap.tryGet<String>('mimetype'),
       ),
     );
+    return true;
   }
 
   Future<void> _seekTo(double ratio) async {
     final total = _duration ?? Duration.zero;
     if (total == Duration.zero) return;
-    if (_state == PlayerState.stopped) await _toggle();
+    final started =
+        _state == PlayerState.playing || _state == PlayerState.paused;
+    if (!started && !await _play()) return;
     await _player.seek(
       Duration(milliseconds: (ratio * total.inMilliseconds).round()),
     );
@@ -117,7 +140,7 @@ class _VoiceMessageState extends State<VoiceMessage> {
         ? 0.0
         : (_position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
     final isPlaying = _state == PlayerState.playing;
-    final waveform = voiceMessageWaveform(widget.event);
+    final waveform = _waveform;
 
     final theme = Theme.of(context);
     final colors = theme.colorScheme;

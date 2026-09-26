@@ -18,7 +18,7 @@ class UnvouchedDeviceWarningNotifier extends Notifier<Set<String>> {
   @override
   Set<String> build() {
     final client = ref.watch(matrixClientProvider);
-    final sub = client.onSync.stream.listen((_) => unawaited(_check(client)));
+    final sub = onSyncFinished(client).listen((_) => unawaited(_check(client)));
     ref.onDispose(sub.cancel);
     unawaited(_check(client));
     return const {};
@@ -36,7 +36,7 @@ class UnvouchedDeviceWarningNotifier extends Notifier<Set<String>> {
 
       for (final userId in peopleWhoseDevicesWeWatch(client)) {
         final keys = client.userDeviceKeys[userId];
-        if (keys == null || keys.deviceKeys.isEmpty) continue;
+        if (keys == null || keys.outdated || keys.deviceKeys.isEmpty) continue;
 
         final current = keys.deviceKeys.keys.toSet();
         final unvouched = unvouchedNewDeviceIds(
@@ -48,7 +48,7 @@ class UnvouchedDeviceWarningNotifier extends Notifier<Set<String>> {
         if (unvouched.isNotEmpty) flagged.add(userId);
       }
 
-      if (flagged.isNotEmpty) state = {...state, ...flagged};
+      if (flagged.isNotEmpty && ref.mounted) state = {...state, ...flagged};
     } finally {
       _busy = false;
     }

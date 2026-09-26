@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/room_roles.dart';
@@ -302,6 +306,72 @@ void main() {
         ),
         'Invited',
       );
+    });
+  });
+
+  group('setUserRoomRole', () {
+    late List<http.Request> requests;
+    late http.Response Function() server;
+    late Room room;
+
+    setUp(() {
+      requests = [];
+      server = () => http.Response(jsonEncode({'event_id': r'$pl2'}), 200);
+      final client = buildTestClient(
+        userId: '@me:example.org',
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return server();
+        }),
+      );
+      client.baseUri = Uri.parse('https://example.org');
+      client.bearerToken = 'token';
+      room = buildTestRoom(client);
+      setPowerLevels(room, {
+        'ban': 50,
+        'users': {'@me:example.org': 100},
+      });
+    });
+
+    test('sends the power levels with only that user changed', () async {
+      await setUserRoomRole(room, '@bob:example.org', RoomRole.moderator);
+
+      final request = requests.single;
+      expect(request.method, 'PUT');
+      expect(request.url.path, contains('/state/m.room.power_levels'));
+      expect(jsonDecode(request.body), {
+        'ban': 50,
+        'users': {'@me:example.org': 100, '@bob:example.org': 50},
+      });
+    });
+
+    test('shows the new role before the server echoes it back', () async {
+      await setUserRoomRole(room, '@bob:example.org', RoomRole.readOnly);
+
+      expect(roomRoleOfUser(room, '@bob:example.org'), RoomRole.readOnly);
+    });
+
+    test('a room without power levels gets a users map', () async {
+      room.states.remove(EventTypes.RoomPowerLevels);
+
+      await setUserRoomRole(room, '@bob:example.org', RoomRole.admin);
+
+      expect(jsonDecode(requests.single.body), {
+        'users': {'@bob:example.org': 100},
+      });
+    });
+
+    test('a refused change leaves the role as it was', () async {
+      server = () => http.Response(
+        jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'no'}),
+        403,
+      );
+
+      await expectLater(
+        setUserRoomRole(room, '@bob:example.org', RoomRole.admin),
+        throwsA(isA<MatrixException>()),
+      );
+      expect(roomRoleOfUser(room, '@bob:example.org'), RoomRole.member);
     });
   });
 }

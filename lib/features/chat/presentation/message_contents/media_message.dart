@@ -14,24 +14,25 @@ const mediaInset = 4.0;
 
 const mediaRadius = 16.0;
 
+const _tallestMediaRatio = 9 / 16;
+
+const _widestMediaRatio = 16 / 9;
+
 double? mediaAspectRatio(int? width, int? height) {
   if (width == null || height == null || width <= 0 || height <= 0) return null;
-  return width / height;
+  return (width / height).clamp(_tallestMediaRatio, _widestMediaRatio);
 }
 
-Widget _mediaOverlayBadge(String text, {Widget? trailing}) {
+Widget _mediaOverlayBadge(String text) {
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
     decoration: BoxDecoration(
       color: Colors.black.withValues(alpha: 0.55),
       borderRadius: BorderRadius.circular(8),
     ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(text, style: const TextStyle(color: Colors.white, fontSize: 11)),
-        if (trailing != null) ...[const SizedBox(width: 2), trailing],
-      ],
+    child: Text(
+      text,
+      style: const TextStyle(color: Colors.white, fontSize: 11),
     ),
   );
 }

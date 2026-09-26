@@ -82,8 +82,9 @@ what a message looks like, how it's sent, and how the timeline behaves.
   stable Matrix ID where one exists, so a rename keeps the color.
   Videos and files use `fetchCachedAttachmentFile` instead: disk tier
   only, returning the cached file itself, so share, save and the video
-  viewer never re-download or hold a large file in memory. One key per
-  event (`attachmentCacheKey`) across every consumer. The SDK's own file
+  viewer never re-download or hold a large file in memory; tapping a file
+  bubble is the same `saveAttachmentWithFeedback` path as the viewers'
+  Save. One key per event (`attachmentCacheKey`) across every consumer. The SDK's own file
   store is off (`maxFileSize` 0), so this is the only cache there is.
 - **Media send pipeline is app-side and native**; the SDK's image shrink
   is bypassed. `image_send_preparation.dart` / `video_send_preparation.dart`
@@ -311,7 +312,9 @@ answers the others.
 
 - Media, voice, file and location bubbles are a fixed 2/3 of the screen;
   everything else shrinks to its content under a 3/4 ceiling, with no
-  floor. Corners are 20 px, tightened to 6 px where messages of one run
+  floor. Media height follows the reported aspect ratio clamped to
+  9:16–16:9 (`mediaAspectRatio`, cover-cropped), so a long screenshot
+  cannot make a screen-tall bubble. Corners are 20 px, tightened to 6 px where messages of one run
   meet on the sender's side (`bubbleRadius`); a run is one sender, no
   hidden event or day change between, at most five minutes apart.
 - The time row (`MessageMeta`: "edited", time, clock/tick) is tucked into
@@ -501,6 +504,12 @@ sheet (additive, would reuse the pinned-shortcut code).
 - **The wait for the slide is the shared `RouteSettled` mixin**
   (`app-foundation.md`); `RoomPage` applies the pending timeline in
   `onRouteSettled`.
+- **A file's `body` is its caption once `filename` is set** (MSC2530): the
+  file bubble shows `filename`, then the caption; `imageCaption` decides.
+- **Voice playback: `AudioPlayer.play` always reloads from 0.** Pause
+  resumes with `resume()`; only a stopped or finished message calls
+  `play`. After completion audioplayers releases the source and emits one
+  last position, which is ignored so the bar resets.
 - **A keyed lazy list needs `findChildIndexCallback`.** Without it a new
   message shifts every index and remounts every visible row, memo or not: a
   playing voice message stops and "Read more" collapses. Rows also keep one

@@ -1,11 +1,10 @@
-import 'dart:async';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
-import '../../../../core/errors/best_effort.dart';
 import '../../../../core/format/human_units.dart';
+import '../../../../core/matrix/attachment_action_buttons.dart';
+import '../../../../core/matrix/attachment_actions.dart';
+import '../../../../core/matrix/image_caption.dart';
 import '../../../../core/ui/zuno_theme.dart';
 import '../file_name_text.dart';
 import '../message_bubble.dart';
@@ -33,20 +32,7 @@ class _FileMessageState extends State<FileMessage> {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _downloading = true);
     try {
-      final file = await widget.event.downloadAndDecryptAttachment();
-      final uri = await FilePicker.saveFile(
-        fileName: file.name,
-        bytes: file.bytes,
-        mimeType: file.mimeType,
-      );
-      if (uri != null) {
-        messenger.showSnackBar(const SnackBar(content: Text('Saved')));
-      }
-    } catch (e) {
-      logCaught('download attachment', e);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not save. Try again.')),
-      );
+      await saveAttachmentWithFeedback(messenger, widget.event);
     } finally {
       if (mounted) setState(() => _downloading = false);
     }
@@ -55,6 +41,7 @@ class _FileMessageState extends State<FileMessage> {
   @override
   Widget build(BuildContext context) {
     final size = widget.event.infoMap.tryGet<int>('size');
+    final caption = imageCaption(widget.event);
     final theme = Theme.of(context);
     final ink = bubbleInk(theme, own: widget.own);
     final muted = bubbleMuted(theme, own: widget.own);
@@ -89,12 +76,19 @@ class _FileMessageState extends State<FileMessage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 FileNameText(
-                  widget.event.body,
+                  attachmentFileName(widget.event),
                   style: theme.textTheme.bodyMedium!.copyWith(
                     color: ink,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                if (caption != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    caption,
+                    style: theme.textTheme.bodyMedium!.copyWith(color: ink),
+                  ),
+                ],
                 const SizedBox(height: 2),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

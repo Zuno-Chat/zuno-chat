@@ -84,6 +84,9 @@ lives in `zuno_web/src/.well-known/matrix/client` (MapTiler).
 
 - **A tile cache is a location history** in plain files. Keep the cap and
   every purge site.
+- **`mapTileCache()` is a forwarder, not the cache.** A purge destroys
+  flutter_map's singleton; a tile provider holding that instance would
+  stop caching until restart, so every call resolves the current one.
 - **`geo:` intents need a `<queries>` entry** (Android 11+) or `launchUrl`
   reports no handler.
 - **The preview map sits inside an `IgnorePointer`**, so the bubble's

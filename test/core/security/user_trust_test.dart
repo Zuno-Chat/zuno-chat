@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/security/user_trust.dart';
 
+import '../../helpers/fake_device_keys.dart';
+import '../../helpers/fake_encryption.dart';
+
 UserTrustState _state({
   String? currentIdentityKey = 'KEY_A',
   bool identityDirectlyVerified = false,
@@ -69,6 +72,42 @@ void main() {
           reason: state.name,
         );
       }
+    });
+  });
+
+  group('userTrustFactsOf', () {
+    const alice = '@alice:example.org';
+    late EncryptedTestClient client;
+
+    setUp(() => client = EncryptedTestClient(userId: '@me:example.org'));
+
+    test('someone whose keys are unknown has no identity to go on', () {
+      final facts = userTrustFactsOf(null);
+
+      expect(facts.currentIdentityKey, isNull);
+      expect(facts.identityDirectlyVerified, isFalse);
+      expect(facts.hasUnsignedDevices, isFalse);
+    });
+
+    test('reads the identity and flags a device it has not signed', () {
+      final list = setTestDevices(client, alice, {'A1': null});
+      final master = testMasterKey(client, alice);
+
+      final facts = userTrustFactsOf(list);
+
+      expect(facts.currentIdentityKey, master.ed25519Key);
+      expect(facts.identityDirectlyVerified, isFalse);
+      expect(facts.hasUnsignedDevices, isTrue);
+    });
+
+    test('an identity I confirmed reads as directly verified', () async {
+      final list = setTestDevices(client, alice, {});
+      await testMasterKey(client, alice).setVerified(true, false);
+
+      final facts = userTrustFactsOf(list);
+
+      expect(facts.identityDirectlyVerified, isTrue);
+      expect(facts.hasUnsignedDevices, isFalse);
     });
   });
 }

@@ -113,6 +113,67 @@ void main() {
     expect(describeStateEvent(event), 'Alice changed the topic to "New topic"');
   });
 
+  test('member knock', () {
+    final event = buildTestEvent(
+      room,
+      eventId: r'$1',
+      senderId: '@bob:example.org',
+      type: EventTypes.RoomMember,
+      stateKey: '@bob:example.org',
+      content: {'membership': 'knock'},
+    );
+    expect(describeStateEvent(event), 'Bob requested to join');
+  });
+
+  test('an unknown membership change still names both sides', () {
+    final event = buildTestEvent(
+      room,
+      eventId: r'$1',
+      senderId: '@alice:example.org',
+      type: EventTypes.RoomMember,
+      stateKey: '@bob:example.org',
+      content: {'membership': 'im.custom'},
+    );
+    expect(describeStateEvent(event), "Alice updated Bob's membership");
+  });
+
+  test('room topic removed (missing)', () {
+    final event = buildTestEvent(
+      room,
+      eventId: r'$1',
+      senderId: '@alice:example.org',
+      type: EventTypes.RoomTopic,
+      stateKey: '',
+    );
+    expect(describeStateEvent(event), 'Alice removed the room topic');
+  });
+
+  for (final (type, description) in [
+    (EventTypes.RoomAvatar, 'Alice changed the room photo'),
+    (EventTypes.RoomCreate, 'Alice created the room'),
+    (EventTypes.RoomPowerLevels, 'Alice changed the room permissions'),
+    (EventTypes.RoomJoinRules, 'Alice changed who can join the room'),
+    (EventTypes.RoomCanonicalAlias, 'Alice changed the room address'),
+    (
+      EventTypes.HistoryVisibility,
+      'Alice changed who can read the room history',
+    ),
+    (EventTypes.GuestAccess, 'Alice changed guest access'),
+    (EventTypes.Encryption, 'Alice turned on encryption'),
+    (EventTypes.RoomTombstone, 'Alice upgraded the room'),
+  ]) {
+    test(type, () {
+      final event = buildTestEvent(
+        room,
+        eventId: r'$1',
+        senderId: '@alice:example.org',
+        type: type,
+        stateKey: '',
+      );
+      expect(describeStateEvent(event), description);
+    });
+  }
+
   test(
     'an unrecognized state event type falls back to null (caller labels it)',
     () {

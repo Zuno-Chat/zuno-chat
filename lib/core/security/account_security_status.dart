@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:matrix/matrix.dart';
 
 enum AccountSecurityStatus {
@@ -50,11 +52,15 @@ Future<AccountSecurityFacts> accountSecurityFactsOf(Client client) async {
     );
   }
   final ownKeys = client.userDeviceKeys[client.userID]?.deviceKeys.values ?? [];
+  final (identityKeysHere, keyBackupHere) = await (
+    encryption.crossSigning.isCached(),
+    encryption.keyManager.isCached(),
+  ).wait;
   return AccountSecurityFacts(
     recoveryExists: encryption.crossSigning.enabled,
-    thisDeviceHasIdentityKeys: await encryption.crossSigning.isCached(),
+    thisDeviceHasIdentityKeys: identityKeysHere,
     keyBackupExists: encryption.keyManager.enabled,
-    keyBackupUsableHere: await encryption.keyManager.isCached(),
+    keyBackupUsableHere: keyBackupHere,
     unapprovedOtherDevices: ownKeys
         .where((d) => d.deviceId != client.deviceID && !d.verified)
         .length,

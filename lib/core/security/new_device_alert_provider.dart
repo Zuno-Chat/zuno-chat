@@ -13,6 +13,11 @@ final knownDevicesStoreProvider = Provider<KnownDevicesStore>((ref) {
   return KnownDevicesStore(ref.watch(sharedPreferencesProvider));
 });
 
+Stream<SyncStatusUpdate> onSyncFinished(Client client) => client
+    .onSyncStatus
+    .stream
+    .where((update) => update.status == SyncStatus.finished);
+
 final newDeviceAlertProvider =
     NotifierProvider<NewDeviceAlertNotifier, List<NewDeviceAlert>>(
       NewDeviceAlertNotifier.new,
@@ -24,7 +29,7 @@ class NewDeviceAlertNotifier extends Notifier<List<NewDeviceAlert>> {
   @override
   List<NewDeviceAlert> build() {
     final client = ref.watch(matrixClientProvider);
-    final sub = client.onSync.stream.listen((_) => unawaited(_check(client)));
+    final sub = onSyncFinished(client).listen((_) => unawaited(_check(client)));
     ref.onDispose(sub.cancel);
     unawaited(_check(client));
     return const [];
@@ -38,15 +43,15 @@ class NewDeviceAlertNotifier extends Notifier<List<NewDeviceAlert>> {
     final userId = client.userID;
     if (userId == null) return;
 
-    final deviceKeys = client.userDeviceKeys[userId]?.deviceKeys;
-    if (deviceKeys == null || deviceKeys.isEmpty) return;
+    final keys = client.userDeviceKeys[userId];
+    if (keys == null || keys.outdated || keys.deviceKeys.isEmpty) return;
 
     _busy = true;
     try {
       final store = ref.read(knownDevicesStoreProvider);
       final known = store.knownDeviceIds(userId);
       final current = {
-        for (final entry in deviceKeys.entries)
+        for (final entry in keys.deviceKeys.entries)
           entry.key: entry.value.deviceDisplayName,
       };
 
@@ -57,6 +62,7 @@ class NewDeviceAlertNotifier extends Notifier<List<NewDeviceAlert>> {
       );
 
       await store.remember(userId, current.keys.toSet());
+      if (!ref.mounted) return;
 
       if (alerts.isNotEmpty) state = [...state, ...alerts];
 

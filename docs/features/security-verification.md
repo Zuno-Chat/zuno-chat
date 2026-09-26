@@ -105,7 +105,12 @@ reach a run that long.
   warning watches only people you share a *private* room with
   (`peopleWhoseDevicesWeWatch`) and its banner stays silent in public
   rooms: strangers' devices are noise, and tracking them costs a store
-  write per stranger.
+  entry per stranger.
+- **Device checks run on `SyncStatus.finished`, skip `outdated` lists, and
+  only ever add to the known set.** The SDK refreshes a device list after
+  `onSync`, emptying it and refilling it across awaits; a check that saved
+  a half-filled list would later report the missing devices as new sign-ins.
+  `remember` writes only when a device is new.
 - **`confirmPerson`** re-reads `accountSecurityFactsOf` after the forced
   recovery setup returns and stops quietly if recovery or identity keys are
   still missing — Back from `SecureBackupPage` pops exactly like finishing

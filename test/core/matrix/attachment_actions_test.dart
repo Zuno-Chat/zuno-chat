@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
+import 'package:path/path.dart' as p;
 import 'package:zuno/core/matrix/attachment_actions.dart';
+import 'package:zuno/core/matrix/attachment_cache.dart';
 
+import '../../helpers/fake_attachments.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -100,6 +105,136 @@ void main() {
       final name = safeAttachmentFileName('${'a' * 300}.png');
       expect(name.length, lessThanOrEqualTo(64));
       expect(name, endsWith('.png'));
+    });
+  });
+
+  group('on a device', () {
+    late AttachmentServer server;
+    late DeviceFakes device;
+
+    setUp(() {
+      server = installAttachmentServer();
+      device = installDeviceFakes();
+    });
+
+    Event photo([String eventId = r'$photo']) =>
+        server.attachment(eventId: eventId, body: 'holiday.png');
+
+    Event video() => server.attachment(
+      eventId: r'$video',
+      msgtype: MessageTypes.Video,
+      body: 'clip.mp4',
+      mimetype: 'video/mp4',
+    );
+
+    Event document({String mimetype = 'application/pdf'}) => server.attachment(
+      eventId: r'$document',
+      msgtype: MessageTypes.File,
+      body: 'report.pdf',
+      mimetype: mimetype,
+    );
+
+    group('saveAttachment', () {
+      test('a photo goes to Photos under its own name', () async {
+        expect(await saveAttachment(photo()), 'Saved to Photos');
+
+        final call = device.gallery.single;
+        expect(call.method, 'putImageBytes');
+        expect((call.arguments as Map)['name'], 'holiday');
+        expect((call.arguments as Map)['bytes'], server.served);
+      });
+
+      test('a photo saved twice is downloaded once', () async {
+        await saveAttachment(photo());
+        await saveAttachment(photo());
+
+        expect(server.downloads, hasLength(1));
+      });
+
+      test('a video goes to Videos from a named copy, removed after', () async {
+        expect(await saveAttachment(video()), 'Saved to Videos');
+
+        final path = (device.gallery.single.arguments as Map)['path'] as String;
+        expect(p.basename(path), 'clip.mp4');
+        expect(device.galleryFilesPresent, [true]);
+        for (var i = 0; i < 50 && File(path).existsSync(); i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(File(path).existsSync(), isFalse);
+      });
+
+      test('a file goes through the save dialog with its type', () async {
+        expect(await saveAttachment(document()), 'Saved');
+
+        final saved = device.picker.saved.single;
+        expect(saved.fileName, 'report.pdf');
+        expect(saved.mimeType, 'application/pdf');
+        expect(saved.bytes, server.served);
+      });
+
+      test('a file without a type is saved as plain bytes', () async {
+        await saveAttachment(document(mimetype: ''));
+
+        expect(device.picker.saved.single.mimeType, 'application/octet-stream');
+      });
+
+      test('closing the save dialog reports nothing', () async {
+        device.picker.answer = null;
+
+        expect(await saveAttachment(document()), isNull);
+      });
+    });
+
+    test('saveAttachments counts only what landed', () async {
+      final gone = photo(r'$gone');
+      server.goneFromServer(gone);
+      device.picker.answer = null;
+
+      final saved = await saveAttachments([photo(), gone, document()]);
+
+      expect(saved, 1);
+      expect(device.gallery, hasLength(1));
+    });
+
+    group('shareAttachments', () {
+      test('nothing to share opens no share sheet', () async {
+        await shareAttachments(const []);
+
+        expect(device.shared, isEmpty);
+      });
+
+      test('shares named copies with their types', () async {
+        await shareAttachments([photo(), document()]);
+
+        final shared = device.shared.single;
+        expect(
+          [for (final path in shared['paths']! as List) p.basename('$path')],
+          ['holiday.png', 'report.pdf'],
+        );
+        expect(shared['mimeTypes'], ['image/png', 'application/pdf']);
+      });
+
+      test('says it is preparing when something must download first', () async {
+        var preparing = 0;
+
+        await shareAttachments([photo()], onPreparing: () => preparing++);
+
+        expect(preparing, 1);
+      });
+
+      test('shares at once when everything is already here', () async {
+        final event = photo();
+        AttachmentCache.instance.put(
+          attachmentCacheKey(event, thumbnail: false),
+          server.served,
+        );
+        var preparing = 0;
+
+        await shareAttachments([event], onPreparing: () => preparing++);
+
+        expect(preparing, 0);
+        expect(device.shared, hasLength(1));
+      });
     });
   });
 }

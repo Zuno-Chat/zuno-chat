@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/matrix/attachment_cache.dart';
 
+import '../../helpers/fake_attachments.dart';
+
 void main() {
   late Directory dir;
   late DiskAttachmentCache disk;
@@ -16,7 +18,26 @@ void main() {
     disk = DiskAttachmentCache.forTest(dir);
   });
 
-  tearDown(() => dir.deleteSync(recursive: true));
+  tearDown(() {
+    AttachmentCache.instance.clear();
+    if (dir.existsSync()) dir.deleteSync(recursive: true);
+  });
+
+  File sparseFile(String name, {required int megabytes, DateTime? modified}) {
+    final file = File('${dir.path}/$name');
+    file.openSync(mode: FileMode.write)
+      ..setPositionSync(megabytes * 1024 * 1024 - 1)
+      ..writeByteSync(0)
+      ..closeSync();
+    if (modified != null) file.setLastModifiedSync(modified);
+    return file;
+  }
+
+  Future<void> until(bool Function() done) async {
+    for (var i = 0; i < 100 && !done(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+  }
 
   test('a miss is null', () async {
     expect(await disk.file('missing'), isNull);
@@ -161,5 +182,152 @@ void main() {
     await disk.remove('k');
 
     expect(await disk.get('k'), isNull);
+  });
+
+  test('the key tells a thumbnail from the full attachment', () {
+    final server = installAttachmentServer();
+    final event = server.attachment(eventId: r'$e1');
+
+    expect(attachmentCacheKey(event, thumbnail: true), r'$e1:thumb');
+    expect(attachmentCacheKey(event, thumbnail: false), r'$e1:full');
+  });
+
+  group('memory cache', () {
+    setUp(AttachmentCache.instance.clear);
+
+    Uint8List entry(int i) => Uint8List.fromList([i]);
+
+    test('keeps the 60 most recent entries', () {
+      for (var i = 0; i <= 60; i++) {
+        AttachmentCache.instance.put('k$i', entry(i));
+      }
+
+      expect(AttachmentCache.instance.get('k0'), isNull);
+      expect(AttachmentCache.instance.get('k1'), entry(1));
+      expect(AttachmentCache.instance.get('k60'), entry(60));
+    });
+
+    test('a read keeps an entry from being the next one dropped', () {
+      for (var i = 0; i < 60; i++) {
+        AttachmentCache.instance.put('k$i', entry(i));
+      }
+
+      AttachmentCache.instance.get('k0');
+      AttachmentCache.instance.put('k60', entry(60));
+
+      expect(AttachmentCache.instance.get('k0'), entry(0));
+      expect(AttachmentCache.instance.get('k1'), isNull);
+    });
+
+    test('a hit is served without fetching', () async {
+      AttachmentCache.instance.put('k', bytes);
+      var fetches = 0;
+
+      final served = await fetchCachedAttachment('k', () async {
+        fetches++;
+        return Uint8List(0);
+      }, disk: disk);
+
+      expect(served, bytes);
+      expect(fetches, 0);
+    });
+
+    test('a disk hit is kept in memory for next time', () async {
+      await disk.put('k', bytes);
+
+      await fetchCachedAttachment('k', () async => Uint8List(0), disk: disk);
+
+      expect(AttachmentCache.instance.get('k'), bytes);
+    });
+  });
+
+  group('disk budget', () {
+    test('trims the oldest files once the cache passes 256 MiB', () async {
+      final old = sparseFile(
+        'old',
+        megabytes: 300,
+        modified: DateTime.now().subtract(const Duration(hours: 1)),
+      );
+
+      final fresh = await disk.put('fresh', bytes);
+      await until(() => !old.existsSync());
+
+      expect(old.existsSync(), isFalse);
+      expect(fresh!.existsSync(), isTrue);
+    });
+
+    test('leaves a cache under 256 MiB alone', () async {
+      final big = sparseFile('big', megabytes: 200);
+
+      await disk.put('fresh', bytes);
+      await until(() => !big.existsSync());
+
+      expect(big.existsSync(), isTrue);
+    });
+
+    test('checks the budget at most every five minutes', () async {
+      final first = sparseFile('first', megabytes: 300);
+      await disk.put('a', bytes);
+      await until(() => !first.existsSync());
+      await pumpEventQueue();
+
+      final second = sparseFile('second', megabytes: 300);
+      await disk.put('b', bytes);
+      await until(() => !second.existsSync());
+
+      expect(second.existsSync(), isTrue);
+    });
+  });
+
+  group('shared disk cache', () {
+    late AttachmentServer server;
+
+    setUp(() => server = installAttachmentServer());
+
+    Future<Uint8List> fetch() async => bytes;
+
+    test('lives in the app cache directory', () async {
+      await fetchCachedAttachment('k', fetch);
+      AttachmentCache.instance.clear();
+
+      final file = await DiskAttachmentCache.instance.file('k');
+
+      expect(
+        file!.parent.path,
+        '${server.cacheDirectory.path}/attachment_cache',
+      );
+    });
+
+    test('serves avatars and attachment files too', () async {
+      await fetchCachedAvatar('avatar:k', fetch);
+      final file = await fetchCachedAttachmentFile('k', fetch);
+
+      expect(await DiskAttachmentCache.instance.get('avatar:k'), bytes);
+      expect(await file.readAsBytes(), bytes);
+    });
+
+    test('clearing it deletes every cached file', () async {
+      await fetchCachedAttachmentFile('k', fetch);
+
+      await DiskAttachmentCache.instance.clear();
+
+      expect(
+        Directory('${server.cacheDirectory.path}/attachment_cache')
+            .existsSync(),
+        isFalse,
+      );
+      expect(await DiskAttachmentCache.instance.get('k'), isNull);
+    });
+
+    test('an attachment the cache cannot store is still handed over', () async {
+      final broken = DiskAttachmentCache.forTest(
+        Directory('${dir.path}/missing/deeper'),
+      );
+
+      final file = await fetchCachedAttachmentFile('k', fetch, disk: broken);
+
+      expect(file.parent.path, server.temporaryDirectory.path);
+      expect(await file.readAsBytes(), bytes);
+    });
   });
 }

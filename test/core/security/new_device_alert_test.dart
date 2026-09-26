@@ -115,6 +115,30 @@ void main() {
       expect(store.knownDeviceIds('@other:example.org'), isNull);
     });
 
+    test(
+      'remembering adds to what is known and never forgets a device',
+      () async {
+        final store = KnownDevicesStore(await SharedPreferences.getInstance());
+        await store.remember('@me:example.org', {'AAA', 'BBB'});
+
+        await store.remember('@me:example.org', {'AAA'});
+        await store.remember('@me:example.org', {'AAA', 'CCC'});
+
+        expect(store.knownDeviceIds('@me:example.org'), {'AAA', 'BBB', 'CCC'});
+      },
+    );
+
+    test(
+      'remembering an empty first look still counts as having looked',
+      () async {
+        final store = KnownDevicesStore(await SharedPreferences.getInstance());
+
+        await store.remember('@me:example.org', {});
+
+        expect(store.knownDeviceIds('@me:example.org'), isEmpty);
+      },
+    );
+
     test('forgetting returns it to never-looked, so the next pass reseeds', () {
       return SharedPreferences.getInstance().then((prefs) async {
         final store = KnownDevicesStore(prefs);

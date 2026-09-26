@@ -1,5 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
 import 'package:zuno/core/security/account_security_status.dart';
+
+import '../../helpers/fake_device_keys.dart';
+import '../../helpers/fake_encryption.dart';
+import '../../helpers/fake_matrix.dart';
 
 AccountSecurityFacts _facts({
   bool recoveryExists = true,
@@ -48,10 +55,7 @@ void main() {
     test('an unapproved other device wins over everything else', () {
       expect(
         accountSecurityStatus(
-          _facts(
-            keyBackupUsableHere: false,
-            unapprovedOtherDevices: 1,
-          ),
+          _facts(keyBackupUsableHere: false, unapprovedOtherDevices: 1),
         ),
         AccountSecurityStatus.deviceWaiting,
       );
@@ -60,10 +64,7 @@ void main() {
     test('a device that cannot check does not accuse the others', () {
       expect(
         accountSecurityStatus(
-          _facts(
-            thisDeviceHasIdentityKeys: false,
-            unapprovedOtherDevices: 2,
-          ),
+          _facts(thisDeviceHasIdentityKeys: false, unapprovedOtherDevices: 2),
         ),
         AccountSecurityStatus.deviceLocked,
       );
@@ -84,14 +85,17 @@ void main() {
       );
     });
 
-    test('no recovery outranks an unapproved device that could be reviewed', () {
-      expect(
-        accountSecurityStatus(
-          _facts(recoveryExists: false, unapprovedOtherDevices: 2),
-        ),
-        AccountSecurityStatus.noRecovery,
-      );
-    });
+    test(
+      'no recovery outranks an unapproved device that could be reviewed',
+      () {
+        expect(
+          accountSecurityStatus(
+            _facts(recoveryExists: false, unapprovedOtherDevices: 2),
+          ),
+          AccountSecurityStatus.noRecovery,
+        );
+      },
+    );
 
     test('no recovery outranks a backup this device cannot read', () {
       expect(
@@ -165,6 +169,78 @@ void main() {
           );
         }
       }
+    });
+  });
+
+  group('accountSecurityFactsOf', () {
+    const me = '@me:example.org';
+    late EncryptedTestClient client;
+
+    setUp(() {
+      client = EncryptedTestClient(userId: me, testDeviceId: 'THIS');
+    });
+
+    test('a client without encryption has nothing set up', () async {
+      final facts = await accountSecurityFactsOf(buildTestClient());
+
+      expect(facts.recoveryExists, isFalse);
+      expect(facts.thisDeviceHasIdentityKeys, isFalse);
+      expect(facts.keyBackupExists, isFalse);
+      expect(facts.keyBackupUsableHere, isFalse);
+      expect(facts.unapprovedOtherDevices, 0);
+    });
+
+    test('no recovery on the server reads as none set up', () async {
+      final facts = await accountSecurityFactsOf(client);
+
+      expect(facts.recoveryExists, isFalse);
+      expect(facts.keyBackupExists, isFalse);
+      expect(accountSecurityStatus(facts), AccountSecurityStatus.noRecovery);
+    });
+
+    test('recovery this device has not unlocked reads as locked', () async {
+      client.setUpRecovery();
+
+      final facts = await accountSecurityFactsOf(client);
+
+      expect(facts.recoveryExists, isTrue);
+      expect(facts.thisDeviceHasIdentityKeys, isFalse);
+      expect(facts.keyBackupExists, isTrue);
+      expect(facts.keyBackupUsableHere, isFalse);
+      expect(accountSecurityStatus(facts), AccountSecurityStatus.deviceLocked);
+    });
+
+    test('counts other devices not yet approved, never this one', () async {
+      setTestDevices(client, me, {
+        'THIS': null,
+        'LAPTOP': null,
+        'TABLET': null,
+      });
+
+      final facts = await accountSecurityFactsOf(client);
+
+      expect(facts.unapprovedOtherDevices, 2);
+    });
+
+    test('no device list yet means nothing is waiting', () async {
+      final facts = await accountSecurityFactsOf(client);
+
+      expect(facts.unapprovedOtherDevices, 0);
+    });
+
+    test('checks identity keys and backup at the same time', () async {
+      client.setUpRecovery();
+      final db = client.encryptionDatabase;
+      final identityKeys = Completer<Null>();
+      db.heldSecretCacheReads[EventTypes.CrossSigningSelfSigning] =
+          identityKeys;
+
+      final facts = accountSecurityFactsOf(client);
+      await pumpEventQueue();
+
+      expect(db.secretCacheReads, contains(EventTypes.MegolmBackup));
+      identityKeys.complete();
+      expect((await facts).thisDeviceHasIdentityKeys, isFalse);
     });
   });
 }
