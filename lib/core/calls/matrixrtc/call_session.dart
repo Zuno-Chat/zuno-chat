@@ -99,6 +99,8 @@ class CallSession {
   final Duration keyRelayBaseDelay;
   final Duration keyRelayMaxDelay;
   final Duration remoteLeftConfirmDelay;
+  final Duration ringTimeout;
+  final Duration membershipRefreshInterval;
   final http.Client? callsHttpClient;
 
   CallSession._({
@@ -112,6 +114,8 @@ class CallSession {
     this.keyRelayBaseDelay = _defaultKeyRelayBaseDelay,
     this.keyRelayMaxDelay = _defaultKeyRelayMaxDelay,
     this.remoteLeftConfirmDelay = _remoteLeftConfirmDelay,
+    this.ringTimeout = _ringTimeout,
+    this.membershipRefreshInterval = _membershipRefreshInterval,
     this.callsHttpClient,
   });
 
@@ -140,6 +144,8 @@ class CallSession {
     @visibleForTesting Duration? keyRelayBaseDelay,
     @visibleForTesting Duration? keyRelayMaxDelay,
     @visibleForTesting Duration? remoteLeftConfirmDelay,
+    @visibleForTesting Duration? ringTimeout,
+    @visibleForTesting Duration? membershipRefreshInterval,
     @visibleForTesting http.Client? callsHttpClient,
   }) {
     final session = CallSession._(
@@ -153,6 +159,9 @@ class CallSession {
       keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
       keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
       remoteLeftConfirmDelay: remoteLeftConfirmDelay ?? _remoteLeftConfirmDelay,
+      ringTimeout: ringTimeout ?? _ringTimeout,
+      membershipRefreshInterval:
+          membershipRefreshInterval ?? _membershipRefreshInterval,
       callsHttpClient: callsHttpClient,
     );
     session._encryptionKey = _generateCallKey();
@@ -219,6 +228,7 @@ class CallSession {
     @visibleForTesting Duration? keyRelayBaseDelay,
     @visibleForTesting Duration? keyRelayMaxDelay,
     @visibleForTesting Duration? remoteLeftConfirmDelay,
+    @visibleForTesting Duration? membershipRefreshInterval,
     @visibleForTesting http.Client? callsHttpClient,
   }) {
     return CallSession._(
@@ -232,6 +242,8 @@ class CallSession {
       keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
       keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
       remoteLeftConfirmDelay: remoteLeftConfirmDelay ?? _remoteLeftConfirmDelay,
+      membershipRefreshInterval:
+          membershipRefreshInterval ?? _membershipRefreshInterval,
       callsHttpClient: callsHttpClient,
     ).._encryptionKey = initialEncryptionKeyForTesting;
   }
@@ -307,7 +319,7 @@ class CallSession {
       await _publishOwnMembership();
       if (_phase == CallSessionPhase.ended) return;
       _membershipRefreshTimer = Timer.periodic(
-        _membershipRefreshInterval,
+        membershipRefreshInterval,
         (_) => _publishOwnMembership(force: true),
       );
       _syncSub = client.onSync.stream.listen(
@@ -349,7 +361,7 @@ class CallSession {
   }
 
   void _startRingTimeout() {
-    _ringTimeoutTimer = Timer(_ringTimeout, () {
+    _ringTimeoutTimer = Timer(ringTimeout, () {
       if (_knownRemote.isEmpty) hangUp();
     });
   }

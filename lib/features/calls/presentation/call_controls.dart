@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/ui/zuno_colors.dart';
+import 'call_audio_route.dart';
 
 class CallControls extends StatelessWidget {
   final CallKind kind;
   final bool micMuted;
   final bool cameraOn;
-  final bool speakerOn;
+  final CallAudioRoute audioRoute;
   final bool enabled;
   final bool overVideo;
   final VoidCallback onToggleMute;
@@ -21,7 +22,7 @@ class CallControls extends StatelessWidget {
     required this.kind,
     required this.micMuted,
     required this.cameraOn,
-    required this.speakerOn,
+    required this.audioRoute,
     required this.enabled,
     required this.onToggleMute,
     required this.onToggleCamera,
@@ -36,8 +37,16 @@ class CallControls extends StatelessWidget {
     return cameraOn ? 'Turn camera off' : 'Turn camera on';
   }
 
+  IconData get _audioRouteIcon => switch (audioRoute) {
+    CallAudioRoute.speaker => Icons.volume_up_outlined,
+    CallAudioRoute.earpiece => Icons.hearing_outlined,
+    CallAudioRoute.wiredHeadset => Icons.headphones_outlined,
+    CallAudioRoute.bluetooth => Icons.bluetooth_audio_outlined,
+  };
+
   @override
   Widget build(BuildContext context) {
+    final speakerOn = audioRoute == CallAudioRoute.speaker;
     final colors = Theme.of(context).colorScheme;
     return Material(
       color: overVideo ? Colors.black54 : colors.surfaceContainerLowest,
@@ -73,9 +82,7 @@ class CallControls extends StatelessWidget {
                 onPressed: enabled ? onSwitchCamera : null,
               ),
             _ControlButton(
-              icon: speakerOn
-                  ? Icons.volume_up_outlined
-                  : Icons.hearing_outlined,
+              icon: _audioRouteIcon,
               tooltip: speakerOn ? 'Turn speaker off' : 'Turn speaker on',
               on: speakerOn,
               overVideo: overVideo,

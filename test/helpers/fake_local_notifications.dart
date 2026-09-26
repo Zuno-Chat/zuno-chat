@@ -33,6 +33,8 @@ class RecordedNotifications {
   List<Map<String, Object?>> active = const [];
   List<Map<String, Object?>> deviceChannels = const [];
   final List<String> deletedChannels = [];
+  Map<String, Object?>? initializeArguments;
+  Map<String, Object?> launchDetails = const {'notificationLaunchedApp': false};
 
   void clear() {
     shown.clear();
@@ -96,7 +98,7 @@ RecordedNotifications installFakeLocalNotifications() {
       case 'getNotificationChannels':
         return recorded.deviceChannels;
       case 'getNotificationAppLaunchDetails':
-        return <String, Object?>{'notificationLaunchedApp': false};
+        return recorded.launchDetails;
       case 'createNotificationChannel':
         recorded.channels.add((call.arguments as Map).cast<String, Object?>());
         return true;
@@ -104,6 +106,8 @@ RecordedNotifications installFakeLocalNotifications() {
         recorded.deletedChannels.add(call.arguments as String);
         return null;
       case 'initialize':
+        recorded.initializeArguments = (call.arguments as Map)
+            .cast<String, Object?>();
         return true;
       default:
         return null;

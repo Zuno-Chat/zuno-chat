@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
+import 'package:zuno/features/calls/presentation/call_audio_route.dart';
 import 'package:zuno/features/calls/presentation/call_controls.dart';
 
 import '../../../helpers/contrast.dart';
@@ -17,7 +18,7 @@ void main() {
     CallKind kind = CallKind.voice,
     bool micMuted = false,
     bool cameraOn = false,
-    bool speakerOn = false,
+    CallAudioRoute audioRoute = CallAudioRoute.earpiece,
     bool enabled = true,
     bool overVideo = false,
     double width = 360,
@@ -35,7 +36,7 @@ void main() {
               kind: kind,
               micMuted: micMuted,
               cameraOn: cameraOn,
-              speakerOn: speakerOn,
+              audioRoute: audioRoute,
               enabled: enabled,
               overVideo: overVideo,
               onToggleMute: () => pressed.add('mute'),
@@ -72,7 +73,7 @@ void main() {
       kind: CallKind.video,
       micMuted: true,
       cameraOn: true,
-      speakerOn: true,
+      audioRoute: CallAudioRoute.speaker,
     );
 
     for (final name in [
@@ -83,6 +84,34 @@ void main() {
       'End call',
     ]) {
       expect(find.byTooltip(name), findsOneWidget, reason: name);
+    }
+  });
+
+  testWidgets('a headset in use shows its own icon, quiet, and offers the '
+      'speaker', (tester) async {
+    for (final (route, glyph) in [
+      (CallAudioRoute.bluetooth, Icons.bluetooth_audio_outlined),
+      (CallAudioRoute.wiredHeadset, Icons.headphones_outlined),
+    ]) {
+      await pump(tester, audioRoute: route);
+
+      final button = find.byTooltip('Turn speaker on');
+      expect(button, findsOneWidget, reason: route.name);
+      expect(
+        find.descendant(of: button, matching: find.byIcon(glyph)),
+        findsOneWidget,
+        reason: route.name,
+      );
+      final fill = tester.widget<Material>(
+        find.descendant(of: button, matching: find.byType(Material)),
+      );
+      final mute = tester.widget<Material>(
+        find.descendant(
+          of: find.byTooltip('Mute'),
+          matching: find.byType(Material),
+        ),
+      );
+      expect(fill.color, mute.color, reason: route.name);
     }
   });
 
@@ -175,7 +204,7 @@ void main() {
 
   testWidgets('a switched-on button is filled, a switched-off one is quiet, '
       'and both icons read', (tester) async {
-    await pump(tester, speakerOn: true);
+    await pump(tester, audioRoute: CallAudioRoute.speaker);
 
     Material fill(String tooltip) => tester.widget<Material>(
       find.descendant(
@@ -200,7 +229,12 @@ void main() {
   testWidgets('over video a switched-on and a switched-off button both read', (
     tester,
   ) async {
-    await pump(tester, kind: CallKind.video, speakerOn: true, overVideo: true);
+    await pump(
+      tester,
+      kind: CallKind.video,
+      audioRoute: CallAudioRoute.speaker,
+      overVideo: true,
+    );
 
     Icon icon(String tooltip) => tester.widget<Icon>(
       find.descendant(of: find.byTooltip(tooltip), matching: find.byType(Icon)),

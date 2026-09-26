@@ -19,6 +19,7 @@ import 'cloudflare_api_client.dart';
 import 'negotiation_lock.dart';
 import 'remote_track_plan.dart';
 import 'video_codec_preference.dart';
+import 'webrtc_backend.dart';
 
 CfSessionDescription _cfDescription(RTCSessionDescription description) =>
     CfSessionDescription(sdp: description.sdp!, type: description.type!);
@@ -32,6 +33,7 @@ Future<void> _quietly(Future<void> Function()? action) async {
 
 class CloudflareCallEngine implements CallEngine {
   final CloudflareApiClient _api;
+  final WebRtcBackend _webRtc;
   CallKind _kind;
 
   RTCPeerConnection? _pc;
@@ -76,6 +78,7 @@ class CloudflareCallEngine implements CallEngine {
     Future<List<Map<String, Object?>>>? iceServers,
     this.lowDataMode = false,
     http.Client? httpClient,
+    this._webRtc = const WebRtcBackend(),
   }) : _api = CloudflareApiClient(
          baseUri: baseUri,
          authorization: authorization,
@@ -99,7 +102,7 @@ class CloudflareCallEngine implements CallEngine {
     final hadVideoCryptor = _frameCryptors.containsKey('local-video');
     final keyProvider =
         existingKeyProvider ??
-        await frameCryptorFactory.createDefaultKeyProvider(
+        await _webRtc.frameCryptorFactory.createDefaultKeyProvider(
           KeyProviderOptions(
             sharedKey: true,
             ratchetSalt: Uint8List.fromList('zuno.calls.e2ee'.codeUnits),
@@ -181,12 +184,13 @@ class CloudflareCallEngine implements CallEngine {
       return;
     }
     try {
-      final cryptor = await frameCryptorFactory.createFrameCryptorForRtpSender(
-        participantId: label,
-        sender: sender,
-        algorithm: Algorithm.kAesGcm,
-        keyProvider: keyProvider,
-      );
+      final cryptor = await _webRtc.frameCryptorFactory
+          .createFrameCryptorForRtpSender(
+            participantId: label,
+            sender: sender,
+            algorithm: Algorithm.kAesGcm,
+            keyProvider: keyProvider,
+          );
       try {
         await cryptor.setEnabled(true);
       } catch (_) {
@@ -204,7 +208,7 @@ class CloudflareCallEngine implements CallEngine {
 
   Future<void> _preferVideoCodecs(RTCRtpTransceiver transceiver) =>
       runBestEffort(() async {
-        final capabilities = await getRtpSenderCapabilities('video');
+        final capabilities = await _webRtc.getRtpSenderCapabilities('video');
         await transceiver.setCodecPreferences(
           orderVideoCodecs(capabilities.codecs ?? const []),
         );
@@ -213,12 +217,13 @@ class CloudflareCallEngine implements CallEngine {
   Future<void> _wrapReceiver(String label, RTCRtpReceiver receiver) async {
     final keyProvider = _keyProvider;
     if (keyProvider == null || _frameCryptors.containsKey(label)) return;
-    final cryptor = await frameCryptorFactory.createFrameCryptorForRtpReceiver(
-      participantId: label,
-      receiver: receiver,
-      algorithm: Algorithm.kAesGcm,
-      keyProvider: keyProvider,
-    );
+    final cryptor = await _webRtc.frameCryptorFactory
+        .createFrameCryptorForRtpReceiver(
+          participantId: label,
+          receiver: receiver,
+          algorithm: Algorithm.kAesGcm,
+          keyProvider: keyProvider,
+        );
     try {
       await cryptor.setEnabled(true);
     } catch (_) {
@@ -404,7 +409,7 @@ class CloudflareCallEngine implements CallEngine {
 
   @override
   Future<void> join() async {
-    final mediaFuture = navigator.mediaDevices.getUserMedia({
+    final mediaFuture = _webRtc.getUserMedia({
       'audio': true,
       'video': _kind == CallKind.video ? _videoConstraints : false,
     });
@@ -425,12 +430,12 @@ class CloudflareCallEngine implements CallEngine {
         return;
       }
 
-      _localAudioStream = await createLocalMediaStream('local_audio');
+      _localAudioStream = await _webRtc.createLocalMediaStream('local_audio');
       for (final track in stream.getAudioTracks()) {
         await _localAudioStream!.addTrack(track);
       }
       if (_kind == CallKind.video) {
-        _localVideoStream = await createLocalMediaStream('local_video');
+        _localVideoStream = await _webRtc.createLocalMediaStream('local_video');
         for (final track in stream.getVideoTracks()) {
           await _localVideoStream!.addTrack(track);
         }
@@ -460,7 +465,7 @@ class CloudflareCallEngine implements CallEngine {
   Future<void> _openConnection() async {
     final sessionFuture = _api.createSession();
     final pcFuture = _iceServers.then(
-      (servers) => createPeerConnection({
+      (servers) => _webRtc.createPeerConnection({
         'iceServers': servers,
         'sdpSemantics': 'unified-plan',
       }),
@@ -812,7 +817,7 @@ class CloudflareCallEngine implements CallEngine {
   Future<void> switchCamera() async {
     final track = _localVideoStream?.getVideoTracks().firstOrNull;
     if (track == null) return;
-    _frontCamera = await Helper.switchCamera(track);
+    _frontCamera = await _webRtc.switchCamera(track);
     _notifyParticipants();
   }
 
@@ -830,11 +835,11 @@ class CloudflareCallEngine implements CallEngine {
   }
 
   Future<void> _switchToVideoOnce() async {
-    final captured = await navigator.mediaDevices.getUserMedia({
+    final captured = await _webRtc.getUserMedia({
       'audio': false,
       'video': _videoConstraints,
     });
-    final wrapper = await createLocalMediaStream('local_video');
+    final wrapper = await _webRtc.createLocalMediaStream('local_video');
     final capturedTracks = captured.getVideoTracks();
     final wasCameraEnabled = _cameraEnabled;
     var attached = false;
@@ -938,8 +943,9 @@ class CloudflareCallEngine implements CallEngine {
 
   Future<void> _closeRemoteTrackNamesLocked(
     _RemoteParticipant remote,
-    List<String> names,
-  ) async {
+    List<String> names, {
+    bool closeOnSfu = true,
+  }) async {
     final mids = <String>[];
     for (final name in names) {
       final transceiver = remote.recvTransceivers.remove(name);
@@ -955,7 +961,7 @@ class CloudflareCallEngine implements CallEngine {
       _midOwners.remove(transceiver.mid);
     }
     _notifyParticipants();
-    if (mids.isNotEmpty) await _closeTracks(mids);
+    if (closeOnSfu && mids.isNotEmpty) await _closeTracks(mids);
   }
 
   Future<void> _dropRemoteMedia(_RemoteParticipant remote) =>
@@ -1016,6 +1022,7 @@ class CloudflareCallEngine implements CallEngine {
     );
     if (!_isLiveConnection(pc)) return;
 
+    final pulledMids = <String, String>{};
     for (final track in result.tracks) {
       final name = track.trackName;
       final mid = track.mid;
@@ -1024,6 +1031,7 @@ class CloudflareCallEngine implements CallEngine {
       }
       remote.pulledTrackNames.add(name);
       _midOwners[mid] = (participant: remote.id, trackName: name);
+      pulledMids[name] = mid;
       unawaited(
         runBestEffort(
           () => _adoptExistingTrack(remote, name, mid),
@@ -1038,11 +1046,11 @@ class CloudflareCallEngine implements CallEngine {
       return;
     }
 
-    await pc.setRemoteDescription(
-      RTCSessionDescription(offered.sdp, offered.type),
-    );
-    if (!_isLiveConnection(pc)) return;
     try {
+      await pc.setRemoteDescription(
+        RTCSessionDescription(offered.sdp, offered.type),
+      );
+      if (!_isLiveConnection(pc)) return;
       await _adoptRemoteTransceivers(remote, pc);
       if (!_isLiveConnection(pc)) return;
       final localDescription = await _liveLocalAnswer(pc);
@@ -1053,8 +1061,23 @@ class CloudflareCallEngine implements CallEngine {
       );
     } catch (_) {
       await _rollbackUnansweredOffer(pc, remote.id);
+      if (_isLiveConnection(pc)) {
+        await _forgetUnansweredPull(remote, pulledMids);
+      }
       rethrow;
     }
+  }
+
+  Future<void> _forgetUnansweredPull(
+    _RemoteParticipant remote,
+    Map<String, String> pulledMids,
+  ) async {
+    await _closeRemoteTrackNamesLocked(
+      remote,
+      pulledMids.keys.toList(),
+      closeOnSfu: false,
+    );
+    await _closeTracks(pulledMids.values.toList(), force: true);
   }
 
   Future<void> _rollbackUnansweredOffer(
@@ -1111,7 +1134,7 @@ class CloudflareCallEngine implements CallEngine {
       if (!stillWanted()) return;
       MediaStream? stream;
       try {
-        stream = await createLocalMediaStream(
+        stream = await _webRtc.createLocalMediaStream(
           'adopted_${remote.id}_$trackName',
         );
         await stream.addTrack(track);

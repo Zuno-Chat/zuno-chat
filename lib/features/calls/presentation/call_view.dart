@@ -7,6 +7,7 @@ import '../../../core/calls/models/call_kind.dart';
 import '../../../core/calls/models/call_quality.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_title.dart';
+import 'call_audio_route.dart';
 import 'call_controls.dart';
 import 'call_stage.dart';
 import 'call_status_line.dart';
@@ -37,7 +38,7 @@ class CallView extends StatefulWidget {
   final DateTime? talkingSince;
   final bool reconnecting;
   final CallQuality quality;
-  final bool speakerOn;
+  final CallAudioRoute audioRoute;
   final VoidCallback onToggleMute;
   final VoidCallback onToggleCamera;
   final VoidCallback onSwitchCamera;
@@ -55,7 +56,7 @@ class CallView extends StatefulWidget {
     required this.talkingSince,
     required this.reconnecting,
     required this.quality,
-    required this.speakerOn,
+    required this.audioRoute,
     required this.onToggleMute,
     required this.onToggleCamera,
     required this.onSwitchCamera,
@@ -215,7 +216,7 @@ class _CallViewState extends State<CallView> {
                 kind: widget.kind,
                 micMuted: local?.participant.audioMuted ?? false,
                 cameraOn: local?.participant.videoEnabled ?? false,
-                speakerOn: widget.speakerOn,
+                audioRoute: widget.audioRoute,
                 enabled: !widget.connecting,
                 overVideo: fullVideo,
                 onToggleMute: widget.onToggleMute,

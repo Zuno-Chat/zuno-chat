@@ -7,6 +7,7 @@ import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
+import 'package:zuno/features/calls/presentation/call_audio_route.dart';
 import 'package:zuno/features/calls/presentation/call_controls.dart';
 import 'package:zuno/features/calls/presentation/call_stage.dart';
 import 'package:zuno/features/calls/presentation/call_status_line.dart';
@@ -99,7 +100,7 @@ void main() {
           talkingSince: remote.isEmpty ? null : DateTime(2026, 9, 20),
           reconnecting: reconnecting,
           quality: quality,
-          speakerOn: false,
+          audioRoute: CallAudioRoute.earpiece,
           onToggleMute: () => pressed.add('mute'),
           onToggleCamera: () => pressed.add('camera'),
           onSwitchCamera: () => pressed.add('flip'),
@@ -262,7 +263,7 @@ void main() {
             talkingSince: DateTime(2026, 9, 20),
             reconnecting: false,
             quality: CallQuality.good,
-            speakerOn: true,
+            audioRoute: CallAudioRoute.speaker,
             onToggleMute: () {},
             onToggleCamera: () {},
             onSwitchCamera: () {},
@@ -545,7 +546,7 @@ void main() {
           talkingSince: DateTime(2026, 9, 20),
           reconnecting: false,
           quality: CallQuality.poor,
-          speakerOn: true,
+          audioRoute: CallAudioRoute.speaker,
           onToggleMute: () {},
           onToggleCamera: () {},
           onSwitchCamera: () {},

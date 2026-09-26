@@ -222,7 +222,11 @@ offerer-us/answerer-Cloudflare WebRTC; **pull** (subscribing to another
 participant's tracks) is the reverse: Cloudflare's `tracks/new` response
 for a pull carries an *offer*, so the correct sequence is
 `setRemoteDescription(Cloudflare's offer)` → `createAnswer()` →
-`setLocalDescription` → PUT the answer to `/renegotiate`.
+`setLocalDescription` → PUT the answer to `/renegotiate`. A pull that
+can't be completed (offer not applied, no answer, `/renegotiate` refused)
+is forgotten locally and its mids force-closed on the SFU (`tracks/close`,
+`force: true`), so the next membership sync pulls it again. Left marked as
+pulled, that person stayed silent and invisible until they rejoined.
 
 **ICE gathering is not trickle** on Cloudflare's REST signaling — there's
 no endpoint to send candidates as they arrive, so an offer must already
@@ -339,9 +343,22 @@ instead, so a stale notification can't outlive its call.
   `PROXIMITY_SCREEN_OFF_WAKE_LOCK`** (`MainActivity.setProximityScreenOff`
   over `zuno/calls`), the system dialer's mechanism — no sensor plumbing
   in Dart. `call_proximity.dart` decides: wanted only for a voice call
-  with the speaker off and the call not finished (ringing counts).
-  `CallPage` syncs it on init, speaker toggle, voice→video and finish;
-  native also releases it on engine cleanup and activity destroy.
+  on the earpiece (not speaker or a headset, as the dialer does) and not
+  finished (ringing counts). `CallPage` syncs it on init, every route
+  change, voice→video and finish; native also releases it on engine
+  cleanup and activity destroy.
+- **The audio route is earpiece, speaker, wired headset or Bluetooth**
+  (`call_audio_route.dart`, pure). A call starts on a connected headset
+  (Bluetooth first), else the earpiece for voice and the speaker for
+  video. `CallPage` re-reads the outputs on flutter_webrtc's
+  `ondevicechange`, which AudioSwitch fires on every device or selection
+  change: a newly connected headset takes the sound, and losing the one
+  in use falls back to another headset, else the starting route. The
+  speaker button toggles speaker ↔ the preferred headset, else earpiece.
+  Headsets are chosen with `selectAudioOutput`: AudioSwitch keeps the last
+  user-selected device while it stays connected, so after
+  `setSpeakerphoneOn(false)` picked the earpiece, a headset connecting
+  later never took over on its own.
 - **Picture-in-picture follows the other side's camera only.** Android
   system PiP (`MainActivity.kt`, `supportsPictureInPicture` in the
   manifest) is eligible while any *remote* participant has video on; the
@@ -634,10 +651,11 @@ instead, so a stale notification can't outlive its call.
 - Any change to hangup/teardown ordering must preserve: idempotency
   (memoized, not phase-guarded), no blocking on in-flight negotiation, and
   `isLiveConnection`-style re-checks after every await in code that can
-  resume post-teardown. Add coverage via the teardown-only test seam
-  (`cloudflare_call_engine_teardown_test.dart`) — an engine that never
-  joined has no native connection underneath, so pure teardown logic is
-  actually testable, unlike the rest of the engine.
+  resume post-teardown. Add coverage in the engine harness:
+  `CloudflareCallEngine` takes a `WebRtcBackend` (defaults to
+  flutter_webrtc's globals), faked by `test/helpers/fake_webrtc.dart`
+  against a scripted SFU (`cloudflare_engine_harness.dart`, under
+  `fakeAsync`). Only real media and a live SFU stay untested.
 - Server-side changes (rate limiting, concurrent-call caps, abuse
   controls) belong in the `zuno_calls` module, not the client — the client
   only ever holds a Matrix access token and expects the module to enforce
@@ -650,9 +668,11 @@ instead, so a stale notification can't outlive its call.
 - A change to how a call looks goes in `CallView` and its pieces, which
   take plain values and are tested without a session
   (`call_view_test.dart`, with `expectSurvivesLayoutMatrix`).
-  `call_page_test.dart` pumps the real page with five stubbed channels;
-  keep it passing, it is what catches a build that touches
-  `session.engine` before the call connects.
+  `CallPage`'s side effects are tested through `call_page_harness.dart`
+  (a `FakeCallSession` the test drives, plus recorders for every platform
+  channel). Keep the real-session case in `call_page_test.dart` passing:
+  it catches a build that touches `session.engine` before the call
+  connects.
 
 ## Dependencies / Integration
 

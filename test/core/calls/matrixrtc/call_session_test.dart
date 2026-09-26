@@ -18,6 +18,7 @@ import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 
+import '../../../helpers/fake_call_engine.dart';
 import '../../../helpers/fake_matrix.dart';
 
 class _TestDeviceKeys extends DeviceKeys {
@@ -31,6 +32,7 @@ class _FakeSendEventRoom extends Room {
   _FakeSendEventRoom({required super.client, required super.id});
 
   final sentEvents = <Map<String, dynamic>>[];
+  Object? sendError;
 
   @override
   Future<String?> sendEvent(
@@ -43,6 +45,7 @@ class _FakeSendEventRoom extends Room {
     String? threadLastEventId,
     bool displayPendingEvent = true,
   }) async {
+    if (sendError case final error?) throw error;
     sentEvents.add(content);
     return client.generateUniqueTransactionId();
   }
@@ -59,125 +62,6 @@ Client buildCallTestClient(
   client.baseUri = Uri.parse('https://example.org');
   client.bearerToken = 'test-token';
   return client;
-}
-
-class FakeCallEngine implements CallEngine {
-  FakeCallEngine({
-    this.failSetEncryptionKey = false,
-    this.failJoin = false,
-    this.joinError,
-    this.joinGate,
-  });
-
-  final bool failSetEncryptionKey;
-  final bool failJoin;
-  final Completer<void>? joinGate;
-
-  final Object? joinError;
-
-  bool joined = false;
-  Uint8List? appliedKey;
-
-  @override
-  CallEngineStatus get status => CallEngineStatus.connected;
-
-  final statusController = StreamController<CallEngineStatus>.broadcast();
-
-  @override
-  Stream<CallEngineStatus> get statusStream => statusController.stream;
-
-  @override
-  List<CallEngineParticipant> get participants => const [];
-  @override
-  Stream<List<CallEngineParticipant>> get participantsStream =>
-      const Stream.empty();
-
-  @override
-  CallKind get kind => CallKind.voice;
-
-  @override
-  Future<void> join() async {
-    await joinGate?.future;
-    if (failJoin) {
-      throw joinError ?? StateError('engine failed to connect to the SFU');
-    }
-    joined = true;
-  }
-
-  int leaveCalls = 0;
-  int disposeCalls = 0;
-
-  Completer<void>? leaveGate;
-
-  @override
-  Future<void> leave() async {
-    if (disposeCalls > 0) {
-      throw StateError('Cannot add new events after calling close');
-    }
-    leaveCalls++;
-    await leaveGate?.future;
-    joined = false;
-  }
-
-  @override
-  Future<void> setMicrophoneMuted(bool muted) async {}
-  @override
-  Future<void> setCameraEnabled(bool enabled) async {}
-  @override
-  Future<void> switchCamera() async {}
-  @override
-  Future<void> switchToVideo() async {}
-
-  bool micMuted = false;
-
-  final localStateController = StreamController<void>.broadcast();
-
-  @override
-  Stream<void> get localStateChangedStream => localStateController.stream;
-
-  @override
-  Map<String, Object?>? get localFociInfo => joined
-      ? {
-          'sessionId': 'fake-session',
-          'tracks': const {'audio': 'audio'},
-          'audioMuted': micMuted,
-          'encrypted': appliedKey != null,
-        }
-      : null;
-
-  int updateRemoteParticipantCalls = 0;
-
-  @override
-  void updateRemoteParticipant(
-    VoipParticipantId id,
-    Map<String, Object?> fociInfo,
-  ) {
-    updateRemoteParticipantCalls++;
-  }
-
-  @override
-  void removeRemoteParticipant(VoipParticipantId id) {}
-
-  @override
-  Future<void> setEncryptionKey(Uint8List key) async {
-    if (failSetEncryptionKey) {
-      throw StateError(
-        'frame cryptor rejected the key — unable to encrypt packets',
-      );
-    }
-    appliedKey = key;
-    localStateController.add(null);
-  }
-
-  @override
-  CallQuality get quality => CallQuality.good;
-
-  @override
-  void dispose() {
-    disposeCalls++;
-    localStateController.close();
-    statusController.close();
-  }
 }
 
 void main() {
@@ -1045,9 +929,9 @@ void main() {
     late Map<String, Object?> keysQueryResponse;
 
     Client buildClientWithRequestLog() {
-      requests = [];
+      final log = requests = [];
       return buildCallTestClient((request) async {
-        requests.add(request);
+        log.add(request);
         if (request.url.path.endsWith('/keys/query')) {
           return http.Response(jsonEncode(keysQueryResponse), 200);
         }
@@ -1352,6 +1236,18 @@ void main() {
         keyRelayMaxDelay: Duration.zero,
       );
       addTearDown(session.dispose);
+      int keyQueries() =>
+          requests.where((rq) => rq.url.path.endsWith('/keys/query')).length;
+      Future<int> settledKeyQueries() async {
+        var last = -1;
+        for (var stable = 0; stable < 5;) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          final now = keyQueries();
+          stable = now == last ? stable + 1 : 0;
+          last = now;
+        }
+        return last;
+      }
 
       r.setState(
         remoteMemberEvent(
@@ -1364,10 +1260,7 @@ void main() {
       );
 
       await session.accept();
-      await pumpEventQueue(times: 50);
-      final firstPassQueries = requests
-          .where((rq) => rq.url.path.endsWith('/keys/query'))
-          .length;
+      final firstPassQueries = await settledKeyQueries();
       expect(firstPassQueries, greaterThan(0));
 
       r.setState(
@@ -1380,12 +1273,8 @@ void main() {
         ),
       );
       c.onSync.add(SyncUpdate(nextBatch: 'batch2'));
-      await pumpEventQueue();
 
-      final totalQueries = requests
-          .where((rq) => rq.url.path.endsWith('/keys/query'))
-          .length;
-      expect(totalQueries, firstPassQueries);
+      expect(await settledKeyQueries(), firstPassQueries);
     });
   });
 
@@ -2248,6 +2137,204 @@ void main() {
         expect(publishes, hasLength(2));
         expect(joinedAt(publishes.first), greaterThan(0));
         expect(joinedAt(publishes.last), joinedAt(publishes.first));
+      },
+    );
+  });
+
+  group('ringing and declines', () {
+    void joinMembers(Room r, List<String> userIds) {
+      for (final id in userIds) {
+        r.setState(
+          StrippedStateEvent(
+            type: EventTypes.RoomMember,
+            senderId: id,
+            stateKey: id,
+            content: {'membership': 'join'},
+          ),
+        );
+      }
+    }
+
+    Event declineFrom(Room r, String senderId, String callId) => buildTestEvent(
+      r,
+      eventId: '\$decline_$senderId',
+      senderId: senderId,
+      content: {
+        'msgtype': callDeclineMsgtype,
+        'body': 'Call declined',
+        'call_id': callId,
+      },
+    );
+
+    _FakeSendEventRoom sendRoom() =>
+        _FakeSendEventRoom(client: client, id: '!room:example.org');
+
+    Future<CallSession> ringing(
+      _FakeSendEventRoom r, {
+      Duration? ringTimeout,
+    }) async {
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.voice,
+        engineBuilder: () async => FakeCallEngine(),
+        ringTimeout: ringTimeout,
+      );
+      addTearDown(session.dispose);
+      await session.phaseStream.firstWhere((p) => p == CallSessionPhase.active);
+      return session;
+    }
+
+    test(
+      'the other side declining a one-to-one call ends it as declined',
+      () async {
+        final r = sendRoom();
+        joinMembers(r, ['@me:example.org', '@bob:example.org']);
+        final session = await ringing(r);
+
+        client.onTimelineEvent.add(
+          declineFrom(r, '@bob:example.org', session.callId),
+        );
+        await pumpEventQueue();
+
+        expect(session.phase, CallSessionPhase.ended);
+        expect(session.endReason, CallEndReason.declinedByThem);
+      },
+    );
+
+    test(
+      'one person declining a room call keeps it ringing for the rest',
+      () async {
+        final r = sendRoom();
+        joinMembers(r, [
+          '@me:example.org',
+          '@bob:example.org',
+          '@carol:example.org',
+        ]);
+        final session = await ringing(r);
+
+        client.onTimelineEvent.add(
+          declineFrom(r, '@bob:example.org', session.callId),
+        );
+        await pumpEventQueue();
+
+        expect(session.phase, CallSessionPhase.active);
+      },
+    );
+
+    test('a decline of some other call is ignored', () async {
+      final r = sendRoom();
+      joinMembers(r, ['@me:example.org', '@bob:example.org']);
+      final session = await ringing(r);
+
+      client.onTimelineEvent.add(
+        declineFrom(r, '@bob:example.org', 'another-call'),
+      );
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.active);
+    });
+
+    test('an outgoing call nobody answers hangs up as missed once the ring '
+        'times out', () async {
+      final r = sendRoom();
+      final session = await ringing(
+        r,
+        ringTimeout: const Duration(milliseconds: 50),
+      );
+
+      await session.phaseStream
+          .firstWhere((p) => p == CallSessionPhase.ended)
+          .timeout(const Duration(seconds: 5));
+
+      expect(session.endReason, CallEndReason.missed);
+    });
+
+    test('someone joining stops the ring timeout', () async {
+      final r = sendRoom();
+      final session = await ringing(
+        r,
+        ringTimeout: const Duration(milliseconds: 50),
+      );
+      r.setState(
+        remoteMemberEvent(
+          r,
+          userId: '@bob:example.org',
+          deviceId: 'BOBDEVICE',
+          callId: session.callId,
+        ),
+      );
+      client.onSync.add(SyncUpdate(nextBatch: 'n1'));
+      await pumpEventQueue();
+
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+
+      expect(session.phase, CallSessionPhase.active);
+    });
+
+    test('declining an incoming call tells the caller and ends it as '
+        'declined by us', () async {
+      final r = sendRoom();
+      final session = CallSession.forIncoming(
+        room: r,
+        callId: 'incoming-1',
+        kind: CallKind.voice,
+        engineBuilder: () async => FakeCallEngine(),
+      );
+      addTearDown(session.dispose);
+
+      await session.decline();
+
+      expect(r.sentEvents.single['msgtype'], callDeclineMsgtype);
+      expect(r.sentEvents.single['call_id'], 'incoming-1');
+      expect(session.phase, CallSessionPhase.ended);
+      expect(session.endReason, CallEndReason.declinedByUs);
+    });
+
+    test(
+      'an outgoing call whose invite cannot be sent ends as failed',
+      () async {
+        final r = sendRoom()..sendError = StateError('offline');
+        final engine = FakeCallEngine();
+        final session = CallSession.startOutgoing(
+          r,
+          CallKind.voice,
+          engineBuilder: () async => engine,
+        );
+        addTearDown(session.dispose);
+        await pumpEventQueue();
+
+        expect(session.phase, CallSessionPhase.ended);
+        expect(session.endReason, CallEndReason.failed);
+        expect(engine.joined, isFalse);
+      },
+    );
+
+    test(
+      'membership is refreshed on a timer so the call never expires',
+      () async {
+        var published = 0;
+        final capturing = buildCallTestClient((request) async {
+          if (request.method == 'PUT' &&
+              request.url.path.contains(callMemberEventType)) {
+            published++;
+          }
+          return http.Response('{"event_id":"\$evt"}', 200);
+        });
+        final session = CallSession.forIncoming(
+          room: buildTestRoom(capturing),
+          callId: 'refresh-1',
+          kind: CallKind.voice,
+          engineBuilder: () async => FakeCallEngine(),
+          membershipRefreshInterval: const Duration(milliseconds: 40),
+        );
+        addTearDown(session.dispose);
+        await session.accept();
+        await pumpEventQueue();
+        expect(published, 1);
+
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+
+        expect(published, greaterThanOrEqualTo(3));
       },
     );
   });

@@ -9,6 +9,27 @@ class FakeDatabaseApi implements DatabaseApi {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class SendCapableFakeDatabaseApi extends FakeDatabaseApi {
+  @override
+  Future<void> transaction(Future<void> Function() action) => action();
+
+  @override
+  Future<void> storeEventUpdate(
+    String roomId,
+    StrippedStateEvent event,
+    EventUpdateType type,
+    Client client,
+  ) async {}
+
+  @override
+  Future<void> storeRoomUpdate(
+    String roomId,
+    SyncRoomUpdate roomUpdate,
+    Event? lastEvent,
+    Client client,
+  ) async {}
+}
+
 class TimelineCapableFakeDatabaseApi extends FakeDatabaseApi {
   @override
   Future<void> transaction(Future<void> Function() action) => action();
