@@ -229,11 +229,8 @@ own paths/JSON verbatim; the module is a signaling proxy with
 `/apps/{appId}` filled in server-side, so engine-side negotiation logic is
 unchanged by the proxy — only base URL and auth. Auth is the Matrix access
 token (`bearerAuthorization`, which refreshes a token about to expire
-first); Synapse checks it on every request, so there is no enrollment, no
-stored credential and no remote-logout window (enrollment now covers map
-tiles only; decision record:
-[calls-gateway-enrollment.md](../decisions/calls-gateway-enrollment.md)). A 401 is final, never
-retried. Module errors are Matrix JSON; the only field the app reads is
+first); Synapse checks it on every request, so there is no stored
+credential and no remote-logout window. A 401 is final, never retried. Module errors are Matrix JSON; the only field the app reads is
 `retry_after_ms` on a 429.
 
 **Negotiation roles differ by direction** — publish (local

@@ -473,7 +473,7 @@ void main() {
           room: room,
           callId: 'call-double-fail',
           kind: CallKind.voice,
-          engineBuilder: () async => throw StateError('gateway down'),
+          engineBuilder: () async => throw StateError('engine down'),
         );
         addTearDown(session.dispose);
 
