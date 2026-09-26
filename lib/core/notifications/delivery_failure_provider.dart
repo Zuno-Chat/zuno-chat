@@ -5,8 +5,10 @@ import 'delivery_auto_fallback.dart';
 import 'delivery_failure.dart';
 import 'fcm_delivery_provider.dart';
 import 'notification_delivery_provider.dart';
+import 'notification_permission_provider.dart';
 
 final deliveryFailureProvider = Provider<DeliveryFailure?>((ref) {
+  if (ref.watch(notificationsAllowedProvider) != true) return null;
   final mode = ref.watch(notificationDeliveryModeProvider);
   final autoSelected = ref.watch(autoSelectedDeliveryModeProvider);
 

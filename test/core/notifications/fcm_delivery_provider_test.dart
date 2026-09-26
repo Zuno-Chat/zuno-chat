@@ -344,6 +344,67 @@ void main() {
     expect(provider.status.value, FcmStatus.idle);
   });
 
+  group('with notifications off', () {
+    setUp(() => provider.notificationsAllowed = () async => false);
+
+    test('start registers nothing', () async {
+      await provider.start(client);
+
+      expect(client.posted, isEmpty);
+      expect(provider.status.value, FcmStatus.idle);
+    });
+
+    test('registerNow registers nothing', () async {
+      await provider.registerNow(client);
+
+      expect(client.posted, isEmpty);
+      expect(provider.status.value, FcmStatus.idle);
+    });
+
+    test(
+      'start does not restore a registration from an earlier process',
+      () async {
+        SharedPreferences.setMockInitialValues({'push.fcm.token': 'token-abc'});
+
+        await provider.start(client);
+
+        expect(provider.status.value, FcmStatus.idle);
+        expect(provider.token, isNull);
+      },
+    );
+  });
+
+  test(
+    'a refreshed token is not registered once notifications are off',
+    () async {
+      final refreshes = StreamController<String>.broadcast();
+      provider.tokenRefreshStream = () => refreshes.stream;
+      addTearDown(refreshes.close);
+      await provider.start(client);
+
+      provider.notificationsAllowed = () async => false;
+      refreshes.add('token-def');
+      await pumpEventQueue();
+
+      expect(client.posted, hasLength(1));
+      expect(provider.token, 'token-abc');
+    },
+  );
+
+  test('stop tears down a registration persisted by an earlier process, '
+      'even though start() never ran in this one', () async {
+    SharedPreferences.setMockInitialValues({'push.fcm.token': 'token-abc'});
+    var tokenDeleted = false;
+    provider.tokenDeleter = () async => tokenDeleted = true;
+
+    await provider.stop(client);
+
+    expect(client.deleted.single.pushkey, 'token-abc');
+    expect(tokenDeleted, isTrue);
+    expect(readFcmRegistration(await SharedPreferences.getInstance()), isNull);
+    expect(provider.status.value, FcmStatus.idle);
+  });
+
   test('stop is a no-op when nothing was ever registered', () async {
     await provider.stop(client);
 

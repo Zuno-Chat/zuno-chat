@@ -916,6 +916,9 @@ class CallNotificationService {
     }
   }
 
+  Future<void> openNotificationSettings() =>
+      _invoke('openNotificationSettings');
+
   Future<void> openChannelSettings(String channelId) =>
       _invoke('openChannelSettings', {'channelId': channelId});
 

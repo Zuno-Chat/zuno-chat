@@ -22,3 +22,11 @@ bool shouldRefreshBackgroundSync({
   required PermissionStatus previousStatus,
   required PermissionStatus newStatus,
 }) => !previousStatus.isGranted && newStatus.isGranted;
+
+Future<bool> mayRegisterForNotifications() async {
+  try {
+    return (await Permission.notification.status).isGranted;
+  } catch (_) {
+    return true;
+  }
+}

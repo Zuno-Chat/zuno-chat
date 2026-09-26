@@ -10,7 +10,7 @@ three now live in or under Settings.
 | Category | Holds |
 |---|---|
 | Account | Profile picture, display name, username, change password |
-| Notifications | Enable, a row per silenced chat channel, full-screen call alerts, notify-for, sounds & vibration, and a **Delivery** row opening its own page |
+| Notifications | Enable, a row per silenced chat channel, full-screen call alerts, notify-for, sounds & vibration, and a **Delivery** row opening its own page; full-screen alerts and Delivery only while notifications are allowed |
 | Chats & calls | Theme, typing indicator, prevent accidental calls |
 | Data & storage | Reduce media size, use less data for calls, clear cache, clear media cache |
 | Security | Status card, recovery, devices, blocked people, incognito keyboard, prevent screenshots, Advanced (disabled placeholder) |
@@ -120,6 +120,10 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   storage; theme sits under Chats & calls; diagnostics sit with the
   version rows in About. A page with one or two rows gets merged rather
   than kept as its own category.
+- **The Enable toggle opens Android's notification page for Zuno**
+  (`openNotificationSettings`, `ACTION_APP_NOTIFICATION_SETTINGS`), not
+  app info: turning off, and turning back on after a permanent refusal,
+  both happen on that page's own switch.
 - **Delivery is a sub-page of Notifications.** The method picker and its
   per-transport rows (distributor, status, battery, background data,
   Autostart on phones that need it) are
@@ -162,6 +166,9 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   otherwise the homeserver keeps pushing to an endpoint nobody is
   listening to (`stopAllNotificationDelivery`). This is the only path most
   logouts take; preserve this ordering in any new logout entry point.
+  Local data is not a sign-out path's job: the wipe in `_AuthGate`
+  (`app-foundation.md`) erases everything and closes the app, which the
+  sign-out, "Sign out this device" and delete-account dialogs all say.
 - **The logout confirmation reads client/security state inside the tap
   handler, not via `watch` in `build`.** This is why its widget test needs
   no provider overrides — a Cancel that ever reached real logout would

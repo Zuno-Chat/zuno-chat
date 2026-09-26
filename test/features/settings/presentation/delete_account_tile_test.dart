@@ -36,6 +36,10 @@ void main() {
 
     expect(find.text('Delete your account?'), findsOneWidget);
     expect(find.textContaining('nobody can undo this'), findsOneWidget);
+    expect(
+      find.textContaining('erases everything it stored on this device'),
+      findsOneWidget,
+    );
     expect(find.text('Cancel'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
   });

@@ -23,6 +23,7 @@ import '../push/unified_push_pusher.dart';
 import '../push/unified_push_registration_store.dart';
 import 'background_sync_service.dart';
 import 'notification_delivery_provider.dart';
+import 'notification_permission.dart';
 
 export '../push/registration_retry.dart' show registrationRecheckInterval;
 export '../push/unified_push_pusher.dart' show unifiedPushViaHomeserverGateway;
@@ -55,6 +56,8 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   Future<bool> Function(String package) distributorIgnoresBatteryOptimizations =
       BackgroundSyncService.instance.isPackageIgnoringBatteryOptimizations;
+
+  Future<bool> Function() notificationsAllowed = mayRegisterForNotifications;
 
   FailedReason? lastFailureReason;
 
@@ -121,6 +124,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   @override
   Future<void> start(Client client) async {
+    if (!await notificationsAllowed()) return;
     _active = true;
     await ensureCallbacksRegistered(client);
     await _restorePersistedRegistration(client);
@@ -310,6 +314,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   Future<void> registerNow(Client client) async {
     _runner.liveClient = client;
+    if (!await notificationsAllowed()) return;
     await ensureCallbacksRegistered(client);
     if (await knownDistributor() == null) {
       await discoverDistributors();
@@ -358,6 +363,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     debugPrint('zuno/push: new endpoint');
     try {
       await _runner.withClient((client) async {
+        if (!await notificationsAllowed()) return;
         final endpointUrl = Uri.parse(endpoint.url);
         _endpointUrl = endpointUrl;
         status.value = UnifiedPushStatus.postingPusher;

@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
-import '../../../core/location/map_tile_cache.dart';
 import '../../../core/matrix/device_keys_refresh.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
@@ -122,10 +121,16 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
 
   Future<void> _signOutCurrentSession() async {
     final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await _confirmSignOut(
+      title: 'Sign out of this device?',
+      body:
+          'Zuno erases everything it stored on this device and closes. '
+          'Without a recovery code, the messages on it are gone for good.',
+    );
+    if (confirmed != true || !mounted) return;
     try {
       final client = ref.read(matrixClientProvider);
       await stopAllNotificationDelivery(client);
-      await purgeMapTileCache();
       await client.logout();
     } catch (e) {
       logCaught('sign out', e);

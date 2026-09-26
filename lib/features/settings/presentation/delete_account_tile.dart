@@ -3,11 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
-import '../../../core/location/map_tile_cache.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
-import '../../../core/security/new_device_alert_provider.dart';
 import '../../../core/ui/circle_icon.dart';
 import 'uia_password_prompt.dart';
 
@@ -47,7 +45,8 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
         content: const Text(
           'Your account, profile and messages are permanently removed. People '
           'you have messaged keep their copies. Nobody can reach you at this '
-          'username again, and nobody can undo this.',
+          'username again, and nobody can undo this. Zuno then erases '
+          'everything it stored on this device and closes.',
         ),
         actions: [
           TextButton(
@@ -139,7 +138,6 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
   Future<void> _deactivate() async {
     final client = ref.read(matrixClientProvider);
     final messenger = ScaffoldMessenger.of(context);
-    final userId = client.userID;
     final uiaSub = client.onUiaRequest.stream.listen(_handleUia);
     try {
       await client.uiaRequestBackground<void>(
@@ -160,13 +158,6 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
       () => stopAllNotificationDelivery(client),
       label: 'stop notification delivery after account deletion',
     );
-    if (userId != null) {
-      await runBestEffort(
-        () => ref.read(knownDevicesStoreProvider).forget(userId),
-        label: 'forget known devices after account deletion',
-      );
-    }
-    await purgeMapTileCache();
     await client.clear(reason: SessionClearReason.logout);
   }
 }

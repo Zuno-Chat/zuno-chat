@@ -227,6 +227,57 @@ void main() {
     });
   });
 
+  group('with notifications off', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+      fake.installed = ['io.heckel.ntfy'];
+      provider.notificationsAllowed = () async => false;
+    });
+
+    test('start registers nothing', () async {
+      await provider.start(buildTestClient());
+
+      expect(fake.registerCalls, 0);
+      expect(provider.status.value, UnifiedPushStatus.idle);
+    });
+
+    test('registerNow registers nothing', () async {
+      await provider.registerNow(buildTestClient());
+
+      expect(fake.registerCalls, 0);
+      expect(provider.status.value, UnifiedPushStatus.idle);
+    });
+
+    test('a new endpoint from the distributor is not posted', () async {
+      final posts = <String>[];
+      final client = buildTestClient(
+        userId: '@me:example.org',
+        deviceId: 'TESTDEVICE',
+        httpClient: MockClient((request) async {
+          if (request.url.path.contains('pushers/set')) {
+            posts.add(request.body);
+          }
+          return http.Response('{}', 200);
+        }),
+      );
+      client.baseUri = Uri.parse('https://example.org');
+      client.bearerToken = 'test-token';
+      await provider.ensureCallbacksRegistered(client);
+
+      fake.onNewEndpoint!(
+        PushEndpoint('https://ntfy.sh/abc123', null),
+        'default',
+      );
+      await pumpEventQueue();
+
+      expect(posts, isEmpty);
+      expect(
+        readUnifiedPushRegistration(await SharedPreferences.getInstance()),
+        isNull,
+      );
+    });
+  });
+
   group('restore reconciliation', () {
     ({dynamic client, List<String> pusherPosts}) reconcilingClient({
       List<Map<String, Object?>>? onServer,

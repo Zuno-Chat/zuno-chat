@@ -11,8 +11,15 @@ enum OnboardingStep {
   setUpRecovery,
 }
 
+const _deliverySteps = {
+  OnboardingStep.deliveryMethod,
+  OnboardingStep.batteryExemption,
+  OnboardingStep.autostart,
+};
+
 List<OnboardingStep> onboardingSteps({
   required bool justRegistered,
+  required bool notificationsAllowed,
   required bool canAskNotifications,
   required bool needsBatteryExemption,
   required bool needsAutostart,
@@ -25,14 +32,19 @@ List<OnboardingStep> onboardingSteps({
   if (justRegistered) {
     steps.addAll([OnboardingStep.welcome, OnboardingStep.profile]);
   }
-  if (canAskNotifications) steps.add(OnboardingStep.notifications);
-  final askDelivery = !alreadyShown.contains(OnboardingStep.deliveryMethod);
-  if (askDelivery) {
-    steps.add(OnboardingStep.deliveryMethod);
-  } else if (needsBatteryExemption) {
-    steps.add(OnboardingStep.batteryExemption);
+  final askNotifications =
+      canAskNotifications &&
+      !alreadyShown.contains(OnboardingStep.notifications);
+  if (askNotifications) steps.add(OnboardingStep.notifications);
+  if (notificationsAllowed || askNotifications) {
+    final askDelivery = !alreadyShown.contains(OnboardingStep.deliveryMethod);
+    if (askDelivery) {
+      steps.add(OnboardingStep.deliveryMethod);
+    } else if (needsBatteryExemption) {
+      steps.add(OnboardingStep.batteryExemption);
+    }
+    if (needsAutostart) steps.add(OnboardingStep.autostart);
   }
-  if (needsAutostart) steps.add(OnboardingStep.autostart);
   if (!securityFacts.recoveryExists) {
     if (hasConversations && !recoveryPromptOnCooldown) {
       steps.add(OnboardingStep.setUpRecovery);
@@ -55,3 +67,9 @@ List<OnboardingStep> stepsAfterDeliveryChoice(
   result.insert(after + 1, OnboardingStep.batteryExemption);
   return result;
 }
+
+List<OnboardingStep> stepsAfterNotificationsAnswer(
+  List<OnboardingStep> steps, {
+  required bool allowed,
+}) =>
+    allowed ? steps : steps.where((s) => !_deliverySteps.contains(s)).toList();

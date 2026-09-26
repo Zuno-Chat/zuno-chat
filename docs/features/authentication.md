@@ -456,7 +456,8 @@ top-level routing decision in the app; everything past sign-in is
   final steps (deactivation skips `logout()`'s own doomed server round trip
   against an already-dead token) but both end by calling
   `client.clear(reason: SessionClearReason.logout)` and flipping
-  `isLoggedInProvider`. Keep both paths ending there if either changes.
+  `isLoggedInProvider`, which triggers the app-data wipe
+  (`app-foundation.md`). Keep both paths ending there if either changes.
 - On Android, `enableSuggestions: false` ORs the visible-password variation
   into the input type. On an email or URL field that replaces the `@` or
   `/` keyboard, so those fields set only `autocorrect: false`.

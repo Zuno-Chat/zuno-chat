@@ -48,9 +48,9 @@ Not a fixed wizard: most launches show nothing at all.
 | `welcome` | just registered | "Get started" |
 | `profile` | just registered | "Save" (enabled once a name or photo is set) |
 | `notifications` | permission not granted and not permanently denied | OS answers; if full-screen call alerts are still off, one "Open settings" page, advancing on return |
-| `deliveryMethod` | not yet answered on this device (login or registration) | "Continue" after picking a method |
-| `batteryExemption` | chosen mode depends on it and Android hasn't exempted the app | OS grants it (checked on resume) |
-| `autostart` | the phone's maker blocks closed apps from starting (`AutostartDecision`: Xiaomi, Oppo, Vivo, Huawei families) | "Open settings", then advances; Android cannot report the setting, so it is asked once |
+| `deliveryMethod` | not yet answered on this device (login or registration), and notifications are allowed or asked in this flow | "Continue" after picking a method |
+| `batteryExemption` | chosen mode depends on it and Android hasn't exempted the app; same notifications condition | OS grants it (checked on resume) |
+| `autostart` | the maker's autostart screen exists on this device (`AutostartDecision.availableFor`: Xiaomi, Oppo, Vivo, Huawei families); same notifications condition | "Open settings", then advances; Android cannot report the setting, so it is asked once |
 | `approveDevice` | recovery exists, this device lacks identity keys | returning from `ApproveThisDevicePage` |
 | `setUpRecovery` | no recovery, has conversations, prompt not on cooldown | returning from `SecureBackupPage` |
 
@@ -58,6 +58,10 @@ Not a fixed wizard: most launches show nothing at all.
 flow inserts it right after the choice (or drops a pending one for FCM)
 via `stepsAfterDeliveryChoice`. Once `deliveryMethod` was answered, the
 predicate adds it from the stored mode as before.
+
+The three delivery steps depend on notifications. When the
+`notifications` step ends without a grant (declined or skipped), the flow
+drops them via `stepsAfterNotificationsAnswer` and marks them shown.
 
 ## Data & State
 
@@ -77,6 +81,11 @@ predicate adds it from the stored mode as before.
   follow-up Settings uses.
 
 ## Key Design Decisions
+
+- **Declining notifications answers the delivery steps too.** They are
+  marked shown, not merely hidden: otherwise turning notifications on
+  later in Settings would open the flow over Settings on the next sync
+  tick. The Delivery page in Settings is where they are set afterwards.
 
 - **A predicate-driven queue, not a wizard.** Each step carries its own
   condition; the common case is an empty list. Asking everything cold is

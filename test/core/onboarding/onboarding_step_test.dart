@@ -20,6 +20,7 @@ final noRecovery = facts(recoveryExists: false);
 
 List<OnboardingStep> steps({
   bool justRegistered = false,
+  bool notificationsAllowed = true,
   bool canAskNotifications = false,
   bool needsBatteryExemption = false,
   bool needsAutostart = false,
@@ -29,6 +30,7 @@ List<OnboardingStep> steps({
   Set<OnboardingStep> alreadyShown = const {OnboardingStep.deliveryMethod},
 }) => onboardingSteps(
   justRegistered: justRegistered,
+  notificationsAllowed: notificationsAllowed,
   canAskNotifications: canAskNotifications,
   needsBatteryExemption: needsBatteryExemption,
   needsAutostart: needsAutostart,
@@ -144,6 +146,72 @@ void main() {
     test('once answered, the battery step follows the stored method', () {
       expect(steps(needsBatteryExemption: true), [
         OnboardingStep.batteryExemption,
+      ]);
+    });
+  });
+
+  group('with notifications off', () {
+    test('nothing about delivery is asked once the OS will not ask again', () {
+      expect(
+        steps(
+          notificationsAllowed: false,
+          alreadyShown: const {},
+          needsBatteryExemption: true,
+          needsAutostart: true,
+          securityFacts: lockedDevice,
+        ),
+        [OnboardingStep.approveDevice],
+      );
+    });
+
+    test('nothing about delivery is asked once notifications were declined '
+        'here', () {
+      expect(
+        steps(
+          notificationsAllowed: false,
+          canAskNotifications: true,
+          alreadyShown: const {OnboardingStep.notifications},
+          needsAutostart: true,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('delivery still follows a permission this flow is about to ask '
+        'for', () {
+      expect(
+        steps(
+          notificationsAllowed: false,
+          canAskNotifications: true,
+          alreadyShown: const {},
+          needsAutostart: true,
+        ),
+        [
+          OnboardingStep.notifications,
+          OnboardingStep.deliveryMethod,
+          OnboardingStep.autostart,
+        ],
+      );
+    });
+  });
+
+  group('after the notification permission is answered', () {
+    const before = [
+      OnboardingStep.notifications,
+      OnboardingStep.deliveryMethod,
+      OnboardingStep.batteryExemption,
+      OnboardingStep.autostart,
+      OnboardingStep.approveDevice,
+    ];
+
+    test('a grant keeps the delivery steps', () {
+      expect(stepsAfterNotificationsAnswer(before, allowed: true), before);
+    });
+
+    test('a refusal drops every delivery step and keeps the rest', () {
+      expect(stepsAfterNotificationsAnswer(before, allowed: false), [
+        OnboardingStep.notifications,
+        OnboardingStep.approveDevice,
       ]);
     });
   });

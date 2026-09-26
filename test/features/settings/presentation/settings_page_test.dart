@@ -205,6 +205,13 @@ void main() {
     expect(find.text('Sign out?'), findsOneWidget);
     expect(find.text('Cancel'), findsOneWidget);
     expect(find.text('Set up recovery'), findsNothing);
+    expect(
+      find.textContaining(
+        'erases everything it stored on this device and '
+        'closes',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('an account with no recovery is told what it will lose', (

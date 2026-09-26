@@ -10,6 +10,7 @@ import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
+import 'package:zuno/core/matrix/sign_out_wipe.dart';
 import 'package:zuno/core/security/device_safety.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
@@ -17,6 +18,18 @@ import 'package:zuno/core/ui/zuno_theme.dart';
 
 import 'helpers/fake_matrix.dart';
 import 'helpers/fixed_homeserver.dart';
+
+class _RecordingSignOutWipe extends SignOutWipe {
+  _RecordingSignOutWipe(super.prefs);
+
+  final states = <bool>[];
+
+  @override
+  Future<void> onLoginState(
+    bool loggedIn, {
+    required Future<void> Function() stopDelivery,
+  }) async => states.add(loggedIn);
+}
 
 Future<SharedPreferences> _mockPreferences() async {
   SharedPreferences.setMockInitialValues({});
@@ -53,6 +66,30 @@ void main() {
 
     expect(find.text('Sign in'), findsWidgets);
     expect(find.text('zuno.chat'), findsOneWidget);
+  });
+
+  testWidgets('hands the sign-in state to the sign-out wipe', (tester) async {
+    final preferences = await _mockPreferences();
+    final wipe = _RecordingSignOutWipe(preferences);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          isLoggedInProvider.overrideWithValue(const AsyncValue.data(false)),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          signOutWipeProvider.overrideWithValue(wipe),
+          deviceRisksProvider.overrideWithValue(
+            const AsyncValue.data(<DeviceRisk>{}),
+          ),
+          matrixClientProvider.overrideWithValue(buildTestClient()),
+          ...signedOutOnZuno,
+        ],
+        child: const ZunoApp(),
+      ),
+    );
+    await tester.pump();
+
+    expect(wipe.states, [false]);
   });
 
   testWidgets('shows the ink brand mark on amber, not a bare spinner, while '

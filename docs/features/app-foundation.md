@@ -322,7 +322,18 @@ the ring case, so it was not done.
   requires a real logged-in → logged-out *transition*, not plain
   `!loggedIn`, since a cold start also emits `false` and the user may be
   mid-flow on a pushed `LoginPage`.
-- **`_AuthGate`'s three `ref.listenManual` subscriptions must not become
+- **Every sign-out ends in a full app-data wipe** (`sign_out_wipe.dart`).
+  A `_AuthGate` listener (`fireImmediately`) hands each login state to
+  `SignOutWipe`: signed in sets `session.signed_in`; signed out with that
+  marker stops push delivery (5 s budget), then calls
+  `ActivityManager.clearApplicationUserData` over `zuno/app_data`. Android
+  kills the process and drops files, prefs, keys, notifications, channels,
+  shortcuts and runtime permissions; the next launch is a fresh install.
+  The marker is what separates a sign-out from a device that never signed
+  in, and it catches a sign-out noticed elsewhere (remote, or a headless
+  push isolate) at the next launch. Sign-out paths therefore clean nothing
+  local themselves.
+- **`_AuthGate`'s `ref.listenManual` subscriptions must not become
   `build()`-driven.** `_AuthGate` sits at the bottom of the navigation
   stack, and Flutter defers rebuilding a dirty element under a covered
   route. Delivery-mode changes (Settings → Notifications → Delivery) and

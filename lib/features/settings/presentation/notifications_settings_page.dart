@@ -87,7 +87,7 @@ class _NotificationsSettingsPageState
         unawaited(ref.read(notificationsAllowedProvider.notifier).refresh());
         _maybeRefreshBackgroundSync(previous, result);
       case NotificationPermissionAction.openSettings:
-        await openAppSettings();
+        await CallNotificationService.instance.openNotificationSettings();
       case NotificationPermissionAction.none:
         break;
     }
@@ -152,33 +152,35 @@ class _NotificationsSettingsPageState
                     onTap: () => CallNotificationService.instance
                         .openChannelSettings(channel.id),
                   ),
-              ListTile(
-                leading: const Icon(Icons.phone_in_talk_outlined),
-                title: const Text('Full-screen call alerts'),
-                subtitle: Text(
-                  _fullScreenIntentAllowed
-                      ? 'A call takes over the screen while the device is '
-                            'locked'
-                      : 'Off. Calls show only as a regular notification, even '
-                            'while locked. Tap to allow.',
+              if (notificationsEnabled) ...[
+                ListTile(
+                  leading: const Icon(Icons.phone_in_talk_outlined),
+                  title: const Text('Full-screen call alerts'),
+                  subtitle: Text(
+                    _fullScreenIntentAllowed
+                        ? 'A call takes over the screen while the device is '
+                              'locked'
+                        : 'Off. Calls show only as a regular notification, '
+                              'even while locked. Tap to allow.',
+                  ),
+                  trailing: _fullScreenIntentAllowed
+                      ? const Icon(Icons.check_circle_outline)
+                      : const Icon(Icons.chevron_right),
+                  onTap: () => CallNotificationService.instance
+                      .openFullScreenIntentSettings(),
                 ),
-                trailing: _fullScreenIntentAllowed
-                    ? const Icon(Icons.check_circle_outline)
-                    : const Icon(Icons.chevron_right),
-                onTap: () => CallNotificationService.instance
-                    .openFullScreenIntentSettings(),
-              ),
-              ListTile(
-                leading: const Icon(Icons.cloud_sync_outlined),
-                title: const Text('Delivery'),
-                subtitle: Text(deliveryMode.label),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const NotificationDeliveryPage(),
+                ListTile(
+                  leading: const Icon(Icons.cloud_sync_outlined),
+                  title: const Text('Delivery'),
+                  subtitle: Text(deliveryMode.label),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationDeliveryPage(),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
           CardGroup(

@@ -16,6 +16,7 @@ import '../push/play_services.dart';
 import '../push/pusher_reconciliation.dart';
 import '../push/registration_retry.dart';
 import 'notification_delivery_provider.dart';
+import 'notification_permission.dart';
 
 export '../push/registration_retry.dart'
     show defaultRegistrationRetryDelay, registrationRecheckInterval;
@@ -56,6 +57,9 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
   Stream<String> Function() tokenRefreshStream = () =>
       FirebaseMessaging.instance.onTokenRefresh;
 
+  @visibleForTesting
+  Future<bool> Function() notificationsAllowed = mayRegisterForNotifications;
+
   StreamSubscription<String>? _tokenRefreshSub;
 
   final _retry = RegistrationRetry();
@@ -72,6 +76,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
   Future<void> start(Client client) async {
     _runner.liveClient = client;
     if (status.value != FcmStatus.idle) return;
+    if (!await notificationsAllowed()) return;
     await _restorePersistedRegistration(client);
     if (status.value != FcmStatus.idle) return;
     await registerNow(client);
@@ -139,6 +144,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
 
   Future<void> registerNow(Client client) async {
     _runner.liveClient = client;
+    if (!await notificationsAllowed()) return;
 
     status.value = FcmStatus.checkingPlayServices;
     switch (await PlayServicesProbe.instance.check()) {
@@ -208,6 +214,14 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     return true;
   }
 
+  Future<String?> _persistedToken() async {
+    try {
+      return readFcmRegistration(await SharedPreferences.getInstance());
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _rememberRegistration(String token) async {
     try {
       await saveFcmRegistration(
@@ -229,6 +243,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
       return;
     }
     _tokenRefreshSub = refreshes.listen((token) async {
+      if (!await notificationsAllowed()) return;
       final gatewayUrl = fcmGatewayUri(client.homeserver);
       if (gatewayUrl == null) return;
       await _postPusher(client, token: token, gatewayUrl: gatewayUrl);
@@ -238,7 +253,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
   @override
   Future<void> stop(Client client) async {
     _retry.reset();
-    final token = _token;
+    final token = _token ?? await _persistedToken();
     if (token == null && status.value == FcmStatus.idle) return;
     _runner.liveClient = client;
     try {

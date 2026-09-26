@@ -77,12 +77,11 @@ Future<bool> _distributorBatteryRestricted() async {
   return unifiedPushDeliveryProvider.distributorBatteryRestricted.value;
 }
 
-Future<bool> _canAskForNotifications() async {
+Future<PermissionStatus?> _notificationPermission() async {
   try {
-    final status = await Permission.notification.status;
-    return !status.isGranted && !status.isPermanentlyDenied;
+    return await Permission.notification.status;
   } catch (_) {
-    return false;
+    return null;
   }
 }
 
@@ -95,9 +94,14 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
   final facts = await ref.watch(accountSecurityFactsProvider.future);
   final store = ref.watch(onboardingStoreProvider);
   final lastPrompted = ref.watch(securityPromptStoreProvider).lastPrompted();
+  final permission = await _notificationPermission();
   return onboardingSteps(
     justRegistered: store.justRegistered(userId),
-    canAskNotifications: await _canAskForNotifications(),
+    notificationsAllowed: permission?.isGranted ?? false,
+    canAskNotifications:
+        permission != null &&
+        !permission.isGranted &&
+        !permission.isPermanentlyDenied,
     needsBatteryExemption: await needsBatteryExemptionFor(
       ref.watch(notificationDeliveryModeProvider),
     ),

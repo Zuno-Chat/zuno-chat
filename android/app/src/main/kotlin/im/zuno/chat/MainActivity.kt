@@ -1,5 +1,6 @@
 package im.zuno.chat
 
+import android.app.ActivityManager
 import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -164,6 +165,19 @@ class MainActivity : FlutterActivity() {
                             },
                         )
                     }
+                    result.success(null)
+                }
+                "openNotificationSettings" -> {
+                    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                        }
+                    } else {
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:$packageName")
+                        }
+                    }
+                    startActivity(intent)
                     result.success(null)
                 }
                 "openChannelSettings" -> {
@@ -354,7 +368,7 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
                 "hasAutostartSettings" -> {
-                    result.success(AutostartDecision.componentsFor(Build.MANUFACTURER).isNotEmpty())
+                    result.success(autostartComponents().isNotEmpty())
                 }
                 "openAutostartSettings" -> {
                     result.success(openAutostartSettings())
@@ -397,6 +411,17 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APP_DATA_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "wipe" -> {
+                        val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+                        result.success(activityManager.clearApplicationUserData())
+                    }
+                    else -> result.notImplemented()
+                }
+            }
 
         val deviceSafetyChannel =
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_SAFETY_CHANNEL)
@@ -636,8 +661,16 @@ class MainActivity : FlutterActivity() {
         return ShortcutManagerCompat.requestPinShortcut(this, shortcut, null)
     }
 
+    private fun autostartComponents(): List<Pair<String, String>> =
+        AutostartDecision.availableFor(Build.MANUFACTURER) { (pkg, cls) ->
+            packageManager.resolveActivity(
+                Intent().setComponent(ComponentName(pkg, cls)),
+                0,
+            ) != null
+        }
+
     private fun openAutostartSettings(): Boolean {
-        for ((pkg, cls) in AutostartDecision.componentsFor(Build.MANUFACTURER)) {
+        for ((pkg, cls) in autostartComponents()) {
             try {
                 startActivity(Intent().setComponent(ComponentName(pkg, cls)))
                 return true
@@ -663,6 +696,7 @@ class MainActivity : FlutterActivity() {
         private const val VIDEO_CHANNEL = "zuno/video"
         private const val PLAY_SERVICES_CHANNEL = "zuno/play_services"
         private const val DEVICE_SAFETY_CHANNEL = "zuno/device_safety"
+        private const val APP_DATA_CHANNEL = "zuno/app_data"
         private const val EXTRA_ROOM_ID = "room_id"
         private const val PIP_HANG_UP_REQUEST_CODE = 4102
         private const val HANG_UP_GRACE_MS = 5_000L

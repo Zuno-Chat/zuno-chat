@@ -27,6 +27,22 @@ void main() {
     prefs = await SharedPreferences.getInstance();
   });
 
+  void stubNotificationPermission({required bool granted}) {
+    const channel = MethodChannel('flutter.baseflow.com/permissions/methods');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final status = granted ? 1 : 0;
+    messenger.setMockMethodCallHandler(
+      channel,
+      (call) async => switch (call.method) {
+        'checkPermissionStatus' => status,
+        'requestPermissions' => {17: status},
+        _ => null,
+      },
+    );
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+  }
+
   Future<OnboardingStore> pumpFlow(
     WidgetTester tester,
     List<OnboardingStep> steps, {
@@ -187,6 +203,7 @@ void main() {
   testWidgets('every step centres its icon circle, title and text', (
     tester,
   ) async {
+    stubNotificationPermission(granted: true);
     await pumpFlow(tester, OnboardingStep.values);
 
     final width = tester.getSize(find.byType(Scaffold).last).width;
@@ -454,7 +471,72 @@ void main() {
     });
   });
 
+  group('with notifications off', () {
+    const flow = [
+      OnboardingStep.notifications,
+      OnboardingStep.deliveryMethod,
+      OnboardingStep.batteryExemption,
+      OnboardingStep.autostart,
+      OnboardingStep.setUpRecovery,
+    ];
+
+    testWidgets('skipping the permission drops every delivery step, for '
+        'good', (tester) async {
+      stubNotificationPermission(granted: false);
+      final store = await pumpFlow(tester, flow);
+
+      await tester.tap(find.text('Skip'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Set up recovery'), findsOneWidget);
+      expect(find.text('How should messages reach you?'), findsNothing);
+      expect(store.shown(_userId), {
+        OnboardingStep.notifications,
+        OnboardingStep.deliveryMethod,
+        OnboardingStep.batteryExemption,
+        OnboardingStep.autostart,
+      });
+    });
+
+    testWidgets('declining the permission drops them too', (tester) async {
+      stubNotificationPermission(granted: false);
+      await pumpFlow(tester, flow);
+
+      await tester.tap(find.text('Turn on notifications'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Set up recovery'), findsOneWidget);
+    });
+
+    testWidgets('a flow that ends at the permission closes', (tester) async {
+      stubNotificationPermission(granted: false);
+      await pumpFlow(tester, const [
+        OnboardingStep.notifications,
+        OnboardingStep.deliveryMethod,
+      ]);
+
+      await tester.tap(find.text('Skip'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('open'), findsOneWidget);
+    });
+
+    testWidgets('with the permission granted, delivery comes next', (
+      tester,
+    ) async {
+      stubNotificationPermission(granted: true);
+      final store = await pumpFlow(tester, flow);
+
+      await tester.tap(find.text('Skip'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('How should messages reach you?'), findsOneWidget);
+      expect(store.shown(_userId), {OnboardingStep.notifications});
+    });
+  });
+
   testWidgets('every step is one page with one primary button', (tester) async {
+    stubNotificationPermission(granted: true);
     for (final step in OnboardingStep.values) {
       await pumpFlow(tester, [step]);
 

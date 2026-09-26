@@ -25,4 +25,9 @@ object AutostartDecision {
         "huawei", "honor" -> emui
         else -> emptyList()
     }
+
+    fun availableFor(
+        manufacturer: String,
+        exists: (Pair<String, String>) -> Boolean,
+    ): List<Pair<String, String>> = componentsFor(manufacturer).filter(exists)
 }

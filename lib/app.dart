@@ -17,6 +17,7 @@ import 'core/matrix/connectivity_provider.dart';
 import 'core/matrix/currently_open_room_provider.dart';
 import 'core/matrix/matrix_client_provider.dart';
 import 'core/matrix/room_invite.dart';
+import 'core/matrix/sign_out_wipe.dart';
 import 'core/navigation/global_navigator.dart';
 import 'core/navigation/launch_route.dart';
 import 'core/navigation/root_route_reset.dart';
@@ -169,6 +170,19 @@ class _AuthGateState extends ConsumerState<_AuthGate>
         ref.read(notificationsAllowedProvider),
       );
     });
+    ref.listenManual(isLoggedInProvider, (_, loginState) {
+      final loggedIn = loginState.value;
+      if (loggedIn == null) return;
+      unawaited(
+        ref
+            .read(signOutWipeProvider)
+            .onLoginState(
+              loggedIn,
+              stopDelivery: () =>
+                  stopAllNotificationDelivery(ref.read(matrixClientProvider)),
+            ),
+      );
+    }, fireImmediately: true);
     ref.listenManual(isOfflineProvider, (previous, next) {
       if (!becameOnline(previous, next)) return;
       final client = ref.read(matrixClientProvider);

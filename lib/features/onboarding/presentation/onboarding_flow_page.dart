@@ -66,8 +66,13 @@ class _OnboardingFlowPageState extends ConsumerState<OnboardingFlowPage> {
   Future<void> _advance() async {
     closeKeyboard();
     final index = _index;
-    await _markShown(_steps[index]);
+    final step = _steps[index];
+    await _markShown(step);
     if (!mounted) return;
+    if (step == OnboardingStep.notifications) {
+      await _dropDeliveryStepsIfNotificationsOff();
+      if (!mounted) return;
+    }
     if (index + 1 >= _steps.length) {
       _close();
       return;
@@ -77,6 +82,23 @@ class _OnboardingFlowPageState extends ConsumerState<OnboardingFlowPage> {
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
     );
+  }
+
+  Future<void> _dropDeliveryStepsIfNotificationsOff() async {
+    final allowed = await ref
+        .read(notificationsAllowedProvider.notifier)
+        .refresh();
+    if (!mounted) return;
+    final kept = stepsAfterNotificationsAnswer(
+      _steps,
+      allowed: allowed ?? false,
+    );
+    final dropped = _steps.where((s) => !kept.contains(s)).toList();
+    if (dropped.isEmpty) return;
+    setState(() => _steps = kept);
+    for (final step in dropped) {
+      await _markShown(step);
+    }
   }
 
   void _close() {

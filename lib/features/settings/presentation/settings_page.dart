@@ -5,14 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/feedback.dart';
-import '../../../core/location/map_tile_cache.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/own_profile.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
 import '../../../core/security/account_security_status.dart';
-import '../../../core/security/new_device_alert_provider.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
@@ -114,10 +112,12 @@ class SettingsPage extends ConsumerWidget {
         actionsOverflowButtonSpacing: 4,
         content: Text(
           noRecovery
-              ? 'Messages on this device are gone for good. Without a recovery '
-                    'code, nobody can restore them.'
-              : 'You will need your password to sign back in. Your recovery '
-                    'code brings your messages back.',
+              ? 'Zuno erases everything it stored on this device and closes. '
+                    'Messages on this device are gone for good. Without a '
+                    'recovery code, nobody can restore them.'
+              : 'Zuno erases everything it stored on this device and closes. '
+                    'You will need your password to sign back in. Your '
+                    'recovery code brings your messages back.',
         ),
         actions: [
           TextButton(
@@ -149,17 +149,12 @@ class SettingsPage extends ConsumerWidget {
           MaterialPageRoute(builder: (_) => const SecureBackupPage()),
         );
       case _LogOutChoice.logOut:
-        await _logOut(ref, ref.read(matrixClientProvider));
+        await _logOut(ref.read(matrixClientProvider));
     }
   }
 
-  Future<void> _logOut(WidgetRef ref, Client client) async {
+  Future<void> _logOut(Client client) async {
     await stopAllNotificationDelivery(client);
-    final userId = client.userID;
-    if (userId != null) {
-      await ref.read(knownDevicesStoreProvider).forget(userId);
-    }
-    await purgeMapTileCache();
     await client.logout();
   }
 }

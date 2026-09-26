@@ -36,6 +36,17 @@ hands both push runners the open room and an "app is resumed and syncing"
 predicate; a reconnect (`becameOnline`) calls `retryFailedDelivery`; every
 resume calls `recheckDelivery`.
 
+**Registration needs the notification permission.** `_AuthGate` starts
+the active provider only while `notificationsAllowedProvider` is true, and
+every provider re-checks `mayRegisterForNotifications`
+(`notification_permission.dart`) itself: FCM in `start`, `registerNow` and
+token refresh; UnifiedPush in `start`, `registerNow` and `onNewEndpoint`;
+background sync in `start`. That covers the callers that bypass
+`_AuthGate`: the Settings Register buttons, `kickOffDeliveryMode` and the
+headless isolate. A failed permission read counts as allowed, so a broken
+read never silences delivery. The delivery banner and the Settings rows
+for delivery and full-screen alerts are hidden while notifications are off.
+
 **Registration resilience** (`registration_retry.dart`): both push
 providers share `RegistrationRetry` (exponential backoff, 1 min doubling to
 a 30 min cap, only for transient failures: token/pusher errors, distributor
@@ -275,6 +286,11 @@ attached it; a push arrives with the app process dead.
 
 ## Gotchas & Constraints
 
+- **A notification-permission revoke kills the process**, so the next
+  launch's `stop` knows only the persisted registration. Both push
+  providers' `stop` fall back to it; without that the pusher stays on the
+  homeserver.
+
 - **Background audio hardening mutes app-process sound** once the process
   has no visible activity; a channel's own sound is played by the system
   and is exempt. One-shot sounds go on a channel; the looping ring stays
@@ -367,7 +383,10 @@ attached it; a push arrives with the app process dead.
 - **Onboarding**: `OnboardingStep.batteryExemption` is queued when
   `needsBatteryExemptionFor` says so, which for UnifiedPush includes the
   distributor's own exemption; `OnboardingStep.autostart` once, on phones
-  whose maker blocks closed apps from starting (`AutostartDecision`).
+  where a maker's autostart screen resolves (`AutostartDecision.availableFor`).
+  The vendor packages are in the manifest's `<queries>`, or Android 11+
+  hides them and nothing resolves. A custom ROM on that hardware (LineageOS)
+  has no such screen and gets neither the step nor the Settings row.
 - **Settings**: `notifications_settings_page.dart` for the permission,
   sound toggles and silenced-channel rows; `notification_delivery_page.dart`
   for mode choice and the transport rows, including the battery row (every

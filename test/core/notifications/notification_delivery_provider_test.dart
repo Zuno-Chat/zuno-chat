@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/notifications/background_sync_delivery_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
@@ -26,6 +27,15 @@ void main() {
 
   tearDown(() {
     messenger.setMockMethodCallHandler(channel, null);
+  });
+
+  test('background sync does not start while notifications are off', () async {
+    final provider = BackgroundSyncDeliveryProvider()
+      ..notificationsAllowed = () async => false;
+
+    await provider.start(buildTestClient());
+
+    expect(calls, isEmpty);
   });
 
   test(
