@@ -159,6 +159,12 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
+    'keyboardLearningOptOut',
+    read: (c) => c.keyboardLearningOptOut,
+    android: true,
+    ios: false,
+  ),
+  _Capability(
     'deliveryModes',
     read: (c) => c.deliveryModes,
     android: [

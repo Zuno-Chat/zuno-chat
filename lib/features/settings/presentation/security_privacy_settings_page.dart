@@ -96,33 +96,37 @@ class _SecurityPrivacySettingsPageState
               ),
             ],
           ),
-          CardGroup(
-            title: 'On this device',
-            children: [
-              SwitchListTile(
-                secondary: const Icon(Icons.keyboard_alt_outlined),
-                title: const Text('Incognito keyboard'),
-                subtitle: const Text(
-                  'Asks the keyboard not to learn from what you type',
-                ),
-                value: incognitoKeyboard,
-                onChanged: (value) =>
-                    ref.read(incognitoKeyboardProvider.notifier).set(value),
-              ),
-              if (capabilities.screenSecurity)
-                SwitchListTile(
-                  secondary: const Icon(Icons.screenshot_outlined),
-                  title: const Text('Prevent screenshots'),
-                  subtitle: const Text(
-                    'Blocks screenshots and screen recording, and hides Zuno '
-                    'in the recent apps preview',
+          if (capabilities.keyboardLearningOptOut ||
+              capabilities.screenSecurity)
+            CardGroup(
+              title: 'On this device',
+              children: [
+                if (capabilities.keyboardLearningOptOut)
+                  SwitchListTile(
+                    secondary: const Icon(Icons.keyboard_alt_outlined),
+                    title: const Text('Incognito keyboard'),
+                    subtitle: const Text(
+                      'Asks the keyboard not to learn from what you type',
+                    ),
+                    value: incognitoKeyboard,
+                    onChanged: (value) =>
+                        ref.read(incognitoKeyboardProvider.notifier).set(value),
                   ),
-                  value: preventScreenshots,
-                  onChanged: (value) =>
-                      ref.read(preventScreenshotsProvider.notifier).set(value),
-                ),
-            ],
-          ),
+                if (capabilities.screenSecurity)
+                  SwitchListTile(
+                    secondary: const Icon(Icons.screenshot_outlined),
+                    title: const Text('Prevent screenshots'),
+                    subtitle: const Text(
+                      'Blocks screenshots and screen recording, and hides Zuno '
+                      'in the recent apps preview',
+                    ),
+                    value: preventScreenshots,
+                    onChanged: (value) => ref
+                        .read(preventScreenshotsProvider.notifier)
+                        .set(value),
+                  ),
+              ],
+            ),
           CardGroup(
             children: [
               ListTile(

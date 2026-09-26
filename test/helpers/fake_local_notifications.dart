@@ -58,10 +58,16 @@ class RecordedNotifications {
   }
 }
 
-RecordedNotifications installFakeLocalNotifications() {
+RecordedNotifications installFakeLocalNotifications({
+  TargetPlatform platform = TargetPlatform.android,
+}) {
   TestWidgetsFlutterBinding.ensureInitialized();
-  debugDefaultTargetPlatformOverride = TargetPlatform.android;
-  AndroidFlutterLocalNotificationsPlugin.registerWith();
+  debugDefaultTargetPlatformOverride = platform;
+  if (platform == TargetPlatform.iOS) {
+    IOSFlutterLocalNotificationsPlugin.registerWith();
+  } else {
+    AndroidFlutterLocalNotificationsPlugin.registerWith();
+  }
   addTearDown(() => debugDefaultTargetPlatformOverride = null);
   final recorded = RecordedNotifications();
   const channel = MethodChannel('dexterous.com/flutter/local_notifications');

@@ -10,7 +10,12 @@ class SecureSecretStore implements SecretStore {
   final FlutterSecureStorage _storage;
 
   const SecureSecretStore([
-    this._storage = const FlutterSecureStorage(aOptions: AndroidOptions()),
+    this._storage = const FlutterSecureStorage(
+      aOptions: AndroidOptions(),
+      iOptions: IOSOptions(
+        accessibility: KeychainAccessibility.first_unlock_this_device,
+      ),
+    ),
   ]);
 
   @override

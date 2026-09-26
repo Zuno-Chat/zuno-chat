@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 
 import '../platform/platform_capabilities.dart';
+import 'photo_location.dart';
 
 const _channel = MethodChannel('zuno/image');
 
@@ -57,8 +58,10 @@ ResizedImage? _untouched(Uint8List bytes) {
     final orientation = img.decodeJpgExif(bytes)?.imageIfd.orientation;
     final quarterTurned =
         orientation != null && orientation >= 5 && orientation <= 8;
+    final stripped = withoutLocation(bytes);
+    if (stripped == null) return null;
     return ResizedImage(
-      bytes: bytes,
+      bytes: stripped,
       width: quarterTurned ? info.height : info.width,
       height: quarterTurned ? info.width : info.height,
       mimeType: mimeType,

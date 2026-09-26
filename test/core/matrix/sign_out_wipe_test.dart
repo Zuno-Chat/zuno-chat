@@ -98,6 +98,38 @@ void main() {
     await refusing.onLoginState(false, stopDelivery: stopDelivery);
   });
 
+  test('a wipe that leaves the app running forgets the session, so the next '
+      'launch does not wipe again', () async {
+    await wipe.onLoginState(true, stopDelivery: stopDelivery);
+
+    await wipe.onLoginState(false, stopDelivery: stopDelivery);
+
+    expect(prefs.getBool(signedInMarkerKey), isNull);
+  });
+
+  test(
+    'signing in and out again in the same run stops delivery again',
+    () async {
+      await wipe.onLoginState(true, stopDelivery: stopDelivery);
+      await wipe.onLoginState(false, stopDelivery: stopDelivery);
+
+      await wipe.onLoginState(true, stopDelivery: stopDelivery);
+      await wipe.onLoginState(false, stopDelivery: stopDelivery);
+
+      expect(calls, ['stop', 'wipe', 'stop', 'wipe']);
+    },
+  );
+
+  test('a refused wipe keeps the session marked, so the next launch tries '
+      'again', () async {
+    await prefs.setBool(signedInMarkerKey, true);
+    final refusing = SignOutWipe(prefs, () async => throw Exception('no'));
+
+    await refusing.onLoginState(false, stopDelivery: stopDelivery);
+
+    expect(prefs.getBool(signedInMarkerKey), isTrue);
+  });
+
   group('signOutWipeProvider', () {
     const channel = MethodChannel('zuno/app_data');
     final messenger =
@@ -130,6 +162,16 @@ void main() {
       await providedWipe().onLoginState(false, stopDelivery: stopDelivery);
 
       expect(calls, ['stop', 'native wipe']);
+    });
+
+    test('a wipe the platform declines keeps the session marked, so the next '
+        'launch tries again', () async {
+      messenger.setMockMethodCallHandler(channel, (call) async => false);
+      await prefs.setBool(signedInMarkerKey, true);
+
+      await providedWipe().onLoginState(false, stopDelivery: stopDelivery);
+
+      expect(prefs.getBool(signedInMarkerKey), isTrue);
     });
 
     test('without a native wipe, signing out still stops delivery and never '

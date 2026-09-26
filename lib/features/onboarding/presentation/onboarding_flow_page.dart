@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/calls/notifications/call_notification_service.dart';
+import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/background_sync_service.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
@@ -26,8 +27,6 @@ import '../../../core/ui/step_hero.dart';
 import '../../../core/ui/step_layout.dart';
 import '../../settings/presentation/secure_backup_page.dart';
 import '../../verification/presentation/approve_this_device_page.dart';
-
-const _avatarMaxDimension = 512;
 
 const onboardingDotsKey = ValueKey('onboarding-dots');
 
@@ -391,10 +390,9 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
       imageQuality: 90,
     );
     if (picked == null || !mounted) return;
-    final shrunk = await MatrixImageFile.shrink(
-      bytes: await picked.readAsBytes(),
+    final shrunk = await prepareAvatarPhoto(
+      await picked.readAsBytes(),
       name: picked.name,
-      maxDimension: _avatarMaxDimension,
       nativeImplementations: client.nativeImplementations,
     );
     if (!mounted) return;
@@ -595,8 +593,8 @@ class _NotificationsStepState extends ConsumerState<_NotificationsStep>
       icon: Icons.notifications_none_outlined,
       title: 'Hear about new messages',
       body:
-          "Zuno needs Android's permission to show new messages and ring for "
-          "calls.",
+          'Zuno needs your permission to show new messages and ring for '
+          'calls.',
       action: FilledButton(
         onPressed: _asking ? null : _request,
         child: const Text('Turn on notifications'),

@@ -97,9 +97,9 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
 ## Communication
 
 - `client.setAvatar()` — uploads avatar bytes with no resizing of its own;
-  the app shrinks client-side first (512px max, via the same
-  `MatrixImageFile.shrink` helper the SDK uses internally for message
-  images) before calling it, since a full-resolution photo would otherwise
+  the app shrinks client-side first (`prepareAvatarPhoto`: EXIF GPS
+  dropped, then 512px max via the SDK's own `MatrixImageFile.shrink`)
+  before calling it, since a full-resolution photo would otherwise
   be uploaded and re-fetched at full size by every client for an image
   that's only ever shown small.
 - `client.changePassword` — password change, called from inside
@@ -142,7 +142,9 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   - Background data and distributor battery: `backgroundDataRestriction`
     and `batteryExemption`.
   - Prevent screenshots: `screenSecurity`. Full-screen call alerts:
-    `fullScreenIntent`.
+    `fullScreenIntent`. Incognito keyboard: `keyboardLearningOptOut`
+    (iOS has no way to ask a keyboard not to learn). The "On this device"
+    group disappears when neither of its toggles applies.
 - **Link previews has no row while `linkPreviewsFeatureAvailable` is
   false.** The provider stays: `room_page.dart` reads it.
 - **Security > Advanced is outside the brand voice, on purpose.**

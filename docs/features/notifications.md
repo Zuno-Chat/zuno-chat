@@ -119,6 +119,11 @@ Conversations section. `number` is the room's `notificationCount`, `when`
 the event timestamp. The ring is app-played (loops); the message tone is
 channel-attached (see hardening gotcha).
 
+On iOS, `initialize()` passes `DarwinInitializationSettings` with every
+`request*Permission: false`. The plugin prompts at initialization by
+default, and without iOS settings it throws, stalling cold start before
+`runApp`. Onboarding's `Permission.notification.request()` is the only ask.
+
 **Channels** are grouped; Dart creates its own at `initialize()`, native
 services through `NotificationChannels.ensure`, which also creates the group:
 

@@ -8,6 +8,11 @@ void main() {
     expect(sentPhotoName('image/png'), 'photo.png');
   });
 
+  test('a GIF or WebP sent untouched keeps its own extension', () {
+    expect(sentPhotoName('image/gif'), 'photo.gif');
+    expect(sentPhotoName('image/webp'), 'photo.webp');
+  });
+
   test('videos get one generic name', () {
     expect(sentVideoName, 'video.mp4');
   });

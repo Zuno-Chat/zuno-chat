@@ -2,9 +2,15 @@ import 'dart:io';
 
 import 'package:package_info_plus/package_info_plus.dart';
 
-String zunoUserAgent(String? version) {
+import '../platform/app_platform.dart';
+
+String zunoUserAgent(String? version, {AppPlatform? platform}) {
   final product = version == null ? 'Zuno' : 'Zuno/$version';
-  return '$product (Android; im.zuno.chat)';
+  final system = switch (platform ?? currentAppPlatform) {
+    AppPlatform.android => 'Android',
+    AppPlatform.ios => 'iOS',
+  };
+  return '$product ($system; im.zuno.chat)';
 }
 
 class _UserAgentOverrides extends HttpOverrides {
@@ -22,12 +28,17 @@ String? get appUserAgent => switch (HttpOverrides.current) {
   _ => null,
 };
 
-Future<void> installUserAgent({Future<String> Function()? version}) async {
+Future<void> installUserAgent({
+  Future<String> Function()? version,
+  AppPlatform? platform,
+}) async {
   String? known;
   try {
     known = await (version ?? _installedVersion)();
   } catch (_) {}
-  HttpOverrides.global = _UserAgentOverrides(zunoUserAgent(known));
+  HttpOverrides.global = _UserAgentOverrides(
+    zunoUserAgent(known, platform: platform),
+  );
 }
 
 Future<String> _installedVersion() async =>

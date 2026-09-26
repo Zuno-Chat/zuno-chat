@@ -102,8 +102,8 @@ state.
 
 **Every platform difference is a capability in `lib/core/platform/`.**
 `AppPlatform {android, ios}` comes from `Platform.isIOS`, so `flutter test`
-runs as android. `PlatformCapabilities` is a const table of 24 required
-fields (22 flags plus `deliveryModes`/`defaultDeliveryMode`) returned by
+runs as android. `PlatformCapabilities` is a const table of 25 required
+fields (23 flags plus `deliveryModes`/`defaultDeliveryMode`) returned by
 the pure `capabilitiesFor(AppPlatform)`: android is all `true`, ios all
 `false` with `apns` only. Required fields force a new flag to be decided
 for both platforms. Why no build flavors, why `foss` was dropped, and the
@@ -122,7 +122,7 @@ An iOS `false` is one of two kinds:
 | Kind | Flags | On iOS |
 |---|---|---|
 | Awaiting an iOS equivalent | every other flag, e.g. `networkAvailabilityEvents` (offline reads as `unreachable` until then), `nativeSignOutWipe` (sign-out keeps local data until then) | flips to `true` once a native handler exists |
-| Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns` | stays `false` |
+| Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut` | stays `false` |
 | Permanent: seam selector | `fullScreenIntent`, `callForegroundService`, `nativeRingbackTone` | stays `false`; CallKit arrives as a new branch in each `*For()` factory (`calls.md`), never a flag flip |
 
 ## Data & State
@@ -138,6 +138,16 @@ upgrade path, so a plaintext `zuno.db` fails to open rather than being
 read unencrypted. `PRAGMA cipher_version` is checked explicitly after
 opening (`_assertSqlCipherPresent`) because `PRAGMA key` fails silently
 on stock sqlite3 with no other signal.
+
+A `zuno.db` whose key is gone can never be opened, so
+`obtainDatabaseCipher(databasePath:)` deletes it before generating a new
+key, and the device starts signed out instead of failing at launch. The
+likely cause is an iOS backup restored on another phone: the key is
+`first_unlock_this_device` and never travels. Only a genuinely absent key
+triggers it; an unreadable one (a locked Keychain) throws
+`DatabaseKeyUnavailable` first. It also deletes the `-wal`, `-shm` and
+`-journal` files itself: sqflite_sqlcipher's delete removes only the main
+file on iOS.
 
 ## Communication
 **Cold start.** `main()`'s independent setup steps (notifications,
@@ -358,7 +368,10 @@ the ring case, so it was not done.
   The marker is what separates a sign-out from a device that never signed
   in, and it catches a sign-out noticed elsewhere (remote, or a headless
   push isolate) at the next launch. Sign-out paths therefore clean nothing
-  local themselves.
+  local themselves. The native reply must be `true`: anything else counts
+  as refused and keeps the marker, so the next launch retries. A wipe that
+  leaves the process running (iOS, until its native wipe exists) clears the
+  marker and releases the latch, so a later sign-in and sign-out run again.
 - **`_AuthGate`'s `ref.listenManual` subscriptions must not become
   `build()`-driven.** `_AuthGate` sits at the bottom of the navigation
   stack, and Flutter defers rebuilding a dirty element under a covered
@@ -376,7 +389,8 @@ the ring case, so it was not done.
 - **The User-Agent is per isolate and per client.** `installUserAgent()`
   (`lib/core/network/user_agent.dart`) sets `HttpOverrides.global`, so
   every dart:io client created afterwards sends
-  `Zuno/<version> (Android; im.zuno.chat)` — Matrix SDK, modules, images,
+  `Zuno/<version> (Android; im.zuno.chat)`, or `(iOS; …)` from
+  `currentAppPlatform` — Matrix SDK, modules, images,
   tiles. It runs first in `_runApp` (covering `--unifiedpush-bg`), in
   `fcmBackgroundHandler` and in the background notification action; a new
   isolate entry point must call it before anything builds an HTTP client,

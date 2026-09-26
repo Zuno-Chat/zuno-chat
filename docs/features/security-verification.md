@@ -342,7 +342,9 @@ differs from the raw SSSS key):**
   holds the app's own text — there's no delete-the-clip API, so blindly
   clearing risks eating whatever the user copied since.
 - **Local database is SQLCipher-encrypted** (`sqflite_sqlcipher`), key
-  in `flutter_secure_storage` (Keystore-backed). Directly relevant here:
+  in `flutter_secure_storage`: Keystore on Android, Keychain
+  `first_unlock_this_device` on iOS, so a push handled while locked can
+  still open the database and the key never leaves the phone in a backup. Directly relevant here:
   the access token, Olm account pickle, and every inbound Megolm session
   live in that one file — this feature's cryptographic state has no
   protection independent of that encryption-at-rest layer.

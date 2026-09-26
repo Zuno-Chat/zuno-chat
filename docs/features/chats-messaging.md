@@ -216,11 +216,21 @@ what a message looks like, how it's sent, and how the timeline behaves.
   source-fraction mode turned a 4K recording into a 14 Mbps file the server
   rejected. The thumbnail is taken from the source on a separate native
   thread while encoding runs and doubles as the pending tile's placeholder.
-- **Privacy**: sent photos and videos carry no EXIF or location metadata
-  (`Bitmap.compress` writes none; the remuxer and encoder write no location
-  atom) and generic names (`photo.jpg`/`photo.png`/`video.mp4`), since
-  original names carry timestamps. Files sent through the file picker stay
-  byte-for-byte original by design.
+- **Privacy**: sent photos and videos carry no location and generic names
+  (`photo.jpg`/`.png`/`.gif`/`.webp`, `video.mp4`), since original names
+  carry timestamps. Files sent through the file picker stay byte-for-byte
+  original by design.
+  - Native path: `Bitmap.compress` writes no EXIF; the remuxer and encoder
+    write no location atom. iOS videos re-encode through light_compressor,
+    which copies no metadata.
+  - Without `nativeImageResize` (iOS today) photos go untouched except for
+    `withoutLocation` (`photo_location.dart`): it drops the EXIF GPS
+    directory and re-injects the rest, with no re-encode and orientation
+    kept. If that fails the photo is refused, never sent with its location.
+    XMP is not touched.
+  - Avatars (account, onboarding, room photo) go through it too, in
+    `prepareAvatarPhoto`: image pickers copy GPS on both platforms, and the
+    SDK's `MatrixImageFile.shrink` keeps EXIF through its re-encode.
 - **Pagination**: `Timeline`'s own history-request mechanism, triggered on
   scroll-up, on initial load, and after every timeline update (not
   scroll-only — a room whose synced window filters down to fewer visible

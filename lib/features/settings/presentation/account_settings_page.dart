@@ -5,14 +5,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
+import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import 'change_password_dialog.dart';
-
-const _avatarMaxDimension = 512;
 
 const _rowSpinner = SizedBox(
   width: 20,
@@ -128,10 +127,9 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
           imageQuality: 90,
         );
         if (picked == null) return;
-        final shrunk = await MatrixImageFile.shrink(
-          bytes: await picked.readAsBytes(),
+        final shrunk = await prepareAvatarPhoto(
+          await picked.readAsBytes(),
           name: picked.name,
-          maxDimension: _avatarMaxDimension,
           nativeImplementations: client.nativeImplementations,
         );
         await client.setAvatar(shrunk);

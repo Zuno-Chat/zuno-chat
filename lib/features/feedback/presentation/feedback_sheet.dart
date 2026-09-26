@@ -80,7 +80,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
                 child: Text(
                   'Your feedback goes to a reporting service with your app '
-                  'version and Android build. Names and addresses are '
+                  'version and system version. Names and addresses are '
                   'removed. Nothing identifies you, so there is no reply.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,

@@ -42,6 +42,7 @@ PlatformCapabilities capabilitiesLike(
   nativeVideoTools: base.nativeVideoTools,
   uploadForegroundService: base.uploadForegroundService,
   networkAvailabilityEvents: base.networkAvailabilityEvents,
+  keyboardLearningOptOut: base.keyboardLearningOptOut,
   deliveryModes: deliveryModes ?? base.deliveryModes,
   defaultDeliveryMode: defaultDeliveryMode ?? base.defaultDeliveryMode,
 );

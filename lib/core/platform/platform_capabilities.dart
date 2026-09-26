@@ -28,6 +28,7 @@ class PlatformCapabilities {
   final bool nativeVideoTools;
   final bool uploadForegroundService;
   final bool networkAvailabilityEvents;
+  final bool keyboardLearningOptOut;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
 
@@ -54,6 +55,7 @@ class PlatformCapabilities {
     required this.nativeVideoTools,
     required this.uploadForegroundService,
     required this.networkAvailabilityEvents,
+    required this.keyboardLearningOptOut,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
   });
@@ -84,6 +86,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nativeVideoTools: true,
         uploadForegroundService: true,
         networkAvailabilityEvents: true,
+        keyboardLearningOptOut: true,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
           NotificationDeliveryMode.unifiedPush,
@@ -114,6 +117,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nativeVideoTools: false,
         uploadForegroundService: false,
         networkAvailabilityEvents: false,
+        keyboardLearningOptOut: false,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,
       ),

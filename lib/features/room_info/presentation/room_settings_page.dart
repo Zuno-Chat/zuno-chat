@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
+import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/optimistic_room_state.dart';
 import '../../../core/matrix/room_access.dart';
@@ -11,8 +12,6 @@ import '../../../core/matrix/room_name_check.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
-
-const _avatarMaxDimension = 512;
 
 enum _AvatarAction { camera, gallery, remove }
 
@@ -248,10 +247,9 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
           imageQuality: 90,
         );
         if (picked == null) return;
-        final shrunk = await MatrixImageFile.shrink(
-          bytes: await picked.readAsBytes(),
+        final shrunk = await prepareAvatarPhoto(
+          await picked.readAsBytes(),
           name: picked.name,
-          maxDimension: _avatarMaxDimension,
           nativeImplementations: room.client.nativeImplementations,
         );
         await setRoomAvatar(room, shrunk);

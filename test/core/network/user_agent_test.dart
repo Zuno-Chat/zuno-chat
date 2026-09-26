@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:zuno/core/network/user_agent.dart';
+import 'package:zuno/core/platform/app_platform.dart';
 
 const _agent = 'Zuno/1.2.0 (Android; im.zuno.chat)';
 
@@ -14,6 +15,25 @@ void main() {
   test('names the app, its version and its package', () {
     expect(zunoUserAgent('1.2.0'), _agent);
   });
+
+  test('names iOS on an iPhone', () {
+    expect(
+      zunoUserAgent('1.2.0', platform: AppPlatform.ios),
+      'Zuno/1.2.0 (iOS; im.zuno.chat)',
+    );
+  });
+
+  test(
+    'every HTTP client created after install on an iPhone names iOS',
+    () async {
+      await installUserAgent(
+        version: () async => '1.2.0',
+        platform: AppPlatform.ios,
+      );
+
+      expect(HttpClient().userAgent, 'Zuno/1.2.0 (iOS; im.zuno.chat)');
+    },
+  );
 
   test('every HTTP client created after install carries it', () async {
     await installUserAgent(version: () async => '1.2.0');

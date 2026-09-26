@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import '../security/secret_store.dart';
@@ -14,10 +15,12 @@ class DatabaseKeyUnavailable implements Exception {
 
 Future<String> obtainDatabaseCipher({
   SecretStore store = const SecureSecretStore(),
+  String? databasePath,
 }) async {
   final existing = await _read(store);
   if (existing != null && existing.isNotEmpty) return existing;
 
+  if (databasePath != null) await _deleteDatabaseFiles(databasePath);
   final generated = _generateCipher();
   try {
     await store.write(_databaseKeyName, generated);
@@ -33,6 +36,19 @@ Future<String> obtainDatabaseCipher({
     );
   }
   return generated;
+}
+
+Future<void> _deleteDatabaseFiles(String path) async {
+  try {
+    for (final suffix in const ['', '-wal', '-shm', '-journal']) {
+      final file = File('$path$suffix');
+      if (await file.exists()) await file.delete();
+    }
+  } catch (e) {
+    throw DatabaseKeyUnavailable(
+      'could not delete the database its lost key encrypted: $e',
+    );
+  }
 }
 
 Future<String?> _read(SecretStore store) async {

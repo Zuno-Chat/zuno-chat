@@ -132,6 +132,14 @@ void main() {
     });
   });
 
+  testWidgets('iOS shows no On this device group: its keyboard cannot be '
+      'asked not to learn, and screenshots cannot be blocked', (tester) async {
+    await pumpPage(tester, capabilities: iosCapabilities);
+
+    expect(switchTile('Incognito keyboard'), findsNothing);
+    expect(find.text('On this device', skipOffstage: false), findsNothing);
+  });
+
   testWidgets('Android keeps the toggle', (tester) async {
     await pumpPage(tester, capabilities: androidCapabilities);
 

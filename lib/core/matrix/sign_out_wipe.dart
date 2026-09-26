@@ -13,7 +13,9 @@ const stopDeliveryBeforeWipeBudget = Duration(seconds: 5);
 const _appDataChannel = MethodChannel('zuno/app_data');
 
 Future<void> _wipeAppData() async {
-  await _appDataChannel.invokeMethod<bool>('wipe');
+  if (await _appDataChannel.invokeMethod<bool>('wipe') != true) {
+    throw StateError('the platform declined to wipe app data');
+  }
 }
 
 Future<void> _keepAppData() async {}
@@ -40,7 +42,9 @@ class SignOutWipe {
       () => stopDelivery().timeout(stopDeliveryBeforeWipeBudget),
       label: 'stop notification delivery before wipe',
     );
-    await runBestEffort(_wipe, label: 'wipe app data');
+    if (!await runBestEffort(_wipe, label: 'wipe app data')) return;
+    await _prefs.remove(signedInMarkerKey);
+    _wiping = false;
   }
 }
 

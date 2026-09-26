@@ -138,6 +138,23 @@ void main() {
       expect(result.height, 40);
     });
 
+    test('a JPEG loses its GPS location but keeps its orientation', () async {
+      final photo = img.Image(width: 40, height: 30)
+        ..exif.imageIfd.orientation = 6;
+      photo.exif.gpsIfd[0x0001] = img.IfdValueAscii('N');
+      photo.exif.gpsIfd[0x0002] = img.IfdValueRational(52, 1);
+      final jpeg = img.encodeJpg(photo);
+      expect(img.decodeJpgExif(jpeg)!.imageIfd.sub.containsKey('gps'), isTrue);
+
+      final result = await resize(jpeg);
+
+      final exif = img.decodeJpgExif(result!.bytes)!;
+      expect(exif.imageIfd.sub.containsKey('gps'), isFalse);
+      expect(exif.imageIfd.orientation, 6);
+      expect((result.width, result.height), (30, 40));
+      expect(result.mimeType, 'image/jpeg');
+    });
+
     test('PNG and GIF keep their own type', () async {
       final png = await resize(img.encodePng(img.Image(width: 12, height: 7)));
       expect(png!.mimeType, 'image/png');

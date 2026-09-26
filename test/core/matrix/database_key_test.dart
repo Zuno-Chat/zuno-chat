@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/matrix/database_key.dart';
@@ -10,6 +12,7 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   Map<String, String> installFakeStorage({
+    bool failReads = false,
     bool failWrites = false,
     bool dropWrites = false,
   }) {
@@ -19,6 +22,7 @@ void main() {
       final key = args['key'] as String?;
       switch (call.method) {
         case 'read':
+          if (failReads) throw PlatformException(code: 'locked');
           return store[key];
         case 'write':
           if (failWrites) throw PlatformException(code: 'keystore');
@@ -60,6 +64,56 @@ void main() {
       installFakeStorage(failWrites: true);
       expect(obtainDatabaseCipher(), throwsA(isA<DatabaseKeyUnavailable>()));
     });
+  });
+
+  group('a database on disk', () {
+    late String databasePath;
+    const suffixes = ['', '-wal', '-shm', '-journal'];
+
+    setUp(() {
+      final directory = Directory.systemTemp.createTempSync('zuno_db_key');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      databasePath = '${directory.path}/zuno.db';
+      for (final suffix in suffixes) {
+        File('$databasePath$suffix').writeAsStringSync('encrypted');
+      }
+    });
+
+    List<bool> filesLeft() => [
+      for (final suffix in suffixes) File('$databasePath$suffix').existsSync(),
+    ];
+
+    test('left without its key, as after a backup restored on a new phone, is '
+        'deleted with its side files before a new key is made', () async {
+      final store = installFakeStorage();
+
+      final cipher = await obtainDatabaseCipher(databasePath: databasePath);
+
+      expect(filesLeft(), [false, false, false, false]);
+      expect(store.values, [cipher]);
+    });
+
+    test('whose key is still there is kept', () async {
+      installFakeStorage();
+      await obtainDatabaseCipher();
+
+      await obtainDatabaseCipher(databasePath: databasePath);
+
+      expect(filesLeft(), [true, true, true, true]);
+    });
+
+    test(
+      'is kept when the key cannot be read, as while the phone is locked',
+      () async {
+        installFakeStorage(failReads: true);
+
+        await expectLater(
+          obtainDatabaseCipher(databasePath: databasePath),
+          throwsA(isA<DatabaseKeyUnavailable>()),
+        );
+        expect(filesLeft(), [true, true, true, true]);
+      },
+    );
   });
 
   group('cipher generation', () {

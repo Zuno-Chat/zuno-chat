@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 
+import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -77,5 +78,24 @@ void main() {
     await service.openFullScreenIntentSettings();
 
     expect(calls, isEmpty);
+  });
+
+  test('on iOS it initializes without prompting: onboarding owns the '
+      'notification ask', () async {
+    final notifications = installFakeLocalNotifications(
+      platform: TargetPlatform.iOS,
+    );
+    final service = CallNotificationService(capabilities: iosCapabilities);
+
+    await service.initialize(claimDeclinePort: false);
+
+    expect(
+      notifications.initializeArguments,
+      allOf(
+        containsPair('requestAlertPermission', false),
+        containsPair('requestSoundPermission', false),
+        containsPair('requestBadgePermission', false),
+      ),
+    );
   });
 }

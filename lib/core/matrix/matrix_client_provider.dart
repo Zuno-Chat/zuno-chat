@@ -109,7 +109,7 @@ createMatrixClient({bool backgroundSync = true}) async {
 Future<sqflite.Database> _openDatabase() async {
   final directory = await getApplicationSupportDirectory();
   final path = p.join(directory.path, 'zuno.db');
-  final cipher = await obtainDatabaseCipher();
+  final cipher = await obtainDatabaseCipher(databasePath: path);
 
   final database = await sqflite.openDatabase(path, password: cipher);
   await _assertSqlCipherPresent(database);
