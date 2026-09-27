@@ -102,10 +102,10 @@ state.
 
 **Every platform difference is a capability in `lib/core/platform/`.**
 `AppPlatform {android, ios}` comes from `Platform.isIOS`, so `flutter test`
-runs as android. `PlatformCapabilities` is a const table of 25 required
-fields (23 flags plus `deliveryModes`/`defaultDeliveryMode`) returned by
-the pure `capabilitiesFor(AppPlatform)`: android is all `true`, ios all
-`false` with `apns` only. Required fields force a new flag to be decided
+runs as android. `PlatformCapabilities` is a const table of 26 required
+fields (24 flags plus `deliveryModes`/`defaultDeliveryMode`) returned by
+the pure `capabilitiesFor(AppPlatform)`: android is all `true` except
+`apnsRegistration`, ios all `false` with `apns` only. Required fields force a new flag to be decided
 for both platforms. Why no build flavors, why `foss` was dropped, and the
 capability/seam rules:
 [platform-flavors.md](../decisions/platform-flavors.md).
@@ -124,6 +124,9 @@ An iOS `false` is one of two kinds:
 | Awaiting an iOS equivalent | every other flag, e.g. `networkAvailabilityEvents` (offline reads as `unreachable` until then), `nativeSignOutWipe` (sign-out keeps local data until then) | flips to `true` once a native handler exists |
 | Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut` | stays `false` |
 | Permanent: seam selector | `fullScreenIntent`, `callForegroundService`, `nativeRingbackTone` | stays `false`; CallKit arrives as a new branch in each `*For()` factory (`calls.md`), never a flag flip |
+
+`apnsRegistration` is the one flag Android never sets: it gates the iOS
+push token handler, which Android has no equivalent of.
 
 ## Data & State
 The SDK's local database (SQLCipher-encrypted `sqflite`) is the

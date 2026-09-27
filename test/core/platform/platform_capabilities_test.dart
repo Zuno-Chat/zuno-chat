@@ -165,6 +165,12 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
+    'apnsRegistration',
+    read: (c) => c.apnsRegistration,
+    android: false,
+    ios: false,
+  ),
+  _Capability(
     'deliveryModes',
     read: (c) => c.deliveryModes,
     android: [

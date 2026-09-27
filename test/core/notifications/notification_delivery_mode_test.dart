@@ -83,4 +83,20 @@ void main() {
       }
     });
   });
+
+  test('only Google services keeps a log of recent pushes: it is the one '
+      'method where app code handles every push', () {
+    expect(
+      {
+        for (final mode in NotificationDeliveryMode.values)
+          mode: deliveryLogsEachPush(mode),
+      },
+      {
+        NotificationDeliveryMode.fcm: true,
+        NotificationDeliveryMode.unifiedPush: false,
+        NotificationDeliveryMode.backgroundService: false,
+        NotificationDeliveryMode.apns: false,
+      },
+    );
+  });
 }

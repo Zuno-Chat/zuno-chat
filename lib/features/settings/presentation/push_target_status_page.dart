@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/format/chat_list_time.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/notifications/apns_delivery_provider.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
@@ -24,8 +25,9 @@ String? currentPushkeyFor(NotificationDeliveryMode mode) {
       return unifiedPushDeliveryProvider.endpointUrl?.toString();
     case NotificationDeliveryMode.fcm:
       return fcmDeliveryProvider.token;
-    case NotificationDeliveryMode.backgroundService:
     case NotificationDeliveryMode.apns:
+      return apnsDeliveryProvider.token;
+    case NotificationDeliveryMode.backgroundService:
       return null;
   }
 }
@@ -36,8 +38,9 @@ String? lastPusherErrorFor(NotificationDeliveryMode mode) {
       return unifiedPushDeliveryProvider.lastPusherError;
     case NotificationDeliveryMode.fcm:
       return fcmDeliveryProvider.lastPusherError;
-    case NotificationDeliveryMode.backgroundService:
     case NotificationDeliveryMode.apns:
+      return apnsDeliveryProvider.lastPusherError;
+    case NotificationDeliveryMode.backgroundService:
       return null;
   }
 }
@@ -75,7 +78,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     final pushers =
         await fetchPushers(ref.read(matrixClientProvider)) ??
         const <PusherInfo>[];
-    final deliveries = _mode == NotificationDeliveryMode.fcm
+    final deliveries = deliveryLogsEachPush(_mode)
         ? await readPushDeliveryLog(await SharedPreferences.getInstance())
         : const <PushDeliveryRecord>[];
     if (!mounted) return;
@@ -102,8 +105,9 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
         await unifiedPushDeliveryProvider.removeRegistration(client);
       case NotificationDeliveryMode.fcm:
         await fcmDeliveryProvider.stop(client);
-      case NotificationDeliveryMode.backgroundService:
       case NotificationDeliveryMode.apns:
+        await apnsDeliveryProvider.stop(client);
+      case NotificationDeliveryMode.backgroundService:
         break;
     }
     if (!mounted) return;
@@ -122,7 +126,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
       case NotificationDeliveryMode.backgroundService:
         return 'Background sync has nothing registered to remove.';
       case NotificationDeliveryMode.apns:
-        return 'Apple push has nothing registered to remove.';
+        return 'The server forgets this device.';
     }
   }
 
@@ -279,7 +283,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
                 ),
               ],
             ),
-            if (mode == NotificationDeliveryMode.fcm)
+            if (deliveryLogsEachPush(mode))
               CardGroup(
                 title: 'Recent pushes',
                 children: _deliveryRows(_deliveries),
@@ -306,9 +310,9 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
       case NotificationDeliveryMode.unifiedPush:
         return unifiedPushDeliveryProvider.gatewayUrl;
       case NotificationDeliveryMode.fcm:
+      case NotificationDeliveryMode.apns:
         return fcmGatewayUri(client.homeserver);
       case NotificationDeliveryMode.backgroundService:
-      case NotificationDeliveryMode.apns:
         return null;
     }
   }
@@ -324,7 +328,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
       case NotificationDeliveryMode.backgroundService:
         return 'Nothing is registered for background sync';
       case NotificationDeliveryMode.apns:
-        return 'Nothing is registered for Apple push';
+        return 'Makes the server forget this device';
     }
   }
 

@@ -216,12 +216,15 @@ class CallNotificationService {
     });
 
     await _plugin.initialize(
-      settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@drawable/ic_stat_zuno_mark'),
+      settings: InitializationSettings(
+        android: const AndroidInitializationSettings(
+          '@drawable/ic_stat_zuno_mark',
+        ),
         iOS: DarwinInitializationSettings(
           requestAlertPermission: false,
           requestSoundPermission: false,
           requestBadgePermission: false,
+          notificationCategories: _messageCategories,
         ),
       ),
       onDidReceiveNotificationResponse: _handleResponse,
@@ -245,6 +248,27 @@ class CallNotificationService {
       await android?.deleteNotificationChannel(channelId: channelId);
     }
   }
+
+  static const _markReadCategoryId = 'message';
+  static const _replyOnlyCategoryId = 'reply';
+
+  static final _replyAction = DarwinNotificationAction.text(
+    'reply',
+    'Reply',
+    buttonTitle: 'Send',
+    placeholder: 'Message',
+  );
+
+  static final _messageCategories = [
+    DarwinNotificationCategory(
+      _markReadCategoryId,
+      actions: [
+        _replyAction,
+        DarwinNotificationAction.plain('mark_read', 'Mark as read'),
+      ],
+    ),
+    DarwinNotificationCategory(_replyOnlyCategoryId, actions: [_replyAction]),
+  ];
 
   static const _retiredChannelIds = [
     'messages',
@@ -569,11 +593,15 @@ class CallNotificationService {
 
   Future<List<ActiveNotification>> _activeNotifications() async {
     try {
-      return await _android?.getActiveNotifications() ?? const [];
+      return await _plugin.getActiveNotifications();
     } catch (_) {
       return const [];
     }
   }
+
+  bool _isMessageNotification(ActiveNotification notification) =>
+      _messageChannelIds.contains(notification.channelId) ||
+      _decodePayload(notification.payload)?['type'] == 'message';
 
   Future<void> _postThread(
     NotificationThread thread, {
@@ -618,6 +646,7 @@ class CallNotificationService {
         ),
     ];
     final when = latestLine?.timestamp.millisecondsSinceEpoch;
+    final interrupts = !quiet && alert != MessageAlert.silentUpdate;
     await _plugin.show(
       id: messageNotificationIdFor(roomId),
       title: thread.title,
@@ -661,6 +690,18 @@ class CallNotificationService {
           when: when,
           showWhen: when != null,
           actions: actions.isEmpty ? null : actions,
+        ),
+        iOS: DarwinNotificationDetails(
+          threadIdentifier: roomId,
+          categoryIdentifier: switch ((includeMessageActions, eventId)) {
+            (false, _) => null,
+            (true, null) => _replyOnlyCategoryId,
+            (true, _) => _markReadCategoryId,
+          },
+          presentSound: interrupts && alert == MessageAlert.tone,
+          interruptionLevel: interrupts
+              ? InterruptionLevel.active
+              : InterruptionLevel.passive,
         ),
       ),
       payload: jsonEncode({
@@ -791,7 +832,7 @@ class CallNotificationService {
     for (final notification in await _activeNotifications()) {
       final id = notification.id;
       if (id == null) continue;
-      if (!_messageChannelIds.contains(notification.channelId)) continue;
+      if (!_isMessageNotification(notification)) continue;
       await _plugin.cancel(id: id);
     }
     final prefs = await _reloadedPrefs();

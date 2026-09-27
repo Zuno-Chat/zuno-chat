@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../settings/app_preferences_provider.dart';
+import 'apns_delivery_provider.dart';
 import 'delivery_auto_fallback.dart';
 import 'delivery_failure.dart';
 import 'fcm_delivery_provider.dart';
@@ -15,10 +16,12 @@ final deliveryFailureProvider = Provider<DeliveryFailure?>((ref) {
   void rebuild() => ref.invalidateSelf();
   fcmDeliveryProvider.status.addListener(rebuild);
   unifiedPushDeliveryProvider.status.addListener(rebuild);
+  apnsDeliveryProvider.status.addListener(rebuild);
   unifiedPushDeliveryProvider.distributorBatteryRestricted.addListener(rebuild);
   ref.onDispose(() {
     fcmDeliveryProvider.status.removeListener(rebuild);
     unifiedPushDeliveryProvider.status.removeListener(rebuild);
+    apnsDeliveryProvider.status.removeListener(rebuild);
     unifiedPushDeliveryProvider.distributorBatteryRestricted.removeListener(
       rebuild,
     );
@@ -28,6 +31,7 @@ final deliveryFailureProvider = Provider<DeliveryFailure?>((ref) {
     mode: mode,
     fcm: fcmDeliveryProvider.status.value,
     unifiedPush: unifiedPushDeliveryProvider.status.value,
+    apns: apnsDeliveryProvider.status.value,
     distributorBatteryRestricted:
         unifiedPushDeliveryProvider.distributorBatteryRestricted.value,
     distributor: unifiedPushDeliveryProvider.savedDistributor,

@@ -25,7 +25,7 @@ singleton per `NotificationDeliveryMode`:
 | `fcm` (Android default) | `FcmDeliveryProvider` | FCM via Sygnal on the homeserver |
 | `unifiedPush` | `UnifiedPushDeliveryProvider` | Whichever UnifiedPush distributor is installed; the system default distributor is preferred, then the first installed |
 | `backgroundService` | `BackgroundSyncDeliveryProvider` | Always-on `/sync` foreground service |
-| `apns` (iOS default) | `ApnsDeliveryProvider` | None yet: a no-op, the named seam for iOS push |
+| `apns` (iOS default) | `ApnsDeliveryProvider` | APNs via Sygnal; the token comes over `zuno/apns` (`getToken`) |
 
 **The platform decides which modes exist.** `capabilities.deliveryModes`
 (in picker order) and `defaultDeliveryMode` (`app-foundation.md`): android
@@ -35,6 +35,16 @@ offers apns only.
   default without rewriting storage.
 - `set()`/`autoSelect()` ignore a mode the platform doesn't offer, so
   nothing silently starts a dead transport.
+- **Apple push is gated by `apnsRegistration`**, false until the native
+  token handler exists: `start`/`registerNow` do nothing and the Delivery page
+  shows no status row. Ungated, a missing handler would read as a failed
+  registration with a Retry that can never work. `stop` touches only what was
+  stored, so stopping it on Android is safe.
+- **The iOS pusher's `default_payload`** is an alert "New message" with
+  `mutable-content: 1`, so it suits every ring path (plain alert, VoIP from
+  the server, or a decrypting extension). Only FCM keeps a recent-pushes log
+  (`deliveryLogsEachPush`): it is the one method where app code handles every
+  push.
 - `stopAllNotificationDelivery` still stops every enum value, offered or
   not. It runs *before* `Client.logout()`, which invalidates the token
   before firing `onLoginStateChanged`.
@@ -123,6 +133,16 @@ On iOS, `initialize()` passes `DarwinInitializationSettings` with every
 `request*Permission: false`. The plugin prompts at initialization by
 default, and without iOS settings it throws, stalling cold start before
 `runApp`. Onboarding's `Permission.notification.request()` is the only ask.
+
+iOS posts carry `DarwinNotificationDetails`: `threadIdentifier` is the room,
+and the category is `message` (Reply + Mark as read) or `reply` (no event
+to mark), registered at `initialize()` with the same action ids as Android,
+so one response handler serves both. Both actions run in the background.
+A tone plays only for `MessageAlert.tone`; quiet lines and thread updates are
+`passive`, so they reach the list without lighting the screen. Active
+notifications come from the base plugin: Android reports a `channelId`, iOS
+only the payload, so a message notification is either one
+(`_isMessageNotification`).
 
 **Channels** are grouped; Dart creates its own at `initialize()`, native
 services through `NotificationChannels.ensure`, which also creates the group:

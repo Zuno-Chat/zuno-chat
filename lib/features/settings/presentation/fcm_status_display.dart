@@ -1,22 +1,22 @@
 import '../../../core/notifications/fcm_delivery_provider.dart';
 
-enum FcmStatusAction { none, register, retry, open }
+enum PushStatusAction { none, register, retry, open }
 
-FcmStatusAction fcmStatusAction(FcmStatus status) {
+PushStatusAction fcmStatusAction(FcmStatus status) {
   switch (status) {
     case FcmStatus.checkingPlayServices:
     case FcmStatus.registering:
     case FcmStatus.postingPusher:
     case FcmStatus.playServicesUnavailable:
-      return FcmStatusAction.none;
+      return PushStatusAction.none;
     case FcmStatus.idle:
-      return FcmStatusAction.register;
+      return PushStatusAction.register;
     case FcmStatus.tokenFailed:
     case FcmStatus.pusherFailed:
     case FcmStatus.playServicesUpdateRequired:
-      return FcmStatusAction.retry;
+      return PushStatusAction.retry;
     case FcmStatus.ready:
-      return FcmStatusAction.open;
+      return PushStatusAction.open;
   }
 }
 

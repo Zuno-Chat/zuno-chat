@@ -8,6 +8,15 @@ bool deliveryDependsOnBatteryExemption(NotificationDeliveryMode mode) {
   };
 }
 
+bool deliveryLogsEachPush(NotificationDeliveryMode mode) {
+  return switch (mode) {
+    NotificationDeliveryMode.fcm => true,
+    NotificationDeliveryMode.unifiedPush ||
+    NotificationDeliveryMode.backgroundService ||
+    NotificationDeliveryMode.apns => false,
+  };
+}
+
 extension NotificationDeliveryModeCopy on NotificationDeliveryMode {
   String get label => switch (this) {
     NotificationDeliveryMode.backgroundService => 'Background sync',

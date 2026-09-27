@@ -15,8 +15,6 @@ abstract class NotificationDeliveryProvider {
 
 final _backgroundSync = BackgroundSyncDeliveryProvider();
 
-final _apns = ApnsDeliveryProvider();
-
 final unifiedPushDeliveryProvider = UnifiedPushDeliveryProvider();
 
 void bindAppStateToPushDelivery({
@@ -48,7 +46,7 @@ NotificationDeliveryProvider notificationDeliveryProviderFor(
     NotificationDeliveryMode.backgroundService => _backgroundSync,
     NotificationDeliveryMode.unifiedPush => unifiedPushDeliveryProvider,
     NotificationDeliveryMode.fcm => fcmDeliveryProvider,
-    NotificationDeliveryMode.apns => _apns,
+    NotificationDeliveryMode.apns => apnsDeliveryProvider,
   };
 }
 
@@ -62,8 +60,9 @@ Future<void> retryFailedDelivery(
         await fcmDeliveryProvider.retryIfFailed(client);
       case NotificationDeliveryMode.unifiedPush:
         await unifiedPushDeliveryProvider.retryIfFailed(client);
-      case NotificationDeliveryMode.backgroundService:
       case NotificationDeliveryMode.apns:
+        await apnsDeliveryProvider.retryIfFailed(client);
+      case NotificationDeliveryMode.backgroundService:
         break;
     }
   } catch (e) {
@@ -81,8 +80,9 @@ Future<void> recheckDelivery(
         await fcmDeliveryProvider.recheckRegistration(client);
       case NotificationDeliveryMode.unifiedPush:
         await unifiedPushDeliveryProvider.recheckRegistration(client);
-      case NotificationDeliveryMode.backgroundService:
       case NotificationDeliveryMode.apns:
+        await apnsDeliveryProvider.recheckRegistration(client);
+      case NotificationDeliveryMode.backgroundService:
         break;
     }
   } catch (e) {
@@ -100,8 +100,9 @@ Future<void> kickOffDeliveryMode(
         await unifiedPushDeliveryProvider.discoverDistributorsIfNeeded();
       case NotificationDeliveryMode.fcm:
         await fcmDeliveryProvider.registerNow(client);
-      case NotificationDeliveryMode.backgroundService:
       case NotificationDeliveryMode.apns:
+        await apnsDeliveryProvider.registerNow(client);
+      case NotificationDeliveryMode.backgroundService:
         break;
     }
   } catch (e) {

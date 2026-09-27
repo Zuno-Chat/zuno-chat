@@ -135,6 +135,8 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   `Platform`-checked:
   - Delivery method picker: lists `capabilities.deliveryModes`; with one
     mode it becomes a static row naming that mode.
+  - Apple push status row: `apnsRegistration`. It shares `_pushStatusRow`
+    (and `PushStatusAction`) with the FCM row.
   - Unrestricted battery usage: keeps its per-mode logic (each mode its
     own copy, none for `apns`) **and** requires `batteryExemption`. The
     per-mode and per-platform checks stay separate; neither implies the

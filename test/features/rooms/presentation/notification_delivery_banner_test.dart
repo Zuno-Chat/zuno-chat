@@ -1,9 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/delivery_failure.dart';
 import 'package:zuno/core/notifications/delivery_failure_provider.dart';
+import 'package:zuno/core/notifications/notification_delivery_mode.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/rooms/presentation/notification_delivery_banner.dart';
+
+import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/platform_capabilities.dart';
+
+class _PusherClient extends Client {
+  _PusherClient() : super('test', database: FakeDatabaseApi()) {
+    homeserver = Uri.parse('https://matrix.example.org');
+  }
+
+  final posted = <Pusher>[];
+
+  @override
+  Future<void> postPusher(Pusher pusher, {bool? append}) async =>
+      posted.add(pusher);
+
+  @override
+  Future<void> deletePusher(PusherId pusherId) async {}
+}
+
+class _ApplePushMode extends NotificationDeliveryModeNotifier {
+  @override
+  NotificationDeliveryMode build() => NotificationDeliveryMode.apns;
+}
 
 Widget _wrap(DeliveryFailure? failure) => ProviderScope(
   overrides: [deliveryFailureProvider.overrideWithValue(failure)],
@@ -96,5 +126,44 @@ void main() {
 
     expect(find.byType(TextButton), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
+  });
+
+  testWidgets('Retry on Apple push registers this device again', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    ambientCapabilities = capabilitiesLike(
+      iosCapabilities,
+      apnsRegistration: true,
+    );
+    final client = _PusherClient();
+    apnsDeliveryProvider
+      ..tokenReader = (() async => 'apns-token')
+      ..notificationsAllowed = (() async => true)
+      ..status.value = ApnsStatus.pusherFailed;
+    addTearDown(() => apnsDeliveryProvider.stop(client));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          deliveryFailureProvider.overrideWithValue(
+            const DeliveryFailure(
+              message: 'The server did not accept this device',
+              action: DeliveryFailureAction.retry,
+            ),
+          ),
+          notificationDeliveryModeProvider.overrideWith(_ApplePushMode.new),
+          matrixClientProvider.overrideWithValue(client),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: NotificationDeliveryBanner()),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Retry'));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+
+    expect(client.posted.map((p) => p.appId), ['im.zuno.chat.ios']);
   });
 }

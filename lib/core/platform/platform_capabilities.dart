@@ -29,6 +29,7 @@ class PlatformCapabilities {
   final bool uploadForegroundService;
   final bool networkAvailabilityEvents;
   final bool keyboardLearningOptOut;
+  final bool apnsRegistration;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
 
@@ -56,6 +57,7 @@ class PlatformCapabilities {
     required this.uploadForegroundService,
     required this.networkAvailabilityEvents,
     required this.keyboardLearningOptOut,
+    required this.apnsRegistration,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
   });
@@ -87,6 +89,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         uploadForegroundService: true,
         networkAvailabilityEvents: true,
         keyboardLearningOptOut: true,
+        apnsRegistration: false,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
           NotificationDeliveryMode.unifiedPush,
@@ -118,6 +121,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         uploadForegroundService: false,
         networkAvailabilityEvents: false,
         keyboardLearningOptOut: false,
+        apnsRegistration: false,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,
       ),

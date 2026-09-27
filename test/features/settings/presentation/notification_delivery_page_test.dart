@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -247,6 +248,57 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(BottomSheet), findsNothing);
+    });
+  });
+
+  group('Apple push status', () {
+    tearDown(() => apnsDeliveryProvider.status.value = ApnsStatus.idle);
+
+    testWidgets('has no row until the native token handler exists', (
+      tester,
+    ) async {
+      apnsDeliveryProvider.status.value = ApnsStatus.tokenFailed;
+
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: iosCapabilities,
+      );
+
+      expect(find.text('Status'), findsNothing);
+    });
+
+    testWidgets('a failed registration shows why, with Retry', (tester) async {
+      apnsDeliveryProvider.status.value = ApnsStatus.tokenFailed;
+
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: capabilitiesLike(iosCapabilities, apnsRegistration: true),
+      );
+
+      expect(find.text('Status'), findsOneWidget);
+      expect(
+        find.text('Could not set up notifications on this device'),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
+    });
+
+    testWidgets('a working registration leads to its details', (tester) async {
+      apnsDeliveryProvider.status.value = ApnsStatus.ready;
+
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: capabilitiesLike(iosCapabilities, apnsRegistration: true),
+      );
+
+      final row = tester.widget<ListTile>(
+        find.widgetWithText(ListTile, 'Status'),
+      );
+      expect(find.text('Active. Receiving notifications.'), findsOneWidget);
+      expect(row.onTap, isNotNull);
     });
   });
 

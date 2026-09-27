@@ -1,3 +1,4 @@
+import 'apns_pusher.dart';
 import 'fcm_pusher.dart';
 import 'unified_push_pusher.dart';
 
@@ -53,7 +54,7 @@ class PusherGroups {
   const PusherGroups({required this.currentSession, required this.others});
 }
 
-const zunoPusherAppIds = {unifiedPushAppId, fcmAppId};
+const zunoPusherAppIds = {unifiedPushAppId, fcmAppId, apnsAppId};
 
 bool _isCurrentDevice(PusherInfo pusher, String? currentPushkey) =>
     currentPushkey != null &&

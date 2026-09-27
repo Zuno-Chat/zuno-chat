@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/notifications/apns_delivery_provider.dart';
 import '../../../core/notifications/background_sync_service.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
@@ -15,6 +16,7 @@ import '../../../core/push/unified_push_distributor_names.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import 'apns_status_display.dart';
 import 'fcm_status_display.dart';
 import 'push_target_status_page.dart';
 import 'unified_push_status_display.dart';
@@ -125,6 +127,11 @@ class _NotificationDeliveryPageState
   void _registerFcm() {
     final client = ref.read(matrixClientProvider);
     unawaited(fcmDeliveryProvider.registerNow(client));
+  }
+
+  void _registerApns() {
+    final client = ref.read(matrixClientProvider);
+    unawaited(apnsDeliveryProvider.registerNow(client));
   }
 
   void _openPushTargetStatus() {
@@ -257,38 +264,58 @@ class _NotificationDeliveryPageState
         return [
           ValueListenableBuilder<FcmStatus>(
             valueListenable: fcmDeliveryProvider.status,
-            builder: (context, fcmStatus, _) {
-              final busy = fcmStatusIsBusy(fcmStatus);
-              final action = fcmStatusAction(fcmStatus);
-              return ListTile(
-                leading: busy
-                    ? _statusSpinner
-                    : Icon(_fcmStatusIcon(fcmStatus)),
-                title: const Text('Status'),
-                subtitle: Text(fcmStatusLabel(fcmStatus)),
-                onTap: action == FcmStatusAction.open
-                    ? _openPushTargetStatus
-                    : null,
-                trailing: switch (action) {
-                  FcmStatusAction.none => null,
-                  FcmStatusAction.register => TextButton(
-                    onPressed: busy ? null : _registerFcm,
-                    child: const Text('Register'),
-                  ),
-                  FcmStatusAction.retry => TextButton(
-                    onPressed: busy ? null : _registerFcm,
-                    child: const Text('Retry'),
-                  ),
-                  FcmStatusAction.open => const Icon(Icons.chevron_right),
-                },
-              );
-            },
+            builder: (context, fcmStatus, _) => _pushStatusRow(
+              busy: fcmStatusIsBusy(fcmStatus),
+              action: fcmStatusAction(fcmStatus),
+              icon: _fcmStatusIcon(fcmStatus),
+              label: fcmStatusLabel(fcmStatus),
+              register: _registerFcm,
+            ),
           ),
           ..._batteryExemptionRows(mode, capabilities),
         ];
       case NotificationDeliveryMode.apns:
-        return const [];
+        if (!capabilities.apnsRegistration) return const [];
+        return [
+          ValueListenableBuilder<ApnsStatus>(
+            valueListenable: apnsDeliveryProvider.status,
+            builder: (context, apnsStatus, _) => _pushStatusRow(
+              busy: apnsStatusIsBusy(apnsStatus),
+              action: apnsStatusAction(apnsStatus),
+              icon: _apnsStatusIcon(apnsStatus),
+              label: apnsStatusLabel(apnsStatus),
+              register: _registerApns,
+            ),
+          ),
+        ];
     }
+  }
+
+  Widget _pushStatusRow({
+    required bool busy,
+    required PushStatusAction action,
+    required IconData icon,
+    required String label,
+    required VoidCallback register,
+  }) {
+    return ListTile(
+      leading: busy ? _statusSpinner : Icon(icon),
+      title: const Text('Status'),
+      subtitle: Text(label),
+      onTap: action == PushStatusAction.open ? _openPushTargetStatus : null,
+      trailing: switch (action) {
+        PushStatusAction.none => null,
+        PushStatusAction.register => TextButton(
+          onPressed: busy ? null : register,
+          child: const Text('Register'),
+        ),
+        PushStatusAction.retry => TextButton(
+          onPressed: busy ? null : register,
+          child: const Text('Retry'),
+        ),
+        PushStatusAction.open => const Icon(Icons.chevron_right),
+      },
+    );
   }
 
   List<Widget> _batteryExemptionRows(
@@ -424,6 +451,13 @@ IconData _fcmStatusIcon(FcmStatus status) {
       return Icons.error_outline;
   }
 }
+
+IconData _apnsStatusIcon(ApnsStatus status) => switch (status) {
+  ApnsStatus.idle => Icons.pause_circle_outline,
+  ApnsStatus.registering || ApnsStatus.postingPusher => Icons.sync_outlined,
+  ApnsStatus.ready => Icons.check_circle_outline,
+  ApnsStatus.tokenFailed || ApnsStatus.pusherFailed => Icons.error_outline,
+};
 
 IconData _unifiedPushStatusIcon(UnifiedPushStatus status) {
   switch (status) {

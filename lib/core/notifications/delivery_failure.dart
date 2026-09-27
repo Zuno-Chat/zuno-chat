@@ -1,4 +1,5 @@
 import '../push/unified_push_distributor_names.dart';
+import 'apns_delivery_provider.dart';
 import 'fcm_delivery_provider.dart';
 import 'notification_delivery_mode.dart';
 import 'unified_push_delivery_provider.dart';
@@ -39,6 +40,7 @@ DeliveryFailure? notificationDeliveryFailure({
   required NotificationDeliveryMode mode,
   required FcmStatus fcm,
   required UnifiedPushStatus unifiedPush,
+  required ApnsStatus apns,
   bool distributorBatteryRestricted = false,
   String? distributor,
   NotificationDeliveryMode? autoSelected,
@@ -52,8 +54,8 @@ DeliveryFailure? notificationDeliveryFailure({
             restricted: distributorBatteryRestricted,
             distributor: distributor,
           ),
-    NotificationDeliveryMode.backgroundService ||
-    NotificationDeliveryMode.apns => null,
+    NotificationDeliveryMode.apns => _apnsFailure(apns),
+    NotificationDeliveryMode.backgroundService => null,
   };
   if (failure != null) return failure;
   if (autoSelected != null && autoSelected == mode) {
@@ -103,6 +105,23 @@ DeliveryFailure? _fcmFailure(FcmStatus status) {
       action: DeliveryFailureAction.retry,
     ),
     FcmStatus.pusherFailed => const DeliveryFailure(
+      message: 'The server did not accept this device',
+      action: DeliveryFailureAction.retry,
+    ),
+  };
+}
+
+DeliveryFailure? _apnsFailure(ApnsStatus status) {
+  return switch (status) {
+    ApnsStatus.idle ||
+    ApnsStatus.registering ||
+    ApnsStatus.postingPusher ||
+    ApnsStatus.ready => null,
+    ApnsStatus.tokenFailed => const DeliveryFailure(
+      message: 'Could not set up notifications on this device',
+      action: DeliveryFailureAction.retry,
+    ),
+    ApnsStatus.pusherFailed => const DeliveryFailure(
       message: 'The server did not accept this device',
       action: DeliveryFailureAction.retry,
     ),

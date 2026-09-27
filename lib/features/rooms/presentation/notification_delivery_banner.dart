@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/notifications/apns_delivery_provider.dart';
 import '../../../core/notifications/background_sync_service.dart';
 import '../../../core/notifications/delivery_auto_fallback.dart';
 import '../../../core/notifications/delivery_failure.dart';
@@ -52,8 +53,9 @@ class NotificationDeliveryBanner extends ConsumerWidget {
             await fcmDeliveryProvider.registerNow(client);
           case NotificationDeliveryMode.unifiedPush:
             await unifiedPushDeliveryProvider.registerNow(client);
-          case NotificationDeliveryMode.backgroundService:
           case NotificationDeliveryMode.apns:
+            await apnsDeliveryProvider.registerNow(client);
+          case NotificationDeliveryMode.backgroundService:
             break;
         }
     }

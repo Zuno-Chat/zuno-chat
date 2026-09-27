@@ -16,6 +16,7 @@ PlatformCapabilities capabilitiesLike(
   bool? lockScreenCallUi,
   bool? nativeRingbackTone,
   bool? callForegroundService,
+  bool? apnsRegistration,
   List<NotificationDeliveryMode>? deliveryModes,
   NotificationDeliveryMode? defaultDeliveryMode,
 }) => PlatformCapabilities(
@@ -43,6 +44,7 @@ PlatformCapabilities capabilitiesLike(
   uploadForegroundService: base.uploadForegroundService,
   networkAvailabilityEvents: base.networkAvailabilityEvents,
   keyboardLearningOptOut: base.keyboardLearningOptOut,
+  apnsRegistration: apnsRegistration ?? base.apnsRegistration,
   deliveryModes: deliveryModes ?? base.deliveryModes,
   defaultDeliveryMode: defaultDeliveryMode ?? base.defaultDeliveryMode,
 );

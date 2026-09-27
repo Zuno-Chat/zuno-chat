@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/delivery_failure.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
@@ -8,6 +9,7 @@ DeliveryFailure? failureFor(
   NotificationDeliveryMode mode, {
   FcmStatus fcm = FcmStatus.idle,
   UnifiedPushStatus unifiedPush = UnifiedPushStatus.idle,
+  ApnsStatus apns = ApnsStatus.idle,
   bool distributorBatteryRestricted = false,
   String? distributor,
   NotificationDeliveryMode? autoSelected,
@@ -15,6 +17,7 @@ DeliveryFailure? failureFor(
   mode: mode,
   fcm: fcm,
   unifiedPush: unifiedPush,
+  apns: apns,
   distributorBatteryRestricted: distributorBatteryRestricted,
   distributor: distributor,
   autoSelected: autoSelected,
@@ -194,24 +197,74 @@ void main() {
         isNull,
       );
     });
+
+    test('a token Apple would not hand out offers a retry', () {
+      final failure = failureFor(
+        NotificationDeliveryMode.apns,
+        apns: ApnsStatus.tokenFailed,
+      );
+      expect(failure?.message, 'Could not set up notifications on this device');
+      expect(failure?.action, DeliveryFailureAction.retry);
+    });
+
+    test('a registration the server refused offers a retry', () {
+      final failure = failureFor(
+        NotificationDeliveryMode.apns,
+        apns: ApnsStatus.pusherFailed,
+      );
+      expect(failure?.message, 'The server did not accept this device');
+      expect(failure?.action, DeliveryFailureAction.retry);
+    });
+
+    test('in-progress and working states show nothing', () {
+      for (final apns in [
+        ApnsStatus.idle,
+        ApnsStatus.registering,
+        ApnsStatus.postingPusher,
+        ApnsStatus.ready,
+      ]) {
+        expect(
+          failureFor(NotificationDeliveryMode.apns, apns: apns),
+          isNull,
+          reason: '$apns',
+        );
+      }
+    });
+
+    test('a failed Apple push never shows while another method is in use', () {
+      for (final mode in [
+        NotificationDeliveryMode.fcm,
+        NotificationDeliveryMode.unifiedPush,
+        NotificationDeliveryMode.backgroundService,
+      ]) {
+        expect(
+          failureFor(mode, apns: ApnsStatus.pusherFailed),
+          isNull,
+          reason: '$mode',
+        );
+      }
+    });
   });
 
   test('every failure carries a message and exactly one action', () {
     for (final mode in NotificationDeliveryMode.values) {
       for (final fcm in FcmStatus.values) {
         for (final up in UnifiedPushStatus.values) {
-          final failure = notificationDeliveryFailure(
-            mode: mode,
-            fcm: fcm,
-            unifiedPush: up,
-          );
-          if (failure == null) continue;
-          expect(failure.message, isNotEmpty, reason: '$mode/$fcm/$up');
-          expect(
-            deliveryFailureActionLabel(failure.action),
-            isNotEmpty,
-            reason: '$mode/$fcm/$up',
-          );
+          for (final apns in ApnsStatus.values) {
+            final failure = notificationDeliveryFailure(
+              mode: mode,
+              fcm: fcm,
+              unifiedPush: up,
+              apns: apns,
+            );
+            if (failure == null) continue;
+            expect(failure.message, isNotEmpty, reason: '$mode/$fcm/$up/$apns');
+            expect(
+              deliveryFailureActionLabel(failure.action),
+              isNotEmpty,
+              reason: '$mode/$fcm/$up/$apns',
+            );
+          }
         }
       }
     }
