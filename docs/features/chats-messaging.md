@@ -470,6 +470,12 @@ sheet (additive, would reuse the pinned-shortcut code).
   window filters down to fewer visible events than fill the screen has
   nothing to scroll, so a scroll-triggered-only pagination listener never
   fires. Trigger on load and on every timeline update too.
+- **A failed history request re-triggers itself**: `requestHistory` fires
+  `onUpdate` in a `finally`, success or not, and the update trigger above
+  asks again — offline, a tight loop and a flickering spinner. A failure
+  latches history off (`_historyStalled`) until reconnect
+  (`_retryAfterReconnect`) or the next successful sync, and none is asked
+  while `isOfflineProvider` reads offline.
 - **Rebuild storms from `onRoomState`**: the SDK's pagination pass touches
   `room.setState(dbUser)` once per not-yet-resolved sender, which can be
   dozens of events per pagination round in a multi-sender backlog room.

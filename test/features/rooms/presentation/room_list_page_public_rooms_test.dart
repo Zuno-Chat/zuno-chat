@@ -24,6 +24,7 @@ import '../../../helpers/public_rooms_fixture.dart';
 void main() {
   late Client client;
   late List<http.Request> requests;
+  late bool offline;
 
   Iterable<http.Request> directoryRequests() =>
       requests.where((r) => r.url.pathSegments.last == 'publicRooms');
@@ -51,11 +52,18 @@ void main() {
     });
 
     requests = [];
+    offline = false;
     client = Client(
       'test',
       database: TimelineCapableFakeDatabaseApi(),
       httpClient: MockClient((request) async {
         requests.add(request);
+        if (offline) {
+          throw http.ClientException(
+            'Failed host lookup: example.org',
+            request.url,
+          );
+        }
         final segments = request.url.pathSegments;
         if (segments.last == 'publicRooms') {
           final body = request.body.isEmpty
@@ -256,6 +264,66 @@ void main() {
 
     expect(joinRequests(), isEmpty);
     expect(find.byType(RoomPage), findsOneWidget);
+  });
+
+  testWidgets('a new room while offline says the room was not created', (
+    tester,
+  ) async {
+    await openNewRoomDialog(tester);
+    offline = true;
+
+    await tester.enterText(find.byType(TextField), 'Book club');
+    await tester.tap(find.text('Create'));
+    await settle(tester);
+
+    expect(
+      find.text(
+        'Could not create the room. Check your connection and try again.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Exception'), findsNothing);
+  });
+
+  testWidgets('a new chat while offline says the chat was not started', (
+    tester,
+  ) async {
+    await pumpRoomList(tester);
+    await openNewChatMenu(tester);
+    await tester.tap(find.text('New chat'));
+    await tester.pumpAndSettle();
+    offline = true;
+
+    await tester.enterText(find.byType(TextField), 'bob');
+    await tester.tap(find.text('Start'));
+    await settle(tester);
+
+    expect(
+      find.text(
+        'Could not start the chat. Check your connection and try again.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Exception'), findsNothing);
+  });
+
+  testWidgets('joining a public room while offline says it was not joined', (
+    tester,
+  ) async {
+    await pumpRoomList(tester);
+    await openPublicRooms(tester);
+    offline = true;
+
+    await tester.tap(find.text('Gardening'));
+    await settle(tester);
+
+    expect(
+      find.text(
+        'Could not join the room. Check your connection and try again.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Exception'), findsNothing);
   });
 
   testWidgets('Join room by id is greyed out', (tester) async {

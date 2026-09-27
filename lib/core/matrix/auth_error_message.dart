@@ -1,10 +1,8 @@
-import 'dart:async' show TimeoutException;
-import 'dart:io' show SocketException, TlsException;
 import 'dart:math' as math;
 
-import 'package:http/http.dart' show ClientException;
 import 'package:matrix/matrix.dart';
 
+import '../errors/connection_error.dart';
 import 'registration_code_request.dart';
 import 'registration_support.dart';
 
@@ -83,10 +81,7 @@ String _rateLimitMessage(MatrixException error) {
 }
 
 String? _networkErrorMessage(Object error) {
-  if (error is SocketException ||
-      error is TlsException ||
-      error is TimeoutException ||
-      error is ClientException) {
+  if (isConnectionError(error)) {
     return 'Cannot connect. Check your connection and try again.';
   }
   return null;

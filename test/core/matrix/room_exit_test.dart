@@ -17,10 +17,13 @@ class _ForgettableDatabase extends FakeDatabaseApi {
 void main() {
   late List<String> requests;
 
-  Client exitClient({int forgetStatus = 200}) {
+  Client exitClient({int forgetStatus = 200, bool offline = false}) {
     requests = [];
     final httpClient = MockClient((request) async {
       requests.add('${request.method} ${request.url.path}');
+      if (offline) {
+        throw http.ClientException('Failed host lookup', request.url);
+      }
       if (request.url.path.endsWith('/forget')) {
         return http.Response(
           forgetStatus == 200
@@ -139,6 +142,47 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(leaveRequests(), hasLength(1));
+    });
+
+    testWidgets('leaving while offline says the room was not left', (
+      tester,
+    ) async {
+      await tapExit(tester, joinedRoom(exitClient(offline: true)));
+
+      await tester.tap(find.widgetWithText(TextButton, 'Leave'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Could not leave the room. Check your connection and try again.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Exception'), findsNothing);
+    });
+
+    testWidgets('deleting a chat while offline says it was not deleted', (
+      tester,
+    ) async {
+      final room = joinedRoom(exitClient(offline: true));
+      room.client.accountData['m.direct'] = BasicEvent(
+        type: 'm.direct',
+        content: {
+          '@bob:example.org': [room.id],
+        },
+      );
+      await tapExit(tester, room);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Could not delete the chat. Check your connection and try again.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Exception'), findsNothing);
     });
 
     testWidgets('a direct chat is prompted as a deletion', (tester) async {

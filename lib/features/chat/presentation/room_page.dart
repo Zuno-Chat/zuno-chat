@@ -111,6 +111,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
   _roomStateSub;
   bool _roomStateRebuildPending = false;
   String? _lastMarkedReadEventId;
+  bool _historyStalled = false;
 
   final _pendingSend = ValueNotifier<PendingAttachmentSend?>(null);
   late var _replyTargets = ReplyTargetCache(widget.room.getEventById);
@@ -167,6 +168,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     unawaited(_loadTimeline());
     _syncSub = widget.room.client.onSync.stream.listen((update) {
       if (!mounted) return;
+      if (_historyStalled) _resumeHistory();
       if (_activeCallBannerShown || syncTouchesRoom(update, widget.room.id)) {
         setState(() {});
       }
@@ -473,12 +475,27 @@ class _RoomPageState extends ConsumerState<RoomPage>
   }
 
   void _maybeLoadMoreHistory() {
+    if (!mounted || _historyStalled) return;
     final timeline = _timeline;
     if (timeline == null || !timeline.canRequestHistory) return;
     if (!_scrollController.hasClients) return;
     final position = _scrollController.position;
     if (position.pixels < position.maxScrollExtent - 400) return;
-    unawaited(runBestEffort(timeline.requestHistory, label: 'requestHistory'));
+    if (ref.read(isOfflineProvider).value ?? false) return;
+    unawaited(_requestHistory(timeline));
+  }
+
+  Future<void> _requestHistory(Timeline timeline) async {
+    final ok = await runBestEffort(
+      timeline.requestHistory,
+      label: 'requestHistory',
+    );
+    if (!ok) _historyStalled = true;
+  }
+
+  void _resumeHistory() {
+    _historyStalled = false;
+    _maybeLoadMoreHistory();
   }
 
   static const _scrollToBottomThreshold = 300.0;
@@ -1232,6 +1249,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   void _retryAfterReconnect() {
     _markLatestRead();
+    _resumeHistory();
     for (final failed in List<FailedMediaSend>.of(_failedSends)) {
       unawaited(_retryFailedSend(failed));
     }

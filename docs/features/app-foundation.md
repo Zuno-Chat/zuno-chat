@@ -232,7 +232,7 @@ as the underlying problem does. This app's own core Matrix traffic
 (sync, sending) is left ungated while offline — the SDK already queues
 and retries it, and blocking it would be a regression. What's gated
 instead is non-essential, doomed-while-offline work: link-preview image
-fetches and starting a new call.
+fetches, room history requests and starting a new call.
 
 ## Key Design Decisions
 - **Single `Client`, no repository layer** — SDK types are the app
@@ -497,6 +497,9 @@ the ring case, so it was not done.
   to do) and never the exception text. The exception goes to
   `logCaught(label, e)` (`core/errors/best_effort.dart`) so logcat keeps
   it. `runBestEffort` stays the tool for failures the user never sees.
+  `isConnectionError` (`core/errors/connection_error.dart`) is the one test
+  for a network failure; `failureMessage(e, failed:)` turns it into
+  "<what failed> Check your connection and try again."
 - Global, no-context UI hooks (SnackBar, navigation) go through the
   existing global keys (`globalScaffoldMessengerKey`,
   `globalNavigatorKey`, both wired on `MaterialApp` in `app.dart`)

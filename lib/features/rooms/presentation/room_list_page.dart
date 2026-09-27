@@ -18,6 +18,7 @@ import '../../../core/calls/notifications/ring_notification.dart';
 import '../../../core/calls/notifications/ringing_call_provider.dart';
 import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/connection_error.dart';
 import '../../../core/errors/global_error_handler.dart';
 import '../../../core/matrix/force_sync.dart';
 import '../../../core/matrix/local_room_dialog.dart';
@@ -143,6 +144,7 @@ class RoomListPage extends ConsumerWidget {
       context,
       client,
       () => client.startDirectChat(userId, enableEncryption: true),
+      failed: 'Could not start the chat.',
     );
   }
 
@@ -156,6 +158,7 @@ class RoomListPage extends ConsumerWidget {
       context,
       client,
       () => createGroupRoom(client, name: newRoom.name, access: newRoom.access),
+      failed: 'Could not create the room.',
     );
   }
 
@@ -168,20 +171,27 @@ class RoomListPage extends ConsumerWidget {
       context,
       client,
       () async => alreadyJoined ? roomId : client.joinRoom(roomId),
+      failed: 'Could not join the room.',
     );
   }
 
   Future<void> _joinRoom(BuildContext context, Client client) async {
     final roomId = await showLocalRoomDialog(context, client: client);
     if (roomId == null || !context.mounted) return;
-    await _createAndOpen(context, client, () => client.joinRoom(roomId));
+    await _createAndOpen(
+      context,
+      client,
+      () => client.joinRoom(roomId),
+      failed: 'Could not join the room.',
+    );
   }
 
   Future<void> _createAndOpen(
     BuildContext context,
     Client client,
-    Future<String> Function() action,
-  ) async {
+    Future<String> Function() action, {
+    required String failed,
+  }) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final roomId = await action();
@@ -191,7 +201,9 @@ class RoomListPage extends ConsumerWidget {
             .push(MaterialPageRoute(builder: (_) => RoomPage(room: room)));
       }
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+      messenger.showSnackBar(
+        SnackBar(content: Text(failureMessage(e, failed: failed))),
+      );
     }
   }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../errors/connection_error.dart';
+
 Future<void> exitRoom(Room room, {required bool isDirect}) async {
   if (room.membership != Membership.leave) await room.leave();
   if (!isDirect) return;
@@ -50,7 +52,12 @@ Future<bool> confirmAndExitRoom(BuildContext context, Room room) async {
     await exitRoom(room, isDirect: isDirect);
     return true;
   } catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+    final failed = isDirect
+        ? 'Could not delete the chat.'
+        : 'Could not leave the room.';
+    messenger.showSnackBar(
+      SnackBar(content: Text(failureMessage(e, failed: failed))),
+    );
     return false;
   }
 }
