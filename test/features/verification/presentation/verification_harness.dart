@@ -106,6 +106,12 @@ class FakeKeyVerification extends Fake implements KeyVerification {
   }
 
   @override
+  Future<void> acceptVerification() => _send('acceptVerification');
+
+  @override
+  Future<void> rejectVerification() => _send('rejectVerification');
+
+  @override
   Future<void> acceptSas() => _send('acceptSas');
 
   @override

@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/features/room_info/presentation/room_settings_page.dart';
@@ -11,21 +14,57 @@ import 'package:zuno/features/room_info/presentation/room_settings_page.dart';
 import '../../../helpers/card_layout.dart';
 import '../../../helpers/fake_matrix.dart';
 
+class _FakeImagePicker extends ImagePickerPlatform {
+  final sources = <ImageSource>[];
+  XFile? answer;
+
+  @override
+  Future<XFile?> getImageFromSource({
+    required ImageSource source,
+    ImagePickerOptions options = const ImagePickerOptions(),
+  }) async {
+    sources.add(source);
+    return answer;
+  }
+}
+
+class _UploadingDatabaseApi extends FakeDatabaseApi {
+  @override
+  int get maxFileSize => 0;
+
+  @override
+  Future<({Map<String, Object?> content, DateTime savedAt})?>
+  getCustomCacheObject(String cacheKey) async =>
+      (content: const <String, Object?>{}, savedAt: DateTime.now());
+}
+
 void main() {
   late List<http.Request> requests;
   late Client client;
   late Room room;
+  late _FakeImagePicker picker;
+  http.Response? Function(http.Request request)? respond;
+  Completer<void>? gate;
 
   setUp(() {
     requests = [];
+    respond = null;
+    gate = null;
+    picker = _FakeImagePicker();
+    final original = ImagePickerPlatform.instance;
+    ImagePickerPlatform.instance = picker;
+    addTearDown(() => ImagePickerPlatform.instance = original);
     client = buildTestClient(
       userId: '@me:example.org',
+      database: _UploadingDatabaseApi(),
       httpClient: MockClient((request) async {
-        if (request.url.pathSegments.contains('media')) {
+        final custom = respond?.call(request);
+        if (custom == null && request.url.pathSegments.contains('media')) {
           return http.Response('', 404);
         }
         requests.add(request);
-        return http.Response(jsonEncode({'event_id': r'$evt'}), 200);
+        await gate?.future;
+        return custom ?? http.Response(jsonEncode({'event_id': r'$evt'}), 200);
       }),
     );
     client.baseUri = Uri.parse('https://example.org');
@@ -67,6 +106,14 @@ void main() {
       content: content,
     ),
   );
+
+  void setDirectChatWith(String userId) =>
+      client.accountData['m.direct'] = BasicEvent(
+        type: 'm.direct',
+        content: {
+          userId: [room.id],
+        },
+      );
 
   Future<void> pumpPage(WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(home: RoomSettingsPage(room: room)));
@@ -174,12 +221,7 @@ void main() {
 
   testWidgets('a direct chat has no access row', (tester) async {
     setOwnLevel(100);
-    client.accountData['m.direct'] = BasicEvent(
-      type: 'm.direct',
-      content: {
-        '@bob:example.org': [room.id],
-      },
-    );
+    setDirectChatWith('@bob:example.org');
     await pumpPage(tester);
 
     expect(find.text('Room access'), findsNothing);
@@ -187,16 +229,9 @@ void main() {
 
   testWidgets('the main address hides the server', (tester) async {
     setOwnLevel(100);
-    room.setState(
-      buildTestEvent(
-        room,
-        eventId: r'$alias',
-        senderId: '@creator:example.org',
-        type: EventTypes.RoomCanonicalAlias,
-        stateKey: '',
-        content: {'alias': '#chess:example.org'},
-      ),
-    );
+    setRoomState(EventTypes.RoomCanonicalAlias, {
+      'alias': '#chess:example.org',
+    });
     await pumpPage(tester);
 
     expect(find.text('#chess'), findsOneWidget);
@@ -292,5 +327,458 @@ void main() {
     expect(jsonDecode(requests.single.body), <String, Object?>{});
     expect(room.avatar, isNull);
     expect(find.text('Photo updated'), findsOneWidget);
+  });
+
+  Iterable<http.Request> writesOf(String type) =>
+      requests.where((r) => r.url.pathSegments.contains(type));
+
+  Object? bodyOf(http.Request request) => jsonDecode(request.body);
+
+  http.Response refused() =>
+      http.Response('{"errcode":"M_FORBIDDEN","error":"x"}', 403);
+
+  String? subtitleOf(WidgetTester tester, String title) =>
+      (tester.widget<ListTile>(find.widgetWithText(ListTile, title)).subtitle
+              as Text?)
+          ?.data;
+
+  Future<void> edit(WidgetTester tester, String row, String value) async {
+    await tester.tap(find.text(row));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), value);
+    await tester.tap(find.text('Save'));
+    await settle(tester);
+  }
+
+  group('the room name', () {
+    testWidgets('is saved trimmed and shown at once', (tester) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.RoomName, {'name': 'Chess'});
+      await pumpPage(tester);
+      expect(subtitleOf(tester, 'Room name'), 'Chess');
+
+      await edit(tester, 'Room name', '  Chess club  ');
+
+      expect(bodyOf(writesOf('m.room.name').single), {'name': 'Chess club'});
+      expect(subtitleOf(tester, 'Room name'), 'Chess club');
+      expect(find.text('Room name updated'), findsOneWidget);
+    });
+
+    testWidgets('Done on the keyboard saves too', (tester) async {
+      setOwnLevel(100);
+      await pumpPage(tester);
+      expect(subtitleOf(tester, 'Room name'), 'Not set');
+
+      await tester.tap(find.text('Room name'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Chess club');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await settle(tester);
+
+      expect(writesOf('m.room.name'), hasLength(1));
+    });
+
+    testWidgets('an unchanged name is not sent', (tester) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.RoomName, {'name': 'Chess'});
+      await pumpPage(tester);
+
+      await edit(tester, 'Room name', 'Chess');
+
+      expect(requests, isEmpty);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('the error clears as soon as the name is edited', (
+      tester,
+    ) async {
+      setOwnLevel(100);
+      await pumpPage(tester);
+
+      await edit(tester, 'Room name', 'Zuno');
+      expect(find.textContaining('cannot include Zuno'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'Chess');
+      await tester.pump();
+
+      expect(find.textContaining('cannot include Zuno'), findsNothing);
+    });
+
+    testWidgets('shows progress while saving and blocks a second edit', (
+      tester,
+    ) async {
+      setOwnLevel(100);
+      await pumpPage(tester);
+      gate = Completer<void>();
+
+      await tester.tap(find.text('Room name'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Chess club');
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      await tester.pump();
+
+      final row = find.widgetWithText(ListTile, 'Room name');
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<ListTile>(row).onTap, isNull);
+
+      gate!.complete();
+      await settle(tester);
+
+      expect(tester.widget<ListTile>(row).onTap, isNotNull);
+    });
+
+    testWidgets('a refused rename keeps the old name and says so', (
+      tester,
+    ) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.RoomName, {'name': 'Chess'});
+      respond = (r) => r.url.path.contains('m.room.name') ? refused() : null;
+      await pumpPage(tester);
+
+      await edit(tester, 'Room name', 'Chess club');
+
+      expect(find.text('Room name not saved. Try again.'), findsOneWidget);
+      expect(subtitleOf(tester, 'Room name'), 'Chess');
+    });
+  });
+
+  group('the topic', () {
+    testWidgets('is saved and shown at once', (tester) async {
+      setOwnLevel(100);
+      await pumpPage(tester);
+      expect(subtitleOf(tester, 'Topic'), 'Not set');
+
+      await edit(tester, 'Topic', 'Weekend hikes');
+
+      expect(
+        (bodyOf(writesOf('m.room.topic').single)! as Map)['topic'],
+        'Weekend hikes',
+      );
+      expect(subtitleOf(tester, 'Topic'), 'Weekend hikes');
+      expect(find.text('Topic updated'), findsOneWidget);
+    });
+
+    testWidgets('an unchanged topic is not sent', (tester) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.RoomTopic, {'topic': 'Weekend hikes'});
+      await pumpPage(tester);
+
+      await edit(tester, 'Topic', 'Weekend hikes');
+
+      expect(requests, isEmpty);
+    });
+
+    testWidgets('a refused topic says so', (tester) async {
+      setOwnLevel(100);
+      respond = (r) => r.url.path.contains('m.room.topic') ? refused() : null;
+      await pumpPage(tester);
+
+      await edit(tester, 'Topic', 'Weekend hikes');
+
+      expect(find.text('Topic not saved. Try again.'), findsOneWidget);
+      expect(subtitleOf(tester, 'Topic'), 'Not set');
+    });
+  });
+
+  group('the main address', () {
+    testWidgets('a new address is registered on this server first', (
+      tester,
+    ) async {
+      setOwnLevel(100);
+      respond = (r) => r.url.pathSegments.last == 'aliases'
+          ? http.Response(jsonEncode({'aliases': <String>[]}), 200)
+          : null;
+      await pumpPage(tester);
+      expect(subtitleOf(tester, 'Main address'), 'Not set');
+
+      await edit(tester, 'Main address', 'chess');
+
+      expect(requests.map((r) => (r.method, r.url.pathSegments.last)), [
+        ('GET', 'aliases'),
+        ('PUT', '#chess:example.org'),
+        ('PUT', ''),
+      ]);
+      expect(bodyOf(requests.last), {'alias': '#chess:example.org'});
+      expect(subtitleOf(tester, 'Main address'), '#chess');
+      expect(find.text('Main address updated'), findsOneWidget);
+    });
+
+    testWidgets('an address the server no longer has is still cleared', (
+      tester,
+    ) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.RoomCanonicalAlias, {
+        'alias': '#chess:example.org',
+      });
+      respond = (r) => r.method == 'DELETE'
+          ? http.Response('{"errcode":"M_NOT_FOUND","error":"x"}', 404)
+          : null;
+      await pumpPage(tester);
+
+      await edit(tester, 'Main address', '');
+
+      expect(writesOf('m.room.canonical_alias'), hasLength(1));
+      expect(subtitleOf(tester, 'Main address'), 'Not set');
+      expect(find.text('Main address updated'), findsOneWidget);
+    });
+
+    testWidgets('a refused removal keeps the address and says so', (
+      tester,
+    ) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.RoomCanonicalAlias, {
+        'alias': '#chess:example.org',
+      });
+      respond = (r) => r.method == 'DELETE' ? refused() : null;
+      await pumpPage(tester);
+
+      await edit(tester, 'Main address', '');
+
+      expect(writesOf('m.room.canonical_alias'), isEmpty);
+      expect(subtitleOf(tester, 'Main address'), '#chess');
+      expect(find.text('Main address not saved. Try again.'), findsOneWidget);
+    });
+
+    testWidgets('an unchanged address is not sent', (tester) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.RoomCanonicalAlias, {
+        'alias': '#chess:example.org',
+      });
+      await pumpPage(tester);
+
+      await edit(tester, 'Main address', 'chess');
+
+      expect(requests, isEmpty);
+    });
+  });
+
+  group('who can read history', () {
+    Future<void> openSheet(WidgetTester tester) async {
+      await tester.tap(find.text('Who can read history'));
+      await tester.pumpAndSettle();
+    }
+
+    Finder ticked(String label) => find.descendant(
+      of: find.widgetWithText(ListTile, label).last,
+      matching: find.byIcon(Icons.check_outlined),
+    );
+
+    testWidgets('lists every choice with the current one ticked', (
+      tester,
+    ) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.HistoryVisibility, {
+        'history_visibility': 'joined',
+      });
+      await pumpPage(tester);
+      expect(
+        subtitleOf(tester, 'Who can read history'),
+        'Members, from when they joined',
+      );
+
+      await openSheet(tester);
+
+      for (final label in [
+        'Anyone',
+        'Members, including history before they joined',
+        'Members, from when they were invited',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+        expect(ticked(label), findsNothing);
+      }
+      expect(ticked('Members, from when they joined'), findsOneWidget);
+    });
+
+    testWidgets('a new choice is saved and shown at once', (tester) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.HistoryVisibility, {
+        'history_visibility': 'joined',
+      });
+      await pumpPage(tester);
+
+      await openSheet(tester);
+      await tester.tap(find.text('Anyone'));
+      await settle(tester);
+
+      expect(bodyOf(writesOf('m.room.history_visibility').single), {
+        'history_visibility': 'world_readable',
+      });
+      expect(subtitleOf(tester, 'Who can read history'), 'Anyone');
+      expect(find.text('History setting updated'), findsOneWidget);
+    });
+
+    testWidgets('the current choice, or none, sends nothing', (tester) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.HistoryVisibility, {
+        'history_visibility': 'joined',
+      });
+      await pumpPage(tester);
+
+      await openSheet(tester);
+      await tester.tap(find.text('Members, from when they joined').last);
+      await settle(tester);
+      await openSheet(tester);
+      await tester.tapAt(const Offset(10, 10));
+      await settle(tester);
+
+      expect(requests, isEmpty);
+    });
+
+    testWidgets('a room without the setting shows the Matrix default', (
+      tester,
+    ) async {
+      setOwnLevel(100);
+      await pumpPage(tester);
+
+      expect(
+        subtitleOf(tester, 'Who can read history'),
+        'Members, including history before they joined',
+      );
+      await openSheet(tester);
+      expect(
+        ticked('Members, including history before they joined'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a refused change says so', (tester) async {
+      setOwnLevel(100);
+      respond = (r) =>
+          r.url.path.contains('m.room.history_visibility') ? refused() : null;
+      await pumpPage(tester);
+
+      await openSheet(tester);
+      await tester.tap(find.text('Anyone'));
+      await settle(tester);
+
+      expect(
+        find.text('History setting not saved. Try again.'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('the room photo', () {
+    Future<void> openSheet(WidgetTester tester) async {
+      await tester.tap(find.text('Room photo'));
+      await tester.pumpAndSettle();
+    }
+
+    XFile photo() => XFile.fromData(
+      img.encodeJpg(img.Image(width: 800, height: 400)),
+      path: 'IMG_0001.jpg',
+      mimeType: 'image/jpeg',
+    );
+
+    http.Response? uploads(http.Request r) =>
+        r.url.pathSegments.last == 'upload'
+        ? http.Response(
+            jsonEncode({'content_uri': 'mxc://example.org/new'}),
+            200,
+          )
+        : null;
+
+    testWidgets('without a photo there is nothing to remove', (tester) async {
+      setOwnLevel(100);
+      await pumpPage(tester);
+      await openSheet(tester);
+
+      expect(find.text('Take photo'), findsOneWidget);
+      expect(find.text('Choose from gallery'), findsOneWidget);
+      expect(find.text('Remove photo'), findsNothing);
+    });
+
+    testWidgets('a gallery photo is uploaded and set', (tester) async {
+      setOwnLevel(100);
+      picker.answer = photo();
+      respond = uploads;
+      await pumpPage(tester);
+      await openSheet(tester);
+
+      await tester.tap(find.text('Choose from gallery'));
+      await settle(tester);
+
+      expect(picker.sources, [ImageSource.gallery]);
+      expect(requests.first.url.pathSegments.last, 'upload');
+      expect(bodyOf(writesOf('m.room.avatar').single), {
+        'url': 'mxc://example.org/new',
+      });
+      expect(room.avatar, Uri.parse('mxc://example.org/new'));
+      expect(find.text('Photo updated'), findsOneWidget);
+    });
+
+    testWidgets('an abandoned camera shot sends nothing', (tester) async {
+      setOwnLevel(100);
+      await pumpPage(tester);
+      await openSheet(tester);
+
+      await tester.tap(find.text('Take photo'));
+      await settle(tester);
+
+      expect(picker.sources, [ImageSource.camera]);
+      expect(requests, isEmpty);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(
+        tester
+            .widget<ListTile>(find.widgetWithText(ListTile, 'Room photo'))
+            .onTap,
+        isNotNull,
+      );
+    });
+
+    testWidgets('a failed upload says the photo was not saved', (tester) async {
+      setOwnLevel(100);
+      picker.answer = photo();
+      respond = (r) => r.url.pathSegments.last == 'upload' ? refused() : null;
+      await pumpPage(tester);
+      await openSheet(tester);
+
+      await tester.tap(find.text('Choose from gallery'));
+      await settle(tester);
+
+      expect(writesOf('m.room.avatar'), isEmpty);
+      expect(find.text('Photo not saved. Try again.'), findsOneWidget);
+    });
+
+    testWidgets('a direct chat has no room photo', (tester) async {
+      setOwnLevel(100);
+      setDirectChatWith('@bob:example.org');
+      await pumpPage(tester);
+
+      expect(find.text('Room photo'), findsNothing);
+      expect(find.text('Room name'), findsOneWidget);
+    });
+  });
+
+  testWidgets('a member sees the settings but cannot open any', (tester) async {
+    setOwnLevel(0);
+    await pumpPage(tester);
+
+    for (final title in [
+      'Room photo',
+      'Room name',
+      'Topic',
+      'Main address',
+      'Who can read history',
+      'Room access',
+    ]) {
+      final row = find.widgetWithText(ListTile, title);
+      expect(tester.widget<ListTile>(row).onTap, isNull, reason: title);
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byIcon(Icons.chevron_right_outlined),
+        ),
+        findsNothing,
+        reason: title,
+      );
+    }
   });
 }

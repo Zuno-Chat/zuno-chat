@@ -1,23 +1,32 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/optimistic_room_state.dart';
 import 'package:zuno/core/matrix/room_media_feed.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/blocking/presentation/block_person.dart';
+import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/room_info/presentation/member_tile.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/matrix/room_exit.dart';
 import 'package:zuno/features/room_info/presentation/room_info_page.dart';
 import 'package:zuno/features/room_info/presentation/room_media_page.dart';
 import 'package:zuno/features/room_info/presentation/room_media_thumb.dart';
+import 'package:zuno/features/room_info/presentation/room_permissions_page.dart';
+import 'package:zuno/features/room_info/presentation/room_settings_page.dart';
 import 'package:zuno/features/room_info/presentation/room_topic.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -28,21 +37,58 @@ void main() {
   late List<http.Request> requests;
   var failMembers = false;
   var failPushRules = false;
+  String? refuseRequestsTo;
+  Completer<void>? gate;
+  RoomInfoResult? pageResult;
+
+  http.Response membersResponse() => http.Response(
+    jsonEncode({
+      'chunk': [
+        for (final member in room.getParticipants())
+          {
+            'type': EventTypes.RoomMember,
+            'event_id': '\$member-${member.id}',
+            'room_id': room.id,
+            'sender': member.id,
+            'state_key': member.id,
+            'origin_server_ts': 0,
+            'content': member.content,
+          },
+      ],
+    }),
+    200,
+  );
 
   setUp(() {
     requests = [];
     failMembers = false;
     failPushRules = false;
+    refuseRequestsTo = null;
+    gate = null;
+    pageResult = null;
     client = Client(
       'test',
       database: TimelineCapableFakeDatabaseApi(),
       httpClient: MockClient((request) async {
         requests.add(request);
+        await gate?.future;
+        final refusedSegment = refuseRequestsTo;
+        if (refusedSegment != null &&
+            request.url.pathSegments.contains(refusedSegment)) {
+          return http.Response('{"errcode":"M_FORBIDDEN","error":"x"}', 403);
+        }
         if (failPushRules && request.url.path.contains('/pushrules/')) {
           return http.Response('{"errcode":"M_UNKNOWN","error":"x"}', 500);
         }
-        if (failMembers && request.url.path.endsWith('/members')) {
-          return http.Response('{"errcode":"M_UNKNOWN","error":"x"}', 500);
+        if (request.url.path.endsWith('/members')) {
+          if (failMembers) {
+            return http.Response('{"errcode":"M_UNKNOWN","error":"x"}', 500);
+          }
+          return membersResponse();
+        }
+        if (request.method == 'PUT' &&
+            request.url.pathSegments.contains('state')) {
+          return http.Response(jsonEncode({'event_id': r'$state'}), 200);
         }
         return http.Response('{}', 200);
       }),
@@ -139,6 +185,7 @@ void main() {
     BlockPerson? blockPerson,
     void Function(CallKind kind)? onStartCall,
     int? joinedCount,
+    bool pushed = false,
   }) async {
     final members = room.getParticipants();
     room.summary.mJoinedMemberCount =
@@ -150,23 +197,49 @@ void main() {
     tester.view.physicalSize = const Size(1080, 6000);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        matrixClientProvider.overrideWithValue(client),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        for (final id in trustStubbedIds)
+          userTrustProvider(id).overrideWithValue(UserTrustState.unconfirmed),
+        roomMediaFeedProvider(room)
+            .overrideWithValue(mediaFeed ?? mediaFeedOf(const [])),
+      ],
+    );
+    addTearDown(container.dispose);
+    final page = RoomInfoPage(
+      room: room,
+      blockPerson: blockPerson,
+      onStartCall: onStartCall,
+    );
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          for (final id in trustStubbedIds)
-            userTrustProvider(id).overrideWithValue(UserTrustState.unconfirmed),
-          roomMediaFeedProvider(room)
-              .overrideWithValue(mediaFeed ?? mediaFeedOf(const [])),
-        ],
+      UncontrolledProviderScope(
+        container: container,
         child: MaterialApp(
-          home: RoomInfoPage(
-            room: room,
-            blockPerson: blockPerson,
-            onStartCall: onStartCall,
-          ),
+          home: pushed
+              ? Scaffold(
+                  body: Builder(
+                    builder: (context) => TextButton(
+                      onPressed: () async =>
+                          pageResult = await Navigator.of(context)
+                              .push<RoomInfoResult>(
+                                MaterialPageRoute(builder: (_) => page),
+                              ),
+                      child: const Text('open'),
+                    ),
+                  ),
+                )
+              : page,
         ),
       ),
     );
+    if (pushed) {
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
     await tester.pump();
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
@@ -824,5 +897,666 @@ void main() {
     );
     expect(find.byType(MemberTile), findsNWidgets(2));
     expect(find.text('Ann'), findsOneWidget);
+  });
+
+  Future<void> network(WidgetTester tester) async {
+    for (var i = 0; i < 4; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+  }
+
+  Iterable<http.Request> requestsTo(String segment) =>
+      requests.where((r) => r.url.pathSegments.contains(segment));
+
+  Finder memberTile(String userId) =>
+      find.byWidgetPredicate((w) => w is MemberTile && w.user.id == userId);
+
+  void seedAdminRoom({int ownLevel = 100, Map<String, int> others = const {}}) {
+    addMember('@owner:example.org', 'Olga');
+    addMember('@me:example.org', 'Me');
+    addMember('@ann:example.org', 'Ann');
+    setLevels({
+      '@owner:example.org': 100,
+      '@me:example.org': ownLevel,
+      ...others,
+    });
+  }
+
+  Future<void> openMember(WidgetTester tester, String name) async {
+    await tester.tap(find.text(name));
+    await tester.pumpAndSettle();
+  }
+
+  group('managing a member', () {
+    testWidgets('an admin gets every action for a member', (tester) async {
+      seedAdminRoom();
+      await pumpPage(tester);
+
+      await openMember(tester, 'Ann');
+
+      for (final action in [
+        'Start a chat',
+        'Change role',
+        'Remove from room',
+        'Ban from room',
+        'Block',
+        'Report',
+      ]) {
+        expect(find.text(action), findsOneWidget, reason: action);
+      }
+    });
+
+    testWidgets('you, the owner and invitees cannot be managed', (
+      tester,
+    ) async {
+      seedAdminRoom();
+      addMember('@new:example.org', 'New', membership: 'invite');
+      await pumpPage(tester);
+
+      for (final id in [
+        '@me:example.org',
+        '@owner:example.org',
+        '@new:example.org',
+      ]) {
+        expect(
+          tester.widget<MemberTile>(memberTile(id)).onTap,
+          id == '@owner:example.org' ? isNotNull : isNull,
+          reason: id,
+        );
+      }
+      await openMember(tester, 'Olga');
+      expect(find.text('Change role'), findsNothing);
+      expect(find.text('Remove from room'), findsNothing);
+      expect(find.text('Start a chat'), findsOneWidget);
+    });
+
+    testWidgets('an admin changes a role and it shows at once', (tester) async {
+      seedAdminRoom();
+      await pumpPage(tester);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Change role'));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.widgetWithText(ListTile, 'Member').last,
+          matching: find.byIcon(Icons.check_outlined),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Moderator').last);
+      await network(tester);
+
+      final sent =
+          jsonDecode(requestsTo('m.room.power_levels').single.body) as Map;
+      expect((sent['users'] as Map)['@ann:example.org'], 50);
+      expect(
+        find.descendant(
+          of: memberTile('@ann:example.org'),
+          matching: find.text('Moderator'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a moderator can only make someone a member or read-only', (
+      tester,
+    ) async {
+      seedAdminRoom(ownLevel: 50);
+      await pumpPage(tester);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Change role'));
+      await tester.pumpAndSettle();
+
+      final sheet = find.byType(BottomSheet).last;
+      expect(
+        tester
+            .widgetList<ListTile>(
+              find.descendant(of: sheet, matching: find.byType(ListTile)),
+            )
+            .map((tile) => (tile.title! as Text).data),
+        ['Member', 'Read-only'],
+      );
+    });
+
+    testWidgets('keeping the same role sends nothing', (tester) async {
+      seedAdminRoom();
+      await pumpPage(tester);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Change role'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Member').last);
+      await network(tester);
+
+      expect(requestsTo('m.room.power_levels'), isEmpty);
+    });
+
+    testWidgets('a refused role change says so', (tester) async {
+      seedAdminRoom();
+      refuseRequestsTo = 'm.room.power_levels';
+      await pumpPage(tester);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Change role'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Admin').last);
+      await network(tester);
+
+      expect(find.text('Role not changed. Try again.'), findsOneWidget);
+    });
+
+    testWidgets('removing asks first, then takes them off the list', (
+      tester,
+    ) async {
+      seedAdminRoom();
+      await pumpPage(tester);
+      expect(find.text('Members (3)'), findsOneWidget);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Remove from room'));
+      await tester.pumpAndSettle();
+      expect(find.text('Remove Ann?'), findsOneWidget);
+      expect(
+        find.text(
+          'They are removed from the room and can rejoin if invited again.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Remove'));
+      await network(tester);
+
+      expect(jsonDecode(requestsTo('kick').single.body), {
+        'user_id': '@ann:example.org',
+      });
+      expect(memberTile('@ann:example.org'), findsNothing);
+      expect(find.text('Members (2)'), findsOneWidget);
+    });
+
+    testWidgets('backing out of removal removes nobody', (tester) async {
+      seedAdminRoom();
+      await pumpPage(tester);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Remove from room'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await network(tester);
+
+      expect(requestsTo('kick'), isEmpty);
+      expect(memberTile('@ann:example.org'), findsOneWidget);
+    });
+
+    testWidgets('a refused removal keeps them and says so', (tester) async {
+      seedAdminRoom();
+      refuseRequestsTo = 'kick';
+      await pumpPage(tester);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Remove from room'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Remove'));
+      await network(tester);
+
+      expect(find.text('Not removed. Try again.'), findsOneWidget);
+      expect(memberTile('@ann:example.org'), findsOneWidget);
+    });
+
+    testWidgets('banning moves them to Banned, and Unban clears it', (
+      tester,
+    ) async {
+      seedAdminRoom();
+      await pumpPage(tester);
+      expect(find.text('Banned'), findsNothing);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Ban from room'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ban Ann?'), findsOneWidget);
+      expect(
+        find.text(
+          'They are removed from the room and cannot rejoin unless unbanned.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Ban'));
+      await network(tester);
+
+      expect(requestsTo('ban'), hasLength(1));
+      expect(memberTile('@ann:example.org'), findsNothing);
+      expect(find.text('Banned'), findsOneWidget);
+      expect(find.text('@ann'), findsOneWidget);
+
+      await tester.tap(find.text('Unban'));
+      await network(tester);
+
+      expect(jsonDecode(requestsTo('unban').single.body), {
+        'user_id': '@ann:example.org',
+      });
+      expect(find.text('Banned'), findsNothing);
+    });
+
+    testWidgets('a refused ban says so', (tester) async {
+      seedAdminRoom();
+      refuseRequestsTo = 'ban';
+      await pumpPage(tester);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Ban from room'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Ban'));
+      await network(tester);
+
+      expect(find.text('Not banned. Try again.'), findsOneWidget);
+      expect(find.text('Banned'), findsNothing);
+    });
+
+    testWidgets('a refused unban keeps them banned and says so', (
+      tester,
+    ) async {
+      seedAdminRoom();
+      addMember('@bad:example.org', 'Bad', membership: 'ban');
+      refuseRequestsTo = 'unban';
+      await pumpPage(tester);
+
+      await tester.tap(find.text('Unban'));
+      await network(tester);
+
+      expect(find.text('Not unbanned. Try again.'), findsOneWidget);
+      expect(find.text('Bad'), findsOneWidget);
+    });
+
+    testWidgets('only someone of lower rank can be unbanned', (tester) async {
+      seedAdminRoom(ownLevel: 50, others: {'@bad:example.org': 50});
+      addMember('@bad:example.org', 'Bad', membership: 'ban');
+      await pumpPage(tester);
+
+      expect(find.text('Banned'), findsOneWidget);
+      expect(find.text('Bad'), findsOneWidget);
+      expect(find.text('Unban'), findsNothing);
+    });
+
+    testWidgets('members cannot see who is banned', (tester) async {
+      seedAdminRoom(ownLevel: 0);
+      addMember('@bad:example.org', 'Bad', membership: 'ban');
+      await pumpPage(tester);
+
+      expect(find.text('Banned'), findsNothing);
+    });
+
+    testWidgets('someone picked from the full list gets the same actions', (
+      tester,
+    ) async {
+      seedCrowd();
+      addMember('@me:example.org', 'Me');
+      setLevels({'@owner:example.org': 100, '@me:example.org': 100});
+      await pumpPage(tester);
+
+      await tester.tap(find.text('View all members'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Zed'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Remove from room'), findsOneWidget);
+    });
+
+    testWidgets('closing the full list manages nobody', (tester) async {
+      seedCrowd();
+      await pumpPage(tester);
+
+      await tester.tap(find.text('View all members'));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start a chat'), findsNothing);
+    });
+
+    testWidgets('Start a chat opens the chat you already have with them', (
+      tester,
+    ) async {
+      FlutterLocalNotificationsPlatform.instance =
+          AndroidFlutterLocalNotificationsPlugin();
+      final messenger = tester.binding.defaultBinaryMessenger;
+      for (final channel in const [
+        MethodChannel('dexterous.com/flutter/local_notifications'),
+        MethodChannel('zuno/calls'),
+        MethodChannel('com.llfbandit.record/messages'),
+      ]) {
+        messenger.setMockMethodCallHandler(channel, (_) async => null);
+        addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      }
+      seedAdminRoom();
+      final chat = buildTestRoom(client, id: '!ann:example.org')
+        ..partial = false;
+      client.rooms.add(chat);
+      client.accountData['m.direct'] = BasicEvent(
+        type: 'm.direct',
+        content: {
+          '@ann:example.org': [chat.id],
+        },
+      );
+      await pumpPage(tester);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Start a chat'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      expect(requestsTo('createRoom'), isEmpty);
+      final page = tester.widget<RoomPage>(find.byType(RoomPage));
+      expect(page.room, chat);
+    });
+
+    testWidgets('a chat that cannot be started says so', (tester) async {
+      seedAdminRoom();
+      refuseRequestsTo = 'createRoom';
+      await pumpPage(tester);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Start a chat'));
+      await network(tester);
+
+      expect(requestsTo('createRoom'), hasLength(1));
+      expect(find.text('Could not start the chat. Try again.'), findsOneWidget);
+    });
+  });
+
+  group('inviting', () {
+    Future<void> invite(WidgetTester tester, String username) async {
+      await tester.tap(find.text('Invite'));
+      await tester.pumpAndSettle();
+      expect(find.text('Invite to room'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), username);
+      await tester.tap(find.widgetWithText(TextButton, 'Invite'));
+    }
+
+    testWidgets('sends the invitation and lists them as invited', (
+      tester,
+    ) async {
+      seedAdminRoom();
+      await pumpPage(tester);
+
+      await invite(tester, 'bob');
+      await network(tester);
+
+      expect(jsonDecode(requestsTo('invite').single.body), {
+        'user_id': '@bob:example.org',
+      });
+      expect(find.text('Invitation sent'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: memberTile('@bob:example.org'),
+          matching: find.text('Invited'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a refused invitation says so', (tester) async {
+      seedAdminRoom();
+      refuseRequestsTo = 'invite';
+      await pumpPage(tester);
+
+      await invite(tester, 'bob');
+      await network(tester);
+
+      expect(find.text('Invitation not sent. Try again.'), findsOneWidget);
+      expect(memberTile('@bob:example.org'), findsNothing);
+    });
+
+    testWidgets('cancelling sends nothing', (tester) async {
+      seedAdminRoom();
+      await pumpPage(tester);
+
+      await tester.tap(find.text('Invite'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await network(tester);
+
+      expect(requestsTo('invite'), isEmpty);
+    });
+
+    testWidgets('an invitation that lands after the page closed still counts '
+        'as sent', (tester) async {
+      seedAdminRoom();
+      await pumpPage(tester, pushed: true);
+
+      gate = Completer<void>();
+      await invite(tester, 'bob');
+      await tester.pump();
+      Navigator.of(tester.element(find.byType(RoomInfoPage))).pop();
+      await tester.pumpAndSettle();
+      gate!.complete();
+      await network(tester);
+
+      expect(find.text('Invitation sent'), findsOneWidget);
+      ScaffoldMessenger.of(tester.element(find.text('open')))
+          .removeCurrentSnackBar();
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsNothing);
+    });
+  });
+
+  group('encryption in a chat', () {
+    void seedPlainChat({int ownLevel = 100}) {
+      addMember('@owner:example.org', 'Olga');
+      addMember('@me:example.org', 'Me');
+      setLevels({'@owner:example.org': 100, '@me:example.org': ownLevel});
+      setDirectChatWith('@owner:example.org');
+    }
+
+    Future<void> enable(WidgetTester tester) async {
+      await tester.tap(find.text('Enable encryption'));
+      await tester.pumpAndSettle();
+      expect(find.text('Enable encryption?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Enable encryption'));
+      await network(tester);
+    }
+
+    testWidgets('can be turned on after a warning, and shows at once', (
+      tester,
+    ) async {
+      seedPlainChat();
+      await pumpPage(tester, trustStubbedIds: ['@owner:example.org']);
+      expect(find.text('Not encrypted'), findsOneWidget);
+
+      await enable(tester);
+
+      expect(jsonDecode(requestsTo('m.room.encryption').single.body), {
+        'algorithm': 'm.megolm.v1.aes-sha2',
+      });
+      expect(find.text('Not encrypted'), findsNothing);
+      expect(find.text('Enable encryption'), findsNothing);
+      expect(find.text('Encrypted'), findsOneWidget);
+    });
+
+    testWidgets('cancelling leaves it off', (tester) async {
+      seedPlainChat();
+      await pumpPage(tester);
+
+      await tester.tap(find.text('Enable encryption'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await network(tester);
+
+      expect(requestsTo('m.room.encryption'), isEmpty);
+      expect(find.text('Not encrypted'), findsOneWidget);
+    });
+
+    testWidgets('a refusal says so', (tester) async {
+      seedPlainChat();
+      refuseRequestsTo = 'm.room.encryption';
+      await pumpPage(tester);
+
+      await enable(tester);
+
+      expect(find.text('Encryption not enabled. Try again.'), findsOneWidget);
+      expect(find.text('Not encrypted'), findsOneWidget);
+    });
+
+    testWidgets('someone who may not change it is only told', (tester) async {
+      seedPlainChat(ownLevel: 0);
+      await pumpPage(tester);
+
+      expect(find.text('Not encrypted'), findsOneWidget);
+      expect(find.text('Enable encryption'), findsNothing);
+    });
+
+    testWidgets('an encrypted chat offers to confirm the other person', (
+      tester,
+    ) async {
+      seedPlainChat();
+      room.setState(
+        buildTestEvent(
+          room,
+          eventId: r'$enc',
+          senderId: '@owner:example.org',
+          type: EventTypes.Encryption,
+          stateKey: '',
+          content: {'algorithm': 'm.megolm.v1.aes-sha2'},
+        ),
+      );
+      await pumpPage(tester, trustStubbedIds: ['@owner:example.org']);
+
+      expect(find.text('Not encrypted'), findsNothing);
+      expect(find.text('Confirm it is really @owner'), findsOneWidget);
+    });
+  });
+
+  group('room pages', () {
+    testWidgets('an admin opens the room settings', (tester) async {
+      seedAdminRoom();
+      await pumpPage(tester);
+
+      await tester.tap(find.text('Room settings'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoomSettingsPage), findsOneWidget);
+    });
+
+    testWidgets('an admin opens roles and permissions to edit them', (
+      tester,
+    ) async {
+      seedAdminRoom();
+      await pumpPage(tester);
+      expect(find.text('Who can do what'), findsOneWidget);
+
+      await tester.tap(find.text('Roles & permissions'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoomPermissionsPage), findsOneWidget);
+    });
+
+    testWidgets('a moderator may only view roles and permissions', (
+      tester,
+    ) async {
+      seedAdminRoom(ownLevel: 50);
+      await pumpPage(tester);
+
+      expect(find.text('View only'), findsOneWidget);
+    });
+
+    testWidgets('a member sees neither', (tester) async {
+      seedAdminRoom(ownLevel: 0);
+      await pumpPage(tester);
+
+      expect(find.text('Room settings'), findsNothing);
+      expect(find.text('Roles & permissions'), findsNothing);
+    });
+  });
+
+  group('leaving', () {
+    testWidgets('closes the page and says the room was left', (tester) async {
+      seedAdminRoom();
+      await pumpPage(tester, pushed: true);
+
+      await tester.tap(find.text('Leave room'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Leave'));
+      await network(tester);
+
+      expect(requestsTo('leave'), hasLength(1));
+      expect(find.byType(RoomInfoPage), findsNothing);
+      expect(pageResult, RoomInfoResult.left);
+    });
+
+    testWidgets('backing out keeps the page open', (tester) async {
+      seedAdminRoom();
+      await pumpPage(tester, pushed: true);
+
+      await tester.tap(find.text('Leave room'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await network(tester);
+
+      expect(requestsTo('leave'), isEmpty);
+      expect(find.byType(RoomInfoPage), findsOneWidget);
+    });
+  });
+
+  testWidgets('an admin can copy the room ID and address', (tester) async {
+    final copied = <String?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map)['text'] as String?);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    seedAdminRoom();
+    applyOptimisticRoomState(room, EventTypes.RoomCanonicalAlias, {
+      'alias': '#chess:example.org',
+    });
+    await pumpPage(tester);
+
+    await tester.tap(find.text('Room ID'));
+    await tester.pump();
+    expect(find.text('Room ID copied'), findsOneWidget);
+    ScaffoldMessenger.of(tester.element(find.byType(RoomInfoPage)))
+        .removeCurrentSnackBar();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Room alias'));
+    await tester.pump();
+    expect(find.text('Room alias copied'), findsOneWidget);
+
+    expect(copied, ['!room', '#chess']);
+  });
+
+  testWidgets('a room without an address offers only its ID to copy', (
+    tester,
+  ) async {
+    seedAdminRoom();
+    await pumpPage(tester);
+
+    expect(find.text('Room ID'), findsOneWidget);
+    expect(find.text('Room alias'), findsNothing);
+  });
+
+  testWidgets('pulling down fetches the members again', (tester) async {
+    addMember('@me:example.org', 'Me');
+    addMember('@ann:example.org', 'Ann');
+    await pumpPage(tester, joinedCount: 5);
+    expect(requestsTo('members'), hasLength(1));
+
+    await tester.fling(find.text('Members (2)'), const Offset(0, 800), 1000);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await network(tester);
+
+    expect(requestsTo('members'), hasLength(2));
   });
 }

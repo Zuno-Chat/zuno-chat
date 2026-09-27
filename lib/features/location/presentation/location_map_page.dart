@@ -6,7 +6,8 @@ import 'location_map_view.dart';
 
 String? accuracyLabel(double? meters) {
   if (meters == null) return null;
-  if (meters < 1000) return 'about ${meters.round()} m';
+  final rounded = meters.round();
+  if (rounded < 1000) return 'about $rounded m';
   return 'about ${(meters / 1000).toStringAsFixed(1)} km';
 }
 

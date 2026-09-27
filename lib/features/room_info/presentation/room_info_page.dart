@@ -11,6 +11,7 @@ import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/local_username_dialog.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
+import '../../../core/matrix/optimistic_room_state.dart';
 import '../../../core/matrix/room_access.dart';
 import '../../../core/matrix/room_exit.dart';
 import '../../../core/matrix/room_permission.dart';
@@ -183,7 +184,7 @@ class _RoomInfoPageState extends State<RoomInfoPage>
     try {
       await widget.room.invite(userId);
       messenger.showSnackBar(const SnackBar(content: Text('Invitation sent')));
-      await _loadParticipants();
+      _showMembership(userId, Membership.invite);
     } catch (e) {
       logCaught('invite', e);
       messenger.showSnackBar(
@@ -213,6 +214,24 @@ class _RoomInfoPageState extends State<RoomInfoPage>
         const SnackBar(content: Text('Role not changed. Try again.')),
       );
     }
+  }
+
+  void _showMembership(String userId, Membership membership) {
+    final room = widget.room;
+    applyOptimisticRoomState(room, EventTypes.RoomMember, {
+      ...?room.getState(EventTypes.RoomMember, userId)?.content,
+      'membership': membership.name,
+    }, stateKey: userId);
+    final participants = _participants;
+    if (!mounted || participants == null) return;
+    setState(() {
+      _participants = _byName([
+        for (final user in participants)
+          if (user.id != userId) user,
+        if (membership == Membership.invite)
+          room.unsafeGetUserFromMemoryOrFallback(userId),
+      ]);
+    });
   }
 
   bool _canManage(User user) =>
@@ -395,8 +414,7 @@ class _RoomInfoPageState extends State<RoomInfoPage>
     final messenger = ScaffoldMessenger.of(context);
     try {
       await (ban ? widget.room.ban(user.id) : widget.room.kick(user.id));
-      await _loadParticipants();
-      if (mounted) setState(() {});
+      _showMembership(user.id, ban ? Membership.ban : Membership.leave);
     } catch (e) {
       logCaught(ban ? 'ban member' : 'remove member', e);
       final failure = ban ? 'Not banned' : 'Not removed';
@@ -409,7 +427,7 @@ class _RoomInfoPageState extends State<RoomInfoPage>
     final messenger = ScaffoldMessenger.of(context);
     try {
       await widget.room.unban(userId);
-      if (mounted) setState(() {});
+      _showMembership(userId, Membership.leave);
     } catch (e) {
       logCaught('unban', e);
       messenger.showSnackBar(
@@ -466,7 +484,9 @@ class _RoomInfoPageState extends State<RoomInfoPage>
     final messenger = ScaffoldMessenger.of(context);
     try {
       await widget.room.enableEncryption();
-      if (mounted) setState(() {});
+      applyOptimisticRoomState(widget.room, EventTypes.Encryption, {
+        'algorithm': Client.supportedGroupEncryptionAlgorithms.first,
+      });
     } catch (e) {
       logCaught('enable encryption', e);
       messenger.showSnackBar(

@@ -384,20 +384,38 @@ class RoomListPage extends ConsumerWidget {
     if (action == null || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
-    try {
-      switch (action) {
-        case _RoomAction.markRead:
-          final lastEventId = room.lastEvent?.eventId;
-          await room.setReadMarker(lastEventId, mRead: lastEventId);
-        case _RoomAction.mute:
-          await room.setPushRuleState(PushRuleState.dontNotify);
-        case _RoomAction.unmute:
-          await room.setPushRuleState(PushRuleState.notify);
-        case _RoomAction.exit:
-          await confirmAndExitRoom(context, room);
+    Future<void> attempt(
+      Future<void> Function() write, {
+      required String failed,
+    }) async {
+      try {
+        await write();
+      } catch (e) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(failureMessage(e, failed: failed))),
+        );
       }
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+
+    switch (action) {
+      case _RoomAction.markRead:
+        final lastEventId = room.lastEvent?.eventId;
+        await attempt(
+          () => room.setReadMarker(lastEventId, mRead: lastEventId),
+          failed: 'Not marked as read.',
+        );
+      case _RoomAction.mute:
+        await attempt(
+          () => room.setPushRuleState(PushRuleState.dontNotify),
+          failed: 'Not muted.',
+        );
+      case _RoomAction.unmute:
+        await attempt(
+          () => room.setPushRuleState(PushRuleState.notify),
+          failed: 'Not unmuted.',
+        );
+      case _RoomAction.exit:
+        await confirmAndExitRoom(context, room);
     }
   }
 

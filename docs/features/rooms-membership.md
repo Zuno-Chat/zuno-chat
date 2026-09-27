@@ -93,6 +93,8 @@ asymmetric sender/receiver views).
   rows). The page shows five, owner first (`membersOwnerFirst`), then
   "View all members". `RoomInfoPage` listens to `client.onRoomState` so
   settings edits (all applied optimistically) show without reopening.
+  Invite, remove, ban, unban and turning on encryption are optimistic too:
+  the member state is written locally and the loaded list edited in place.
 - Room info media: `lib/core/matrix/room_media_feed.dart` is a per-room,
   cursor-paged feed over the SDK's `Room.searchEvents` (local database
   first, then server history in pages of 100 events, decrypting as it
@@ -231,6 +233,8 @@ asymmetric sender/receiver views).
   Clearing the address deletes the old alias from the directory
   (tolerating not-found) and writes an empty canonical-alias state;
   sending `#:server` is exactly what an unguarded empty value did.
+  A room without `m.room.history_visibility` reads as `shared`, the Matrix
+  default (the SDK returns null for it).
 - **Server isolation**: since Zuno targets one self-hosted, non-federated
   homeserver, the server part of a Matrix ID is never shown or asked for.
   User lookups (DM start, room invite) take only a local username (`@` is
@@ -369,6 +373,11 @@ asymmetric sender/receiver views).
   in flight, shows the new state at once, and keeps that override until
   the push-rules sync arrives (or 10 s pass). A refused request flips back
   and says so.
+- **Never reload members right after changing one.** Before sync, the
+  local member list still matches the room summary, so `requestParticipants`
+  returns it unchanged. After an optimistic change the counts disagree, and
+  it first re-reads the database's member events, restoring the old
+  membership. `RoomInfoPage` edits its list in place and lets sync confirm.
 - **The media feed's first load always hits the server once** —
   `searchEvents` does the full local-database scan and the first server
   page in one call, even when the database already held enough media.

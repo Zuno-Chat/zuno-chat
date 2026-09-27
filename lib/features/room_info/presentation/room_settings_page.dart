@@ -15,15 +15,17 @@ import '../../../core/ui/card_list_view.dart';
 
 enum _AvatarAction { camera, gallery, remove }
 
-String _historyVisibilityLabel(HistoryVisibility? visibility) =>
+String _historyVisibilityLabel(HistoryVisibility visibility) =>
     switch (visibility) {
       HistoryVisibility.worldReadable => 'Anyone',
       HistoryVisibility.shared =>
         'Members, including history before they joined',
       HistoryVisibility.invited => 'Members, from when they were invited',
       HistoryVisibility.joined => 'Members, from when they joined',
-      null => 'Unknown',
     };
+
+HistoryVisibility _historyVisibilityOf(Room room) =>
+    room.historyVisibility ?? HistoryVisibility.shared;
 
 const roomNameMaxLength = 50;
 const roomTopicMaxLength = 250;
@@ -172,7 +174,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
   Future<void> _changeHistoryVisibility() async {
     final room = widget.room;
-    final current = room.historyVisibility;
+    final current = _historyVisibilityOf(room);
     final chosen = await showModalBottomSheet<HistoryVisibility>(
       context: context,
       builder: (context) => SafeArea(
@@ -418,7 +420,9 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
               ListTile(
                 leading: const Icon(Icons.history_outlined),
                 title: const Text('Who can read history'),
-                subtitle: Text(_historyVisibilityLabel(room.historyVisibility)),
+                subtitle: Text(
+                  _historyVisibilityLabel(_historyVisibilityOf(room)),
+                ),
                 trailing: trailingFor(
                   _savingHistoryVisibility,
                   canEditHistoryVisibility,

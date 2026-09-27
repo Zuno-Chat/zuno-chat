@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/matrix/matrix_ids.dart';
+import '../../../core/errors/connection_error.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/notifications/invite_notification_provider.dart';
@@ -54,14 +54,19 @@ class _InvitationState extends State<_Invitation> {
     });
   }
 
-  Future<void> _answer(Future<void> Function() action) async {
+  Future<void> _answer(
+    Future<void> Function() action, {
+    required String failed,
+  }) async {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _busy = true);
     unawaited(cancelInviteNotification(widget.room));
     try {
       await action();
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+      messenger.showSnackBar(
+        SnackBar(content: Text(failureMessage(e, failed: failed))),
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -75,11 +80,9 @@ class _InvitationState extends State<_Invitation> {
     final inviterUser = inviter == null
         ? null
         : room.unsafeGetUserFromMemoryOrFallback(inviter);
+    final inviterName = inviterUser?.calcDisplayname() ?? 'Someone';
     final isGroup = room.name.isNotEmpty;
-    final name = isGroup
-        ? room.name
-        : inviterUser?.calcDisplayname() ??
-              (inviter == null ? 'Someone' : withoutServer(inviter));
+    final name = isGroup ? room.name : inviterName;
 
     return InkWell(
       onTap: () => Navigator.of(context)
@@ -111,8 +114,7 @@ class _InvitationState extends State<_Invitation> {
                       const SizedBox(height: 2),
                       Text(
                         isGroup
-                            ? '${inviterUser?.calcDisplayname() ?? 'Someone'} '
-                                  'invited you'
+                            ? '$inviterName invited you'
                             : 'Invited you to chat',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -132,14 +134,20 @@ class _InvitationState extends State<_Invitation> {
                 TextButton(
                   onPressed: _busy
                       ? null
-                      : () => _answer(() => declineInvite(room)),
+                      : () => _answer(
+                          () => declineInvite(room),
+                          failed: 'Could not decline.',
+                        ),
                   child: const Text('Decline'),
                 ),
                 const SizedBox(width: 4),
                 FilledButton(
                   onPressed: _busy
                       ? null
-                      : () => _answer(() => acceptInvite(room)),
+                      : () => _answer(
+                          () => acceptInvite(room),
+                          failed: 'Could not join.',
+                        ),
                   child: const Text('Join'),
                 ),
               ],

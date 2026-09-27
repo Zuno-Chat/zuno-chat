@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/calls/notifications/call_notification_service.dart';
+import '../../../core/errors/best_effort.dart';
 import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/background_sync_service.dart';
@@ -409,18 +410,28 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
 
   Future<void> _pickAvatar() async {
     final client = ref.read(matrixClientProvider);
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 90,
-    );
-    if (picked == null || !mounted) return;
-    final shrunk = await prepareAvatarPhoto(
-      await picked.readAsBytes(),
-      name: picked.name,
-      nativeImplementations: client.nativeImplementations,
-    );
-    if (!mounted) return;
-    setState(() => _avatar = shrunk);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+      );
+      if (picked == null || !mounted) return;
+      final shrunk = await prepareAvatarPhoto(
+        await picked.readAsBytes(),
+        name: picked.name,
+        nativeImplementations: client.nativeImplementations,
+      );
+      if (!mounted) return;
+      setState(() => _avatar = shrunk);
+    } catch (e) {
+      logCaught('pick onboarding photo', e);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Photo not added. You can add one later in Settings.'),
+        ),
+      );
+    }
   }
 
   Future<void> _save() async {
