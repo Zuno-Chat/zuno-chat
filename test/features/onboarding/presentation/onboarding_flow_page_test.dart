@@ -106,6 +106,25 @@ void main() {
     expect(find.text('open'), findsOneWidget);
   });
 
+  testWidgets('the confirm-people card explains it and moves on', (
+    tester,
+  ) async {
+    final store = await pumpFlow(tester, [
+      OnboardingStep.confirmPeople,
+      OnboardingStep.setUpRecovery,
+    ]);
+
+    expect(find.text('Make sure it is really them'), findsOneWidget);
+    expect(find.textContaining('compare pictures on a call'), findsOneWidget);
+    expect(find.byIcon(Icons.how_to_reg_outlined), findsOneWidget);
+
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Set up recovery'), findsOneWidget);
+    expect(store.shown(_userId), {OnboardingStep.confirmPeople});
+  });
+
   testWidgets('a skipped step is recorded, so it is not asked again', (
     tester,
   ) async {

@@ -47,6 +47,7 @@ Not a fixed wizard: most launches show nothing at all.
 |---|---|---|
 | `welcome` | just registered | "Get started" |
 | `profile` | just registered | "Save" (enabled once a name or photo is set) |
+| `confirmPeople` | not yet shown on this device (every account, existing ones on their next launch) | "Continue" |
 | `notifications` | permission not granted and not permanently denied | OS answers; if full-screen call alerts are still off, one "Open settings" page, advancing on return |
 | `deliveryMethod` | the platform offers more than one mode (`canChooseDelivery`), not yet answered on this device (login or registration), and notifications are allowed or asked in this flow; lists only `capabilities.deliveryModes` | "Continue" after picking a method |
 | `batteryExemption` | the platform has `batteryExemption` **and** the chosen mode depends on it (`deliveryDependsOnBatteryExemption`), two separate checks; Android hasn't exempted the app; same notifications condition | OS grants it (checked on resume) |
@@ -95,8 +96,10 @@ drops them via `stepsAfterNotificationsAnswer` and marks them shown.
   the display name with the username at registration, so a name-based
   gate never fired for new accounts. Login never sets the flag.
 - **No information-only pages.** A step that turns into "done, continue"
-  after its action advances by itself instead. The welcome page is the one
-  deliberate exception, and it is registration-only.
+  after its action advances by itself instead. Two deliberate exceptions:
+  the welcome page (registration-only) and the confirm-people card, which
+  every account sees once because nobody looks for a protection they do
+  not know exists (`security-verification.md`).
 - **No swiping.** Steps have side effects (OS dialogs, settings screens),
   so the pager only moves on completion or Skip; forward and back swipes
   are disabled rather than treated as skips.

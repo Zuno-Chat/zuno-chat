@@ -15,10 +15,12 @@ import 'qr_scanner_page.dart';
 class VerificationPage extends StatefulWidget {
   final KeyVerification keyVerification;
   final bool isOwnDevice;
+  final bool picturesFirst;
 
   const VerificationPage({
     required this.keyVerification,
     this.isOwnDevice = false,
+    this.picturesFirst = false,
     super.key,
   });
 
@@ -78,7 +80,7 @@ class _VerificationPageState extends State<VerificationPage> {
     if (_methodChosen) return;
     final kv = widget.keyVerification;
     if (kv.state != KeyVerificationState.askChoice) return;
-    if (_qrPossible) return;
+    if (_offersQr) return;
     _methodChosen = true;
     unawaited(_startPicturesOrStop());
   }
@@ -105,7 +107,7 @@ class _VerificationPageState extends State<VerificationPage> {
   bool get _canScan =>
       widget.keyVerification.possibleMethods.contains(EventTypes.QRScan);
 
-  bool get _qrPossible => _ownCode != null || _canScan;
+  bool get _offersQr => !widget.picturesFirst && (_ownCode != null || _canScan);
 
   Future<void> _scan() async {
     final bytes = await Navigator.of(context).push<Uint8List>(
@@ -161,7 +163,7 @@ class _VerificationPageState extends State<VerificationPage> {
 
     switch (kv.state) {
       case KeyVerificationState.askChoice:
-        if (!_qrPossible) {
+        if (!_offersQr) {
           return const _StatusMessage(
             spinner: true,
             title: 'Waiting for the other device…',

@@ -78,4 +78,28 @@ void main() {
     expect(hint.textAlign, TextAlign.end);
     expect(tester.takeException(), isNull);
   });
+
+  for (final direction in TextDirection.values) {
+    testWidgets('the confirm pill points forward in ${direction.name}', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: direction,
+            child: Scaffold(
+              body: ConfirmPersonPill(
+                name: '@sam',
+                overVideo: false,
+                onPressed: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_left), findsNothing);
+    });
+  }
 }

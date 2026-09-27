@@ -29,6 +29,7 @@ List<OnboardingStep> steps({
   bool hasConversations = true,
   bool recoveryPromptOnCooldown = false,
   Set<OnboardingStep> alreadyShown = const {OnboardingStep.deliveryMethod},
+  bool confirmPeopleShown = true,
 }) => onboardingSteps(
   justRegistered: justRegistered,
   notificationsAllowed: notificationsAllowed,
@@ -39,7 +40,10 @@ List<OnboardingStep> steps({
   securityFacts: securityFacts ?? facts(),
   hasConversations: hasConversations,
   recoveryPromptOnCooldown: recoveryPromptOnCooldown,
-  alreadyShown: alreadyShown,
+  alreadyShown: {
+    ...alreadyShown,
+    if (confirmPeopleShown) OnboardingStep.confirmPeople,
+  },
 );
 
 void main() {
@@ -103,6 +107,41 @@ void main() {
         ),
         isEmpty,
       );
+    });
+  });
+
+  group('learning to confirm people', () {
+    test('an account that has never seen it is shown it once', () {
+      expect(steps(confirmPeopleShown: false), [OnboardingStep.confirmPeople]);
+    });
+
+    test('a new account sees it right after choosing a name', () {
+      expect(
+        steps(
+          justRegistered: true,
+          canAskNotifications: true,
+          securityFacts: noRecovery,
+          hasConversations: false,
+          confirmPeopleShown: false,
+        ),
+        [
+          OnboardingStep.welcome,
+          OnboardingStep.profile,
+          OnboardingStep.confirmPeople,
+          OnboardingStep.notifications,
+        ],
+      );
+    });
+
+    test('a device waiting for approval sees it before the approval', () {
+      expect(steps(securityFacts: lockedDevice, confirmPeopleShown: false), [
+        OnboardingStep.confirmPeople,
+        OnboardingStep.approveDevice,
+      ]);
+    });
+
+    test('once shown it is never shown again', () {
+      expect(steps(), isEmpty);
     });
   });
 

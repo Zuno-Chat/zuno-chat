@@ -1,18 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/security/account_security_status.dart';
+import 'package:zuno/core/security/security_providers.dart';
+import 'package:zuno/core/security/user_trust.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_controls.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
+import 'package:zuno/features/calls/presentation/call_view.dart';
 import 'package:zuno/features/calls/presentation/participant_tile.dart';
+import 'package:zuno/features/verification/presentation/why_confirm_sheet.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import 'call_page_harness.dart';
@@ -471,5 +480,162 @@ void main() {
 
       expect(harness.audioRouteChanges, before);
     });
+  });
+
+  group('confirming the person on the call', () {
+    const confirmAnn = 'Confirm it is really @ann';
+    const ready = AccountSecurityFacts(
+      recoveryExists: true,
+      thisDeviceHasIdentityKeys: true,
+      keyBackupExists: true,
+      keyBackupUsableHere: true,
+      unapprovedOtherDevices: 0,
+    );
+
+    Future<({CallPageHarness harness, SharedPreferences prefs})> talkingTo(
+      WidgetTester tester, {
+      UserTrustState trust = UserTrustState.unconfirmed,
+      AccountSecurityFacts facts = ready,
+      bool directChat = true,
+    }) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final harness = CallPageHarness(
+        tester,
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          userTrustProvider.overrideWith((ref, _) => trust),
+          accountSecurityFactsProvider.overrideWith(
+            (ref) => Stream.value(facts),
+          ),
+        ],
+      );
+      final session = sessionFor(CallKind.voice);
+      if (directChat) {
+        session.room.client.accountData['m.direct'] = BasicEvent(
+          type: 'm.direct',
+          content: {
+            '@ann:example.org': [session.room.id],
+          },
+        );
+      }
+      await harness.open(session);
+      session.engine.participants = [localParticipant(), remoteParticipant()];
+      session.moveTo(CallSessionPhase.active);
+      await harness.settle();
+      return (harness: harness, prefs: prefs);
+    }
+
+    Future<void> halfAMinute(WidgetTester tester) async {
+      await tester.pump(const Duration(seconds: 31));
+      await tester.pump();
+    }
+
+    testWidgets('after half a minute with someone not yet confirmed, it '
+        'offers to confirm them', (tester) async {
+      final call = await talkingTo(tester);
+
+      expect(find.text(confirmAnn), findsNothing);
+      await halfAMinute(tester);
+
+      expect(find.text(confirmAnn), findsOneWidget);
+      await call.harness.close();
+    });
+
+    testWidgets('someone already confirmed is never offered', (tester) async {
+      final call = await talkingTo(tester, trust: UserTrustState.confirmed);
+      await halfAMinute(tester);
+
+      expect(find.text(confirmAnn), findsNothing);
+      await call.harness.close();
+    });
+
+    testWidgets('a device that cannot confirm anyone yet is not offered', (
+      tester,
+    ) async {
+      final call = await talkingTo(
+        tester,
+        facts: const AccountSecurityFacts(
+          recoveryExists: false,
+          thisDeviceHasIdentityKeys: false,
+          keyBackupExists: false,
+          keyBackupUsableHere: false,
+          unapprovedOtherDevices: 0,
+        ),
+      );
+      await halfAMinute(tester);
+
+      expect(find.text(confirmAnn), findsNothing);
+      await call.harness.close();
+    });
+
+    testWidgets('a room call is never offered', (tester) async {
+      final call = await talkingTo(tester, directChat: false);
+      await halfAMinute(tester);
+
+      expect(find.text(confirmAnn), findsNothing);
+      await call.harness.close();
+    });
+
+    testWidgets('it opens the explanation, and Not now stops offering it for '
+        'that person', (tester) async {
+      final call = await talkingTo(tester);
+      await halfAMinute(tester);
+
+      await tester.tap(find.text(confirmAnn));
+      await call.harness.settle();
+      expect(find.byType(WhyConfirmSheet), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Not now'));
+      await tester.tap(find.text('Not now'));
+      await call.harness.settle();
+
+      expect(find.byType(WhyConfirmSheet), findsNothing);
+      expect(find.text(confirmAnn), findsNothing);
+      expect(
+        call.prefs.getBool('security.call_confirm_declined.@ann:example.org'),
+        isTrue,
+      );
+      await call.harness.close();
+    });
+
+    testWidgets('closing the explanation without answering keeps the offer', (
+      tester,
+    ) async {
+      final call = await talkingTo(tester);
+      await halfAMinute(tester);
+
+      await tester.tap(find.text(confirmAnn));
+      await call.harness.settle();
+      await tester.binding.handlePopRoute();
+      await call.harness.settle();
+
+      expect(find.byType(WhyConfirmSheet), findsNothing);
+      expect(find.byType(CallPage), findsOneWidget);
+      expect(find.text(confirmAnn), findsOneWidget);
+      await call.harness.close();
+    });
+  });
+
+  testWidgets('a call that ends under an open sheet closes both', (
+    tester,
+  ) async {
+    final harness = CallPageHarness(tester);
+    final session = await talking(harness, CallKind.voice);
+    unawaited(
+      showModalBottomSheet<void>(
+        context: tester.element(find.byType(CallView)),
+        builder: (_) => const Text('Over the call'),
+      ),
+    );
+    await harness.settle();
+    expect(find.text('Over the call'), findsOneWidget);
+
+    session.end();
+    await harness.settle();
+
+    expect(find.text('Over the call'), findsNothing);
+    expect(find.byType(CallPage), findsNothing);
+    expect(find.text('Chat'), findsOneWidget);
   });
 }

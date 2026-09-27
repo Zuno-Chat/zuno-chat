@@ -44,6 +44,8 @@ class CallView extends StatefulWidget {
   final VoidCallback onSwitchCamera;
   final VoidCallback onToggleSpeaker;
   final VoidCallback onHangUp;
+  final String? confirmName;
+  final VoidCallback? onConfirmPerson;
 
   const CallView({
     super.key,
@@ -62,6 +64,8 @@ class CallView extends StatefulWidget {
     required this.onSwitchCamera,
     required this.onToggleSpeaker,
     required this.onHangUp,
+    this.confirmName,
+    this.onConfirmPerson,
   });
 
   List<CallViewParticipant> get present => connecting ? const [] : remote;
@@ -123,6 +127,14 @@ class _CallViewState extends State<CallView> {
     final pill =
         !widget.reconnecting &&
         ConnectionQualityPill.labelFor(shownQuality) != null;
+    final confirmName = widget.confirmName;
+    final onConfirmPerson = widget.onConfirmPerson;
+    final confirm =
+        confirmName != null &&
+        onConfirmPerson != null &&
+        present.length == 1 &&
+        !widget.reconnecting &&
+        !pill;
     final safeBottom = MediaQuery.paddingOf(context).bottom;
     final local = widget.local;
 
@@ -142,7 +154,7 @@ class _CallViewState extends State<CallView> {
       stage = SafeArea(
         child: Padding(
           padding: EdgeInsets.only(
-            bottom: _controlsReserve + (pill ? _pillReserve : 0),
+            bottom: _controlsReserve + (pill || confirm ? _pillReserve : 0),
           ),
           child: group ? _group(present) : _voice(present.firstOrNull, status),
         ),
@@ -203,6 +215,20 @@ class _CallViewState extends State<CallView> {
               bottom: safeBottom + _controlsReserve,
               child: Center(
                 child: ConnectionQualityPill(quality: shownQuality),
+              ),
+            ),
+          if (confirm)
+            Positioned(
+              key: const ValueKey('confirm'),
+              left: 16,
+              right: 16,
+              bottom: safeBottom + _controlsReserve,
+              child: Center(
+                child: ConfirmPersonPill(
+                  name: confirmName,
+                  overVideo: fullVideo,
+                  onPressed: onConfirmPerson,
+                ),
               ),
             ),
           Positioned(

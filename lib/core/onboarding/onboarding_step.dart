@@ -3,6 +3,7 @@ import '../security/account_security_status.dart';
 enum OnboardingStep {
   welcome,
   profile,
+  confirmPeople,
   notifications,
   deliveryMethod,
   batteryExemption,
@@ -33,6 +34,7 @@ List<OnboardingStep> onboardingSteps({
   if (justRegistered) {
     steps.addAll([OnboardingStep.welcome, OnboardingStep.profile]);
   }
+  steps.add(OnboardingStep.confirmPeople);
   final askNotifications =
       canAskNotifications &&
       !alreadyShown.contains(OnboardingStep.notifications);

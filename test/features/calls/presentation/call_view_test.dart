@@ -80,6 +80,7 @@ void main() {
     bool reconnecting = false,
     CallQuality quality = CallQuality.good,
     Size size = const Size(360, 640),
+    String? confirmName,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -106,6 +107,10 @@ void main() {
           onSwitchCamera: () => pressed.add('flip'),
           onToggleSpeaker: () => pressed.add('speaker'),
           onHangUp: () => pressed.add('end'),
+          confirmName: confirmName,
+          onConfirmPerson: confirmName == null
+              ? null
+              : () => pressed.add('confirm'),
         ),
       ),
     );
@@ -531,28 +536,107 @@ void main() {
     });
   });
 
-  group('on any phone, font size, orientation and direction', () {
-    CallView view({required CallKind kind, required List<String> others}) =>
-        CallView(
-          room: room,
+  group('offering to confirm the other person', () {
+    const label = 'Confirm it is really @ann';
+
+    for (final kind in CallKind.values) {
+      testWidgets('a $kind call shows it above the buttons and it answers a '
+          'tap', (tester) async {
+        await pump(
+          tester,
           kind: kind,
-          connecting: false,
-          calling: false,
-          local: person('Me', local: true, muted: true),
-          remote: [
-            for (final name in others)
-              person(name, encrypting: name == 'Ann', muted: true, weak: true),
-          ],
-          talkingSince: DateTime(2026, 9, 20),
-          reconnecting: false,
-          quality: CallQuality.poor,
-          audioRoute: CallAudioRoute.speaker,
-          onToggleMute: () {},
-          onToggleCamera: () {},
-          onSwitchCamera: () {},
-          onToggleSpeaker: () {},
-          onHangUp: () {},
+          remote: [person('Ann')],
+          confirmName: '@ann',
         );
+
+        final pill = tester.getRect(find.byType(ConfirmPersonPill));
+        final end = tester.getRect(find.byTooltip('End call'));
+        expect(pill.bottom, lessThanOrEqualTo(end.top));
+
+        await tester.tap(find.text(label));
+        expect(pressed, ['confirm']);
+      });
+    }
+
+    testWidgets('it steps aside for a weak connection', (tester) async {
+      await pump(
+        tester,
+        remote: [person('Ann')],
+        quality: CallQuality.poor,
+        confirmName: '@ann',
+      );
+
+      expect(find.byType(ConnectionQualityPill), findsOneWidget);
+      expect(find.text(label), findsNothing);
+    });
+
+    testWidgets('not while reconnecting', (tester) async {
+      await pump(
+        tester,
+        remote: [person('Ann')],
+        reconnecting: true,
+        confirmName: '@ann',
+      );
+
+      expect(find.text(label), findsNothing);
+    });
+
+    testWidgets('not before anyone has joined', (tester) async {
+      await pump(tester, connecting: true, confirmName: '@ann');
+
+      expect(find.text(label), findsNothing);
+    });
+
+    testWidgets('not in a group', (tester) async {
+      await pump(
+        tester,
+        remote: [person('Ann'), person('Ben')],
+        confirmName: '@ann',
+      );
+
+      expect(find.text(label), findsNothing);
+    });
+
+    testWidgets('it is one button to a screen reader', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pump(tester, remote: [person('Ann')], confirmName: '@ann');
+
+      expect(
+        tester.getSemantics(find.byType(ConfirmPersonPill)),
+        isSemantics(label: label, isButton: true, hasTapAction: true),
+      );
+      semantics.dispose();
+    });
+  });
+
+  group('on any phone, font size, orientation and direction', () {
+    CallView view({
+      required CallKind kind,
+      required List<String> others,
+      CallQuality quality = CallQuality.poor,
+      String? confirmName,
+    }) => CallView(
+      room: room,
+      kind: kind,
+      connecting: false,
+      calling: false,
+      local: person('Me', local: true, muted: true),
+      remote: [
+        for (final name in others)
+          person(name, encrypting: name == 'Ann', muted: true, weak: true),
+      ],
+      talkingSince: DateTime(2026, 9, 20),
+      reconnecting: false,
+      quality: quality,
+      audioRoute: CallAudioRoute.speaker,
+      onToggleMute: () {},
+      onToggleCamera: () {},
+      onSwitchCamera: () {},
+      onToggleSpeaker: () {},
+      onHangUp: () {},
+      confirmName: confirmName,
+      onConfirmPerson: confirmName == null ? null : () {},
+    );
 
     Future<void> endCallReachable(WidgetTester tester, String name) async {
       final end = tester.getRect(find.byTooltip('End call'));
@@ -604,5 +688,22 @@ void main() {
         afterEach: (name) => endCallReachable(tester, name),
       );
     });
+
+    for (final kind in [CallKind.voice, CallKind.video]) {
+      testWidgets('a $kind call offering to confirm holds, End call always '
+          'on screen', (tester) async {
+        await expectSurvivesLayoutMatrix(
+          tester,
+          () => view(
+            kind: kind,
+            others: ['Ann'],
+            quality: CallQuality.good,
+            confirmName: '@samantha.rivera',
+          ),
+          theme: zunoDarkTheme,
+          afterEach: (name) => endCallReachable(tester, name),
+        );
+      });
+    }
   });
 }

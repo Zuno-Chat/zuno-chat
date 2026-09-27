@@ -20,6 +20,7 @@ void main() {
     WidgetTester tester,
     FakeKeyVerification verification, {
     bool isOwnDevice = false,
+    bool picturesFirst = false,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -31,6 +32,7 @@ void main() {
                   builder: (_) => VerificationPage(
                     keyVerification: verification,
                     isOwnDevice: isOwnDevice,
+                    picturesFirst: picturesFirst,
                   ),
                 ),
               ),
@@ -106,6 +108,22 @@ void main() {
       await tester.pump();
 
       expect(verification.calls, ['continue(${EventTypes.Sas})']);
+    });
+
+    testWidgets('started from a call it compares pictures even when a code '
+        'would work, and never shows the code', (tester) async {
+      final verification = FakeKeyVerification(
+        possibleMethods: showAndScan,
+        qrBytes: matrixQrBytes,
+      );
+      await open(tester, verification, picturesFirst: true);
+
+      verification.moveTo(KeyVerificationState.askChoice);
+      await tester.pump();
+
+      expect(verification.calls, ['continue(${EventTypes.Sas})']);
+      expect(find.text(_waiting), findsOneWidget);
+      expect(find.text('Let them scan this'), findsNothing);
     });
 
     testWidgets('with a code both ways it shows the code and offers to scan', (

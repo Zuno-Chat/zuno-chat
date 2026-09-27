@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../settings/app_preferences_provider.dart';
 import 'account_security_status.dart';
+import 'call_confirm_prompt_store.dart';
 import 'confirmed_identity_store.dart';
 import 'recovery_code.dart';
 import 'user_trust.dart';
@@ -14,6 +15,10 @@ final recoveryWordlistProvider = FutureProvider<RecoveryWordlist>((ref) {
 
 final confirmedIdentityStoreProvider = Provider<ConfirmedIdentityStore>((ref) {
   return ConfirmedIdentityStore(ref.watch(sharedPreferencesProvider));
+});
+
+final callConfirmPromptStoreProvider = Provider<CallConfirmPromptStore>((ref) {
+  return CallConfirmPromptStore(ref.watch(sharedPreferencesProvider));
 });
 
 final accountSecurityFactsProvider = StreamProvider<AccountSecurityFacts>((

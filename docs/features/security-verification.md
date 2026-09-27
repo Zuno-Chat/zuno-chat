@@ -6,7 +6,8 @@ Covers E2EE, cross-signing, device verification (QR/emoji), recovery code
 (secure backup / SSSS / key backup), and the account-security status UX
 that ties them together. Entry point: `lib/core/security/` —
 `account_security_status.dart`, `recovery_code.dart`, `user_trust.dart`,
-`confirmed_identity_store.dart`, `known_devices_store.dart`,
+`confirmed_identity_store.dart`, `call_confirm_prompt_store.dart`,
+`known_devices_store.dart`,
 `security_prompt.dart` + `security_prompt_provider.dart`,
 `security_providers.dart`, `new_device_alert.dart` +
 `new_device_alert_provider.dart`, `unverified_device_warning.dart` +
@@ -20,7 +21,7 @@ that ties them together. Entry point: `lib/core/security/` —
 `active_sessions_page`, `key_backup_management_page`,
 `secure_backup_page`) and `lib/features/verification/presentation/`
 (`verification_page`, `qr_scanner_page`, `approve_this_device_page`,
-`confirm_person`).
+`confirm_person`, `why_confirm_sheet`).
 
 Matrix's underlying security model (device keys, verification,
 cross-signing, secret storage/key backup) is sound but is four mechanisms
@@ -138,6 +139,10 @@ reach a run that long.
   The setup step is injectable (`setUpRecovery`) for tests. A check that
   starts after the caller is gone is canceled (`m.user`), here and in
   `ApproveThisDevicePage`; otherwise the other device rings for nobody.
+  It reads the confirmed-identity store before its first await: callers
+  unmount mid-check (the empty-room notice when a first message lands, a
+  call that ends), and the confirmation must still be recorded.
+  `picturesFirst` (from a call) skips the QR screen for emoji.
 
 ## Data & State
 
@@ -343,7 +348,9 @@ differs from the raw SSSS key):**
   score. Concretely: a confirmed-person check mark (receipt, not
   warning — shown once per screen, absence means nothing), one
   reassurance line in *empty* rooms only (never anchored into history,
-  never on the room list), "Sent from a device X hasn't approved yet"
+  never on the room list; it says "only you and X" only once X is
+  confirmed, since before that it is a promise the design does not
+  keep), "Sent from a device X hasn't approved yet"
   only in the per-message long-press sheet (not a per-message timeline
   mark — tested and rejected in both polarities: an always-on mark
   becomes wallpaper and miscommunicates absence-means-unsafe; marking
@@ -351,6 +358,13 @@ differs from the raw SSSS key):**
   confirmed at all). No permanent device-count/fraction on a contact's
   trust row — reads as a permanently-failing score with no clean end
   state.
+- **Confirming is taught at three moments, all opening one sheet**
+  (`why_confirm_sheet.dart`): the empty 1:1 line ("Why confirm"), a pill
+  in 1:1 calls (`calls.md`), and one onboarding card. The story is "make
+  sure it is really them": a device someone else added could read along
+  and write as them, drawn as you / their device / "Someone else?". The
+  onboarding card is the one deliberate exception to the rule above,
+  because nobody looks for a protection they do not know exists.
 - **No shields, three visual states only**: neutral (nothing), confirmed
   (small muted check — reassurance, not achievement), attention (warning
   triangle, error colour, reserved for states that carry an action).
@@ -455,7 +469,10 @@ differs from the raw SSSS key):**
   covered by `unverified_device_warning.dart`, fired only on a device
   *appearing* (event, not persistent state — "this person has no
   identity" is true of most contacts most of the time and would be
-  wallpaper as a permanent badge).
+  wallpaper as a permanent badge). The flip side: once the owner has a
+  master key, a device they have not approved gets no keys at all, so
+  messages to it stay undecryptable until they approve it. That is the
+  policy working, not a bug (it was reported as one).
 - Starting over on recovery (`wipeCrossSigning(true)` →
   `askSetupCrossSigning` with all three keys) generates a whole new
   cross-signing identity, not a re-wrap of the old vault under a new

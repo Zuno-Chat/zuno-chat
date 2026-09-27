@@ -192,6 +192,7 @@ class _StepPage extends StatelessWidget {
   Widget build(BuildContext context) => switch (step) {
     OnboardingStep.welcome => _WelcomeStep(onDone: onDone),
     OnboardingStep.profile => _ProfileStep(onDone: onDone),
+    OnboardingStep.confirmPeople => _ConfirmPeopleStep(onDone: onDone),
     OnboardingStep.notifications => _NotificationsStep(onDone: onDone),
     OnboardingStep.deliveryMethod => _DeliveryStep(onChosen: onDeliveryChosen),
     OnboardingStep.batteryExemption => _BatteryStep(onDone: onDone),
@@ -288,6 +289,29 @@ class _WelcomeStep extends StatelessWidget {
       action: FilledButton(
         onPressed: () => onDone(),
         child: const Text('Get started'),
+      ),
+    );
+  }
+}
+
+class _ConfirmPeopleStep extends StatelessWidget {
+  final Future<void> Function() onDone;
+
+  const _ConfirmPeopleStep({required this.onDone});
+
+  @override
+  Widget build(BuildContext context) {
+    return _StepScaffold(
+      icon: Icons.how_to_reg_outlined,
+      title: 'Make sure it is really them',
+      body:
+          'Every chat in Zuno is encrypted. To know the person on the other '
+          'end is who they say, confirm them once: scan their code in person, '
+          'or compare pictures on a call. Zuno shows you how when you start a '
+          'chat.',
+      action: FilledButton(
+        onPressed: () => onDone(),
+        child: const Text('Continue'),
       ),
     );
   }

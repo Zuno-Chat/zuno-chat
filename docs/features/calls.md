@@ -66,6 +66,16 @@ Other integration points:
   connecting, waiting, encrypting or talking; the lock and `CallTimer`
   show only while talking. `CallControls` is the one button row.
   `IncomingCallPage` shares `CallPortrait`.
+- **Confirm-person pill** (`ConfirmPersonPill`, rule in
+  `call_confirm_prompt.dart`): in a 1:1 chat's call, "Confirm it is
+  really X" sits in the quality pill's slot and yields to it and to
+  Reconnecting. `CallPage` offers it when the other person is unconfirmed
+  or changed, this device can confirm, 30 s after they first appear (a
+  timer flag, so tests need no clock), and not after "Not now" for that
+  person (`CallConfirmPromptStore`, per device). It opens the why sheet
+  (`security-verification.md`) from the `ValueListenableBuilder` context,
+  which sits under the call's dark `Theme`; Confirm runs
+  `confirmPerson(picturesFirst: true)` over the call.
 
 **Platform seams** (`lib/core/calls/platform/`): what the OS shows or plays
 for a call goes through three interfaces. Each has an Android class
@@ -507,12 +517,16 @@ instead, so a stale notification can't outlive its call.
   `CallTimer` repaints inside its own `RepaintBoundary`. The engine
   de-duplicates participant updates, so the page rebuilds on events only.
 - **`CallView`'s stack has fixed, keyed slots** (stage, notice, overlay,
-  quality, controls), the notice slot always present. An unkeyed
+  quality, confirm, controls), the notice slot always present. An unkeyed
   conditional sibling would remount everything after it when a notice
   appears, dropping a press already in progress on End call and
   restarting the tiles. `CallGrid` is one `Stack` of keyed cells for the
   same reason: a tile's state follows the person when people join or
   leave.
+- **An ended call pops every route above its own before popping itself.**
+  `_finish` used to `pop()` the top route, so a sheet or verification page
+  left open over the call was closed instead, stranding an ended
+  `canPop: false` call screen.
 - **`session.engine` is null until the call connects.** Anything the build
   reads from it needs the `connecting` guard (`quality` does). Callbacks
   are fine; the buttons that use them are disabled while connecting.

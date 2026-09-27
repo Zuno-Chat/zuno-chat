@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
@@ -124,7 +125,11 @@ CallEngineParticipant remoteParticipant({
 );
 
 class CallPageHarness {
-  CallPageHarness(this.tester, {PlatformCapabilities? capabilities}) {
+  CallPageHarness(
+    this.tester, {
+    PlatformCapabilities? capabilities,
+    List<Override> overrides = const [],
+  }) {
     SharedPreferences.setMockInitialValues({});
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -177,6 +182,7 @@ class CallPageHarness {
       overrides: [
         if (capabilities != null)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
+        ...overrides,
       ],
     );
     addTearDown(container.dispose);

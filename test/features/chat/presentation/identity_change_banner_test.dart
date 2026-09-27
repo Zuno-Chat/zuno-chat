@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/chat/presentation/identity_change_banner.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -33,10 +35,13 @@ void main() {
     WidgetTester tester,
     Map<String, UserTrustState> trust,
   ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
+          sharedPreferencesProvider.overrideWithValue(prefs),
           userTrustProvider.overrideWith(
             (ref, userId) => trust[userId] ?? UserTrustState.confirmed,
           ),

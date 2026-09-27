@@ -72,6 +72,65 @@ class CallBadge extends StatelessWidget {
   }
 }
 
+class ConfirmPersonPill extends StatelessWidget {
+  final String name;
+  final bool overVideo;
+  final VoidCallback onPressed;
+
+  const ConfirmPersonPill({
+    required this.name,
+    required this.overVideo,
+    required this.onPressed,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final foreground = overVideo ? Colors.white : theme.colorScheme.onSurface;
+    final label = 'Confirm it is really $name';
+    const shape = StadiumBorder();
+    return Semantics(
+      button: true,
+      label: label,
+      onTap: onPressed,
+      child: ExcludeSemantics(
+        child: Material(
+          color: overVideo
+              ? Colors.black54
+              : theme.colorScheme.surfaceContainerHigh,
+          shape: shape,
+          child: InkWell(
+            customBorder: shape,
+            onTap: onPressed,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(14, 8, 8, 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.how_to_reg_outlined, size: 18, color: foreground),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge!.copyWith(
+                        color: foreground,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, size: 18, color: foreground),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class ReconnectingNotice extends StatelessWidget {
   const ReconnectingNotice({super.key});
 

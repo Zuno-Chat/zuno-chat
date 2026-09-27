@@ -52,7 +52,9 @@ void main() {
 
   Future<List<OnboardingStep>> stepsOn(
     PlatformCapabilities capabilities, {
-    Map<String, Object> prefs = const {},
+    Map<String, Object> prefs = const {
+      'onboarding.shown.$_userId': ['confirmPeople'],
+    },
   }) async {
     SharedPreferences.setMockInitialValues(prefs);
     final sharedPrefs = await SharedPreferences.getInstance();
@@ -73,6 +75,12 @@ void main() {
     return container.read(onboardingStepsProvider.future);
   }
 
+  test('an account that never saw it learns to confirm people first', () async {
+    expect(await stepsOn(iosCapabilities, prefs: const {}), [
+      OnboardingStep.confirmPeople,
+    ]);
+  });
+
   test('Android asks how messages should arrive', () async {
     expect(await stepsOn(androidCapabilities), [OnboardingStep.deliveryMethod]);
   });
@@ -84,7 +92,7 @@ void main() {
   group('once the method is chosen', () {
     const unifiedPushChosen = <String, Object>{
       'settings.notification_delivery_mode': 'unifiedPush',
-      'onboarding.shown.$_userId': ['deliveryMethod'],
+      'onboarding.shown.$_userId': ['deliveryMethod', 'confirmPeople'],
     };
 
     test('Android asks for the battery exemption UnifiedPush needs', () async {

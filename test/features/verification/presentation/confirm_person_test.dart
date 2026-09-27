@@ -49,44 +49,52 @@ void main() {
     ..setUpRecovery()
     ..unlockRecovery();
 
-  Future<void> pump(WidgetTester tester, {bool withSeam = true}) =>
-      tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            matrixClientProvider.overrideWithValue(client),
-            sharedPreferencesProvider.overrideWithValue(preferences),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              body: ValueListenableBuilder(
-                valueListenable: callerShown,
-                builder: (context, shown, _) => shown
-                    ? Consumer(
-                        builder: (context, ref, _) => TextButton(
-                          onPressed: () => confirmPerson(
-                            context,
-                            ref,
-                            _bob,
-                            setUpRecovery: withSeam
-                                ? (_) async {
-                                    recoverySetUps++;
-                                    duringRecoverySetUp();
-                                    await recoverySetUpGate?.future;
-                                  }
-                                : null,
-                          ),
-                          child: const Text('confirm'),
-                        ),
-                      )
-                    : const SizedBox(),
-              ),
-            ),
+  Future<void> pump(
+    WidgetTester tester, {
+    bool withSeam = true,
+    bool picturesFirst = false,
+  }) => tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        matrixClientProvider.overrideWithValue(client),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: ValueListenableBuilder(
+            valueListenable: callerShown,
+            builder: (context, shown, _) => shown
+                ? Consumer(
+                    builder: (context, ref, _) => TextButton(
+                      onPressed: () => confirmPerson(
+                        context,
+                        ref,
+                        _bob,
+                        picturesFirst: picturesFirst,
+                        setUpRecovery: withSeam
+                            ? (_) async {
+                                recoverySetUps++;
+                                duringRecoverySetUp();
+                                await recoverySetUpGate?.future;
+                              }
+                            : null,
+                      ),
+                      child: const Text('confirm'),
+                    ),
+                  )
+                : const SizedBox(),
           ),
         ),
-      );
+      ),
+    ),
+  );
 
-  Future<void> start(WidgetTester tester, {bool withSeam = true}) async {
-    await pump(tester, withSeam: withSeam);
+  Future<void> start(
+    WidgetTester tester, {
+    bool withSeam = true,
+    bool picturesFirst = false,
+  }) async {
+    await pump(tester, withSeam: withSeam, picturesFirst: picturesFirst);
     await tester.tap(find.text('confirm'));
     await settle(tester);
   }
@@ -283,7 +291,20 @@ void main() {
       );
       expect(page.keyVerification, same(verification));
       expect(page.isOwnDevice, isFalse);
+      expect(page.picturesFirst, isFalse);
       expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('asked to, it opens the check on the pictures', (tester) async {
+      fakeDeviceKeysOf(client, _bob).onStart = () async =>
+          FakeKeyVerification();
+      testMasterKey(client, _bob);
+      await start(tester, picturesFirst: true);
+
+      final page = tester.widget<VerificationPage>(
+        find.byType(VerificationPage),
+      );
+      expect(page.picturesFirst, isTrue);
     });
 
     testWidgets('a confirmed person is remembered with their identity', (

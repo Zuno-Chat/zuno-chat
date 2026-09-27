@@ -16,8 +16,10 @@ Future<void> confirmPerson(
   WidgetRef ref,
   String userId, {
   Future<void> Function(BuildContext context)? setUpRecovery,
+  bool picturesFirst = false,
 }) async {
   final client = ref.read(matrixClientProvider);
+  final confirmedIdentities = ref.read(confirmedIdentityStoreProvider);
   final messenger = ScaffoldMessenger.of(context);
 
   final facts = await accountSecurityFactsOf(client);
@@ -85,15 +87,14 @@ Future<void> confirmPerson(
     }
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => VerificationPage(keyVerification: keyVerification),
+        builder: (_) => VerificationPage(
+          keyVerification: keyVerification,
+          picturesFirst: picturesFirst,
+        ),
       ),
     );
     if (client.userDeviceKeys[userId]?.masterKey?.directVerified ?? false) {
-      await rememberConfirmedIdentity(
-        ref.read(confirmedIdentityStoreProvider),
-        client,
-        userId,
-      );
+      await rememberConfirmedIdentity(confirmedIdentities, client, userId);
     }
   } catch (e) {
     logCaught('start verification', e);

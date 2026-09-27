@@ -17,9 +17,14 @@ import '../../../core/calls/models/voip_participant_id.dart';
 import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/calls/platform/ongoing_call_presenter.dart';
 import '../../../core/calls/platform/ringback_tone_player.dart';
+import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/room_title.dart';
+import '../../../core/security/security_providers.dart';
 import '../../../core/ui/zuno_theme.dart';
+import '../../verification/presentation/confirm_person.dart';
+import '../../verification/presentation/why_confirm_sheet.dart';
 import 'call_audio_route.dart';
+import 'call_confirm_prompt.dart';
 import 'call_picture_in_picture.dart';
 import 'call_proximity.dart';
 import 'call_view.dart';
@@ -54,6 +59,8 @@ class _CallPageState extends ConsumerState<CallPage> {
   bool _watchingHeadsets = false;
   bool _finished = false;
   DateTime? _talkingSince;
+  Timer? _confirmPromptTimer;
+  bool _talkedLongEnough = false;
   ({bool eligible, int width, int height})? _sentPictureInPicture;
   bool? _sentProximityScreenOff;
 
@@ -203,6 +210,11 @@ class _CallPageState extends ConsumerState<CallPage> {
           _talkingSince ??= DateTime.now();
         }
       });
+      if (_talkingSince != null) {
+        _confirmPromptTimer ??= Timer(callConfirmPromptDelay, () {
+          if (mounted) setState(() => _talkedLongEnough = true);
+        });
+      }
     }
     _syncPictureInPicture();
   }
@@ -222,11 +234,17 @@ class _CallPageState extends ConsumerState<CallPage> {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(message)));
     }
-    Navigator.of(context).pop();
+    final navigator = Navigator.of(context);
+    final route = ModalRoute.of(context);
+    if (route != null && route.isActive) {
+      navigator.popUntil((r) => r == route);
+    }
+    navigator.pop();
   }
 
   @override
   void dispose() {
+    _confirmPromptTimer?.cancel();
     unawaited(_ringback.stop());
     if (_watchingHeadsets &&
         navigator.mediaDevices.ondevicechange == _onAudioDevicesChanged) {
@@ -338,6 +356,7 @@ class _CallPageState extends ConsumerState<CallPage> {
 
   @override
   Widget build(BuildContext context) {
+    final confirmUserId = _confirmPromptUserId();
     return PopScope(
       canPop: false,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -352,7 +371,7 @@ class _CallPageState extends ConsumerState<CallPage> {
                     backgroundColor: Colors.black,
                     body: _buildPictureInPicture(),
                   )
-                : _buildCall(),
+                : _buildCall(context, confirmUserId),
           ),
         ),
       ),
@@ -373,7 +392,42 @@ class _CallPageState extends ConsumerState<CallPage> {
     );
   }
 
-  Widget _buildCall() {
+  String? _confirmPromptUserId() {
+    if (!session.room.isDirectChat) return null;
+    final remotes = _participants.where((p) => !p.isLocal).toList();
+    if (remotes.length != 1) return null;
+    final userId = remotes.single.id.userId;
+    final wanted = callConfirmPromptWanted(
+      trust: ref.watch(userTrustProvider(userId)),
+      deviceReady: ref.watch(
+        accountSecurityFactsProvider.select((facts) {
+          final value = facts.value;
+          return value != null &&
+              value.recoveryExists &&
+              value.thisDeviceHasIdentityKeys;
+        }),
+      ),
+      declined: ref.watch(callConfirmPromptStoreProvider).declined(userId),
+      talkedLongEnough: _talkedLongEnough,
+    );
+    return wanted ? userId : null;
+  }
+
+  Future<void> _explainConfirming(BuildContext context, String userId) async {
+    final confirm = await showWhyConfirmSheet(
+      context,
+      name: withoutServer(userId),
+    );
+    if (confirm == null || !context.mounted) return;
+    if (!confirm) {
+      await ref.read(callConfirmPromptStoreProvider).decline(userId);
+      if (mounted) setState(() {});
+      return;
+    }
+    await confirmPerson(context, ref, userId, picturesFirst: true);
+  }
+
+  Widget _buildCall(BuildContext context, String? confirmUserId) {
     final local = _localParticipant;
     final connecting = session.phase != CallSessionPhase.active;
     return CallView(
@@ -395,6 +449,10 @@ class _CallPageState extends ConsumerState<CallPage> {
       onSwitchCamera: () => session.engine.switchCamera(),
       onToggleSpeaker: _toggleSpeaker,
       onHangUp: () => session.hangUp(),
+      confirmName: confirmUserId == null ? null : withoutServer(confirmUserId),
+      onConfirmPerson: confirmUserId == null
+          ? null
+          : () => _explainConfirming(context, confirmUserId),
     );
   }
 }
