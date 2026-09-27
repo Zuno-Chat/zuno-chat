@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/best_effort.dart';
 import '../../../core/location/map_tile_cache.dart';
 import '../../../core/matrix/attachment_cache.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -35,7 +36,15 @@ class DataStorageSettingsPage extends ConsumerWidget {
     );
     if (confirmed != true) return;
 
-    await ref.read(matrixClientProvider).clearCache();
+    try {
+      await ref.read(matrixClientProvider).clearCache();
+    } catch (e) {
+      logCaught('clear cache', e);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Cache not cleared. Try again.')),
+      );
+      return;
+    }
     messenger.showSnackBar(const SnackBar(content: Text('Cache cleared')));
   }
 

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/best_effort.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/recovery_code.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/sensitive_clipboard.dart';
@@ -54,6 +55,9 @@ class _RecoveryCodeCreateFlowState
           case _Step.reveal:
             return _RevealScreen(
               code: code,
+              clipboardClears: ref
+                  .watch(platformCapabilitiesProvider)
+                  .sensitiveClipboard,
               onContinue: () => setState(() {
                 _confirmIndices = recoveryConfirmationIndices();
                 _step = _Step.confirm;
@@ -75,8 +79,13 @@ class _RecoveryCodeCreateFlowState
 
 class _RevealScreen extends StatelessWidget {
   final String code;
+  final bool clipboardClears;
   final VoidCallback onContinue;
-  const _RevealScreen({required this.code, required this.onContinue});
+  const _RevealScreen({
+    required this.code,
+    required this.clipboardClears,
+    required this.onContinue,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -112,9 +121,12 @@ class _RevealScreen extends StatelessWidget {
           onPressed: () {
             SensitiveClipboard.instance.copy(code);
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text(
-                  'Copied. Clears from the clipboard in 90 seconds.',
+                  clipboardClears
+                      ? 'Copied. Clears from the clipboard in 90 seconds.'
+                      : 'Copied. It stays on the clipboard until you copy '
+                            'something else.',
                 ),
               ),
             );

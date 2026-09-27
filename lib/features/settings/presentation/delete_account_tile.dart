@@ -71,46 +71,9 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
     final username = userId.startsWith('@')
         ? userId.substring(1).split(':').first
         : userId;
-    final controller = TextEditingController();
     return showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          final matches = controller.text == username;
-          return AlertDialog(
-            title: const Text('Confirm deletion'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Type your username to confirm: $username'),
-                const SizedBox(height: 12),
-                TextField(
-                  autofillHints: null,
-                  controller: controller,
-                  autofocus: true,
-                  onChanged: (_) => setState(() {}),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: matches
-                    ? () => Navigator.of(context).pop(true)
-                    : null,
-                style: TextButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.error,
-                ),
-                child: const Text('Delete account'),
-              ),
-            ],
-          );
-        },
-      ),
+      builder: (context) => _ConfirmDeletionDialog(username: username),
     );
   }
 
@@ -159,5 +122,58 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
       label: 'stop notification delivery after account deletion',
     );
     await client.clear(reason: SessionClearReason.logout);
+  }
+}
+
+class _ConfirmDeletionDialog extends StatefulWidget {
+  final String username;
+  const _ConfirmDeletionDialog({required this.username});
+
+  @override
+  State<_ConfirmDeletionDialog> createState() => _ConfirmDeletionDialogState();
+}
+
+class _ConfirmDeletionDialogState extends State<_ConfirmDeletionDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matches = _controller.text.trim() == widget.username;
+    return AlertDialog(
+      title: const Text('Confirm deletion'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Type your username to confirm: ${widget.username}'),
+          const SizedBox(height: 12),
+          TextField(
+            autofillHints: null,
+            controller: _controller,
+            autofocus: true,
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: matches ? () => Navigator.of(context).pop(true) : null,
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
+          child: const Text('Delete account'),
+        ),
+      ],
+    );
   }
 }

@@ -71,7 +71,8 @@ class _NotificationsSettingsPageState
   Future<void> _refreshStatus() async {
     final previous = _status;
     final status = await Permission.notification.status;
-    if (mounted) setState(() => _status = status);
+    if (!mounted) return;
+    setState(() => _status = status);
     unawaited(ref.read(notificationsAllowedProvider.notifier).refresh());
     _maybeRefreshBackgroundSync(previous, status);
   }
@@ -84,7 +85,8 @@ class _NotificationsSettingsPageState
       case NotificationPermissionAction.request:
         final previous = _status;
         final result = await Permission.notification.request();
-        if (mounted) setState(() => _status = result);
+        if (!mounted) return;
+        setState(() => _status = result);
         unawaited(ref.read(notificationsAllowedProvider.notifier).refresh());
         _maybeRefreshBackgroundSync(previous, result);
       case NotificationPermissionAction.openSettings:

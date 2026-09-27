@@ -2,18 +2,47 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/security/account_security_status.dart';
+import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/blocking/presentation/blocked_people_page.dart';
+import 'package:zuno/features/settings/presentation/active_sessions_page.dart';
 import 'package:zuno/features/settings/presentation/advanced_security_page.dart';
+import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 import 'package:zuno/features/settings/presentation/security_privacy_settings_page.dart';
+import 'package:zuno/features/settings/presentation/why_security_page.dart';
+import 'package:zuno/features/verification/presentation/approve_this_device_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
+
+class _NoDevicesClient extends EncryptedTestClient {
+  _NoDevicesClient() : super(userId: '@me:example.org', testDeviceId: 'HERE');
+
+  @override
+  Future<List<Device>?> getDevices() async => [];
+
+  @override
+  Future<void> updateUserDeviceKeys({Set<String>? additionalUsers}) async {}
+}
+
+AccountSecurityFacts _factsFor(AccountSecurityStatus status) =>
+    AccountSecurityFacts(
+      recoveryExists: status != AccountSecurityStatus.noRecovery,
+      thisDeviceHasIdentityKeys: status != AccountSecurityStatus.deviceLocked,
+      keyBackupExists: true,
+      keyBackupUsableHere: status != AccountSecurityStatus.recoveryStale,
+      unapprovedOtherDevices: status == AccountSecurityStatus.deviceWaiting
+          ? 1
+          : 0,
+    );
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -251,5 +280,144 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AdvancedSecurityPage), findsNothing);
+  });
+
+  group('leaving for another page', () {
+    late int factReads;
+
+    Future<void> pumpWithStatus(
+      WidgetTester tester,
+      AccountSecurityStatus status,
+    ) async {
+      factReads = 0;
+      await tester.binding.setSurfaceSize(const Size(800, 3000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      SharedPreferences.setMockInitialValues({});
+      final sharedPrefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            matrixClientProvider.overrideWithValue(_NoDevicesClient()),
+            sharedPreferencesProvider.overrideWithValue(sharedPrefs),
+            accountSecurityFactsProvider.overrideWith((ref) {
+              factReads++;
+              return Stream.value(_factsFor(status));
+            }),
+          ],
+          child: const MaterialApp(home: SecurityPrivacySettingsPage()),
+        ),
+      );
+      await tester.pump();
+    }
+
+    Future<void> open(WidgetTester tester, Finder target) async {
+      await tester.tap(target);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    Future<void> comeBack(WidgetTester tester) async {
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+    }
+
+    Finder action(String label) => find.widgetWithText(FilledButton, label);
+
+    testWidgets('without recovery the card sets it up from scratch', (
+      tester,
+    ) async {
+      await pumpWithStatus(tester, AccountSecurityStatus.noRecovery);
+
+      await open(tester, action('Set up recovery'));
+
+      final page = tester.widget<SecureBackupPage>(
+        find.byType(SecureBackupPage),
+      );
+      expect(page.autoRestoreExisting, isNull);
+    });
+
+    testWidgets('a locked device is sent to approval', (tester) async {
+      await pumpWithStatus(tester, AccountSecurityStatus.deviceLocked);
+
+      await open(tester, action('Unlock them'));
+
+      expect(find.byType(ApproveThisDevicePage), findsOneWidget);
+    });
+
+    testWidgets('a waiting sign-in is reviewed among the devices', (
+      tester,
+    ) async {
+      await pumpWithStatus(tester, AccountSecurityStatus.deviceWaiting);
+
+      await open(tester, action('Review'));
+
+      expect(find.byType(ActiveSessionsPage), findsOneWidget);
+    });
+
+    testWidgets('an old recovery code goes straight to entering the new one', (
+      tester,
+    ) async {
+      await pumpWithStatus(tester, AccountSecurityStatus.recoveryStale);
+
+      await open(tester, action('Enter code'));
+
+      final page = tester.widget<SecureBackupPage>(
+        find.byType(SecureBackupPage),
+      );
+      expect(page.autoRestoreExisting, isTrue);
+    });
+
+    testWidgets('a protected account has nothing to act on', (tester) async {
+      await pumpWithStatus(tester, AccountSecurityStatus.protected);
+
+      expect(find.byType(FilledButton), findsNothing);
+    });
+
+    testWidgets('the recovery row offers a change once recovery exists', (
+      tester,
+    ) async {
+      await pumpWithStatus(tester, AccountSecurityStatus.protected);
+
+      expect(find.text('Change your recovery code'), findsOneWidget);
+      expect(find.textContaining('need approving again'), findsOneWidget);
+
+      await open(tester, find.text('Change your recovery code'));
+
+      expect(find.byType(SecureBackupPage), findsOneWidget);
+    });
+
+    testWidgets('the recovery row offers a setup without it', (tester) async {
+      await pumpWithStatus(tester, AccountSecurityStatus.noRecovery);
+
+      expect(find.widgetWithText(ListTile, 'Set up recovery'), findsOneWidget);
+      expect(find.text('Change your recovery code'), findsNothing);
+    });
+
+    testWidgets('Your devices lists the devices', (tester) async {
+      await pumpWithStatus(tester, AccountSecurityStatus.protected);
+
+      await open(tester, find.text('Your devices'));
+
+      expect(find.byType(ActiveSessionsPage), findsOneWidget);
+    });
+
+    testWidgets('How this works explains it', (tester) async {
+      await pumpWithStatus(tester, AccountSecurityStatus.protected);
+
+      await open(tester, find.text('How this works'));
+
+      expect(find.byType(WhySecurityPage), findsOneWidget);
+    });
+
+    testWidgets('coming back checks the status again', (tester) async {
+      await pumpWithStatus(tester, AccountSecurityStatus.protected);
+      expect(factReads, 1);
+
+      await open(tester, find.text('How this works'));
+      await comeBack(tester);
+
+      expect(find.byType(WhySecurityPage), findsNothing);
+      expect(factReads, 2);
+    });
   });
 }

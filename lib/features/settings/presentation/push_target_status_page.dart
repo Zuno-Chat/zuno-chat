@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/errors/best_effort.dart';
 import '../../../core/format/chat_list_time.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/apns_delivery_provider.dart';
@@ -58,6 +59,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
 
   List<PusherInfo>? _pushers;
 
+  bool _pushersFailed = false;
+
   List<PushDeliveryRecord>? _deliveries;
 
   bool _removing = false;
@@ -72,21 +75,27 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
       ref.read(notificationDeliveryModeProvider);
 
   Future<void> _refresh() async {
-    final distributor = _mode == NotificationDeliveryMode.unifiedPush
+    final mode = _mode;
+    final client = ref.read(matrixClientProvider);
+    final distributor = mode == NotificationDeliveryMode.unifiedPush
         ? await unifiedPushDeliveryProvider.knownDistributor()
         : null;
-    final pushers =
-        await fetchPushers(ref.read(matrixClientProvider)) ??
-        const <PusherInfo>[];
-    final deliveries = deliveryLogsEachPush(_mode)
+    final pushers = await fetchPushers(client);
+    final deliveries = deliveryLogsEachPush(mode)
         ? await readPushDeliveryLog(await SharedPreferences.getInstance())
         : const <PushDeliveryRecord>[];
     if (!mounted) return;
     setState(() {
       _distributor = distributor ?? '';
-      _pushers = pushers;
+      _pushers = pushers ?? const [];
+      _pushersFailed = pushers == null;
       _deliveries = deliveries;
     });
+  }
+
+  void _showNotRemoved() {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Not removed. Try again.')));
   }
 
   Future<void> _removeTarget() async {
@@ -100,19 +109,29 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     if (confirmed != true || !mounted) return;
     setState(() => _removing = true);
     final client = ref.read(matrixClientProvider);
-    switch (mode) {
-      case NotificationDeliveryMode.unifiedPush:
-        await unifiedPushDeliveryProvider.removeRegistration(client);
-      case NotificationDeliveryMode.fcm:
-        await fcmDeliveryProvider.stop(client);
-      case NotificationDeliveryMode.apns:
-        await apnsDeliveryProvider.stop(client);
-      case NotificationDeliveryMode.backgroundService:
-        break;
+    var failed = false;
+    try {
+      switch (mode) {
+        case NotificationDeliveryMode.unifiedPush:
+          await unifiedPushDeliveryProvider.removeRegistration(client);
+        case NotificationDeliveryMode.fcm:
+          await fcmDeliveryProvider.stop(client);
+        case NotificationDeliveryMode.apns:
+          await apnsDeliveryProvider.stop(client);
+        case NotificationDeliveryMode.backgroundService:
+          break;
+      }
+    } catch (e) {
+      logCaught('remove push target', e);
+      failed = true;
     }
     if (!mounted) return;
     setState(() => _removing = false);
-    Navigator.of(context).pop();
+    if (failed) {
+      _showNotRemoved();
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   String _removalDetail(NotificationDeliveryMode mode) {
@@ -160,15 +179,20 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     if (!mounted) return;
     setState(() => _removing = true);
     final client = ref.read(matrixClientProvider);
+    var failed = false;
     for (final pusher in pushers) {
       try {
         await client.deletePusher(
           PusherId(appId: pusher.appId, pushkey: pusher.pushkey),
         );
-      } catch (_) {}
+      } catch (e) {
+        logCaught('remove other push target', e);
+        failed = true;
+      }
     }
     if (!mounted) return;
     setState(() => _removing = false);
+    if (failed) _showNotRemoved();
     await _refresh();
   }
 
@@ -196,7 +220,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final mode = ref.watch(notificationDeliveryModeProvider);
-    final client = ref.read(matrixClientProvider);
+    final client = ref.watch(matrixClientProvider);
     final currentPushkey = currentPushkeyFor(mode);
     final gatewayUrl = _gatewayUrl(mode, client);
     final lastPusherError = lastPusherErrorFor(mode);
@@ -351,6 +375,9 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
 
   List<Widget> _pusherRows(List<PusherInfo> pushers, bool loading) {
     if (loading) return const [_EmptyNote('Loading…')];
+    if (_pushersFailed) {
+      return const [_EmptyNote('Could not load. Pull down to try again.')];
+    }
     if (pushers.isEmpty) return const [_EmptyNote('None')];
     return [
       for (final pusher in pushers)

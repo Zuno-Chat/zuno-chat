@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +10,7 @@ import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.da
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
+import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/notification_delivery_page.dart';
@@ -39,7 +42,7 @@ void _stubNotificationPermission({required bool granted}) {
   addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
 }
 
-Future<void> _pumpPage(
+Future<ProviderContainer> _pumpPage(
   WidgetTester tester,
   NotificationDeliveryMode mode, {
   PlatformCapabilities? capabilities,
@@ -68,6 +71,7 @@ Future<void> _pumpPage(
     ),
   );
   await tester.pumpAndSettle();
+  return container;
 }
 
 void main() {
@@ -309,5 +313,187 @@ void main() {
       expect(find.textContaining('are silenced'), findsNothing);
       debugDefaultTargetPlatformOverride = null;
     });
+  });
+
+  group('asking for the permission', () {
+    late int status;
+    late int requestAnswer;
+    late List<String> permissionCalls;
+    late List<String> syncCalls;
+    Completer<void>? statusGate;
+
+    setUp(() {
+      status = 0;
+      requestAnswer = 1;
+      permissionCalls = [];
+      syncCalls = [];
+      statusGate = null;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const permissions = MethodChannel(
+        'flutter.baseflow.com/permissions/methods',
+      );
+      const backgroundSync = MethodChannel('zuno/background_sync');
+      messenger.setMockMethodCallHandler(permissions, (call) async {
+        permissionCalls.add(call.method);
+        switch (call.method) {
+          case 'checkPermissionStatus':
+            await statusGate?.future;
+            return status;
+          case 'requestPermissions':
+            return {17: requestAnswer};
+        }
+        return null;
+      });
+      messenger.setMockMethodCallHandler(backgroundSync, (call) async {
+        syncCalls.add(call.method);
+        return null;
+      });
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(permissions, null);
+        messenger.setMockMethodCallHandler(backgroundSync, null);
+      });
+    });
+
+    Finder toggle() =>
+        find.widgetWithText(SwitchListTile, 'Enable notifications');
+
+    testWidgets('turning it on asks, and a yes brings the delivery rows and '
+        'restarts background sync', (tester) async {
+      await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
+      expect(find.widgetWithText(ListTile, 'Delivery'), findsNothing);
+
+      await tester.tap(toggle());
+      await tester.pumpAndSettle();
+
+      expect(permissionCalls, contains('requestPermissions'));
+      expect(tester.widget<SwitchListTile>(toggle()).value, isTrue);
+      expect(find.widgetWithText(ListTile, 'Delivery'), findsOneWidget);
+      expect(syncCalls, ['startBackgroundSyncService']);
+    });
+
+    testWidgets('a no keeps it off and says nothing is delivered', (
+      tester,
+    ) async {
+      requestAnswer = 0;
+      await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
+
+      await tester.tap(toggle());
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<SwitchListTile>(toggle()).value, isFalse);
+      expect(find.textContaining('nothing is delivered'), findsOneWidget);
+      expect(syncCalls, isEmpty);
+    });
+
+    testWidgets('with push delivery a yes leaves background sync alone', (
+      tester,
+    ) async {
+      await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+      await tester.tap(toggle());
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<SwitchListTile>(toggle()).value, isTrue);
+      expect(syncCalls, isEmpty);
+    });
+
+    testWidgets('coming back from system settings picks up the change', (
+      tester,
+    ) async {
+      await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
+      status = 1;
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<SwitchListTile>(toggle()).value, isTrue);
+      expect(syncCalls, ['startBackgroundSyncService']);
+    });
+
+    testWidgets('closing the page mid-check is harmless', (tester) async {
+      statusGate = Completer();
+      await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
+
+      await tester.pumpWidget(const SizedBox());
+      statusGate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('full-screen call alerts', () {
+    late List<String> callsMade;
+
+    setUp(() {
+      callsMade = [];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const calls = MethodChannel('zuno/calls');
+      messenger.setMockMethodCallHandler(calls, (call) async {
+        callsMade.add(call.method);
+        return call.method == 'canUseFullScreenIntent' ? false : null;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(calls, null));
+    });
+
+    testWidgets('when turned off say so and open the setting', (tester) async {
+      _stubNotificationPermission(granted: true);
+      await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+      final row = find.widgetWithText(ListTile, 'Full-screen call alerts');
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.textContaining('only as a regular notification'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(row);
+      await tester.pump();
+
+      expect(callsMade, contains('openFullScreenIntentSettings'));
+    });
+  });
+
+  group('preferences', () {
+    Finder switchTile(String title) =>
+        find.widgetWithText(SwitchListTile, title);
+
+    testWidgets('Mentions only is kept', (tester) async {
+      final container = await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+      await tester.tap(find.text('Mentions only'));
+      await tester.pump();
+
+      expect(container.read(notifyMeProvider), NotifyMe.mentionsOnly);
+      expect(
+        tester
+            .widget<RadioGroup<NotifyMe>>(find.byType(RadioGroup<NotifyMe>))
+            .groupValue,
+        NotifyMe.mentionsOnly,
+      );
+    });
+
+    for (final (title, provider) in [
+      ('Ringtone', ringtoneEnabledProvider),
+      ('Vibrate for calls', callVibrationEnabledProvider),
+      ('Message tone', messageToneEnabledProvider),
+      ('Vibrate for messages', messageVibrationEnabledProvider),
+    ]) {
+      testWidgets('$title flips its setting', (tester) async {
+        final container = await _pumpPage(tester, NotificationDeliveryMode.fcm);
+        final before = container.read(provider);
+
+        await tester.tap(switchTile(title));
+        await tester.pump();
+
+        expect(container.read(provider), !before);
+        expect(tester.widget<SwitchListTile>(switchTile(title)).value, !before);
+      });
+    }
   });
 }

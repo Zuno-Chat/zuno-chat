@@ -160,8 +160,9 @@ class _NotificationDeliveryPageState
       ),
     );
     if (chosen == null || chosen == current || !mounted) return;
+    final client = ref.read(matrixClientProvider);
     await ref.read(notificationDeliveryModeProvider.notifier).set(chosen);
-    unawaited(kickOffDeliveryMode(ref.read(matrixClientProvider), chosen));
+    unawaited(kickOffDeliveryMode(client, chosen));
   }
 
   List<Widget> _deliveryModeSettings(

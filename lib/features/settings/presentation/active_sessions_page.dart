@@ -27,6 +27,7 @@ class ActiveSessionsPage extends ConsumerStatefulWidget {
 
 class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
   bool _loading = true;
+  bool _loadFailed = false;
   List<DeviceSessionInfo> _sessions = [];
   StreamSubscription<UiaRequest>? _uiaSub;
   bool _ipRevealed = false;
@@ -47,12 +48,12 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
 
   Future<void> _refresh() async {
     final client = ref.read(matrixClientProvider);
-    setState(() => _loading = true);
     try {
-      final devicesFuture = client.getDevices();
       markOwnDeviceKeysOutdated(client);
-      await client.updateUserDeviceKeys();
-      final devices = await devicesFuture;
+      final (devices, _) = await (
+        client.getDevices(),
+        client.updateUserDeviceKeys(),
+      ).wait;
       final deviceKeys =
           client.userDeviceKeys[client.userID]?.deviceKeys.values.toList() ??
           [];
@@ -77,7 +78,20 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
         currentDeviceId: client.deviceID,
       );
       if (!mounted) return;
-      setState(() => _sessions = sessions);
+      setState(() {
+        _sessions = sessions;
+        _loadFailed = false;
+      });
+    } catch (e) {
+      logCaught('load devices', e);
+      if (!mounted) return;
+      if (_sessions.isEmpty) {
+        setState(() => _loadFailed = true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not refresh your devices.')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -226,7 +240,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
           ),
         ),
       );
-      await _refresh();
+      if (mounted) await _refresh();
     } catch (e) {
       logCaught('start device approval', e);
       messenger.showSnackBar(
@@ -342,9 +356,16 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
                       ],
                     ),
                   if (_sessions.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 96),
-                      child: Center(child: Text('No devices found.')),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 96),
+                      child: Center(
+                        child: Text(
+                          _loadFailed
+                              ? 'Could not load your devices. Pull down to '
+                                    'try again.'
+                              : 'No devices found.',
+                        ),
+                      ),
                     ),
                 ],
               ),

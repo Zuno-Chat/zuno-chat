@@ -204,6 +204,11 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   username only** — `client.userID` with the `@` and `:server` suffix
   stripped — not the full Matrix ID. The homeserver is implementation
   detail the person never typed in and has no reason to reason about here.
+  Surrounding spaces are ignored: keyboards append one after a suggestion.
+- **List pages keep their content while refreshing** (Your devices, key
+  backup, push target). The centred spinner is for the first load only. A
+  failed first load says so and to pull down, never "None"; a failed
+  refresh keeps the stale list and says so.
 
 ## Gotchas & Constraints
 
@@ -224,6 +229,11 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
 - `Client.setAvatar()` does no resizing on its own — any new avatar-upload
   path must shrink client-side itself or repeat the full-size-upload
   problem.
+- `client.getUserProfile` serves its cached profile for up to a day, and
+  `setProfileField` does not invalidate it. Account re-reads with
+  `maxCacheAge: Duration.zero` after a save, or the old name comes back.
+- Riverpod 3 throws on `ref` once a page is gone. After an `await`, check
+  `mounted` before touching `ref`, or read what you need before awaiting.
 - Settings rows for unbuilt features must use the shared
   `ComingSoonTile`/`ComingSoonSwitchTile` widgets, not ad hoc disabled
   widgets, so placeholder rows stay visually consistent and easy to find

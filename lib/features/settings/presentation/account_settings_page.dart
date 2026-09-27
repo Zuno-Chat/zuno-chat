@@ -41,24 +41,33 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
     _loadProfile();
   }
 
-  Future<void> _loadProfile() async {
+  Future<void> _loadProfile({bool fresh = false}) async {
     final client = ref.read(matrixClientProvider);
     try {
-      final profile = await client.getUserProfile(client.userID!);
+      final profile = await client.getUserProfile(
+        client.userID!,
+        maxCacheAge: fresh ? Duration.zero : const Duration(days: 1),
+      );
       if (!mounted) return;
-      setState(() => _profile = profile);
+      setState(() {
+        _profile = profile;
+        _profileError = null;
+      });
     } catch (e) {
-      if (mounted) setState(() => _profileError = e.toString());
+      logCaught('load profile', e);
+      if (mounted) {
+        setState(() => _profileError = 'Could not load your profile.');
+      }
     }
   }
 
   Future<void> _editDisplayName() async {
+    final currentName = _profile?.displayname ?? '';
     final newName = await showDialog<String>(
       context: context,
-      builder: (context) =>
-          _EditDisplayNameDialog(initialName: _profile?.displayname ?? ''),
+      builder: (context) => _EditDisplayNameDialog(initialName: currentName),
     );
-    if (newName == null || !mounted) return;
+    if (newName == null || newName == currentName || !mounted) return;
 
     final client = ref.read(matrixClientProvider);
     final messenger = ScaffoldMessenger.of(context);
@@ -67,7 +76,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
       await client.setProfileField(client.userID!, 'displayname', {
         'displayname': newName,
       });
-      await _loadProfile();
+      await _loadProfile(fresh: true);
       if (mounted) {
         messenger.showSnackBar(
           const SnackBar(content: Text('Display name updated')),
@@ -134,7 +143,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
         );
         await client.setAvatar(shrunk);
       }
-      await _loadProfile();
+      await _loadProfile(fresh: true);
       if (mounted) {
         messenger.showSnackBar(const SnackBar(content: Text('Photo updated')));
       }

@@ -7,11 +7,14 @@ import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.da
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/apns_delivery_provider.dart';
+import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
+import 'package:zuno/core/notifications/unified_push_delivery_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/notification_delivery_page.dart';
+import 'package:zuno/features/settings/presentation/push_target_status_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_unified_push.dart';
@@ -35,10 +38,11 @@ class _FixedDeliveryModeNotifier extends NotificationDeliveryModeNotifier {
   NotificationDeliveryMode build() => _mode;
 }
 
-Future<void> _pumpPage(
+Future<ProviderContainer> _pumpPage(
   WidgetTester tester,
   NotificationDeliveryMode mode, {
   PlatformCapabilities? capabilities,
+  bool settle = true,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
@@ -61,7 +65,13 @@ Future<void> _pumpPage(
       child: const MaterialApp(home: NotificationDeliveryPage()),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+    await tester.pump();
+  }
+  return container;
 }
 
 void main() {
@@ -430,6 +440,462 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(unifiedPush.distributorReads, 0);
+    });
+  });
+
+  group('with the push providers watched', () {
+    late List<String> registrations;
+    late List<MethodCall> syncCalls;
+    late bool ignoringBattery;
+    late bool dataRestricted;
+
+    setUp(() {
+      registrations = [];
+      syncCalls = [];
+      ignoringBattery = false;
+      dataRestricted = false;
+      final up = unifiedPushDeliveryProvider.notificationsAllowed;
+      final fcm = fcmDeliveryProvider.notificationsAllowed;
+      final apns = apnsDeliveryProvider.notificationsAllowed;
+      Future<bool> Function() recording(String name) => () async {
+        registrations.add(name);
+        return false;
+      };
+      unifiedPushDeliveryProvider.notificationsAllowed = recording(
+        'unifiedPush',
+      );
+      fcmDeliveryProvider.notificationsAllowed = recording('fcm');
+      apnsDeliveryProvider.notificationsAllowed = recording('apns');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const channel = MethodChannel('zuno/background_sync');
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        syncCalls.add(call);
+        return switch (call.method) {
+          'isIgnoringBatteryOptimizations' => ignoringBattery,
+          'isBackgroundDataRestricted' => dataRestricted,
+          'hasAutostartSettings' => false,
+          _ => null,
+        };
+      });
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(channel, null);
+        unifiedPushDeliveryProvider
+          ..notificationsAllowed = up
+          ..status.value = UnifiedPushStatus.idle
+          ..savedDistributor = null
+          ..distributorBatteryRestricted.value = false;
+        fcmDeliveryProvider
+          ..notificationsAllowed = fcm
+          ..status.value = FcmStatus.idle;
+        apnsDeliveryProvider
+          ..notificationsAllowed = apns
+          ..status.value = ApnsStatus.idle;
+      });
+    });
+
+    List<String> syncMethods() => [for (final c in syncCalls) c.method];
+
+    Finder statusRow() => find.widgetWithText(ListTile, 'Status');
+
+    Finder inStatusRow(Finder matching) =>
+        find.descendant(of: statusRow(), matching: matching);
+
+    Future<void> openSheet(WidgetTester tester) async {
+      await tester.tap(find.text('Delivery method'));
+      await tester.pumpAndSettle();
+    }
+
+    Finder inSheet(String label) => find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.text(label),
+    );
+
+    group('choosing a method', () {
+      testWidgets('another one is saved and started', (tester) async {
+        final container = await _pumpPage(
+          tester,
+          NotificationDeliveryMode.backgroundService,
+        );
+
+        await openSheet(tester);
+        await tester.tap(inSheet('Google services'));
+        await tester.pumpAndSettle();
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.fcm,
+        );
+        expect(
+          container
+              .read(sharedPreferencesProvider)
+              .getString('settings.notification_delivery_mode'),
+          'fcm',
+        );
+        expect(registrations, ['fcm']);
+      });
+
+      testWidgets('the current one is ticked and changes nothing', (
+        tester,
+      ) async {
+        final container = await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+        await openSheet(tester);
+        expect(
+          find.descendant(
+            of: find.widgetWithText(ListTile, 'Google services').last,
+            matching: find.byIcon(Icons.check_outlined),
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(inSheet('Google services'));
+        await tester.pumpAndSettle();
+
+        expect(registrations, isEmpty);
+        expect(
+          container
+              .read(sharedPreferencesProvider)
+              .getString('settings.notification_delivery_mode'),
+          isNull,
+        );
+      });
+
+      testWidgets('dismissing the sheet changes nothing', (tester) async {
+        final container = await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+        await openSheet(tester);
+        await tester.tapAt(const Offset(20, 20));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(BottomSheet), findsNothing);
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.fcm,
+        );
+      });
+    });
+
+    group('battery and background data', () {
+      testWidgets('an exempt device says so for each method', (tester) async {
+        ignoringBattery = true;
+        for (final (mode, subtitle) in [
+          (
+            NotificationDeliveryMode.fcm,
+            'Android will not hold notifications back to save power',
+          ),
+          (
+            NotificationDeliveryMode.backgroundService,
+            'Android will not pause background sync to save power',
+          ),
+          (
+            NotificationDeliveryMode.unifiedPush,
+            'Android will not put Zuno to sleep, so notifications arrive '
+                'while your device is locked',
+          ),
+        ]) {
+          await tester.pumpWidget(const SizedBox());
+          await _pumpPage(tester, mode);
+
+          final row = find.widgetWithText(
+            ListTile,
+            'Unrestricted battery usage',
+            skipOffstage: false,
+          );
+          expect(
+            find.descendant(
+              of: row,
+              matching: find.text(subtitle, skipOffstage: false),
+            ),
+            findsOneWidget,
+            reason: mode.name,
+          );
+          expect(
+            find.descendant(
+              of: row,
+              matching: find.byIcon(
+                Icons.check_circle_outline,
+                skipOffstage: false,
+              ),
+            ),
+            findsOneWidget,
+            reason: mode.name,
+          );
+        }
+      });
+
+      testWidgets('tapping the battery row asks Android for the exemption', (
+        tester,
+      ) async {
+        await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+        await tester.tap(find.text('Unrestricted battery usage'));
+        await tester.pump();
+
+        expect(syncMethods(), contains('requestIgnoreBatteryOptimizations'));
+      });
+
+      testWidgets('restricted background data says so and opens its '
+          'setting', (tester) async {
+        dataRestricted = true;
+        await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
+
+        expect(find.textContaining('Data Saver stops'), findsOneWidget);
+
+        await tester.tap(find.text('Background data'));
+        await tester.pump();
+
+        expect(syncMethods(), contains('openBackgroundDataSettings'));
+      });
+
+      testWidgets('a battery-restricted distributor opens its own app '
+          'settings', (tester) async {
+        unifiedPushDeliveryProvider
+          ..savedDistributor = 'io.heckel.ntfy'
+          ..distributorBatteryRestricted.value = true;
+        await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
+
+        await tester.scrollUntilVisible(
+          find.text('ntfy battery'),
+          200,
+          scrollable: find.byType(Scrollable),
+        );
+        await tester.tap(find.text('ntfy battery'));
+        await tester.pump();
+
+        final open = syncCalls.singleWhere(
+          (c) => c.method == 'openAppSettings',
+        );
+        expect(open.arguments, {'package': 'io.heckel.ntfy'});
+      });
+
+      testWidgets('Apple push never shows a battery row, even where an '
+          'exemption exists', (tester) async {
+        await _pumpPage(
+          tester,
+          NotificationDeliveryMode.apns,
+          capabilities: capabilitiesLike(
+            iosCapabilities,
+            batteryExemption: true,
+          ),
+        );
+
+        expect(find.text('Unrestricted battery usage'), findsNothing);
+      });
+    });
+
+    group('UnifiedPush status', () {
+      testWidgets('an idle one on screen shows the paused icon', (
+        tester,
+      ) async {
+        unifiedPushDeliveryProvider.status.value =
+            UnifiedPushStatus.pusherFailed;
+        await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
+
+        unifiedPushDeliveryProvider.status.value = UnifiedPushStatus.idle;
+        await tester.pumpAndSettle();
+
+        expect(
+          inStatusRow(find.byIcon(Icons.pause_circle_outline)),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('an idle one on opening looks for a distributor', (
+        tester,
+      ) async {
+        await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
+
+        expect(
+          unifiedPushDeliveryProvider.status.value,
+          UnifiedPushStatus.noDistributorFound,
+        );
+      });
+
+      for (final (status, icon) in [
+        (UnifiedPushStatus.noDistributorFound, Icons.warning_amber_outlined),
+        (
+          UnifiedPushStatus.distributorSelected,
+          Icons.arrow_circle_right_outlined,
+        ),
+        (UnifiedPushStatus.ready, Icons.check_circle_outline),
+        (UnifiedPushStatus.registrationFailed, Icons.error_outline),
+        (UnifiedPushStatus.pusherFailed, Icons.error_outline),
+      ]) {
+        testWidgets('${status.name} shows its icon', (tester) async {
+          unifiedPushDeliveryProvider.status.value = status;
+          await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
+
+          expect(inStatusRow(find.byIcon(icon)), findsOneWidget);
+        });
+      }
+
+      for (final status in [
+        UnifiedPushStatus.findingDistributor,
+        UnifiedPushStatus.registering,
+        UnifiedPushStatus.postingPusher,
+      ]) {
+        testWidgets('${status.name} spins and holds off the refresh', (
+          tester,
+        ) async {
+          unifiedPushDeliveryProvider.status.value = status;
+          await _pumpPage(
+            tester,
+            NotificationDeliveryMode.unifiedPush,
+            settle: false,
+          );
+
+          expect(
+            inStatusRow(find.byType(CircularProgressIndicator)),
+            findsOneWidget,
+          );
+          expect(
+            tester
+                .widget<IconButton>(
+                  find.widgetWithIcon(IconButton, Icons.refresh),
+                )
+                .onPressed,
+            isNull,
+          );
+          await tester.pumpWidget(const SizedBox());
+        });
+      }
+
+      testWidgets('a chosen distributor offers Register', (tester) async {
+        unifiedPushDeliveryProvider.status.value =
+            UnifiedPushStatus.distributorSelected;
+        await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
+
+        await tester.tap(inStatusRow(find.text('Register')));
+        await tester.pump();
+
+        expect(registrations, ['unifiedPush']);
+      });
+
+      testWidgets('a refused registration offers Retry', (tester) async {
+        unifiedPushDeliveryProvider.status.value =
+            UnifiedPushStatus.pusherFailed;
+        await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
+
+        await tester.tap(inStatusRow(find.text('Retry')));
+        await tester.pump();
+
+        expect(registrations, ['unifiedPush']);
+      });
+
+      testWidgets('a working registration leads to its details', (
+        tester,
+      ) async {
+        unifiedPushDeliveryProvider.status.value = UnifiedPushStatus.ready;
+        await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
+
+        await tester.tap(statusRow());
+        await tester.pumpAndSettle();
+
+        expect(find.byType(PushTargetStatusPage), findsOneWidget);
+      });
+
+      testWidgets('refresh looks for a distributor and says when there is '
+          'none', (tester) async {
+        unifiedPushDeliveryProvider.status.value =
+            UnifiedPushStatus.registrationFailed;
+        await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
+
+        await tester.tap(find.byTooltip('Look for a distributor'));
+        await tester.pumpAndSettle();
+
+        expect(
+          unifiedPushDeliveryProvider.status.value,
+          UnifiedPushStatus.noDistributorFound,
+        );
+        expect(
+          find.text('None installed. Install one, such as ntfy, then refresh.'),
+          findsOneWidget,
+        );
+      });
+    });
+
+    group('Google services status', () {
+      for (final (status, icon) in [
+        (FcmStatus.idle, Icons.pause_circle_outline),
+        (FcmStatus.playServicesUnavailable, Icons.warning_amber_outlined),
+        (FcmStatus.playServicesUpdateRequired, Icons.system_update_outlined),
+        (FcmStatus.ready, Icons.check_circle_outline),
+        (FcmStatus.tokenFailed, Icons.error_outline),
+        (FcmStatus.pusherFailed, Icons.error_outline),
+      ]) {
+        testWidgets('${status.name} shows its icon', (tester) async {
+          fcmDeliveryProvider.status.value = status;
+          await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+          expect(inStatusRow(find.byIcon(icon)), findsOneWidget);
+        });
+      }
+
+      for (final status in [
+        FcmStatus.checkingPlayServices,
+        FcmStatus.registering,
+        FcmStatus.postingPusher,
+      ]) {
+        testWidgets('${status.name} spins', (tester) async {
+          fcmDeliveryProvider.status.value = status;
+          await _pumpPage(tester, NotificationDeliveryMode.fcm, settle: false);
+
+          expect(
+            inStatusRow(find.byType(CircularProgressIndicator)),
+            findsOneWidget,
+          );
+          await tester.pumpWidget(const SizedBox());
+        });
+      }
+
+      testWidgets('an unregistered device offers Register', (tester) async {
+        await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+        await tester.tap(inStatusRow(find.text('Register')));
+        await tester.pump();
+
+        expect(registrations, ['fcm']);
+      });
+
+      testWidgets('a failed token offers Retry', (tester) async {
+        fcmDeliveryProvider.status.value = FcmStatus.tokenFailed;
+        await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+        await tester.tap(inStatusRow(find.text('Retry')));
+        await tester.pump();
+
+        expect(registrations, ['fcm']);
+      });
+
+      testWidgets('a working registration leads to its details', (
+        tester,
+      ) async {
+        fcmDeliveryProvider.status.value = FcmStatus.ready;
+        await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+        await tester.tap(statusRow());
+        await tester.pumpAndSettle();
+
+        expect(find.byType(PushTargetStatusPage), findsOneWidget);
+      });
+    });
+
+    testWidgets('Apple push Retry registers again', (tester) async {
+      ambientCapabilities = capabilitiesLike(
+        iosCapabilities,
+        apnsRegistration: true,
+      );
+      apnsDeliveryProvider.status.value = ApnsStatus.pusherFailed;
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: capabilitiesLike(iosCapabilities, apnsRegistration: true),
+      );
+
+      await tester.tap(inStatusRow(find.text('Retry')));
+      await tester.pump();
+
+      expect(registrations, ['apns']);
     });
   });
 }
