@@ -107,6 +107,8 @@ class _ImageCaptionComposerPageState extends State<ImageCaptionComposerPage> {
                     child: Image.memory(
                       _images[i].bytes,
                       cacheWidth: previewDecodeWidth(context),
+                      errorBuilder: (_, _, _) =>
+                          const Icon(Icons.broken_image_outlined, size: 64),
                     ),
                   ),
                 ),

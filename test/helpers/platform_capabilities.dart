@@ -18,6 +18,9 @@ PlatformCapabilities capabilitiesLike(
   bool? callForegroundService,
   bool? apnsRegistration,
   bool? nativeIncomingRingUi,
+  bool? nativeImageResize,
+  bool? nativeVideoTools,
+  bool? uploadForegroundService,
   List<NotificationDeliveryMode>? deliveryModes,
   NotificationDeliveryMode? defaultDeliveryMode,
 }) => PlatformCapabilities(
@@ -40,9 +43,10 @@ PlatformCapabilities capabilitiesLike(
   deviceSafetyChecks: base.deviceSafetyChecks,
   inboundShare: base.inboundShare,
   nativeSignOutWipe: base.nativeSignOutWipe,
-  nativeImageResize: base.nativeImageResize,
-  nativeVideoTools: base.nativeVideoTools,
-  uploadForegroundService: base.uploadForegroundService,
+  nativeImageResize: nativeImageResize ?? base.nativeImageResize,
+  nativeVideoTools: nativeVideoTools ?? base.nativeVideoTools,
+  uploadForegroundService:
+      uploadForegroundService ?? base.uploadForegroundService,
   networkAvailabilityEvents: base.networkAvailabilityEvents,
   keyboardLearningOptOut: base.keyboardLearningOptOut,
   apnsRegistration: apnsRegistration ?? base.apnsRegistration,

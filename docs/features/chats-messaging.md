@@ -190,6 +190,21 @@ what a message looks like, how it's sent, and how the timeline behaves.
   `FileTooBigMatrixException` is terminal too (no retry record). Every
   failed media send discards the SDK's own error placeholder
   (`discardSendPlaceholder`), because the app tracks failures itself.
+- **Failed media sends** (`_failedSends`, `FailedMediaSend`): an item of a
+  gallery keeps a tap-to-retry thumbnail (`FailedGalleryTile`, or inline
+  in its gallery). A single photo or video gets only the "Not sent" snackbar
+  and no row; the reconnect pass resends it.
+- **Pickers can throw.** image_picker reports a refused permission as
+  `camera_access_denied` / `photo_access_denied`; `_showAttachmentMenu`
+  catches every picker failure and names the permission to allow.
+  `FilePicker.pickFiles` is multi-select since file_picker 12, so each
+  picked file is sent.
+- **Caption screens share one video preview** (`ComposerVideoPreview` and
+  `composeVideo` in `video_caption_composer_page.dart`). A video that has
+  not loaded reports no size or length (never 0 ms); one the player cannot
+  open says so and can still be sent. Off-screen videos in the mixed
+  composer load with `ignore()` on their future, so a failure there is not
+  an uncaught error.
 - **A refused text send shows "Not sent · Tap to retry"** (`not_sent.dart`).
   `isNotSent` is an own event in `EventStatus.error` — what the SDK leaves
   behind both when `sendTextEvent` throws (`M_FORBIDDEN`, too large) and
@@ -249,7 +264,10 @@ what a message looks like, how it's sent, and how the timeline behaves.
   (`client.database.deleteTimelineForRoom` + `room.lastEvent = null`, same
   calls the SDK's own gap-handling logic makes) and rebuilds `RoomPage`'s
   `Timeline`, forcing a re-paginate from the server. Purely local-cache
-  reset, nothing server-side.
+  reset, nothing server-side. A failed wipe still reloads the timeline and
+  says so, so the chat never stays on the spinner.
+- **Durations**: `formatDuration` (call summaries, video length, voice
+  messages, the recording timer) is `mm:ss`, and `h:mm:ss` from an hour.
 
 ## Key Design Decisions
 

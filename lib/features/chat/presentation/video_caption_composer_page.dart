@@ -8,6 +8,86 @@ import 'send_icon.dart';
 
 export '../data/composed_video.dart';
 
+ComposedVideo composeVideo({
+  required String path,
+  required String name,
+  required String caption,
+  required VideoPlayerValue value,
+}) => ComposedVideo(
+  path: path,
+  name: name,
+  caption: caption,
+  width: value.size.width > 0 ? value.size.width.round() : null,
+  height: value.size.height > 0 ? value.size.height.round() : null,
+  durationMs: value.isInitialized ? value.duration.inMilliseconds : null,
+);
+
+class ComposerVideoPreview extends StatelessWidget {
+  final VideoPlayerController controller;
+  final Future<void>? loading;
+
+  const ComposerVideoPreview({
+    required this.controller,
+    required this.loading,
+    super.key,
+  });
+
+  void _togglePlay() {
+    if (controller.value.isPlaying) {
+      controller.pause();
+    } else {
+      controller.play();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: loading,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError || !controller.value.isInitialized) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'This video cannot be previewed.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+        return Center(
+          child: GestureDetector(
+            onTap: _togglePlay,
+            child: AspectRatio(
+              aspectRatio: controller.value.aspectRatio,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  VideoPlayer(controller),
+                  AnimatedBuilder(
+                    animation: controller,
+                    builder: (context, _) => controller.value.isPlaying
+                        ? const SizedBox.shrink()
+                        : const Icon(
+                            Icons.play_arrow,
+                            size: 64,
+                            color: Colors.white70,
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class VideoCaptionComposerPage extends StatefulWidget {
   final String path;
   final String name;
@@ -42,24 +122,13 @@ class _VideoCaptionComposerPageState extends State<VideoCaptionComposerPage> {
     super.dispose();
   }
 
-  void _togglePlay() {
-    if (_controller.value.isPlaying) {
-      _controller.pause();
-    } else {
-      _controller.play();
-    }
-  }
-
   void _send() {
-    final size = _controller.value.size;
     Navigator.of(context).pop(
-      ComposedVideo(
+      composeVideo(
         path: widget.path,
         name: widget.name,
         caption: _captionController.text.trim(),
-        width: size.width > 0 ? size.width.round() : null,
-        height: size.height > 0 ? size.height.round() : null,
-        durationMs: _controller.value.duration.inMilliseconds,
+        value: _controller.value,
       ),
     );
   }
@@ -72,38 +141,9 @@ class _VideoCaptionComposerPageState extends State<VideoCaptionComposerPage> {
         child: Column(
           children: [
             Expanded(
-              child: FutureBuilder<void>(
-                future: _initializeFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  return Center(
-                    child: GestureDetector(
-                      onTap: _togglePlay,
-                      child: AspectRatio(
-                        aspectRatio: _controller.value.aspectRatio,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            VideoPlayer(_controller),
-                            AnimatedBuilder(
-                              animation: _controller,
-                              builder: (context, _) =>
-                                  _controller.value.isPlaying
-                                  ? const SizedBox.shrink()
-                                  : const Icon(
-                                      Icons.play_arrow,
-                                      size: 64,
-                                      color: Colors.white70,
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
+              child: ComposerVideoPreview(
+                controller: _controller,
+                loading: _initializeFuture,
               ),
             ),
             Padding(

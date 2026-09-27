@@ -394,8 +394,13 @@ class _RoomPageState extends ConsumerState<RoomPage>
       _timeline = null;
       _replyTargets = ReplyTargetCache(widget.room.getEventById);
     });
-    await widget.room.client.database.deleteTimelineForRoom(widget.room.id);
-    widget.room.lastEvent = null;
+    try {
+      await widget.room.client.database.deleteTimelineForRoom(widget.room.id);
+      widget.room.lastEvent = null;
+    } catch (e) {
+      logCaught('reload messages', e);
+      if (mounted) _snack('Messages not reloaded. Try again.');
+    }
     await _loadTimeline();
   }
 
@@ -889,6 +894,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       await discardSendPlaceholder(widget.room, txid);
       if (mounted) _snack(tooLargeToSendMessage(e));
     } catch (e) {
+      logCaught('send attachment', e);
       await discardSendPlaceholder(widget.room, txid);
       onFailed(e);
     }
@@ -927,11 +933,12 @@ class _RoomPageState extends ConsumerState<RoomPage>
         builder: (_) => ImageCaptionComposerPage(images: images),
       ),
     );
-    if (composed == null) return;
+    if (composed == null || !mounted) return;
 
     final groupId = composed.length > 1 ? _newGalleryGroupId() : null;
     await _keepingUploadAlive(() async {
       for (var i = 0; i < composed.length; i++) {
+        if (!mounted) return;
         final image = composed[i];
         await _sendPhoto(
           image.bytes,
@@ -1038,9 +1045,11 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   Future<void> _pickAndSendFile() async {
     final files = await FilePicker.pickFiles();
-    final picked = files.singleOrNull;
-    if (picked == null) return;
-    await _sendFile(await picked.readAsBytes(), name: picked.name);
+    for (final file in files) {
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      await _sendFile(bytes, name: file.name);
+    }
   }
 
   Future<void> _pickAndSendVideo(ImageSource source) async {
@@ -1266,20 +1275,40 @@ class _RoomPageState extends ConsumerState<RoomPage>
         ),
       ),
     );
-    switch (choice) {
-      case _Attachment.camera:
-        await _pickAndSendImages(ImageSource.camera);
-      case _Attachment.gallery:
-        await _pickAndSendGalleryMedia();
-      case _Attachment.videoCamera:
-        await _pickAndSendVideo(ImageSource.camera);
-      case _Attachment.file:
-        await _pickAndSendFile();
-      case _Attachment.location:
-        await _sendLocation();
-      case null:
-        break;
+    if (choice == null) return;
+    try {
+      switch (choice) {
+        case _Attachment.camera:
+          await _pickAndSendImages(ImageSource.camera);
+        case _Attachment.gallery:
+          await _pickAndSendGalleryMedia();
+        case _Attachment.videoCamera:
+          await _pickAndSendVideo(ImageSource.camera);
+        case _Attachment.file:
+          await _pickAndSendFile();
+        case _Attachment.location:
+          await _sendLocation();
+      }
+    } catch (e) {
+      logCaught('attach ${choice.name}', e);
+      if (mounted) _snack(_attachmentFailure(choice, e));
     }
+  }
+
+  String _attachmentFailure(_Attachment choice, Object error) {
+    final code = error is PlatformException ? error.code : null;
+    return switch (choice) {
+      _Attachment.camera || _Attachment.videoCamera =>
+        code == 'camera_access_denied'
+            ? 'Allow camera access to take photos and videos'
+            : 'Camera did not open. Try again.',
+      _Attachment.gallery =>
+        code == 'photo_access_denied'
+            ? 'Allow photo access to send photos and videos'
+            : 'Photos did not open. Try again.',
+      _Attachment.file => 'Files did not open. Try again.',
+      _Attachment.location => 'Location not sent. Try again.',
+    };
   }
 
   Future<void> _sendLocation() async {

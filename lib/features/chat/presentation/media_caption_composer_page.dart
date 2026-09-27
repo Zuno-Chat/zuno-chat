@@ -7,7 +7,8 @@ import 'package:video_player/video_player.dart';
 import 'image_caption_composer_page.dart' show ComposedImage;
 import 'preview_decode_width.dart';
 import 'send_icon.dart';
-import 'video_caption_composer_page.dart' show ComposedVideo;
+import 'video_caption_composer_page.dart'
+    show ComposedVideo, ComposerVideoPreview, composeVideo;
 
 sealed class PickedMedia {
   final String name;
@@ -71,7 +72,8 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
             : null,
     ];
     _videoInitFutures = [
-      for (final controller in _videoControllers) controller?.initialize(),
+      for (final controller in _videoControllers)
+        controller?.initialize()?..ignore(),
     ];
   }
 
@@ -109,16 +111,12 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
           ComposedImage(bytes: bytes, name: name, caption: caption),
         );
       case PickedVideo(:final path, :final name):
-        final controller = _videoControllers[i]!;
-        final size = controller.value.size;
         return ComposedVideoResult(
-          ComposedVideo(
+          composeVideo(
             path: path,
             name: name,
             caption: caption,
-            width: size.width > 0 ? size.width.round() : null,
-            height: size.height > 0 ? size.height.round() : null,
-            durationMs: controller.value.duration.inMilliseconds,
+            value: _videoControllers[i]!.value,
           ),
         );
     }
@@ -127,14 +125,6 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
   void _send() {
     final result = [for (var i = 0; i < _items.length; i++) _composeItem(i)];
     Navigator.of(context).pop(result);
-  }
-
-  void _togglePlay(VideoPlayerController controller) {
-    if (controller.value.isPlaying) {
-      controller.pause();
-    } else {
-      controller.play();
-    }
   }
 
   @override
@@ -225,42 +215,15 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
           child: Image.memory(
             item.bytes,
             cacheWidth: previewDecodeWidth(context),
+            errorBuilder: (_, _, _) =>
+                const Icon(Icons.broken_image_outlined, size: 64),
           ),
         ),
       );
     }
-    final controller = _videoControllers[i]!;
-    return FutureBuilder<void>(
-      future: _videoInitFutures[i],
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        return Center(
-          child: GestureDetector(
-            onTap: () => _togglePlay(controller),
-            child: AspectRatio(
-              aspectRatio: controller.value.aspectRatio,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  VideoPlayer(controller),
-                  AnimatedBuilder(
-                    animation: controller,
-                    builder: (context, _) => controller.value.isPlaying
-                        ? const SizedBox.shrink()
-                        : const Icon(
-                            Icons.play_arrow,
-                            size: 64,
-                            color: Colors.white70,
-                          ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+    return ComposerVideoPreview(
+      controller: _videoControllers[i]!,
+      loading: _videoInitFutures[i],
     );
   }
 }
