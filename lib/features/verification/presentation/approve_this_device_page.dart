@@ -1,20 +1,40 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:matrix/encryption.dart';
 
 import '../../../core/errors/best_effort.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/security/account_security_status.dart';
 import '../../../core/ui/step_hero.dart';
 import '../../../core/ui/step_layout.dart';
 import '../../settings/presentation/secure_backup_page.dart';
 import 'verification_page.dart';
 
+typedef RecoveryOpener = Future<void> Function(
+  BuildContext context, {
+  required bool restoreExisting,
+});
+
+Future<void> openSecureBackup(
+  BuildContext context, {
+  required bool restoreExisting,
+}) => Navigator.of(context).push<void>(
+  MaterialPageRoute(
+    builder: (_) => SecureBackupPage(autoRestoreExisting: restoreExisting),
+  ),
+);
+
 class ApproveThisDevicePage extends ConsumerStatefulWidget {
   final VoidCallback? onFinished;
   final bool showStartOver;
+  final RecoveryOpener openRecovery;
 
   const ApproveThisDevicePage({
     this.onFinished,
     this.showStartOver = false,
+    this.openRecovery = openSecureBackup,
     super.key,
   });
 
@@ -48,7 +68,15 @@ class _ApproveThisDevicePageState extends ConsumerState<ApproveThisDevicePage> {
     setState(() => _starting = true);
     try {
       final keyVerification = await ownKeys.startVerification();
-      if (!mounted) return;
+      if (!mounted) {
+        unawaited(
+          runBestEffort(
+            () => keyVerification.cancel('m.user'),
+            label: 'cancel unattended device approval',
+          ),
+        );
+        return;
+      }
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => VerificationPage(
@@ -57,7 +85,9 @@ class _ApproveThisDevicePageState extends ConsumerState<ApproveThisDevicePage> {
           ),
         ),
       );
-      if (mounted) _finish();
+      if (mounted && keyVerification.state == KeyVerificationState.done) {
+        _finish();
+      }
     } catch (e) {
       logCaught('start device approval', e);
       messenger.showSnackBar(
@@ -91,21 +121,16 @@ class _ApproveThisDevicePageState extends ConsumerState<ApproveThisDevicePage> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const SecureBackupPage(autoRestoreExisting: false),
-      ),
-    );
-    if (mounted) _finish();
+    await _openRecovery(restoreExisting: false);
   }
 
-  Future<void> _useRecoveryCode() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const SecureBackupPage(autoRestoreExisting: true),
-      ),
-    );
-    if (mounted) _finish();
+  Future<void> _useRecoveryCode() => _openRecovery(restoreExisting: true);
+
+  Future<void> _openRecovery({required bool restoreExisting}) async {
+    await widget.openRecovery(context, restoreExisting: restoreExisting);
+    if (!mounted) return;
+    final facts = await accountSecurityFactsOf(ref.read(matrixClientProvider));
+    if (mounted && facts.thisDeviceHasIdentityKeys) _finish();
   }
 
   @override

@@ -19,7 +19,10 @@ typedef CodeScanner = Future<Uint8List?> Function(BuildContext context);
 Future<Uint8List?> scanCodeWithCamera(BuildContext context) =>
     Navigator.of(context).push<Uint8List>(
       MaterialPageRoute(
-        builder: (_) => const QrScannerPage(title: 'Scan the sign-in code'),
+        builder: (_) => const QrScannerPage(
+          title: 'Scan the sign-in code',
+          withoutCamera: 'You can still type the code instead.',
+        ),
       ),
     );
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:matrix/encryption.dart';
+import 'package:matrix/encryption/utils/ssss_cache.dart';
 import 'package:matrix/matrix.dart';
 
 import 'fake_matrix.dart';
@@ -11,11 +12,23 @@ class EncryptionDatabase extends FakeDatabaseApi {
   final verifiedCrossSigningKeys = <String, bool>{};
   final verifiedDevices = <String, bool>{};
   final refusingUsers = <String>{};
+  final cachedSecrets = <String>{};
 
   @override
-  Future<Null> getSSSSCache(String type) {
+  Future<SSSSCache?> getSSSSCache(String type) {
     secretCacheReads.add(type);
-    return heldSecretCacheReads[type]?.future ?? Future.value();
+    final held = heldSecretCacheReads[type]?.future;
+    if (held != null) return held;
+    return Future.value(
+      cachedSecrets.contains(type)
+          ? SSSSCache(
+              type: type,
+              keyId: 'KEY',
+              ciphertext: 'ciphertext',
+              content: 'secret',
+            )
+          : null,
+    );
   }
 
   @override
@@ -74,4 +87,10 @@ class EncryptedTestClient extends Client {
       storeSecretOnServer(type);
     }
   }
+
+  void unlockRecovery() => encryptionDatabase.cachedSecrets.addAll([
+    EventTypes.CrossSigningSelfSigning,
+    EventTypes.CrossSigningUserSigning,
+    EventTypes.MegolmBackup,
+  ]);
 }

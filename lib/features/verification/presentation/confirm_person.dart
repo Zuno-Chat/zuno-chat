@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -72,7 +74,15 @@ Future<void> confirmPerson(
 
   try {
     final keyVerification = await keys.startVerification();
-    if (!context.mounted) return;
+    if (!context.mounted) {
+      unawaited(
+        runBestEffort(
+          () => keyVerification.cancel('m.user'),
+          label: 'cancel unattended verification',
+        ),
+      );
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => VerificationPage(keyVerification: keyVerification),

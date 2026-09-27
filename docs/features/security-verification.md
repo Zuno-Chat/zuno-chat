@@ -84,6 +84,26 @@ reach a run that long.
   other-user (cross-user, reached from a contact sheet, over an in-room
   DM `m.key.verification.*` exchange). QR and emoji/SAS are two methods
   on the same flow, not separate features.
+- **The QR choice reads two methods, not three.** The own code shows only
+  with `QRShow` in `possibleMethods` and a `qrCode`; the scan button only
+  with `QRScan`. `Reciprocate` is there whenever QR works in either
+  direction, so it says nothing about which. `qrCode` is final once the
+  state is `askChoice`: a missing one never arrives later. With neither,
+  the picture check starts by itself, and a start that fails cancels the
+  check instead of leaving a spinner.
+- **Every SDK call behind a button goes through `_send`**
+  (`verification_page.dart`): taps during a send are dropped, a failure
+  shows one line and leaves the screen retryable. Leaving the page cancels
+  with `m.user`; the SDK default `m.unknown` reads as a fault on the other
+  side.
+- **`ApproveThisDevicePage` closes itself only once the device is
+  approved**: verification state `done`, or `thisDeviceHasIdentityKeys`
+  after recovery returns. A stopped check or Back from recovery keeps the
+  other ways open. Recovery is injectable (`openRecovery`) for tests.
+- **`QrScannerPage` asks for the camera itself** and, while refused, checks
+  again on resume, so allowing it in Settings works on the way back. The
+  caller words the way around a refusal (`withoutCamera`): the sign-in
+  scanner has no pictures to compare.
 - **`UserTrust`** (`user_trust.dart`) computes a per-contact trust state
   (`noIdentity` / `unconfirmed` / `confirmed` / `confirmedWithPendingDevice`
   / `identityChanged`) from `DeviceKeys.verified`,
@@ -115,7 +135,9 @@ reach a run that long.
   recovery setup returns and stops quietly if recovery or identity keys are
   still missing — Back from `SecureBackupPage` pops exactly like finishing
   does, and continuing would start a verification this device cannot sign.
-  The setup step is injectable (`setUpRecovery`) for tests.
+  The setup step is injectable (`setUpRecovery`) for tests. A check that
+  starts after the caller is gone is canceled (`m.user`), here and in
+  `ApproveThisDevicePage`; otherwise the other device rings for nobody.
 
 ## Data & State
 
@@ -230,10 +252,13 @@ differs from the raw SSSS key):**
   the other side then cancels.
 - **QR payload is binary**: `qrDataRawBytes` carries a `MATRIX` magic
   prefix and is not valid UTF-8. Scanning must read `mobile_scanner`'s
-  `Barcode.rawBytes` (never `rawValue`); rendering must use `qr_flutter`'s
-  `QrCode.fromUint8List` (never `QrImageView(data: String)`). Both
-  string-based paths produce a code that scans cleanly and then fails
-  verification.
+  `Barcode.rawDecodedBytes` (never `rawValue`); rendering must use
+  `qr_flutter`'s `QrCode.fromUint8List` (never
+  `QrImageView(data: String)`). Both string-based paths produce a code that
+  scans cleanly and then fails verification. On Apple only the decoded
+  `bytes` count: Vision's `rawBytes` keep the QR header and padding, fail
+  the same way, and the SDK answers a failed scan by canceling the check.
+  A frame without decoded bytes is skipped.
 - **Key backup is not auto-downloaded on unlock.** Unlocking Secret
   Storage grants *access* to the online key backup; it does not read it.
   Nothing in the SDK or this app calls `KeyManager.loadAllKeys()` other
@@ -436,6 +461,16 @@ differs from the raw SSSS key):**
   leaves a stored key that later reads as a false `identityChanged`.
   Runs only on the wipe path, never on restore (which keeps the same
   identity, so clearing there would discard real, still-valid work).
+- Nothing above `MobileScanner` may listen to its controller: `start()`
+  notifies synchronously inside the widget's `initState`, which marks the
+  listening ancestor dirty mid-build. The caption and the failure view go
+  through `overlayBuilder` and `errorBuilder`.
+- The verification screens run against `verification_harness.dart`: a fake
+  `KeyVerification`, `FakeDeviceKeysList` for `startVerification`, a fake
+  `MobileScannerPlatform` and the camera permission channel.
+  `MobileScanner` needs a few bounded pumps to reach running.
+  `EncryptedTestClient.unlockRecovery()` makes this device hold its
+  identity keys.
 - Testing gotcha (also in `CLAUDE.md`): do not stand up a real `Client`
   on `sqflite`/`sqflite_common_ffi` in widget tests (native FFI init
   hangs). Use `test/helpers/fake_matrix.dart`'s in-memory

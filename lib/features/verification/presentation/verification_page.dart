@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../../core/errors/best_effort.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/security/verification_cancel_message.dart';
@@ -26,6 +28,7 @@ class VerificationPage extends StatefulWidget {
 
 class _VerificationPageState extends State<VerificationPage> {
   bool _methodChosen = false;
+  bool _sending = false;
 
   @override
   void initState() {
@@ -36,9 +39,15 @@ class _VerificationPageState extends State<VerificationPage> {
 
   @override
   void dispose() {
-    widget.keyVerification.onUpdate = null;
-    if (!widget.keyVerification.isDone) {
-      widget.keyVerification.cancel();
+    final kv = widget.keyVerification;
+    kv.onUpdate = null;
+    if (!kv.isDone) {
+      unawaited(
+        runBestEffort(
+          () => kv.cancel('m.user'),
+          label: 'cancel verification on leave',
+        ),
+      );
     }
     super.dispose();
   }
@@ -49,27 +58,54 @@ class _VerificationPageState extends State<VerificationPage> {
     _maybeAutoChooseMethod();
   }
 
+  Future<void> _send(String label, Future<void> Function() request) async {
+    if (_sending) return;
+    _sending = true;
+    try {
+      await request();
+    } catch (e) {
+      logCaught(label, e);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not send that. Try again.')),
+      );
+    } finally {
+      _sending = false;
+    }
+  }
+
   void _maybeAutoChooseMethod() {
     if (_methodChosen) return;
     final kv = widget.keyVerification;
     if (kv.state != KeyVerificationState.askChoice) return;
     if (_qrPossible) return;
     _methodChosen = true;
-    kv.continueVerification(EventTypes.Sas);
+    unawaited(_startPicturesOrStop());
   }
 
-  bool get _qrPossible {
-    final methods = widget.keyVerification.possibleMethods;
-    return methods.contains(EventTypes.Reciprocate) ||
-        methods.contains(EventTypes.QRShow) ||
-        methods.contains(EventTypes.QRScan);
+  Future<void> _startPicturesOrStop() async {
+    final kv = widget.keyVerification;
+    try {
+      await kv.continueVerification(EventTypes.Sas);
+    } catch (e) {
+      logCaught('start picture check', e);
+      if (kv.isDone) return;
+      await runBestEffort(kv.cancel, label: 'cancel unstartable verification');
+      if (!kv.isDone) await kv.cancel('m.unknown', true);
+    }
   }
 
-  bool get _canScan {
-    final methods = widget.keyVerification.possibleMethods;
-    return methods.contains(EventTypes.QRScan) ||
-        methods.contains(EventTypes.Reciprocate);
+  Uint8List? get _ownCode {
+    final kv = widget.keyVerification;
+    if (!kv.possibleMethods.contains(EventTypes.QRShow)) return null;
+    final buffer = kv.qrCode?.qrDataRawBytes;
+    return buffer == null ? null : Uint8List.fromList(buffer);
   }
+
+  bool get _canScan =>
+      widget.keyVerification.possibleMethods.contains(EventTypes.QRScan);
+
+  bool get _qrPossible => _ownCode != null || _canScan;
 
   Future<void> _scan() async {
     final bytes = await Navigator.of(context).push<Uint8List>(
@@ -82,21 +118,29 @@ class _VerificationPageState extends State<VerificationPage> {
       ),
     );
     if (bytes == null || !mounted) return;
+    final kv = widget.keyVerification;
+    if (kv.canceled || kv.state != KeyVerificationState.askChoice) return;
     _methodChosen = true;
-    await widget.keyVerification.continueVerification(
-      EventTypes.Reciprocate,
-      qrDataRawBytes: bytes,
+    await _send(
+      'send scanned code',
+      () => kv.continueVerification(
+        EventTypes.Reciprocate,
+        qrDataRawBytes: bytes,
+      ),
     );
   }
 
   void _useEmojiInstead() {
     _methodChosen = true;
-    widget.keyVerification.continueVerification(EventTypes.Sas);
+    unawaited(
+      _send(
+        'start picture check',
+        () => widget.keyVerification.continueVerification(EventTypes.Sas),
+      ),
+    );
   }
 
-  String get _subject => widget.isOwnDevice
-      ? 'your other device'
-      : withoutServer(widget.keyVerification.userId);
+  String get _subject => withoutServer(widget.keyVerification.userId);
 
   @override
   Widget build(BuildContext context) {
@@ -123,9 +167,8 @@ class _VerificationPageState extends State<VerificationPage> {
             title: 'Waiting for the other device…',
           );
         }
-        final buffer = kv.qrCode?.qrDataRawBytes;
         return _QrChoiceScreen(
-          qrData: buffer == null ? null : Uint8List.fromList(buffer),
+          qrData: _ownCode,
           canScan: _canScan,
           isOwnDevice: widget.isOwnDevice,
           onScan: _scan,
@@ -136,8 +179,8 @@ class _VerificationPageState extends State<VerificationPage> {
         return _SasComparison(
           emojis: kv.sasEmojis,
           isOwnDevice: widget.isOwnDevice,
-          onMatch: kv.acceptSas,
-          onNoMatch: kv.rejectSas,
+          onMatch: () => _send('accept pictures', kv.acceptSas),
+          onNoMatch: () => _send('reject pictures', kv.rejectSas),
         );
 
       case KeyVerificationState.showQRSuccess:
@@ -152,8 +195,9 @@ class _VerificationPageState extends State<VerificationPage> {
       case KeyVerificationState.confirmQRScan:
         return _ConfirmScanScreen(
           subject: _subject,
-          onConfirm: kv.acceptQRScanConfirmation,
-          onReject: () => kv.cancel('m.user'),
+          isOwnDevice: widget.isOwnDevice,
+          onConfirm: () => _send('confirm scan', kv.acceptQRScanConfirmation),
+          onReject: () => _send('reject scan', () => kv.cancel('m.user')),
         );
 
       case KeyVerificationState.done:
@@ -221,24 +265,32 @@ class _QrChoiceScreen extends StatelessWidget {
     required this.onUseEmoji,
   });
 
+  String get _title {
+    if (qrData != null) {
+      return isOwnDevice
+          ? 'Scan this with your other device'
+          : 'Let them scan this';
+    }
+    return isOwnDevice
+        ? 'Scan the code on your other device'
+        : 'Scan the code on their screen';
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
         Text(
-          isOwnDevice
-              ? 'Scan this with your other device'
-              : 'Let them scan this',
+          _title,
           style: Theme.of(context).textTheme.titleMedium,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
-        if (qrData != null)
-          Center(child: _QrImage(data: qrData!))
-        else
-          const _StatusMessage(spinner: true, title: 'Preparing a code…'),
-        const SizedBox(height: 24),
+        if (qrData case final data?) ...[
+          Center(child: _QrImage(data: data)),
+          const SizedBox(height: 24),
+        ],
         if (canScan) ...[
           FilledButton.icon(
             onPressed: onScan,
@@ -296,11 +348,13 @@ class _QrImage extends StatelessWidget {
 
 class _ConfirmScanScreen extends StatelessWidget {
   final String subject;
+  final bool isOwnDevice;
   final VoidCallback onConfirm;
   final VoidCallback onReject;
 
   const _ConfirmScanScreen({
     required this.subject,
+    required this.isOwnDevice,
     required this.onConfirm,
     required this.onReject,
   });
@@ -315,14 +369,19 @@ class _ConfirmScanScreen extends StatelessWidget {
           const Icon(Icons.qr_code_2_outlined, size: 48),
           const SizedBox(height: 24),
           Text(
-            'Did their screen show a check mark?',
+            isOwnDevice
+                ? 'Did your other device show a check mark?'
+                : 'Did their screen show a check mark?',
             style: Theme.of(context).textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
           Text(
-            '$subject scanned your code. Check their screen says it '
-            'worked before you finish.',
+            isOwnDevice
+                ? 'Your other device scanned this code. Check it says it '
+                      'worked before you finish.'
+                : '$subject scanned your code. Check their screen says it '
+                      'worked before you finish.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),

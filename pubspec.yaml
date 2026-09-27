@@ -135,6 +135,8 @@ dev_dependencies:
   firebase_messaging_platform_interface: ^4.10.0
   flutter_test:
     sdk: flutter
+  # Builds the SDK's QRCode (a Uint8Buffer) for the verification screen tests.
+  typed_data: ^1.4.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
