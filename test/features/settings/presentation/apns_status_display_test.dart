@@ -34,6 +34,33 @@ void main() {
     expect(apnsStatusIsBusy(ApnsStatus.ready), isFalse);
   });
 
+  test('a registration the server dropped says so, with the count', () {
+    expect(
+      apnsStatusLabel(ApnsStatus.ready, dropped: 1),
+      'Active, but the server dropped this device once',
+    );
+    expect(
+      apnsStatusLabel(ApnsStatus.ready, dropped: 3),
+      'Active, but the server dropped this device 3 times',
+    );
+    expect(
+      apnsStatusLabel(ApnsStatus.ready),
+      'Active. Receiving notifications.',
+    );
+  });
+
+  test('the drop count changes nothing while a step is failing or in '
+      'flight', () {
+    for (final status in ApnsStatus.values) {
+      if (status == ApnsStatus.ready) continue;
+      expect(
+        apnsStatusLabel(status, dropped: 2),
+        apnsStatusLabel(status),
+        reason: '$status',
+      );
+    }
+  });
+
   test('every status has a label, and none of them shouts', () {
     for (final status in ApnsStatus.values) {
       final label = apnsStatusLabel(status);

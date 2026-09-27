@@ -45,6 +45,23 @@ offers apns only.
   the server, or a decrypting extension). Only FCM keeps a recent-pushes log
   (`deliveryLogsEachPush`): it is the one method where app code handles every
   push.
+- **The APNs pushkey is the token bytes in base64**, never the hex the
+  handler replies with. Sygnal base64-decodes every pushkey by default, and
+  64 hex characters are valid base64 that decode to junk: APNs rejects it and
+  the pusher is deleted with no symptom. A non-hex reply is `tokenFailed`.
+- **Two Apple app ids, by build mode**: `im.zuno.chat.ios` for release
+  (production APNs) and `im.zuno.chat.ios.dev` for debug and profile
+  (sandbox), because a token on the wrong environment is rejected and the
+  pusher deleted. The registration stores its app id; a relaunch under
+  another id or token re-registers and deletes the old pusher.
+- **A dropped Apple pusher is counted before it is re-posted**
+  (`push.apns.dropped`, persisted): the banner and the Delivery row show it,
+  Register, Retry and stop reset it. Sygnal deletes a pusher only after APNs
+  rejected its token, so a rising count means wrong environment, topic or
+  encoding, and a silent re-post every 6 h would hide exactly that.
+- **Firebase never starts on iOS.** `initializeFcmDelivery` returns early
+  where FCM is not an offered mode, and `FirebaseAppDelegateProxyEnabled` is
+  NO in `Info.plist` so Runner owns the APNs delegate.
 - `stopAllNotificationDelivery` still stops every enum value, offered or
   not. It runs *before* `Client.logout()`, which invalidates the token
   before firing `onLoginStateChanged`.
@@ -67,7 +84,7 @@ headless isolate. A failed permission read counts as allowed, so a broken
 read never silences delivery. The delivery banner and the Settings rows
 for delivery and full-screen alerts are hidden while notifications are off.
 
-**Registration resilience** (`registration_retry.dart`): both push
+**Registration resilience** (`registration_retry.dart`): the push
 providers share `RegistrationRetry` (exponential backoff, 1 min doubling to
 a 30 min cap, only for transient failures: token/pusher errors, distributor
 `network`/`internalError`) and `RegistrationRecheck` (a pusher-list check at

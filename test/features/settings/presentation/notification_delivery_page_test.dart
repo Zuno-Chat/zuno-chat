@@ -252,7 +252,28 @@ void main() {
   });
 
   group('Apple push status', () {
-    tearDown(() => apnsDeliveryProvider.status.value = ApnsStatus.idle);
+    tearDown(() {
+      apnsDeliveryProvider.status.value = ApnsStatus.idle;
+      apnsDeliveryProvider.dropped.value = 0;
+    });
+
+    testWidgets('a registration the server keeps dropping says so', (
+      tester,
+    ) async {
+      apnsDeliveryProvider.status.value = ApnsStatus.ready;
+      apnsDeliveryProvider.dropped.value = 2;
+
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: capabilitiesLike(iosCapabilities, apnsRegistration: true),
+      );
+
+      expect(
+        find.text('Active, but the server dropped this device 2 times'),
+        findsOneWidget,
+      );
+    });
 
     testWidgets('has no row until the native token handler exists', (
       tester,

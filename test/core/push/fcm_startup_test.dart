@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/push/fcm_background_handler.dart';
 import 'package:zuno/core/push/fcm_startup.dart';
 
+import '../../helpers/platform_capabilities.dart';
+
 class _FakeFirebase extends FirebasePlatform {
   Object? failure;
   int starts = 0;
@@ -86,6 +88,14 @@ void main() {
       expect(firebase.starts, 1);
       expect(messaging.backgroundHandlers, [fcmBackgroundHandler]);
       expect(FirebaseMessagingPlatform.onMessage.hasListener, isTrue);
+    });
+
+    test('a platform that does not offer Google services starts nothing, so '
+        'the Apple push handler owns the token', () async {
+      await initializeFcmDelivery(capabilities: iosCapabilities);
+
+      expect(firebase.starts, 0);
+      expect(messaging.backgroundHandlers, isEmpty);
     });
 
     test(

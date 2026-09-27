@@ -10,6 +10,7 @@ DeliveryFailure? failureFor(
   FcmStatus fcm = FcmStatus.idle,
   UnifiedPushStatus unifiedPush = UnifiedPushStatus.idle,
   ApnsStatus apns = ApnsStatus.idle,
+  int apnsDropped = 0,
   bool distributorBatteryRestricted = false,
   String? distributor,
   NotificationDeliveryMode? autoSelected,
@@ -18,6 +19,7 @@ DeliveryFailure? failureFor(
   fcm: fcm,
   unifiedPush: unifiedPush,
   apns: apns,
+  apnsDropped: apnsDropped,
   distributorBatteryRestricted: distributorBatteryRestricted,
   distributor: distributor,
   autoSelected: autoSelected,
@@ -214,6 +216,53 @@ void main() {
       );
       expect(failure?.message, 'The server did not accept this device');
       expect(failure?.action, DeliveryFailureAction.retry);
+    });
+
+    test('a registration the server dropped is called out, with Retry', () {
+      final failure = failureFor(
+        NotificationDeliveryMode.apns,
+        apns: ApnsStatus.ready,
+        apnsDropped: 1,
+      );
+      expect(
+        failure?.message,
+        'The server dropped this device, so notifications may not arrive',
+      );
+      expect(failure?.action, DeliveryFailureAction.retry);
+    });
+
+    test('a drop is reported only once registered again; a step in flight '
+        'shows nothing and a failure wins', () {
+      for (final apns in [ApnsStatus.registering, ApnsStatus.postingPusher]) {
+        expect(
+          failureFor(NotificationDeliveryMode.apns, apns: apns, apnsDropped: 1),
+          isNull,
+          reason: '$apns',
+        );
+      }
+      expect(
+        failureFor(
+          NotificationDeliveryMode.apns,
+          apns: ApnsStatus.pusherFailed,
+          apnsDropped: 1,
+        )?.message,
+        'The server did not accept this device',
+      );
+    });
+
+    test('a dropped Apple pusher never shows while another method is in '
+        'use', () {
+      for (final mode in [
+        NotificationDeliveryMode.fcm,
+        NotificationDeliveryMode.unifiedPush,
+        NotificationDeliveryMode.backgroundService,
+      ]) {
+        expect(
+          failureFor(mode, apns: ApnsStatus.ready, apnsDropped: 2),
+          isNull,
+          reason: '$mode',
+        );
+      }
     });
 
     test('in-progress and working states show nothing', () {

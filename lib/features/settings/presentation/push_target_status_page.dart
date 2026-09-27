@@ -26,7 +26,7 @@ String? currentPushkeyFor(NotificationDeliveryMode mode) {
     case NotificationDeliveryMode.fcm:
       return fcmDeliveryProvider.token;
     case NotificationDeliveryMode.apns:
-      return apnsDeliveryProvider.token;
+      return apnsDeliveryProvider.pushkey;
     case NotificationDeliveryMode.backgroundService:
       return null;
   }

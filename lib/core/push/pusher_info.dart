@@ -54,7 +54,12 @@ class PusherGroups {
   const PusherGroups({required this.currentSession, required this.others});
 }
 
-const zunoPusherAppIds = {unifiedPushAppId, fcmAppId, apnsAppId};
+const zunoPusherAppIds = {
+  unifiedPushAppId,
+  fcmAppId,
+  apnsProductionAppId,
+  apnsDevelopmentAppId,
+};
 
 bool _isCurrentDevice(PusherInfo pusher, String? currentPushkey) =>
     currentPushkey != null &&

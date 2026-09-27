@@ -17,11 +17,13 @@ final deliveryFailureProvider = Provider<DeliveryFailure?>((ref) {
   fcmDeliveryProvider.status.addListener(rebuild);
   unifiedPushDeliveryProvider.status.addListener(rebuild);
   apnsDeliveryProvider.status.addListener(rebuild);
+  apnsDeliveryProvider.dropped.addListener(rebuild);
   unifiedPushDeliveryProvider.distributorBatteryRestricted.addListener(rebuild);
   ref.onDispose(() {
     fcmDeliveryProvider.status.removeListener(rebuild);
     unifiedPushDeliveryProvider.status.removeListener(rebuild);
     apnsDeliveryProvider.status.removeListener(rebuild);
+    apnsDeliveryProvider.dropped.removeListener(rebuild);
     unifiedPushDeliveryProvider.distributorBatteryRestricted.removeListener(
       rebuild,
     );
@@ -32,6 +34,7 @@ final deliveryFailureProvider = Provider<DeliveryFailure?>((ref) {
     fcm: fcmDeliveryProvider.status.value,
     unifiedPush: unifiedPushDeliveryProvider.status.value,
     apns: apnsDeliveryProvider.status.value,
+    apnsDropped: apnsDeliveryProvider.dropped.value,
     distributorBatteryRestricted:
         unifiedPushDeliveryProvider.distributorBatteryRestricted.value,
     distributor: unifiedPushDeliveryProvider.savedDistributor,

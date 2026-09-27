@@ -41,6 +41,7 @@ DeliveryFailure? notificationDeliveryFailure({
   required FcmStatus fcm,
   required UnifiedPushStatus unifiedPush,
   required ApnsStatus apns,
+  int apnsDropped = 0,
   bool distributorBatteryRestricted = false,
   String? distributor,
   NotificationDeliveryMode? autoSelected,
@@ -54,7 +55,7 @@ DeliveryFailure? notificationDeliveryFailure({
             restricted: distributorBatteryRestricted,
             distributor: distributor,
           ),
-    NotificationDeliveryMode.apns => _apnsFailure(apns),
+    NotificationDeliveryMode.apns => _apnsFailure(apns, dropped: apnsDropped),
     NotificationDeliveryMode.backgroundService => null,
   };
   if (failure != null) return failure;
@@ -111,8 +112,13 @@ DeliveryFailure? _fcmFailure(FcmStatus status) {
   };
 }
 
-DeliveryFailure? _apnsFailure(ApnsStatus status) {
+DeliveryFailure? _apnsFailure(ApnsStatus status, {required int dropped}) {
   return switch (status) {
+    ApnsStatus.ready when dropped > 0 => const DeliveryFailure(
+      message:
+          'The server dropped this device, so notifications may not arrive',
+      action: DeliveryFailureAction.retry,
+    ),
     ApnsStatus.idle ||
     ApnsStatus.registering ||
     ApnsStatus.postingPusher ||

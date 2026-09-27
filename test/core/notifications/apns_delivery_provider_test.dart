@@ -2,9 +2,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/apns_delivery_provider.dart';
+import 'package:zuno/core/push/apns_pusher.dart';
+import 'package:zuno/core/push/registration_retry.dart';
 
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
+
+const _token =
+    'a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4';
+const _pushkey = 'obLD1KGyw9ShssPUobLD1KGyw9ShssPUobLD1KGyw9Q=';
+const _newToken =
+    'd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7';
+const _newPushkey = '1OX2p9Tl9qfU5fan1OX2p9Tl9qfU5fan1OX2p9Tl9qc=';
 
 class _RecordingClient extends Client {
   _RecordingClient() : super('test', database: FakeDatabaseApi()) {
@@ -45,8 +54,8 @@ class _RecordingClient extends Client {
   }
 }
 
-Map<String, Object?> _serverPusher(String pushkey) => {
-  'app_id': 'im.zuno.chat.ios',
+Map<String, Object?> _serverPusher(String pushkey, {String? appId}) => {
+  'app_id': appId ?? apnsAppId,
   'pushkey': pushkey,
   'app_display_name': 'Zuno',
   'device_display_name': 'Zuno on iOS',
@@ -60,6 +69,7 @@ void main() {
   late ApnsDeliveryProvider provider;
   late _RecordingClient client;
   late int tokenReads;
+  late DateTime now;
   String? deviceToken;
 
   ApnsDeliveryProvider providerWith({required bool registration}) =>
@@ -73,13 +83,20 @@ void main() {
           tokenReads++;
           return deviceToken;
         }
-        ..retryDelay = ((_) => const Duration(days: 1));
+        ..retryDelay = ((_) => const Duration(days: 1))
+        ..now = (() => now);
+
+  Future<void> recheckAfterInterval() async {
+    now = now.add(registrationRecheckInterval);
+    await provider.recheckRegistration(client);
+  }
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     client = _RecordingClient();
     tokenReads = 0;
-    deviceToken = 'a1b2c3';
+    deviceToken = _token;
+    now = DateTime(2026, 9, 27, 12);
     provider = providerWith(registration: true);
   });
 
@@ -92,8 +109,8 @@ void main() {
 
       expect(provider.status.value, ApnsStatus.ready);
       final pusher = client.posted.single;
-      expect(pusher.appId, 'im.zuno.chat.ios');
-      expect(pusher.pushkey, 'a1b2c3');
+      expect(pusher.appId, apnsAppId);
+      expect(pusher.pushkey, _pushkey);
       expect(pusher.kind, 'http');
       expect(pusher.data.toJson(), {
         'default_payload': {
@@ -106,6 +123,20 @@ void main() {
         'format': 'event_id_only',
         'url': 'https://matrix.example.org/_matrix/push/v1/notify',
       });
+      expect(provider.token, _token);
+      expect(provider.pushkey, _pushkey);
+    },
+  );
+
+  test(
+    'a token that is not hex is refused before the server sees it',
+    () async {
+      deviceToken = 'apns-token';
+
+      await provider.start(client);
+
+      expect(provider.status.value, ApnsStatus.tokenFailed);
+      expect(client.posted, isEmpty);
     },
   );
 
@@ -163,57 +194,118 @@ void main() {
     () async {
       await provider.start(client);
       client.posted.clear();
-      client.pushersOnServer = [_serverPusher('a1b2c3')];
+      client.pushersOnServer = [_serverPusher(_pushkey)];
 
       final relaunched = providerWith(registration: true);
       await relaunched.start(client);
 
       expect(relaunched.status.value, ApnsStatus.ready);
-      expect(relaunched.token, 'a1b2c3');
+      expect(relaunched.token, _token);
+      expect(relaunched.pushkey, _pushkey);
       expect(client.posted, isEmpty);
+      expect(relaunched.dropped.value, 0);
     },
   );
 
-  test('a relaunch with a new token registers it', () async {
+  test('a relaunch with a new token registers it and removes the old '
+      'pusher', () async {
     await provider.start(client);
     client.posted.clear();
-    deviceToken = 'd4e5f6';
+    deviceToken = _newToken;
 
     final relaunched = providerWith(registration: true);
     await relaunched.start(client);
 
-    expect(client.posted.single.pushkey, 'd4e5f6');
-    expect(relaunched.token, 'd4e5f6');
+    expect(client.posted.single.pushkey, _newPushkey);
+    expect(relaunched.token, _newToken);
+    expect(client.deleted.single.appId, apnsAppId);
+    expect(client.deleted.single.pushkey, _pushkey);
+    expect(relaunched.dropped.value, 0);
   });
 
-  test(
-    'a relaunch whose pusher is gone from the server posts it again',
-    () async {
-      await provider.start(client);
-      client.posted.clear();
-      client.pushersOnServer = [];
-
-      final relaunched = providerWith(registration: true);
-      await relaunched.start(client);
-
-      expect(client.posted.single.pushkey, 'a1b2c3');
-    },
-  );
-
-  test('stop removes the pusher and forgets the token', () async {
+  test('a release build replacing a development one moves the pusher to the '
+      'production app id', () async {
+    provider.appId = apnsDevelopmentAppId;
     await provider.start(client);
+    client.posted.clear();
+    client.pushersOnServer = [
+      _serverPusher(_pushkey, appId: apnsDevelopmentAppId),
+    ];
+
+    final relaunched = providerWith(registration: true)
+      ..appId = apnsProductionAppId;
+    await relaunched.start(client);
+
+    expect(client.posted.single.appId, apnsProductionAppId);
+    expect(client.posted.single.pushkey, _pushkey);
+    expect(client.deleted.single.appId, apnsDevelopmentAppId);
+    expect(client.deleted.single.pushkey, _pushkey);
+    expect(relaunched.dropped.value, 0);
+  });
+
+  test('a relaunch whose pusher is gone from the server posts it again and '
+      'counts the drop', () async {
+    await provider.start(client);
+    client.posted.clear();
+    client.pushersOnServer = [];
+
+    final relaunched = providerWith(registration: true);
+    await relaunched.start(client);
+
+    expect(client.posted.single.pushkey, _pushkey);
+    expect(relaunched.status.value, ApnsStatus.ready);
+    expect(relaunched.dropped.value, 1);
+  });
+
+  test('every recheck that finds the pusher gone adds to the count, and the '
+      'count survives a relaunch', () async {
+    await provider.start(client);
+    client.pushersOnServer = [];
+
+    await recheckAfterInterval();
+    await recheckAfterInterval();
+
+    expect(provider.dropped.value, 2);
+    expect(client.posted, hasLength(3));
+    expect(client.deleted, isEmpty);
+
+    client.pushersOnServer = [_serverPusher(_pushkey)];
+    final relaunched = providerWith(registration: true);
+    await relaunched.start(client);
+
+    expect(relaunched.dropped.value, 2);
+  });
+
+  test('registering from Settings starts the count over', () async {
+    await provider.start(client);
+    client.pushersOnServer = [];
+    await recheckAfterInterval();
+    expect(provider.dropped.value, 1);
+
+    await provider.registerNow(client);
+
+    expect(provider.dropped.value, 0);
+    expect(provider.status.value, ApnsStatus.ready);
+  });
+
+  test('stop removes the pusher and forgets the token and the count', () async {
+    await provider.start(client);
+    client.pushersOnServer = [];
+    await recheckAfterInterval();
 
     await provider.stop(client);
 
-    expect(client.deleted.single.appId, 'im.zuno.chat.ios');
-    expect(client.deleted.single.pushkey, 'a1b2c3');
+    expect(client.deleted.single.appId, apnsAppId);
+    expect(client.deleted.single.pushkey, _pushkey);
     expect(provider.status.value, ApnsStatus.idle);
     expect(provider.token, isNull);
+    expect(provider.dropped.value, 0);
 
     final relaunched = providerWith(registration: true);
     deviceToken = null;
     await relaunched.start(client);
     expect(relaunched.token, isNull);
+    expect(relaunched.dropped.value, 0);
   });
 
   test('stop with nothing registered touches neither the server nor the '

@@ -8,9 +8,14 @@ import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/apns_pusher.dart';
 
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
+
+const _apnsToken =
+    'a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4';
+const _apnsPushkey = 'obLD1KGyw9ShssPUobLD1KGyw9ShssPUobLD1KGyw9Q=';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -121,14 +126,14 @@ void main() {
           apnsRegistration: true,
         );
         client = _PusherClient();
-        apnsDeliveryProvider.tokenReader = () async => 'apns-token';
+        apnsDeliveryProvider.tokenReader = () async => _apnsToken;
         addTearDown(() => apnsDeliveryProvider.stop(client));
       });
 
       test('kick-off registers it', () async {
         await kickOffDeliveryMode(client, NotificationDeliveryMode.apns);
 
-        expect(client.posted.map((p) => p.appId), ['im.zuno.chat.ios']);
+        expect(client.posted.map((p) => p.appId), [apnsAppId]);
       });
 
       test('retryFailedDelivery re-registers a failed registration', () async {
@@ -136,7 +141,7 @@ void main() {
 
         await retryFailedDelivery(client, NotificationDeliveryMode.apns);
 
-        expect(client.posted.map((p) => p.pushkey), ['apns-token']);
+        expect(client.posted.map((p) => p.pushkey), [_apnsPushkey]);
       });
 
       test('retryFailedDelivery leaves a working registration alone', () async {

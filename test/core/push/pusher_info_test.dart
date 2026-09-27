@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/push/apns_pusher.dart';
 import 'package:zuno/core/push/pusher_info.dart';
 import 'package:zuno/core/push/unified_push_pusher.dart';
 
@@ -161,6 +162,17 @@ void main() {
       expect(groups.currentSession?.deviceDisplayName, 'This device');
       expect(groups.others, hasLength(1));
       expect(groups.others.single.appId, 'im.zuno.chat.unifiedpush');
+    });
+
+    test('an Apple pusher from a development build is still this session', () {
+      final groups = groupPushers([
+        PusherInfo.fromJson(
+          _pusherJson(appId: apnsDevelopmentAppId, pushkey: 'obLD1A=='),
+        ),
+      ], 'obLD1A==');
+
+      expect(groups.currentSession?.appId, apnsDevelopmentAppId);
+      expect(groups.others, isEmpty);
     });
 
     test('another app sharing our pushkey is not this session', () {

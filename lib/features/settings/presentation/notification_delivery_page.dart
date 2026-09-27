@@ -277,15 +277,22 @@ class _NotificationDeliveryPageState
       case NotificationDeliveryMode.apns:
         if (!capabilities.apnsRegistration) return const [];
         return [
-          ValueListenableBuilder<ApnsStatus>(
-            valueListenable: apnsDeliveryProvider.status,
-            builder: (context, apnsStatus, _) => _pushStatusRow(
-              busy: apnsStatusIsBusy(apnsStatus),
-              action: apnsStatusAction(apnsStatus),
-              icon: _apnsStatusIcon(apnsStatus),
-              label: apnsStatusLabel(apnsStatus),
-              register: _registerApns,
-            ),
+          ListenableBuilder(
+            listenable: Listenable.merge([
+              apnsDeliveryProvider.status,
+              apnsDeliveryProvider.dropped,
+            ]),
+            builder: (context, _) {
+              final apnsStatus = apnsDeliveryProvider.status.value;
+              final dropped = apnsDeliveryProvider.dropped.value;
+              return _pushStatusRow(
+                busy: apnsStatusIsBusy(apnsStatus),
+                action: apnsStatusAction(apnsStatus),
+                icon: _apnsStatusIcon(apnsStatus, dropped: dropped),
+                label: apnsStatusLabel(apnsStatus, dropped: dropped),
+                register: _registerApns,
+              );
+            },
           ),
         ];
     }
@@ -452,12 +459,14 @@ IconData _fcmStatusIcon(FcmStatus status) {
   }
 }
 
-IconData _apnsStatusIcon(ApnsStatus status) => switch (status) {
-  ApnsStatus.idle => Icons.pause_circle_outline,
-  ApnsStatus.registering || ApnsStatus.postingPusher => Icons.sync_outlined,
-  ApnsStatus.ready => Icons.check_circle_outline,
-  ApnsStatus.tokenFailed || ApnsStatus.pusherFailed => Icons.error_outline,
-};
+IconData _apnsStatusIcon(ApnsStatus status, {required int dropped}) =>
+    switch (status) {
+      ApnsStatus.idle => Icons.pause_circle_outline,
+      ApnsStatus.registering || ApnsStatus.postingPusher => Icons.sync_outlined,
+      ApnsStatus.ready when dropped > 0 => Icons.warning_amber_outlined,
+      ApnsStatus.ready => Icons.check_circle_outline,
+      ApnsStatus.tokenFailed || ApnsStatus.pusherFailed => Icons.error_outline,
+    };
 
 IconData _unifiedPushStatusIcon(UnifiedPushStatus status) {
   switch (status) {

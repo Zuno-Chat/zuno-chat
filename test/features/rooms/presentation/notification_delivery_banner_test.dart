@@ -9,11 +9,15 @@ import 'package:zuno/core/notifications/delivery_failure.dart';
 import 'package:zuno/core/notifications/delivery_failure_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/apns_pusher.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/rooms/presentation/notification_delivery_banner.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
+
+const _apnsToken =
+    'a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4';
 
 class _PusherClient extends Client {
   _PusherClient() : super('test', database: FakeDatabaseApi()) {
@@ -138,7 +142,7 @@ void main() {
     );
     final client = _PusherClient();
     apnsDeliveryProvider
-      ..tokenReader = (() async => 'apns-token')
+      ..tokenReader = (() async => _apnsToken)
       ..notificationsAllowed = (() async => true)
       ..status.value = ApnsStatus.pusherFailed;
     addTearDown(() => apnsDeliveryProvider.stop(client));
@@ -164,6 +168,6 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
 
-    expect(client.posted.map((p) => p.appId), ['im.zuno.chat.ios']);
+    expect(client.posted.map((p) => p.appId), [apnsAppId]);
   });
 }

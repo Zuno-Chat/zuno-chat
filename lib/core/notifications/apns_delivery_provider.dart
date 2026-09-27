@@ -25,6 +25,10 @@ enum ApnsStatus {
 const _channel = MethodChannel('zuno/apns');
 
 const _tokenKey = 'push.apns.token';
+const _appIdKey = 'push.apns.app_id';
+const _droppedKey = 'push.apns.dropped';
+
+typedef _Registration = ({String appId, String token, String pushkey});
 
 class ApnsDeliveryProvider implements NotificationDeliveryProvider {
   ApnsDeliveryProvider({PlatformCapabilities? capabilities})
@@ -37,10 +41,16 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
 
   final status = ValueNotifier<ApnsStatus>(ApnsStatus.idle);
 
+  final dropped = ValueNotifier<int>(0);
+
   String? lastPusherError;
 
-  String? _token;
-  String? get token => _token;
+  @visibleForTesting
+  String appId = apnsAppId;
+
+  _Registration? _registration;
+  String? get token => _registration?.token;
+  String? get pushkey => _registration?.pushkey;
 
   @visibleForTesting
   Future<String?> Function() tokenReader = () =>
@@ -64,15 +74,20 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     if (!_capabilities.apnsRegistration) return;
     if (status.value != ApnsStatus.idle) return;
     if (!await notificationsAllowed()) return;
-    final stored = await _storedToken();
+    final stored = await _storedRegistration();
     if (stored == null) {
-      await registerNow(client);
+      await _register(client);
       return;
     }
-    _token = stored;
+    _registration = stored;
+    dropped.value = await _storedDropped();
     lastPusherError = null;
     status.value = ApnsStatus.ready;
     _recheck.markChecked();
+    if (stored.appId != appId) {
+      await _register(client);
+      return;
+    }
 
     final String? current;
     try {
@@ -83,16 +98,11 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       );
       return;
     }
-    if (current != null && current.isNotEmpty && current != stored) {
-      await registerNow(client);
+    if (current != null && current.isNotEmpty && current != stored.token) {
+      await _register(client);
       return;
     }
-    final registered = await pusherIsRegistered(
-      client,
-      appId: apnsAppId,
-      pushkey: stored,
-    );
-    if (registered == false) await registerNow(client);
+    await _reconcile(client, stored);
   }
 
   Future<void> retryIfFailed(Client client) async {
@@ -101,22 +111,40 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       return;
     }
     _retry.cancel();
-    await registerNow(client);
+    await _register(client);
   }
 
   Future<void> recheckRegistration(Client client) async {
-    final token = _token;
-    if (status.value != ApnsStatus.ready || token == null) return;
+    final registration = _registration;
+    if (status.value != ApnsStatus.ready || registration == null) return;
     if (!_recheck.claimDue()) return;
-    final registered = await pusherIsRegistered(
-      client,
-      appId: apnsAppId,
-      pushkey: token,
-    );
-    if (registered == false) await registerNow(client);
+    await _reconcile(client, registration);
   }
 
   Future<void> registerNow(Client client) async {
+    if (!_capabilities.apnsRegistration) return;
+    dropped.value = 0;
+    await _storeDropped(0);
+    await _register(client);
+  }
+
+  Future<void> _reconcile(Client client, _Registration registration) async {
+    final registered = await pusherIsRegistered(
+      client,
+      appId: registration.appId,
+      pushkey: registration.pushkey,
+    );
+    if (registered != false) return;
+    dropped.value += 1;
+    await _storeDropped(dropped.value);
+    debugPrint(
+      'zuno/push: the homeserver dropped the APNs pusher '
+      '(${dropped.value}x), registering again',
+    );
+    await _register(client);
+  }
+
+  Future<void> _register(Client client) async {
     if (!_capabilities.apnsRegistration) return;
     if (!await notificationsAllowed()) return;
 
@@ -127,12 +155,16 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     } catch (e) {
       debugPrint('zuno/push: APNs token request failed ($e)');
       status.value = ApnsStatus.tokenFailed;
-      _retry.schedule(() => registerNow(client));
+      _retry.schedule(() => _register(client));
       return;
     }
-    if (token == null || token.isEmpty) {
+    final pushkey = token == null ? null : apnsPushkeyFromToken(token);
+    if (token == null || pushkey == null) {
+      if (token != null) {
+        debugPrint('zuno/push: APNs token is not hex, refusing to register');
+      }
       status.value = ApnsStatus.tokenFailed;
-      _retry.schedule(() => registerNow(client));
+      _retry.schedule(() => _register(client));
       return;
     }
 
@@ -146,7 +178,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     try {
       await client.postPusher(
         buildApnsPusher(
-          token: token,
+          appId: appId,
+          pushkey: pushkey,
           gatewayUrl: gatewayUrl,
           deviceDisplayName: sessionDisplayName('ios'),
         ),
@@ -154,53 +187,98 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     } catch (e) {
       lastPusherError = e.toString();
       status.value = ApnsStatus.pusherFailed;
-      _retry.schedule(() => registerNow(client));
+      _retry.schedule(() => _register(client));
       return;
     }
-    _token = token;
+    final previous = _registration ?? await _storedRegistration();
+    final registration = (appId: appId, token: token, pushkey: pushkey);
+    _registration = registration;
     lastPusherError = null;
     status.value = ApnsStatus.ready;
     _recheck.markChecked();
     _retry.reset();
-    await _rememberToken(token);
+    await _remember(registration);
+    if (previous != null &&
+        (previous.appId != appId || previous.pushkey != pushkey)) {
+      await _forget(client, previous);
+    }
   }
 
   @override
   Future<void> stop(Client client) async {
     _retry.reset();
-    final token = _token ?? await _storedToken();
-    if (token == null && status.value == ApnsStatus.idle) return;
+    final registration = _registration ?? await _storedRegistration();
+    if (registration == null && status.value == ApnsStatus.idle) return;
     try {
-      await (await SharedPreferences.getInstance()).remove(_tokenKey);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_tokenKey);
+      await prefs.remove(_appIdKey);
+      await prefs.remove(_droppedKey);
     } catch (e) {
       debugPrint('zuno/push: could not forget the APNs registration ($e)');
     }
-    if (token != null) {
+    if (registration != null) {
       try {
-        await client.deletePusher(apnsPusherId(token));
+        await client.deletePusher(_pusherId(registration));
         lastPusherError = null;
       } catch (e) {
         lastPusherError = 'Could not remove the push registration: $e';
       }
     }
-    _token = null;
+    _registration = null;
+    dropped.value = 0;
     status.value = ApnsStatus.idle;
   }
 
-  Future<String?> _storedToken() async {
+  Future<void> _forget(Client client, _Registration registration) async {
     try {
-      final stored = (await SharedPreferences.getInstance()).getString(
-        _tokenKey,
+      await client.deletePusher(_pusherId(registration));
+    } catch (e) {
+      debugPrint('zuno/push: could not remove the old APNs pusher ($e)');
+    }
+  }
+
+  PusherId _pusherId(_Registration registration) =>
+      PusherId(appId: registration.appId, pushkey: registration.pushkey);
+
+  Future<_Registration?> _storedRegistration() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(_tokenKey);
+      if (token == null) return null;
+      final pushkey = apnsPushkeyFromToken(token);
+      if (pushkey == null) return null;
+      return (
+        appId: prefs.getString(_appIdKey) ?? appId,
+        token: token,
+        pushkey: pushkey,
       );
-      return stored == null || stored.isEmpty ? null : stored;
     } catch (_) {
       return null;
     }
   }
 
-  Future<void> _rememberToken(String token) async {
+  Future<int> _storedDropped() async {
     try {
-      await (await SharedPreferences.getInstance()).setString(_tokenKey, token);
+      return (await SharedPreferences.getInstance()).getInt(_droppedKey) ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<void> _storeDropped(int count) async {
+    try {
+      await (await SharedPreferences.getInstance()).setInt(_droppedKey, count);
+    } catch (e) {
+      debugPrint('zuno/push: could not record the APNs drop count ($e)');
+    }
+  }
+
+  Future<void> _remember(_Registration registration) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_tokenKey, registration.token);
+      await prefs.setString(_appIdKey, registration.appId);
     } catch (e) {
       debugPrint('zuno/push: could not remember the APNs registration ($e)');
     }

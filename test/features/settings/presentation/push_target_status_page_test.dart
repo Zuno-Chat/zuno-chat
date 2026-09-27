@@ -15,6 +15,10 @@ import 'package:zuno/features/settings/presentation/push_target_status_page.dart
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
 
+const _apnsToken =
+    'a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4';
+const _apnsPushkey = 'obLD1KGyw9ShssPUobLD1KGyw9ShssPUobLD1KGyw9Q=';
+
 class _NoopPusherClient extends Client {
   _NoopPusherClient() : super('test', database: FakeDatabaseApi()) {
     homeserver = Uri.parse('https://matrix.example.org');
@@ -106,16 +110,16 @@ void main() {
         apnsRegistration: true,
       );
       apnsDeliveryProvider
-        ..tokenReader = (() async => 'apns-token')
+        ..tokenReader = (() async => _apnsToken)
         ..notificationsAllowed = (() async => true);
       await apnsDeliveryProvider.registerNow(_NoopPusherClient());
 
       final groups = groupPushers([
-        _pusher(appId: apnsAppId, pushkey: 'apns-token'),
+        _pusher(appId: apnsAppId, pushkey: _apnsPushkey),
         _pusher(appId: fcmAppId, pushkey: 'fcm-token-abc'),
       ], currentPushkeyFor(NotificationDeliveryMode.apns));
 
-      expect(groups.currentSession?.pushkey, 'apns-token');
+      expect(groups.currentSession?.pushkey, _apnsPushkey);
       expect(groups.others.single.appId, fcmAppId);
     });
 
