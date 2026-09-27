@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/encryption.dart';
+import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/recovery_code.dart';
@@ -117,6 +118,7 @@ void main() {
   );
 
   late List<_FakeBootstrap> created;
+  late Client client;
 
   Future<_FakeBootstrap> pump(
     WidgetTester tester,
@@ -136,7 +138,7 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(
-            buildTestClient(userId: '@me:example.org'),
+            client = buildTestClient(userId: '@me:example.org'),
           ),
           recoveryWordlistProvider.overrideWith((ref) async => wordlist),
         ],
@@ -239,6 +241,45 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(bootstrap.calls, ['wipeSsss(true)']);
+    });
+
+    testWidgets('the password given up front answers the server, and a '
+        'wrong one is asked again, saying so', (tester) async {
+      await pump(tester, BootstrapState.askWipeSsss);
+      await tester.tap(find.text('Start over with a new code'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'wrong');
+      await tester.tap(filled('Confirm'));
+      await tester.pumpAndSettle();
+
+      final tried = <String>[];
+      final done = client.uiaRequestBackground<void>((auth) async {
+        final password = (auth as AuthenticationPassword?)?.password;
+        if (password != null) tried.add(password);
+        if (password != 'right') {
+          throw MatrixException.fromJson({
+            'session': 's1',
+            'flows': [
+              {
+                'stages': ['m.login.password'],
+              },
+            ],
+            'params': <String, Object?>{},
+          });
+        }
+      });
+      await tester.pumpAndSettle();
+
+      expect(tried, ['wrong']);
+      expect(find.text('Wrong password.'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'right');
+      await tester.tap(filled('Confirm'));
+      await tester.pumpAndSettle();
+      await done;
+
+      expect(tried, ['wrong', 'right']);
+      expect(find.byType(AlertDialog), findsNothing);
     });
 
     testWidgets('backing out of the password starts nothing over', (

@@ -265,12 +265,14 @@ void main() {
       client.refusals.add(_passwordChallenge(errcode: 'M_FORBIDDEN'));
       await reachPassword(tester);
 
+      expect(find.text('Wrong password.'), findsNothing);
       await enterPassword(tester, 'wrong');
 
       expect(
         find.text('Confirm your password to delete your account'),
         findsOneWidget,
       );
+      expect(find.text('Wrong password.'), findsOneWidget);
 
       await enterPassword(tester, 'hunter2');
       await finish(tester);

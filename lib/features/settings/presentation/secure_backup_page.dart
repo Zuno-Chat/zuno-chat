@@ -147,24 +147,12 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
     }
   }
 
-  Future<void> _handleUia(UiaRequest uia) async {
-    if (uia.state != UiaRequestState.waitForUser) return;
-    final client = ref.read(matrixClientProvider);
-    final password =
-        _preparedUiaPassword.take() ?? await askPasswordForUia(context);
-    if (!mounted) return;
-    if (password == null || password.isEmpty) {
-      uia.cancel();
-      return;
-    }
-    await uia.completeStage(
-      AuthenticationPassword(
-        session: uia.session,
-        password: password,
-        identifier: AuthenticationUserIdentifier(user: client.userID!),
-      ),
-    );
-  }
+  Future<void> _handleUia(UiaRequest uia) => answerUiaWithPassword(
+    context,
+    uia,
+    userId: ref.read(matrixClientProvider).userID!,
+    preparedPassword: _preparedUiaPassword.take,
+  );
 
   Future<void> _replaceExistingRecovery(Bootstrap bootstrap) async {
     if (_askingForPassword) return;

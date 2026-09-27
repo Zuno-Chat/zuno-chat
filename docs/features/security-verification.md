@@ -232,12 +232,12 @@ differs from the raw SSSS key):**
 - **User-Interactive Auth (UIA)** (`client.onUiaRequest` /
   `Client.uiaRequestBackground`) gates every sensitive account action
   through this feature area: uploading new cross-signing keys during
-  fresh Secure Backup setup, and (via the shared `askPasswordForUia`
-  dialog, `uia_password_prompt.dart`) signing out other sessions and
-  minting a sign-in code for another device, which Synapse always
-  re-prompts for (`login_via_existing_session.require_ui_auth`). Current
-  session's own sign-out skips UIA — the already-valid token is enough
-  for `Client.logout()`.
+  fresh Secure Backup setup, signing out other sessions, deleting the
+  account, and minting a sign-in code for another device, which Synapse
+  always re-prompts for (`login_via_existing_session.require_ui_auth`).
+  All of them answer through `answerUiaWithPassword`
+  (`uia_password_prompt.dart`). Current session's own sign-out skips UIA —
+  the already-valid token is enough for `Client.logout()`.
 - **Verification travels two ways**: to-device events
   (`m.key.verification.*`) for own-device flows, and in-room
   `m.room.message` events for cross-user (in-DM) flows — the latter means
@@ -411,6 +411,13 @@ differs from the raw SSSS key):**
   `UiaRequest._run` assigns it, so any non-void `T` throws "Null is not a
   subtype". Capture the response inside the request closure and call it as
   `<void>` (`issueLinkedSignInCode`).
+- The SDK re-asks a rejected password on the same `UiaRequest` and keeps
+  no error on it. `answerUiaWithPassword` remembers which requests already
+  got a password (an `Expando`) to say "Wrong password.", and cancels a
+  next stage that is not a password rather than calling it wrong. It also
+  skips a `waitForUser` while it is already asking: when the password needs
+  no dialog (a prepared one), the `loading` event can arrive after the
+  retry and would open a second dialog.
 - Two `onUiaRequest` listeners each open a password dialog. A page that
   listens (`ActiveSessionsPage`) cancels its subscription before pushing one
   that also listens (`SignInAnotherDevicePage`) and re-subscribes on return.
@@ -568,7 +575,7 @@ differs from the raw SSSS key):**
   backup), Olm/Megolm via `vodozemac`. This app never reimplements
   crypto — it only drives SDK state machines and reflects SDK-computed
   trust facts.
-- **UIA** (`client.onUiaRequest`, `askPasswordForUia`) is shared
+- **UIA** (`client.onUiaRequest`, `answerUiaWithPassword`) is shared
   infrastructure this feature uses for cross-signing key upload and
   session sign-out, and that other sensitive-action flows elsewhere in
   the app reuse the same way.

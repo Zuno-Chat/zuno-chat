@@ -111,8 +111,11 @@ void main() {
     await settle(tester);
   }
 
-  Future<void> confirmPassword(WidgetTester tester) async {
-    await tester.enterText(field('Password'), 'correct horse battery staple');
+  Future<void> confirmPassword(
+    WidgetTester tester, [
+    String password = 'correct horse battery staple',
+  ]) async {
+    await tester.enterText(field('Password'), password);
     await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
     await settle(tester);
     await settle(tester);
@@ -168,6 +171,30 @@ void main() {
 
     expect(find.text('Expires in 4:59'), findsOneWidget);
     expect(tester.widget<CustomPaint>(qrImage()).painter, same(painter));
+    await leave(tester);
+  });
+
+  testWidgets('a wrong password asks again, saying so', (tester) async {
+    await pumpPage(
+      tester,
+      client: serverThat(
+        (body) =>
+            body['auth'] == null ||
+                (body['auth']! as Map)['password'] == 'wrong'
+            ? passwordChallenge()
+            : issued(),
+      ),
+    );
+
+    await confirmPassword(tester, 'wrong');
+
+    expect(find.text('Confirm your password'), findsOneWidget);
+    expect(find.text('Wrong password.'), findsOneWidget);
+    expect(qrImage(), findsNothing);
+
+    await confirmPassword(tester);
+
+    expect(qrImage(), findsOneWidget);
     await leave(tester);
   });
 

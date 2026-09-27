@@ -77,26 +77,12 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
     );
   }
 
-  Future<void> _handleUia(UiaRequest uia) async {
-    if (uia.state != UiaRequestState.waitForUser) return;
-    final client = ref.read(matrixClientProvider);
-    final password = await askPasswordForUia(
-      context,
-      title: 'Confirm your password to delete your account',
-    );
-    if (!mounted) return;
-    if (password == null || password.isEmpty) {
-      uia.cancel();
-      return;
-    }
-    await uia.completeStage(
-      AuthenticationPassword(
-        session: uia.session,
-        password: password,
-        identifier: AuthenticationUserIdentifier(user: client.userID!),
-      ),
-    );
-  }
+  Future<void> _handleUia(UiaRequest uia) => answerUiaWithPassword(
+    context,
+    uia,
+    userId: ref.read(matrixClientProvider).userID!,
+    title: 'Confirm your password to delete your account',
+  );
 
   Future<void> _deactivate() async {
     final client = ref.read(matrixClientProvider);

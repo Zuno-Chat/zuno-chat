@@ -95,6 +95,7 @@ class _DevicesClient extends Client {
   Future<void> _delete(List<String> ids, AuthenticationData? auth) async {
     if (auth == null) throw _passwordChallenge();
     passwords.add((auth as AuthenticationPassword).password);
+    if (auth.password == 'wrong') throw _passwordChallenge();
     final error = deleteError;
     if (error != null) throw error;
     deletions.add(ids);
@@ -510,6 +511,26 @@ void main() {
       expect(client.deletions, isEmpty);
       expect(find.byType(SnackBar), findsNothing);
       expect(find.text('Pixel'), findsOneWidget);
+    });
+
+    testWidgets('a wrong password asks again, saying so', (tester) async {
+      threeDevices();
+      await pumpPage(tester);
+
+      await tester.tap(find.text('Sign out everywhere else'));
+      await tester.pumpAndSettle();
+      await confirm(tester, 'Sign out');
+      expect(find.text('Wrong password.'), findsNothing);
+      await enterPassword(tester, 'wrong');
+
+      expect(find.text('Confirm your password'), findsOneWidget);
+      expect(find.text('Wrong password.'), findsOneWidget);
+      expect(client.deletions, isEmpty);
+
+      await enterPassword(tester, 'hunter2');
+
+      expect(client.passwords, ['wrong', 'hunter2']);
+      expect(client.deletions, hasLength(1));
     });
 
     testWidgets('an empty password counts as cancelling', (tester) async {
