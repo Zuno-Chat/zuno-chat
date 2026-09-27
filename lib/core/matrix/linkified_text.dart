@@ -12,6 +12,7 @@ class LinkifiedText extends StatelessWidget {
   final String text;
   final TextStyle? style;
   final int? maxLines;
+  final TextAlign? textAlign;
   final Set<String>? mentionable;
   final InlineSpan? trailing;
 
@@ -19,6 +20,7 @@ class LinkifiedText extends StatelessWidget {
     this.text, {
     this.style,
     this.maxLines,
+    this.textAlign,
     this.mentionable,
     this.trailing,
     super.key,
@@ -55,7 +57,13 @@ class LinkifiedText extends StatelessWidget {
     ]..sort((a, b) => a.start.compareTo(b.start));
     final trailing = this.trailing;
     if (hits.isEmpty && trailing == null) {
-      return Text(text, style: style, maxLines: maxLines, overflow: _overflow);
+      return Text(
+        text,
+        style: style,
+        maxLines: maxLines,
+        overflow: _overflow,
+        textAlign: textAlign,
+      );
     }
 
     final baseStyle = DefaultTextStyle.of(context).style.merge(style);
@@ -97,6 +105,7 @@ class LinkifiedText extends StatelessWidget {
       TextSpan(style: baseStyle, children: spans),
       maxLines: maxLines,
       overflow: _overflow,
+      textAlign: textAlign,
     );
   }
 }

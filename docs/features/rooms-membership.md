@@ -73,8 +73,14 @@ asymmetric sender/receiver views).
 - `room_avatar.dart` — upload + state write + optimistic state in one
   step; the SDK's `setAvatar` returns only an event ID, which left every
   page stale until reopened.
-- Room info layout: a header (avatar, name, Encrypted • access), a row of
-  quick actions, then `CardGroup`s. Quick actions are Call and Video (only
+- Room info layout: a header (avatar, name, Encrypted • access, topic), a
+  row of quick actions, then `CardGroup`s. The topic (`room_topic.dart`,
+  chats too, hidden when blank) is centered and linkified; it folds at three
+  lines behind "Read more", decided by measuring with a `TextPainter` at the
+  current width, text scale and bold-text setting, so a short topic gets no
+  button. The topic shows only here: a chat-header subtitle fit about 18
+  characters beside the call buttons, and a strip under the header cost a
+  row in every room. Quick actions are Call and Video (only
   when `RoomInfoPage.onStartCall` is given, the room allows it and someone
   else is there; `RoomPage` passes a callback that pops the page and
   starts the call), Mute/Unmute, and Invite. Block, Report and the exit

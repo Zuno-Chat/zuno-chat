@@ -18,6 +18,7 @@ import 'package:zuno/core/matrix/room_exit.dart';
 import 'package:zuno/features/room_info/presentation/room_info_page.dart';
 import 'package:zuno/features/room_info/presentation/room_media_page.dart';
 import 'package:zuno/features/room_info/presentation/room_media_thumb.dart';
+import 'package:zuno/features/room_info/presentation/room_topic.dart';
 
 import '../../../helpers/fake_matrix.dart';
 
@@ -288,6 +289,69 @@ void main() {
 
     expect(find.text('New'), findsOneWidget);
     expect(find.text('Old'), findsNothing);
+  });
+
+  testWidgets('shows the topic between the name and the quick actions', (
+    tester,
+  ) async {
+    addMember('@owner:example.org', 'Olga');
+    addMember('@me:example.org', 'Me');
+    applyOptimisticRoomState(room, EventTypes.RoomName, {'name': 'Hikers'});
+    applyOptimisticRoomState(room, EventTypes.RoomTopic, {
+      'topic': 'Weekend hikes',
+    });
+    await pumpPage(tester);
+
+    final topicTop = tester.getTopLeft(find.text('Weekend hikes')).dy;
+    expect(topicTop, greaterThan(tester.getTopLeft(find.text('Hikers')).dy));
+    expect(topicTop, lessThan(tester.getTopLeft(find.text('Mute')).dy));
+  });
+
+  testWidgets('a chat shows its topic too', (tester) async {
+    addMember('@ann:example.org', 'Ann');
+    addMember('@me:example.org', 'Me');
+    setDirectChatWith('@ann:example.org');
+    applyOptimisticRoomState(room, EventTypes.RoomTopic, {
+      'topic': 'Weekend hikes',
+    });
+    await pumpPage(tester, trustStubbedIds: ['@ann:example.org']);
+
+    expect(find.text('Weekend hikes'), findsOneWidget);
+  });
+
+  testWidgets('a room without a topic has no topic line', (tester) async {
+    addMember('@owner:example.org', 'Olga');
+    addMember('@me:example.org', 'Me');
+    await pumpPage(tester);
+
+    expect(find.byType(RoomTopic), findsNothing);
+  });
+
+  testWidgets('a blank topic shows nothing', (tester) async {
+    addMember('@owner:example.org', 'Olga');
+    addMember('@me:example.org', 'Me');
+    applyOptimisticRoomState(room, EventTypes.RoomTopic, {'topic': '  \n '});
+    await pumpPage(tester);
+
+    expect(find.byType(RoomTopic), findsNothing);
+  });
+
+  testWidgets('shows a changed topic and hides a removed one', (tester) async {
+    addMember('@owner:example.org', 'Olga');
+    addMember('@me:example.org', 'Me');
+    applyOptimisticRoomState(room, EventTypes.RoomTopic, {'topic': 'Old'});
+    await pumpPage(tester);
+
+    applyOptimisticRoomState(room, EventTypes.RoomTopic, {'topic': 'New'});
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('New'), findsOneWidget);
+    expect(find.text('Old'), findsNothing);
+
+    applyOptimisticRoomState(room, EventTypes.RoomTopic, {'topic': ''});
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(RoomTopic), findsNothing);
   });
 
   testWidgets('separates Encrypted and the access with a bullet', (

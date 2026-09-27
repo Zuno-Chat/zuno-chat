@@ -33,6 +33,7 @@ import 'room_access_label.dart';
 import 'room_media_section.dart';
 import 'room_permissions_page.dart';
 import 'room_settings_page.dart';
+import 'room_topic.dart';
 
 enum _MemberAction { message, changeRole, remove, ban, block, report }
 
@@ -493,6 +494,7 @@ class _RoomInfoPageState extends State<RoomInfoPage>
     final theme = Theme.of(context);
     final room = widget.room;
     final name = roomTitle(room);
+    final topic = room.topic.trim();
     final participants = _participants;
     final members = membersOwnerFirst(room, participants ?? const <User>[]);
     final canonicalAlias = room.canonicalAlias;
@@ -576,6 +578,10 @@ class _RoomInfoPageState extends State<RoomInfoPage>
                           RoomAccessLabel(access: roomAccessOf(room)),
                       ],
                     ),
+                  ],
+                  if (topic.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    RoomTopic(topic: topic),
                   ],
                 ],
               ),
