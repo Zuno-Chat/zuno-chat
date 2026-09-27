@@ -215,8 +215,8 @@ asymmetric sender/receiver views).
   a server that refuses listing then creates nothing, instead of leaving a
   private room behind an error. The dialog states what Public means under
   the choice, so creation has no separate confirmation.
-- **"Join room" by ID stays in the + menu but disabled** — parked behind
-  directory search, not removed, so the local-ID dialog can come back.
+- **Rooms are joined from the directory or an invitation, never by ID.**
+  The + menu offers New chat, New room and Find public rooms only.
 - **Owner is the create-event sender** (`isRoomOwner`, plus
   `additional_creators` on v12 rooms): sorted first and badged "Owner" for
   everyone, but still an admin underneath. Role badges (Admin/Moderator/
@@ -238,8 +238,7 @@ asymmetric sender/receiver views).
 - **Server isolation**: since Zuno targets one self-hosted, non-federated
   homeserver, the server part of a Matrix ID is never shown or asked for.
   User lookups (DM start, room invite) take only a local username (`@` is
-  a static prefix); joining a room takes just the alias/ID local part with
-  sigil picked via toggle; any read-only ID display shows sigil + local
+  a static prefix); any read-only ID display shows sigil + local
   part only (`@user`, never `@user:homeserver`), including a mention
   rendered in a message. The part the dialogs append is the account's own
   server name (`ownServerName`, `server_name.dart`) — never

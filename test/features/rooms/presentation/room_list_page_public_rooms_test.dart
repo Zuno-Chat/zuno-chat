@@ -326,13 +326,20 @@ void main() {
     expect(find.textContaining('Exception'), findsNothing);
   });
 
-  testWidgets('Join room by id is greyed out', (tester) async {
+  testWidgets('the new chat menu offers chat, room and public rooms only', (
+    tester,
+  ) async {
     await pumpRoomList(tester);
     await openNewChatMenu(tester);
 
-    final tile = tester.widget<ListTile>(
-      find.widgetWithText(ListTile, 'Join room'),
+    final menuTiles = tester.widgetList<ListTile>(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byType(ListTile),
+      ),
     );
-    expect(tile.enabled, isFalse);
+    final menuTitles = menuTiles.map((tile) => (tile.title! as Text).data);
+
+    expect(menuTitles, ['New chat', 'New room', 'Find public rooms']);
   });
 }

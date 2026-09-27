@@ -21,7 +21,6 @@ import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/errors/global_error_handler.dart';
 import '../../../core/matrix/force_sync.dart';
-import '../../../core/matrix/local_room_dialog.dart';
 import '../../../core/matrix/local_username_dialog.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
@@ -78,7 +77,7 @@ Stream<void> _coalesced(Iterable<Stream<void>> streams) {
   return controller.stream;
 }
 
-enum _NewChatType { directMessage, group, findPublicRooms, joinRoom }
+enum _NewChatType { directMessage, group, findPublicRooms }
 
 enum _RoomAction { markRead, mute, unmute, exit }
 
@@ -108,12 +107,6 @@ class RoomListPage extends ConsumerWidget {
               onTap: () =>
                   Navigator.of(context).pop(_NewChatType.findPublicRooms),
             ),
-            ListTile(
-              enabled: false,
-              leading: const Icon(Icons.tag_outlined),
-              title: const Text('Join room'),
-              onTap: () => Navigator.of(context).pop(_NewChatType.joinRoom),
-            ),
           ],
         ),
       ),
@@ -127,8 +120,6 @@ class RoomListPage extends ConsumerWidget {
         await _createGroup(context, client);
       case _NewChatType.findPublicRooms:
         await _findPublicRoom(context, client);
-      case _NewChatType.joinRoom:
-        await _joinRoom(context, client);
     }
   }
 
@@ -171,17 +162,6 @@ class RoomListPage extends ConsumerWidget {
       context,
       client,
       () async => alreadyJoined ? roomId : client.joinRoom(roomId),
-      failed: 'Could not join the room.',
-    );
-  }
-
-  Future<void> _joinRoom(BuildContext context, Client client) async {
-    final roomId = await showLocalRoomDialog(context, client: client);
-    if (roomId == null || !context.mounted) return;
-    await _createAndOpen(
-      context,
-      client,
-      () => client.joinRoom(roomId),
       failed: 'Could not join the room.',
     );
   }
