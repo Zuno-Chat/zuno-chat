@@ -23,6 +23,28 @@ void main() {
     });
   });
 
+  group('pickerImageLimits', () {
+    test('with a native resizer the picker hands over the original', () {
+      for (final reduce in [true, false]) {
+        expect(
+          pickerImageLimits(nativeImageResize: true, reduceMediaSize: reduce),
+          (maxDimension: null, quality: null),
+        );
+      }
+    });
+
+    test('without one the picker shrinks to the send size and quality', () {
+      expect(
+        pickerImageLimits(nativeImageResize: false, reduceMediaSize: false),
+        (maxDimension: 1080.0, quality: 85),
+      );
+      expect(
+        pickerImageLimits(nativeImageResize: false, reduceMediaSize: true),
+        (maxDimension: 720.0, quality: 75),
+      );
+    });
+  });
+
   group('videoLongEdge', () {
     test('480 when reduce media size is on', () {
       expect(videoLongEdge(reduceMediaSize: true), 480);

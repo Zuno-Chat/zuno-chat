@@ -261,7 +261,11 @@ class _CallPageState extends ConsumerState<CallPage> {
   Future<Set<CallAudioRoute>> _connectedHeadsets() async {
     try {
       final outputs = await Helper.audiooutputs;
-      return headsetsIn(outputs.map((output) => output.deviceId));
+      return headsetsIn(
+        outputs.map(
+          (output) => (deviceId: output.deviceId, groupId: output.groupId),
+        ),
+      );
     } catch (_) {
       return const {};
     }

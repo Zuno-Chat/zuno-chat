@@ -30,6 +30,7 @@ class PlatformCapabilities {
   final bool networkAvailabilityEvents;
   final bool keyboardLearningOptOut;
   final bool apnsRegistration;
+  final bool nativeIncomingRingUi;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
 
@@ -58,6 +59,7 @@ class PlatformCapabilities {
     required this.networkAvailabilityEvents,
     required this.keyboardLearningOptOut,
     required this.apnsRegistration,
+    required this.nativeIncomingRingUi,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
   });
@@ -90,6 +92,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         networkAvailabilityEvents: true,
         keyboardLearningOptOut: true,
         apnsRegistration: false,
+        nativeIncomingRingUi: true,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
           NotificationDeliveryMode.unifiedPush,
@@ -122,6 +125,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         networkAvailabilityEvents: false,
         keyboardLearningOptOut: false,
         apnsRegistration: false,
+        nativeIncomingRingUi: false,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,
       ),

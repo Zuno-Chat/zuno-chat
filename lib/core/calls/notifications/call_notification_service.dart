@@ -65,16 +65,20 @@ RingingCallInfo? ringingCallFromPayload(String? payload) {
   } on FormatException {
     return null;
   }
-  if (decoded is! Map<String, Object?>) return null;
-  final roomId = decoded['roomId'];
-  final callId = decoded['callId'];
+  return _ringingCallFrom(decoded);
+}
+
+RingingCallInfo? _ringingCallFrom(Object? value) {
+  if (value is! Map) return null;
+  final roomId = value['roomId'];
+  final callId = value['callId'];
   if (roomId is! String || callId is! String) return null;
-  final callerId = decoded['callerId'];
+  final callerId = value['callerId'];
   return (
     roomId: roomId,
     callId: callId,
     callerId: callerId is String ? callerId : '',
-    isVideo: decoded['isVideo'] == true,
+    isVideo: value['isVideo'] == true,
   );
 }
 
@@ -211,6 +215,16 @@ class CallNotificationService {
           _hangUpController.add(null);
         case 'pictureInPictureChanged':
           inPictureInPicture.value = call.arguments == true;
+        case 'answerCall':
+          _deliverNativeCallAction(
+            CallNotificationAction.accept,
+            call.arguments,
+          );
+        case 'declineCall':
+          _deliverNativeCallAction(
+            CallNotificationAction.decline,
+            call.arguments,
+          );
       }
       return null;
     });
@@ -382,6 +396,22 @@ class CallNotificationService {
     IsolateNameServer.removePortNameMapping(_declinePortName);
     _declinePort?.close();
     _declinePort = null;
+  }
+
+  CallNotificationResponse? _pendingNativeCallAction;
+
+  void _deliverNativeCallAction(
+    CallNotificationAction action,
+    Object? arguments,
+  ) {
+    final call = _ringingCallFrom(arguments);
+    if (call == null) return;
+    final response = CallNotificationResponse(action: action, call: call);
+    if (_actionController.hasListener) {
+      _actionController.add(response);
+    } else {
+      _pendingNativeCallAction = response;
+    }
   }
 
   void _handleResponse(NotificationResponse response) {
@@ -851,6 +881,11 @@ class CallNotificationService {
 
   Future<CallNotificationResponse?>
   takeLaunchCallActionFromNotification() async {
+    final pending = _pendingNativeCallAction;
+    if (pending != null) {
+      _pendingNativeCallAction = null;
+      return pending;
+    }
     final details = await _plugin.getNotificationAppLaunchDetails();
     if (details?.didNotificationLaunchApp != true) return null;
     final response = details?.notificationResponse;

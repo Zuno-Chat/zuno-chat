@@ -32,7 +32,7 @@ abstract interface class IncomingCallPresenter {
 
 IncomingCallPresenter incomingCallPresenterFor(
   PlatformCapabilities capabilities,
-) => capabilities.fullScreenIntent
+) => capabilities.nativeIncomingRingUi
     ? const AndroidIncomingCallPresenter()
     : const NoopIncomingCallPresenter();
 
@@ -40,11 +40,21 @@ final incomingCallPresenterProvider = Provider<IncomingCallPresenter>(
   (ref) => incomingCallPresenterFor(ref.watch(platformCapabilitiesProvider)),
 );
 
-class AndroidIncomingCallPresenter implements IncomingCallPresenter {
-  const AndroidIncomingCallPresenter();
+abstract class RememberingIncomingCallPresenter
+    implements IncomingCallPresenter {
+  const RememberingIncomingCallPresenter();
 
-  CallNotificationService get _notifications =>
-      CallNotificationService.instance;
+  Future<void> presentIncoming({
+    required String callerName,
+    required String callerId,
+    required bool isVideo,
+    required String roomId,
+    required String callId,
+    required bool isGroupCall,
+    Uint8List? avatarBytes,
+  });
+
+  Future<void> dismissIncoming();
 
   @override
   Future<void> showIncoming({
@@ -56,12 +66,6 @@ class AndroidIncomingCallPresenter implements IncomingCallPresenter {
     bool isGroupCall = false,
     Uint8List? avatarBytes,
   }) async {
-    await _notifications.initialize();
-    debugPrint(
-      'zuno/push: posting ring for $callId '
-      '(fullScreenIntentAllowed='
-      '${await _notifications.fullScreenIntentAllowedOrNull()})',
-    );
     try {
       await saveRingingCall(await SharedPreferences.getInstance(), (
         roomId: roomId,
@@ -70,6 +74,54 @@ class AndroidIncomingCallPresenter implements IncomingCallPresenter {
         isVideo: isVideo,
       ));
     } catch (_) {}
+    await presentIncoming(
+      callerName: callerName,
+      callerId: callerId,
+      isVideo: isVideo,
+      roomId: roomId,
+      callId: callId,
+      isGroupCall: isGroupCall,
+      avatarBytes: avatarBytes,
+    );
+  }
+
+  @override
+  Future<void> cancelIncoming() async {
+    try {
+      await clearRingingCall(await SharedPreferences.getInstance());
+    } catch (_) {}
+    await dismissIncoming();
+  }
+
+  Future<RingingCallInfo?> rememberedRing() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return readRingingCall(prefs);
+  }
+}
+
+class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
+  const AndroidIncomingCallPresenter();
+
+  CallNotificationService get _notifications =>
+      CallNotificationService.instance;
+
+  @override
+  Future<void> presentIncoming({
+    required String callerName,
+    required String callerId,
+    required bool isVideo,
+    required String roomId,
+    required String callId,
+    required bool isGroupCall,
+    Uint8List? avatarBytes,
+  }) async {
+    await _notifications.initialize();
+    debugPrint(
+      'zuno/push: posting ring for $callId '
+      '(fullScreenIntentAllowed='
+      '${await _notifications.fullScreenIntentAllowedOrNull()})',
+    );
     unawaited(NotificationSoundPlayer.instance.startIncomingRing());
     await _invoke('showIncomingCallStyle', {
       'channelId': isGroupCall ? groupRingChannelId : ringChannelId,
@@ -84,11 +136,8 @@ class AndroidIncomingCallPresenter implements IncomingCallPresenter {
   }
 
   @override
-  Future<void> cancelIncoming() async {
+  Future<void> dismissIncoming() async {
     await NotificationSoundPlayer.instance.stopIncomingRing();
-    try {
-      await clearRingingCall(await SharedPreferences.getInstance());
-    } catch (_) {}
     await _invoke('cancelIncomingCallStyle');
   }
 
@@ -99,9 +148,7 @@ class AndroidIncomingCallPresenter implements IncomingCallPresenter {
       final active = await _android?.getActiveNotifications();
       final showing = active?.any((n) => n.id == _ringNotificationId) ?? false;
       if (!showing) return null;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.reload();
-      return readRingingCall(prefs);
+      return await rememberedRing();
     } catch (_) {
       return null;
     }

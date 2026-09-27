@@ -34,3 +34,14 @@ int imageJpegQuality({required bool reduceMediaSize}) =>
     reduceMediaSize ? 75 : 85;
 
 const imageThumbnailMaxDimension = 800;
+
+({double? maxDimension, int? quality}) pickerImageLimits({
+  required bool nativeImageResize,
+  required bool reduceMediaSize,
+}) => nativeImageResize
+    ? (maxDimension: null, quality: null)
+    : (
+        maxDimension: imageShrinkMaxDimension(reduceMediaSize: reduceMediaSize)
+            .toDouble(),
+        quality: imageJpegQuality(reduceMediaSize: reduceMediaSize),
+      );

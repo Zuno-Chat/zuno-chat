@@ -224,7 +224,9 @@ what a message looks like, how it's sent, and how the timeline behaves.
   - Native path: `Bitmap.compress` writes no EXIF; the remuxer and encoder
     write no location atom. iOS videos re-encode through light_compressor,
     which copies no metadata.
-  - Without `nativeImageResize` (iOS today) photos go untouched except for
+  - Without `nativeImageResize` (iOS today) image_picker shrinks photos to
+    the send size and quality as it picks them (`pickerImageLimits`), and
+    after that they go untouched except for
     `withoutLocation` (`photo_location.dart`): it drops the EXIF GPS
     directory and re-injects the rest, with no re-encode and orientation
     kept. If that fails the photo is refused, never sent with its location.

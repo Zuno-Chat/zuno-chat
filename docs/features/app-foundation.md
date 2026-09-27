@@ -102,8 +102,8 @@ state.
 
 **Every platform difference is a capability in `lib/core/platform/`.**
 `AppPlatform {android, ios}` comes from `Platform.isIOS`, so `flutter test`
-runs as android. `PlatformCapabilities` is a const table of 26 required
-fields (24 flags plus `deliveryModes`/`defaultDeliveryMode`) returned by
+runs as android. `PlatformCapabilities` is a const table of 27 required
+fields (25 flags plus `deliveryModes`/`defaultDeliveryMode`) returned by
 the pure `capabilitiesFor(AppPlatform)`: android is all `true` except
 `apnsRegistration`, ios all `false` with `apns` only. Required fields force a new flag to be decided
 for both platforms. Why no build flavors, why `foss` was dropped, and the
@@ -122,8 +122,8 @@ An iOS `false` is one of two kinds:
 | Kind | Flags | On iOS |
 |---|---|---|
 | Awaiting an iOS equivalent | every other flag, e.g. `networkAvailabilityEvents` (offline reads as `unreachable` until then), `nativeSignOutWipe` (sign-out keeps local data until then) | flips to `true` once a native handler exists |
-| Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut` | stays `false` |
-| Permanent: seam selector | `fullScreenIntent`, `callForegroundService`, `nativeRingbackTone` | stays `false`; CallKit arrives as a new branch in each `*For()` factory (`calls.md`), never a flag flip |
+| Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent` | stays `false` |
+| Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` | stays `false`; CallKit arrives as a new branch in each `*For()` factory (`calls.md`), never a flag flip |
 
 `apnsRegistration` is the one flag Android never sets: it gates the iOS
 push token handler, which Android has no equivalent of.

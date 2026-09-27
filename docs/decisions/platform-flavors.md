@@ -51,11 +51,10 @@ is once no build-time flavor exists.
 - An iOS `false` means "no equivalent built yet", except Android concepts
   that stay `false` for good: `playServices`, `batteryExemption`,
   `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`,
-  `foregroundSyncService`, `vibrationPatterns`, and the seam selectors
-  `fullScreenIntent`, `callForegroundService`, `nativeRingbackTone`
-  (CallKit is a new branch per factory, never a flip).
-  `fullScreenIntent` also gates its permission UI; the CallKit branch
-  later supersedes its other duty, choosing the ring presenter.
+  `foregroundSyncService`, `vibrationPatterns`, `fullScreenIntent` (its
+  permission UI only), and the seam selectors `nativeIncomingRingUi`,
+  `callForegroundService`, `nativeRingbackTone` (CallKit is a new branch
+  per factory, never a flip).
 
 The gated surface: 16 `zuno/*` platform channels across 20 `lib/` files
 (notifications, call ring/ongoing/ringback presentation, push wake locks,

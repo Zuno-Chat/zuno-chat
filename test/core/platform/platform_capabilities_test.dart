@@ -171,6 +171,12 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
+    'nativeIncomingRingUi',
+    read: (c) => c.nativeIncomingRingUi,
+    android: true,
+    ios: false,
+  ),
+  _Capability(
     'deliveryModes',
     read: (c) => c.deliveryModes,
     android: [

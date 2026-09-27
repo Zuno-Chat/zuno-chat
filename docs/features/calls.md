@@ -74,12 +74,25 @@ capability (and a provider over it):
 
 | Seam | Methods | Android | Selected by |
 |---|---|---|---|
-| `IncomingCallPresenter` | `showIncoming`, `cancelIncoming`, `activeRing` | `zuno/call_style` ring notification + `notification_sound_player.dart` ringtone/vibration | `fullScreenIntent` |
+| `IncomingCallPresenter` | `showIncoming`, `cancelIncoming`, `activeRing` | `zuno/call_style` ring notification + `notification_sound_player.dart` ringtone/vibration | `nativeIncomingRingUi` |
 | `OngoingCallPresenter` | `start`, `stop` | `CallForegroundService` | `callForegroundService` |
 | `RingbackTonePlayer` | `start`, `stop`, `restartForRouteChange` | `ToneGenerator` | `nativeRingbackTone` |
 
 - Ringback has exactly one gate: its factory. Nothing else reads
-  `nativeRingbackTone`.
+  `nativeRingbackTone`. `fullScreenIntent` gates only the full-screen
+  permission UI, never the presenter.
+- **A presenter that really rings extends `RememberingIncomingCallPresenter`**:
+  it writes the ringing-call store before `presentIncoming` and clears it
+  before `dismissIncoming`, so a platform presenter cannot forget the store
+  that `main.dart` (`pendingRing`) and the push handler read. The no-op
+  presenter remembers nothing, so iOS never reopens a ring it never showed.
+- **Native answer and decline** (a future CallKit) arrive as `answerCall` /
+  `declineCall` on `zuno/calls` with `{roomId, callId, callerId, isVideo}`
+  and join `onAction`, like notification buttons. One that arrives before
+  anything listens (cold start) is held for
+  `takeLaunchCallActionFromNotification`. An open `IncomingCallPage` runs
+  the action itself (the router defers to it) and cancels the presenter as
+  it closes, so two ring UIs never both stay up.
 - CallKit arrives as a new branch in each factory, never a flag flip
   (`app-foundation.md`).
 - Decline routing (the `IsolateNameServer` decline-port claim/release, the
@@ -376,6 +389,12 @@ instead, so a stale notification can't outlive its call.
   user-selected device while it stays connected, so after
   `setSpeakerphoneOn(false)` picked the earpiece, a headset connecting
   later never took over on its own.
+- **Headsets are recognized by Android id or iOS port type.** Android names
+  outputs `bluetooth` / `wired-headset`; iOS reports port UIDs with the type
+  in `groupId` (`BluetoothHFP`, `BluetoothA2DPOutput`, `BluetoothLE`,
+  `Headphones`, `USBAudio`) and lists only the current route. On iOS any
+  `selectAudioOutput` other than `Speaker` just drops the speaker override,
+  so the OS routes to the connected headset.
 - **Picture-in-picture follows the other side's camera only.** Android
   system PiP (`MainActivity.kt`, `supportsPictureInPicture` in the
   manifest) is eligible while any *remote* participant has video on; the

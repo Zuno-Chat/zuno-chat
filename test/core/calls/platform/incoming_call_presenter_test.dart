@@ -67,16 +67,25 @@ void main() {
       );
     });
 
-    test('without full-screen ringing there is nothing to present with', () {
+    test('without a native ring screen there is nothing to present with', () {
       expect(
         incomingCallPresenterFor(iosCapabilities),
         isA<NoopIncomingCallPresenter>(),
       );
       expect(
         incomingCallPresenterFor(
-          capabilitiesLike(androidCapabilities, fullScreenIntent: false),
+          capabilitiesLike(androidCapabilities, nativeIncomingRingUi: false),
         ),
         isA<NoopIncomingCallPresenter>(),
+      );
+    });
+
+    test('the full-screen permission no longer picks the presenter', () {
+      expect(
+        incomingCallPresenterFor(
+          capabilitiesLike(androidCapabilities, fullScreenIntent: false),
+        ),
+        isA<AndroidIncomingCallPresenter>(),
       );
     });
 
@@ -149,6 +158,28 @@ void main() {
     );
   });
 
+  group('every presenter that really rings', () {
+    test('remembers the call before presenting it, so a cold start can reopen '
+        'it, even when presenting fails', () async {
+      final presenter = _FakeRememberingPresenter(fails: true);
+
+      await expectLater(ring(presenter), throwsA(isA<StateError>()));
+
+      expect((await remembered())?.callId, 'call1');
+      expect((await remembered())?.isVideo, isTrue);
+    });
+
+    test('forgets the call when the ring is cancelled', () async {
+      final presenter = _FakeRememberingPresenter();
+      await ring(presenter);
+
+      await presenter.cancelIncoming();
+
+      expect(await remembered(), isNull);
+      expect(presenter.dismissed, 1);
+    });
+  });
+
   group('the presenter for a platform without full-screen ringing', () {
     final presenter = incomingCallPresenterFor(iosCapabilities);
 
@@ -186,4 +217,30 @@ void main() {
       expect(await remembered(), isNull);
     });
   });
+}
+
+class _FakeRememberingPresenter extends RememberingIncomingCallPresenter {
+  _FakeRememberingPresenter({this.fails = false});
+
+  final bool fails;
+  int dismissed = 0;
+
+  @override
+  Future<void> presentIncoming({
+    required String callerName,
+    required String callerId,
+    required bool isVideo,
+    required String roomId,
+    required String callId,
+    required bool isGroupCall,
+    Uint8List? avatarBytes,
+  }) async {
+    if (fails) throw StateError('no ring screen');
+  }
+
+  @override
+  Future<void> dismissIncoming() async => dismissed++;
+
+  @override
+  Future<RingingCallInfo?> activeRing() => rememberedRing();
 }

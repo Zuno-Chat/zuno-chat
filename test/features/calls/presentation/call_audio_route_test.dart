@@ -12,11 +12,50 @@ void main() {
   group('headsetsIn', () {
     test('picks out the headsets and ignores the phone itself', () {
       expect(
-        headsetsIn(['earpiece', 'speaker', 'bluetooth', 'wired-headset']),
+        headsetsIn([
+          (deviceId: 'earpiece', groupId: null),
+          (deviceId: 'speaker', groupId: null),
+          (deviceId: 'bluetooth', groupId: null),
+          (deviceId: 'wired-headset', groupId: null),
+        ]),
         {bluetooth, wired},
       );
-      expect(headsetsIn(['earpiece', 'speaker']), isEmpty);
+      expect(
+        headsetsIn([
+          (deviceId: 'earpiece', groupId: null),
+          (deviceId: 'speaker', groupId: null),
+        ]),
+        isEmpty,
+      );
     });
+
+    test(
+      'on iOS, where ids are port UIDs, the port type names the headset',
+      () {
+        expect(
+          headsetsIn([
+            (deviceId: '00:11:22:33:44:55-tsco', groupId: 'BluetoothHFP'),
+            (deviceId: 'Wired Headphones', groupId: 'Headphones'),
+          ]),
+          {bluetooth, wired},
+        );
+        expect(
+          headsetsIn([(deviceId: 'AirPods', groupId: 'BluetoothA2DPOutput')]),
+          {bluetooth},
+        );
+        expect(headsetsIn([(deviceId: 'Buds', groupId: 'BluetoothLE')]), {
+          bluetooth,
+        });
+        expect(headsetsIn([(deviceId: 'USB-C', groupId: 'USBAudio')]), {wired});
+        expect(
+          headsetsIn([
+            (deviceId: 'Speaker', groupId: 'Speaker'),
+            (deviceId: 'Built-In Receiver', groupId: 'Receiver'),
+          ]),
+          isEmpty,
+        );
+      },
+    );
   });
 
   group('startingRoute', () {

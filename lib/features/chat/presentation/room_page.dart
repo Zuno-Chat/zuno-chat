@@ -35,6 +35,7 @@ import '../../../core/matrix/looks_like_video.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/media_gallery_group.dart';
 import '../../../core/matrix/media_processing_exception.dart';
+import '../../../core/matrix/media_quality.dart';
 import '../../../core/matrix/reactions.dart';
 import '../../../core/matrix/read_receipts.dart';
 import '../../../core/matrix/room_exit.dart';
@@ -893,8 +894,22 @@ class _RoomPageState extends ConsumerState<RoomPage>
     }
   }
 
+  ({double? maxDimension, int? quality}) _pickerImageLimits() =>
+      pickerImageLimits(
+        nativeImageResize: ref
+            .read(platformCapabilitiesProvider)
+            .nativeImageResize,
+        reduceMediaSize: ref.read(reduceMediaSizeProvider),
+      );
+
   Future<void> _pickAndSendImages(ImageSource source) async {
-    final file = await ImagePicker().pickImage(source: source);
+    final limits = _pickerImageLimits();
+    final file = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: limits.maxDimension,
+      maxHeight: limits.maxDimension,
+      imageQuality: limits.quality,
+    );
     if (file == null || !mounted) return;
     await _sendImageBatch([file]);
   }
@@ -933,7 +948,12 @@ class _RoomPageState extends ConsumerState<RoomPage>
       widget.room.client.generateUniqueTransactionId();
 
   Future<void> _pickAndSendGalleryMedia() async {
-    final picked = await ImagePicker().pickMultipleMedia();
+    final limits = _pickerImageLimits();
+    final picked = await ImagePicker().pickMultipleMedia(
+      maxWidth: limits.maxDimension,
+      maxHeight: limits.maxDimension,
+      imageQuality: limits.quality,
+    );
     if (picked.isEmpty || !mounted) return;
     await _sendPickedMedia(picked);
   }
