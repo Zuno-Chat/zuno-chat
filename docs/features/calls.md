@@ -459,7 +459,13 @@ instead, so a stale notification can't outlive its call.
   `setCodecPreferences` — VP8 has a software fallback in this build,
   H264 does not.
 - **Call waiting**: a second incoming call while already on one is
-  auto-declined, never rung.
+  auto-declined, never rung. The main isolate declines it from sync
+  (`room_list_page.dart`). A push handled in a headless isolate can't read
+  `activeCallProvider`, so the notifier mirrors it into a process-wide
+  `IsolateNameServer` marker (`active_call_marker.dart`) and the push
+  handler stays silent while it is set. The marker dies with the process,
+  so a crash can't mute later rings; the notifier clears it on build
+  because a mapping outlives a hot restart.
 - **TURN provider selection was built, then retired to one path.** A
   per-user `TurnProviderKind` (homeserver vs. Cloudflare) picker existed
   briefly; both branches are now moot — the app derives ICE entirely

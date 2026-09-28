@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../calls/active_call_marker.dart';
 import '../calls/matrixrtc/call_summary_message.dart';
 import '../calls/matrixrtc/incoming_call_provider.dart';
 import '../calls/matrixrtc/resolved_call_ids_store.dart';
@@ -97,6 +98,12 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
   final call = incomingCallFromEvent(client, event);
   if (call != null) {
     await placeholder.retract();
+    if (isCallActiveInProcess()) {
+      if (kDebugMode) {
+        debugPrint('zuno/push: already on a call, not ringing ${call.callId}');
+      }
+      return IncomingPushOutcome.ignored;
+    }
     if (await _isResolved(call.callId)) {
       if (kDebugMode) {
         debugPrint('zuno/push: ${call.callId} already resolved, not ringing');

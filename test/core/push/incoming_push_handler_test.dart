@@ -2,14 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:matrix/matrix.dart';
+import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/calls/active_call_provider.dart';
+import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
+import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/push/incoming_push_handler.dart';
@@ -260,6 +264,49 @@ void main() {
 
       expect(await handle(), IncomingPushOutcome.ignored);
       expect(notifications.shown, isEmpty);
+    });
+
+    group('with a call already live in this app', () {
+      late ProviderContainer container;
+
+      setUp(() {
+        container = ProviderContainer();
+        container
+            .read(activeCallProvider.notifier)
+            .set(
+              CallSession.forIncoming(
+                room: room,
+                callId: 'live',
+                kind: CallKind.voice,
+              ),
+            );
+      });
+      tearDown(() => container.dispose());
+
+      test('does not ring over it', () async {
+        client.resolved = callInvite();
+
+        expect(await handle(), IncomingPushOutcome.ignored);
+        expect(
+          callStyle.calls.map((c) => c.method),
+          isNot(contains('showIncomingCallStyle')),
+        );
+        expect(notifications.shown, isEmpty);
+      });
+
+      test('rings again once that call has ended', () async {
+        container.read(activeCallProvider.notifier).set(null);
+        client.resolved = callInvite();
+
+        expect(await handle(), IncomingPushOutcome.callRinging);
+      });
+
+      test('rings again once the app has gone away', () async {
+        container.dispose();
+        client.resolved = callInvite();
+
+        expect(await handle(), IncomingPushOutcome.callRinging);
+      });
     });
 
     test('a summary cancels the ring and remembers the call is over', () async {
