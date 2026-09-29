@@ -1,9 +1,10 @@
-import Flutter
+@preconcurrency import Flutter
 import ImageIO
 import UIKit
 import UniformTypeIdentifiers
 
-final class ImageResizerPlugin: NSObject, FlutterPlugin {
+@MainActor
+final class ImageResizerPlugin: NSObject, @preconcurrency FlutterPlugin {
   private let queue = DispatchQueue(label: "im.zuno.image", qos: .userInitiated)
 
   static func register(with registrar: FlutterPluginRegistrar) {
@@ -24,15 +25,23 @@ final class ImageResizerPlugin: NSObject, FlutterPlugin {
       result(nil)
       return
     }
-    queue.async {
-      let reply = autoreleasepool {
-        Self.resize(bytes.data, maxDimension: maxDimension, quality: quality)
+    let data = bytes.data
+    Task {
+      let reply = await withCheckedContinuation { continuation in
+        queue.async {
+          continuation.resume(
+            returning: autoreleasepool {
+              Self.resize(data, maxDimension: maxDimension, quality: quality)
+            })
+        }
       }
-      DispatchQueue.main.async { result(reply) }
+      result(reply)
     }
   }
 
-  private static func resize(_ data: Data, maxDimension: Int, quality: Int) -> [String: Any]? {
+  private nonisolated static func resize(
+    _ data: Data, maxDimension: Int, quality: Int
+  ) -> [String: Any]? {
     guard maxDimension > 0,
       let source = CGImageSourceCreateWithData(
         data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),

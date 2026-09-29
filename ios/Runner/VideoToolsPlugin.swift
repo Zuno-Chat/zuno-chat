@@ -1,8 +1,9 @@
 import AVFoundation
-import Flutter
+@preconcurrency import Flutter
 import UIKit
 
-final class VideoToolsPlugin: NSObject, FlutterPlugin {
+@MainActor
+final class VideoToolsPlugin: NSObject, @preconcurrency FlutterPlugin {
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(name: "zuno/video", binaryMessenger: registrar.messenger())
     registrar.addMethodCallDelegate(VideoToolsPlugin(), channel: channel)
@@ -16,19 +17,13 @@ final class VideoToolsPlugin: NSObject, FlutterPlugin {
         result(nil)
         return
       }
-      Task {
-        let reply = await Self.probe(path: path)
-        await MainActor.run { result(reply) }
-      }
+      Task { result(await Self.probe(path: path)) }
     case "remux":
       guard let input = args?["input"] as? String, let output = args?["output"] as? String else {
         result(false)
         return
       }
-      Task {
-        let reply = await Self.remux(input: input, output: output)
-        await MainActor.run { result(reply) }
-      }
+      Task { result(await Self.remux(input: input, output: output)) }
     case "thumbnail":
       guard let path = args?["path"] as? String,
         let maxDimension = args?["maxDimension"] as? Int,
@@ -37,15 +32,15 @@ final class VideoToolsPlugin: NSObject, FlutterPlugin {
         result(nil)
         return
       }
-      Self.thumbnail(path: path, maxDimension: maxDimension, quality: quality) { reply in
-        DispatchQueue.main.async { result(reply) }
+      Task {
+        result(await Self.thumbnail(path: path, maxDimension: maxDimension, quality: quality))
       }
     default:
       result(FlutterMethodNotImplemented)
     }
   }
 
-  private static let aacSubtypes: Set<FourCharCode> = [
+  private nonisolated static let aacSubtypes: Set<FourCharCode> = [
     kAudioFormatMPEG4AAC,
     kAudioFormatMPEG4AAC_HE,
     kAudioFormatMPEG4AAC_HE_V2,
@@ -53,12 +48,14 @@ final class VideoToolsPlugin: NSObject, FlutterPlugin {
     kAudioFormatMPEG4AAC_ELD,
   ]
 
-  private static func fourCC(_ code: FourCharCode) -> String {
+  private nonisolated static func fourCC(_ code: FourCharCode) -> String {
     let bytes = [24, 16, 8, 0].map { UInt8((code >> $0) & 0xff) }
     return String(bytes: bytes, encoding: .ascii)?.trimmingCharacters(in: .whitespaces) ?? "\(code)"
   }
 
-  private static func codecName(_ formats: [CMFormatDescription], video: Bool) -> String? {
+  private nonisolated static func codecName(
+    _ formats: [CMFormatDescription], video: Bool
+  ) -> String? {
     guard let format = formats.first else { return nil }
     let subtype = CMFormatDescriptionGetMediaSubType(format)
     if video {
@@ -71,7 +68,8 @@ final class VideoToolsPlugin: NSObject, FlutterPlugin {
     return aacSubtypes.contains(subtype) ? "audio/mp4a-latm" : "audio/x-\(fourCC(subtype))"
   }
 
-  private static func probe(path: String) async -> [String: Any]? {
+  @concurrent
+  private nonisolated static func probe(path: String) async -> sending [String: Any]? {
     let asset = AVURLAsset(url: URL(fileURLWithPath: path))
     do {
       guard let video = try await asset.loadTracks(withMediaType: .video).first else { return nil }
@@ -110,7 +108,8 @@ final class VideoToolsPlugin: NSObject, FlutterPlugin {
     }
   }
 
-  private static func remux(input: String, output: String) async -> Bool {
+  @concurrent
+  private nonisolated static func remux(input: String, output: String) async -> Bool {
     let asset = AVURLAsset(url: URL(fileURLWithPath: input))
     let composition = AVMutableComposition()
     do {
@@ -151,31 +150,34 @@ final class VideoToolsPlugin: NSObject, FlutterPlugin {
     }
   }
 
-  private static func thumbnail(
+  @concurrent
+  private nonisolated static func thumbnail(
     path: String,
     maxDimension: Int,
-    quality: Int,
-    completion: @escaping ([String: Any]?) -> Void
-  ) {
+    quality: Int
+  ) async -> sending [String: Any]? {
     let generator = AVAssetImageGenerator(asset: AVURLAsset(url: URL(fileURLWithPath: path)))
     generator.appliesPreferredTrackTransform = true
     generator.maximumSize = CGSize(width: maxDimension, height: maxDimension)
-    generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: .zero)]) {
-      _, frame, _, status, _ in
-      withExtendedLifetime(generator) {}
-      guard status == .succeeded, let frame,
-        let jpeg = UIImage(cgImage: frame).jpegData(
-          compressionQuality: CGFloat(min(max(quality, 0), 100)) / 100)
-      else {
-        completion(nil)
-        return
+    let reply: [String: Any]? = await withCheckedContinuation { continuation in
+      generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: .zero)]) {
+        _, frame, _, status, _ in
+        guard status == .succeeded, let frame,
+          let jpeg = UIImage(cgImage: frame).jpegData(
+            compressionQuality: CGFloat(min(max(quality, 0), 100)) / 100)
+        else {
+          continuation.resume(returning: nil)
+          return
+        }
+        continuation.resume(returning: [
+          "bytes": FlutterStandardTypedData(bytes: jpeg),
+          "width": frame.width,
+          "height": frame.height,
+          "mimeType": "image/jpeg",
+        ])
       }
-      completion([
-        "bytes": FlutterStandardTypedData(bytes: jpeg),
-        "width": frame.width,
-        "height": frame.height,
-        "mimeType": "image/jpeg",
-      ])
     }
+    withExtendedLifetime(generator) {}
+    return reply
   }
 }

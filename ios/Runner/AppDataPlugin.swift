@@ -1,8 +1,9 @@
-import Flutter
+@preconcurrency import Flutter
 import UIKit
 
-final class AppDataPlugin: NSObject, FlutterPlugin {
-  private static let databaseSidecars = ["", "-wal", "-shm", "-journal"]
+@MainActor
+final class AppDataPlugin: NSObject, @preconcurrency FlutterPlugin {
+  private nonisolated static let databaseSidecars = ["", "-wal", "-shm", "-journal"]
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
@@ -20,13 +21,17 @@ final class AppDataPlugin: NSObject, FlutterPlugin {
       result(false)
       return
     }
-    DispatchQueue.global(qos: .userInitiated).async {
-      let wiped = Self.wipe(keeping: keep)
-      DispatchQueue.main.async { result(wiped) }
+    Task {
+      let wiped = await withCheckedContinuation { continuation in
+        DispatchQueue.global(qos: .userInitiated).async {
+          continuation.resume(returning: Self.wipe(keeping: keep))
+        }
+      }
+      result(wiped)
     }
   }
 
-  private static func wipe(keeping databases: [String]) -> Bool {
+  private nonisolated static func wipe(keeping databases: [String]) -> Bool {
     let files = FileManager.default
     let kept = Set(
       databases.flatMap { path in

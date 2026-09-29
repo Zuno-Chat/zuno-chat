@@ -1,11 +1,12 @@
-import Flutter
+@preconcurrency import Flutter
 import UIKit
 
-final class ApnsTokenPlugin: NSObject, FlutterPlugin {
-  private static let tokenTimeout: TimeInterval = 30
+@MainActor
+final class ApnsTokenPlugin: NSObject, @preconcurrency FlutterPlugin {
+  private static let tokenTimeoutNanos: UInt64 = 30 * NSEC_PER_SEC
 
   private var pending: [FlutterResult] = []
-  private var timeout: DispatchWorkItem?
+  private var timeout: Task<Void, Never>?
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let instance = ApnsTokenPlugin()
@@ -21,12 +22,12 @@ final class ApnsTokenPlugin: NSObject, FlutterPlugin {
     }
     pending.append(result)
     guard pending.count == 1 else { return }
-    let timeout = DispatchWorkItem { [weak self] in
+    timeout = Task { [weak self] in
+      try? await Task.sleep(nanoseconds: Self.tokenTimeoutNanos)
+      guard !Task.isCancelled else { return }
       self?.finish(
         FlutterError(code: "timeout", message: "APNs gave no device token", details: nil))
     }
-    self.timeout = timeout
-    DispatchQueue.main.asyncAfter(deadline: .now() + Self.tokenTimeout, execute: timeout)
     UIApplication.shared.registerForRemoteNotifications()
   }
 

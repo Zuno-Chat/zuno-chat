@@ -510,6 +510,16 @@ the ring case, so it was not done.
   existing global keys (`globalScaffoldMessengerKey`,
   `globalNavigatorKey`, both wired on `MaterialApp` in `app.dart`)
   rather than introducing a second mechanism.
+- The iOS Runner compiles in Swift 6 mode. A new channel handler copies
+  the shape of the four in `ios/Runner/`: a `@MainActor` class,
+  `@preconcurrency FlutterPlugin` conformance, and
+  `@preconcurrency import Flutter`, since Flutter's headers carry no
+  concurrency annotations. Blocking work leaves the main actor, either on
+  a GCD queue bridged with `withCheckedContinuation` or in a
+  `@concurrent nonisolated static` async function returning `sending`.
+  `result` is called back on the main actor. Swift 6 also checks this at
+  runtime: a handler invoked off the main thread crashes instead of
+  racing.
 
 ## Dependencies / Integration
 - **matrix SDK** (`Client`, `MatrixSdkDatabase`, `NativeImplementations`)
