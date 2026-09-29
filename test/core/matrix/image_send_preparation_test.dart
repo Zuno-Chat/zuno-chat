@@ -5,8 +5,8 @@ import 'package:image/image.dart' as img;
 import 'package:zuno/core/matrix/image_send_preparation.dart';
 import 'package:zuno/core/matrix/media_processing_exception.dart';
 import 'package:zuno/core/matrix/native_image_resizer.dart';
-import 'package:zuno/core/platform/app_platform.dart';
-import 'package:zuno/core/platform/platform_capabilities.dart';
+
+import '../../helpers/platform_capabilities.dart';
 
 Uint8List _jpeg(int width, int height) =>
     img.encodeJpg(img.Image(width: width, height: height));
@@ -170,7 +170,7 @@ void main() {
 
   group('without native resizing', () {
     final resizer = NativeImageResizer.forTest(
-      capabilities: capabilitiesFor(AppPlatform.ios),
+      capabilities: capabilitiesLike(iosCapabilities, nativeImageResize: false),
     );
 
     setUp(() => answerWith((max, quality) => jpegReply(1080, 810)));

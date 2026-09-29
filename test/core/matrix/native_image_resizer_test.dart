@@ -6,6 +6,8 @@ import 'package:zuno/core/matrix/native_image_resizer.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../helpers/platform_capabilities.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('zuno/image');
@@ -106,7 +108,7 @@ void main() {
   group('without native resizing', () {
     late List<MethodCall> calls;
     final resizer = NativeImageResizer.forTest(
-      capabilities: capabilitiesFor(AppPlatform.ios),
+      capabilities: capabilitiesLike(iosCapabilities, nativeImageResize: false),
     );
 
     setUp(() {

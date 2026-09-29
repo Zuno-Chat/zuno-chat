@@ -40,7 +40,12 @@ void main() {
       'size', (tester) async {
     final args = await pickFrom(
       tester,
-      RoomPageHarness(capabilities: iosCapabilities),
+      RoomPageHarness(
+        capabilities: capabilitiesLike(
+          iosCapabilities,
+          nativeImageResize: false,
+        ),
+      ),
       'Choose from gallery',
     );
 
@@ -55,7 +60,12 @@ void main() {
       'size', (tester) async {
     final args = await pickFrom(
       tester,
-      RoomPageHarness(capabilities: iosCapabilities),
+      RoomPageHarness(
+        capabilities: capabilitiesLike(
+          iosCapabilities,
+          nativeImageResize: false,
+        ),
+      ),
       'Take photo',
     );
 
@@ -72,6 +82,21 @@ void main() {
     final args = await pickFrom(
       tester,
       RoomPageHarness(capabilities: androidCapabilities),
+      'Choose from gallery',
+    );
+
+    expect(
+      (args['maxImageWidth'], args['maxImageHeight'], args['imageQuality']),
+      (null, null, null),
+    );
+  });
+
+  testWidgets('on iOS the native resizer takes the original too', (
+    tester,
+  ) async {
+    final args = await pickFrom(
+      tester,
+      RoomPageHarness(capabilities: iosCapabilities),
       'Choose from gallery',
     );
 

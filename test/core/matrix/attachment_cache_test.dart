@@ -289,6 +289,12 @@ void main() {
     test('lives in the app cache directory', () async {
       await fetchCachedAttachment('k', fetch);
       AttachmentCache.instance.clear();
+      final directory = Directory(
+        '${server.cacheDirectory.path}/attachment_cache',
+      );
+      await until(
+        () => directory.existsSync() && directory.listSync().isNotEmpty,
+      );
 
       final file = await DiskAttachmentCache.instance.file('k');
 

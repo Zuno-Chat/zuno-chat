@@ -132,13 +132,13 @@ final _capabilities = <_Capability>[
     'nativeSignOutWipe',
     read: (c) => c.nativeSignOutWipe,
     android: true,
-    ios: false,
+    ios: true,
   ),
   _Capability(
     'nativeImageResize',
     read: (c) => c.nativeImageResize,
     android: true,
-    ios: false,
+    ios: true,
   ),
   _Capability(
     'nativeVideoTools',
@@ -163,6 +163,12 @@ final _capabilities = <_Capability>[
     read: (c) => c.keyboardLearningOptOut,
     android: true,
     ios: false,
+  ),
+  _Capability(
+    'signOutWipeKeepsProcess',
+    read: (c) => c.signOutWipeKeepsProcess,
+    android: false,
+    ios: true,
   ),
   _Capability(
     'callMuteByInputMixer',

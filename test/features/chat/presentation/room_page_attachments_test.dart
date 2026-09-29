@@ -217,10 +217,11 @@ void main() {
     ambientCapabilities = capabilitiesLike(
       iosCapabilities,
       nativeVideoTools: true,
+      nativeImageResize: false,
     );
     harness = RoomPageHarness(
       db: SendingFakeDatabaseApi(),
-      capabilities: iosCapabilities,
+      capabilities: capabilitiesLike(iosCapabilities, nativeImageResize: false),
       overrides: overrides,
     );
     harness.respond = (request) {

@@ -92,9 +92,13 @@ what a message looks like, how it's sent, and how the timeline behaves.
   blurhash, then call `sendFileEvent` with `thumbnail:` set and no
   `shrinkImageMaxDimension`. Native side: `ImageResizer.kt` (channel
   `zuno/image`) and `VideoTools.kt` (`zuno/video`: probe, remux,
-  thumbnail), each on its own background thread; on iOS
-  `VideoToolsPlugin.swift` answers `zuno/video` with AVFoundation, same
-  replies (codecs named `video/avc` / `audio/mp4a-latm` like Android's).
+  thumbnail), each on its own background thread. iOS answers the same
+  channels with the same replies: `ImageResizerPlugin.swift` (ImageIO
+  thumbnailing decodes straight at the target size and bakes in the
+  orientation; HEIC arrives as JPEG) and `VideoToolsPlugin.swift`
+  (AVFoundation; codecs named `video/avc` / `audio/mp4a-latm` like
+  Android's). An animated GIF becomes a still JPEG on both, since only PNG
+  keeps its type.
 - **Attachment send flow**: one progress bar per attachment covers
   compression (first half) and upload (second half) via
   `combinedSendProgress` (`send_progress.dart`). A synthetic pending tile
@@ -239,11 +243,12 @@ what a message looks like, how it's sent, and how the timeline behaves.
   (`photo.jpg`/`.png`/`.gif`/`.webp`, `video.mp4`), since original names
   carry timestamps. Files sent through the file picker stay byte-for-byte
   original by design.
-  - Native path: `Bitmap.compress` writes no EXIF; the remuxer and encoder
-    write no location atom. The iOS remux copies only the audio and video
+  - Native path: `Bitmap.compress` writes no EXIF; ImageIO writes only
+    pixel dimensions (verified on a sent iPhone photo); the remuxer and
+    encoder write no location atom. The iOS remux copies only the audio and video
     tracks and exports with `metadata = []` plus the `forSharing()` filter:
     iPhone clips carry GPS, and a passthrough export copies it by default.
-  - Without `nativeImageResize` (iOS today) image_picker shrinks photos to
+  - Without `nativeImageResize` (no platform today) image_picker shrinks photos to
     the send size and quality as it picks them (`pickerImageLimits`), and
     after that they go untouched except for
     `withoutLocation` (`photo_location.dart`): it drops the EXIF GPS

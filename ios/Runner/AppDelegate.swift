@@ -19,5 +19,11 @@ import UIKit
     if let registrar = registry.registrar(forPlugin: "ZunoVideoToolsPlugin") {
       VideoToolsPlugin.register(with: registrar)
     }
+    if let registrar = registry.registrar(forPlugin: "ZunoImageResizerPlugin") {
+      ImageResizerPlugin.register(with: registrar)
+    }
+    if let registrar = registry.registrar(forPlugin: "ZunoAppDataPlugin") {
+      AppDataPlugin.register(with: registrar)
+    }
   }
 }

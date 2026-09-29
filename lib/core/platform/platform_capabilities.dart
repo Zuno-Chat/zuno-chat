@@ -35,6 +35,7 @@ class PlatformCapabilities {
   final List<String>? videoCodecOrder;
   final bool recorderWritesOgg;
   final bool callMuteByInputMixer;
+  final bool signOutWipeKeepsProcess;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
 
@@ -68,6 +69,7 @@ class PlatformCapabilities {
     required this.videoCodecOrder,
     required this.recorderWritesOgg,
     required this.callMuteByInputMixer,
+    required this.signOutWipeKeepsProcess,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
   });
@@ -105,6 +107,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         videoCodecOrder: ['video/VP8', 'video/H264'],
         recorderWritesOgg: true,
         callMuteByInputMixer: false,
+        signOutWipeKeepsProcess: false,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
           NotificationDeliveryMode.unifiedPush,
@@ -130,8 +133,8 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         playServices: false,
         deviceSafetyChecks: false,
         inboundShare: false,
-        nativeSignOutWipe: false,
-        nativeImageResize: false,
+        nativeSignOutWipe: true,
+        nativeImageResize: true,
         nativeVideoTools: true,
         uploadForegroundService: false,
         networkAvailabilityEvents: false,
@@ -142,6 +145,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         videoCodecOrder: null,
         recorderWritesOgg: false,
         callMuteByInputMixer: true,
+        signOutWipeKeepsProcess: true,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,
       ),

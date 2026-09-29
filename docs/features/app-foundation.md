@@ -114,11 +114,11 @@ Each flag is one of these kinds:
 
 | Kind | Flags | Values |
 |---|---|---|
-| Native handler, both platforms | `nativeVideoTools` | `true` on both |
-| Awaiting an iOS equivalent | every other Android-`true` flag, e.g. `networkAvailabilityEvents` (offline reads as `unreachable` until then), `nativeSignOutWipe` (sign-out keeps local data until then) | iOS flips to `true` once a native handler exists |
+| Native handler, both platforms | `nativeVideoTools`, `nativeImageResize`, `nativeSignOutWipe` | `true` on both |
+| Awaiting an iOS equivalent | every other Android-`true` flag, e.g. `networkAvailabilityEvents` (offline reads as `unreachable` until then) | iOS flips to `true` once a native handler exists |
 | Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent` | iOS stays `false` |
 | Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` | iOS stays `false`; CallKit arrives as a new branch in each `*For()` factory (`calls.md`), never a flag flip |
-| iOS-only behavior | `apnsRegistration`, `playerNeedsMediaType`, `callMuteByInputMixer` | `true` on iOS only |
+| iOS-only behavior | `apnsRegistration`, `playerNeedsMediaType`, `callMuteByInputMixer`, `signOutWipeKeepsProcess` | `true` on iOS only |
 | Apple limitation | `recorderWritesOgg` (Apple can't write Ogg), `videoCodecOrder` (`null` on iOS, see `calls.md`) | differs on iOS for good |
 
 ## Data & State
@@ -366,8 +366,21 @@ the ring case, so it was not done.
   push isolate) at the next launch. Sign-out paths therefore clean nothing
   local themselves. The native reply must be `true`: anything else counts
   as refused and keeps the marker, so the next launch retries. A wipe that
-  leaves the process running (iOS, until its native wipe exists) clears the
-  marker and releases the latch, so a later sign-in and sign-out run again.
+  leaves the process running clears the marker and releases the latch, so a
+  later sign-in and sign-out run again.
+- **The iOS wipe keeps the process, so it keeps the open database**
+  (`signOutWipeKeepsProcess`). iOS apps can't quit themselves, and deleting
+  the live SQLCipher file or its Keychain key would strand a same-session
+  sign-in: its data would go to a deleted file, and the next launch would
+  sign out and lose its keys. The SDK has already emptied the database
+  (`clear()` runs before `loggedOut`), so Dart `VACUUM`s it (deleted rows
+  leave free pages behind), then passes its exact path as `keep`.
+  `AppDataPlugin.swift` refuses without one, then empties Application
+  Support (bar that file and its sidecars), Documents, Caches (decrypted
+  media), tmp (picker originals), the app-switcher snapshots and the prefs
+  domain, skipping iOS's own `com.apple.*` items. Dart then reloads
+  `SharedPreferences`, whose in-memory cache would otherwise keep the old
+  values.
 - **`_AuthGate`'s `ref.listenManual` subscriptions must not become
   `build()`-driven.** `_AuthGate` sits at the bottom of the navigation
   stack, and Flutter defers rebuilding a dirty element under a covered

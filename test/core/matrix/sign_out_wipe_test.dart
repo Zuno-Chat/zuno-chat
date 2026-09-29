@@ -6,9 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/sign_out_wipe.dart';
-import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+
+import '../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -144,10 +145,18 @@ void main() {
 
     tearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
-    SignOutWipe providedWipe({PlatformCapabilities? capabilities}) {
+    SignOutWipe providedWipe({
+      PlatformCapabilities? capabilities,
+      Future<void> Function()? vacuum,
+      String? databasePath = '/data/Library/Application Support/zuno.db',
+    }) {
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
+          databaseVacuumProvider.overrideWithValue(
+            vacuum ?? () async => calls.add('vacuum'),
+          ),
+          liveDatabasePathProvider.overrideWithValue(() => databasePath),
           if (capabilities != null)
             platformCapabilitiesProvider.overrideWithValue(capabilities),
         ],
@@ -178,10 +187,93 @@ void main() {
         'calls native', () async {
       await prefs.setBool(signedInMarkerKey, true);
 
-      await providedWipe(capabilities: capabilitiesFor(AppPlatform.ios))
-          .onLoginState(false, stopDelivery: stopDelivery);
+      await providedWipe(
+        capabilities: capabilitiesLike(
+          iosCapabilities,
+          nativeSignOutWipe: false,
+        ),
+      ).onLoginState(false, stopDelivery: stopDelivery);
 
       expect(calls, ['stop']);
+    });
+
+    group('where the wipe leaves the app running', () {
+      final keepsProcess = iosCapabilities;
+
+      test('the emptied database is vacuumed before the native wipe, and the '
+          'preferences are read back afterwards', () async {
+        await prefs.setBool(signedInMarkerKey, true);
+        await prefs.setString('theme', 'dark');
+        Object? arguments;
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          calls.add('native ${call.method}');
+          arguments = call.arguments;
+          SharedPreferences.setMockInitialValues({});
+          return true;
+        });
+
+        await providedWipe(capabilities: keepsProcess)
+            .onLoginState(false, stopDelivery: stopDelivery);
+
+        expect(calls, ['stop', 'vacuum', 'native wipe']);
+        expect(arguments, {
+          'keep': ['/data/Library/Application Support/zuno.db'],
+        });
+        expect(prefs.getString('theme'), isNull);
+        expect(prefs.getBool(signedInMarkerKey), isNull);
+      });
+
+      test('without the open database\'s path nothing is wiped, so the '
+          'database can never be deleted from under the app', () async {
+        await prefs.setBool(signedInMarkerKey, true);
+
+        await providedWipe(
+          capabilities: keepsProcess,
+          databasePath: null,
+        ).onLoginState(false, stopDelivery: stopDelivery);
+
+        expect(calls, ['stop', 'vacuum']);
+        expect(prefs.getBool(signedInMarkerKey), isTrue);
+      });
+
+      test('a vacuum that fails does not stop the wipe', () async {
+        await prefs.setBool(signedInMarkerKey, true);
+
+        await providedWipe(
+          capabilities: keepsProcess,
+          vacuum: () async => throw StateError('locked'),
+        ).onLoginState(false, stopDelivery: stopDelivery);
+
+        expect(calls, ['stop', 'native wipe']);
+        expect(prefs.getBool(signedInMarkerKey), isNull);
+      });
+
+      test('a wipe the platform declines keeps the session marked', () async {
+        messenger.setMockMethodCallHandler(channel, (call) async => false);
+        await prefs.setBool(signedInMarkerKey, true);
+
+        await providedWipe(capabilities: keepsProcess)
+            .onLoginState(false, stopDelivery: stopDelivery);
+
+        expect(prefs.getBool(signedInMarkerKey), isTrue);
+      });
+    });
+
+    test('where the platform ends the app, nothing is vacuumed and the wipe '
+        'takes no arguments', () async {
+      Object? arguments = 'unset';
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add('native ${call.method}');
+        arguments = call.arguments;
+        return true;
+      });
+      await prefs.setBool(signedInMarkerKey, true);
+
+      await providedWipe(capabilities: androidCapabilities)
+          .onLoginState(false, stopDelivery: stopDelivery);
+
+      expect(calls, ['stop', 'native wipe']);
+      expect(arguments, isNull);
     });
   });
 }

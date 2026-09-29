@@ -21,6 +21,8 @@ PlatformCapabilities capabilitiesLike(
   bool? nativeImageResize,
   bool? nativeVideoTools,
   bool? uploadForegroundService,
+  bool? nativeSignOutWipe,
+  bool? signOutWipeKeepsProcess,
   List<NotificationDeliveryMode>? deliveryModes,
   NotificationDeliveryMode? defaultDeliveryMode,
 }) => PlatformCapabilities(
@@ -42,7 +44,7 @@ PlatformCapabilities capabilitiesLike(
   playServices: base.playServices,
   deviceSafetyChecks: base.deviceSafetyChecks,
   inboundShare: base.inboundShare,
-  nativeSignOutWipe: base.nativeSignOutWipe,
+  nativeSignOutWipe: nativeSignOutWipe ?? base.nativeSignOutWipe,
   nativeImageResize: nativeImageResize ?? base.nativeImageResize,
   nativeVideoTools: nativeVideoTools ?? base.nativeVideoTools,
   uploadForegroundService:
@@ -55,6 +57,8 @@ PlatformCapabilities capabilitiesLike(
   videoCodecOrder: base.videoCodecOrder,
   recorderWritesOgg: base.recorderWritesOgg,
   callMuteByInputMixer: base.callMuteByInputMixer,
+  signOutWipeKeepsProcess:
+      signOutWipeKeepsProcess ?? base.signOutWipeKeepsProcess,
   deliveryModes: deliveryModes ?? base.deliveryModes,
   defaultDeliveryMode: defaultDeliveryMode ?? base.defaultDeliveryMode,
 );
