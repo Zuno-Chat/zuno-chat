@@ -37,6 +37,7 @@ import 'package:zuno/core/ui/zuno_splash.dart';
 import 'package:zuno/features/auth/presentation/signed_out_entry.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
+import 'package:zuno/features/communities/presentation/community_page.dart';
 import 'package:zuno/features/rooms/presentation/room_invite_page.dart';
 import 'package:zuno/features/rooms/presentation/room_list_page.dart';
 import 'package:zuno/features/settings/presentation/active_sessions_page.dart';
@@ -399,6 +400,32 @@ void main() {
       await pumpRoute(tester);
 
       expect(tester.widget<RoomPage>(find.byType(RoomPage)).room, same(room));
+    });
+
+    testWidgets('a notification for a community opens the community', (
+      tester,
+    ) async {
+      final club = buildTestRoom(client, id: '!club:example.org')
+        ..partial = false;
+      club.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomCreate,
+          senderId: '@me:example.org',
+          stateKey: '',
+          content: {'type': 'm.space'},
+        ),
+      );
+      client.rooms.add(club);
+      await pumpApp(tester);
+      await settle(tester);
+
+      CallNotificationService.instance.onMessageTapForTest(club.id);
+      await pumpRoute(tester);
+
+      expect(
+        tester.widget<CommunityPage>(find.byType(CommunityPage)).community,
+        same(club),
+      );
     });
 
     testWidgets('a message notification for a chat that is gone does nothing', (

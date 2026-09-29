@@ -115,7 +115,7 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
     needsAutostart: await BackgroundSyncService.instance.hasAutostartSettings(),
     securityFacts: facts,
     hasConversations: client.rooms.any(
-      (room) => room.membership == Membership.join,
+      (room) => room.membership == Membership.join && !room.isSpace,
     ),
     recoveryPromptOnCooldown:
         lastPrompted != null &&

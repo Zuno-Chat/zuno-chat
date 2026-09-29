@@ -30,6 +30,7 @@ import 'package:zuno/features/room_info/presentation/room_settings_page.dart';
 import 'package:zuno/features/room_info/presentation/room_topic.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/real_fonts.dart';
 
 void main() {
   late Client client;
@@ -735,6 +736,32 @@ void main() {
     expect(find.text('Report sent'), findsNothing);
   });
 
+  testWidgets('people asking to join show to moderators under Asking to '
+      'join, never among the members', (tester) async {
+    addMember('@me:example.org', 'Me');
+    addMember('@ann:example.org', 'Ann');
+    addMember('@maya:example.org', 'Maya', membership: 'knock');
+    setLevels({'@me:example.org': 50});
+
+    await pumpPage(tester);
+
+    expect(find.text('Asking to join'), findsOneWidget);
+    expect(find.text('Maya'), findsOneWidget);
+    expect(find.text('Let in'), findsOneWidget);
+    expect(find.text('Ann'), findsOneWidget);
+  });
+
+  testWidgets('members do not see requests to join', (tester) async {
+    addMember('@me:example.org', 'Me');
+    addMember('@maya:example.org', 'Maya', membership: 'knock');
+    setLevels({'@me:example.org': 0});
+
+    await pumpPage(tester);
+
+    expect(find.text('Asking to join'), findsNothing);
+    expect(find.text('Maya'), findsNothing);
+  });
+
   group('quick actions', () {
     testWidgets('call buttons show only when the chat can start a call', (
       tester,
@@ -747,6 +774,23 @@ void main() {
       await tester.tap(find.byTooltip('Voice call'));
       await tester.tap(find.byTooltip('Video call'));
       expect(started, [CallKind.voice, CallKind.video]);
+    });
+
+    testWidgets('all four actions fit a small phone at double text size', (
+      tester,
+    ) async {
+      addMember('@me:example.org', 'Me');
+      addMember('@ann:example.org', 'Ann');
+      await tester.runAsync(loadRealRoboto);
+      await pumpPage(tester, onStartCall: (_) {});
+      tester.view.physicalSize = const Size(960, 6000);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pump();
+
+      expect(find.text('Invite'), findsOneWidget);
+      expect(find.byTooltip('Voice call'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('no call buttons without a way to start one, or alone', (

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/format/member_count.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import 'room_kind_avatar.dart';
 
@@ -17,6 +18,7 @@ const _pageSize = 20;
 Future<String?> showPublicRoomsSheet(
   BuildContext context, {
   required Client client,
+  bool communities = false,
   PublicRoomsSearch? search,
 }) => showModalBottomSheet<String>(
   context: context,
@@ -25,15 +27,22 @@ Future<String?> showPublicRoomsSheet(
   showDragHandle: true,
   builder: (_) => _PublicRoomsSheet(
     client: client,
-    search: search ?? _directorySearch(client),
+    communities: communities,
+    search: search ?? _directorySearch(client, communities: communities),
   ),
 );
 
-PublicRoomsSearch _directorySearch(Client client) =>
+PublicRoomsSearch _directorySearch(
+  Client client, {
+  required bool communities,
+}) =>
     ({term, since}) => client.queryPublicRooms(
-      filter: term == null
+      filter: term == null && !communities
           ? null
-          : PublicRoomQueryFilter(genericSearchTerm: term),
+          : PublicRoomQueryFilter(
+              genericSearchTerm: term,
+              roomTypes: communities ? [RoomCreationTypes.mSpace] : null,
+            ),
       since: since,
       limit: _pageSize,
     );
@@ -46,9 +55,14 @@ String publicRoomTitle(PublishedRoomsChunk room) {
 
 class _PublicRoomsSheet extends StatefulWidget {
   final Client client;
+  final bool communities;
   final PublicRoomsSearch search;
 
-  const _PublicRoomsSheet({required this.client, required this.search});
+  const _PublicRoomsSheet({
+    required this.client,
+    required this.communities,
+    required this.search,
+  });
 
   @override
   State<_PublicRoomsSheet> createState() => _PublicRoomsSheetState();
@@ -106,7 +120,7 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
       final page = await widget.search(term: _term);
       if (_isStale(generation)) return;
       setState(() {
-        _rooms = _withoutSpaces(page.chunk);
+        _rooms = _ofKind(page.chunk);
         _nextBatch = page.nextBatch;
         _loading = false;
       });
@@ -128,7 +142,7 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
       final page = await widget.search(term: _term, since: since);
       if (_isStale(generation)) return;
       setState(() {
-        _rooms = [..._rooms, ..._withoutSpaces(page.chunk)];
+        _rooms = [..._rooms, ..._ofKind(page.chunk)];
         _nextBatch = page.nextBatch;
       });
     } catch (_) {
@@ -141,6 +155,12 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
 
   bool _isStale(int generation) => generation != _generation || !mounted;
 
+  List<PublishedRoomsChunk> _ofKind(List<PublishedRoomsChunk> rooms) => [
+    for (final room in rooms)
+      if ((room.roomType == RoomCreationTypes.mSpace) == widget.communities)
+        room,
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -152,7 +172,7 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: Text(
-                'Public rooms',
+                widget.communities ? 'Public communities' : 'Public rooms',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -184,14 +204,24 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Could not load rooms'),
+            Text(
+              widget.communities
+                  ? 'Could not load communities'
+                  : 'Could not load rooms',
+            ),
             TextButton(onPressed: _search, child: const Text('Retry')),
           ],
         ),
       );
     }
     if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_rooms.isEmpty) return const Center(child: Text('No rooms found'));
+    if (_rooms.isEmpty) {
+      return Center(
+        child: Text(
+          widget.communities ? 'No communities found' : 'No rooms found',
+        ),
+      );
+    }
 
     final hasMore = _nextBatch != null;
     return ListView.builder(
@@ -226,6 +256,7 @@ class _RoomRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = publicRoomTitle(room);
+    final community = room.roomType == RoomCreationTypes.mSpace;
     final topic = room.topic?.trim();
     final hasTopic = topic != null && topic.isNotEmpty;
     return ListTile(
@@ -234,6 +265,7 @@ class _RoomRow extends StatelessWidget {
         avatarUrl: room.avatarUrl,
         fallbackText: title,
         isDirect: false,
+        community: community,
       ),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Column(
@@ -241,7 +273,7 @@ class _RoomRow extends StatelessWidget {
         children: [
           if (hasTopic)
             Text(topic, maxLines: 1, overflow: TextOverflow.ellipsis),
-          Text(_memberCount(room.numJoinedMembers)),
+          Text(memberCountLabel(room.numJoinedMembers)),
         ],
       ),
       isThreeLine: hasTopic,
@@ -250,11 +282,6 @@ class _RoomRow extends StatelessWidget {
     );
   }
 }
-
-List<PublishedRoomsChunk> _withoutSpaces(List<PublishedRoomsChunk> rooms) =>
-    rooms.where((r) => r.roomType != 'm.space').toList();
-
-String _memberCount(int count) => count == 1 ? '1 member' : '$count members';
 
 class _LoadMore extends StatelessWidget {
   final VoidCallback onVisible;

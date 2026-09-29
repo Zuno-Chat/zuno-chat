@@ -20,6 +20,7 @@ import 'package:zuno/core/security/security_prompt.dart';
 import 'package:zuno/core/security/security_prompt_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
+import 'package:zuno/features/communities/presentation/community_page.dart';
 import 'package:zuno/features/onboarding/presentation/onboarding_flow_page.dart';
 import 'package:zuno/features/rooms/presentation/room_list_page.dart';
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
@@ -363,7 +364,7 @@ void main() {
 
   testWidgets('a new room can be created from the keyboard', (tester) async {
     await pumpRoomList(tester);
-    await tester.tap(find.byType(FloatingActionButton));
+    await tester.tap(find.byIcon(Icons.add_outlined));
     await tester.pumpAndSettle();
     await tester.tap(find.text('New room'));
     await tester.pumpAndSettle();
@@ -373,6 +374,127 @@ void main() {
     await network(tester);
 
     expect(requestsTo('createRoom'), hasLength(1));
+  });
+
+  group('communities', () {
+    late Room club;
+
+    setUp(() {
+      club = buildTestRoom(client, id: '!club:example.org')..partial = false;
+      for (final state in [
+        StrippedStateEvent(
+          type: EventTypes.RoomCreate,
+          senderId: '@me:example.org',
+          stateKey: '',
+          content: {'type': 'm.space'},
+        ),
+        StrippedStateEvent(
+          type: EventTypes.RoomName,
+          senderId: '@me:example.org',
+          stateKey: '',
+          content: {'name': 'Climbing club'},
+        ),
+      ]) {
+        club.setState(state);
+      }
+      client.rooms.add(club);
+    });
+
+    Future<void> openCommunities(WidgetTester tester) async {
+      await tester.tap(find.text('Communities'));
+      await tester.pumpAndSettle();
+    }
+
+    Iterable<Badge> dots(WidgetTester tester) => tester
+        .widgetList<Badge>(find.byType(Badge))
+        .where((badge) => badge.isLabelVisible);
+
+    testWidgets('chats leave communities out; the Communities tab shows '
+        'them', (tester) async {
+      await pumpRoomList(tester);
+
+      expect(find.text('Book club'), findsOneWidget);
+      expect(find.text('Climbing club'), findsNothing);
+
+      await openCommunities(tester);
+
+      expect(find.text('Communities'), findsNWidgets(2));
+      expect(find.text('Climbing club'), findsOneWidget);
+      expect(find.text('Book club'), findsNothing);
+    });
+
+    testWidgets('back on Communities returns to Chats', (tester) async {
+      await pumpRoomList(tester);
+      await openCommunities(tester);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chats'), findsNWidgets(2));
+      expect(find.text('Book club'), findsOneWidget);
+    });
+
+    testWidgets('a dot marks the tab with something unread', (tester) async {
+      await pumpRoomList(tester);
+
+      expect(dots(tester), hasLength(1));
+      expect(
+        find.ancestor(
+          of: find.byIcon(Icons.chat_bubble),
+          matching: find.byWidgetPredicate(
+            (w) => w is Badge && w.isLabelVisible,
+          ),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('tapping a community opens its page', (tester) async {
+      await pumpRoomList(tester);
+      await openCommunities(tester);
+
+      await tester.tap(find.text('Climbing club'));
+      await bounded(tester);
+
+      expect(
+        tester.widget<CommunityPage>(find.byType(CommunityPage)).community,
+        club,
+      );
+    });
+
+    testWidgets('a community offers only leaving', (tester) async {
+      await pumpRoomList(tester);
+      await openCommunities(tester);
+
+      await tester.longPress(find.text('Climbing club'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Leave community'), findsOneWidget);
+      expect(find.text('Mute'), findsNothing);
+      expect(find.text('Mark as read'), findsNothing);
+    });
+
+    testWidgets('a new community can be created from the Communities + '
+        'menu', (tester) async {
+      await pumpRoomList(tester);
+      await openCommunities(tester);
+      await tester.tap(find.byIcon(Icons.add_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New chat'), findsNothing);
+      await tester.tap(find.text('New community'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Community name'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'Rivera family');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await network(tester);
+
+      final create = requestsTo('createRoom').single;
+      final body = jsonDecode(create.body) as Map<String, Object?>;
+      expect(body['name'], 'Rivera family');
+      expect(body['creation_content'], {'type': 'm.space'});
+    });
   });
 
   group('onboarding', () {

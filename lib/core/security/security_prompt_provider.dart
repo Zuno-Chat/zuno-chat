@@ -62,7 +62,7 @@ final securityPromptProvider = FutureProvider<SecurityPromptDecision>((
     now: DateTime.now(),
     deviceCount: client.userDeviceKeys[client.userID]?.deviceKeys.length ?? 1,
     hasConversations: client.rooms.any(
-      (room) => room.membership == Membership.join,
+      (room) => room.membership == Membership.join && !room.isSpace,
     ),
   );
 });

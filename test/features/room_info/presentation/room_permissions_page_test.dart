@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/matrix/room_roles.dart';
 import 'package:zuno/features/room_info/presentation/room_permissions_page.dart';
 
 import '../../../helpers/card_layout.dart';
@@ -225,5 +226,51 @@ void main() {
     await pumpPage(tester);
 
     expect(row(tester, 'Default role for new members').onTap, isNull);
+  });
+
+  group('a community', () {
+    setUp(() {
+      room.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomCreate,
+          senderId: '@owner:example.org',
+          stateKey: '',
+          content: {'type': 'm.space'},
+        ),
+      );
+    });
+
+    testWidgets('shows its own rules and none a community lacks', (
+      tester,
+    ) async {
+      setOwnLevel(100);
+      await pumpPage(tester);
+
+      expect(find.text('Community defaults'), findsOneWidget);
+      expect(find.text('Members'), findsOneWidget);
+      expect(find.text('Rooms'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('Add rooms'), findsOneWidget);
+      expect(find.text('Change description'), findsOneWidget);
+      expect(find.text('Send messages'), findsNothing);
+      expect(find.text('Start or join calls'), findsNothing);
+      expect(find.text('Turn on encryption'), findsNothing);
+      expectEveryRowOnACard();
+    });
+
+    testWidgets('an admin changes who can add rooms', (tester) async {
+      setOwnLevel(100);
+      await pumpPage(tester);
+
+      await tester.tap(find.text('Add rooms'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Member').last);
+      await network(tester);
+
+      expect(
+        (sentLevels()['events']! as Map)[EventTypes.SpaceChild],
+        RoomRole.member.powerLevel,
+      );
+    });
   });
 }

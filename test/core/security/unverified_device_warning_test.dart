@@ -98,5 +98,37 @@ void main() {
 
       expect(peopleWhoseDevicesWeWatch(client), {'@alice:example.org'});
     });
+
+    test('watches rooms open to community members, not the community '
+        'itself', () {
+      final client = buildTestClient(userId: '@me:example.org');
+      final room = buildTestRoom(client, id: '!gear:example.org');
+      room.setState(
+        buildTestEvent(
+          room,
+          eventId: r'$join',
+          senderId: '@me:example.org',
+          type: EventTypes.RoomJoinRules,
+          stateKey: '',
+          content: {'join_rule': 'restricted'},
+        ),
+      );
+      join(room, '@maya:example.org');
+      final community = buildTestRoom(client, id: '!club:example.org');
+      community.setState(
+        buildTestEvent(
+          community,
+          eventId: r'$create',
+          senderId: '@me:example.org',
+          type: EventTypes.RoomCreate,
+          stateKey: '',
+          content: {'type': 'm.space'},
+        ),
+      );
+      join(community, '@leo:example.org');
+      client.rooms.addAll([room, community]);
+
+      expect(peopleWhoseDevicesWeWatch(client), {'@maya:example.org'});
+    });
   });
 }

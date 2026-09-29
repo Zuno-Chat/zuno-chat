@@ -225,4 +225,119 @@ void main() {
       expect(roomExitTitle(room), 'Leave room?');
     });
   });
+
+  group('communities', () {
+    Room community(Client client, {List<Room> rooms = const []}) {
+      final space = buildTestRoom(client, id: '!club:example.org')
+        ..membership = Membership.join;
+      space.setState(
+        Event(
+          eventId: r'$create',
+          type: EventTypes.RoomCreate,
+          senderId: '@me:example.org',
+          originServerTs: DateTime(2026),
+          content: {'type': 'm.space'},
+          room: space,
+          stateKey: '',
+        ),
+      );
+      for (final room in rooms) {
+        space.setState(
+          Event(
+            eventId: '\$child-${room.id}',
+            type: EventTypes.SpaceChild,
+            senderId: '@me:example.org',
+            originServerTs: DateTime(2026),
+            content: {
+              'via': ['example.org'],
+            },
+            room: space,
+            stateKey: room.id,
+          ),
+        );
+      }
+      client.rooms.add(space);
+      return space;
+    }
+
+    Room member(Client client, String id, String name) {
+      final room = buildTestRoom(client, id: id)..membership = Membership.join;
+      room.setState(
+        Event(
+          eventId: '\$name-$id',
+          type: EventTypes.RoomName,
+          senderId: '@me:example.org',
+          originServerTs: DateTime(2026),
+          content: {'name': name},
+          room: room,
+          stateKey: '',
+        ),
+      );
+      client.rooms.add(room);
+      return room;
+    }
+
+    test(
+      'leaving a community leaves its rooms too and forgets nothing',
+      () async {
+        final client = exitClient();
+        final gear = member(client, '!gear:example.org', 'Gear swap');
+
+        await exitRoom(community(client, rooms: [gear]), isDirect: false);
+
+        expect(leaveRequests(), hasLength(2));
+        expect(forgetRequests(), isEmpty);
+      },
+    );
+
+    test('a community reads as leaving, and names what else is left', () {
+      final client = exitClient();
+      final gear = member(client, '!gear:example.org', 'Gear swap');
+      final general = member(client, '!general:example.org', 'General');
+
+      final empty = community(buildTestClient(userId: '@me:example.org'));
+      expect(roomExitLabel(empty), 'Leave community');
+      expect(roomExitTitle(empty), 'Leave community?');
+      expect(roomExitConfirmLabel(empty), 'Leave');
+      expect(roomExitMessage(empty), 'You will stop seeing its rooms.');
+
+      final one = community(client, rooms: [gear]);
+      expect(roomExitMessage(one), 'You also leave Gear swap.');
+
+      client.rooms.remove(one);
+      final two = community(client, rooms: [gear, general]);
+      expect(roomExitMessage(two), 'You also leave 2 of its rooms.');
+    });
+
+    testWidgets('leaving a community while offline says it was not left', (
+      tester,
+    ) async {
+      final space = community(exitClient(offline: true));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => confirmAndExitRoom(context, space),
+                child: const Text('go'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+      expect(find.text('Leave community?'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Leave'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Could not leave the community. Check your connection and try again.',
+        ),
+        findsOneWidget,
+      );
+    });
+  });
 }

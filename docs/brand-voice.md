@@ -54,6 +54,7 @@ When traits pull apart:
 |---|---|
 | chat (one-to-one) | conversation, DM |
 | room (group) | group, channel, space |
+| community (a group of rooms) | space, server, workspace |
 | device | session, phone, client |
 | recovery code | recovery key, security key, passphrase |
 | sign in, sign out | log in, log out |

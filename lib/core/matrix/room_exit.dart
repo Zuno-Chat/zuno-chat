@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/connection_error.dart';
+import 'communities.dart';
+import 'room_title.dart';
 
 Future<void> exitRoom(Room room, {required bool isDirect}) async {
+  if (room.isSpace) return leaveCommunity(room);
   if (room.membership != Membership.leave) await room.leave();
   if (!isDirect) return;
   try {
@@ -11,17 +14,29 @@ Future<void> exitRoom(Room room, {required bool isDirect}) async {
   } catch (_) {}
 }
 
-String roomExitLabel(Room room) =>
-    room.isDirectChat ? 'Delete chat' : 'Leave room';
+String roomExitLabel(Room room) {
+  if (room.isDirectChat) return 'Delete chat';
+  if (room.isSpace) return 'Leave community';
+  return 'Leave room';
+}
 
 String roomExitTitle(Room room) => '${roomExitLabel(room)}?';
 
 String roomExitConfirmLabel(Room room) =>
     room.isDirectChat ? 'Delete' : 'Leave';
 
-String roomExitMessage(Room room) => room.isDirectChat
-    ? 'This chat and its messages leave this device. Nobody can undo this.'
-    : 'You will stop getting messages here.';
+String roomExitMessage(Room room) {
+  if (room.isDirectChat) {
+    return 'This chat and its messages leave this device. Nobody can undo this.';
+  }
+  if (!room.isSpace) return 'You will stop getting messages here.';
+  final rooms = roomsLeavingWith(room);
+  return switch (rooms.length) {
+    0 => 'You will stop seeing its rooms.',
+    1 => 'You also leave ${roomTitle(rooms.single)}.',
+    final count => 'You also leave $count of its rooms.',
+  };
+}
 
 IconData roomExitIcon(Room room) =>
     room.isDirectChat ? Icons.delete_outline : Icons.logout_outlined;
@@ -52,9 +67,14 @@ Future<bool> confirmAndExitRoom(BuildContext context, Room room) async {
     await exitRoom(room, isDirect: isDirect);
     return true;
   } catch (e) {
-    final failed = isDirect
-        ? 'Could not delete the chat.'
-        : 'Could not leave the room.';
+    final String failed;
+    if (isDirect) {
+      failed = 'Could not delete the chat.';
+    } else if (room.isSpace) {
+      failed = 'Could not leave the community.';
+    } else {
+      failed = 'Could not leave the room.';
+    }
     messenger.showSnackBar(
       SnackBar(content: Text(failureMessage(e, failed: failed))),
     );

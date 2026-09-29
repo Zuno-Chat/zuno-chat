@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/matrix/communities.dart';
 import 'package:zuno/core/matrix/room_permission.dart';
 import 'package:zuno/core/matrix/room_roles.dart';
 
@@ -259,6 +260,60 @@ void main() {
         'users': {'@ro:example.org': -1},
       });
       expect(roomPermissionsAccessFor(room), RoomPermissionsAccess.hidden);
+    });
+  });
+
+  group('community rules', () {
+    test('cover members, rooms and settings, and nothing a community '
+        'lacks', () {
+      expect(communityPermissionGroups.map((g) => g.title), [
+        'Members',
+        'Rooms',
+        'Settings',
+      ]);
+      final labels = [
+        for (final group in communityPermissionGroups)
+          for (final permission in group.permissions) permission.label,
+      ];
+      expect(labels, [
+        'Invite people',
+        'Remove people',
+        'Ban people',
+        'Add rooms',
+        'Change photo',
+        'Change name',
+        'Change description',
+        'Change permissions',
+      ]);
+    });
+
+    test('read what a new community starts with', () {
+      RoomRole roleOf(String label) {
+        final permission = [
+          for (final group in communityPermissionGroups) ...group.permissions,
+        ].firstWhere((p) => p.label == label);
+        return roomRoleForLevel(permission.read(communityPowerLevels));
+      }
+
+      expect(roleOf('Invite people'), RoomRole.member);
+      expect(roleOf('Remove people'), RoomRole.moderator);
+      expect(roleOf('Ban people'), RoomRole.moderator);
+      expect(roleOf('Add rooms'), RoomRole.moderator);
+      expect(roleOf('Change photo'), RoomRole.admin);
+      expect(roleOf('Change name'), RoomRole.admin);
+      expect(roleOf('Change description'), RoomRole.admin);
+      expect(roleOf('Change permissions'), RoomRole.admin);
+    });
+
+    test('adding rooms writes the space child level', () {
+      final addRooms = communityPermissionGroups
+          .expand((g) => g.permissions)
+          .firstWhere((p) => p.label == 'Add rooms');
+      final content = <String, Object?>{'events': <String, Object?>{}};
+
+      addRooms.write(content, RoomRole.member.powerLevel);
+
+      expect((content['events']! as Map)[EventTypes.SpaceChild], 0);
     });
   });
 }

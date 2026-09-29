@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/matrix/communities.dart';
 import 'package:zuno/core/ui/empty_state.dart';
 import 'package:zuno/core/ui/section_label.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
@@ -13,6 +14,7 @@ import 'package:zuno/features/rooms/presentation/chat_row.dart';
 import 'package:zuno/features/rooms/presentation/invitation_group.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/layout_matrix.dart';
 
 void main() {
   late Client client;
@@ -54,20 +56,30 @@ void main() {
   Future<void> pump(
     WidgetTester tester,
     List<Room> rooms, {
+    bool communities = false,
     void Function(Room)? onOpen,
     void Function(Room)? onActions,
   }) async {
+    final layout = arrangeHome(rooms);
     await tester.pumpWidget(
       MaterialApp(
         theme: zunoLightTheme,
         home: Scaffold(
-          body: ChatListView(
-            client: client,
-            rooms: rooms,
-            unreadCorrections: const {},
-            onOpen: onOpen ?? (_) {},
-            onActions: onActions ?? (_) {},
-          ),
+          body: communities
+              ? ChatListView.communities(
+                  client: client,
+                  layout: layout,
+                  unreadCorrections: const {},
+                  onOpen: onOpen ?? (_) {},
+                  onActions: onActions ?? (_) {},
+                )
+              : ChatListView.chats(
+                  client: client,
+                  layout: layout,
+                  unreadCorrections: const {},
+                  onOpen: onOpen ?? (_) {},
+                  onActions: onActions ?? (_) {},
+                ),
         ),
       ),
     );
@@ -208,17 +220,176 @@ void main() {
     expect(actedOn, same(room));
   });
 
-  testWidgets('the list ends with room for the + button', (tester) async {
+  Room community(String id, String name, List<Room> rooms) {
+    final space = buildTestRoom(client, id: id)..partial = false;
+    space.setState(
+      buildTestEvent(
+        space,
+        eventId: '\$create-$id',
+        senderId: '@me:example.org',
+        type: EventTypes.RoomCreate,
+        stateKey: '',
+        content: {'type': 'm.space'},
+        originServerTs: DateTime(2026, 1, 1),
+      ),
+    );
+    space.setState(
+      buildTestEvent(
+        space,
+        eventId: '\$name-$id',
+        senderId: '@me:example.org',
+        type: EventTypes.RoomName,
+        stateKey: '',
+        content: {'name': name},
+      ),
+    );
+    for (final room in rooms) {
+      space.setState(
+        buildTestEvent(
+          space,
+          eventId: '\$child-${room.id}',
+          senderId: '@me:example.org',
+          type: EventTypes.SpaceChild,
+          stateKey: room.id,
+          content: {
+            'via': ['example.org'],
+          },
+        ),
+      );
+    }
+    client.rooms.addAll([...rooms, space]);
+    return space;
+  }
+
+  testWidgets('chats never show a community or its rooms', (tester) async {
+    final chat = joined('a', 'hello');
+    final gear = joined('gear', 'spare shoes in 41');
+    community('!club', 'Climbing club', [gear]);
+    client.rooms.add(chat);
+
+    await pump(tester, client.rooms);
+
+    expect(find.byType(ChatRow), findsOneWidget);
+    expect(find.text('Room a'), findsOneWidget);
+    expect(find.text('Climbing club'), findsNothing);
+    expect(find.text('spare shoes in 41'), findsNothing);
+  });
+
+  testWidgets('communities show one row each with their newest room, and no '
+      'chats', (tester) async {
+    final chat = joined('a', 'hello');
+    final gear = joined('gear', 'spare shoes in 41');
+    community('!club', 'Climbing club', [gear]);
+    client.rooms.add(chat);
+
+    await pump(tester, client.rooms, communities: true);
+
+    expect(find.byType(ChatRow), findsOneWidget);
+    expect(find.text('Climbing club'), findsOneWidget);
+    expect(find.text('Room gear ·', findRichText: true), findsOneWidget);
+    expect(find.text('spare shoes in 41'), findsOneWidget);
+    expect(find.text('Room a'), findsNothing);
+  });
+
+  testWidgets('no communities shows its own empty state', (tester) async {
+    client.rooms.add(joined('a', 'hello'));
+
+    await pump(tester, client.rooms, communities: true);
+
+    expect(find.text('No communities yet'), findsOneWidget);
+    expect(
+      find.text('Tap + to start one or find a public one.'),
+      findsOneWidget,
+    );
+    expect(find.byType(ChatRow), findsNothing);
+  });
+
+  testWidgets('community invitations sit above the communities', (
+    tester,
+  ) async {
+    community('!club', 'Climbing club', const []);
+    community('!other', 'Rivera family', const []).membership =
+        Membership.invite;
+
+    await pump(tester, client.rooms, communities: true);
+
+    expect(find.text('Invitations'), findsOneWidget);
+    expect(find.text('Communities'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byType(InvitationGroup)).dy,
+      lessThan(tester.getTopLeft(find.byType(ChatRow)).dy),
+    );
+  });
+
+  testWidgets('tapping and long-pressing a community report the community', (
+    tester,
+  ) async {
+    final club = community('!club', 'Climbing club', [joined('gear', 'hi')]);
+    Room? opened;
+    Room? actedOn;
+
+    await pump(
+      tester,
+      client.rooms,
+      communities: true,
+      onOpen: (r) => opened = r,
+      onActions: (r) => actedOn = r,
+    );
+    await tester.tap(find.text('Climbing club'));
+    await tester.longPress(find.text('Climbing club'));
+
+    expect(opened, club);
+    expect(actedOn, club);
+  });
+
+  testWidgets('a community with none of its rooms joined says so', (
+    tester,
+  ) async {
+    community('!club', 'Climbing club', const []);
+
+    await pump(tester, client.rooms, communities: true);
+
+    expect(find.text('Climbing club'), findsOneWidget);
+    expect(find.text('No rooms joined yet'), findsOneWidget);
+    expect(find.byType(EmptyState), findsNothing);
+  });
+
+  testWidgets('a community row survives the layout matrix', (tester) async {
+    final gear = joined(
+      'gear',
+      'Maya: I have spare shoes in size 41 if anyone needs them',
+    );
+    community('!club', 'The Saturday morning bouldering club of Lisbon', [
+      gear,
+    ]);
+
+    await expectSurvivesLayoutMatrix(
+      tester,
+      () => Scaffold(
+        body: ChatListView.communities(
+          client: client,
+          layout: arrangeHome(client.rooms),
+          unreadCorrections: const {},
+          onOpen: (_) {},
+          onActions: (_) {},
+        ),
+      ),
+      theme: zunoLightTheme,
+    );
+  });
+
+  testWidgets('the list ends with a little room to breathe', (tester) async {
     await pump(tester, [joined('!a:example.org', 'hello')]);
 
     final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
     expect(scrollable.position.maxScrollExtent, 0);
-    expect(
-      find.byWidgetPredicate(
-        (widget) => widget is SizedBox && widget.height == 88,
-      ),
-      findsOneWidget,
-    );
+    final last =
+        tester
+                .widget<CustomScrollView>(find.byType(CustomScrollView))
+                .slivers
+                .last
+            as SliverToBoxAdapter;
+    expect((last.child! as SizedBox).height, 12);
   });
 
   testWidgets('a chat that jumps to the top leaves the other rows mounted', (

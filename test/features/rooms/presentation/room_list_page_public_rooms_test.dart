@@ -120,7 +120,7 @@ void main() {
   }
 
   Future<void> openNewChatMenu(WidgetTester tester) async {
-    await tester.tap(find.byType(FloatingActionButton));
+    await tester.tap(find.byIcon(Icons.add_outlined));
     await tester.pumpAndSettle();
   }
 
@@ -248,6 +248,32 @@ void main() {
     expect(joinRequests().single.url.pathSegments.last, '!garden:example.org');
   });
 
+  testWidgets('a joined room opens once the sync brings it', (tester) async {
+    await pumpRoomList(tester);
+    await openPublicRooms(tester);
+
+    await tester.tap(find.text('Gardening'));
+    await settle(tester);
+    expect(find.byType(RoomPage), findsNothing);
+
+    final garden = buildTestRoom(client, id: '!garden:example.org')
+      ..partial = false;
+    client.rooms.add(garden);
+    client.onSync.add(
+      SyncUpdate(
+        nextBatch: 'next',
+        rooms: RoomsUpdate(join: {garden.id: JoinedRoomUpdate()}),
+      ),
+    );
+    await tester.pump();
+    client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(tester.widget<RoomPage>(find.byType(RoomPage)).room, garden);
+  });
+
   testWidgets('a room you already belong to opens without joining', (
     tester,
   ) async {
@@ -341,5 +367,40 @@ void main() {
     final menuTitles = menuTiles.map((tile) => (tile.title! as Text).data);
 
     expect(menuTitles, ['New chat', 'New room', 'Find public rooms']);
+  });
+
+  testWidgets('on Communities, the menu offers community and public '
+      'communities only', (tester) async {
+    await pumpRoomList(tester);
+    await tester.tap(find.text('Communities'));
+    await tester.pumpAndSettle();
+    await openNewChatMenu(tester);
+
+    final menuTitles = tester
+        .widgetList<ListTile>(
+          find.descendant(
+            of: find.byType(BottomSheet),
+            matching: find.byType(ListTile),
+          ),
+        )
+        .map((tile) => (tile.title! as Text).data);
+
+    expect(menuTitles, ['New community', 'Find public communities']);
+  });
+
+  testWidgets('Find public communities asks the server for communities '
+      'only', (tester) async {
+    await pumpRoomList(tester);
+    await tester.tap(find.text('Communities'));
+    await tester.pumpAndSettle();
+    await openNewChatMenu(tester);
+    await tester.tap(find.text('Find public communities'));
+    await settle(tester);
+
+    final body = jsonDecode(directoryRequests().single.body) as Map;
+    expect((body['filter'] as Map)['room_types'], ['m.space']);
+    expect(find.text('Public communities'), findsOneWidget);
+    expect(find.text('Hobbies'), findsOneWidget);
+    expect(find.text('Chess club'), findsNothing);
   });
 }

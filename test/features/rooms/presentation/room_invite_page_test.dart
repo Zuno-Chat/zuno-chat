@@ -3,12 +3,18 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/blocking/presentation/block_person.dart';
+import 'package:zuno/features/communities/presentation/community_page.dart';
 import 'package:zuno/features/rooms/presentation/room_invite_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -54,6 +60,9 @@ void main() {
             429,
           );
         }
+        if (request.url.path.endsWith('/join')) {
+          return http.Response(jsonEncode({'room_id': room.id}), 200);
+        }
         return http.Response('{}', 200);
       }),
     )..homeserver = Uri.parse('https://example.org');
@@ -91,18 +100,26 @@ void main() {
     WidgetTester tester, {
     BlockPerson? blockPerson,
   }) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      RoomInvitePage(room: room, blockPerson: blockPerson),
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        RoomInvitePage(room: room, blockPerson: blockPerson),
+                  ),
                 ),
+                child: const Text('open'),
               ),
-              child: const Text('open'),
             ),
           ),
         ),
@@ -118,6 +135,47 @@ void main() {
     FilledButton,
     'Report and decline',
   );
+
+  testWidgets('a community invitation says so, and joining opens the '
+      'community', (tester) async {
+    room.setState(
+      buildTestEvent(
+        room,
+        eventId: r'$create',
+        senderId: '@bob:example.org',
+        type: EventTypes.RoomCreate,
+        stateKey: '',
+        content: {'type': 'm.space'},
+      ),
+    );
+    room.setState(
+      buildTestEvent(
+        room,
+        eventId: r'$name',
+        senderId: '@bob:example.org',
+        type: EventTypes.RoomName,
+        stateKey: '',
+        content: {'name': 'Climbing club'},
+      ),
+    );
+    inviteFromBob();
+    await openInvite(tester);
+
+    expect(find.text('Climbing club'), findsOneWidget);
+    expect(
+      find.textContaining('invited you to this community.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Join'));
+    for (var i = 0; i < 4; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    expect(requestedPaths().any((p) => p.endsWith('/join')), isTrue);
+    expect(find.byType(CommunityPage), findsOneWidget);
+  });
 
   testWidgets('reports the inviter, then declines', (tester) async {
     inviteFromBob();

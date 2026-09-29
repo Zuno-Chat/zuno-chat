@@ -282,6 +282,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a community photo is clipped to a rounded square, not a '
+      'circle', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MxcAvatar(
+            client: client,
+            avatarUrl: uniqueMxc(),
+            fallbackText: 'Climbing club',
+            shape: AvatarShape.roundedSquare,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(ClipRRect), findsOneWidget);
+    expect(find.byType(ClipOval), findsNothing);
+    expect(find.byType(CircleAvatar), findsNothing);
+  });
+
   testWidgets('blank text falls back to a question mark', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

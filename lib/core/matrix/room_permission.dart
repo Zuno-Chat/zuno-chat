@@ -141,6 +141,59 @@ final List<RoomPermission> roomPermissions = [
   ),
 ];
 
+typedef PermissionGroup = ({String title, List<RoomPermission> permissions});
+
+RoomPermission _catalogEntry(String id) =>
+    roomPermissions.firstWhere((permission) => permission.id == id);
+
+final List<PermissionGroup> roomPermissionGroups = [
+  for (final (title, section) in const [
+    ('Basic', RoomPermissionSection.basic),
+    ('Advanced', RoomPermissionSection.advanced),
+  ])
+    (
+      title: title,
+      permissions: [
+        for (final permission in roomPermissions)
+          if (permission.section == section) permission,
+      ],
+    ),
+];
+
+final List<PermissionGroup> communityPermissionGroups = [
+  (
+    title: 'Members',
+    permissions: [
+      _catalogEntry('invite'),
+      _catalogEntry('kick'),
+      _catalogEntry('ban'),
+    ],
+  ),
+  (
+    title: 'Rooms',
+    permissions: [
+      _stateEventOverride('add_rooms', 'Add rooms', EventTypes.SpaceChild),
+    ],
+  ),
+  (
+    title: 'Settings',
+    permissions: [
+      _stateEventOverride(
+        'community_avatar',
+        'Change photo',
+        EventTypes.RoomAvatar,
+      ),
+      _stateEventOverride('community_name', 'Change name', EventTypes.RoomName),
+      _stateEventOverride(
+        'community_topic',
+        'Change description',
+        EventTypes.RoomTopic,
+      ),
+      _catalogEntry('power_levels'),
+    ],
+  ),
+];
+
 final RoomPermission roomDefaultRoleSetting = _directField(
   'users_default',
   'Default role for new members',

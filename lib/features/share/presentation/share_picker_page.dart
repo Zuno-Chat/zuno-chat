@@ -10,6 +10,7 @@ List<Room> filterShareTargets(List<Room> rooms, String query) {
   return [
     for (final room in rooms)
       if (room.membership == Membership.join &&
+          !room.isSpace &&
           (needle.isEmpty || roomTitle(room).toLowerCase().contains(needle)))
         room,
   ];

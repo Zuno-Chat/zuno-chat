@@ -34,7 +34,8 @@ asymmetric sender/receiver views).
   index and remounts the rows in between, memo or not. `ChatRow` is presentational (its preview is a widget
   slot, filled by `LastMessagePreview`); `InvitationGroup` holds incoming
   invitations above the chats. Rows share one height through a prototype
-  (`SliverPrototypeExtentList`).
+  (`SliverPrototypeExtentList`). The page has Chats and Communities tabs
+  fed by one `arrangeHome` per sync; see `communities.md`.
 - `room_exit.dart` — the leave/forget rule plus the shared confirm prompt
   and its copy. `room_title.dart` — `roomTitle()`, the one name every
   surface shows for a room.
@@ -61,11 +62,14 @@ asymmetric sender/receiver views).
 - `public_rooms_sheet.dart` — the directory search sheet behind the room
   list's "+ → Find public rooms". Takes an injectable `PublicRoomsSearch`
   (defaults to `client.queryPublicRooms`), 20 rooms a page, loads the next
-  page when the end scrolls into view, drops `m.space` rows client-side,
-  and discards responses superseded by a newer search (generation counter).
-  Hands back a room ID; the room list joins and opens it.
+  page when the end scrolls into view, and discards responses superseded by
+  a newer search (generation counter). Rooms mode drops `m.space` rows;
+  communities mode asks the server for `room_types: [m.space]`. Hands back
+  a room ID; the room list joins it, waits for the sync that brings it
+  (`joinAndAwaitRoom`) and opens it.
 - `room_access.dart` — public/private as one concept over two server facts
-  (join rule + directory listing), plus the admin-only gate and
+  (join rule + directory listing), plus Community (`restricted`) and Ask to
+  join (`knock`) for rooms inside a community, the admin-only gate and
   `createGroupRoom`, the one call behind the room list's "New room" dialog
   (name + Private/Public, private by default).
   `room_access_label.dart` renders it (globe / crossed globe) in the room
@@ -492,8 +496,7 @@ elsewhere:
   above would depend on.
 - **No way for two strangers to find each other as people.** Rooms are
   discoverable through the public directory now; people still only by
-  exact username. Spaces stay permanently excluded
-  (see `design-spec-excluded.md`). Two candidates on record: user-
+  exact username. Two candidates on record: user-
   directory search (another enumeration surface, needs rate limiting) and
   invite links (opens a DM with the link's generator, no directory, no
   enumeration) — invite links are the recommended first answer as cheaper

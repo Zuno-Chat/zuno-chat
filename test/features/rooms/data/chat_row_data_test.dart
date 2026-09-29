@@ -236,4 +236,124 @@ void main() {
     expect(ChatRowData.prototype.timeLabel, isNotEmpty);
     expect(ChatRowData.prototype.unread, greaterThan(0));
   });
+
+  group('a community row', () {
+    late Room community;
+    late Room gear;
+    late Room general;
+
+    Room member(String id, String name, {required int hour, int unread = 0}) {
+      final member = buildTestRoom(client, id: id, notificationCount: unread)
+        ..membership = Membership.join;
+      member.setState(
+        buildTestEvent(
+          member,
+          eventId: '\$name-$id',
+          senderId: '@me:example.org',
+          type: EventTypes.RoomName,
+          stateKey: '',
+          content: {'name': name},
+        ),
+      );
+      member.lastEvent = buildTestEvent(
+        member,
+        eventId: '\$msg-$id',
+        senderId: '@maya:example.org',
+        content: {'msgtype': 'm.text', 'body': 'Spare shoes in 41'},
+        originServerTs: DateTime(2026, 9, 20, hour),
+      );
+      client.rooms.add(member);
+      return member;
+    }
+
+    void mute(Room room) => client.accountData['m.push_rules'] = BasicEvent(
+      type: 'm.push_rules',
+      content: {
+        'global': {
+          'override': [
+            {
+              'rule_id': room.id,
+              'default': false,
+              'enabled': true,
+              'actions': <Object?>[],
+              'conditions': [
+                {'kind': 'event_match', 'key': 'room_id', 'pattern': room.id},
+              ],
+            },
+          ],
+        },
+      },
+    );
+
+    setUp(() {
+      gear = member('!gear:example.org', 'Gear swap', hour: 12, unread: 3);
+      general = member('!general:example.org', 'General', hour: 11, unread: 1);
+      community = buildTestRoom(client, id: '!club:example.org')
+        ..membership = Membership.join;
+      community.setState(
+        buildTestEvent(
+          community,
+          eventId: r'$club-name',
+          senderId: '@me:example.org',
+          type: EventTypes.RoomName,
+          stateKey: '',
+          content: {'name': 'Climbing club'},
+        ),
+      );
+    });
+
+    ChatRowData readCommunity(List<Room> rooms) => communityRowDataFor(
+      community,
+      rooms,
+      unreadCorrections: const {},
+      now: now,
+      use24Hour: true,
+    );
+
+    test('reads the newest room, its name and the unread of every room', () {
+      final data = readCommunity([gear, general]);
+
+      expect(data.community, isTrue);
+      expect(data.isDirect, isFalse);
+      expect(data.title, 'Climbing club');
+      expect(data.previewSource, 'Gear swap');
+      expect(data.previewText, 'Spare shoes in 41');
+      expect(data.lastEventId, gear.lastEvent!.eventId);
+      expect(data.timeLabel, '12:00');
+      expect(data.unread, 4);
+      expect(data.dimmed, isFalse);
+      expect(data.encrypted, isTrue);
+    });
+
+    test('a muted room adds nothing to the unread count', () {
+      mute(gear);
+
+      expect(readCommunity([gear, general]).unread, 1);
+    });
+
+    test('a newer message in another room makes the record unequal', () {
+      final before = readCommunity([gear, general]);
+      general.lastEvent = buildTestEvent(
+        general,
+        eventId: r'$newer',
+        senderId: '@leo:example.org',
+        content: {'msgtype': 'm.text', 'body': 'Tuesday?'},
+        originServerTs: DateTime(2026, 9, 20, 13),
+      );
+
+      final after = readCommunity([general, gear]);
+
+      expect(after, isNot(before));
+      expect(after.previewSource, 'General');
+    });
+
+    test('a community with no joined rooms has no preview and no time', () {
+      final data = readCommunity(const []);
+
+      expect(data.previewSource, isNull);
+      expect(data.previewText, isNull);
+      expect(data.timeLabel, isEmpty);
+      expect(data.unread, 0);
+    });
+  });
 }

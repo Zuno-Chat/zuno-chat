@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/features/rooms/presentation/public_rooms_sheet.dart';
+import 'package:zuno/features/rooms/presentation/room_kind_avatar.dart';
 
 import '../../../helpers/fake_matrix.dart';
 
@@ -40,6 +41,7 @@ Future<_Opened> _open(
   WidgetTester tester,
   PublicRoomsSearch search, {
   Client? client,
+  bool communities = false,
 }) async {
   final opened = _Opened();
   tester.view.physicalSize = const Size(1080, 2400);
@@ -54,6 +56,7 @@ Future<_Opened> _open(
             onPressed: () => opened.result = showPublicRoomsSheet(
               context,
               client: testClient,
+              communities: communities,
               search: ({term, since}) {
                 opened.calls.add((term: term, since: since));
                 return search(term: term, since: since);
@@ -202,17 +205,55 @@ void main() {
     );
   });
 
-  testWidgets('hides spaces', (tester) async {
+  testWidgets('rooms leave communities out', (tester) async {
     await _open(
       tester,
       ({term, since}) async => _page([
-        _room('!s:example.org', name: 'A space', roomType: 'm.space'),
+        _room('!s:example.org', name: 'Climbing club', roomType: 'm.space'),
         _room('!a:example.org', name: 'Chess club'),
       ]),
     );
 
-    expect(find.text('A space'), findsNothing);
+    expect(find.text('Public rooms'), findsOneWidget);
+    expect(find.text('Climbing club'), findsNothing);
     expect(find.text('Chess club'), findsOneWidget);
+  });
+
+  testWidgets('communities list only communities, in their own shape', (
+    tester,
+  ) async {
+    await _open(
+      tester,
+      ({term, since}) async => _page([
+        _room('!s:example.org', name: 'Climbing club', roomType: 'm.space'),
+        _room('!a:example.org', name: 'Chess club'),
+      ]),
+      communities: true,
+    );
+
+    expect(find.text('Public communities'), findsOneWidget);
+    expect(find.text('Climbing club'), findsOneWidget);
+    expect(find.text('Chess club'), findsNothing);
+    expect(
+      tester.widget<RoomKindAvatar>(find.byType(RoomKindAvatar)).community,
+      isTrue,
+    );
+  });
+
+  testWidgets('no community found says so', (tester) async {
+    await _open(tester, ({term, since}) async => _page([]), communities: true);
+
+    expect(find.text('No communities found'), findsOneWidget);
+  });
+
+  testWidgets('communities that fail to load say so', (tester) async {
+    await _open(
+      tester,
+      ({term, since}) async => throw Exception('offline'),
+      communities: true,
+    );
+
+    expect(find.text('Could not load communities'), findsOneWidget);
   });
 
   testWidgets('says so when nothing matches', (tester) async {

@@ -69,4 +69,32 @@ void main() {
     final avatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar));
     expect(avatar.backgroundColor, avatarToneFor('@bob:example.org'));
   });
+
+  testWidgets('a community is a rounded square with no badge', (tester) async {
+    final client = buildTestClient(userId: '@me:example.org');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RoomKindAvatar(
+            client: client,
+            avatarUrl: null,
+            fallbackText: 'Climbing club',
+            isDirect: false,
+            community: true,
+            toneSeed: '!club:example.org',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(CircleAvatar), findsNothing);
+    expect(find.byIcon(Icons.groups), findsNothing);
+    expect(find.text('C'), findsOneWidget);
+    final box = tester.widget<DecoratedBox>(
+      find.ancestor(of: find.text('C'), matching: find.byType(DecoratedBox)),
+    );
+    final decoration = box.decoration as BoxDecoration;
+    expect(decoration.color, avatarToneFor('!club:example.org'));
+    expect(decoration.borderRadius, isNotNull);
+  });
 }

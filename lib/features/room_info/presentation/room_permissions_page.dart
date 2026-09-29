@@ -59,12 +59,10 @@ class _RoomPermissionsPageState extends State<RoomPermissionsPage> {
       ),
     );
 
-    Widget section(String title, RoomPermissionSection kind) => CardGroup(
-      title: title,
+    Widget section(PermissionGroup group) => CardGroup(
+      title: group.title,
       children: [
-        for (final permission in roomPermissions.where(
-          (p) => p.section == kind,
-        ))
+        for (final permission in group.permissions)
           ListTile(
             title: Text(permission.label),
             trailing: roleLabel(permission),
@@ -106,7 +104,7 @@ class _RoomPermissionsPageState extends State<RoomPermissionsPage> {
               ],
             ),
           CardGroup(
-            title: 'Room defaults',
+            title: room.isSpace ? 'Community defaults' : 'Room defaults',
             children: [
               ListTile(
                 title: const Text('Default role for new members'),
@@ -118,8 +116,11 @@ class _RoomPermissionsPageState extends State<RoomPermissionsPage> {
               ),
             ],
           ),
-          section('Basic', RoomPermissionSection.basic),
-          section('Advanced', RoomPermissionSection.advanced),
+          for (final group
+              in room.isSpace
+                  ? communityPermissionGroups
+                  : roomPermissionGroups)
+            section(group),
         ],
       ),
     );

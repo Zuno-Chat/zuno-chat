@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
 import '../../../core/matrix/avatar_photo.dart';
+import '../../../core/matrix/communities.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/optimistic_room_state.dart';
 import '../../../core/matrix/room_access.dart';
@@ -41,6 +42,9 @@ class RoomSettingsPage extends StatefulWidget {
 }
 
 class _RoomSettingsPageState extends State<RoomSettingsPage> {
+  late final bool _community = widget.room.isSpace;
+  late final String _noun = _community ? 'Community' : 'Room';
+  late final String _topicLabel = _community ? 'Description' : 'Topic';
   bool _savingName = false;
   bool _savingTopic = false;
   bool _savingAvatar = false;
@@ -53,9 +57,9 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
     final name = await showDialog<String>(
       context: context,
       builder: (_) => _EditTextFieldDialog(
-        title: 'Room name',
+        title: '$_noun name',
         initialValue: room.name,
-        labelText: 'Room name',
+        labelText: '$_noun name',
         maxLength: roomNameMaxLength,
         validator: roomNameError,
       ),
@@ -64,8 +68,8 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
     await _save(
       setSaving: (saving) => _savingName = saving,
-      success: 'Room name updated',
-      failure: 'Room name not saved',
+      success: '$_noun name updated',
+      failure: '$_noun name not saved',
       write: () async {
         await room.setName(name);
         applyOptimisticRoomState(room, EventTypes.RoomName, {'name': name});
@@ -101,9 +105,9 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
     final topic = await showDialog<String>(
       context: context,
       builder: (_) => _EditTextFieldDialog(
-        title: 'Topic',
+        title: _topicLabel,
         initialValue: room.topic,
-        labelText: 'Topic',
+        labelText: _topicLabel,
         maxLines: 3,
         maxLength: roomTopicMaxLength,
       ),
@@ -112,8 +116,8 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
     await _save(
       setSaving: (saving) => _savingTopic = saving,
-      success: 'Topic updated',
-      failure: 'Topic not saved',
+      success: '$_topicLabel updated',
+      failure: '$_topicLabel not saved',
       write: () async {
         await room.setDescription(topic);
         applyOptimisticRoomState(room, EventTypes.RoomTopic, {'topic': topic});
@@ -274,12 +278,21 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
   Future<void> _changeAccess() async {
     final room = widget.room;
     final current = roomAccessOf(room);
+    final communities = _community ? const <Room>[] : communitiesOf(room);
+    final inCommunity =
+        !_community && (communities.isNotEmpty || room.spaceParents.isNotEmpty);
+    final choices = [
+      if (!inCommunity) RoomAccess.public,
+      if (communities.isNotEmpty) RoomAccess.community,
+      if (inCommunity) RoomAccess.askToJoin,
+      RoomAccess.private,
+    ];
     final chosen = await showModalBottomSheet<RoomAccess>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
           children: [
-            for (final access in RoomAccess.values)
+            for (final access in choices)
               ListTile(
                 leading: access == current
                     ? const Icon(Icons.check_outlined)
@@ -299,23 +312,29 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
     await _save(
       setSaving: (saving) => _savingAccess = saving,
-      success: 'Room access updated',
-      failure: 'Room access not saved',
+      success: '$_noun access updated',
+      failure: '$_noun access not saved',
       write: () => setRoomAccess(room, chosen),
     );
   }
 
   Future<bool> _confirmAccessChange(RoomAccess chosen) async {
-    final makingPublic = chosen == RoomAccess.public;
+    final noun = _noun.toLowerCase();
+    final (title, action) = switch (chosen) {
+      RoomAccess.public => ('Make $noun public?', 'Make public'),
+      RoomAccess.community => ('Open to community members?', 'Open to members'),
+      RoomAccess.askToJoin => ('Let members ask to join?', 'Let them ask'),
+      RoomAccess.private => ('Make $noun private?', 'Make private'),
+    };
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(makingPublic ? 'Make room public?' : 'Make room private?'),
+        title: Text(title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final line in _accessConsequences(chosen))
+            for (final line in _accessConsequences(chosen, _community))
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text('• $line'),
@@ -329,7 +348,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text(makingPublic ? 'Make public' : 'Make private'),
+            child: Text(action),
           ),
         ],
       ),
@@ -365,11 +384,11 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Room settings')),
+      appBar: AppBar(title: Text('$_noun settings')),
       body: CardListView(
         children: [
           CardGroup(
-            title: 'Room info',
+            title: '$_noun info',
             children: [
               if (!room.isDirectChat)
                 ListTile(
@@ -378,8 +397,9 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                     avatarUrl: room.avatar,
                     fallbackText: roomTitle(room),
                     radius: 20,
+                    shape: AvatarShape.forRoom(room),
                   ),
-                  title: const Text('Room photo'),
+                  title: Text('$_noun photo'),
                   trailing: trailingFor(_savingAvatar, canEditAvatar),
                   onTap: (_savingAvatar || !canEditAvatar)
                       ? null
@@ -387,14 +407,14 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                 ),
               ListTile(
                 leading: const Icon(Icons.title_outlined),
-                title: const Text('Room name'),
+                title: Text('$_noun name'),
                 subtitle: Text(room.name.isEmpty ? 'Not set' : room.name),
                 trailing: trailingFor(_savingName, canEditName),
                 onTap: (_savingName || !canEditName) ? null : _editName,
               ),
               ListTile(
                 leading: const Icon(Icons.notes_outlined),
-                title: const Text('Topic'),
+                title: Text(_topicLabel),
                 subtitle: Text(
                   room.topic.isEmpty ? 'Not set' : room.topic,
                   maxLines: 3,
@@ -403,38 +423,40 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                 trailing: trailingFor(_savingTopic, canEditTopic),
                 onTap: (_savingTopic || !canEditTopic) ? null : _editTopic,
               ),
-              ListTile(
-                leading: const Icon(Icons.tag_outlined),
-                title: const Text('Main address'),
-                subtitle: Text(
-                  aliasLocalpart == null ? 'Not set' : '#$aliasLocalpart',
+              if (!_community)
+                ListTile(
+                  leading: const Icon(Icons.tag_outlined),
+                  title: const Text('Main address'),
+                  subtitle: Text(
+                    aliasLocalpart == null ? 'Not set' : '#$aliasLocalpart',
+                  ),
+                  trailing: trailingFor(_savingAlias, canEditAlias),
+                  onTap: (_savingAlias || !canEditAlias) ? null : _editAlias,
                 ),
-                trailing: trailingFor(_savingAlias, canEditAlias),
-                onTap: (_savingAlias || !canEditAlias) ? null : _editAlias,
-              ),
             ],
           ),
           CardGroup(
             title: 'Privacy',
             children: [
-              ListTile(
-                leading: const Icon(Icons.history_outlined),
-                title: const Text('Who can read history'),
-                subtitle: Text(
-                  _historyVisibilityLabel(_historyVisibilityOf(room)),
+              if (!_community)
+                ListTile(
+                  leading: const Icon(Icons.history_outlined),
+                  title: const Text('Who can read history'),
+                  subtitle: Text(
+                    _historyVisibilityLabel(_historyVisibilityOf(room)),
+                  ),
+                  trailing: trailingFor(
+                    _savingHistoryVisibility,
+                    canEditHistoryVisibility,
+                  ),
+                  onTap: (_savingHistoryVisibility || !canEditHistoryVisibility)
+                      ? null
+                      : _changeHistoryVisibility,
                 ),
-                trailing: trailingFor(
-                  _savingHistoryVisibility,
-                  canEditHistoryVisibility,
-                ),
-                onTap: (_savingHistoryVisibility || !canEditHistoryVisibility)
-                    ? null
-                    : _changeHistoryVisibility,
-              ),
               if (!room.isDirectChat)
                 ListTile(
                   leading: const Icon(Icons.public_outlined),
-                  title: const Text('Room access'),
+                  title: Text('$_noun access'),
                   subtitle: Text(roomAccessOf(room).label),
                   trailing: trailingFor(_savingAccess, canEditAccess),
                   onTap: (_savingAccess || !canEditAccess)
@@ -449,19 +471,32 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
   }
 }
 
-List<String> _accessConsequences(RoomAccess access) => switch (access) {
-  RoomAccess.public => const [
-    'Anyone can find it under Find public rooms.',
-    'Anyone can join without an invite.',
-    'Whether new members can read older messages depends on '
-        'Who can read history.',
-  ],
-  RoomAccess.private => const [
-    'The room leaves the public list.',
-    'New people need an invite to join.',
-    'Current members stay. Nobody is removed.',
-  ],
-};
+List<String> _accessConsequences(RoomAccess access, bool community) =>
+    switch (access) {
+      RoomAccess.public => [
+        'Anyone can find it under Find public rooms.',
+        'Anyone can join without an invite.',
+        community
+            ? 'Its rooms keep their own access.'
+            : 'Whether new members can read older messages depends on '
+                  'Who can read history.',
+      ],
+      RoomAccess.community => const [
+        'Members of the community can join without an invite.',
+        'It is not listed under Find public rooms.',
+        'Current members stay. Nobody is removed.',
+      ],
+      RoomAccess.askToJoin => const [
+        'Members of the community see it and can ask to join.',
+        'Moderators and admins decide who gets in.',
+        'Current members stay. Nobody is removed.',
+      ],
+      RoomAccess.private => [
+        'The ${community ? 'community' : 'room'} leaves the public list.',
+        'New people need an invite to join.',
+        'Current members stay. Nobody is removed.',
+      ],
+    };
 
 class _EditTextFieldDialog extends StatefulWidget {
   final String title;

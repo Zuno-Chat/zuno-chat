@@ -4,12 +4,21 @@ import 'package:matrix/matrix.dart';
 import '../ui/zuno_colors.dart';
 import 'mxc_avatar_image.dart';
 
+enum AvatarShape {
+  circle,
+  roundedSquare;
+
+  static AvatarShape forRoom(Room room) =>
+      room.isSpace ? roundedSquare : circle;
+}
+
 class MxcAvatar extends StatelessWidget {
   final Client client;
   final Uri? avatarUrl;
   final String fallbackText;
   final double radius;
   final String? toneSeed;
+  final AvatarShape shape;
 
   const MxcAvatar({
     required this.client,
@@ -17,49 +26,69 @@ class MxcAvatar extends StatelessWidget {
     required this.fallbackText,
     this.radius = 20,
     this.toneSeed,
+    this.shape = AvatarShape.circle,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
     final diameter = radius * 2;
-    final initial = CircleAvatar(
-      radius: radius,
-      backgroundColor: avatarToneFor(toneSeed ?? fallbackText),
-      foregroundColor: zunoInk,
-      child: Text(
-        _initial(fallbackText),
-        style: TextStyle(
-          fontSize: radius * 0.76,
-          fontWeight: FontWeight.w500,
-          height: 1,
-        ),
+    final corners = BorderRadius.circular(radius * 0.6);
+    final tone = avatarToneFor(toneSeed ?? fallbackText);
+    final letter = Text(
+      _initial(fallbackText),
+      style: TextStyle(
+        fontSize: radius * 0.76,
+        fontWeight: FontWeight.w500,
+        height: 1,
+        color: zunoInk,
       ),
     );
+    final initial = switch (shape) {
+      AvatarShape.circle => CircleAvatar(
+        radius: radius,
+        backgroundColor: tone,
+        foregroundColor: zunoInk,
+        child: letter,
+      ),
+      AvatarShape.roundedSquare => SizedBox.square(
+        dimension: diameter,
+        child: DecoratedBox(
+          decoration: BoxDecoration(color: tone, borderRadius: corners),
+          child: Center(child: letter),
+        ),
+      ),
+    };
     final avatarUrl = this.avatarUrl;
     if (avatarUrl == null) return initial;
 
+    final image = ColoredBox(
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      child: Image(
+        image: MxcAvatarImage(
+          client: client,
+          mxc: avatarUrl,
+          bucket: AvatarBucket.forDiameter(diameter),
+        ),
+        width: diameter,
+        height: diameter,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
+            frame == null ? initial : child,
+        errorBuilder: (context, error, stackTrace) => initial,
+      ),
+    );
+
     return SizedBox.square(
       dimension: diameter,
-      child: ClipOval(
-        child: ColoredBox(
-          color: Theme.of(context).colorScheme.surfaceContainerHigh,
-          child: Image(
-            image: MxcAvatarImage(
-              client: client,
-              mxc: avatarUrl,
-              bucket: AvatarBucket.forDiameter(diameter),
-            ),
-            width: diameter,
-            height: diameter,
-            fit: BoxFit.cover,
-            gaplessPlayback: true,
-            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
-                frame == null ? initial : child,
-            errorBuilder: (context, error, stackTrace) => initial,
-          ),
+      child: switch (shape) {
+        AvatarShape.circle => ClipOval(child: image),
+        AvatarShape.roundedSquare => ClipRRect(
+          borderRadius: corners,
+          child: image,
         ),
-      ),
+      },
     );
   }
 }

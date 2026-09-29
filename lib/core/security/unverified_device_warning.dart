@@ -24,7 +24,8 @@ Set<String> peopleWhoseDevicesWeWatch(Client client) {
   return {
     for (final room in client.rooms)
       if (room.membership == Membership.join &&
-          roomAccessOf(room) == RoomAccess.private)
+          !room.isSpace &&
+          roomAccessOf(room) != RoomAccess.public)
         for (final user in room.getParticipants([Membership.join]))
           if (user.id != ownId) user.id,
   };

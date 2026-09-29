@@ -8,6 +8,7 @@ class RoomKindAvatar extends StatelessWidget {
   final Uri? avatarUrl;
   final String fallbackText;
   final bool isDirect;
+  final bool community;
   final double radius;
   final String? toneSeed;
 
@@ -16,6 +17,7 @@ class RoomKindAvatar extends StatelessWidget {
     required this.avatarUrl,
     required this.fallbackText,
     required this.isDirect,
+    this.community = false,
     this.radius = 20,
     this.toneSeed,
     super.key,
@@ -23,6 +25,16 @@ class RoomKindAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (community) {
+      return MxcAvatar(
+        client: client,
+        avatarUrl: avatarUrl,
+        fallbackText: fallbackText,
+        radius: radius,
+        toneSeed: toneSeed,
+        shape: AvatarShape.roundedSquare,
+      );
+    }
     final colors = Theme.of(context).colorScheme;
     return SizedBox(
       width: radius * 2,

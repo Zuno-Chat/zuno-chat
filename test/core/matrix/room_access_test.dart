@@ -49,6 +49,27 @@ void main() {
       expect(roomAccessOf(room), RoomAccess.private);
     });
 
+    test('reads a join rule restricted to a community as community', () {
+      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+      setJoinRule(room, 'restricted');
+
+      expect(roomAccessOf(room), RoomAccess.community);
+    });
+
+    test('reads knock-restricted as community too', () {
+      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+      setJoinRule(room, 'knock_restricted');
+
+      expect(roomAccessOf(room), RoomAccess.community);
+    });
+
+    test('reads knock as ask to join', () {
+      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+      setJoinRule(room, 'knock');
+
+      expect(roomAccessOf(room), RoomAccess.askToJoin);
+    });
+
     test('treats a missing join rule as private', () {
       final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
 
@@ -139,6 +160,70 @@ void main() {
       expect(requests[1].url.pathSegments, contains('directory'));
       expect(jsonDecode(requests[1].body), {'visibility': 'private'});
       expect(roomAccessOf(room), RoomAccess.private);
+    });
+
+    test('community opens the room to members of its communities, then '
+        'unlists it', () async {
+      final client = room.client;
+      final club = buildTestRoom(client, id: '!club:example.org')
+        ..membership = Membership.join;
+      club.setState(
+        buildTestEvent(
+          club,
+          eventId: r'$create',
+          senderId: '@me:example.org',
+          type: EventTypes.RoomCreate,
+          stateKey: '',
+          content: {'type': 'm.space'},
+        ),
+      );
+      club.setState(
+        buildTestEvent(
+          club,
+          eventId: r'$child',
+          senderId: '@me:example.org',
+          type: EventTypes.SpaceChild,
+          stateKey: room.id,
+          content: {
+            'via': ['example.org'],
+          },
+        ),
+      );
+      client.rooms.add(club);
+      setJoinRule(room, 'public');
+
+      await setRoomAccess(room, RoomAccess.community);
+
+      expect(requests[0].url.pathSegments, contains('m.room.join_rules'));
+      expect(jsonDecode(requests[0].body), {
+        'join_rule': 'restricted',
+        'allow': [
+          {'type': 'm.room_membership', 'room_id': '!club:example.org'},
+        ],
+      });
+      expect(requests[1].url.pathSegments, contains('directory'));
+      expect(jsonDecode(requests[1].body), {'visibility': 'private'});
+      expect(roomAccessOf(room), RoomAccess.community);
+    });
+
+    test('ask to join lets people knock, then unlists the room', () async {
+      setJoinRule(room, 'restricted');
+
+      await setRoomAccess(room, RoomAccess.askToJoin);
+
+      expect(requests[0].url.pathSegments, contains('m.room.join_rules'));
+      expect(jsonDecode(requests[0].body), {'join_rule': 'knock'});
+      expect(requests[1].url.pathSegments, contains('directory'));
+      expect(jsonDecode(requests[1].body), {'visibility': 'private'});
+      expect(roomAccessOf(room), RoomAccess.askToJoin);
+    });
+
+    test('community is refused for a room no community holds', () async {
+      await expectLater(
+        setRoomAccess(room, RoomAccess.community),
+        throwsA(isA<StateError>()),
+      );
+      expect(requests, isEmpty);
     });
 
     test(

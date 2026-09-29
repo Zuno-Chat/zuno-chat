@@ -139,6 +139,27 @@ void main() {
     expect(tester.widget<MxcAvatar>(find.byType(MxcAvatar)).toneSeed, room.id);
   });
 
+  testWidgets('a community invitation says so and wears the community '
+      'shape', (tester) async {
+    final room = invitation(name: 'Climbing club', inviter: '@bob:example.org');
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomCreate,
+        senderId: '@bob:example.org',
+        stateKey: '',
+        content: {'type': 'm.space'},
+      ),
+    );
+    await pumpGroup(tester, [room]);
+
+    expect(find.text('Climbing club'), findsOneWidget);
+    expect(find.text('Bob invited you to a community'), findsOneWidget);
+    expect(
+      tester.widget<MxcAvatar>(find.byType(MxcAvatar)).shape,
+      AvatarShape.roundedSquare,
+    );
+  });
+
   testWidgets('an invitation from nobody known says Someone', (tester) async {
     await pumpGroup(tester, [invitation()]);
     expect(find.text('Someone'), findsOneWidget);

@@ -20,15 +20,18 @@ import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/errors/global_error_handler.dart';
+import '../../../core/matrix/communities.dart';
 import '../../../core/matrix/force_sync.dart';
+import '../../../core/matrix/join_requests.dart';
+import '../../../core/matrix/join_room.dart';
 import '../../../core/matrix/local_username_dialog.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/room_access.dart';
-import '../../../core/matrix/room_name_check.dart';
 import '../../../core/matrix/room_exit.dart';
 import '../../../core/notifications/delivery_auto_fallback.dart';
 import '../../../core/notifications/invite_notification_provider.dart';
+import '../../../core/notifications/join_request_notification_provider.dart';
 import '../../../core/notifications/message_notification_provider.dart';
 import '../../../core/notifications/server_push_rules.dart';
 import '../../../core/onboarding/onboarding_provider.dart';
@@ -38,13 +41,15 @@ import '../../../core/security/security_prompt.dart';
 import '../../../core/security/security_prompt_provider.dart';
 import '../../../core/security/unverified_device_warning_provider.dart';
 import '../../calls/presentation/incoming_call_page.dart';
-import '../../chat/presentation/room_page.dart';
+import '../../communities/presentation/community_page.dart';
 import '../../onboarding/presentation/onboarding_flow_page.dart';
 import '../../settings/presentation/secure_backup_page.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../../verification/presentation/verification_page.dart';
 import 'chat_list_view.dart';
+import 'home_bottom_bar.dart';
 import 'new_device_alert_banner.dart';
+import 'new_room_dialog.dart';
 import 'notification_delivery_banner.dart';
 import 'public_rooms_sheet.dart';
 
@@ -77,36 +82,59 @@ Stream<void> _coalesced(Iterable<Stream<void>> streams) {
   return controller.stream;
 }
 
-enum _NewChatType { directMessage, group, findPublicRooms }
+enum _NewChatType {
+  directMessage,
+  group,
+  findPublicRooms,
+  community,
+  findPublicCommunities,
+}
 
 enum _RoomAction { markRead, mute, unmute, exit }
 
-class RoomListPage extends ConsumerWidget {
+const _chatsMenu = [
+  (_NewChatType.directMessage, Icons.person_outline, 'New chat'),
+  (_NewChatType.group, Icons.groups_outlined, 'New room'),
+  (_NewChatType.findPublicRooms, Icons.search, 'Find public rooms'),
+];
+
+const _communitiesMenu = [
+  (_NewChatType.community, Icons.workspaces_outlined, 'New community'),
+  (_NewChatType.findPublicCommunities, Icons.search, 'Find public communities'),
+];
+
+class RoomListPage extends ConsumerStatefulWidget {
   const RoomListPage({super.key});
 
+  @override
+  ConsumerState<RoomListPage> createState() => _RoomListPageState();
+}
+
+class _RoomListPageState extends ConsumerState<RoomListPage> {
+  HomeTab _tab = HomeTab.chats;
+
+  late final Stream<void> _updates = _coalesced([
+    ref.read(matrixClientProvider).onSync.stream,
+    ref.read(matrixClientProvider).onRoomState.stream,
+  ]);
+
+  void _select(HomeTab tab) {
+    if (tab != _tab) setState(() => _tab = tab);
+  }
+
   Future<void> _newChat(BuildContext context, Client client) async {
+    final options = _tab == HomeTab.chats ? _chatsMenu : _communitiesMenu;
     final type = await showModalBottomSheet<_NewChatType>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
           children: [
-            ListTile(
-              leading: const Icon(Icons.person_outline),
-              title: const Text('New chat'),
-              onTap: () =>
-                  Navigator.of(context).pop(_NewChatType.directMessage),
-            ),
-            ListTile(
-              leading: const Icon(Icons.groups_outlined),
-              title: const Text('New room'),
-              onTap: () => Navigator.of(context).pop(_NewChatType.group),
-            ),
-            ListTile(
-              leading: const Icon(Icons.search),
-              title: const Text('Find public rooms'),
-              onTap: () =>
-                  Navigator.of(context).pop(_NewChatType.findPublicRooms),
-            ),
+            for (final (type, icon, label) in options)
+              ListTile(
+                leading: Icon(icon),
+                title: Text(label),
+                onTap: () => Navigator.of(context).pop(type),
+              ),
           ],
         ),
       ),
@@ -119,7 +147,11 @@ class RoomListPage extends ConsumerWidget {
       case _NewChatType.group:
         await _createGroup(context, client);
       case _NewChatType.findPublicRooms:
-        await _findPublicRoom(context, client);
+        await _findPublic(context, client, communities: false);
+      case _NewChatType.community:
+        await _createCommunity(context, client);
+      case _NewChatType.findPublicCommunities:
+        await _findPublic(context, client, communities: true);
     }
   }
 
@@ -140,10 +172,7 @@ class RoomListPage extends ConsumerWidget {
   }
 
   Future<void> _createGroup(BuildContext context, Client client) async {
-    final newRoom = await showDialog<_NewRoom>(
-      context: context,
-      builder: (_) => const _NewRoomDialog(),
-    );
+    final newRoom = await showNewRoomDialog(context);
     if (newRoom == null || newRoom.name.isEmpty || !context.mounted) return;
     await _createAndOpen(
       context,
@@ -153,16 +182,50 @@ class RoomListPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _findPublicRoom(BuildContext context, Client client) async {
-    final roomId = await showPublicRoomsSheet(context, client: client);
+  Future<void> _createCommunity(BuildContext context, Client client) async {
+    final newCommunity = await showNewRoomDialog(
+      context,
+      title: 'New community',
+      hint: 'Community name',
+    );
+    if (newCommunity == null || newCommunity.name.isEmpty || !context.mounted) {
+      return;
+    }
+    await _createAndOpen(
+      context,
+      client,
+      () => createCommunity(
+        client,
+        name: newCommunity.name,
+        access: newCommunity.access,
+      ),
+      failed: 'Could not create the community.',
+    );
+  }
+
+  Future<void> _findPublic(
+    BuildContext context,
+    Client client, {
+    required bool communities,
+  }) async {
+    final roomId = await showPublicRoomsSheet(
+      context,
+      client: client,
+      communities: communities,
+    );
     if (roomId == null || !context.mounted) return;
     final alreadyJoined =
         client.getRoomById(roomId)?.membership == Membership.join;
     await _createAndOpen(
       context,
       client,
-      () async => alreadyJoined ? roomId : client.joinRoom(roomId),
-      failed: 'Could not join the room.',
+      () async {
+        if (!alreadyJoined) await joinAndAwaitRoom(client, roomId);
+        return roomId;
+      },
+      failed: communities
+          ? 'Could not join the community.'
+          : 'Could not join the room.',
     );
   }
 
@@ -178,7 +241,7 @@ class RoomListPage extends ConsumerWidget {
       final room = client.getRoomById(roomId);
       if (room != null && context.mounted) {
         Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => RoomPage(room: room)));
+            .push(MaterialPageRoute(builder: (_) => pageForRoom(room)));
       }
     } catch (e) {
       messenger.showSnackBar(
@@ -321,8 +384,9 @@ class RoomListPage extends ConsumerWidget {
   }
 
   Future<void> _showRoomActions(BuildContext context, Room room) async {
+    final isCommunity = room.isSpace;
     final isMuted = room.pushRuleState == PushRuleState.dontNotify;
-    final hasUnread = room.notificationCount > 0;
+    final hasUnread = !isCommunity && room.notificationCount > 0;
 
     final action = await showModalBottomSheet<_RoomAction>(
       context: context,
@@ -335,17 +399,18 @@ class RoomListPage extends ConsumerWidget {
                 title: const Text('Mark as read'),
                 onTap: () => Navigator.of(context).pop(_RoomAction.markRead),
               ),
-            ListTile(
-              leading: Icon(
-                isMuted
-                    ? Icons.notifications_active_outlined
-                    : Icons.notifications_off_outlined,
+            if (!isCommunity)
+              ListTile(
+                leading: Icon(
+                  isMuted
+                      ? Icons.notifications_active_outlined
+                      : Icons.notifications_off_outlined,
+                ),
+                title: Text(isMuted ? 'Unmute' : 'Mute'),
+                onTap: () =>
+                    Navigator.of(context)
+                        .pop(isMuted ? _RoomAction.unmute : _RoomAction.mute),
               ),
-              title: Text(isMuted ? 'Unmute' : 'Mute'),
-              onTap: () =>
-                  Navigator.of(context)
-                      .pop(isMuted ? _RoomAction.unmute : _RoomAction.mute),
-            ),
             ListTile(
               leading: Icon(
                 roomExitIcon(room),
@@ -400,13 +465,15 @@ class RoomListPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
     final unreadCorrections = ref.watch(callUnreadCorrectionProvider);
     ref.watch(resolvedCallIdsProvider);
     ref.watch(pendingCallNotificationActionProvider);
     ref.watch(messageNotificationProvider);
     ref.watch(roomInviteNotificationProvider);
+    ref.watch(joinRequestNotificationProvider);
+    final pendingJoins = ref.watch(joinRequestsProvider);
     ref.watch(pushRuleMaintenanceProvider);
     ref.watch(deliveryAutoFallbackProvider);
     ref.watch(newDeviceAlertProvider);
@@ -468,147 +535,80 @@ class RoomListPage extends ConsumerWidget {
       ).push(MaterialPageRoute(builder: (_) => IncomingCallPage(call: call)));
     });
 
-    return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 72,
-        centerTitle: false,
-        titleSpacing: 20,
-        title: Text('Chats', style: Theme.of(context).textTheme.headlineMedium),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const SettingsPage())),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _newChat(context, client),
-        tooltip: 'New chat',
-        child: const Icon(Icons.add_outlined),
-      ),
-      body: Column(
-        children: [
-          const NewDeviceAlertBanner(),
-          const NotificationDeliveryBanner(),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => _refresh(context, client),
-              child: StreamBuilder<void>(
-                stream: _coalesced([
-                  client.onSync.stream,
-                  client.onRoomState.stream,
-                ]),
-                builder: (context, _) => ChatListView(
-                  client: client,
-                  rooms: client.rooms,
-                  unreadCorrections: unreadCorrections,
-                  onOpen: (room) => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => RoomPage(room: room)),
+    final communities = _tab == HomeTab.communities;
+    void open(Room room) =>
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => pageForRoom(room)));
+
+    return PopScope(
+      canPop: !communities,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _select(HomeTab.chats);
+      },
+      child: StreamBuilder<void>(
+        stream: _updates,
+        builder: (context, _) {
+          final layout = arrangeHome(client.rooms, pendingJoins: pendingJoins);
+          return Scaffold(
+            appBar: AppBar(
+              toolbarHeight: 72,
+              centerTitle: false,
+              titleSpacing: 20,
+              title: Text(
+                communities ? 'Communities' : 'Chats',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined),
+                  tooltip: 'Settings',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsPage()),
                   ),
-                  onActions: (room) => _showRoomActions(context, room),
                 ),
-              ),
+                const SizedBox(width: 8),
+              ],
             ),
-          ),
-        ],
+            bottomNavigationBar: HomeBottomBar(
+              selected: _tab,
+              chatsUnread: layout.hasUnreadChats(unreadCorrections),
+              communitiesUnread: layout.hasUnreadCommunities(unreadCorrections),
+              onSelect: _select,
+              onNew: () => _newChat(context, client),
+            ),
+            body: Column(
+              children: [
+                const NewDeviceAlertBanner(),
+                const NotificationDeliveryBanner(),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () => _refresh(context, client),
+                    child: communities
+                        ? ChatListView.communities(
+                            key: const ValueKey(HomeTab.communities),
+                            client: client,
+                            layout: layout,
+                            unreadCorrections: unreadCorrections,
+                            onOpen: open,
+                            onActions: (room) =>
+                                _showRoomActions(context, room),
+                          )
+                        : ChatListView.chats(
+                            key: const ValueKey(HomeTab.chats),
+                            client: client,
+                            layout: layout,
+                            unreadCorrections: unreadCorrections,
+                            onOpen: open,
+                            onActions: (room) =>
+                                _showRoomActions(context, room),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
-    );
-  }
-}
-
-typedef _NewRoom = ({String name, RoomAccess access});
-
-class _NewRoomDialog extends StatefulWidget {
-  const _NewRoomDialog();
-
-  @override
-  State<_NewRoomDialog> createState() => _NewRoomDialogState();
-}
-
-class _NewRoomDialogState extends State<_NewRoomDialog> {
-  final _controller = TextEditingController();
-  RoomAccess _access = RoomAccess.private;
-  String? _error;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final name = _controller.text.trim();
-    final error = roomNameError(name);
-    if (error != null) {
-      setState(() => _error = error);
-      return;
-    }
-    Navigator.of(context).pop<_NewRoom>((name: name, access: _access));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AlertDialog(
-      title: const Text('New room'),
-      scrollable: true,
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            autofillHints: null,
-            controller: _controller,
-            autofocus: true,
-            onSubmitted: (_) => _submit(),
-            onChanged: (_) {
-              if (_error != null) setState(() => _error = null);
-            },
-            decoration: InputDecoration(
-              border: const OutlineInputBorder(),
-              hintText: 'Room name',
-              errorText: _error,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SegmentedButton<RoomAccess>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(
-                value: RoomAccess.private,
-                icon: Icon(Icons.public_off),
-                label: Text('Private'),
-              ),
-              ButtonSegment(
-                value: RoomAccess.public,
-                icon: Icon(Icons.public),
-                label: Text('Public'),
-              ),
-            ],
-            selected: {_access},
-            onSelectionChanged: (selection) =>
-                setState(() => _access = selection.single),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _access.description,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        TextButton(onPressed: _submit, child: const Text('Create')),
-      ],
     );
   }
 }

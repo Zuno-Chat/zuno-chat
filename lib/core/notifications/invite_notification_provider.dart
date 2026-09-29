@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../calls/notifications/call_notification_service.dart';
+import '../matrix/join_requests.dart';
 import '../matrix/matrix_client_provider.dart';
 import 'message_notification_poster.dart';
 import 'message_notification_provider.dart';
@@ -50,6 +51,7 @@ class RoomInviteNotificationNotifier extends Notifier<void> {
   void _handleEvent(Client client, Event event) {
     final content = inviteNotificationFor(client, event);
     if (content == null) return;
+    if (ref.read(joinRequestsProvider).contains(content.roomId)) return;
     postMessageNotification(
       content,
       client: client,

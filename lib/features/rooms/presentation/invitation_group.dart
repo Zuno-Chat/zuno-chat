@@ -82,6 +82,7 @@ class _InvitationState extends State<_Invitation> {
         : room.unsafeGetUserFromMemoryOrFallback(inviter);
     final inviterName = inviterUser?.calcDisplayname() ?? 'Someone';
     final isGroup = room.name.isNotEmpty;
+    final isCommunity = room.isSpace;
     final name = isGroup ? room.name : inviterName;
 
     return InkWell(
@@ -99,6 +100,7 @@ class _InvitationState extends State<_Invitation> {
                   fallbackText: name,
                   radius: 26,
                   toneSeed: isGroup ? room.id : inviter,
+                  shape: AvatarShape.forRoom(room),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -113,7 +115,9 @@ class _InvitationState extends State<_Invitation> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        isGroup
+                        isCommunity
+                            ? '$inviterName invited you to a community'
+                            : isGroup
                             ? '$inviterName invited you'
                             : 'Invited you to chat',
                         maxLines: 1,

@@ -21,14 +21,16 @@ import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/circle_icon.dart';
+import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
-import '../../../core/ui/zuno_theme.dart';
 import '../../blocking/presentation/block_person.dart';
 import '../../chat/presentation/room_page.dart';
+import '../../communities/presentation/join_requests_view.dart';
 import '../../reports/presentation/report_sheet.dart';
 import 'member_tile.dart';
 import 'members_sheet.dart';
 import 'people_trust_tile.dart';
+import 'remove_member_dialog.dart';
 import 'role_picker.dart';
 import 'room_access_label.dart';
 import 'room_media_section.dart';
@@ -150,7 +152,10 @@ class _RoomInfoPageState extends State<RoomInfoPage>
   Future<void> _loadParticipants() async {
     setState(() => _loadingParticipants = true);
     try {
-      final participants = await widget.room.requestParticipants();
+      final participants = await widget.room.requestParticipants(const [
+        Membership.join,
+        Membership.invite,
+      ]);
       if (mounted) {
         setState(() {
           _participants = _byName(participants);
@@ -382,34 +387,13 @@ class _RoomInfoPageState extends State<RoomInfoPage>
   }
 
   Future<void> _removeMember(User user, {required bool ban}) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          ban
-              ? 'Ban ${user.calcDisplayname()}?'
-              : 'Remove ${user.calcDisplayname()}?',
-        ),
-        content: Text(
-          ban
-              ? 'They are removed from the room and cannot rejoin unless '
-                    'unbanned.'
-              : 'They are removed from the room and can rejoin if invited '
-                    'again.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(ban ? 'Ban' : 'Remove'),
-          ),
-        ],
-      ),
+    final confirmed = await confirmRemoveMember(
+      context,
+      name: user.calcDisplayname(),
+      ban: ban,
+      place: 'room',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -594,8 +578,7 @@ class _RoomInfoPageState extends State<RoomInfoPage>
                               style: theme.textTheme.bodySmall,
                             ),
                           ),
-                        if (!room.isDirectChat)
-                          RoomAccessLabel(access: roomAccessOf(room)),
+                        if (!room.isDirectChat) RoomAccessLabel.of(room),
                       ],
                     ),
                   ],
@@ -612,31 +595,39 @@ class _RoomInfoPageState extends State<RoomInfoPage>
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   if (canCall) ...[
-                    _QuickAction(
-                      icon: Icons.call_outlined,
-                      label: 'Call',
-                      tooltip: 'Voice call',
-                      onTap: () => onStartCall(CallKind.voice),
+                    Flexible(
+                      child: QuickAction(
+                        icon: Icons.call_outlined,
+                        label: 'Call',
+                        tooltip: 'Voice call',
+                        onTap: () => onStartCall(CallKind.voice),
+                      ),
                     ),
-                    _QuickAction(
-                      icon: Icons.videocam_outlined,
-                      label: 'Video',
-                      tooltip: 'Video call',
-                      onTap: () => onStartCall(CallKind.video),
+                    Flexible(
+                      child: QuickAction(
+                        icon: Icons.videocam_outlined,
+                        label: 'Video',
+                        tooltip: 'Video call',
+                        onTap: () => onStartCall(CallKind.video),
+                      ),
                     ),
                   ],
-                  _QuickAction(
-                    icon: muted
-                        ? Icons.notifications_outlined
-                        : Icons.notifications_off_outlined,
-                    label: muted ? 'Unmute' : 'Mute',
-                    onTap: () => _setMuted(!muted),
+                  Flexible(
+                    child: QuickAction(
+                      icon: muted
+                          ? Icons.notifications_outlined
+                          : Icons.notifications_off_outlined,
+                      label: muted ? 'Unmute' : 'Mute',
+                      onTap: () => _setMuted(!muted),
+                    ),
                   ),
                   if (!room.isDirectChat && room.canInvite)
-                    _QuickAction(
-                      icon: Icons.person_add_alt_outlined,
-                      label: 'Invite',
-                      onTap: _invite,
+                    Flexible(
+                      child: QuickAction(
+                        icon: Icons.person_add_alt_outlined,
+                        label: 'Invite',
+                        onTap: _invite,
+                      ),
                     ),
                 ],
               ),
@@ -702,6 +693,7 @@ class _RoomInfoPageState extends State<RoomInfoPage>
                 ],
               ),
             RoomMediaSection(room: room),
+            JoinRequestsSection(room: room),
             if (!room.isDirectChat)
               CardGroup(
                 title: _membersTitle(room, participants),
@@ -804,54 +796,4 @@ int _summaryMemberCount(Room room, int known) {
   final invited = room.summary.mInvitedMemberCount ?? 0;
   final summary = joined + invited;
   return summary > known ? summary : known;
-}
-
-class _QuickAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? tooltip;
-  final VoidCallback onTap;
-
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.tooltip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final action = Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(ZunoRadius.medium),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 52,
-                height: 52,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.secondaryContainer,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: colors.onSecondaryContainer),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(label, style: theme.textTheme.labelMedium),
-            ],
-          ),
-        ),
-      ),
-    );
-    final tooltip = this.tooltip;
-    return tooltip == null ? action : Tooltip(message: tooltip, child: action);
-  }
 }

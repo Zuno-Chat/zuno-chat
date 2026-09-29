@@ -55,6 +55,7 @@ import '../../../core/share/inbound_share.dart';
 import '../../../core/shortcuts/home_screen_shortcut.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../calls/presentation/call_page.dart';
+import '../../communities/presentation/join_requests_view.dart';
 import '../../location/presentation/location_share_sheet.dart';
 import '../../reports/presentation/report_sheet.dart';
 import '../../room_info/presentation/room_info_page.dart';
@@ -1605,6 +1606,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
                   IdentityChangeBanner(room: widget.room),
                   UnvouchedDeviceBanner(room: widget.room),
                   PendingInviteBanner(room: widget.room),
+                  JoinRequestsBanner(room: widget.room),
                   if (showActiveCallBanner)
                     _ActiveCallBanner(
                       call: activeRoomCall,

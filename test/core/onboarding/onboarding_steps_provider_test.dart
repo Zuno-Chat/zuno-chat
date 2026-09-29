@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
@@ -55,18 +56,18 @@ void main() {
     Map<String, Object> prefs = const {
       'onboarding.shown.$_userId': ['confirmPeople'],
     },
+    AccountSecurityFacts facts = _settled,
+    void Function(Client client)? addRooms,
   }) async {
+    final client = buildTestClient(userId: _userId);
+    addRooms?.call(client);
     SharedPreferences.setMockInitialValues(prefs);
     final sharedPrefs = await SharedPreferences.getInstance();
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(sharedPrefs),
-        matrixClientProvider.overrideWithValue(
-          buildTestClient(userId: _userId),
-        ),
-        accountSecurityFactsProvider.overrideWith(
-          (ref) => Stream.value(_settled),
-        ),
+        matrixClientProvider.overrideWithValue(client),
+        accountSecurityFactsProvider.overrideWith((ref) => Stream.value(facts)),
         platformCapabilitiesProvider.overrideWithValue(capabilities),
       ],
     );
@@ -74,6 +75,52 @@ void main() {
     container.listen(onboardingStepsProvider, (_, _) {});
     return container.read(onboardingStepsProvider.future);
   }
+
+  group('recovery waits for a conversation', () {
+    const noRecovery = AccountSecurityFacts(
+      recoveryExists: false,
+      thisDeviceHasIdentityKeys: true,
+      keyBackupExists: false,
+      keyBackupUsableHere: false,
+      unapprovedOtherDevices: 0,
+    );
+
+    Room joined(Client client, String id, {bool community = false}) {
+      final room = buildTestRoom(client, id: id)..membership = Membership.join;
+      if (community) {
+        room.setState(
+          StrippedStateEvent(
+            type: EventTypes.RoomCreate,
+            senderId: _userId,
+            stateKey: '',
+            content: {'type': 'm.space'},
+          ),
+        );
+      }
+      client.rooms.add(room);
+      return room;
+    }
+
+    test('a community alone is not one', () async {
+      final steps = await stepsOn(
+        iosCapabilities,
+        facts: noRecovery,
+        addRooms: (client) => joined(client, '!club:x', community: true),
+      );
+
+      expect(steps, isNot(contains(OnboardingStep.setUpRecovery)));
+    });
+
+    test('a chat is', () async {
+      final steps = await stepsOn(
+        iosCapabilities,
+        facts: noRecovery,
+        addRooms: (client) => joined(client, '!chat:x'),
+      );
+
+      expect(steps, contains(OnboardingStep.setUpRecovery));
+    });
+  });
 
   test('an account that never saw it learns to confirm people first', () async {
     expect(await stepsOn(iosCapabilities, prefs: const {}), [

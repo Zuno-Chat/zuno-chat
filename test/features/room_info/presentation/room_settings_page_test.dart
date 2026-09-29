@@ -209,6 +209,118 @@ void main() {
     expect(find.text('Private'), findsOneWidget);
   });
 
+  group('a room inside a community', () {
+    void addToCommunity() {
+      final community = buildTestRoom(client, id: '!club:example.org')
+        ..membership = Membership.join;
+      community.setState(
+        buildTestEvent(
+          community,
+          eventId: r'$create',
+          senderId: '@creator:example.org',
+          type: EventTypes.RoomCreate,
+          stateKey: '',
+          content: {'type': 'm.space'},
+        ),
+      );
+      community.setState(
+        buildTestEvent(
+          community,
+          eventId: r'$child',
+          senderId: '@creator:example.org',
+          type: EventTypes.SpaceChild,
+          stateKey: room.id,
+          content: {
+            'via': ['example.org'],
+          },
+        ),
+      );
+      client.rooms.add(community);
+    }
+
+    Future<List<String?>> accessChoices(WidgetTester tester) async {
+      await tester.tap(find.text('Room access'));
+      await tester.pumpAndSettle();
+      return tester
+          .widgetList<ListTile>(
+            find.descendant(
+              of: find.byType(BottomSheet),
+              matching: find.byType(ListTile),
+            ),
+          )
+          .map((tile) => (tile.title! as Text).data)
+          .toList();
+    }
+
+    testWidgets('offers Community and Private, never Public', (tester) async {
+      setOwnLevel(100);
+      setJoinRule('restricted');
+      addToCommunity();
+      await pumpPage(tester);
+
+      expect(await accessChoices(tester), [
+        'Community',
+        'Ask to join',
+        'Private',
+      ]);
+    });
+
+    testWidgets('a room naming a community it is not listed in cannot be '
+        'opened to its members', (tester) async {
+      setOwnLevel(100);
+      room.setState(
+        buildTestEvent(
+          room,
+          eventId: r'$parent',
+          senderId: '@creator:example.org',
+          type: EventTypes.SpaceParent,
+          stateKey: '!club:example.org',
+          content: {
+            'via': ['example.org'],
+          },
+        ),
+      );
+      await pumpPage(tester);
+
+      expect(await accessChoices(tester), ['Ask to join', 'Private']);
+    });
+
+    testWidgets('switching to Ask to join says what changes, then lets '
+        'people knock', (tester) async {
+      setOwnLevel(100);
+      setJoinRule('restricted');
+      addToCommunity();
+      await pumpPage(tester);
+
+      await pickAccess(tester, 'Ask to join');
+
+      expect(find.text('Let members ask to join?'), findsOneWidget);
+      expect(find.textContaining('can ask to join'), findsOneWidget);
+      expect(
+        find.textContaining('Moderators and admins decide'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Let them ask'));
+      await settle(tester);
+
+      final joinRule = requests.firstWhere(
+        (r) => r.url.pathSegments.contains('m.room.join_rules'),
+      );
+      expect(jsonDecode(joinRule.body), {'join_rule': 'knock'});
+      expect(find.text('Ask to join'), findsOneWidget);
+    });
+
+    testWidgets('a room outside any community still offers Public', (
+      tester,
+    ) async {
+      setOwnLevel(100);
+      await pumpPage(tester);
+
+      expect(await accessChoices(tester), ['Public', 'Private']);
+    });
+  });
+
   testWidgets('a moderator sees the access but cannot change it', (
     tester,
   ) async {

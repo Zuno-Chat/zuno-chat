@@ -33,6 +33,7 @@ import 'features/settings/presentation/active_sessions_page.dart';
 import 'features/auth/presentation/signed_out_entry.dart';
 import 'features/calls/presentation/incoming_call_page.dart';
 import 'features/chat/presentation/room_page.dart';
+import 'features/communities/presentation/community_page.dart';
 import 'features/rooms/presentation/room_invite_page.dart';
 import 'features/rooms/presentation/room_list_page.dart';
 import 'features/share/presentation/share_picker_page.dart';
@@ -305,7 +306,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
         instant: instant,
         builder: (_) => isIncomingInvite(room)
             ? RoomInvitePage(room: room)
-            : RoomPage(room: room),
+            : pageForRoom(room),
       ),
     );
   }

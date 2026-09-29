@@ -44,6 +44,18 @@ void main() {
       ]);
     });
 
+    test('drops communities, which hold no messages', () {
+      final community = _named(client, '!c:example.org', 'Climbing club');
+      applyOptimisticRoomState(community, EventTypes.RoomCreate, {
+        'type': 'm.space',
+      });
+      final rooms = [community, _named(client, '!a:example.org', 'Alice')];
+
+      expect(filterShareTargets(rooms, '').map((r) => r.id), [
+        '!a:example.org',
+      ]);
+    });
+
     test('matches the display name case-insensitively', () {
       final rooms = [
         _named(client, '!a:example.org', 'Alice'),

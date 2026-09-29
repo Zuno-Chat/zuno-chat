@@ -54,6 +54,7 @@ class ChatRow extends StatelessWidget {
               avatarUrl: data.avatarUrl,
               fallbackText: data.title,
               isDirect: data.isDirect,
+              community: data.community,
               radius: avatarRadius,
               toneSeed: data.toneSeed,
             ),

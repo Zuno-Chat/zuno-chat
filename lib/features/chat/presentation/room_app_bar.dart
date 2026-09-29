@@ -4,7 +4,6 @@ import 'package:matrix/matrix.dart' hide CallSession;
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/official_room.dart';
-import '../../../core/matrix/room_access.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/typing_indicator_text.dart';
 import '../../../core/security/security_emphasis.dart';
@@ -98,7 +97,7 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   else if (display.partnerLeft)
                     statusLine('Left the chat', colors.onSurfaceVariant)
                   else if (!room.isDirectChat)
-                    RoomAccessLabel(access: roomAccessOf(room), iconSize: 14),
+                    RoomAccessLabel.of(room, iconSize: 14),
                 ],
               ),
             ),

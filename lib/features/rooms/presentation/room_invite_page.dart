@@ -9,7 +9,7 @@ import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/notifications/invite_notification_provider.dart';
 import '../../blocking/presentation/block_person.dart';
-import '../../chat/presentation/room_page.dart';
+import '../../communities/presentation/community_page.dart';
 import '../../reports/presentation/report_sheet.dart';
 
 class RoomInvitePage extends StatefulWidget {
@@ -47,7 +47,7 @@ class _RoomInvitePageState extends State<RoomInvitePage> {
       navigator.pop();
       if (join) {
         navigator.push(
-          MaterialPageRoute(builder: (_) => RoomPage(room: widget.room)),
+          MaterialPageRoute(builder: (_) => pageForRoom(widget.room)),
         );
       }
     } catch (e) {
@@ -105,6 +105,7 @@ class _RoomInvitePageState extends State<RoomInvitePage> {
         inviterUser?.calcDisplayname() ??
         (inviter == null ? 'Someone' : withoutServer(inviter));
     final isGroup = room.name.isNotEmpty;
+    final isCommunity = room.isSpace;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Invitation')),
@@ -121,6 +122,7 @@ class _RoomInvitePageState extends State<RoomInvitePage> {
                   avatarUrl: isGroup ? room.avatar : inviterUser?.avatarUrl,
                   fallbackText: isGroup ? room.name : inviterName,
                   radius: 40,
+                  shape: AvatarShape.forRoom(room),
                 ),
               ),
               const SizedBox(height: 20),
@@ -131,7 +133,9 @@ class _RoomInvitePageState extends State<RoomInvitePage> {
               ),
               const SizedBox(height: 8),
               Text(
-                isGroup
+                isCommunity
+                    ? '$inviterName invited you to this community.'
+                    : isGroup
                     ? '$inviterName invited you to this room.'
                     : '$inviterName wants to chat with you.',
                 textAlign: TextAlign.center,
