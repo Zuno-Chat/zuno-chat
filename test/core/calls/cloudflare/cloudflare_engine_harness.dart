@@ -13,6 +13,7 @@ import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_webrtc.dart';
 
@@ -153,6 +154,7 @@ class EngineHarness {
     this.async, {
     CallKind kind = CallKind.voice,
     bool lowDataMode = false,
+    PlatformCapabilities? capabilities,
   }) {
     engine = CloudflareCallEngine(
       baseUri: Uri.parse(
@@ -164,6 +166,7 @@ class EngineHarness {
       iceServers: Future.value(iceServers),
       httpClient: sfu.client,
       webRtc: backend,
+      capabilities: capabilities,
     );
     engine.statusStream.listen(statuses.add);
     engine.participantsStream.listen(emitted.add);

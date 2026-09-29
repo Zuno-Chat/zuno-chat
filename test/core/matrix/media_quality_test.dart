@@ -131,4 +131,43 @@ void main() {
       );
     });
   });
+
+  group('encoderTarget', () {
+    test('a portrait video stored sideways is sized in its stored shape', () {
+      expect(encoderTarget(width: 404, height: 720, rotated: true), (
+        width: 720,
+        height: 404,
+      ));
+    });
+
+    test('a portrait video stored upright keeps its shape', () {
+      expect(encoderTarget(width: 332, height: 720, rotated: false), (
+        width: 332,
+        height: 720,
+      ));
+    });
+
+    test('a landscape video stored sideways is sized in its stored shape', () {
+      expect(encoderTarget(width: 720, height: 404, rotated: true), (
+        width: 404,
+        height: 720,
+      ));
+    });
+
+    test('without knowing how it is stored, a portrait video is taken as '
+        'stored sideways', () {
+      expect(encoderTarget(width: 404, height: 720, rotated: null), (
+        width: 720,
+        height: 404,
+      ));
+      expect(encoderTarget(width: 720, height: 404, rotated: null), (
+        width: 720,
+        height: 404,
+      ));
+    });
+
+    test('without a size there is no target', () {
+      expect(encoderTarget(width: null, height: 720, rotated: true), isNull);
+    });
+  });
 }

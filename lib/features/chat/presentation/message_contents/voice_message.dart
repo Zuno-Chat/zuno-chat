@@ -7,6 +7,8 @@ import 'package:matrix/matrix.dart' hide CallSession;
 import '../../../../core/errors/best_effort.dart';
 import '../../../../core/matrix/attachment_cache.dart';
 import '../../../../core/matrix/voice_message.dart';
+import '../../../../core/matrix/voice_recording.dart';
+import '../../../../core/platform/platform_capabilities.dart';
 import '../../data/message_kinds.dart';
 import '../message_bubble.dart';
 
@@ -116,7 +118,11 @@ class _VoiceMessageState extends State<VoiceMessage> {
     await _player.play(
       BytesSource(
         bytes,
-        mimeType: widget.event.infoMap.tryGet<String>('mimetype'),
+        mimeType:
+            widget.event.infoMap.tryGet<String>('mimetype') ??
+            (ambientCapabilities.playerNeedsMediaType
+                ? sniffAudioMimeType(bytes)
+                : null),
       ),
     );
     return true;

@@ -11,11 +11,11 @@ import 'package:zuno/core/push/push_wake_lock.dart';
 class _Capability {
   final String name;
 
-  final Object Function(PlatformCapabilities capabilities) read;
+  final Object? Function(PlatformCapabilities capabilities) read;
 
-  final Object android;
+  final Object? android;
 
-  final Object ios;
+  final Object? ios;
 
   const _Capability(
     this.name, {
@@ -144,7 +144,7 @@ final _capabilities = <_Capability>[
     'nativeVideoTools',
     read: (c) => c.nativeVideoTools,
     android: true,
-    ios: false,
+    ios: true,
   ),
   _Capability(
     'uploadForegroundService',
@@ -165,10 +165,34 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
+    'callMuteByInputMixer',
+    read: (c) => c.callMuteByInputMixer,
+    android: false,
+    ios: true,
+  ),
+  _Capability(
+    'recorderWritesOgg',
+    read: (c) => c.recorderWritesOgg,
+    android: true,
+    ios: false,
+  ),
+  _Capability(
+    'videoCodecOrder',
+    read: (c) => c.videoCodecOrder,
+    android: ['video/VP8', 'video/H264'],
+    ios: null,
+  ),
+  _Capability(
+    'playerNeedsMediaType',
+    read: (c) => c.playerNeedsMediaType,
+    android: false,
+    ios: true,
+  ),
+  _Capability(
     'apnsRegistration',
     read: (c) => c.apnsRegistration,
     android: false,
-    ios: false,
+    ios: true,
   ),
   _Capability(
     'nativeIncomingRingUi',

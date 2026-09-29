@@ -11,6 +11,13 @@ import UIKit
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
-    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let registry = engineBridge.pluginRegistry
+    GeneratedPluginRegistrant.register(with: registry)
+    if let registrar = registry.registrar(forPlugin: "ZunoApnsPlugin") {
+      ApnsTokenPlugin.register(with: registrar)
+    }
+    if let registrar = registry.registrar(forPlugin: "ZunoVideoToolsPlugin") {
+      VideoToolsPlugin.register(with: registrar)
+    }
   }
 }

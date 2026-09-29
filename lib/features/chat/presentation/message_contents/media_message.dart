@@ -43,14 +43,23 @@ Widget _videoBubbleMedia(Event event, PendingAttachmentSend? pending) {
   if (pending != null && pending.width != null && pending.height != null) {
     return const AspectRatioPlaceholder();
   }
-  return attachmentThumbnail(event, placeholder: _thumbnailSpinner);
+  return attachmentThumbnail(
+    event,
+    placeholder: _thumbnailSpinner,
+    noThumbnail: const AspectRatioPlaceholder(),
+  );
 }
 
-Widget attachmentThumbnail(Event event, {required Widget placeholder}) {
+Widget attachmentThumbnail(
+  Event event, {
+  required Widget placeholder,
+  Widget? noThumbnail,
+}) {
   return CachedAttachmentImage(
     event: event,
     thumbnail: true,
     placeholder: placeholder,
+    noThumbnail: noThumbnail,
     builder: (context, bytes) => Image.memory(bytes, fit: BoxFit.cover),
   );
 }

@@ -30,6 +30,17 @@ int _evenFloor(int value) => value - (value % 2);
     ? (width: target.height, height: target.width)
     : (width: target.width, height: target.height);
 
+({int width, int height})? encoderTarget({
+  required int? width,
+  required int? height,
+  required bool? rotated,
+}) => width == null || height == null
+    ? null
+    : toRawEncoderOrientation(
+        target: (width: width, height: height),
+        isPortrait: rotated ?? height > width,
+      );
+
 int imageJpegQuality({required bool reduceMediaSize}) =>
     reduceMediaSize ? 75 : 85;
 

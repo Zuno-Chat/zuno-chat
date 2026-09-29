@@ -92,7 +92,9 @@ what a message looks like, how it's sent, and how the timeline behaves.
   blurhash, then call `sendFileEvent` with `thumbnail:` set and no
   `shrinkImageMaxDimension`. Native side: `ImageResizer.kt` (channel
   `zuno/image`) and `VideoTools.kt` (`zuno/video`: probe, remux,
-  thumbnail), each on its own background thread.
+  thumbnail), each on its own background thread; on iOS
+  `VideoToolsPlugin.swift` answers `zuno/video` with AVFoundation, same
+  replies (codecs named `video/avc` / `audio/mp4a-latm` like Android's).
 - **Attachment send flow**: one progress bar per attachment covers
   compression (first half) and upload (second half) via
   `combinedSendProgress` (`send_progress.dart`). A synthetic pending tile
@@ -226,7 +228,8 @@ what a message looks like, how it's sent, and how the timeline behaves.
 - **Video send plan** (`video_send_plan.dart`, pure): a native probe
   (dimensions, bitrate, codecs) picks remux vs re-encode. H.264 with AAC or
   no audio, within the cap and at or under the target bitrate plus 25%, is
-  remuxed losslessly through `MediaMuxer`; anything else is re-encoded at a
+  remuxed losslessly (`MediaMuxer`; on iOS a passthrough export of the
+  audio and video tracks only); anything else is re-encoded at a
   fixed bitrate by output size (2 Mbps for the 720 tier, 1 Mbps for 480),
   never above the source's own bitrate, never below 1 Mbps. The old
   source-fraction mode turned a 4K recording into a 14 Mbps file the server
@@ -237,8 +240,9 @@ what a message looks like, how it's sent, and how the timeline behaves.
   carry timestamps. Files sent through the file picker stay byte-for-byte
   original by design.
   - Native path: `Bitmap.compress` writes no EXIF; the remuxer and encoder
-    write no location atom. iOS videos re-encode through light_compressor,
-    which copies no metadata.
+    write no location atom. The iOS remux copies only the audio and video
+    tracks and exports with `metadata = []` plus the `forSharing()` filter:
+    iPhone clips carry GPS, and a passthrough export copies it by default.
   - Without `nativeImageResize` (iOS today) image_picker shrinks photos to
     the send size and quality as it picks them (`pickerImageLimits`), and
     after that they go untouched except for
@@ -511,9 +515,30 @@ sheet (additive, would reuse the pinned-shortcut code).
   raw sensor orientation before being handed to `light_compressor` (which
   applies its target to the pre-rotation raw frame buffer) — a portrait
   phone video is almost always a landscape sensor frame plus a rotation
-  flag, not a native-portrait encode. Convert only at the compressor call
-  site; everything else (attachment `w`/`h`, UI) stays in display
+  flag, not a native-portrait encode. Screen recordings are the exception:
+  stored upright with no flag. The iOS probe reports `rotated`, and
+  `encoderTarget` swaps only when it is `true`; without it (Android) a
+  portrait size is assumed stored sideways. Convert only at the compressor
+  call site; everything else (attachment `w`/`h`, UI) stays in display
   orientation.
+- **A video without a thumbnail never falls back to the video itself.**
+  The SDK's `getThumbnail` silently downloads the whole file when an event
+  has no thumbnail, which the tile then fails to draw as an image.
+  `CachedAttachmentImage` shows its `noThumbnail` stand-in instead (a play
+  button over an empty frame); other clients and iOS sends before its
+  native thumbnailer existed both produce such events.
+- **iOS players need the media type spelled out** (`playerNeedsMediaType`).
+  AVFoundation types a local file by its extension, and cached attachments
+  have none. `playableVideoFile` plays video through a
+  `<cached file>.<ext>` symlink (no copy); voice plays via audioplayers,
+  which passes the event's MIME type, sniffed from the bytes
+  (`sniffAudioMimeType`) when the event names none.
+- **Voice messages are Ogg Opus on the wire, on every platform.** Apple
+  can't write Ogg, and its Opus encoder refuses the recorder's default
+  44.1 kHz, so iOS records mono 48 kHz Opus into CAF and
+  `oggOpusFromCaf` repackages the packets losslessly (about 20 ms for five
+  minutes) before sending (`voice_recording.dart`, `recorderWritesOgg`).
+  iOS plays Ogg Opus natively.
 - **Pending-attachment thumbnails**: `Event._getCachedFile` returns null
   outright for a still-pending event's thumbnail (no fallback to the full
   file) — a still-sending image or video renders from the pending send's
@@ -611,7 +636,7 @@ sheet (additive, would reuse the pinned-shortcut code).
   (`verification_signaling.dart`) is filtered out of previews/timeline the
   same way call signaling is, via `event_display.dart`.
 - **`light_compressor`**: video re-encoding only (remux, probe and
-  thumbnails are this app's own Kotlin); required several native Android
+  thumbnails are this app's own Kotlin and Swift); required several native Android
   Gradle patches to build at all (missing `namespace`, mismatched
   Java/Kotlin JVM targets, an outdated `compileSdkVersion` in its own
   module) and pulls from JitPack, not Maven Central — durable build

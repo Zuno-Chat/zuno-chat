@@ -37,20 +37,14 @@ Key providers (`matrix_client_provider.dart`):
   wraps whatever it's given further in `FixedTimeoutHttpClient`, making
   it impractical to unwrap later.
 
-`Client.httpClient` is actually a small chain:
-`UploadProgressHttpClient(ZstdResponseHttpClient(IOClient(HttpClient)))`.
+`Client.httpClient` is `UploadProgressHttpClient(IOClient(HttpClient))`.
 The `HttpClient` has a 10 s `connectionTimeout` — connect only, so a
 dead route fails fast while a slow upload/download is never cut off.
-`ZstdResponseHttpClient` (`zstd_response_http_client.dart`) sits
-innermost — it advertises `Accept-Encoding: zstd` on every request and
-transparently decompresses any response the homeserver's Cloudflare
-front door sends back with `Content-Encoding: zstd`. Decompression-only,
-deliberately: Matrix homeservers don't decode a compressed *request*
-body, only Cloudflare's edge does that, response-side. Uses the
-`zstandard` plugin (federated, official zstd C source, no manual native
-setup) via an injectable decompress function, since the real plugin
-needs a running platform channel — tests inject a fake instead of
-exercising it.
+Responses come gzip-compressed: `HttpClient` advertises gzip and decodes
+it itself. zstd was dropped deliberately: on real sync payloads it saved
+1–2% over gzip (event IDs, keys and ciphertext don't compress), and the
+`zstandard` iOS plugin shipped without its C sources, so it cost a
+dependency for nothing. Brotli is out for the same reason.
 
 Navigation has exactly one routing decision: `isLoggedInProvider` +
 `_AuthGate` (`lib/app.dart`) switch the root route between the auth
@@ -102,10 +96,9 @@ state.
 
 **Every platform difference is a capability in `lib/core/platform/`.**
 `AppPlatform {android, ios}` comes from `Platform.isIOS`, so `flutter test`
-runs as android. `PlatformCapabilities` is a const table of 27 required
-fields (25 flags plus `deliveryModes`/`defaultDeliveryMode`) returned by
-the pure `capabilitiesFor(AppPlatform)`: android is all `true` except
-`apnsRegistration`, ios all `false` with `apns` only. Required fields force a new flag to be decided
+runs as android. `PlatformCapabilities` is a const table of required fields returned by
+the pure `capabilitiesFor(AppPlatform)`: flags, `videoCodecOrder`, and
+`deliveryModes`/`defaultDeliveryMode`. Required fields force a new flag to be decided
 for both platforms. Why no build flavors, why `foss` was dropped, and the
 capability/seam rules:
 [platform-flavors.md](../decisions/platform-flavors.md).
@@ -117,16 +110,16 @@ capability/seam rules:
   Production never assigns it; a test sets it to run a flow as iOS end to
   end.
 
-An iOS `false` is one of two kinds:
+Each flag is one of these kinds:
 
-| Kind | Flags | On iOS |
+| Kind | Flags | Values |
 |---|---|---|
-| Awaiting an iOS equivalent | every other flag, e.g. `networkAvailabilityEvents` (offline reads as `unreachable` until then), `nativeSignOutWipe` (sign-out keeps local data until then) | flips to `true` once a native handler exists |
-| Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent` | stays `false` |
-| Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` | stays `false`; CallKit arrives as a new branch in each `*For()` factory (`calls.md`), never a flag flip |
-
-`apnsRegistration` is the one flag Android never sets: it gates the iOS
-push token handler, which Android has no equivalent of.
+| Native handler, both platforms | `nativeVideoTools` | `true` on both |
+| Awaiting an iOS equivalent | every other Android-`true` flag, e.g. `networkAvailabilityEvents` (offline reads as `unreachable` until then), `nativeSignOutWipe` (sign-out keeps local data until then) | iOS flips to `true` once a native handler exists |
+| Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent` | iOS stays `false` |
+| Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` | iOS stays `false`; CallKit arrives as a new branch in each `*For()` factory (`calls.md`), never a flag flip |
+| iOS-only behavior | `apnsRegistration`, `playerNeedsMediaType`, `callMuteByInputMixer` | `true` on iOS only |
+| Apple limitation | `recorderWritesOgg` (Apple can't write Ogg), `videoCodecOrder` (`null` on iOS, see `calls.md`) | differs on iOS for good |
 
 ## Data & State
 The SDK's local database (SQLCipher-encrypted `sqflite`) is the

@@ -9,6 +9,7 @@ class CachedAttachmentImage extends StatelessWidget {
   final Event event;
   final bool thumbnail;
   final Widget placeholder;
+  final Widget? noThumbnail;
   final Widget Function(BuildContext context, Uint8List bytes) builder;
 
   const CachedAttachmentImage({
@@ -16,8 +17,14 @@ class CachedAttachmentImage extends StatelessWidget {
     required this.thumbnail,
     required this.placeholder,
     required this.builder,
+    this.noThumbnail,
     super.key,
   });
+
+  bool get _videoWithoutThumbnail =>
+      thumbnail &&
+      event.messageType == MessageTypes.Video &&
+      !event.hasThumbnail;
 
   String get _cacheKey => attachmentCacheKey(event, thumbnail: thumbnail);
 
@@ -30,6 +37,7 @@ class CachedAttachmentImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (_videoWithoutThumbnail) return noThumbnail ?? placeholder;
     final cached = AttachmentCache.instance.get(_cacheKey);
     if (cached != null) return builder(context, cached);
 

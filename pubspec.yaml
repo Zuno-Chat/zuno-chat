@@ -121,7 +121,6 @@ dependencies:
   crypto: ^3.0.7
   firebase_core: ^4.14.0
   firebase_messaging: ^16.6.0
-  zstandard: ^1.5.0
   blurhash_dart: ^1.2.1
   flutter_map: ^8.3.2
   latlong2: ^0.10.1

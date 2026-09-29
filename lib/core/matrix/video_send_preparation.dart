@@ -90,6 +90,7 @@ Future<PreparedVideo> prepareVideoForSend(
         width: plan.targetWidth,
         height: plan.targetHeight,
         bitrateMbps: plan.bitrateMbps,
+        rotated: probe?.rotated,
         onProgress: onProgress,
       );
       outWidth = plan.targetWidth ?? width;

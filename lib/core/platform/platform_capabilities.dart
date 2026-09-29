@@ -31,6 +31,10 @@ class PlatformCapabilities {
   final bool keyboardLearningOptOut;
   final bool apnsRegistration;
   final bool nativeIncomingRingUi;
+  final bool playerNeedsMediaType;
+  final List<String>? videoCodecOrder;
+  final bool recorderWritesOgg;
+  final bool callMuteByInputMixer;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
 
@@ -60,6 +64,10 @@ class PlatformCapabilities {
     required this.keyboardLearningOptOut,
     required this.apnsRegistration,
     required this.nativeIncomingRingUi,
+    required this.playerNeedsMediaType,
+    required this.videoCodecOrder,
+    required this.recorderWritesOgg,
+    required this.callMuteByInputMixer,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
   });
@@ -93,6 +101,10 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         keyboardLearningOptOut: true,
         apnsRegistration: false,
         nativeIncomingRingUi: true,
+        playerNeedsMediaType: false,
+        videoCodecOrder: ['video/VP8', 'video/H264'],
+        recorderWritesOgg: true,
+        callMuteByInputMixer: false,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
           NotificationDeliveryMode.unifiedPush,
@@ -120,12 +132,16 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         inboundShare: false,
         nativeSignOutWipe: false,
         nativeImageResize: false,
-        nativeVideoTools: false,
+        nativeVideoTools: true,
         uploadForegroundService: false,
         networkAvailabilityEvents: false,
         keyboardLearningOptOut: false,
-        apnsRegistration: false,
+        apnsRegistration: true,
         nativeIncomingRingUi: false,
+        playerNeedsMediaType: true,
+        videoCodecOrder: null,
+        recorderWritesOgg: false,
+        callMuteByInputMixer: true,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,
       ),

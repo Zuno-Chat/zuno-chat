@@ -57,6 +57,7 @@ class AttachmentServer {
     String body = 'photo.png',
     String? filename,
     String mimetype = 'image/png',
+    String? thumbnailId,
   }) => buildTestEvent(
     room,
     eventId: eventId,
@@ -67,7 +68,11 @@ class AttachmentServer {
       'body': body,
       'filename': ?filename,
       'url': 'mxc://example.org/${mediaId(eventId)}',
-      'info': {'mimetype': mimetype},
+      'info': {
+        'mimetype': mimetype,
+        if (thumbnailId != null)
+          'thumbnail_url': 'mxc://example.org/$thumbnailId',
+      },
     },
   );
 }

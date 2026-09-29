@@ -2,7 +2,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 List<RTCRtpCodecCapability> orderVideoCodecs(
   List<RTCRtpCodecCapability> codecs, {
-  List<String> preferred = const ['video/VP8', 'video/H264'],
+  required List<String> preferred,
 }) {
   int rank(RTCRtpCodecCapability codec) {
     final index = preferred.indexWhere(

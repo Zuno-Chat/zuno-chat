@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import '../../errors/backoff.dart';
 import '../../errors/best_effort.dart';
+import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
 import '../models/call_engine_participant.dart';
 import '../models/call_engine_status.dart';
@@ -79,7 +80,9 @@ class CloudflareCallEngine implements CallEngine {
     this.lowDataMode = false,
     http.Client? httpClient,
     this._webRtc = const WebRtcBackend(),
-  }) : _api = CloudflareApiClient(
+    PlatformCapabilities? capabilities,
+  }) : _injectedCapabilities = capabilities,
+       _api = CloudflareApiClient(
          baseUri: baseUri,
          authorization: authorization,
          httpClient: httpClient,
@@ -87,6 +90,11 @@ class CloudflareCallEngine implements CallEngine {
        _iceServers = iceServers ?? Future.value(const []),
        _kind = kind,
        _cameraEnabled = kind == CallKind.video;
+
+  final PlatformCapabilities? _injectedCapabilities;
+
+  PlatformCapabilities get _capabilities =>
+      _injectedCapabilities ?? ambientCapabilities;
 
   Map<String, Object?> get _videoConstraints => {
     'facingMode': 'user',
@@ -206,13 +214,16 @@ class CloudflareCallEngine implements CallEngine {
     }
   }
 
-  Future<void> _preferVideoCodecs(RTCRtpTransceiver transceiver) =>
-      runBestEffort(() async {
-        final capabilities = await _webRtc.getRtpSenderCapabilities('video');
-        await transceiver.setCodecPreferences(
-          orderVideoCodecs(capabilities.codecs ?? const []),
-        );
-      }, label: 'set video codec preferences');
+  Future<void> _preferVideoCodecs(RTCRtpTransceiver transceiver) async {
+    final order = _capabilities.videoCodecOrder;
+    if (order == null) return;
+    await runBestEffort(() async {
+      final supported = await _webRtc.getRtpSenderCapabilities('video');
+      await transceiver.setCodecPreferences(
+        orderVideoCodecs(supported.codecs ?? const [], preferred: order),
+      );
+    }, label: 'set video codec preferences');
+  }
 
   Future<void> _wrapReceiver(String label, RTCRtpReceiver receiver) async {
     final keyProvider = _keyProvider;
@@ -409,6 +420,12 @@ class CloudflareCallEngine implements CallEngine {
 
   @override
   Future<void> join() async {
+    if (_capabilities.callMuteByInputMixer) {
+      await runBestEffort(
+        () => _webRtc.setMicrophoneMuteMode(MicrophoneMuteMode.inputMixer),
+        label: 'set microphone mute mode',
+      );
+    }
     final mediaFuture = _webRtc.getUserMedia({
       'audio': true,
       'video': _kind == CallKind.video ? _videoConstraints : false,

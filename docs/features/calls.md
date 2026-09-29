@@ -455,9 +455,19 @@ instead, so a stale notification can't outlive its call.
   setting; "Use less data for calls" (on by default) drops it to 360p24. Read
   once per call (not watched live) — switching mid-call would mean
   re-capturing the camera.
-- **Video codec order is pinned VP8, then H264** via
-  `setCodecPreferences` — VP8 has a software fallback in this build,
-  H264 does not.
+- **Video codec order is per platform** (`videoCodecOrder`). Android pins
+  VP8, then H264, via `setCodecPreferences`: VP8 has a software fallback
+  in this build, H264 does not. iOS sets none: flutter_webrtc's iOS side
+  finds a transceiver by `mid`, which is empty before negotiation, so the
+  call lands on the first transceiver (audio) and fails. WebRTC's iOS
+  default already puts hardware H264 first. Every SFU receiver decodes
+  both, so the asymmetry is harmless.
+- **iOS mutes through the input mixer** (`callMuteByInputMixer`, set at
+  `join`). Disabling the audio track mutes the audio device module; in
+  flutter_webrtc's default voice-processing mode that mute outlives the
+  call and every later recording in the app captures silence until
+  relaunch. `inputMixer` mode is call-local and also skips iOS's mute
+  sound.
 - **Call waiting**: a second incoming call while already on one is
   auto-declined, never rung. The main isolate declines it from sync
   (`room_list_page.dart`). A push handled in a headless isolate can't read

@@ -25,6 +25,7 @@ class VideoProbe {
   final int? durationMs;
   final String? videoCodec;
   final String? audioCodec;
+  final bool? rotated;
 
   const VideoProbe({
     required this.width,
@@ -33,6 +34,7 @@ class VideoProbe {
     this.durationMs,
     this.videoCodec,
     this.audioCodec,
+    this.rotated,
   });
 
   static VideoProbe? fromChannel(Map<String, Object?>? reply) {
@@ -46,6 +48,7 @@ class VideoProbe {
     final durationMs = reply['durationMs'];
     final videoCodec = reply['videoCodec'];
     final audioCodec = reply['audioCodec'];
+    final rotated = reply['rotated'];
     return VideoProbe(
       width: width,
       height: height,
@@ -53,6 +56,7 @@ class VideoProbe {
       durationMs: durationMs is int ? durationMs : null,
       videoCodec: videoCodec is String ? videoCodec : null,
       audioCodec: audioCodec is String ? audioCodec : null,
+      rotated: rotated is bool ? rotated : null,
     );
   }
 }

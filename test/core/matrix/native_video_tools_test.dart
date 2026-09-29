@@ -5,6 +5,8 @@ import 'package:zuno/core/matrix/native_video_tools.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../helpers/platform_capabilities.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('zuno/video');
@@ -32,6 +34,7 @@ void main() {
         'durationMs': 5000,
         'videoCodec': 'video/avc',
         'audioCodec': 'audio/mp4a-latm',
+        'rotated': true,
       },
     );
     final probe = await tools.probe('/tmp/a.mp4');
@@ -43,6 +46,7 @@ void main() {
     expect(probe.durationMs, 5000);
     expect(probe.videoCodec, 'video/avc');
     expect(probe.audioCodec, 'audio/mp4a-latm');
+    expect(probe.rotated, isTrue);
   });
 
   test('probe tolerates missing optional fields', () async {
@@ -52,6 +56,7 @@ void main() {
     expect(probe.durationMs, isNull);
     expect(probe.videoCodec, isNull);
     expect(probe.audioCodec, isNull);
+    expect(probe.rotated, isNull);
   });
 
   test('probe needs real dimensions', () async {
@@ -120,7 +125,10 @@ void main() {
     () async {
       answer((_) => null);
       final ios = NativeVideoTools.forTest(
-        capabilities: capabilitiesFor(AppPlatform.ios),
+        capabilities: capabilitiesLike(
+          iosCapabilities,
+          nativeVideoTools: false,
+        ),
       );
       expect(await ios.probe('/tmp/a.mp4'), isNull);
       expect(await ios.remux('/in.mp4', '/out.mp4'), isFalse);

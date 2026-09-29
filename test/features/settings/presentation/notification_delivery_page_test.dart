@@ -285,15 +285,16 @@ void main() {
       );
     });
 
-    testWidgets('has no row until the native token handler exists', (
-      tester,
-    ) async {
+    testWidgets('has no row while APNs registration is off', (tester) async {
       apnsDeliveryProvider.status.value = ApnsStatus.tokenFailed;
 
       await _pumpPage(
         tester,
         NotificationDeliveryMode.apns,
-        capabilities: iosCapabilities,
+        capabilities: capabilitiesLike(
+          iosCapabilities,
+          apnsRegistration: false,
+        ),
       );
 
       expect(find.text('Status'), findsNothing);

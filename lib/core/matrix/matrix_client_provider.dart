@@ -15,7 +15,6 @@ import 'database_key.dart';
 import 'session_refresh.dart';
 import 'upload_progress_http_client.dart';
 import 'vodozemac_init.dart';
-import 'zstd_response_http_client.dart';
 
 final uploadProgressHttpClientProvider = Provider<UploadProgressHttpClient>((
   ref,
@@ -54,9 +53,7 @@ createMatrixClient({bool backgroundSync = true}) async {
   final watch = Stopwatch()..start();
 
   final uploadProgressHttpClient = UploadProgressHttpClient(
-    ZstdResponseHttpClient(
-      IOClient(HttpClient()..connectionTimeout = _connectTimeout),
-    ),
+    IOClient(HttpClient()..connectionTimeout = _connectTimeout),
   );
 
   final database = await MatrixSdkDatabase.init(

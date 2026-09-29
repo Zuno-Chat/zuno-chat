@@ -8,8 +8,8 @@ import 'package:path/path.dart' as p;
 import 'package:zuno/core/matrix/media_processing_exception.dart';
 import 'package:zuno/core/matrix/native_video_tools.dart';
 import 'package:zuno/core/matrix/video_send_preparation.dart';
-import 'package:zuno/core/platform/app_platform.dart';
-import 'package:zuno/core/platform/platform_capabilities.dart';
+
+import '../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +21,8 @@ void main() {
   final reencodedBytes = [9, 9];
   late Directory workDir;
   late List<String> nativeCalls;
-  late List<({int? width, int? height, int bitrateMbps})> reencodes;
+  late List<({int? width, int? height, int bitrateMbps, bool? rotated})>
+  reencodes;
   late bool reencoderFails;
 
   final probe720 = {
@@ -72,10 +73,16 @@ void main() {
     required int? width,
     required int? height,
     required int bitrateMbps,
+    bool? rotated,
     void Function(double fraction)? onProgress,
   }) async {
     nativeCalls.add('reencode');
-    reencodes.add((width: width, height: height, bitrateMbps: bitrateMbps));
+    reencodes.add((
+      width: width,
+      height: height,
+      bitrateMbps: bitrateMbps,
+      rotated: rotated,
+    ));
     if (reencoderFails) throw const MediaProcessingException('nope');
     onProgress?.call(0.5);
     final out = File(p.join(workDir.path, 'reencoded.mp4'));
@@ -150,7 +157,12 @@ void main() {
       final progress = <double>[];
       final prepared = await prepare(onProgress: progress.add);
       expect(nativeCalls, ['probe', 'thumbnail', 'reencode']);
-      expect(reencodes.single, (width: 720, height: 404, bitrateMbps: 2));
+      expect(reencodes.single, (
+        width: 720,
+        height: 404,
+        bitrateMbps: 2,
+        rotated: null,
+      ));
       expect(prepared.file.bytes, reencodedBytes);
       expect(prepared.file.width, 720);
       expect(prepared.file.height, 404);
@@ -160,11 +172,39 @@ void main() {
     },
   );
 
+  test('an upright portrait recording tells the re-encoder it is not stored '
+      'sideways', () async {
+    installNative(
+      probe: {
+        'width': 886,
+        'height': 1920,
+        'bitrate': 9000000,
+        'durationMs': 5000,
+        'videoCodec': 'video/hevc',
+        'rotated': false,
+      },
+    );
+    final prepared = await prepare();
+    expect(reencodes.single, (
+      width: 332,
+      height: 720,
+      bitrateMbps: 2,
+      rotated: false,
+    ));
+    expect(prepared.file.width, 332);
+    expect(prepared.file.height, 720);
+  });
+
   test('a failed remux falls back to re-encoding', () async {
     installNative(probe: probe720, remuxSucceeds: false);
     final prepared = await prepare();
     expect(nativeCalls, ['probe', 'thumbnail', 'remux', 'reencode']);
-    expect(reencodes.single, (width: 720, height: 404, bitrateMbps: 2));
+    expect(reencodes.single, (
+      width: 720,
+      height: 404,
+      bitrateMbps: 2,
+      rotated: null,
+    ));
     expect(prepared.file.bytes, reencodedBytes);
   });
 
@@ -186,7 +226,12 @@ void main() {
       fallbackHeight: 360,
       fallbackDurationMs: 1234,
     );
-    expect(reencodes.single, (width: 640, height: 360, bitrateMbps: 1));
+    expect(reencodes.single, (
+      width: 640,
+      height: 360,
+      bitrateMbps: 1,
+      rotated: null,
+    ));
     expect(prepared.file.width, 640);
     expect(prepared.file.height, 360);
     expect(prepared.file.duration, 1234);
@@ -200,7 +245,10 @@ void main() {
       '/source.mp4',
       reduceMediaSize: false,
       tools: NativeVideoTools.forTest(
-        capabilities: capabilitiesFor(AppPlatform.ios),
+        capabilities: capabilitiesLike(
+          iosCapabilities,
+          nativeVideoTools: false,
+        ),
       ),
       reencoder: fakeReencoder,
       workDir: workDir,
@@ -210,7 +258,12 @@ void main() {
       onThumbnail: (_) => previews++,
     );
     expect(nativeCalls, ['reencode']);
-    expect(reencodes.single, (width: 640, height: 360, bitrateMbps: 1));
+    expect(reencodes.single, (
+      width: 640,
+      height: 360,
+      bitrateMbps: 1,
+      rotated: null,
+    ));
     expect(prepared.file.bytes, reencodedBytes);
     expect(prepared.file.width, 640);
     expect(prepared.file.height, 360);

@@ -7,8 +7,10 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:zuno/core/calls/cloudflare/cloudflare_api_client.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_webrtc.dart';
+import '../../../helpers/platform_capabilities.dart';
 import 'cloudflare_engine_harness.dart';
 
 void main() {
@@ -16,9 +18,15 @@ void main() {
     void Function(EngineHarness call) body, {
     CallKind kind = CallKind.voice,
     bool lowDataMode = false,
+    PlatformCapabilities? capabilities,
   }) {
     fakeAsync((async) {
-      final call = EngineHarness(async, kind: kind, lowDataMode: lowDataMode);
+      final call = EngineHarness(
+        async,
+        kind: kind,
+        lowDataMode: lowDataMode,
+        capabilities: capabilities,
+      );
       body(call);
       call.leave();
       call.flush();
@@ -157,6 +165,58 @@ void main() {
         );
       });
     }
+  });
+
+  group('video codec order', () {
+    test('where the platform sets one, the camera sender prefers it', () {
+      inCall(
+        (call) {
+          call.join();
+
+          expect(
+            call.videoSlot.codecPreferences!.map((c) => c.mimeType).take(2),
+            ['video/VP8', 'video/H264'],
+          );
+        },
+        kind: CallKind.video,
+        capabilities: androidCapabilities,
+      );
+    });
+
+    test('where the platform keeps WebRTC\'s own order, none is set and the '
+        'call still publishes its camera', () {
+      inCall(
+        (call) {
+          call.join();
+
+          expect(call.videoSlot.codecPreferences, isNull);
+          expect(call.videoSlot.sender.track, call.camera);
+        },
+        kind: CallKind.video,
+        capabilities: iosCapabilities,
+      );
+    });
+  });
+
+  group('microphone mute mode', () {
+    test('where a voice-processing mute would outlast the call, the call '
+        'mutes with its own input mixer, set before the microphone opens', () {
+      inCall((call) {
+        call.join();
+
+        expect(call.backend.muteModes, [
+          (mode: MicrophoneMuteMode.inputMixer, capturesBefore: 0),
+        ]);
+      }, capabilities: iosCapabilities);
+    });
+
+    test('elsewhere the mute mode is left alone', () {
+      inCall((call) {
+        call.join();
+
+        expect(call.backend.muteModes, isEmpty);
+      }, capabilities: androidCapabilities);
+    });
   });
 
   group('joining fails', () {

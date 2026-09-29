@@ -63,4 +63,71 @@ void main() {
 
     expect(find.text('loading'), findsOneWidget);
   });
+
+  group('as a thumbnail', () {
+    Future<void> pumpThumbnail(WidgetTester tester, Event event) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: CachedAttachmentImage(
+              event: event,
+              thumbnail: true,
+              placeholder: const Text('loading'),
+              noThumbnail: const Text('no thumbnail'),
+              builder: (context, bytes) => Text('${bytes.length} bytes'),
+            ),
+          ),
+        );
+
+    Event video({String? thumbnailId}) => server.attachment(
+      msgtype: MessageTypes.Video,
+      body: 'clip.mp4',
+      mimetype: 'video/mp4',
+      thumbnailId: thumbnailId,
+    );
+
+    testWidgets('a video without one shows the stand-in and downloads '
+        'nothing', (tester) async {
+      await pumpThumbnail(tester, video());
+      await pumpWhileFetching(tester);
+      await tester.pump();
+
+      expect(find.text('no thumbnail'), findsOneWidget);
+      expect(server.downloads, isEmpty);
+    });
+
+    testWidgets('a video without one ignores bytes cached under its '
+        'thumbnail', (tester) async {
+      final event = video();
+      AttachmentCache.instance.put(
+        attachmentCacheKey(event, thumbnail: true),
+        server.served,
+      );
+
+      await pumpThumbnail(tester, event);
+
+      expect(find.text('no thumbnail'), findsOneWidget);
+    });
+
+    testWidgets('a video with one downloads that, not the video', (
+      tester,
+    ) async {
+      await pumpThumbnail(tester, video(thumbnailId: 'clip-thumb'));
+      await pumpWhileFetching(tester);
+      await tester.pump();
+
+      expect(find.text('${server.served.length} bytes'), findsOneWidget);
+      expect(server.downloads.single.path, endsWith('/clip-thumb'));
+    });
+
+    testWidgets('a photo without one falls back to the photo itself', (
+      tester,
+    ) async {
+      await pumpThumbnail(tester, server.attachment());
+      await pumpWhileFetching(tester);
+      await tester.pump();
+
+      expect(find.text('${server.served.length} bytes'), findsOneWidget);
+      expect(server.downloads.single.path, endsWith('/attachment'));
+    });
+  });
 }

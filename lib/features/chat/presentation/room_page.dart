@@ -46,6 +46,7 @@ import '../../../core/matrix/send_failure.dart';
 import '../../../core/matrix/send_progress.dart';
 import '../../../core/matrix/upload_foreground_service.dart';
 import '../../../core/matrix/video_send_preparation.dart';
+import '../../../core/matrix/voice_recording.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/recovery_code.dart';
 import '../../../core/security/recovery_code_leak.dart';
@@ -1362,15 +1363,13 @@ class _RoomPageState extends ConsumerState<RoomPage>
         }
         return;
       }
+      final setup = voiceRecordingSetup(ref.read(platformCapabilitiesProvider));
       final dir = await getTemporaryDirectory();
       final path = p.join(
         dir.path,
-        'voice-${DateTime.now().millisecondsSinceEpoch}.ogg',
+        'voice-${DateTime.now().millisecondsSinceEpoch}.${setup.extension}',
       );
-      await _recorder.start(
-        const RecordConfig(encoder: AudioEncoder.opus),
-        path: path,
-      );
+      await _recorder.start(setup.config, path: path);
       if (!mounted) return;
       _waveformSamples.clear();
       _recordingStartedAt = DateTime.now();
@@ -1508,10 +1507,17 @@ class _RoomPageState extends ConsumerState<RoomPage>
     if (path == null) return;
 
     final file = File(path);
-    final bytes = await file.readAsBytes();
+    final recorded = await file.readAsBytes();
     await file.delete();
     if (duration < const Duration(milliseconds: 100)) return;
     if (!mounted) return;
+
+    final bytes = voiceRecordingSetup(ref.read(platformCapabilitiesProvider))
+        .toOggOpus(recorded);
+    if (bytes == null) {
+      _snack('Voice message not sent. Try again.');
+      return;
+    }
 
     final messenger = ScaffoldMessenger.of(context);
     try {

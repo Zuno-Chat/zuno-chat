@@ -12,6 +12,7 @@ typedef VideoReencoder = Future<String> Function(
   required int? width,
   required int? height,
   required int bitrateMbps,
+  bool? rotated,
   void Function(double fraction)? onProgress,
 });
 
@@ -20,14 +21,10 @@ Future<String> reencodeVideo(
   required int? width,
   required int? height,
   required int bitrateMbps,
+  bool? rotated,
   void Function(double fraction)? onProgress,
 }) async {
-  final encoderTarget = width != null && height != null
-      ? toRawEncoderOrientation(
-          target: (width: width, height: height),
-          isPortrait: height > width,
-        )
-      : null;
+  final target = encoderTarget(width: width, height: height, rotated: rotated);
   StreamSubscription<double>? progressSub;
   try {
     if (onProgress != null) {
@@ -44,8 +41,8 @@ Future<String> reencodeVideo(
       video: Video(
         videoName: 'video_${DateTime.now().microsecondsSinceEpoch}',
         videoBitrateInMbps: bitrateMbps,
-        videoWidth: encoderTarget?.width,
-        videoHeight: encoderTarget?.height,
+        videoWidth: target?.width,
+        videoHeight: target?.height,
       ),
     );
     if (result is! OnSuccess) throw videoSendFailure;

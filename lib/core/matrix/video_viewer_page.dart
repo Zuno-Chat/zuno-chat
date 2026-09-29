@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 import 'package:video_player/video_player.dart';
 
+import '../platform/platform_capabilities.dart';
 import 'attachment_action_buttons.dart';
 import 'attachment_cache.dart';
+import 'playable_video_file.dart';
 
 class VideoViewerPage extends StatefulWidget {
   final Event event;
@@ -28,9 +30,17 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
 
   Future<void> _load() async {
     try {
-      final file = await fetchCachedAttachmentFile(
+      final cached = await fetchCachedAttachmentFile(
         attachmentCacheKey(widget.event, thumbnail: false),
         () async => (await widget.event.downloadAndDecryptAttachment()).bytes,
+      );
+      final file = await playableVideoFile(
+        cached,
+        mimetype: widget.event.attachmentMimetype,
+        fileName:
+            widget.event.content.tryGet<String>('filename') ??
+            widget.event.body,
+        capabilities: ambientCapabilities,
       );
       final controller = VideoPlayerController.file(file);
       await controller.initialize();

@@ -16,6 +16,9 @@ class WebRtcBackend {
   Future<webrtc.RTCRtpCapabilities> getRtpSenderCapabilities(String kind) =>
       webrtc.getRtpSenderCapabilities(kind);
 
+  Future<void> setMicrophoneMuteMode(webrtc.MicrophoneMuteMode mode) =>
+      webrtc.Helper.setMicrophoneMuteMode(mode);
+
   webrtc.FrameCryptorFactory get frameCryptorFactory =>
       webrtc.frameCryptorFactory;
 

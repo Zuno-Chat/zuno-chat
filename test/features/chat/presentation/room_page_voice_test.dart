@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_audio_player.dart';
+import '../../../helpers/opus_caf.dart';
 import '../../../helpers/platform_capabilities.dart';
 import 'room_page_harness.dart';
 
@@ -19,6 +20,9 @@ void main() {
   late Object? startError;
   late bool stopGivesPath;
   late bool sendFails;
+  late bool recordingUnreadable;
+  late List<http.Request> uploads;
+  Map<Object?, Object?>? startArgs;
   String? recordingPath;
   MockStreamHandlerEventSink? recorderState;
 
@@ -30,6 +34,9 @@ void main() {
     startError = null;
     stopGivesPath = true;
     sendFails = false;
+    recordingUnreadable = false;
+    uploads = [];
+    startArgs = null;
     recordingPath = null;
     const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
     final messenger =
@@ -55,15 +62,32 @@ void main() {
     }
   }
 
-  Future<void> openRoom(WidgetTester tester) async {
+  List<int> recordedBytes(String path) {
+    if (recordingUnreadable) return [1, 2, 3];
+    if (path.endsWith('.caf')) {
+      return opusCaf(
+        packets: [
+          [1, 2, 3],
+          [4, 5, 6],
+        ],
+      );
+    }
+    return [79, 103, 103, 83];
+  }
+
+  Future<void> openRoom(
+    WidgetTester tester, {
+    PlatformCapabilities? platform,
+  }) async {
     ambientCapabilities = capabilitiesLike(
-      iosCapabilities,
+      platform ?? iosCapabilities,
       uploadForegroundService: false,
     );
     harness = RoomPageHarness(db: SendingFakeDatabaseApi());
     harness.respond = (request) {
       final path = request.url.path;
       if (path.contains('/upload')) {
+        uploads.add(request);
         return sendFails
             ? http.Response(jsonEncode({'errcode': 'M_UNKNOWN'}), 500)
             : http.Response(
@@ -101,6 +125,7 @@ void main() {
             final error = startError;
             if (error != null) throw error;
             recordingPath = args!['path'] as String;
+            startArgs = args;
             recorderState?.success(1);
             return null;
           case 'isRecording':
@@ -112,7 +137,7 @@ void main() {
             recordingPath = null;
             recorderState?.success(2);
             if (path == null || !stopGivesPath) return null;
-            File(path).writeAsBytesSync([79, 103, 103, 83]);
+            File(path).writeAsBytesSync(recordedBytes(path));
             return path;
         }
         return null;
@@ -296,5 +321,57 @@ void main() {
     await drive(tester);
 
     expect(find.text('Voice message not sent. Try again.'), findsOneWidget);
+  });
+
+  group('the recording format', () {
+    Future<void> recordAndSend(WidgetTester tester) async {
+      final gesture = await holdMic(tester);
+      await realWait(tester, 350);
+      await gesture.up();
+      await drive(tester);
+    }
+
+    testWidgets('where the recorder writes Ogg, it records to .ogg and sends '
+        'the recording as it is', (tester) async {
+      await openRoom(tester, platform: androidCapabilities);
+
+      await recordAndSend(tester);
+
+      expect(startArgs!['path'], endsWith('.ogg'));
+      expect(startArgs!['sampleRate'], 44100);
+      expect(uploads.single.bodyBytes, [79, 103, 103, 83]);
+      expect(voiceMessages(), hasLength(1));
+    });
+
+    testWidgets('where the recorder cannot write Ogg, it records mono 48 kHz '
+        'Opus and sends it as Ogg Opus', (tester) async {
+      await openRoom(tester, platform: iosCapabilities);
+
+      await recordAndSend(tester);
+
+      expect(startArgs!['path'], endsWith('.caf'));
+      expect(startArgs!['sampleRate'], 48000);
+      expect(startArgs!['numChannels'], 1);
+      final sent = uploads.single.bodyBytes;
+      expect(String.fromCharCodes(sent.take(4)), 'OggS');
+      expect(String.fromCharCodes(sent.skip(28).take(8)), 'OpusHead');
+      final voice = voiceMessages().single;
+      expect(voice['body'], 'Voice message.ogg');
+      expect((voice['info']! as Map<String, Object?>)['mimetype'], 'audio/ogg');
+      expect(leftoverRecordings(), isEmpty);
+    });
+
+    testWidgets('a recording that cannot be repackaged is not sent, and says '
+        'so', (tester) async {
+      recordingUnreadable = true;
+      await openRoom(tester, platform: iosCapabilities);
+
+      await recordAndSend(tester);
+
+      expect(uploads, isEmpty);
+      expect(voiceMessages(), isEmpty);
+      expect(find.text('Voice message not sent. Try again.'), findsOneWidget);
+      expect(leftoverRecordings(), isEmpty);
+    });
   });
 }

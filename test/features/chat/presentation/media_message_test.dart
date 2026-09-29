@@ -66,6 +66,7 @@ void main() {
   }) => media(
     id,
     msgtype: msgtype,
+    info: {'w': 400, 'h': 300, 'thumbnail_url': 'mxc://example.org/$id-thumb'},
     extra: galleryGroupContent(id: 'g', index: index, count: count),
   );
 
@@ -235,7 +236,14 @@ void main() {
     Event video({Map<String, Object?>? info}) => media(
       'clip',
       msgtype: MessageTypes.Video,
-      info: info ?? const {'w': 1920, 'h': 1080, 'duration': 42000},
+      info:
+          info ??
+          const {
+            'w': 1920,
+            'h': 1080,
+            'duration': 42000,
+            'thumbnail_url': 'mxc://example.org/clip-thumb',
+          },
     );
 
     testWidgets('shows a play button and how long it runs', (tester) async {
@@ -251,6 +259,25 @@ void main() {
       expect(find.text('00:42'), findsOneWidget);
       expect(find.text('09:41'), findsOneWidget);
       expect(find.byType(Image), findsOneWidget);
+    });
+
+    testWidgets('a video sent without a thumbnail shows the play button '
+        'over an empty frame, without downloading the video', (tester) async {
+      await pumpIn(
+        tester,
+        VideoMessage(
+          event: video(info: const {'w': 1920, 'h': 1080}),
+          mediaMeta: _meta,
+          showTimeOverlay: true,
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.byType(AspectRatioPlaceholder), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(server.downloads, isEmpty);
     });
 
     testWidgets('a video without a length shows none', (tester) async {

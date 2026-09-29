@@ -35,11 +35,16 @@ offers apns only.
   default without rewriting storage.
 - `set()`/`autoSelect()` ignore a mode the platform doesn't offer, so
   nothing silently starts a dead transport.
-- **Apple push is gated by `apnsRegistration`**, false until the native
-  token handler exists: `start`/`registerNow` do nothing and the Delivery page
-  shows no status row. Ungated, a missing handler would read as a failed
-  registration with a Retry that can never work. `stop` touches only what was
-  stored, so stopping it on Android is safe.
+- **Apple push is gated by `apnsRegistration`** (iOS only). Off,
+  `start`/`registerNow` do nothing and the Delivery page shows no status row.
+  `stop` touches only what was stored, so stopping it on Android is safe.
+- **The token handler is `ApnsTokenPlugin.swift`**, registered as a plugin
+  application delegate so the other plugins still see the token callbacks.
+  `getToken` calls `registerForRemoteNotifications` and replies the hex
+  token, a `FlutterError` on failure, or a timeout error after 30 s so Dart
+  never waits forever. It needs the `aps-environment` entitlement, which a
+  free Apple team can't sign: until the paid team adds it, registration
+  lands on `tokenFailed` with Retry.
 - **The iOS pusher's `default_payload`** is an alert "New message" with
   `mutable-content: 1`, so it suits every ring path (plain alert, VoIP from
   the server, or a decrypting extension). Only FCM keeps a recent-pushes log

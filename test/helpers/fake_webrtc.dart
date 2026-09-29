@@ -342,6 +342,7 @@ class FakeWebRtcBackend implements WebRtcBackend {
   final captures = <FakeMediaStream>[];
   final streams = <FakeMediaStream>[];
   final cryptors = FakeFrameCryptorFactory();
+  final muteModes = <({MicrophoneMuteMode mode, int capturesBefore})>[];
   Object? captureError;
   Completer<void>? captureGate;
   int cameraSwitches = 0;
@@ -356,6 +357,11 @@ class FakeWebRtcBackend implements WebRtcBackend {
     final pc = FakePeerConnection(configuration);
     peerConnections.add(pc);
     return pc;
+  }
+
+  @override
+  Future<void> setMicrophoneMuteMode(MicrophoneMuteMode mode) async {
+    muteModes.add((mode: mode, capturesBefore: captureConstraints.length));
   }
 
   @override

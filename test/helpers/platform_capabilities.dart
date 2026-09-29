@@ -51,6 +51,10 @@ PlatformCapabilities capabilitiesLike(
   keyboardLearningOptOut: base.keyboardLearningOptOut,
   apnsRegistration: apnsRegistration ?? base.apnsRegistration,
   nativeIncomingRingUi: nativeIncomingRingUi ?? base.nativeIncomingRingUi,
+  playerNeedsMediaType: base.playerNeedsMediaType,
+  videoCodecOrder: base.videoCodecOrder,
+  recorderWritesOgg: base.recorderWritesOgg,
+  callMuteByInputMixer: base.callMuteByInputMixer,
   deliveryModes: deliveryModes ?? base.deliveryModes,
   defaultDeliveryMode: defaultDeliveryMode ?? base.defaultDeliveryMode,
 );
