@@ -1843,5 +1843,5 @@ packages:
     source: path
     version: "0.0.1"
 sdks:
-  dart: ">=3.13.2 <4.0.0"
+  dart: ">=3.13.4 <4.0.0"
   flutter: ">=3.44.0"
