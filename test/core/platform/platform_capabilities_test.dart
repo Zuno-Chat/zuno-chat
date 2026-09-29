@@ -165,6 +165,18 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
+    'locationServicesSettings',
+    read: (c) => c.locationServicesSettings,
+    android: true,
+    ios: false,
+  ),
+  _Capability(
+    'filesTypedByExtension',
+    read: (c) => c.filesTypedByExtension,
+    android: false,
+    ios: true,
+  ),
+  _Capability(
     'signOutWipeKeepsProcess',
     read: (c) => c.signOutWipeKeepsProcess,
     android: false,

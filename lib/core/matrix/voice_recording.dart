@@ -11,22 +11,21 @@ typedef VoiceRecordingSetup = ({
   Uint8List? Function(Uint8List recorded) toOggOpus,
 });
 
+const _voiceConfig = RecordConfig(
+  encoder: AudioEncoder.opus,
+  bitRate: 32000,
+  sampleRate: 48000,
+  numChannels: 1,
+);
+
 VoiceRecordingSetup voiceRecordingSetup(PlatformCapabilities capabilities) =>
     capabilities.recorderWritesOgg
     ? (
-        config: const RecordConfig(encoder: AudioEncoder.opus),
+        config: _voiceConfig,
         extension: 'ogg',
         toOggOpus: (recorded) => recorded,
       )
-    : (
-        config: const RecordConfig(
-          encoder: AudioEncoder.opus,
-          sampleRate: 48000,
-          numChannels: 1,
-        ),
-        extension: 'caf',
-        toOggOpus: oggOpusFromCaf,
-      );
+    : (config: _voiceConfig, extension: 'caf', toOggOpus: oggOpusFromCaf);
 
 String? sniffAudioMimeType(Uint8List bytes) {
   bool startsWith(List<int> prefix, [int at = 0]) {

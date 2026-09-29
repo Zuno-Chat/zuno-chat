@@ -59,6 +59,8 @@ PlatformCapabilities capabilitiesLike(
   callMuteByInputMixer: base.callMuteByInputMixer,
   signOutWipeKeepsProcess:
       signOutWipeKeepsProcess ?? base.signOutWipeKeepsProcess,
+  locationServicesSettings: base.locationServicesSettings,
+  filesTypedByExtension: base.filesTypedByExtension,
   deliveryModes: deliveryModes ?? base.deliveryModes,
   defaultDeliveryMode: defaultDeliveryMode ?? base.defaultDeliveryMode,
 );

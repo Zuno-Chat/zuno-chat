@@ -36,6 +36,8 @@ class PlatformCapabilities {
   final bool recorderWritesOgg;
   final bool callMuteByInputMixer;
   final bool signOutWipeKeepsProcess;
+  final bool locationServicesSettings;
+  final bool filesTypedByExtension;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
 
@@ -70,6 +72,8 @@ class PlatformCapabilities {
     required this.recorderWritesOgg,
     required this.callMuteByInputMixer,
     required this.signOutWipeKeepsProcess,
+    required this.locationServicesSettings,
+    required this.filesTypedByExtension,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
   });
@@ -108,6 +112,8 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         recorderWritesOgg: true,
         callMuteByInputMixer: false,
         signOutWipeKeepsProcess: false,
+        locationServicesSettings: true,
+        filesTypedByExtension: false,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
           NotificationDeliveryMode.unifiedPush,
@@ -146,6 +152,8 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         recorderWritesOgg: false,
         callMuteByInputMixer: true,
         signOutWipeKeepsProcess: true,
+        locationServicesSettings: false,
+        filesTypedByExtension: true,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,
       ),

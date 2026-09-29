@@ -166,6 +166,23 @@ void main() {
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
   });
 
+  voiceTest('a message the player cannot play says so', (tester) async {
+    final event = voice();
+    alreadyOnPhone(event);
+    audio.refusesToPlay = true;
+    await pumpVoice(tester, event);
+
+    await tester.tap(find.byType(InkWell));
+    await pumpWhileFetching(
+      tester,
+      rounds: 20,
+      until: () => find.byType(SnackBar).evaluate().isNotEmpty,
+    );
+
+    expect(find.text('Voice message did not load. Try again.'), findsOneWidget);
+    expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+  });
+
   voiceTest('pausing then playing again carries on from where it stopped', (
     tester,
   ) async {

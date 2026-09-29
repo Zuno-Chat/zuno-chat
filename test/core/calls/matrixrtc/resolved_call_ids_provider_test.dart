@@ -1,5 +1,3 @@
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -8,50 +6,43 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
+import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
-import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_matrix.dart';
 
-void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-  FlutterLocalNotificationsPlatform.instance =
-      AndroidFlutterLocalNotificationsPlugin();
-  const notificationsChannel = MethodChannel(
-    'dexterous.com/flutter/local_notifications',
-  );
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+class _RecordingPresenter extends NoopIncomingCallPresenter {
+  int cancels = 0;
 
+  @override
+  Future<void> cancelIncoming() async => cancels++;
+}
+
+void main() {
   late Client client;
   late Room room;
   late ProviderContainer container;
   late SharedPreferences prefs;
-  late RecordedCallStyleCalls callStyle;
+  late _RecordingPresenter presenter;
+
+  ProviderContainer containerWith() => ProviderContainer(
+    overrides: [
+      matrixClientProvider.overrideWithValue(client),
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      incomingCallPresenterProvider.overrideWithValue(presenter),
+    ],
+  );
 
   setUp(() async {
-    callStyle = installFakeCallStyleChannel();
-    messenger.setMockMethodCallHandler(
-      notificationsChannel,
-      (call) async => null,
-    );
     client = buildTestClient();
     room = buildTestRoom(client);
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
-    container = ProviderContainer(
-      overrides: [
-        matrixClientProvider.overrideWithValue(client),
-        sharedPreferencesProvider.overrideWithValue(prefs),
-      ],
-    );
+    presenter = _RecordingPresenter();
+    container = containerWith();
     addTearDown(container.dispose);
     container.read(resolvedCallIdsProvider);
-  });
-
-  tearDown(() {
-    messenger.setMockMethodCallHandler(notificationsChannel, null);
   });
 
   test('starts empty', () {
@@ -93,10 +84,7 @@ void main() {
       ),
     );
     await pumpEventQueue();
-    expect(
-      callStyle.calls.map((c) => c.method),
-      contains('cancelIncomingCallStyle'),
-    );
+    expect(presenter.cancels, 1);
   });
 
   test('other event types are ignored', () async {
@@ -173,12 +161,7 @@ void main() {
 
   test('seeds itself from a resolution stored by another isolate', () async {
     await markCallResolvedOnDisk(prefs, 'from-push');
-    final seeded = ProviderContainer(
-      overrides: [
-        matrixClientProvider.overrideWithValue(client),
-        sharedPreferencesProvider.overrideWithValue(prefs),
-      ],
-    );
+    final seeded = containerWith();
     addTearDown(seeded.dispose);
 
     expect(seeded.read(resolvedCallIdsProvider), contains('from-push'));

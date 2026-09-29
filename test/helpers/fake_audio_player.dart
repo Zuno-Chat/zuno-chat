@@ -6,6 +6,7 @@ class FakeAudioPlatform {
   final calls = <MethodCall>[];
   final _sinks = <String, MockStreamHandlerEventSink>{};
   int positionMs = 0;
+  bool refusesToPlay = false;
 
   Iterable<String> get methods => calls.map((call) => call.method);
 
@@ -53,6 +54,11 @@ Future<FakeAudioPlatform> installFakeAudioPlatform() async {
               fake._sinks[playerId] = sink;
             },
           ),
+        );
+      case 'setSourceBytes' when fake.refusesToPlay:
+        fake._sinks[playerId]?.error(
+          code: 'DarwinAudioError',
+          message: 'Failed to set source.',
         );
       case 'setSourceBytes':
         fake._sinks[playerId]?.success({

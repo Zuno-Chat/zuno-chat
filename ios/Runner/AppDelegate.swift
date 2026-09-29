@@ -7,7 +7,21 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    excludeAppDataFromBackup()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  private func excludeAppDataFromBackup() {
+    let files = FileManager.default
+    for directory in [
+      FileManager.SearchPathDirectory.applicationSupportDirectory, .documentDirectory,
+    ] {
+      guard var url = files.urls(for: directory, in: .userDomainMask).first else { continue }
+      try? files.createDirectory(at: url, withIntermediateDirectories: true)
+      var values = URLResourceValues()
+      values.isExcludedFromBackup = true
+      try? url.setResourceValues(values)
+    }
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {

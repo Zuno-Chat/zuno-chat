@@ -37,7 +37,15 @@ Key providers (`matrix_client_provider.dart`):
   wraps whatever it's given further in `FixedTimeoutHttpClient`, making
   it impractical to unwrap later.
 
-`Client.httpClient` is `UploadProgressHttpClient(IOClient(HttpClient))`.
+`Client.httpClient` is
+`UploadProgressHttpClient(FreshTokenHttpClient(IOClient(HttpClient)))`.
+The SDK refreshes an expiring token only inside its sync loop, so at cold
+start anything else racing the first sync (the pusher read, key-backup
+lookups) went out with the expired token. `FreshTokenHttpClient` holds any
+request carrying the current token until `ensureNotSoftLoggedOut()` (one
+shared refresh, a no-op unless the token expires within a minute) and then
+swaps in the new token. `/refresh` carries no token, so it never waits on
+itself.
 The `HttpClient` has a 10 s `connectionTimeout` — connect only, so a
 dead route fails fast while a slow upload/download is never cut off.
 Responses come gzip-compressed: `HttpClient` advertises gzip and decodes
@@ -119,7 +127,7 @@ Each flag is one of these kinds:
 | Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent` | iOS stays `false` |
 | Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` | iOS stays `false`; CallKit arrives as a new branch in each `*For()` factory (`calls.md`), never a flag flip |
 | iOS-only behavior | `apnsRegistration`, `playerNeedsMediaType`, `callMuteByInputMixer`, `signOutWipeKeepsProcess` | `true` on iOS only |
-| Apple limitation | `recorderWritesOgg` (Apple can't write Ogg), `videoCodecOrder` (`null` on iOS, see `calls.md`) | differs on iOS for good |
+| Apple limitation | `recorderWritesOgg` (Apple can't write Ogg), `videoCodecOrder` (`null` on iOS, see `calls.md`), `locationServicesSettings` (no link into Location Services), `filesTypedByExtension` (other apps type a file by its name) | differs on iOS for good |
 
 ## Data & State
 The SDK's local database (SQLCipher-encrypted `sqflite`) is the
@@ -144,6 +152,14 @@ triggers it; an unreadable one (a locked Keychain) throws
 `DatabaseKeyUnavailable` first. It also deletes the `-wal`, `-shm` and
 `-journal` files itself: sqflite_sqlcipher's delete removes only the main
 file on iOS.
+
+App data stays out of device backups. Android sets `allowBackup="false"`.
+iOS flags Application Support (database, notification avatars) and
+Documents `isExcludedFromBackup` at every launch in `AppDelegate`; the flag
+on a directory covers files created later. `Library/Preferences` still
+backs up (cfprefsd rewrites the plist, so a flag would not stick): a restore
+brings back the signed-in marker without a database, so the sign-out wipe
+clears it on first launch.
 
 ## Communication
 **Cold start.** `main()`'s independent setup steps (notifications,

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../../core/location/current_position.dart';
 import '../../../core/location/geo_uri.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import 'location_map_page.dart';
 import 'location_map_view.dart';
 
@@ -130,18 +132,26 @@ class _Found extends StatelessWidget {
   }
 }
 
-class _Failed extends StatelessWidget {
+class _Failed extends ConsumerWidget {
   final LocationFailure reason;
   final VoidCallback retry;
 
   const _Failed({required this.reason, required this.retry});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final servicesSettings = ref
+        .watch(platformCapabilitiesProvider)
+        .locationServicesSettings;
     final (message, settings) = switch (reason) {
-      LocationFailure.servicesOff => (
+      LocationFailure.servicesOff when servicesSettings => (
         'Location is off. Turn it on to share where you are.',
         Geolocator.openLocationSettings,
+      ),
+      LocationFailure.servicesOff => (
+        'Location is off. Turn on Location Services in Settings, under '
+            'Privacy & Security.',
+        null,
       ),
       LocationFailure.denied => (
         'Allow location access to share where you are.',

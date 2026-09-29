@@ -55,6 +55,11 @@ scrolled out.
   **`geolocator` owns location**; `permission_handler` stays with camera/mic.
 - **No thumbnail on the event**; the bubble renders its own map. No place
   search, no view receipts, no geofences (spec §0).
+- **"Location is off" offers Open settings only where Settings can open on
+  Location Services** (`locationServicesSettings`). iOS can only open the
+  app's own page, which has no Location row while the service is off, so
+  the message names the path instead. Blocked access still opens the app's
+  page on both.
 - **Coarse-only grants still send, labelled approximate**; `u=` carries the
   accuracy either way.
 - **The full map is fenced: zoom floor 12, a ~10 km-each-way box around

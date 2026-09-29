@@ -538,12 +538,19 @@ sheet (additive, would reuse the pinned-shortcut code).
   `<cached file>.<ext>` symlink (no copy); voice plays via audioplayers,
   which passes the event's MIME type, sniffed from the bytes
   (`sniffAudioMimeType`) when the event names none.
-- **Voice messages are Ogg Opus on the wire, on every platform.** Apple
-  can't write Ogg, and its Opus encoder refuses the recorder's default
-  44.1 kHz, so iOS records mono 48 kHz Opus into CAF and
+- **Voice messages are Ogg Opus on the wire, on every platform**, mono
+  48 kHz at 32 kbps (Opus's fullband-speech range; the recorder's default
+  128 kbps stereo is a music setting, about 4× larger). Apple can't write
+  Ogg, and its Opus encoder refuses 44.1 kHz, so iOS records into CAF and
   `oggOpusFromCaf` repackages the packets losslessly (about 20 ms for five
   minutes) before sending (`voice_recording.dart`, `recorderWritesOgg`).
   iOS plays Ogg Opus natively.
+- **Share and Save hand over named copies**, one folder per attachment
+  under `temp/handover/<cached file name>/`, so same-named items (every
+  photo Zuno sends is `photo.jpg`) never overwrite each other and sharing
+  one twice reuses its copy. Where other apps type a file by its name
+  (`filesTypedByExtension`, iOS), a name with no known extension gets one
+  from the MIME type (`application/octet-stream` excepted).
 - **Pending-attachment thumbnails**: `Event._getCachedFile` returns null
   outright for a still-pending event's thumbnail (no fallback to the full
   file) — a still-sending image or video renders from the pending send's
@@ -566,6 +573,11 @@ sheet (additive, would reuse the pinned-shortcut code).
   resumes with `resume()`; only a stopped or finished message calls
   `play`. After completion audioplayers releases the source and emits one
   last position, which is ignored so the bar resets.
+- **A source the player cannot open throws from `play()`** and also lands
+  as an error on every `eventStream`-derived stream (`onDurationChanged`,
+  `onPlayerComplete`). `play()` is caught ("Voice message did not load");
+  those subscriptions carry an empty `onError`, or the same error escapes
+  uncaught.
 - **A keyed lazy list needs `findChildIndexCallback`.** Without it a new
   message shifts every index and remounts every visible row, memo or not: a
   playing voice message stops and "Read more" collapses. Rows also keep one

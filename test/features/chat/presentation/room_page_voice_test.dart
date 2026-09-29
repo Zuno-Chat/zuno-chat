@@ -331,20 +331,22 @@ void main() {
       await drive(tester);
     }
 
-    testWidgets('where the recorder writes Ogg, it records to .ogg and sends '
-        'the recording as it is', (tester) async {
+    testWidgets('where the recorder writes Ogg, it records mono 48 kHz Opus at '
+        '32 kbps to .ogg and sends the recording as it is', (tester) async {
       await openRoom(tester, platform: androidCapabilities);
 
       await recordAndSend(tester);
 
       expect(startArgs!['path'], endsWith('.ogg'));
-      expect(startArgs!['sampleRate'], 44100);
+      expect(startArgs!['sampleRate'], 48000);
+      expect(startArgs!['numChannels'], 1);
+      expect(startArgs!['bitRate'], 32000);
       expect(uploads.single.bodyBytes, [79, 103, 103, 83]);
       expect(voiceMessages(), hasLength(1));
     });
 
     testWidgets('where the recorder cannot write Ogg, it records mono 48 kHz '
-        'Opus and sends it as Ogg Opus', (tester) async {
+        'Opus at 32 kbps and sends it as Ogg Opus', (tester) async {
       await openRoom(tester, platform: iosCapabilities);
 
       await recordAndSend(tester);
@@ -352,6 +354,7 @@ void main() {
       expect(startArgs!['path'], endsWith('.caf'));
       expect(startArgs!['sampleRate'], 48000);
       expect(startArgs!['numChannels'], 1);
+      expect(startArgs!['bitRate'], 32000);
       final sent = uploads.single.bodyBytes;
       expect(String.fromCharCodes(sent.take(4)), 'OggS');
       expect(String.fromCharCodes(sent.skip(28).take(8)), 'OpusHead');

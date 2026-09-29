@@ -5,10 +5,12 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:gal/gal.dart';
 import 'package:matrix/matrix.dart';
+import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../platform/platform_capabilities.dart';
 import 'attachment_cache.dart';
 
 const _maxFileNameLength = 64;
@@ -46,6 +48,17 @@ String? _mimeTypeOf(Event event) {
   return mimeType.isEmpty ? null : mimeType;
 }
 
+String _handedOverName(Event event, PlatformCapabilities capabilities) {
+  final name = attachmentFileName(event);
+  if (!capabilities.filesTypedByExtension || lookupMimeType(name) != null) {
+    return name;
+  }
+  final mimeType = _mimeTypeOf(event);
+  if (mimeType == null || mimeType == 'application/octet-stream') return name;
+  final extension = extensionFromMime(mimeType);
+  return extension == null ? name : safeAttachmentFileName('$name.$extension');
+}
+
 Future<Uint8List> _download(Event event) async =>
     (await event.downloadAndDecryptAttachment()).bytes;
 
@@ -59,15 +72,22 @@ Future<File> _cachedAttachmentFile(Event event) => fetchCachedAttachmentFile(
   () => _download(event),
 );
 
-Future<String> _tempCopy(Event event) async {
+Future<String> _tempCopy(Event event, PlatformCapabilities capabilities) async {
   final source = await _cachedAttachmentFile(event);
-  final dir = await getTemporaryDirectory();
-  final path = p.join(dir.path, attachmentFileName(event));
+  final temp = await getTemporaryDirectory();
+  final dir = await Directory(
+    p.join(temp.path, 'handover', p.basename(source.path)),
+  ).create(recursive: true);
+  final path = p.join(dir.path, _handedOverName(event, capabilities));
   await source.copy(path);
   return path;
 }
 
-Future<String?> saveAttachment(Event event) async {
+Future<String?> saveAttachment(
+  Event event, {
+  PlatformCapabilities? capabilities,
+}) async {
+  final platform = capabilities ?? ambientCapabilities;
   switch (attachmentSaveTarget(event)) {
     case AttachmentSaveTarget.photos:
       await Gal.putImageBytes(
@@ -76,17 +96,18 @@ Future<String?> saveAttachment(Event event) async {
       );
       return 'Saved to Photos';
     case AttachmentSaveTarget.videos:
-      final path = await _tempCopy(event);
+      final path = await _tempCopy(event, platform);
+      final copy = Directory(p.dirname(path));
       try {
         await Gal.putVideo(path);
       } finally {
-        unawaited(File(path).delete().catchError((_) => File(path)));
+        unawaited(copy.delete(recursive: true).catchError((_) => copy));
       }
       return 'Saved to Videos';
     case AttachmentSaveTarget.file:
       final bytes = await (await _cachedAttachmentFile(event)).readAsBytes();
       final uri = await FilePicker.saveFile(
-        fileName: attachmentFileName(event),
+        fileName: _handedOverName(event, platform),
         bytes: bytes,
         mimeType: _mimeTypeOf(event) ?? 'application/octet-stream',
       );
@@ -121,12 +142,14 @@ Future<bool> _allCached(List<Event> events) async {
 Future<void> shareAttachments(
   List<Event> events, {
   void Function()? onPreparing,
+  PlatformCapabilities? capabilities,
 }) async {
   if (events.isEmpty) return;
+  final platform = capabilities ?? ambientCapabilities;
   if (onPreparing != null && !await _allCached(events)) onPreparing();
   final files = [
     for (final event in events)
-      XFile(await _tempCopy(event), mimeType: _mimeTypeOf(event)),
+      XFile(await _tempCopy(event, platform), mimeType: _mimeTypeOf(event)),
   ];
   await SharePlus.instance.share(ShareParams(files: files));
 }

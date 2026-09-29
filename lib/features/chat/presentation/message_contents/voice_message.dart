@@ -56,10 +56,10 @@ class _VoiceMessageState extends State<VoiceMessage> {
     });
     _durationSub = _player.onDurationChanged.listen((duration) {
       if (mounted) setState(() => _duration = duration);
-    });
+    }, onError: (Object _) {});
     _completeSub = _player.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _position = Duration.zero);
-    });
+    }, onError: (Object _) {});
   }
 
   @override
@@ -102,30 +102,37 @@ class _VoiceMessageState extends State<VoiceMessage> {
         AttachmentCache.instance.put(_cacheKey, bytes);
       } catch (e) {
         logCaught('load voice message', e);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Voice message did not load. Try again.'),
-            ),
-          );
-        }
+        _didNotLoad();
         return false;
       } finally {
         if (mounted) setState(() => _loading = false);
       }
     }
     if (!mounted) return false;
-    await _player.play(
-      BytesSource(
-        bytes,
-        mimeType:
-            widget.event.infoMap.tryGet<String>('mimetype') ??
-            (ambientCapabilities.playerNeedsMediaType
-                ? sniffAudioMimeType(bytes)
-                : null),
-      ),
-    );
+    try {
+      await _player.play(
+        BytesSource(
+          bytes,
+          mimeType:
+              widget.event.infoMap.tryGet<String>('mimetype') ??
+              (ambientCapabilities.playerNeedsMediaType
+                  ? sniffAudioMimeType(bytes)
+                  : null),
+        ),
+      );
+    } catch (e) {
+      logCaught('play voice message', e);
+      _didNotLoad();
+      return false;
+    }
     return true;
+  }
+
+  void _didNotLoad() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Voice message did not load. Try again.')),
+    );
   }
 
   Future<void> _seekTo(double ratio) async {

@@ -5,7 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/location/current_position.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/location/presentation/location_share_sheet.dart';
+
+import '../../../helpers/platform_capabilities.dart';
 
 const _geo = GeoUri(
   latitude: 52.5163,
@@ -19,15 +22,21 @@ class _Opened {
 
 Future<_Opened> _open(
   WidgetTester tester,
-  Future<LocationFix> Function() locate,
-) async {
+  Future<LocationFix> Function() locate, {
+  PlatformCapabilities? capabilities,
+}) async {
   final opened = _Opened();
   tester.view.physicalSize = const Size(1080, 2400);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [mapTilesProvider.overrideWith((ref) async => null)],
+      overrides: [
+        mapTilesProvider.overrideWith((ref) async => null),
+        platformCapabilitiesProvider.overrideWithValue(
+          capabilities ?? androidCapabilities,
+        ),
+      ],
       child: MaterialApp(
         home: Scaffold(
           body: Builder(
@@ -86,6 +95,37 @@ void main() {
     await tester.tapAt(const Offset(180, 100));
     await tester.pumpAndSettle();
     expect(await opened.result, isNull);
+  });
+
+  testWidgets('where Settings cannot open on Location Services, names the way '
+      'there instead of offering a button', (tester) async {
+    await _open(
+      tester,
+      () async => const LocationFailed(LocationFailure.servicesOff),
+      capabilities: iosCapabilities,
+    );
+
+    expect(
+      find.text(
+        'Location is off. Turn on Location Services in Settings, under '
+        'Privacy & Security.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Open settings'), findsNothing);
+    expect(find.text('Try again'), findsOneWidget);
+  });
+
+  testWidgets('where Settings cannot open on Location Services, blocked access '
+      'still opens Settings', (tester) async {
+    await _open(
+      tester,
+      () async => const LocationFailed(LocationFailure.deniedForever),
+      capabilities: iosCapabilities,
+    );
+
+    expect(find.textContaining('Location access is blocked'), findsOneWidget);
+    expect(find.text('Open settings'), findsOneWidget);
   });
 
   testWidgets('offers a retry after a refusal', (tester) async {

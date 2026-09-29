@@ -12,6 +12,7 @@ import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 
 import '../calls/matrixrtc/call_member_state.dart' show callMemberEventType;
 import 'database_key.dart';
+import 'fresh_token_http_client.dart';
 import 'session_refresh.dart';
 import 'upload_progress_http_client.dart';
 import 'vodozemac_init.dart';
@@ -52,8 +53,13 @@ createMatrixClient({bool backgroundSync = true}) async {
   final vodInitFuture = ensureVodozemacInitialized();
   final watch = Stopwatch()..start();
 
+  late final Client client;
   final uploadProgressHttpClient = UploadProgressHttpClient(
-    IOClient(HttpClient()..connectionTimeout = _connectTimeout),
+    FreshTokenHttpClient(
+      IOClient(HttpClient()..connectionTimeout = _connectTimeout),
+      accessToken: () => client.accessToken,
+      ensureFresh: () => client.ensureNotSoftLoggedOut(),
+    ),
   );
 
   final database = await MatrixSdkDatabase.init(
@@ -62,7 +68,7 @@ createMatrixClient({bool backgroundSync = true}) async {
   );
   final databaseMs = watch.elapsedMilliseconds;
 
-  final client = Client(
+  client = Client(
     'Zuno',
     httpClient: uploadProgressHttpClient,
     database: database,

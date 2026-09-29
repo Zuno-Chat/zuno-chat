@@ -11,11 +11,12 @@ void main() {
   group('where the recorder writes Ogg', () {
     final setup = voiceRecordingSetup(androidCapabilities);
 
-    test('it records Opus with the recorder defaults into an .ogg file', () {
+    test('it records mono Opus at 48 kHz and 32 kbps into an .ogg file', () {
       expect(setup.extension, 'ogg');
       expect(setup.config.encoder, AudioEncoder.opus);
-      expect(setup.config.sampleRate, const RecordConfig().sampleRate);
-      expect(setup.config.numChannels, const RecordConfig().numChannels);
+      expect(setup.config.sampleRate, 48000);
+      expect(setup.config.numChannels, 1);
+      expect(setup.config.bitRate, 32000);
     });
 
     test('it sends the recording untouched', () {
@@ -28,11 +29,12 @@ void main() {
   group('where the recorder cannot write Ogg', () {
     final setup = voiceRecordingSetup(iosCapabilities);
 
-    test('it records mono Opus at 48 kHz into a .caf file', () {
+    test('it records mono Opus at 48 kHz and 32 kbps into a .caf file', () {
       expect(setup.extension, 'caf');
       expect(setup.config.encoder, AudioEncoder.opus);
       expect(setup.config.sampleRate, 48000);
       expect(setup.config.numChannels, 1);
+      expect(setup.config.bitRate, 32000);
     });
 
     test('a recording it cannot repackage is not sent', () {
