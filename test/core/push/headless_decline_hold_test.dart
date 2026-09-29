@@ -35,54 +35,55 @@ void main() {
     CallNotificationService.instance.releaseDeclinePort();
   });
 
-  test('returns immediately when another isolate already holds the port',
-      () async {
-    await CallNotificationService.instance.initialize();
-    final runner = HeadlessPushRunner();
+  test(
+    'returns immediately when another isolate already holds the port',
+    () async {
+      await CallNotificationService.instance.initialize();
+      final runner = HeadlessPushRunner();
 
-    final stopwatch = Stopwatch()..start();
-    await awaitHeadlessDecline(runner).timeout(const Duration(seconds: 2));
-    stopwatch.stop();
+      final stopwatch = Stopwatch()..start();
+      await awaitHeadlessDecline(runner).timeout(const Duration(seconds: 2));
+      stopwatch.stop();
 
-    expect(stopwatch.elapsed, lessThan(const Duration(milliseconds: 500)));
-  });
+      expect(stopwatch.elapsed, lessThan(const Duration(milliseconds: 500)));
+    },
+  );
 
-  test('keeps waiting while the ring is up, then ends once it is taken down',
-      () async {
-    await CallNotificationService.instance.initialize(
-      claimDeclinePort: false,
-    );
-    await const AndroidIncomingCallPresenter().showIncoming(
-      callerName: 'Bob',
-      callerId: '@bob:example.org',
-      isVideo: false,
-      roomId: '!room:example.org',
-      callId: 'call1',
-    );
-    notifications.active = [_ringOnScreen()];
-    final runner = HeadlessPushRunner();
+  test(
+    'keeps waiting while the ring is up, then ends once it is taken down',
+    () async {
+      await CallNotificationService.instance.initialize(
+        claimDeclinePort: false,
+      );
+      await const AndroidIncomingCallPresenter().showIncoming(
+        callerName: 'Bob',
+        callerId: '@bob:example.org',
+        isVideo: false,
+        roomId: '!room:example.org',
+        callId: 'call1',
+      );
+      notifications.active = [_ringOnScreen()];
+      final runner = HeadlessPushRunner();
 
-    var completed = false;
-    final future = awaitHeadlessDecline(
-      runner,
-    ).whenComplete(() => completed = true);
+      var completed = false;
+      final future = awaitHeadlessDecline(runner)
+          .whenComplete(() => completed = true);
 
-    await Future<void>.delayed(const Duration(milliseconds: 2200));
-    expect(
-      completed,
-      isFalse,
-      reason: 'the hold ended while the ring notification was still up',
-    );
+      await Future<void>.delayed(const Duration(milliseconds: 2200));
+      expect(
+        completed,
+        isFalse,
+        reason: 'the hold ended while the ring notification was still up',
+      );
 
-    notifications.active = const [];
-    await future.timeout(const Duration(seconds: 3));
-    expect(completed, isTrue);
-  });
+      notifications.active = const [];
+      await future.timeout(const Duration(seconds: 3));
+      expect(completed, isTrue);
+    },
+  );
 
   test('opens no client unless Decline is actually tapped', () async {
-    await CallNotificationService.instance.initialize(
-      claimDeclinePort: false,
-    );
+    await CallNotificationService.instance.initialize(claimDeclinePort: false);
     var builds = 0;
     final runner = HeadlessPushRunner()
       ..clientBuilder = () async {

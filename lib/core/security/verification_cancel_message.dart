@@ -63,7 +63,7 @@ VerificationCancelMessage verificationCancelMessage({
         title: 'That was someone else',
         isAlarming: true,
         body:
-            "The check was answered by a different account than the one "
+            'The check was answered by a different account than the one '
             'it was started with. Nothing was confirmed.',
       );
     default:

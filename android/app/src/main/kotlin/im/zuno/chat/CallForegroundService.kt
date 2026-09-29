@@ -53,7 +53,8 @@ class CallForegroundService : Service() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val type = if (withCamera) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
             } else {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             }

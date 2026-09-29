@@ -38,14 +38,28 @@ class ShareActivity : Activity() {
 
     private fun sharedUris(intent: Intent): List<Uri> = when (intent.action) {
         Intent.ACTION_SEND ->
-            listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
+            listOfNotNull(
+                IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java),
+            )
+
         Intent.ACTION_SEND_MULTIPLE ->
-            IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+            IntentCompat.getParcelableArrayListExtra(
+                intent,
+                Intent.EXTRA_STREAM,
+                Uri::class.java,
+            ).orEmpty()
+
         else -> emptyList()
     }
 
     private fun displayName(uri: Uri): String? = runCatching {
-        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+        contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
             if (cursor.moveToFirst()) cursor.getString(0) else null
         }
     }.getOrNull()
@@ -61,7 +75,14 @@ class ShareActivity : Activity() {
             putExtra(EXTRA_SHARE_TEXT, text)
             putStringArrayListExtra(EXTRA_SHARE_URIS, ArrayList(files.map { it.uri }))
             putStringArrayListExtra(EXTRA_SHARE_NAMES, ArrayList(files.map { it.name }))
-            putStringArrayListExtra(EXTRA_SHARE_MIME_TYPES, ArrayList(files.map { it.mimeType ?: "" }))
+            putStringArrayListExtra(
+                EXTRA_SHARE_MIME_TYPES,
+                ArrayList(
+                    files.map {
+                        it.mimeType ?: ""
+                    },
+                ),
+            )
             val uris = files.map { Uri.parse(it.uri) }
             if (uris.isNotEmpty()) {
                 val clip = ClipData.newRawUri(null, uris.first())

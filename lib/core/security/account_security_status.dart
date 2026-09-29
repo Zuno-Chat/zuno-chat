@@ -100,7 +100,7 @@ Future<AccountSecurityFacts> accountSecurityFactsOf(Client client) async {
     case AccountSecurityStatus.recoveryStale:
       return (
         title: 'This device has an old recovery code',
-        body: "Enter the current one so it can read your backed-up messages.",
+        body: 'Enter the current one so it can read your backed-up messages.',
         action: 'Enter code',
       );
   }

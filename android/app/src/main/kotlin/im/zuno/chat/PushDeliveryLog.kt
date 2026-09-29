@@ -46,6 +46,7 @@ object PushDeliveryLog {
 
     fun record(context: Context, extras: Bundle?) {
         val receivedAtMs = System.currentTimeMillis()
+
         @Suppress("DEPRECATION")
         val sentAtMs = sentAtFrom(extras?.get("google.sent_time"))
         val originalPriority = extras?.getString("google.original_priority")
@@ -58,7 +59,11 @@ object PushDeliveryLog {
                         sentAtMs = sentAtMs,
                         originalPriority = originalPriority,
                         deliveredPriority = deliveredPriority,
-                        deviceIdle = (context.getSystemService(Context.POWER_SERVICE) as PowerManager).isDeviceIdleMode,
+                        deviceIdle = (
+                            context.getSystemService(
+                                Context.POWER_SERVICE,
+                            ) as PowerManager
+                            ).isDeviceIdleMode,
                         standbyBucket = standbyBucket(context),
                     ),
                 )
@@ -73,6 +78,10 @@ object PushDeliveryLog {
 
     private fun standbyBucket(context: Context): Int? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return null
-        return (context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager)?.appStandbyBucket
+        return (
+            context.getSystemService(
+                Context.USAGE_STATS_SERVICE,
+            ) as? UsageStatsManager
+            )?.appStandbyBucket
     }
 }

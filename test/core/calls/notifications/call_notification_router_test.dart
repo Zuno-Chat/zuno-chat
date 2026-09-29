@@ -8,13 +8,12 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/call_notification_router.dart';
+import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
@@ -122,15 +121,18 @@ void main() {
     messenger.setMockMethodCallHandler(notificationsChannel, null);
   });
 
-  test('returns false and does nothing when there is no launch action', () async {
-    mockNoLaunchAction();
+  test(
+    'returns false and does nothing when there is no launch action',
+    () async {
+      mockNoLaunchAction();
 
-    final acted = await container
-        .read(callNotificationRouterProvider.notifier)
-        .recheckLaunchAction();
+      final acted = await container
+          .read(callNotificationRouterProvider.notifier)
+          .recheckLaunchAction();
 
-    expect(acted, isFalse);
-  });
+      expect(acted, isFalse);
+    },
+  );
 
   test(
     'declines the call and marks it resolved when the launch action is Decline',
@@ -145,7 +147,8 @@ void main() {
       expect(
         container.read(resolvedCallIdsProvider),
         contains('call1'),
-        reason: 'declineCall\'s real room.sendEvent should have gone '
+        reason:
+            'declineCall\'s real room.sendEvent should have gone '
             'through and the call marked resolved',
       );
     },

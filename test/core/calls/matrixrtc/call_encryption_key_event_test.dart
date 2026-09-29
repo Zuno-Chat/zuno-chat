@@ -72,7 +72,10 @@ void main() {
   test('null when call_id is present but not a String', () {
     expect(
       parseCallEncryptionKeyContent(
-        content: {'call_id': 42, 'key': base64Encode([1, 2, 3])},
+        content: {
+          'call_id': 42,
+          'key': base64Encode([1, 2, 3]),
+        },
         callId: 'call1',
       ),
       isNull,
@@ -89,19 +92,22 @@ void main() {
     );
   });
 
-  test('a call_id with special characters is still a plain string equality check', () {
-    final key = Uint8List.fromList([9, 9, 9]);
-    const weirdId = 'call:with/special!chars 🎉 and\nnewline';
-    final content = buildCallEncryptionKeyContent(callId: weirdId, key: key);
-    expect(
-      parseCallEncryptionKeyContent(content: content, callId: weirdId),
-      key,
-    );
-    expect(
-      parseCallEncryptionKeyContent(content: content, callId: 'call1'),
-      isNull,
-    );
-  });
+  test(
+    'a call_id with special characters is still a plain string equality check',
+    () {
+      final key = Uint8List.fromList([9, 9, 9]);
+      const weirdId = 'call:with/special!chars 🎉 and\nnewline';
+      final content = buildCallEncryptionKeyContent(callId: weirdId, key: key);
+      expect(
+        parseCallEncryptionKeyContent(content: content, callId: weirdId),
+        key,
+      );
+      expect(
+        parseCallEncryptionKeyContent(content: content, callId: 'call1'),
+        isNull,
+      );
+    },
+  );
 
   test('binary key content round-trips exactly byte-for-byte, base64 edge bytes included', () {
     final key = Uint8List.fromList([

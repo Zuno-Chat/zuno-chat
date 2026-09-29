@@ -20,19 +20,32 @@ object VideoTools {
 
     fun probe(path: String, onResult: (Map<String, Any?>?) -> Unit) {
         executor.execute {
-            val result = try { probeNow(path) } catch (error: Exception) { null }
+            val result = try {
+                probeNow(path)
+            } catch (error: Exception) {
+                null
+            }
             mainHandler.post { onResult(result) }
         }
     }
 
     fun remux(input: String, output: String, onResult: (Boolean) -> Unit) {
         executor.execute {
-            val result = try { remuxNow(input, output) } catch (error: Exception) { false }
+            val result = try {
+                remuxNow(input, output)
+            } catch (error: Exception) {
+                false
+            }
             mainHandler.post { onResult(result) }
         }
     }
 
-    fun thumbnail(path: String, maxDimension: Int, quality: Int, onResult: (Map<String, Any>?) -> Unit) {
+    fun thumbnail(
+        path: String,
+        maxDimension: Int,
+        quality: Int,
+        onResult: (Map<String, Any>?) -> Unit,
+    ) {
         thumbnailExecutor.execute {
             val result = try {
                 thumbnailNow(path, maxDimension, quality)
@@ -49,16 +62,34 @@ object VideoTools {
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(path)
-            val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: return null
-            val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: return null
-            val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+            val width =
+                retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH,
+                )?.toIntOrNull()
+                    ?: return null
+            val height =
+                retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT,
+                )?.toIntOrNull()
+                    ?: return null
+            val rotation =
+                retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION,
+                )?.toIntOrNull()
+                    ?: 0
             val rotated = rotation % 180 != 0
             val (videoCodec, audioCodec) = trackCodecs(path)
             return mapOf(
                 "width" to if (rotated) height else width,
                 "height" to if (rotated) width else height,
-                "bitrate" to retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toIntOrNull(),
-                "durationMs" to retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toIntOrNull(),
+                "bitrate" to
+                    retriever.extractMetadata(
+                        MediaMetadataRetriever.METADATA_KEY_BITRATE,
+                    )?.toIntOrNull(),
+                "durationMs" to
+                    retriever.extractMetadata(
+                        MediaMetadataRetriever.METADATA_KEY_DURATION,
+                    )?.toIntOrNull(),
                 "videoCodec" to videoCodec,
                 "audioCodec" to audioCodec,
             )
@@ -75,8 +106,11 @@ object VideoTools {
             var audio: String? = null
             for (i in 0 until extractor.trackCount) {
                 val mime = extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME) ?: continue
-                if (video == null && mime.startsWith("video/")) video = mime
-                else if (audio == null && mime.startsWith("audio/")) audio = mime
+                if (video == null && mime.startsWith("video/")) {
+                    video = mime
+                } else if (audio == null && mime.startsWith("audio/")) {
+                    audio = mime
+                }
             }
             return video to audio
         } finally {
@@ -139,7 +173,12 @@ object VideoTools {
         try {
             retriever.setDataSource(path)
             val frame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                retriever.getScaledFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, maxDimension, maxDimension)
+                retriever.getScaledFrameAtTime(
+                    0,
+                    MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                    maxDimension,
+                    maxDimension,
+                )
             } else {
                 retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
             } ?: return null

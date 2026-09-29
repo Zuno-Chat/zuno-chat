@@ -28,7 +28,9 @@ void main() {
 
     test('drops an img even when nested inside allowed markup', () {
       expect(
-        sanitizeMessageHtml('<p><em><img src="http://a.example/b.gif"></em></p>'),
+        sanitizeMessageHtml(
+          '<p><em><img src="http://a.example/b.gif"></em></p>',
+        ),
         isNot(contains('a.example')),
       );
     });

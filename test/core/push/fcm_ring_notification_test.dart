@@ -63,14 +63,16 @@ void main() {
     return (callStyle.lastShow.arguments as Map).cast<String, Object?>();
   }
 
-  test('rings via the same native CallStyle call the UnifiedPush path uses',
-      () async {
-    final args = await ringViaFcm();
+  test(
+    'rings via the same native CallStyle call the UnifiedPush path uses',
+    () async {
+      final args = await ringViaFcm();
 
-    expect(args['roomId'], '!room:example.org');
-    expect(args['callId'], 'call1');
-    expect(args['isVideo'], isFalse);
-  });
+      expect(args['roomId'], '!room:example.org');
+      expect(args['callId'], 'call1');
+      expect(args['isVideo'], isFalse);
+    },
+  );
 
   test('does not fetch an avatar on the push path', () async {
     final args = await ringViaFcm();

@@ -19,8 +19,6 @@ object PushEngineDecision {
         else -> PushEngineAction.ReplaceHeadlessEngine
     }
 
-    fun shouldHoldWakeLock(
-        appEngineAlive: Boolean,
-        hasHeadlessEngine: Boolean,
-    ): Boolean = !appEngineAlive && hasHeadlessEngine
+    fun shouldHoldWakeLock(appEngineAlive: Boolean, hasHeadlessEngine: Boolean): Boolean =
+        !appEngineAlive && hasHeadlessEngine
 }

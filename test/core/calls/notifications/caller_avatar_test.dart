@@ -45,10 +45,8 @@ void main() {
     final result = await fetchCallerAvatarBytes(
       client,
       Uri.parse('mxc://example.org/avatar1'),
-      download: (uri) => Future.delayed(
-        const Duration(milliseconds: 50),
-        () => Uint8List(0),
-      ),
+      download: (uri) =>
+          Future.delayed(const Duration(milliseconds: 50), () => Uint8List(0)),
       timeout: const Duration(milliseconds: 5),
     );
 

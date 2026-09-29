@@ -9,11 +9,17 @@ void main() {
       final limiter = RingRateLimiter();
       expect(limiter.allow('@bob:example.org', now: start), isTrue);
       expect(
-        limiter.allow('@bob:example.org', now: start.add(const Duration(seconds: 2))),
+        limiter.allow(
+          '@bob:example.org',
+          now: start.add(const Duration(seconds: 2)),
+        ),
         isTrue,
       );
       expect(
-        limiter.allow('@bob:example.org', now: start.add(const Duration(seconds: 4))),
+        limiter.allow(
+          '@bob:example.org',
+          now: start.add(const Duration(seconds: 4)),
+        ),
         isTrue,
       );
     });
@@ -25,8 +31,10 @@ void main() {
       }
       expect(limiter.allow('@mallory:example.org', now: start), isFalse);
       expect(
-        limiter.allow('@mallory:example.org',
-            now: start.add(const Duration(seconds: 30))),
+        limiter.allow(
+          '@mallory:example.org',
+          now: start.add(const Duration(seconds: 30)),
+        ),
         isFalse,
       );
     });
@@ -37,8 +45,10 @@ void main() {
         limiter.allow('@mallory:example.org', now: start);
       }
       expect(
-        limiter.allow('@mallory:example.org',
-            now: start.add(const Duration(minutes: 1, seconds: 1))),
+        limiter.allow(
+          '@mallory:example.org',
+          now: start.add(const Duration(minutes: 1, seconds: 1)),
+        ),
         isTrue,
       );
     });

@@ -10,5 +10,12 @@ analyzer:
     - macos/**
     - linux/**
 
-# Additional information about this file can be found at
-# https://dart.dev/guides/language/analysis-options
+formatter:
+  page_width: 80
+  trailing_commas: automate
+
+linter:
+  rules:
+    - directives_ordering
+    - prefer_relative_imports
+    - prefer_single_quotes

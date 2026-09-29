@@ -1,10 +1,7 @@
 import '../onboarding/onboarding_step.dart';
 import 'account_security_status.dart';
 
-enum SecurityPromptDecision {
-  none,
-  setUpRecovery,
-}
+enum SecurityPromptDecision { none, setUpRecovery }
 
 const securityPromptFirstUseDelay = Duration(days: 3);
 

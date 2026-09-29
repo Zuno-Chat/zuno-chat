@@ -34,7 +34,9 @@ class PictureInPictureDecisionTest {
 
     @Test
     fun `nothing to hide when not in the window`() {
-        assertFalse(PictureInPictureDecision.shouldHide(eligible = false, inPictureInPicture = false))
+        assertFalse(
+            PictureInPictureDecision.shouldHide(eligible = false, inPictureInPicture = false),
+        )
     }
 
     @Test

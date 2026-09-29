@@ -37,8 +37,7 @@ void main() {
     callId: 'call1',
   );
 
-  test('reports the ringing call while its notification is showing',
-      () async {
+  test('reports the ringing call while its notification is showing', () async {
     await postRing();
     notifications.active = [onScreen(ringNotificationId)];
 
@@ -58,8 +57,7 @@ void main() {
     expect(await presenter.activeRing(), isNull);
   });
 
-  test('is not fooled by an unrelated notification being on screen',
-      () async {
+  test('is not fooled by an unrelated notification being on screen', () async {
     await postRing();
     notifications.active = [onScreen(12345)];
 

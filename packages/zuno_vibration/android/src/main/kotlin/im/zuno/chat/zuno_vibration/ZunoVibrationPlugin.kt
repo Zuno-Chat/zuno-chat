@@ -45,7 +45,9 @@ import io.flutter.plugin.common.MethodChannel.Result
 // that same automatic path — the fix generalizes to every engine this
 // app has now *and* any future one, instead of being the next call site
 // someone has to remember.
-class ZunoVibrationPlugin : FlutterPlugin, MethodCallHandler {
+class ZunoVibrationPlugin :
+    FlutterPlugin,
+    MethodCallHandler {
     private lateinit var channel: MethodChannel
     private lateinit var context: Context
 
@@ -62,6 +64,7 @@ class ZunoVibrationPlugin : FlutterPlugin, MethodCallHandler {
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
             "hasVibrator" -> result.success(vibrator()?.hasVibrator() == true)
+
             "vibrate" -> {
                 val pattern = call.argument<List<Int>>("pattern")
                 if (pattern == null) {
@@ -76,23 +79,23 @@ class ZunoVibrationPlugin : FlutterPlugin, MethodCallHandler {
                 )
                 result.success(null)
             }
+
             "cancel" -> {
                 vibrator()?.cancel()
                 result.success(null)
             }
+
             else -> result.notImplemented()
         }
     }
 
-    private fun vibrator(): Vibrator? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val manager =
-                context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-            manager?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        }
+    private fun vibrator(): Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val manager =
+            context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+        manager?.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     }
 
     @Suppress("DEPRECATION")

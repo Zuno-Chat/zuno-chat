@@ -530,9 +530,9 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
       title: 'Choose a security phrase',
       body:
           "Pick a secret phrase only you know — you'll need it to unlock "
-          "encrypted history on a new device. This also generates a backup "
-          "security key, shown once right after, in case you forget the "
-          "phrase.",
+          'encrypted history on a new device. This also generates a backup '
+          'security key, shown once right after, in case you forget the '
+          'phrase.',
       actions: [
         FilledButton(
           onPressed: widget.busy ? null : _submit,
@@ -600,7 +600,7 @@ class _DoneScreenState extends State<_DoneScreen> {
       body:
           "This is the only time you'll see it. Store it somewhere safe — a "
           "password manager works well. You'll need it to restore encrypted "
-          "history on any future device.",
+          'history on any future device.',
       actions: [
         CheckboxListTile(
           value: _savedConfirmed,

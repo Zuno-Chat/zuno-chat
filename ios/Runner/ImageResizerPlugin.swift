@@ -59,7 +59,8 @@ final class ImageResizerPlugin: NSObject, FlutterPlugin {
         encoded, type.identifier as CFString, 1, nil)
     else { return nil }
     let encoding: [CFString: Any] =
-      png ? [:] : [kCGImageDestinationLossyCompressionQuality: Double(min(max(quality, 0), 100)) / 100]
+      png
+      ? [:] : [kCGImageDestinationLossyCompressionQuality: Double(min(max(quality, 0), 100)) / 100]
     CGImageDestinationAddImage(destination, image, encoding as CFDictionary)
     guard CGImageDestinationFinalize(destination) else { return nil }
 

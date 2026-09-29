@@ -37,7 +37,7 @@ class PendingInviteBanner extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    "Your messages will be here when they join.",
+                    'Your messages will be here when they join.',
                     style: Theme.of(context).textTheme.bodySmall
                         ?.copyWith(color: colors.onSurfaceVariant),
                   ),

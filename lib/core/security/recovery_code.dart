@@ -117,12 +117,7 @@ String generateRecoveryCode(RecoveryWordlist wordlist, {Random? random}) {
   ].join(' ');
 }
 
-enum RecoveryCodeProblem {
-  empty,
-  tooShort,
-  tooLong,
-  unknownWords,
-}
+enum RecoveryCodeProblem { empty, tooShort, tooLong, unknownWords }
 
 class RecoveryCodeCheck {
   final RecoveryCodeProblem? problem;

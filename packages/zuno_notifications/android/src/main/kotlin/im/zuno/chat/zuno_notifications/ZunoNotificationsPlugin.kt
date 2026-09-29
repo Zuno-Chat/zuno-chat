@@ -14,7 +14,9 @@ import io.flutter.plugin.common.MethodChannel.Result
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
-class ZunoNotificationsPlugin : FlutterPlugin, MethodCallHandler {
+class ZunoNotificationsPlugin :
+    FlutterPlugin,
+    MethodCallHandler {
     private lateinit var conversations: MethodChannel
     private lateinit var wakeLocks: MethodChannel
     private lateinit var context: Context
@@ -50,6 +52,7 @@ class ZunoNotificationsPlugin : FlutterPlugin, MethodCallHandler {
                 )
                 result.success(null)
             }
+
             "publishNotificationImage" -> {
                 val bytes = call.argument<ByteArray>("bytes")
                 val mimeType = call.argument<String>("mimeType") ?: "image/jpeg"
@@ -59,6 +62,7 @@ class ZunoNotificationsPlugin : FlutterPlugin, MethodCallHandler {
                 }
                 result.success(publishImage(bytes, mimeType))
             }
+
             "removeConversationShortcut" -> {
                 val roomId = call.argument<String>("roomId")
                 if (roomId != null) {
@@ -66,48 +70,61 @@ class ZunoNotificationsPlugin : FlutterPlugin, MethodCallHandler {
                 }
                 result.success(null)
             }
+
             "acquire" -> {
                 val tag = call.argument<String>("tag") ?: DEFAULT_TAG
                 val timeoutMs = call.argument<Number>("timeoutMs")?.toLong() ?: DEFAULT_TIMEOUT_MS
                 acquire(tag, timeoutMs)
                 result.success(null)
             }
+
             "release" -> {
                 release(call.argument<String>("tag") ?: DEFAULT_TAG)
                 result.success(null)
             }
+
             "releasePush" -> {
                 PushWakeLock.release()
                 result.success(null)
             }
+
             "takePushNotice" -> {
                 val roomId = call.argument<String>("roomId")
                 val eventId = call.argument<String>("eventId")
-                result.success(roomId != null && eventId != null && PushNotice.take(roomId, eventId))
+                result.success(
+                    roomId != null && eventId != null && PushNotice.take(roomId, eventId),
+                )
             }
+
             else -> result.notImplemented()
         }
     }
 
-    private fun publishImage(bytes: ByteArray, mimeType: String): String? {
-        return try {
-            val dir = File(context.cacheDir, IMAGE_DIR).apply { mkdirs() }
-            pruneOldImages(dir)
-            val extension = when (mimeType) {
-                "image/png" -> "png"
-                "image/webp" -> "webp"
-                "image/gif" -> "gif"
-                else -> "jpg"
-            }
-            val file = File(dir, "${System.currentTimeMillis()}_${imageCounter.incrementAndGet()}.$extension")
-            file.writeBytes(bytes)
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.$AUTHORITY_SUFFIX", file)
-            context.grantUriPermission(SYSTEM_UI, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            uri.toString()
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not publish the notification image", e)
-            null
+    private fun publishImage(bytes: ByteArray, mimeType: String): String? = try {
+        val dir = File(context.cacheDir, IMAGE_DIR).apply { mkdirs() }
+        pruneOldImages(dir)
+        val extension = when (mimeType) {
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            "image/gif" -> "gif"
+            else -> "jpg"
         }
+        val file =
+            File(
+                dir,
+                "${System.currentTimeMillis()}_${imageCounter.incrementAndGet()}.$extension",
+            )
+        file.writeBytes(bytes)
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.$AUTHORITY_SUFFIX",
+            file,
+        )
+        context.grantUriPermission(SYSTEM_UI, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        uri.toString()
+    } catch (e: Exception) {
+        Log.w(TAG, "Could not publish the notification image", e)
+        null
     }
 
     private fun pruneOldImages(dir: File) {

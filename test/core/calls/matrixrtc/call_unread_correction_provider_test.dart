@@ -30,19 +30,22 @@ void main() {
     );
   });
 
-  test('a hidden call-invite message adds one correction for its room', () async {
-    client.onTimelineEvent.add(
-      buildTestEvent(
-        room,
-        eventId: r'$invite',
-        senderId: '@a:x',
-        content: {'msgtype': 'im.zuno.call_invite'},
-      ),
-    );
-    await pumpEventQueue();
-    final corrections = container.read(callUnreadCorrectionProvider);
-    expect(displayedUnreadCount(corrections, room), 2);
-  });
+  test(
+    'a hidden call-invite message adds one correction for its room',
+    () async {
+      client.onTimelineEvent.add(
+        buildTestEvent(
+          room,
+          eventId: r'$invite',
+          senderId: '@a:x',
+          content: {'msgtype': 'im.zuno.call_invite'},
+        ),
+      );
+      await pumpEventQueue();
+      final corrections = container.read(callUnreadCorrectionProvider);
+      expect(displayedUnreadCount(corrections, room), 2);
+    },
+  );
 
   test('an in-room verification message also corrects, being equally '
       'hidden from the timeline', () async {

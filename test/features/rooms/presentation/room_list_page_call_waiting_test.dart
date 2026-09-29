@@ -188,76 +188,70 @@ void main() {
     },
   );
 
-  testWidgets(
-    'two auto-declines back to back for two different second-callers '
-    'while still on the original call',
-    (tester) async {
-      final container = await pumpRoomList(tester);
-      final session = activeSession();
-      addTearDown(session.dispose);
-      container.read(activeCallProvider.notifier).set(session);
+  testWidgets('two auto-declines back to back for two different second-callers '
+      'while still on the original call', (tester) async {
+    final container = await pumpRoomList(tester);
+    final session = activeSession();
+    addTearDown(session.dispose);
+    container.read(activeCallProvider.notifier).set(session);
 
-      final declineCallIds = <String?>{};
-      client.onTimelineEvent.stream.listen((e) {
-        if (e.messageType == callDeclineMsgtype) {
-          declineCallIds.add(e.content.tryGet<String>('call_id'));
-        }
-      });
+    final declineCallIds = <String?>{};
+    client.onTimelineEvent.stream.listen((e) {
+      if (e.messageType == callDeclineMsgtype) {
+        declineCallIds.add(e.content.tryGet<String>('call_id'));
+      }
+    });
 
-      await deliverAndSettle(
-        tester,
-        buildTestEvent(
-          room,
-          eventId: r'$invite2',
-          senderId: '@carol:example.org',
-          content: _inviteContent(callId: 'call2'),
-        ),
-      );
-      await deliverAndSettle(
-        tester,
-        buildTestEvent(
-          room,
-          eventId: r'$invite3',
-          senderId: '@dave:example.org',
-          content: _inviteContent(callId: 'call3'),
-        ),
-      );
+    await deliverAndSettle(
+      tester,
+      buildTestEvent(
+        room,
+        eventId: r'$invite2',
+        senderId: '@carol:example.org',
+        content: _inviteContent(callId: 'call2'),
+      ),
+    );
+    await deliverAndSettle(
+      tester,
+      buildTestEvent(
+        room,
+        eventId: r'$invite3',
+        senderId: '@dave:example.org',
+        content: _inviteContent(callId: 'call3'),
+      ),
+    );
 
-      expect(find.byType(IncomingCallPage), findsNothing);
-      expect(declineCallIds, {'call2', 'call3'});
-      expect(container.read(activeCallProvider), same(session));
-    },
-  );
+    expect(find.byType(IncomingCallPage), findsNothing);
+    expect(declineCallIds, {'call2', 'call3'});
+    expect(container.read(activeCallProvider), same(session));
+  });
 
-  testWidgets(
-    'a call_id already resolved elsewhere is still ignored, not '
-    'auto-declined, even while on another call',
-    (tester) async {
-      final container = await pumpRoomList(tester);
-      final session = activeSession();
-      addTearDown(session.dispose);
-      container.read(activeCallProvider.notifier).set(session);
-      container.read(resolvedCallIdsProvider.notifier).markResolved('call2');
+  testWidgets('a call_id already resolved elsewhere is still ignored, not '
+      'auto-declined, even while on another call', (tester) async {
+    final container = await pumpRoomList(tester);
+    final session = activeSession();
+    addTearDown(session.dispose);
+    container.read(activeCallProvider.notifier).set(session);
+    container.read(resolvedCallIdsProvider.notifier).markResolved('call2');
 
-      final declines = <Event>[];
-      client.onTimelineEvent.stream.listen((e) {
-        if (e.messageType == callDeclineMsgtype) declines.add(e);
-      });
+    final declines = <Event>[];
+    client.onTimelineEvent.stream.listen((e) {
+      if (e.messageType == callDeclineMsgtype) declines.add(e);
+    });
 
-      await deliverAndSettle(
-        tester,
-        buildTestEvent(
-          room,
-          eventId: r'$invite2',
-          senderId: '@carol:example.org',
-          content: _inviteContent(callId: 'call2'),
-        ),
-      );
+    await deliverAndSettle(
+      tester,
+      buildTestEvent(
+        room,
+        eventId: r'$invite2',
+        senderId: '@carol:example.org',
+        content: _inviteContent(callId: 'call2'),
+      ),
+    );
 
-      expect(find.byType(IncomingCallPage), findsNothing);
-      expect(declines, isEmpty);
-    },
-  );
+    expect(find.byType(IncomingCallPage), findsNothing);
+    expect(declines, isEmpty);
+  });
 
   testWidgets('the SnackBar actually appears with the right caller info', (
     tester,

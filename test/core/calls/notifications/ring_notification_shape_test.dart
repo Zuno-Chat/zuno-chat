@@ -63,15 +63,17 @@ void main() {
     expect(args['callerId'], '@bob:example.org');
   });
 
-  test('passes the avatar bytes through when given, and null when not',
-      () async {
-    final bytes = Uint8List.fromList([1, 2, 3]);
+  test(
+    'passes the avatar bytes through when given, and null when not',
+    () async {
+      final bytes = Uint8List.fromList([1, 2, 3]);
 
-    final withAvatar = await postRing(avatarBytes: bytes);
-    expect(withAvatar['avatarBytes'], bytes);
+      final withAvatar = await postRing(avatarBytes: bytes);
+      expect(withAvatar['avatarBytes'], bytes);
 
-    callStyle.clear();
-    final withoutAvatar = await postRing();
-    expect(withoutAvatar['avatarBytes'], isNull);
-  });
+      callStyle.clear();
+      final withoutAvatar = await postRing();
+      expect(withoutAvatar['avatarBytes'], isNull);
+    },
+  );
 }

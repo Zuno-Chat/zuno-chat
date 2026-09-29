@@ -92,7 +92,7 @@ class _AdvancedSecurityPageState extends ConsumerState<AdvancedSecurityPage> {
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Text(
-              "The raw mechanics behind recovery and device approval. You "
+              'The raw mechanics behind recovery and device approval. You '
               "don't need any of this for day-to-day use.",
             ),
           ),

@@ -42,10 +42,13 @@ object PushNotice {
         appInFront: Boolean = appInFront(context),
     ) {
         try {
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val manager = context.getSystemService(
+                Context.NOTIFICATION_SERVICE,
+            ) as NotificationManager
             val notificationId = roomId?.let { NotificationIds.messageNotificationIdFor(it) }
             val showing =
-                notificationId != null && manager.activeNotifications.any { it.id == notificationId }
+                notificationId != null &&
+                    manager.activeNotifications.any { it.id == notificationId }
             if (!PushNoticeDecision.shouldPost(roomId, eventId, appInFront, showing)) return
             if (roomId == null || eventId == null || notificationId == null) return
             val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
@@ -53,7 +56,9 @@ object PushNotice {
                 Log.d(TAG, "Notify me is mentions only, no instant notice")
                 return
             }
-            val cached = PushNoticeDecision.parseRoomCache(prefs.getString(ROOM_CACHE_KEY, null))[roomId]
+            val cached = PushNoticeDecision.parseRoomCache(
+                prefs.getString(ROOM_CACHE_KEY, null),
+            )[roomId]
             val channel = PushNoticeDecision.channelFor(cached)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 manager.getNotificationChannel(channel) == null
@@ -80,12 +85,22 @@ object PushNotice {
                 .setShortcutId(roomId)
             PushNoticeDecision.conversationFor(cached)?.let { conversation ->
                 if (!ConversationShortcut.exists(context, roomId)) {
-                    ConversationShortcut.push(context, roomId, conversation.title, conversation.isGroup, null)
+                    ConversationShortcut.push(
+                        context,
+                        roomId,
+                        conversation.title,
+                        conversation.isGroup,
+                        null,
+                    )
                 }
                 val sender = Person.Builder().setName(conversation.title).setKey(roomId).build()
                 builder.setStyle(
-                    NotificationCompat.MessagingStyle(Person.Builder().setName("You").setKey("me").build())
-                        .setConversationTitle(if (conversation.isGroup) conversation.title else null)
+                    NotificationCompat.MessagingStyle(
+                        Person.Builder().setName("You").setKey("me").build(),
+                    )
+                        .setConversationTitle(
+                            if (conversation.isGroup) conversation.title else null,
+                        )
                         .setGroupConversation(conversation.isGroup)
                         .addMessage(copy.text, System.currentTimeMillis(), sender),
                 )
@@ -113,7 +128,11 @@ object PushNotice {
     private fun vibrate(context: Context) {
         try {
             val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+                (
+                    context.getSystemService(
+                        Context.VIBRATOR_MANAGER_SERVICE,
+                    ) as? VibratorManager
+                    )?.defaultVibrator
             } else {
                 @Suppress("DEPRECATION")
                 context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
@@ -121,7 +140,10 @@ object PushNotice {
             if (vibrator == null || !vibrator.hasVibrator()) return
             val effect = VibrationEffect.createWaveform(vibrationPattern, -1)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                vibrator.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_NOTIFICATION))
+                vibrator.vibrate(
+                    effect,
+                    VibrationAttributes.createForUsage(VibrationAttributes.USAGE_NOTIFICATION),
+                )
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 @Suppress("DEPRECATION")
                 vibrator.vibrate(

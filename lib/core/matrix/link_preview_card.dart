@@ -12,7 +12,8 @@ import 'connectivity_provider.dart';
 class _PreviewCache {
   static const _ttl = Duration(hours: 1);
   static const _maxEntries = 64;
-  static final _entries = <String, ({DateTime storedAt, PreviewForUrl? value})>{};
+  static final _entries =
+      <String, ({DateTime storedAt, PreviewForUrl? value})>{};
 
   static ({DateTime storedAt, PreviewForUrl? value})? _live(Uri url) {
     final key = url.toString();

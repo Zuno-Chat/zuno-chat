@@ -9,8 +9,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
@@ -22,6 +20,7 @@ import 'package:zuno/core/calls/notifications/pending_call_notification_action_p
 import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
 import '../../../helpers/fake_matrix.dart';

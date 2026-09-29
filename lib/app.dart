@@ -29,13 +29,13 @@ import 'core/share/inbound_share.dart';
 import 'core/shortcuts/home_screen_shortcut.dart';
 import 'core/ui/zuno_splash.dart';
 import 'core/ui/zuno_theme.dart';
-import 'features/settings/presentation/active_sessions_page.dart';
 import 'features/auth/presentation/signed_out_entry.dart';
 import 'features/calls/presentation/incoming_call_page.dart';
 import 'features/chat/presentation/room_page.dart';
 import 'features/communities/presentation/community_page.dart';
 import 'features/rooms/presentation/room_invite_page.dart';
 import 'features/rooms/presentation/room_list_page.dart';
+import 'features/settings/presentation/active_sessions_page.dart';
 import 'features/share/presentation/share_picker_page.dart';
 
 const _launchBudget = Duration(seconds: 2);

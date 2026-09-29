@@ -83,9 +83,13 @@ class MainActivity : FlutterActivity() {
                         result.error("bad_args", "id, label and roomId are required", null)
                         return@setMethodCallHandler
                     }
-                    result.success(pinShortcut(id, label, roomId, call.argument<ByteArray>("iconBytes")))
+                    result.success(
+                        pinShortcut(id, label, roomId, call.argument<ByteArray>("iconBytes")),
+                    )
                 }
+
                 "takeLaunchRoomId" -> result.success(takeLaunchRoomId())
+
                 else -> result.notImplemented()
             }
         }
@@ -97,10 +101,12 @@ class MainActivity : FlutterActivity() {
         shareChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "takeLaunchShare" -> result.success(takeLaunchShare())
+
                 "copyToCache" -> copySharedToCache(
                     call.argument<List<String>>("uris").orEmpty(),
                     call.argument<List<String>>("names").orEmpty(),
                 ) { paths -> result.success(paths) }
+
                 else -> result.notImplemented()
             }
         }
@@ -121,10 +127,12 @@ class MainActivity : FlutterActivity() {
                     setShowOverLockscreen(call.argument<Boolean>("show") == true)
                     result.success(null)
                 }
+
                 "setProximityScreenOff" -> {
                     setProximityScreenOff(call.argument<Boolean>("enabled") == true)
                     result.success(null)
                 }
+
                 "startCallForegroundService" -> {
                     callActive = true
                     CallForegroundService.start(
@@ -135,28 +143,35 @@ class MainActivity : FlutterActivity() {
                     )
                     result.success(null)
                 }
+
                 "stopCallForegroundService" -> {
                     callActive = false
                     CallForegroundService.stop(this)
                     result.success(null)
                 }
+
                 "startRingbackTone" -> {
                     startRingbackTone()
                     result.success(null)
                 }
+
                 "stopRingbackTone" -> {
                     stopRingbackTone()
                     result.success(null)
                 }
+
                 "canUseFullScreenIntent" -> {
                     val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-                    val allowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    val allowed = if (Build.VERSION.SDK_INT >=
+                        Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+                    ) {
                         manager.canUseFullScreenIntent()
                     } else {
                         true
                     }
                     result.success(allowed)
                 }
+
                 "openFullScreenIntentSettings" -> {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                         startActivity(
@@ -167,6 +182,7 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(null)
                 }
+
                 "openNotificationSettings" -> {
                     val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
@@ -180,9 +196,12 @@ class MainActivity : FlutterActivity() {
                     startActivity(intent)
                     result.success(null)
                 }
+
                 "openChannelSettings" -> {
                     val channelId = call.argument<String>("channelId")
-                    val intent = if (channelId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val intent = if (channelId != null &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ) {
                         Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
                             putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
                             putExtra(Settings.EXTRA_CHANNEL_ID, channelId)
@@ -195,6 +214,7 @@ class MainActivity : FlutterActivity() {
                     startActivity(intent)
                     result.success(null)
                 }
+
                 "setPictureInPicture" -> {
                     pipEligible = call.argument<Boolean>("eligible") == true
                     pipAspect = Rational(
@@ -202,11 +222,16 @@ class MainActivity : FlutterActivity() {
                         call.argument<Int>("aspectHeight") ?: 4,
                     )
                     applyPictureInPictureParams()
-                    if (PictureInPictureDecision.shouldHide(pipEligible, isInPictureInPictureMode)) {
+                    if (PictureInPictureDecision.shouldHide(
+                            pipEligible,
+                            isInPictureInPictureMode,
+                        )
+                    ) {
                         hidePictureInPicture()
                     }
                     result.success(null)
                 }
+
                 "setPreventScreenshots" -> {
                     if (call.argument<Boolean>("enabled") == true) {
                         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -215,6 +240,7 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(null)
                 }
+
                 "copySensitive" -> {
                     val text = call.argument<String>("text")
                     if (text == null) {
@@ -234,6 +260,7 @@ class MainActivity : FlutterActivity() {
                     clipboard.setPrimaryClip(clip)
                     result.success(null)
                 }
+
                 "clearClipboardIfMatches" -> {
                     val text = call.argument<String>("text")
                     val clipboard =
@@ -252,6 +279,7 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(null)
                 }
+
                 else -> result.notImplemented()
             }
         }
@@ -261,8 +289,15 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "probe" -> {
                     val path = call.argument<String>("path")
-                    if (path == null) result.success(null) else VideoTools.probe(path) { result.success(it) }
+                    if (path ==
+                        null
+                    ) {
+                        result.success(null)
+                    } else {
+                        VideoTools.probe(path) { result.success(it) }
+                    }
                 }
+
                 "remux" -> {
                     val input = call.argument<String>("input")
                     val output = call.argument<String>("output")
@@ -272,6 +307,7 @@ class MainActivity : FlutterActivity() {
                         VideoTools.remux(input, output) { result.success(it) }
                     }
                 }
+
                 "thumbnail" -> {
                     val path = call.argument<String>("path")
                     val maxDimension = call.argument<Int>("maxDimension")
@@ -282,6 +318,7 @@ class MainActivity : FlutterActivity() {
                         VideoTools.thumbnail(path, maxDimension, quality) { result.success(it) }
                     }
                 }
+
                 else -> result.notImplemented()
             }
         }
@@ -299,17 +336,20 @@ class MainActivity : FlutterActivity() {
                         ImageResizer.resize(bytes, maxDimension, quality) { result.success(it) }
                     }
                 }
+
                 else -> result.notImplemented()
             }
         }
 
-        val uploadChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPLOAD_CHANNEL)
+        val uploadChannel =
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPLOAD_CHANNEL)
         uploadChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "start" -> {
                     UploadForegroundService.start(this)
                     result.success(null)
                 }
+
                 "update" -> {
                     UploadForegroundService.update(
                         this,
@@ -318,29 +358,35 @@ class MainActivity : FlutterActivity() {
                     )
                     result.success(null)
                 }
+
                 "stop" -> {
                     UploadForegroundService.stop(this)
                     result.success(null)
                 }
+
                 else -> result.notImplemented()
             }
         }
 
-        val backgroundSyncChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BACKGROUND_SYNC_CHANNEL)
+        val backgroundSyncChannel =
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BACKGROUND_SYNC_CHANNEL)
         backgroundSyncChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "startBackgroundSyncService" -> {
                     BackgroundSyncService.start(this)
                     result.success(null)
                 }
+
                 "stopBackgroundSyncService" -> {
                     BackgroundSyncService.stop(this)
                     result.success(null)
                 }
+
                 "isIgnoringBatteryOptimizations" -> {
                     val powerManager = getSystemService(POWER_SERVICE) as PowerManager
                     result.success(powerManager.isIgnoringBatteryOptimizations(packageName))
                 }
+
                 "requestIgnoreBatteryOptimizations" -> {
                     startActivity(
                         Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -349,11 +395,15 @@ class MainActivity : FlutterActivity() {
                     )
                     result.success(null)
                 }
+
                 "isPackageIgnoringBatteryOptimizations" -> {
                     val target = call.argument<String>("package")
                     val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-                    result.success(target != null && powerManager.isIgnoringBatteryOptimizations(target))
+                    result.success(
+                        target != null && powerManager.isIgnoringBatteryOptimizations(target),
+                    )
                 }
+
                 "openAppSettings" -> {
                     val target = call.argument<String>("package")
                     if (target == null) {
@@ -367,12 +417,15 @@ class MainActivity : FlutterActivity() {
                     )
                     result.success(null)
                 }
+
                 "hasAutostartSettings" -> {
                     result.success(autostartComponents().isNotEmpty())
                 }
+
                 "openAutostartSettings" -> {
                     result.success(openAutostartSettings())
                 }
+
                 "isBackgroundDataRestricted" -> {
                     val connectivityManager =
                         getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -381,6 +434,7 @@ class MainActivity : FlutterActivity() {
                             ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED,
                     )
                 }
+
                 "openBackgroundDataSettings" -> {
                     val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         Intent(Settings.ACTION_IGNORE_BACKGROUND_DATA_RESTRICTIONS_SETTINGS)
@@ -390,6 +444,7 @@ class MainActivity : FlutterActivity() {
                     startActivity(intent.apply { data = Uri.parse("package:$packageName") })
                     result.success(null)
                 }
+
                 else -> result.notImplemented()
             }
         }
@@ -403,11 +458,13 @@ class MainActivity : FlutterActivity() {
                         .isGooglePlayServicesAvailable(this)
                     result.success(PlayServicesDecision.decide(code).name)
                 }
+
                 "fixPlayServices" -> {
                     GoogleApiAvailability.getInstance()
                         .makeGooglePlayServicesAvailable(this)
                     result.success(null)
                 }
+
                 else -> result.notImplemented()
             }
         }
@@ -419,6 +476,7 @@ class MainActivity : FlutterActivity() {
                         val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
                         result.success(activityManager.clearApplicationUserData())
                     }
+
                     else -> result.notImplemented()
                 }
             }
@@ -435,6 +493,7 @@ class MainActivity : FlutterActivity() {
                         mainThread.post { result.success(risks) }
                     }.start()
                 }
+
                 else -> result.notImplemented()
             }
         }
@@ -495,7 +554,10 @@ class MainActivity : FlutterActivity() {
         val hangUpIntent = PendingIntent.getBroadcast(
             this,
             PIP_HANG_UP_REQUEST_CODE,
-            Intent(this, CallActionReceiver::class.java).setAction(CallActionReceiver.ACTION_HANG_UP),
+            Intent(
+                this,
+                CallActionReceiver::class.java,
+            ).setAction(CallActionReceiver.ACTION_HANG_UP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         return RemoteAction(
@@ -638,7 +700,12 @@ class MainActivity : FlutterActivity() {
         }
     }.getOrNull()
 
-    private fun pinShortcut(id: String, label: String, roomId: String, iconBytes: ByteArray?): Boolean {
+    private fun pinShortcut(
+        id: String,
+        label: String,
+        roomId: String,
+        iconBytes: ByteArray?,
+    ): Boolean {
         if (!ShortcutManagerCompat.isRequestPinShortcutSupported(this)) return false
 
         val intent = Intent(this, MainActivity::class.java).apply {

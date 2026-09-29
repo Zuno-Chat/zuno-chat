@@ -11,7 +11,9 @@ class RootOfTrustParserTest {
     private fun der(tag: ByteArray, content: ByteArray): ByteArray {
         val length = when {
             content.size < 0x80 -> byteArrayOf(content.size.toByte())
+
             content.size < 0x100 -> byteArrayOf(0x81.toByte(), content.size.toByte())
+
             else -> byteArrayOf(
                 0x82.toByte(),
                 (content.size shr 8).toByte(),

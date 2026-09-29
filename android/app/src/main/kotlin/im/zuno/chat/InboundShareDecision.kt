@@ -8,15 +8,16 @@ object InboundShareDecision {
     fun mimeTypeFor(perItem: String?, resolved: String?, intentType: String?): String? =
         listOf(perItem, resolved, intentType).firstOrNull { isSpecific(it) }
 
-    private fun isSpecific(mime: String?): Boolean =
-        !mime.isNullOrBlank() && !mime.contains('*')
+    private fun isSpecific(mime: String?): Boolean = !mime.isNullOrBlank() && !mime.contains('*')
 
     fun fileName(displayName: String?, uri: String): String {
         val fromDisplay = displayName?.trim().orEmpty()
         if (fromDisplay.isNotEmpty()) return safeFileName(fromDisplay)
         val path = uri.substringBefore('?').substringAfter("://", "")
         val lastSegment = path.trimEnd('/').substringAfterLast('/').trim()
-        val decoded = runCatching { URLDecoder.decode(lastSegment, "UTF-8") }.getOrDefault(lastSegment)
+        val decoded = runCatching {
+            URLDecoder.decode(lastSegment, "UTF-8")
+        }.getOrDefault(lastSegment)
         return safeFileName(decoded)
     }
 

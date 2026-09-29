@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/media_gallery_group.dart';
+import 'package:zuno/core/matrix/send_progress.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 import 'package:zuno/features/chat/presentation/date_divider.dart';
@@ -13,7 +13,6 @@ import 'package:zuno/features/chat/presentation/message_list_view.dart';
 import 'package:zuno/features/chat/presentation/message_tile.dart';
 import 'package:zuno/features/chat/presentation/reply_target_cache.dart';
 import 'package:zuno/features/chat/presentation/swipe_to_reply.dart';
-import 'package:zuno/core/matrix/send_progress.dart';
 
 import '../../../helpers/fake_matrix.dart';
 

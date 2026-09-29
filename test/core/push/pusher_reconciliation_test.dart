@@ -57,9 +57,7 @@ void main() {
   test('false when the homeserver lists only other devices', () async {
     final client = clientAnswering(
       () async => _ok({
-        'pushers': [
-          _pusher(appId: appId, pushkey: 'some-other-token'),
-        ],
+        'pushers': [_pusher(appId: appId, pushkey: 'some-other-token')],
       }),
     );
 
@@ -112,22 +110,21 @@ void main() {
     );
   });
 
-  test('fetchPushers parses what it can and returns null when it cannot',
-      () async {
-    final client = clientAnswering(
-      () async => _ok({
-        'pushers': [
-          _pusher(appId: appId, pushkey: pushkey),
-          'not a pusher',
-        ],
-      }),
-    );
+  test(
+    'fetchPushers parses what it can and returns null when it cannot',
+    () async {
+      final client = clientAnswering(
+        () async => _ok({
+          'pushers': [_pusher(appId: appId, pushkey: pushkey), 'not a pusher'],
+        }),
+      );
 
-    final pushers = await fetchPushers(client);
-    expect(pushers, hasLength(1));
-    expect(pushers!.single.pushkey, pushkey);
+      final pushers = await fetchPushers(client);
+      expect(pushers, hasLength(1));
+      expect(pushers!.single.pushkey, pushkey);
 
-    final broken = clientAnswering(() async => http.Response('<html>', 500));
-    expect(await fetchPushers(broken), isNull);
-  });
+      final broken = clientAnswering(() async => http.Response('<html>', 500));
+      expect(await fetchPushers(broken), isNull);
+    },
+  );
 }

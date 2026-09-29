@@ -7,7 +7,8 @@ import org.junit.Test
 class AutostartDecisionTest {
     @Test
     fun `xiaomi brands open the MIUI autostart screen`() {
-        val miui = "com.miui.securitycenter" to "com.miui.permcenter.autostart.AutoStartManagementActivity"
+        val miui =
+            "com.miui.securitycenter" to "com.miui.permcenter.autostart.AutoStartManagementActivity"
         for (brand in listOf("Xiaomi", "Redmi", "POCO")) {
             assertEquals(miui, AutostartDecision.componentsFor(brand).first())
         }
@@ -27,13 +28,16 @@ class AutostartDecisionTest {
 
     @Test
     fun `only the screens that exist on the phone are offered`() {
-        val oplus = "com.oplus.safecenter" to "com.oplus.safecenter.permission.startup.StartupAppListActivity"
+        val oplus =
+            "com.oplus.safecenter" to
+                "com.oplus.safecenter.permission.startup.StartupAppListActivity"
         assertEquals(listOf(oplus), AutostartDecision.availableFor("OnePlus") { it == oplus })
     }
 
     @Test
     fun `stock MIUI keeps its autostart screen`() {
-        val miui = "com.miui.securitycenter" to "com.miui.permcenter.autostart.AutoStartManagementActivity"
+        val miui =
+            "com.miui.securitycenter" to "com.miui.permcenter.autostart.AutoStartManagementActivity"
         assertEquals(listOf(miui), AutostartDecision.availableFor("Xiaomi") { true })
     }
 

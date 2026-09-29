@@ -24,10 +24,15 @@ void main() {
     expect(await read({}), NotifyMe.all);
   });
 
-  test('notifies for everything when the stored value is unrecognized',
-      () async {
-    expect(await read({notifyMePreferenceKey: 'onlyOnTuesdays'}), NotifyMe.all);
-  });
+  test(
+    'notifies for everything when the stored value is unrecognized',
+    () async {
+      expect(
+        await read({notifyMePreferenceKey: 'onlyOnTuesdays'}),
+        NotifyMe.all,
+      );
+    },
+  );
 
   test('notifies for everything for an empty stored value', () async {
     expect(await read({notifyMePreferenceKey: ''}), NotifyMe.all);

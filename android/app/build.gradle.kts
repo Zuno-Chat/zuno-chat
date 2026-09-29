@@ -92,11 +92,11 @@ android {
             } else {
                 logger.warn(
                     "\n**********************************************************\n" +
-                    "WARNING: android/key.properties not found.\n" +
-                    "This release build is signed with the DEBUG key, which is\n" +
-                    "public and shared by every Android SDK install. Do NOT\n" +
-                    "distribute it. See KEYSTORE.md.\n" +
-                    "**********************************************************\n"
+                        "WARNING: android/key.properties not found.\n" +
+                        "This release build is signed with the DEBUG key, which is\n" +
+                        "public and shared by every Android SDK install. Do NOT\n" +
+                        "distribute it. See KEYSTORE.md.\n" +
+                        "**********************************************************\n",
                 )
                 signingConfigs.getByName("debug")
             }

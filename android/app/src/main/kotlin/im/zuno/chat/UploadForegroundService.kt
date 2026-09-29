@@ -19,7 +19,11 @@ class UploadForegroundService : Service() {
         ensureChannel(this)
         val notification = buildNotification(this, progress)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+            )
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -46,6 +50,7 @@ class UploadForegroundService : Service() {
         private const val DEFAULT_LABEL = "Uploading…"
 
         @Volatile private var running = false
+
         @Volatile private var progress = Progress(DEFAULT_LABEL, null)
 
         fun start(context: Context): Boolean {
@@ -64,7 +69,9 @@ class UploadForegroundService : Service() {
             progress = Progress(label, percent)
             if (!running) return
             try {
-                NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, buildNotification(context, progress))
+                NotificationManagerCompat.from(
+                    context,
+                ).notify(NOTIFICATION_ID, buildNotification(context, progress))
             } catch (error: SecurityException) {
             }
         }

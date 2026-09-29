@@ -26,9 +26,7 @@ void main() {
         overrides: [
           newDeviceAlertProvider.overrideWith(() => _FakeNotifier(alerts)),
         ],
-        child: const MaterialApp(
-          home: Scaffold(body: NewDeviceAlertBanner()),
-        ),
+        child: const MaterialApp(home: Scaffold(body: NewDeviceAlertBanner())),
       ),
     );
   }

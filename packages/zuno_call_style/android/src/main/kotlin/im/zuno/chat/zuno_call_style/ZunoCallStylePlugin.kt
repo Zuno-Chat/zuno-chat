@@ -74,7 +74,9 @@ import org.json.JSONObject
 // This is an undocumented contract of the plugin, not a public API — a
 // flutter_local_notifications major-version bump needs re-verifying it
 // still holds.
-class ZunoCallStylePlugin : FlutterPlugin, MethodCallHandler {
+class ZunoCallStylePlugin :
+    FlutterPlugin,
+    MethodCallHandler {
     private lateinit var channel: MethodChannel
     private lateinit var context: Context
 
@@ -96,10 +98,12 @@ class ZunoCallStylePlugin : FlutterPlugin, MethodCallHandler {
                 show(context, args)
                 result.success(null)
             }
+
             "cancelIncomingCallStyle" -> {
                 cancel(context)
                 result.success(null)
             }
+
             else -> result.notImplemented()
         }
     }

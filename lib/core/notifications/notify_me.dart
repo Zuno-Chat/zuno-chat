@@ -1,9 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum NotifyMe {
-  all,
-  mentionsOnly,
-}
+enum NotifyMe { all, mentionsOnly }
 
 const notifyMePreferenceKey = 'settings.notify_me';
 

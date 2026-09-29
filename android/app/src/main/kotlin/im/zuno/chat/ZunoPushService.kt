@@ -23,6 +23,7 @@ class ZunoPushService : UnifiedPushService() {
                             releaseWakeLock()
                             result.success(null)
                         }
+
                         else -> result.notImplemented()
                     }
                 }
@@ -50,6 +51,7 @@ class ZunoPushService : UnifiedPushService() {
             PushEngineAction.UseExistingAppEngine,
             PushEngineAction.ReuseHeadlessEngine,
             -> return
+
             PushEngineAction.ReplaceHeadlessEngine -> {
                 try {
                     headlessEngine?.destroy()
@@ -60,6 +62,7 @@ class ZunoPushService : UnifiedPushService() {
                 headlessEngineGeneration = null
                 bootHeadlessEngine()
             }
+
             PushEngineAction.BootHeadlessEngine -> bootHeadlessEngine()
         }
     }

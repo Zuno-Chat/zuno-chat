@@ -6,9 +6,8 @@ import android.os.Handler
 import android.os.Looper
 import io.flutter.plugin.common.EventChannel
 
-class NetworkAvailabilityStreamHandler(
-    private val connectivityManager: ConnectivityManager,
-) : EventChannel.StreamHandler {
+class NetworkAvailabilityStreamHandler(private val connectivityManager: ConnectivityManager) :
+    EventChannel.StreamHandler {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var callback: ConnectivityManager.NetworkCallback? = null
 

@@ -5,25 +5,36 @@ import im.zuno.chat.zuno_notifications.NoticeConversation
 import im.zuno.chat.zuno_notifications.NoticeCopy
 import im.zuno.chat.zuno_notifications.PushNoticeDecision
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PushNoticeDecisionTest {
     @Test
     fun `posts while the app is not in front`() {
-        assertTrue(PushNoticeDecision.shouldPost("!r:x", "\$e", appInFront = false, showingForRoom = false))
+        assertTrue(
+            PushNoticeDecision.shouldPost(
+                "!r:x",
+                "\$e",
+                appInFront = false,
+                showingForRoom = false,
+            ),
+        )
     }
 
     @Test
     fun `the app in front handles its own pushes`() {
-        assertFalse(PushNoticeDecision.shouldPost("!r:x", "\$e", appInFront = true, showingForRoom = false))
+        assertFalse(
+            PushNoticeDecision.shouldPost("!r:x", "\$e", appInFront = true, showingForRoom = false),
+        )
     }
 
     @Test
     fun `never replaces a thread that is already showing`() {
-        assertFalse(PushNoticeDecision.shouldPost("!r:x", "\$e", appInFront = false, showingForRoom = true))
+        assertFalse(
+            PushNoticeDecision.shouldPost("!r:x", "\$e", appInFront = false, showingForRoom = true),
+        )
     }
 
     @Test
@@ -36,7 +47,9 @@ class PushNoticeDecisionTest {
 
     @Test
     fun `parses the room cache lines and skips malformed ones`() {
-        val cache = PushNoticeDecision.parseRoomCache("!a:x\td\tAlice\n!g:x\tg\tFamily chat\nbroken line\n\n!h:x\tq\tOdd")
+        val cache = PushNoticeDecision.parseRoomCache(
+            "!a:x\td\tAlice\n!g:x\tg\tFamily chat\nbroken line\n\n!h:x\tq\tOdd",
+        )
         assertEquals(CachedRoom("Alice", isDirect = true), cache["!a:x"])
         assertEquals(CachedRoom("Family chat", isDirect = false), cache["!g:x"])
         assertEquals(CachedRoom("Odd", isDirect = false), cache["!h:x"])
@@ -47,9 +60,15 @@ class PushNoticeDecisionTest {
 
     @Test
     fun `copy uses the room name when known`() {
-        assertEquals(NoticeCopy("Alice", "New message"), PushNoticeDecision.copyFor(CachedRoom("Alice", true)))
+        assertEquals(
+            NoticeCopy("Alice", "New message"),
+            PushNoticeDecision.copyFor(CachedRoom("Alice", true)),
+        )
         assertEquals(NoticeCopy("New message", "Tap to open"), PushNoticeDecision.copyFor(null))
-        assertEquals(NoticeCopy("New message", "Tap to open"), PushNoticeDecision.copyFor(CachedRoom("  ", true)))
+        assertEquals(
+            NoticeCopy("New message", "Tap to open"),
+            PushNoticeDecision.copyFor(CachedRoom("  ", true)),
+        )
     }
 
     @Test
@@ -68,8 +87,14 @@ class PushNoticeDecisionTest {
 
     @Test
     fun `a known room becomes a conversation, an unknown or blank one does not`() {
-        assertEquals(NoticeConversation("Alice", isGroup = false), PushNoticeDecision.conversationFor(CachedRoom("Alice", true)))
-        assertEquals(NoticeConversation("Family", isGroup = true), PushNoticeDecision.conversationFor(CachedRoom(" Family ", false)))
+        assertEquals(
+            NoticeConversation("Alice", isGroup = false),
+            PushNoticeDecision.conversationFor(CachedRoom("Alice", true)),
+        )
+        assertEquals(
+            NoticeConversation("Family", isGroup = true),
+            PushNoticeDecision.conversationFor(CachedRoom(" Family ", false)),
+        )
         assertNull(PushNoticeDecision.conversationFor(null))
         assertNull(PushNoticeDecision.conversationFor(CachedRoom("  ", true)))
     }

@@ -13,9 +13,11 @@ object PlayServicesDecision {
 
     fun decide(statusCode: Int): PlayServicesAvailability = when (statusCode) {
         SUCCESS -> PlayServicesAvailability.AVAILABLE
+
         SERVICE_VERSION_UPDATE_REQUIRED,
         SERVICE_UPDATING,
         -> PlayServicesAvailability.UPDATE_REQUIRED
+
         else -> PlayServicesAvailability.UNAVAILABLE
     }
 }

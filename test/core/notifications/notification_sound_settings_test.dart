@@ -157,7 +157,8 @@ void main() {
       expect(
         ringAudioContext.android.audioMode,
         AndroidAudioMode.normal,
-        reason: 'the ring only ever plays outside a call, where normal is right',
+        reason:
+            'the ring only ever plays outside a call, where normal is right',
       );
     });
   });
@@ -168,8 +169,7 @@ void main() {
       expect(callVibrationPattern.length.isOdd, isTrue);
     });
 
-    test('the message pattern is a double buzz starting with a zero wait',
-        () {
+    test('the message pattern is a double buzz starting with a zero wait', () {
       expect(messageVibrationPattern, [0, 300, 150, 300]);
       expect(messageVibrationPattern.first, 0);
     });

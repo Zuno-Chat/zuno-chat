@@ -141,7 +141,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
             'registration is dropped.';
       case NotificationDeliveryMode.fcm:
         return "The server forgets this device, and this device's registration "
-            "token is dropped.";
+            'token is dropped.';
       case NotificationDeliveryMode.backgroundService:
         return 'Background sync has nothing registered to remove.';
       case NotificationDeliveryMode.apns:
@@ -167,8 +167,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
           ? 'Remove this push target?'
           : 'Remove ${pushers.length} push targets?',
       message:
-          "Every other device and app registered for notifications on this "
-          "account stops receiving them until it registers again. This "
+          'Every other device and app registered for notifications on this '
+          'account stops receiving them until it registers again. This '
           "device's own target is left alone.",
     );
     if (confirmed != true) return;
@@ -348,7 +348,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
             'distributor';
       case NotificationDeliveryMode.fcm:
         return "Makes the server forget this device and drops this device's "
-            "registration token";
+            'registration token';
       case NotificationDeliveryMode.backgroundService:
         return 'Nothing is registered for background sync';
       case NotificationDeliveryMode.apns:

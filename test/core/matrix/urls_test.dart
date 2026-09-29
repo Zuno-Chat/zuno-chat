@@ -37,9 +37,7 @@ void main() {
 
     test('rejects intent: and custom app schemes', () {
       expect(
-        isSafeExternalUri(
-          Uri.parse('intent://evil#Intent;package=com.x;end'),
-        ),
+        isSafeExternalUri(Uri.parse('intent://evil#Intent;package=com.x;end')),
         isFalse,
       );
       expect(isSafeExternalUri(Uri.parse('myapp://do-something')), isFalse);

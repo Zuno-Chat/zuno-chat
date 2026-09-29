@@ -32,7 +32,14 @@ object PushNoticeDecision {
 
     fun copyFor(room: CachedRoom?): NoticeCopy {
         val name = room?.name?.trim().orEmpty()
-        return if (name.isEmpty()) NoticeCopy("New message", "Tap to open") else NoticeCopy(name, "New message")
+        return if (name.isEmpty()) {
+            NoticeCopy(
+                "New message",
+                "Tap to open",
+            )
+        } else {
+            NoticeCopy(name, "New message")
+        }
     }
 
     fun channelFor(room: CachedRoom?): String =

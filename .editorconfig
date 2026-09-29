@@ -1,0 +1,36 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{dart,yaml,yml,json,arb}]
+indent_style = space
+indent_size = 2
+
+[*.{kt,kts}]
+indent_style = space
+indent_size = 4
+max_line_length = 100
+ktlint_code_style = android_studio
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+
+[packages/**/*.kt]
+ktlint_standard_package-name = disabled
+
+[*.swift]
+indent_style = space
+indent_size = 2
+max_line_length = 100
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{bat,cmd}]
+end_of_line = crlf
+
+[*.pbxproj]
+indent_style = tab

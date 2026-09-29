@@ -5,7 +5,8 @@ final class AppDataPlugin: NSObject, FlutterPlugin {
   private static let databaseSidecars = ["", "-wal", "-shm", "-journal"]
 
   static func register(with registrar: FlutterPluginRegistrar) {
-    let channel = FlutterMethodChannel(name: "zuno/app_data", binaryMessenger: registrar.messenger())
+    let channel = FlutterMethodChannel(
+      name: "zuno/app_data", binaryMessenger: registrar.messenger())
     registrar.addMethodCallDelegate(AppDataPlugin(), channel: channel)
   }
 

@@ -323,7 +323,7 @@ final _cases = <_Case>[
     build: (room) => _msg(room, {
       'msgtype': 'm.key.verification.request',
       'body':
-          "Attempting verification request. Apparently your client "
+          'Attempting verification request. Apparently your client '
           "doesn't support this",
     }),
     visible: false,

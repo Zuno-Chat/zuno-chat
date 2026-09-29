@@ -1,10 +1,6 @@
 import 'package:permission_handler/permission_handler.dart';
 
-enum NotificationPermissionAction {
-  request,
-  openSettings,
-  none,
-}
+enum NotificationPermissionAction { request, openSettings, none }
 
 NotificationPermissionAction notificationPermissionActionFor({
   required bool turningOn,

@@ -93,35 +93,38 @@ void main() {
     expect(built.single.disposeCalls, 1);
   });
 
-  test('a push held open by a ringing call still lets the next one through', () async {
-    final ringing = Completer<void>();
-    await provider.ensureHeadlessCallbacksRegistered(
-      clientBuilder: () async {
-        final client = _RecordingClient();
-        built.add(client);
-        return client;
-      },
-      onPushHandled: (outcome) async {
-        handled.add(outcome);
-        if (handled.length == 1) await ringing.future;
-      },
-    );
+  test(
+    'a push held open by a ringing call still lets the next one through',
+    () async {
+      final ringing = Completer<void>();
+      await provider.ensureHeadlessCallbacksRegistered(
+        clientBuilder: () async {
+          final client = _RecordingClient();
+          built.add(client);
+          return client;
+        },
+        onPushHandled: (outcome) async {
+          handled.add(outcome);
+          if (handled.length == 1) await ringing.future;
+        },
+      );
 
-    final first = deliver(eventId: '\$ring');
-    await pumpEventQueue();
-    final second = deliver(eventId: '\$hangup');
-    await pumpEventQueue();
+      final first = deliver(eventId: '\$ring');
+      await pumpEventQueue();
+      final second = deliver(eventId: '\$hangup');
+      await pumpEventQueue();
 
-    expect(
-      built,
-      hasLength(2),
-      reason: 'the hang-up must be handled while the ring is still held',
-    );
-    expect(built[1].resolveCalls, 1);
+      expect(
+        built,
+        hasLength(2),
+        reason: 'the hang-up must be handled while the ring is still held',
+      );
+      expect(built[1].resolveCalls, 1);
 
-    ringing.complete();
-    await Future.wait([first, second]);
-  });
+      ringing.complete();
+      await Future.wait([first, second]);
+    },
+  );
 
   test('a decline during the ring can still get a client', () async {
     await registerHeadless();

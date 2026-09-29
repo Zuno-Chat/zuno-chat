@@ -256,7 +256,7 @@ class _NotificationsSettingsPageState
             padding: const EdgeInsets.fromLTRB(28, 6, 28, 8),
             child: Text(
               "Ringing and message tones follow your device's ring and "
-              "notification volume, and stay silent when it is on silent.",
+              'notification volume, and stay silent when it is on silent.',
               style: theme.textTheme.bodySmall!.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

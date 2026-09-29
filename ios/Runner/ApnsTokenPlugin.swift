@@ -51,6 +51,6 @@ final class ApnsTokenPlugin: NSObject, FlutterPlugin {
     timeout = nil
     let results = pending
     pending = []
-    results.forEach { $0(reply) }
+    for result in results { result(reply) }
   }
 }

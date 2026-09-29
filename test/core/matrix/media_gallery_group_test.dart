@@ -102,9 +102,10 @@ void main() {
     });
 
     test('keeps a one-item group when its other item failed to send', () {
-      final result = groupGalleries([
-        media('a', groupId: 'g1', index: 0),
-      ], forceGroupIds: {'g1'});
+      final result = groupGalleries(
+        [media('a', groupId: 'g1', index: 0)],
+        forceGroupIds: {'g1'},
+      );
 
       expect(result.galleries.keys, ['a']);
       expect(result.galleries['a']!.map((e) => e.eventId), ['a']);
