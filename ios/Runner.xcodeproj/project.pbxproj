@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0CA0369CC96DC6225EA80FA2 /* AppDataPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C2EBFC02A02FAD9EC0C9689 /* AppDataPlugin.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
+		16971F7433E25ECE97020B9F /* CallKitCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37B028565504235C6399A1F5 /* CallKitCenter.swift */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		3CD5D91736F0C398F3A2F6E9 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A36BFC187ED84C681E12060 /* Pods_RunnerTests.framework */; };
@@ -24,6 +25,8 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		9C2B45BD5D59773C45BE1F8C /* NetworkPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5668CE701A5A373EC58DA55 /* NetworkPlugin.swift */; };
+		A05828E7E80A747B5163BA27 /* silent_ring.caf in Resources */ = {isa = PBXBuildFile; fileRef = 41636D566A3CA45659AB378F /* silent_ring.caf */; };
+		A85CFB9732CE2C02C2FBA117 /* CallAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41CCBA4CDE990946218D65AA /* CallAudio.swift */; };
 		E78E9E50A0E5E1DDE7ACF97B /* VideoToolsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66BFEDFBD9484E9C3639E731 /* VideoToolsPlugin.swift */; };
 /* End PBXBuildFile section */
 
@@ -60,7 +63,10 @@
 		1EF5AB6658840E28B29C09C2 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		37B028565504235C6399A1F5 /* CallKitCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CallKitCenter.swift; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		41636D566A3CA45659AB378F /* silent_ring.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = silent_ring.caf; sourceTree = "<group>"; };
+		41CCBA4CDE990946218D65AA /* CallAudio.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CallAudio.swift; sourceTree = "<group>"; };
 		4752A00210B9EBA8EF142676 /* ApnsTokenPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ApnsTokenPlugin.swift; sourceTree = "<group>"; };
 		5360F2CA3BACBEBAB3A15044 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		611C3FB129F7A7608E47A6C1 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
@@ -189,6 +195,9 @@
 				7785646B131865919760C9BE /* CallsChannelPlugin.swift */,
 				9BE3B398F8524F090E03501F /* UploadServicePlugin.swift */,
 				F5668CE701A5A373EC58DA55 /* NetworkPlugin.swift */,
+				41636D566A3CA45659AB378F /* silent_ring.caf */,
+				37B028565504235C6399A1F5 /* CallKitCenter.swift */,
+				41CCBA4CDE990946218D65AA /* CallAudio.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -297,6 +306,7 @@
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
+				A05828E7E80A747B5163BA27 /* silent_ring.caf in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -421,6 +431,8 @@
 				72A02DF065BD181D29A94CDB /* CallsChannelPlugin.swift in Sources */,
 				62DE2C7396862A3D29A321EF /* UploadServicePlugin.swift in Sources */,
 				9C2B45BD5D59773C45BE1F8C /* NetworkPlugin.swift in Sources */,
+				16971F7433E25ECE97020B9F /* CallKitCenter.swift in Sources */,
+				A85CFB9732CE2C02C2FBA117 /* CallAudio.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

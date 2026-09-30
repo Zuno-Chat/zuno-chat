@@ -16,8 +16,10 @@ import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/calls/notifications/pending_call_notification_action_provider.dart';
 import '../../../core/calls/notifications/ringing_call_provider.dart';
 import '../../../core/calls/platform/incoming_call_presenter.dart';
+import '../../../core/calls/platform/system_ring.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_user_display.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../../../core/ui/zuno_theme.dart';
@@ -37,6 +39,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   StreamSubscription<CallNotificationResponse>? _notificationActionSub;
   StreamSubscription<Event>? _callEndedSub;
   late final IncomingCallPresenter _incomingCallPresenter;
+  late final bool _ownsRing;
   bool _resolved = false;
   User? _caller;
   bool _handedOffToCall = false;
@@ -45,6 +48,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   void initState() {
     super.initState();
     _incomingCallPresenter = ref.read(incomingCallPresenterProvider);
+    _ownsRing = !ref.read(platformCapabilitiesProvider).callKit;
     RingingCall.instance.set(widget.call.callId);
     _caller = widget.call.room.unsafeGetUserFromMemoryOrFallback(
       widget.call.callerId,
@@ -77,6 +81,12 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
       return;
     }
     unawaited(CallNotificationService.instance.setShowOverLockscreen(true));
+    if (_ownsRing) {
+      SystemRing.instance.set(
+        roomId: widget.call.room.id,
+        callId: widget.call.callId,
+      );
+    }
     _notificationActionSub = CallNotificationService.instance.onAction.listen((
       response,
     ) {
@@ -107,11 +117,21 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     setState(() => _caller = caller);
   }
 
+  void _releaseRing() {
+    if (_ownsRing) SystemRing.instance.clear(widget.call.callId);
+  }
+
   @override
   void dispose() {
+    _releaseRing();
     _notificationActionSub?.cancel();
     _callEndedSub?.cancel();
-    unawaited(_incomingCallPresenter.cancelIncoming());
+    unawaited(
+      _incomingCallPresenter.cancelIncoming(
+        roomId: widget.call.room.id,
+        callId: widget.call.callId,
+      ),
+    );
     RingingCall.instance.clear(widget.call.callId);
     if (!_handedOffToCall) {
       unawaited(CallNotificationService.instance.setShowOverLockscreen(false));
@@ -129,6 +149,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   }
 
   void _dismiss() {
+    _releaseRing();
     if (!mounted) return;
     final route = ModalRoute.of(context);
     if (route == null) return;
@@ -156,6 +177,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     );
     ref.read(activeCallProvider.notifier).set(session);
     _handedOffToCall = true;
+    _releaseRing();
     if (!mounted) return;
     unawaited(
       Navigator.of(context).pushReplacement(

@@ -17,6 +17,7 @@ import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
+import 'package:zuno/core/calls/platform/system_ring.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/currently_open_room_provider.dart';
@@ -31,6 +32,7 @@ import 'package:zuno/core/notifications/notification_permission.dart';
 import 'package:zuno/core/notifications/notification_permission_provider.dart';
 import 'package:zuno/core/notifications/unified_push_delivery_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/device_safety.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_splash.dart';
@@ -44,11 +46,13 @@ import 'package:zuno/features/settings/presentation/active_sessions_page.dart';
 import 'package:zuno/features/share/presentation/share_picker_page.dart';
 
 import 'features/calls/presentation/call_page_harness.dart';
+import 'helpers/app_lifecycle.dart';
 import 'helpers/fake_call_style_channel.dart';
 import 'helpers/fake_local_notifications.dart';
 import 'helpers/fake_matrix.dart';
 import 'helpers/fake_unified_push.dart';
 import 'helpers/fixed_homeserver.dart';
+import 'helpers/platform_capabilities.dart';
 
 class _RecordingClient extends Client {
   _RecordingClient()
@@ -108,26 +112,6 @@ class _RecordingUnifiedPush extends FakeUnifiedPush {
     String? messageForDistributor,
     String? vapid,
   ) async => registrations++;
-}
-
-const _lifecycle = [
-  AppLifecycleState.resumed,
-  AppLifecycleState.inactive,
-  AppLifecycleState.hidden,
-  AppLifecycleState.paused,
-];
-
-void moveTo(WidgetTester tester, AppLifecycleState target) {
-  final binding = tester.binding;
-  if (binding.lifecycleState == null) {
-    binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-  }
-  var at = _lifecycle.indexOf(binding.lifecycleState!);
-  final to = _lifecycle.indexOf(target);
-  while (at != to) {
-    at += at < to ? 1 : -1;
-    binding.handleAppLifecycleStateChanged(_lifecycle[at]);
-  }
 }
 
 Future<void> settle(WidgetTester tester) async {
@@ -564,7 +548,7 @@ void main() {
       await pumpApp(tester);
       await settle(tester);
 
-      moveTo(tester, AppLifecycleState.paused);
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
 
       expect(client.syncAborts, 1);
     });
@@ -578,7 +562,7 @@ void main() {
       );
       await settle(tester);
 
-      moveTo(tester, AppLifecycleState.paused);
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
 
       expect(client.syncAborts, 0);
     });
@@ -592,7 +576,7 @@ void main() {
           .read(activeCallProvider.notifier)
           .set(FakeCallSession(room: room, kind: CallKind.voice));
 
-      moveTo(tester, AppLifecycleState.paused);
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
       expect(client.syncAborts, 0);
 
       container.read(activeCallProvider.notifier).set(null);
@@ -605,7 +589,7 @@ void main() {
     ) async {
       final container = await pumpApp(tester);
       await settle(tester);
-      moveTo(tester, AppLifecycleState.resumed);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
       container
           .read(activeCallProvider.notifier)
           .set(FakeCallSession(room: room, kind: CallKind.voice));
@@ -618,10 +602,10 @@ void main() {
     testWidgets('coming back to the app resumes sync', (tester) async {
       await pumpApp(tester);
       await settle(tester);
-      moveTo(tester, AppLifecycleState.paused);
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
       client.backgroundSyncChanges.clear();
 
-      moveTo(tester, AppLifecycleState.resumed);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
 
       expect(client.backgroundSyncChanges, [true]);
     });
@@ -633,14 +617,14 @@ void main() {
       callsChannel.clear();
       final refreshesAtLaunch = permission.refreshes;
 
-      moveTo(tester, AppLifecycleState.resumed);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
       await settle(tester);
 
       expect(permission.refreshes, refreshesAtLaunch);
       expect(callsChannel, isEmpty);
 
-      moveTo(tester, AppLifecycleState.paused);
-      moveTo(tester, AppLifecycleState.resumed);
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
       await settle(tester);
 
       expect(permission.refreshes, refreshesAtLaunch + 1);
@@ -660,13 +644,13 @@ void main() {
       await settle(tester);
       final runner = fcmDeliveryProvider.runner;
 
-      moveTo(tester, AppLifecycleState.resumed);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
       container.read(currentlyOpenRoomIdProvider.notifier).set(room.id);
 
       expect(runner.isAppSyncing(), isTrue);
       expect(runner.currentlyOpenRoomId(), room.id);
 
-      moveTo(tester, AppLifecycleState.paused);
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
 
       expect(runner.isAppSyncing(), isFalse);
     });
@@ -676,13 +660,210 @@ void main() {
     ) async {
       final container = await pumpApp(tester);
       await settle(tester);
-      moveTo(tester, AppLifecycleState.resumed);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
       container.read(currentlyOpenRoomIdProvider.notifier).set(room.id);
 
       await tester.pumpWidget(const SizedBox());
 
       expect(fcmDeliveryProvider.runner.currentlyOpenRoomId(), isNull);
       expect(fcmDeliveryProvider.runner.isAppSyncing(), isFalse);
+    });
+  });
+
+  group('sync around a system call', () {
+    const ringingCallId = 'ringing-call';
+
+    void ring() =>
+        SystemRing.instance.set(roomId: room.id, callId: ringingCallId);
+
+    void stopRinging() => SystemRing.instance.clear(ringingCallId);
+
+    FakeCallSession call() => FakeCallSession(room: room, kind: CallKind.voice);
+
+    group('on iOS', () {
+      setUp(() => ambientCapabilities = iosCapabilities);
+
+      testWidgets('a ringing call keeps sync running when the app goes to the '
+          'background', (tester) async {
+        await pumpApp(tester);
+        await settle(tester);
+        ring();
+
+        moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+
+        expect(client.syncAborts, 0);
+        stopRinging();
+      });
+
+      testWidgets('a ring arriving in the background turns sync back on', (
+        tester,
+      ) async {
+        await pumpApp(tester);
+        await settle(tester);
+        moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+        expect(client.syncAborts, 1);
+        client.backgroundSyncChanges.clear();
+
+        ring();
+
+        expect(client.backgroundSyncChanges, [true]);
+        stopRinging();
+      });
+
+      testWidgets('a call starting in the background turns sync back on', (
+        tester,
+      ) async {
+        final container = await pumpApp(tester);
+        await settle(tester);
+        moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+        client.backgroundSyncChanges.clear();
+
+        container.read(activeCallProvider.notifier).set(call());
+
+        expect(client.backgroundSyncChanges, [true]);
+      });
+
+      testWidgets('a ring or a call starting in the foreground leaves sync '
+          'alone', (tester) async {
+        final container = await pumpApp(tester);
+        await settle(tester);
+        moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
+        client.backgroundSyncChanges.clear();
+
+        ring();
+        container.read(activeCallProvider.notifier).set(call());
+
+        expect(client.backgroundSyncChanges, isEmpty);
+        stopRinging();
+      });
+
+      testWidgets('a call ending in the background while another call rings '
+          'keeps sync running', (tester) async {
+        final container = await pumpApp(tester);
+        await settle(tester);
+        container.read(activeCallProvider.notifier).set(call());
+        moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+        ring();
+
+        container.read(activeCallProvider.notifier).set(null);
+
+        expect(client.syncAborts, 0);
+        stopRinging();
+      });
+
+      testWidgets('a ring ending in the background leaves sync running', (
+        tester,
+      ) async {
+        await pumpApp(tester);
+        await settle(tester);
+        ring();
+        moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+
+        stopRinging();
+
+        expect(client.syncAborts, 0);
+      });
+    });
+
+    group('on Android', () {
+      setUp(() => ambientCapabilities = androidCapabilities);
+
+      testWidgets('a ring arriving in the background leaves sync paused', (
+        tester,
+      ) async {
+        await pumpApp(tester);
+        await settle(tester);
+        moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+        expect(client.syncAborts, 1);
+        client.backgroundSyncChanges.clear();
+
+        ring();
+
+        expect(client.backgroundSyncChanges, isEmpty);
+        stopRinging();
+      });
+
+      testWidgets('a call starting in the background leaves sync paused', (
+        tester,
+      ) async {
+        final container = await pumpApp(tester);
+        await settle(tester);
+        moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+        expect(client.syncAborts, 1);
+        client.backgroundSyncChanges.clear();
+
+        container.read(activeCallProvider.notifier).set(call());
+
+        expect(client.backgroundSyncChanges, isEmpty);
+      });
+
+      testWidgets('a ringing call keeps sync running when the app goes to the '
+          'background', (tester) async {
+        await pumpApp(tester);
+        await settle(tester);
+        ring();
+
+        moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+
+        expect(client.syncAborts, 0);
+        stopRinging();
+      });
+
+      testWidgets('a ring ending in the background pauses sync', (
+        tester,
+      ) async {
+        await pumpApp(tester);
+        await settle(tester);
+        ring();
+        moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+        expect(client.syncAborts, 0);
+
+        stopRinging();
+
+        expect(client.syncAborts, 1);
+      });
+
+      testWidgets('a ring ending while a call is up keeps sync running', (
+        tester,
+      ) async {
+        final container = await pumpApp(tester);
+        await settle(tester);
+        ring();
+        moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+        container.read(activeCallProvider.notifier).set(call());
+
+        stopRinging();
+
+        expect(client.syncAborts, 0);
+      });
+
+      testWidgets('a ring ending in the foreground leaves sync alone', (
+        tester,
+      ) async {
+        await pumpApp(tester);
+        await settle(tester);
+        moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
+        ring();
+
+        stopRinging();
+
+        expect(client.syncAborts, 0);
+      });
+
+      testWidgets('a ring ending in the background leaves sync running for '
+          'the background service', (tester) async {
+        await pumpApp(
+          tester,
+          deliveryMode: NotificationDeliveryMode.backgroundService,
+        );
+        await settle(tester);
+        ring();
+        moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+
+        stopRinging();
+
+        expect(client.syncAborts, 0);
+      });
     });
   });
 

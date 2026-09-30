@@ -57,6 +57,8 @@ typedef RingingCallInfo = ({
   bool isVideo,
 });
 
+typedef SystemMute = ({String callId, bool muted});
+
 RingingCallInfo? ringingCallFromPayload(String? payload) {
   if (payload == null) return null;
   final Object? decoded;
@@ -179,7 +181,14 @@ class CallNotificationService {
   final _newDeviceTapController = StreamController<void>.broadcast();
   final _headlessDeclineController =
       StreamController<HeadlessCallDecline>.broadcast();
-  final _hangUpController = StreamController<void>.broadcast();
+  final _hangUpController = StreamController<String?>.broadcast();
+  final _systemMuteController = StreamController<SystemMute>.broadcast();
+  final _ringEndedController = StreamController<RingingCallInfo>.broadcast();
+  final _systemCallFailedController = StreamController<String>.broadcast();
+  final _systemRingingController =
+      StreamController<RingingCallInfo>.broadcast();
+  final _audioRouteController =
+      StreamController<Map<Object?, Object?>>.broadcast();
   final inPictureInPicture = ValueNotifier<bool>(false);
 
   Stream<CallNotificationResponse> get onAction => _actionController.stream;
@@ -187,7 +196,14 @@ class CallNotificationService {
   Stream<void> get onNewDeviceTap => _newDeviceTapController.stream;
   Stream<HeadlessCallDecline> get onHeadlessDecline =>
       _headlessDeclineController.stream;
-  Stream<void> get onHangUp => _hangUpController.stream;
+  Stream<String?> get onHangUp => _hangUpController.stream;
+  Stream<SystemMute> get onSystemMute => _systemMuteController.stream;
+  Stream<RingingCallInfo> get onRingEnded => _ringEndedController.stream;
+  Stream<String> get onSystemCallFailed => _systemCallFailedController.stream;
+  Stream<RingingCallInfo> get onSystemRinging =>
+      _systemRingingController.stream;
+  Stream<Map<Object?, Object?>> get onAudioRouteChanged =>
+      _audioRouteController.stream;
 
   @visibleForTesting
   void onActionForTest(CallNotificationResponse response) =>
@@ -210,24 +226,10 @@ class CallNotificationService {
     if (claimDeclinePort) _claimDeclinePort();
 
     _channel.setMethodCallHandler((call) async {
-      switch (call.method) {
-        case 'hangUpCall':
-          _hangUpController.add(null);
-        case 'pictureInPictureChanged':
-          inPictureInPicture.value = call.arguments == true;
-        case 'answerCall':
-          _deliverNativeCallAction(
-            CallNotificationAction.accept,
-            call.arguments,
-          );
-        case 'declineCall':
-          _deliverNativeCallAction(
-            CallNotificationAction.decline,
-            call.arguments,
-          );
-      }
+      _handleNativeCall(call.method, call.arguments);
       return null;
     });
+    if (_capabilities.callKit) await _invoke<void>('resetSystemCalls');
 
     await _plugin.initialize(
       settings: InitializationSettings(
@@ -399,6 +401,55 @@ class CallNotificationService {
   }
 
   CallNotificationResponse? _pendingNativeCallAction;
+
+  void _handleNativeCall(String method, Object? arguments) {
+    switch (method) {
+      case 'hangUpCall':
+        _hangUpController.add(_callIdFrom(arguments));
+      case 'pictureInPictureChanged':
+        inPictureInPicture.value = arguments == true;
+      case 'answerCall':
+        _deliverNativeCallAction(CallNotificationAction.accept, arguments);
+      case 'declineCall':
+        _deliverNativeCallAction(CallNotificationAction.decline, arguments);
+      case 'setMuted':
+        final callId = _callIdFrom(arguments);
+        final muted = arguments is Map ? arguments['muted'] : null;
+        if (callId != null && muted is bool) {
+          _systemMuteController.add((callId: callId, muted: muted));
+        }
+      case 'ringEnded':
+        final call = _ringingCallFrom(arguments);
+        if (call != null) _ringEndedController.add(call);
+      case 'callFailed':
+        final callId = _callIdFrom(arguments);
+        if (callId != null) _systemCallFailedController.add(callId);
+      case 'ringing':
+        final call = _ringingCallFrom(arguments);
+        if (call != null) _systemRingingController.add(call);
+      case 'audioRouteChanged':
+        if (arguments is Map) _audioRouteController.add(arguments);
+    }
+  }
+
+  String? _callIdFrom(Object? arguments) {
+    final callId = arguments is Map ? arguments['callId'] : null;
+    return callId is String ? callId : null;
+  }
+
+  Future<void> takeQueuedNativeCalls() async {
+    final List<Object?>? queued;
+    try {
+      queued = await _channel.invokeListMethod<Object?>('takeCallEvents');
+    } on MissingPluginException {
+      return;
+    }
+    for (final event in queued ?? const <Object?>[]) {
+      if (event is! Map) continue;
+      final method = event['method'];
+      if (method is String) _handleNativeCall(method, event['arguments']);
+    }
+  }
 
   void _deliverNativeCallAction(
     CallNotificationAction action,
@@ -907,13 +958,13 @@ class CallNotificationService {
     required bool eligible,
     required int aspectWidth,
     required int aspectHeight,
-  }) {
-    return _invoke('setPictureInPicture', {
-      'eligible': eligible,
-      'aspectWidth': aspectWidth,
-      'aspectHeight': aspectHeight,
-    });
-  }
+  }) => _capabilities.pictureInPicture
+      ? _invoke('setPictureInPicture', {
+          'eligible': eligible,
+          'aspectWidth': aspectWidth,
+          'aspectHeight': aspectHeight,
+        })
+      : Future.value();
 
   Future<bool> canUseFullScreenIntent() async =>
       await fullScreenIntentAllowedOrNull() ?? true;

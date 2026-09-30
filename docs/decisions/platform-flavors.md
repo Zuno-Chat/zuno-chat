@@ -65,11 +65,12 @@ throws `MissingPluginException` on iOS and surfaces as a red SnackBar.
 
 ## Call seams
 
-`lib/core/calls/platform/` — three interfaces CallKit will genuinely
-reimplement: `IncomingCallPresenter` (full-screen-intent notification ↔
-`CXProvider.reportNewIncomingCall`), `OngoingCallPresenter`
-(`CallForegroundService` ↔ `CXProvider` + `AVAudioSession`),
-`RingbackTonePlayer` (`ToneGenerator` ↔ `AVAudioPlayer`).
+`lib/core/calls/platform/` — where CallKit and Android differ:
+`IncomingCallPresenter` (full-screen-intent notification ↔ CallKit report),
+`RingbackTonePlayer` (`ToneGenerator` ↔ native `AVAudioPlayer`),
+`SystemCall` (none ↔ the CallKit call) and `CallAudioOutput` (flutter_webrtc
+↔ native routes). `OngoingCallPresenter` stays a no-op on iOS: the session
+layer drives the CallKit call (`calls.md`).
 
 The risk: `call_notification_service.dart` also owns cross-isolate decline
 routing (`IsolateNameServer` port claim/release, the headless response

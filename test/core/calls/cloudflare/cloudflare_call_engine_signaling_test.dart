@@ -219,6 +219,27 @@ void main() {
     });
   });
 
+  group('system call audio', () {
+    test('under CallKit the audio gate is armed before the microphone or the '
+        'connection opens', () {
+      inCall((call) {
+        call.join();
+
+        expect(call.backend.audioArms, [
+          (capturesBefore: 0, connectionsBefore: 0),
+        ]);
+      }, capabilities: iosCapabilities);
+    });
+
+    test('without CallKit nothing is armed', () {
+      inCall((call) {
+        call.join();
+
+        expect(call.backend.audioArms, isEmpty);
+      }, capabilities: androidCapabilities);
+    });
+  });
+
   group('joining fails', () {
     test('an SFU that refuses a session fails the join and releases the '
         'capture and the connection', () {
@@ -567,6 +588,10 @@ void main() {
         expect(call.camera.enabled, isTrue);
         expect(call.engine.kind, CallKind.video);
         expect(call.local.videoEnabled, isTrue);
+        expect(
+          call.emitted.last.singleWhere((p) => p.isLocal).videoEnabled,
+          isTrue,
+        );
         expect(call.sfu.pushes, hasLength(1));
       });
     });

@@ -7,6 +7,7 @@ import 'package:zuno/core/calls/platform/ringback_tone_player.dart';
 import 'package:zuno/core/notifications/notification_sound_settings.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -53,28 +54,15 @@ void main() {
   });
 
   group('the native ringback tone', () {
-    const callsChannel = MethodChannel('zuno/calls');
-    late List<String> native;
+    late RecordedCallsChannel native;
 
-    setUp(() {
-      native = [];
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(callsChannel, (call) async {
-            native.add(call.method);
-            return null;
-          });
-    });
-
-    tearDown(
-      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(callsChannel, null),
-    );
+    setUp(() => native = installFakeCallsChannel());
 
     test('starts and stops on the native side', () async {
       await player.start();
       await player.stop();
 
-      expect(native, ['startRingbackTone', 'stopRingbackTone']);
+      expect(native.methods, ['startRingbackTone', 'stopRingbackTone']);
     });
 
     test('a route change stops and restarts it on the native side', () async {
@@ -82,7 +70,7 @@ void main() {
       await player.restartForRouteChange();
       await player.stop();
 
-      expect(native, [
+      expect(native.methods, [
         'startRingbackTone',
         'stopRingbackTone',
         'startRingbackTone',
@@ -91,11 +79,9 @@ void main() {
     });
 
     test('a failing platform side still leaves the tone stoppable', () async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-            callsChannel,
-            (_) async => throw PlatformException(code: 'tone'),
-          );
+      installFakeCallsChannel(
+        reply: (_) => throw PlatformException(code: 'tone'),
+      );
 
       await expectLater(player.start(), completes);
       expect(player.isPlaying, isTrue);
@@ -104,20 +90,81 @@ void main() {
     });
 
     test('is never asked for on a platform without one', () async {
-      for (final capabilities in [
-        iosCapabilities,
+      final none = ringbackTonePlayerFor(
         capabilitiesLike(androidCapabilities, nativeRingbackTone: false),
-      ]) {
-        final none = ringbackTonePlayerFor(capabilities);
+      );
 
-        await none.start();
-        await none.restartForRouteChange();
-        await none.stop();
+      await none.start();
+      await none.restartForRouteChange();
+      await none.stop();
 
-        expect(none, isA<NoopRingbackTonePlayer>());
-      }
-      expect(native, isEmpty);
+      expect(none, isA<NoopRingbackTonePlayer>());
+      expect(native.calls, isEmpty);
       expect(player.isPlaying, isFalse);
+    });
+  });
+
+  group('the CallKit ringback tone', () {
+    late RecordedCallsChannel native;
+    late CallKitRingbackTonePlayer callKit;
+
+    setUp(() {
+      callKit = CallKitRingbackTonePlayer();
+      native = installFakeCallsChannel();
+    });
+
+    test('ios picks it', () {
+      expect(
+        ringbackTonePlayerFor(iosCapabilities),
+        same(CallKitRingbackTonePlayer.instance),
+      );
+    });
+
+    test('starts and stops on the native side, once each', () async {
+      await callKit.start();
+      await callKit.start();
+      await callKit.stop();
+      await callKit.stop();
+
+      expect(native.methods, ['startRingbackTone', 'stopRingbackTone']);
+    });
+
+    test('a route change leaves the native tone alone', () async {
+      await callKit.start();
+      await callKit.restartForRouteChange();
+
+      expect(native.methods, ['startRingbackTone']);
+      expect(callKit.isPlaying, isTrue);
+    });
+
+    test('a failing platform side still leaves the tone stoppable', () async {
+      installFakeCallsChannel(
+        reply: (_) => throw PlatformException(code: 'tone'),
+      );
+
+      await expectLater(callKit.start(), completes);
+      expect(callKit.isPlaying, isTrue);
+      await expectLater(callKit.stop(), completes);
+      expect(callKit.isPlaying, isFalse);
+    });
+
+    test('the ringtone preference off asks for nothing', () async {
+      SharedPreferences.setMockInitialValues({ringtoneEnabledKey: false});
+
+      await callKit.start();
+      await callKit.stop();
+
+      expect(native.calls, isEmpty);
+      expect(callKit.isPlaying, isFalse);
+    });
+
+    test('a stop while the preference loads keeps the tone off', () async {
+      final starting = callKit.start();
+      await callKit.stop();
+      await starting;
+
+      expect(native.methods, isNot(contains('startRingbackTone')));
+      expect(callKit.isPlaying, isFalse);
     });
   });
 
@@ -139,7 +186,7 @@ void main() {
       expect(android.read(ringbackTonePlayerProvider), same(player));
       expect(
         ios.read(ringbackTonePlayerProvider),
-        isA<NoopRingbackTonePlayer>(),
+        same(CallKitRingbackTonePlayer.instance),
       );
     });
   });

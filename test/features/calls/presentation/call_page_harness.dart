@@ -10,119 +10,14 @@ import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/active_call_provider.dart';
-import 'package:zuno/core/calls/matrixrtc/call_session.dart';
-import 'package:zuno/core/calls/models/call_engine_participant.dart';
-import 'package:zuno/core/calls/models/call_kind.dart';
-import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
 
-import '../../../helpers/fake_call_engine.dart';
-import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_call_session.dart';
 
-class FakeCallSession implements CallSession {
-  FakeCallSession({
-    required this.room,
-    required this.kind,
-    this.role = CallSessionRole.callee,
-    this._phase = CallSessionPhase.connecting,
-  }) : engine = FakeCallEngine(kind: kind);
-
-  @override
-  final Room room;
-  @override
-  CallKind kind;
-  @override
-  final CallSessionRole role;
-  @override
-  final FakeCallEngine engine;
-  @override
-  String get callId => 'call-1';
-
-  CallSessionPhase _phase;
-  final _phases = StreamController<CallSessionPhase>.broadcast();
-  final _remoteJoined = StreamController<void>.broadcast();
-
-  @override
-  CallSessionPhase get phase => _phase;
-  @override
-  Stream<CallSessionPhase> get phaseStream => _phases.stream;
-  @override
-  Stream<void> get remoteJoinedStream => _remoteJoined.stream;
-
-  @override
-  bool everHadRemote = false;
-  @override
-  CallEndReason? endReason;
-  @override
-  String? failedMessage;
-
-  bool microphoneGranted = true;
-  int membershipRefreshes = 0;
-  int hangUps = 0;
-
-  @override
-  Future<void> ensurePermissions() async {
-    if (!microphoneGranted) throw StateError('Microphone permission denied');
-  }
-
-  @override
-  Future<void> refreshMembership() async => membershipRefreshes++;
-
-  @override
-  Future<void> hangUp() async => hangUps++;
-
-  void moveTo(CallSessionPhase next) {
-    _phase = next;
-    _phases.add(next);
-  }
-
-  void remoteJoins() {
-    everHadRemote = true;
-    _remoteJoined.add(null);
-  }
-
-  void end({CallEndReason reason = CallEndReason.hungUp, String? message}) {
-    endReason = reason;
-    failedMessage = message;
-    moveTo(CallSessionPhase.ended);
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class FakeMediaStream extends MediaStream {
-  FakeMediaStream(String id) : super(id, 'local');
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-CallEngineParticipant localParticipant({
-  bool muted = false,
-  bool camera = false,
-}) => CallEngineParticipant(
-  id: const VoipParticipantId(userId: 'local', deviceId: 'local'),
-  isLocal: true,
-  audioMuted: muted,
-  videoEnabled: camera,
-  videoStream: camera ? FakeMediaStream('local-video') : null,
-  encrypted: true,
-);
-
-CallEngineParticipant remoteParticipant({
-  String userId = '@ann:example.org',
-  bool camera = false,
-}) => CallEngineParticipant(
-  id: VoipParticipantId(userId: userId, deviceId: 'ANN'),
-  isLocal: false,
-  videoEnabled: camera,
-  videoStream: camera ? FakeMediaStream('$userId-video') : null,
-  encrypted: true,
-);
+export '../../../helpers/fake_call_session.dart';
 
 class CallPageHarness {
   CallPageHarness(
@@ -174,6 +69,7 @@ class CallPageHarness {
     messenger.setMockMessageHandler(wakelock, (message) async {
       final args = const _PigeonReader().decodeMessage(message) as List;
       wakelockToggles.add((args.single as List).single as bool);
+      await wakelockGate?.future;
       return const StandardMessageCodec().encodeMessage(<Object?>[null]);
     });
     addTearDown(() => messenger.setMockMessageHandler(wakelock, null));
@@ -198,6 +94,7 @@ class CallPageHarness {
   final calls = <MethodCall>[];
   final webrtc = <MethodCall>[];
   final wakelockToggles = <bool>[];
+  Completer<void>? wakelockGate;
   List<String> audioOutputs = ['earpiece', 'speaker'];
   var _nextTexture = 0;
 
@@ -211,37 +108,18 @@ class CallPageHarness {
     return id;
   }
 
-  static Room buildRoom() {
-    final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
-    room.setState(
-      StrippedStateEvent(
-        type: EventTypes.RoomName,
-        senderId: '@me:example.org',
-        stateKey: '',
-        content: {'name': 'Weekend hike'},
-      ),
-    );
-    for (final (userId, name) in [
-      ('@me:example.org', 'Me'),
-      ('@ann:example.org', 'Ann'),
-    ]) {
-      room.setState(
-        StrippedStateEvent(
-          type: EventTypes.RoomMember,
-          senderId: userId,
-          stateKey: userId,
-          content: {'membership': 'join', 'displayname': name},
-        ),
-      );
-    }
-    return room;
-  }
+  static Room buildRoom() => buildCallRoom();
 
   Future<void> open(FakeCallSession session) async {
+    await showChat();
+    pushCall(session);
+    await settle();
+  }
+
+  Future<void> showChat() async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(360, 640);
     addTearDown(tester.view.reset);
-    container.read(activeCallProvider.notifier).set(session);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -252,12 +130,15 @@ class CallPageHarness {
         ),
       ),
     );
+  }
+
+  void pushCall(FakeCallSession session) {
+    container.read(activeCallProvider.notifier).set(session);
     unawaited(
       navigatorKey.currentState!.push(
         MaterialPageRoute<void>(builder: (_) => CallPage(session: session)),
       ),
     );
-    await settle();
   }
 
   Future<void> settle() async {

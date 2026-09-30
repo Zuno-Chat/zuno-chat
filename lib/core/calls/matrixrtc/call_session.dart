@@ -4,6 +4,8 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
+import 'package:flutter/widgets.dart'
+    show AppLifecycleListener, AppLifecycleState, WidgetsBinding;
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -11,6 +13,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/retry_backoff.dart';
 import '../../matrix/bearer_authorization.dart';
+import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
 import '../cloudflare/calls_module.dart';
 import '../cloudflare/cloudflare_call_engine.dart';
@@ -35,6 +38,10 @@ const _membershipTtl = Duration(seconds: 120);
 const _membershipRefreshInterval = Duration(seconds: 50);
 const _membershipDebounce = Duration(seconds: 1);
 const _remoteLeftConfirmDelay = Duration(seconds: 2);
+const microphoneUnavailableMessage =
+    'Allow Zuno to use the microphone, then call back.';
+const callDidNotConnectMessage = 'Call did not connect';
+const _foregroundWait = Duration(seconds: 3);
 const _callFullMessage =
     'This call is full. Up to $maxCallParticipants people can join a call.';
 
@@ -278,10 +285,52 @@ class CallSession {
       Permission.microphone,
       if (kind == CallKind.video) Permission.camera,
     ];
+    final callKit = ambientCapabilities.callKit;
+    if (callKit) await _awaitMicrophonePrompt();
     final statuses = await needed.request();
     if (statuses[Permission.microphone] != PermissionStatus.granted) {
+      if (callKit) throw const _MicrophoneUnavailable();
       throw StateError('Microphone permission is required for calls');
     }
+  }
+
+  Future<void> _awaitMicrophonePrompt() async {
+    final status = await Permission.microphone.status;
+    if (status.isGranted) return;
+    if (status.isPermanentlyDenied || !await _reachesForeground()) {
+      throw const _MicrophoneUnavailable();
+    }
+  }
+
+  Future<bool> _reachesForeground() async {
+    if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      return true;
+    }
+    final resumed = Completer<bool>();
+    final listener = AppLifecycleListener(
+      onResume: () {
+        if (!resumed.isCompleted) resumed.complete(true);
+      },
+    );
+    try {
+      return await resumed.future.timeout(
+        _foregroundWait,
+        onTimeout: () => false,
+      );
+    } finally {
+      listener.dispose();
+    }
+  }
+
+  bool? _wantedMicrophoneMuted;
+
+  Future<void> setMicrophoneMutedWhenReady(bool muted) async {
+    final engine = _engine;
+    if (engine == null) {
+      _wantedMicrophoneMuted = muted;
+      return;
+    }
+    await engine.setMicrophoneMuted(muted);
   }
 
   Future<void> _connect() async {
@@ -298,6 +347,9 @@ class CallSession {
       _engine = built;
       if (await _abandonEngineIfEnded(built)) return;
 
+      if (_wantedMicrophoneMuted case final muted?) {
+        await built.setMicrophoneMuted(muted);
+      }
       if (_encryptionKey case final key?) await built.setEncryptionKey(key);
       await built.join();
       if (await _abandonEngineIfEnded(built)) return;
@@ -331,10 +383,12 @@ class CallSession {
     } catch (e, s) {
       debugPrint('[CallSession] _connect failed: $e\n$s');
       if (_hangUp == null) {
-        failedMessage =
-            e is MatrixException && e.error == MatrixError.M_FORBIDDEN
-            ? 'You do not have permission to start calls in this room'
-            : 'Call did not connect';
+        failedMessage = switch (e) {
+          MatrixException(error: MatrixError.M_FORBIDDEN) =>
+            'You do not have permission to start calls in this room',
+          _MicrophoneUnavailable() => microphoneUnavailableMessage,
+          _ => callDidNotConnectMessage,
+        };
         endReason = CallEndReason.failed;
         if (_engine case final engine?) {
           await _tearDownEngine(engine, 'a failed connect');
@@ -413,7 +467,7 @@ class CallSession {
     } catch (e, s) {
       debugPrint('[CallSession] applying the call key failed: $e\n$s');
       if (_phase == CallSessionPhase.ended) return;
-      failedMessage = 'Call did not connect';
+      failedMessage = callDidNotConnectMessage;
       endReason = CallEndReason.failed;
       await hangUp();
     }
@@ -599,8 +653,17 @@ class CallSession {
   ];
 
   Future<void>? _hangUp;
+  bool _endedByUser = false;
+  bool _summarized = false;
 
-  Future<void> hangUp() => _hangUp ??= _hangUpOnce();
+  bool get endedByUser => _endedByUser;
+
+  Future<void> hangUp({bool byUser = false, bool summarized = false}) {
+    if (_hangUp case final pending?) return pending;
+    _endedByUser = byUser;
+    _summarized = summarized;
+    return _hangUp = _hangUpOnce();
+  }
 
   Future<void> _hangUpOnce() async {
     if (_phase == CallSessionPhase.ended) return;
@@ -626,7 +689,7 @@ class CallSession {
         : CallEndReason.hungUp;
     _setPhase(CallSessionPhase.ended);
 
-    if (!othersStillPresent) {
+    if (!othersStillPresent && !_summarized) {
       final status = switch (reason) {
         CallEndReason.missed => CallSummaryStatus.missed,
         CallEndReason.declinedByThem => CallSummaryStatus.declined,
@@ -655,4 +718,8 @@ class CallSession {
     _phaseController.close();
     _remoteJoinedController.close();
   }
+}
+
+class _MicrophoneUnavailable implements Exception {
+  const _MicrophoneUnavailable();
 }

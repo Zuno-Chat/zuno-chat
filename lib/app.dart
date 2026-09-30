@@ -9,6 +9,7 @@ import 'core/calls/models/call_kind.dart';
 import 'core/calls/notifications/call_notification_router.dart';
 import 'core/calls/notifications/call_notification_service.dart';
 import 'core/calls/notifications/ringing_call_provider.dart';
+import 'core/calls/platform/system_ring.dart';
 import 'core/errors/best_effort.dart';
 import 'core/errors/global_error_handler.dart';
 import 'core/matrix/background_sync_lifecycle.dart';
@@ -24,6 +25,7 @@ import 'core/navigation/root_route_reset.dart';
 import 'core/notifications/notification_delivery_mode.dart';
 import 'core/notifications/notification_delivery_provider.dart';
 import 'core/notifications/notification_permission_provider.dart';
+import 'core/platform/platform_capabilities.dart';
 import 'core/settings/app_preferences_provider.dart';
 import 'core/share/inbound_share.dart';
 import 'core/shortcuts/home_screen_shortcut.dart';
@@ -146,9 +148,13 @@ class _AuthGateState extends ConsumerState<_AuthGate>
       (_) => _openActiveSessions(),
     );
     ref.listenManual(activeCallProvider, (_, session) {
-      if (session != null) return;
+      if (session != null) {
+        _resumeSyncForSystemCall();
+        return;
+      }
       _pauseSyncIfBackgrounded();
     });
+    SystemRing.instance.ringing.addListener(_onSystemRingChanged);
     ref.listenManual(notificationDeliveryModeProvider, (_, mode) {
       _syncNotificationDelivery(
         ref.read(isLoggedInProvider).value ?? false,
@@ -204,6 +210,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    SystemRing.instance.ringing.removeListener(_onSystemRingChanged);
     _shortcutSub?.cancel();
     _shareSub?.cancel();
     _messageTapSub?.cancel();
@@ -216,8 +223,11 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     final client = ref.read(matrixClientProvider);
     final deliveryMode = ref.read(notificationDeliveryModeProvider);
     if (client.isLogged()) {
-      final inCall = ref.read(activeCallProvider) != null;
-      if (shouldPauseBackgroundSync(state, deliveryMode, inCall: inCall)) {
+      if (shouldPauseBackgroundSync(
+        state,
+        deliveryMode,
+        inCall: _callNeedsSync,
+      )) {
         unawaited(client.abortSync());
       } else if (shouldResumeBackgroundSync(state, deliveryMode)) {
         client.backgroundSync = true;
@@ -253,9 +263,35 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     final client = ref.read(matrixClientProvider);
     if (state == null || !client.isLogged()) return;
     final deliveryMode = ref.read(notificationDeliveryModeProvider);
-    if (shouldPauseBackgroundSync(state, deliveryMode, inCall: false)) {
+    if (shouldPauseBackgroundSync(
+      state,
+      deliveryMode,
+      inCall: _callNeedsSync,
+    )) {
       unawaited(client.abortSync());
     }
+  }
+
+  bool get _callNeedsSync =>
+      ref.read(activeCallProvider) != null ||
+      SystemRing.instance.ringing.value != null;
+
+  void _onSystemRingChanged() {
+    if (SystemRing.instance.ringing.value != null) {
+      _resumeSyncForSystemCall();
+      return;
+    }
+    if (!ref.read(platformCapabilitiesProvider).callKit) {
+      _pauseSyncIfBackgrounded();
+    }
+  }
+
+  void _resumeSyncForSystemCall() {
+    if (!ref.read(platformCapabilitiesProvider).callKit) return;
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state == null || state == AppLifecycleState.resumed) return;
+    final client = ref.read(matrixClientProvider);
+    if (client.isLogged()) client.backgroundSync = true;
   }
 
   Future<void> _showPendingRing() async {

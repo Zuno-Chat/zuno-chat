@@ -7,6 +7,12 @@ import '../../platform/platform_capabilities.dart';
 
 const _callsChannel = MethodChannel('zuno/calls');
 
+Future<void> _invokeCallChannel(String method) async {
+  try {
+    await _callsChannel.invokeMethod<void>(method);
+  } catch (_) {}
+}
+
 abstract interface class RingbackTonePlayer {
   Future<void> start();
 
@@ -15,10 +21,13 @@ abstract interface class RingbackTonePlayer {
   Future<void> restartForRouteChange();
 }
 
-RingbackTonePlayer ringbackTonePlayerFor(PlatformCapabilities capabilities) =>
-    capabilities.nativeRingbackTone
-    ? AndroidRingbackTonePlayer.instance
-    : const NoopRingbackTonePlayer();
+RingbackTonePlayer ringbackTonePlayerFor(PlatformCapabilities capabilities) {
+  if (capabilities.callKit) return CallKitRingbackTonePlayer.instance;
+  if (capabilities.nativeRingbackTone) {
+    return AndroidRingbackTonePlayer.instance;
+  }
+  return const NoopRingbackTonePlayer();
+}
 
 final ringbackTonePlayerProvider = Provider<RingbackTonePlayer>(
   (ref) => ringbackTonePlayerFor(ref.watch(platformCapabilitiesProvider)),
@@ -58,12 +67,39 @@ class AndroidRingbackTonePlayer implements RingbackTonePlayer {
 
   @visibleForTesting
   bool get isPlaying => _playing;
+}
 
-  Future<void> _invokeCallChannel(String method) async {
-    try {
-      await _callsChannel.invokeMethod<void>(method);
-    } catch (_) {}
+class CallKitRingbackTonePlayer implements RingbackTonePlayer {
+  @visibleForTesting
+  CallKitRingbackTonePlayer();
+  static final instance = CallKitRingbackTonePlayer();
+
+  bool _playing = false;
+
+  @override
+  Future<void> start() async {
+    if (_playing) return;
+    _playing = true;
+    final settings = await loadNotificationSoundSettings();
+    if (!_playing || !settings.ringtone) {
+      _playing = false;
+      return;
+    }
+    await _invokeCallChannel('startRingbackTone');
   }
+
+  @override
+  Future<void> stop() async {
+    if (!_playing) return;
+    _playing = false;
+    await _invokeCallChannel('stopRingbackTone');
+  }
+
+  @override
+  Future<void> restartForRouteChange() async {}
+
+  @visibleForTesting
+  bool get isPlaying => _playing;
 }
 
 class NoopRingbackTonePlayer implements RingbackTonePlayer {

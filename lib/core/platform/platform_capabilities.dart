@@ -32,6 +32,8 @@ class PlatformCapabilities {
   final bool keyboardLearningOptOut;
   final bool apnsRegistration;
   final bool nativeIncomingRingUi;
+  final bool callKit;
+  final bool pictureInPicture;
   final bool playerNeedsMediaType;
   final List<String>? videoCodecOrder;
   final bool recorderWritesOgg;
@@ -69,6 +71,8 @@ class PlatformCapabilities {
     required this.keyboardLearningOptOut,
     required this.apnsRegistration,
     required this.nativeIncomingRingUi,
+    required this.callKit,
+    required this.pictureInPicture,
     required this.playerNeedsMediaType,
     required this.videoCodecOrder,
     required this.recorderWritesOgg,
@@ -110,6 +114,8 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         keyboardLearningOptOut: true,
         apnsRegistration: false,
         nativeIncomingRingUi: true,
+        callKit: false,
+        pictureInPicture: true,
         playerNeedsMediaType: false,
         videoCodecOrder: ['video/VP8', 'video/H264'],
         recorderWritesOgg: true,
@@ -151,6 +157,8 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         keyboardLearningOptOut: false,
         apnsRegistration: true,
         nativeIncomingRingUi: false,
+        callKit: true,
+        pictureInPicture: false,
         playerNeedsMediaType: true,
         videoCodecOrder: null,
         recorderWritesOgg: false,

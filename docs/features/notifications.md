@@ -9,8 +9,9 @@ conversation shortcuts), and offers inline Reply and Mark-as-read actions
 that run headless. Also covers the new sign-in alert and the unread badge,
 which is homeserver-driven, not client-computed.
 
-Call *ringing* presentation (full-screen intent, ringback, the
-`IncomingCallPresenter` seam) is in the calls doc; this doc covers it only
+Call *ringing* presentation (full-screen intent or CallKit, ringback, the
+`IncomingCallPresenter` seam) and the push handler's ring rules (call
+waiting, scoped cancels) are in the calls doc; this doc covers them only
 where infra is shared.
 
 ## Architecture

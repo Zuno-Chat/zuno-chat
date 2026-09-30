@@ -10,16 +10,28 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
   private var hidesContent = false
   private var inactive = Set<ObjectIdentifier>()
   private var covers: [ObjectIdentifier: (window: UIWindow, notice: UILabel)] = [:]
+  private let proximity = ProximityScreen()
+  private var calls: CallKitCenter { CallKitCenter.shared }
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(name: "zuno/calls", binaryMessenger: registrar.messenger())
     let plugin = CallsChannelPlugin()
     registrar.addMethodCallDelegate(plugin, channel: channel)
+    registrar.publish(plugin)
     plugin.observeScenes()
+    CallKitCenter.shared.attach(channel)
+  }
+
+  func detachFromEngine(for registrar: FlutterPluginRegistrar) {
+    proximity.release()
+    calls.detach()
   }
 
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     let args = call.arguments as? [String: Any]
+    if handleCallKit(call.method, args, result) {
+      return
+    }
     switch call.method {
     case "copySensitive":
       guard let text = args?["text"] as? String else {
@@ -45,9 +57,109 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
       hidesContent = args?["enabled"] as? Bool == true
       updateAllScenes()
       result(nil)
+    case "setProximityScreenOff":
+      proximity.set(args?["enabled"] as? Bool == true)
+      result(nil)
+    case "openNotificationSettings":
+      openNotificationSettings()
+      result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  private func openNotificationSettings() {
+    let address: String
+    if #available(iOS 16.0, *) {
+      address = UIApplication.openNotificationSettingsURLString
+    } else {
+      address = UIApplication.openSettingsURLString
+    }
+    if let url = URL(string: address) {
+      UIApplication.shared.open(url)
+    }
+  }
+
+  private func handleCallKit(
+    _ method: String, _ args: [String: Any]?, _ result: @escaping FlutterResult
+  ) -> Bool {
+    let roomId = args?["roomId"] as? String
+    let callId = args?["callId"] as? String
+    switch method {
+    case "takeCallEvents":
+      result(calls.takeEvents())
+    case "resetSystemCalls":
+      proximity.set(false)
+      calls.resetForNewDart()
+      result(nil)
+    case "armCallAudio":
+      calls.audio.armEngine()
+      result(nil)
+    case "audioRoute":
+      var state = calls.audio.currentState().arguments
+      if !calls.audio.isActive {
+        state.removeValue(forKey: "route")
+      }
+      result(state)
+    case "setAudioRoute":
+      if let route = (args?["route"] as? String).flatMap(CallAudioRoute.init(rawValue:)) {
+        calls.audio.setRoute(route)
+      }
+      result(nil)
+    case "startRingbackTone":
+      calls.audio.ringback.setWanted(true)
+      result(nil)
+    case "stopRingbackTone":
+      calls.audio.ringback.setWanted(false)
+      result(nil)
+    case "reportIncomingCall":
+      guard let roomId, let callId else { return badArguments(result) }
+      calls.reportIncoming(
+        roomId: roomId, callId: callId, callerId: args?["callerId"] as? String ?? "",
+        name: args?["name"] as? String ?? "", isVideo: args?["isVideo"] as? Bool == true
+      ) { outcome in
+        result(outcome)
+      }
+    case "endIncomingCall":
+      guard let roomId, let callId else { return badArguments(result) }
+      calls.endIncoming(
+        roomId: roomId, callId: callId,
+        reason: CallIdentity.endedReason(args?["reason"] as? String))
+      result(nil)
+    case "startSystemCall":
+      guard let roomId, let callId else { return badArguments(result) }
+      result(
+        calls.begin(
+          roomId: roomId, callId: callId, title: args?["title"] as? String ?? "",
+          isVideo: args?["isVideo"] as? Bool == true))
+    case "reportCallConnected":
+      guard let roomId, let callId else { return badArguments(result) }
+      calls.connected(roomId: roomId, callId: callId)
+      result(nil)
+    case "setCallMuted":
+      guard let roomId, let callId else { return badArguments(result) }
+      calls.setMuted(roomId: roomId, callId: callId, muted: args?["muted"] as? Bool == true)
+      result(nil)
+    case "upgradeCallToVideo":
+      guard let roomId, let callId else { return badArguments(result) }
+      calls.upgradeToVideo(roomId: roomId, callId: callId)
+      result(nil)
+    case "endSystemCall":
+      guard let roomId, let callId else { return badArguments(result) }
+      calls.end(
+        roomId: roomId, callId: callId,
+        reason: CallIdentity.endedReason(args?["reason"] as? String),
+        byUser: args?["byUser"] as? Bool == true)
+      result(nil)
+    default:
+      return false
+    }
+    return true
+  }
+
+  private func badArguments(_ result: FlutterResult) -> Bool {
+    result(FlutterError(code: "bad_args", message: "roomId and callId are required", details: nil))
+    return true
   }
 
   private func observeScenes() {
@@ -130,5 +242,54 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
     ])
     window.rootViewController = root
     return (window, notice)
+  }
+}
+
+@MainActor
+final class ProximityScreen {
+  private var wanted = false
+  private var observer: NSObjectProtocol?
+
+  func set(_ enabled: Bool) {
+    wanted = enabled
+    let device = UIDevice.current
+    if enabled {
+      stopWaiting()
+      device.isProximityMonitoringEnabled = true
+    } else if device.isProximityMonitoringEnabled, device.proximityState {
+      waitForProximityToClear()
+    } else {
+      turnOff()
+    }
+  }
+
+  func release() {
+    wanted = false
+    turnOff()
+  }
+
+  private func turnOff() {
+    stopWaiting()
+    UIDevice.current.isProximityMonitoringEnabled = false
+  }
+
+  private func waitForProximityToClear() {
+    guard observer == nil else { return }
+    observer = NotificationCenter.default.addObserver(
+      forName: UIDevice.proximityStateDidChangeNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      MainActor.assumeIsolated { self?.proximityChanged() }
+    }
+  }
+
+  private func stopWaiting() {
+    guard let observer else { return }
+    NotificationCenter.default.removeObserver(observer)
+    self.observer = nil
+  }
+
+  private func proximityChanged() {
+    guard !wanted, !UIDevice.current.proximityState else { return }
+    turnOff()
   }
 }

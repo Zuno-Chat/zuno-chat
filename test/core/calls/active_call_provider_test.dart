@@ -40,6 +40,36 @@ void main() {
     expect(isCallActiveInProcess(), isFalse);
   });
 
+  test('clearing the call that is live ends it', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(activeCallProvider.notifier);
+    final live = session();
+    notifier.set(live);
+
+    notifier.clear(live);
+
+    expect(container.read(activeCallProvider), isNull);
+    expect(isCallActiveInProcess(), isFalse);
+  });
+
+  test(
+    'clearing a call that is no longer live leaves the newer call alone',
+    () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(activeCallProvider.notifier);
+      final ended = session();
+      final newer = session();
+      notifier.set(newer);
+
+      notifier.clear(ended);
+
+      expect(container.read(activeCallProvider), same(newer));
+      expect(isCallActiveInProcess(), isTrue);
+    },
+  );
+
   test('a mark left by an earlier run is dropped on start', () {
     markCallActiveInProcess(true);
 

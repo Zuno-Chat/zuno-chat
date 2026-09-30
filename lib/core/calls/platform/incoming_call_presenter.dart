@@ -10,31 +10,46 @@ import '../../notifications/notification_sound_player.dart';
 import '../../platform/platform_capabilities.dart';
 import '../notifications/call_notification_service.dart';
 import '../notifications/ringing_call_store.dart';
+import 'system_ring.dart';
 
 const _callStyleChannel = MethodChannel('zuno/call_style');
+const _callsChannel = MethodChannel('zuno/calls');
 const _ringNotificationId = 4002;
 
+enum RingOutcome { shown, filtered, unavailable }
+
+enum RingEnd { remoteEnded, answeredElsewhere, declinedElsewhere, unanswered }
+
 abstract interface class IncomingCallPresenter {
-  Future<void> showIncoming({
+  Future<RingOutcome> showIncoming({
     required String callerName,
     required String callerId,
     required bool isVideo,
     required String roomId,
     required String callId,
     bool isGroupCall = false,
+    String? roomName,
     Uint8List? avatarBytes,
   });
 
-  Future<void> cancelIncoming();
+  Future<void> cancelIncoming({
+    String? roomId,
+    String? callId,
+    RingEnd end = RingEnd.remoteEnded,
+  });
 
   Future<RingingCallInfo?> activeRing();
 }
 
 IncomingCallPresenter incomingCallPresenterFor(
   PlatformCapabilities capabilities,
-) => capabilities.nativeIncomingRingUi
-    ? const AndroidIncomingCallPresenter()
-    : const NoopIncomingCallPresenter();
+) {
+  if (capabilities.callKit) return const CallKitIncomingCallPresenter();
+  if (capabilities.nativeIncomingRingUi) {
+    return const AndroidIncomingCallPresenter();
+  }
+  return const NoopIncomingCallPresenter();
+}
 
 final incomingCallPresenterProvider = Provider<IncomingCallPresenter>(
   (ref) => incomingCallPresenterFor(ref.watch(platformCapabilitiesProvider)),
@@ -57,13 +72,14 @@ abstract class RememberingIncomingCallPresenter
   Future<void> dismissIncoming();
 
   @override
-  Future<void> showIncoming({
+  Future<RingOutcome> showIncoming({
     required String callerName,
     required String callerId,
     required bool isVideo,
     required String roomId,
     required String callId,
     bool isGroupCall = false,
+    String? roomName,
     Uint8List? avatarBytes,
   }) async {
     try {
@@ -83,12 +99,24 @@ abstract class RememberingIncomingCallPresenter
       isGroupCall: isGroupCall,
       avatarBytes: avatarBytes,
     );
+    return RingOutcome.shown;
   }
 
   @override
-  Future<void> cancelIncoming() async {
+  Future<void> cancelIncoming({
+    String? roomId,
+    String? callId,
+    RingEnd end = RingEnd.remoteEnded,
+  }) async {
+    if (callId != null) SystemRing.instance.clear(callId);
     try {
-      await clearRingingCall(await SharedPreferences.getInstance());
+      final prefs = await SharedPreferences.getInstance();
+      if (callId != null) {
+        await prefs.reload();
+        final ringing = readRingingCall(prefs);
+        if (ringing != null && ringing.callId != callId) return;
+      }
+      await clearRingingCall(prefs);
     } catch (_) {}
     await dismissIncoming();
   }
@@ -176,18 +204,90 @@ class NoopIncomingCallPresenter implements IncomingCallPresenter {
   const NoopIncomingCallPresenter();
 
   @override
-  Future<void> showIncoming({
+  Future<RingOutcome> showIncoming({
     required String callerName,
     required String callerId,
     required bool isVideo,
     required String roomId,
     required String callId,
     bool isGroupCall = false,
+    String? roomName,
     Uint8List? avatarBytes,
+  }) async => RingOutcome.unavailable;
+
+  @override
+  Future<void> cancelIncoming({
+    String? roomId,
+    String? callId,
+    RingEnd end = RingEnd.remoteEnded,
   }) async {}
 
   @override
-  Future<void> cancelIncoming() async {}
+  Future<RingingCallInfo?> activeRing() async => null;
+}
+
+class CallKitIncomingCallPresenter implements IncomingCallPresenter {
+  const CallKitIncomingCallPresenter();
+
+  @override
+  Future<RingOutcome> showIncoming({
+    required String callerName,
+    required String callerId,
+    required bool isVideo,
+    required String roomId,
+    required String callId,
+    bool isGroupCall = false,
+    String? roomName,
+    Uint8List? avatarBytes,
+  }) async {
+    SystemRing.instance.set(roomId: roomId, callId: callId);
+    final outcome = await _report({
+      'roomId': roomId,
+      'callId': callId,
+      'callerId': callerId,
+      'name': isGroupCall ? roomName ?? callerName : callerName,
+      'isVideo': isVideo,
+    });
+    if (outcome != RingOutcome.shown) SystemRing.instance.clear(callId);
+    return outcome;
+  }
+
+  Future<RingOutcome> _report(Map<String, Object?> ring) async {
+    try {
+      return switch (await _callsChannel.invokeMethod<String>(
+        'reportIncomingCall',
+        ring,
+      )) {
+        'shown' => RingOutcome.shown,
+        'filtered' => RingOutcome.filtered,
+        _ => RingOutcome.unavailable,
+      };
+    } on MissingPluginException {
+      return RingOutcome.unavailable;
+    } on PlatformException catch (e) {
+      debugPrint('zuno/callkit: ring for ${ring['callId']} not reported: $e');
+      return RingOutcome.unavailable;
+    }
+  }
+
+  @override
+  Future<void> cancelIncoming({
+    String? roomId,
+    String? callId,
+    RingEnd end = RingEnd.remoteEnded,
+  }) async {
+    if (roomId == null || callId == null) return;
+    SystemRing.instance.clear(callId);
+    try {
+      await _callsChannel.invokeMethod<void>('endIncomingCall', {
+        'roomId': roomId,
+        'callId': callId,
+        'reason': end.name,
+      });
+    } on MissingPluginException {
+      return;
+    }
+  }
 
   @override
   Future<RingingCallInfo?> activeRing() async => null;

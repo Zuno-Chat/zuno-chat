@@ -8,6 +8,7 @@ import UIKit
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     excludeAppDataFromBackup()
+    CallKitCenter.shared.setUp()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -27,6 +28,7 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     let registry = engineBridge.pluginRegistry
     GeneratedPluginRegistrant.register(with: registry)
+    CallKitCenter.shared.audio.adoptRegisteredWebRTC()
     if let registrar = registry.registrar(forPlugin: "ZunoApnsPlugin") {
       ApnsTokenPlugin.register(with: registrar)
     }

@@ -15,10 +15,12 @@ import '../../../core/calls/models/call_kind.dart';
 import '../../../core/calls/models/call_quality.dart';
 import '../../../core/calls/models/voip_participant_id.dart';
 import '../../../core/calls/notifications/call_notification_service.dart';
+import '../../../core/calls/platform/call_audio_output.dart';
 import '../../../core/calls/platform/ongoing_call_presenter.dart';
 import '../../../core/calls/platform/ringback_tone_player.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/room_title.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/ui/zuno_theme.dart';
 import '../../verification/presentation/confirm_person.dart';
@@ -49,6 +51,8 @@ class _CallPageState extends ConsumerState<CallPage> {
   StreamSubscription<void>? _localStateSub;
   late final OngoingCallPresenter _ongoingCall;
   late final RingbackTonePlayer _ringback;
+  late final CallAudioOutput _audioOutput;
+  late final bool _systemRoutesAudio;
   CallEngineStatus? _engineStatus;
   final Map<VoipParticipantId, RTCVideoRenderer> _renderers = {};
   List<CallEngineParticipant> _participants = [];
@@ -56,7 +60,6 @@ class _CallPageState extends ConsumerState<CallPage> {
   CallAudioRoute _audioRoute = CallAudioRoute.earpiece;
   Set<CallAudioRoute> _headsets = const {};
   Future<void> _headsetSync = Future.value();
-  bool _watchingHeadsets = false;
   bool _finished = false;
   DateTime? _talkingSince;
   Timer? _confirmPromptTimer;
@@ -69,6 +72,9 @@ class _CallPageState extends ConsumerState<CallPage> {
     super.initState();
     _ongoingCall = ref.read(ongoingCallPresenterProvider);
     _ringback = ref.read(ringbackTonePlayerProvider);
+    final capabilities = ref.read(platformCapabilitiesProvider);
+    _audioOutput = callAudioOutputFor(capabilities);
+    _systemRoutesAudio = capabilities.callKit;
     _phaseSub = session.phaseStream.listen(_onPhase);
     _remoteJoinedSub = session.remoteJoinedStream.listen((_) {
       _syncRingback();
@@ -129,17 +135,21 @@ class _CallPageState extends ConsumerState<CallPage> {
     } catch (_) {
       return;
     }
+    if (!mounted || _finished) return;
 
     unawaited(_startForegroundService());
     _armShowOverLockscreen();
     if (session.kind == CallKind.video) await WakelockPlus.enable();
 
-    _headsets = await _connectedHeadsets();
+    final snapshot = await _audioOutput.read();
+    _headsets = snapshot.headsets;
     if (!mounted || _finished) return;
-    setState(() => _audioRoute = startingRoute(session.kind, _headsets));
-    navigator.mediaDevices.ondevicechange = _onAudioDevicesChanged;
-    _watchingHeadsets = true;
-    unawaited(_applyAudioRoute());
+    setState(
+      () => _audioRoute =
+          snapshot.route ?? startingRoute(session.kind, _headsets),
+    );
+    _audioOutput.watch(_onAudioDevicesChanged);
+    if (!_systemRoutesAudio) unawaited(_applyAudioRoute());
     _syncProximityScreenOff();
 
     if (session.phase == CallSessionPhase.active) await _attachEngine();
@@ -169,7 +179,7 @@ class _CallPageState extends ConsumerState<CallPage> {
   }
 
   Future<void> _attachEngine() async {
-    unawaited(_applyAudioRoute());
+    if (!_systemRoutesAudio) unawaited(_applyAudioRoute());
     _participantsSub ??= session.engine.participantsStream.listen((p) {
       unawaited(_reconcileRenderers(p));
     });
@@ -222,12 +232,16 @@ class _CallPageState extends ConsumerState<CallPage> {
   Future<void> _finish() async {
     if (_finished) return;
     _finished = true;
-    _syncPictureInPicture();
-    _syncProximityScreenOff();
-    await _ongoingCall.stop();
-    await CallNotificationService.instance.setShowOverLockscreen(false);
-    await WakelockPlus.disable();
-    ref.read(activeCallProvider.notifier).set(null);
+    final activeCall = ref.read(activeCallProvider.notifier);
+    final current = ref.read(activeCallProvider);
+    if (current == null || identical(current, session)) {
+      _syncPictureInPicture();
+      _syncProximityScreenOff();
+      await _ongoingCall.stop();
+      await CallNotificationService.instance.setShowOverLockscreen(false);
+      await WakelockPlus.disable();
+    }
+    activeCall.clear(session);
     if (!mounted) return;
     final message = session.failedMessage;
     if (session.endReason == CallEndReason.failed && message != null) {
@@ -236,6 +250,12 @@ class _CallPageState extends ConsumerState<CallPage> {
     }
     final navigator = Navigator.of(context);
     final route = ModalRoute.of(context);
+    if (route != null &&
+        !route.isCurrent &&
+        ref.read(activeCallProvider) != null) {
+      navigator.removeRoute(route);
+      return;
+    }
     if (route != null && route.isActive) {
       navigator.popUntil((r) => r == route);
     }
@@ -246,10 +266,7 @@ class _CallPageState extends ConsumerState<CallPage> {
   void dispose() {
     _confirmPromptTimer?.cancel();
     unawaited(_ringback.stop());
-    if (_watchingHeadsets &&
-        navigator.mediaDevices.ondevicechange == _onAudioDevicesChanged) {
-      navigator.mediaDevices.ondevicechange = null;
-    }
+    _audioOutput.unwatch();
     _phaseSub?.cancel();
     _remoteJoinedSub?.cancel();
     _participantsSub?.cancel();
@@ -276,26 +293,14 @@ class _CallPageState extends ConsumerState<CallPage> {
     return !bothEncrypted;
   }
 
-  Future<Set<CallAudioRoute>> _connectedHeadsets() async {
-    try {
-      final outputs = await Helper.audiooutputs;
-      return headsetsIn(
-        outputs.map(
-          (output) => (deviceId: output.deviceId, groupId: output.groupId),
-        ),
-      );
-    } catch (_) {
-      return const {};
-    }
-  }
-
-  void _onAudioDevicesChanged(dynamic _) {
+  void _onAudioDevicesChanged() {
     _headsetSync = _headsetSync.then((_) => _syncHeadsets());
   }
 
   Future<void> _syncHeadsets() async {
-    final headsets = await _connectedHeadsets();
+    final snapshot = await _audioOutput.read();
     if (!mounted || _finished) return;
+    final headsets = snapshot.headsets;
     final next = routeAfterHeadsetChange(
       route: _audioRoute,
       before: _headsets,
@@ -303,25 +308,28 @@ class _CallPageState extends ConsumerState<CallPage> {
       kind: session.kind,
     );
     _headsets = headsets;
-    if (next != null) unawaited(_setAudioRoute(next));
+    if (next != null) {
+      unawaited(_setAudioRoute(next));
+      return;
+    }
+    final actual = snapshot.route;
+    if (actual == null || actual == _audioRoute) return;
+    setState(() => _audioRoute = actual);
+    _syncProximityScreenOff();
   }
 
   Future<void> _toggleSpeaker() =>
       _setAudioRoute(toggledRoute(_audioRoute, _headsets));
 
   Future<void> _setAudioRoute(CallAudioRoute route) async {
+    if (!mounted || _finished) return;
     setState(() => _audioRoute = route);
     _syncProximityScreenOff();
     await _applyAudioRoute();
   }
 
   Future<void> _applyAudioRoute() async {
-    await switch (_audioRoute) {
-      CallAudioRoute.speaker => Helper.setSpeakerphoneOn(true),
-      CallAudioRoute.earpiece => Helper.setSpeakerphoneOn(false),
-      CallAudioRoute.wiredHeadset => Helper.selectAudioOutput('wired-headset'),
-      CallAudioRoute.bluetooth => Helper.selectAudioOutput('bluetooth'),
-    };
+    await _audioOutput.apply(_audioRoute);
     await _ringback.restartForRouteChange();
   }
 
@@ -334,8 +342,12 @@ class _CallPageState extends ConsumerState<CallPage> {
   Future<void> _toggleCamera() async {
     if (session.kind == CallKind.voice) {
       await session.engine.switchToVideo();
+      if (!mounted || _finished) return;
       unawaited(WakelockPlus.enable());
       session.kind = CallKind.video;
+      if (_audioRoute == CallAudioRoute.earpiece) {
+        unawaited(_setAudioRoute(CallAudioRoute.speaker));
+      }
       _syncProximityScreenOff();
       setState(() {});
       unawaited(session.refreshMembership());
@@ -448,7 +460,7 @@ class _CallPageState extends ConsumerState<CallPage> {
       onToggleCamera: _toggleCamera,
       onSwitchCamera: () => session.engine.switchCamera(),
       onToggleSpeaker: _toggleSpeaker,
-      onHangUp: () => session.hangUp(),
+      onHangUp: () => session.hangUp(byUser: true),
       confirmName: confirmUserId == null ? null : withoutServer(confirmUserId),
       onConfirmPerson: confirmUserId == null
           ? null

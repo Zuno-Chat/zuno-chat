@@ -24,6 +24,19 @@ class ShownNotification {
       'payload: $payload)';
 }
 
+const ringNotificationId = 4002;
+
+Map<String, Object?> ringNotificationOnScreen() => {
+  'id': ringNotificationId,
+  'channelId': 'calls_ringing',
+  'groupKey': null,
+  'tag': null,
+  'title': 'Incoming voice call',
+  'body': 'Bob',
+  'payload': null,
+  'bigText': null,
+};
+
 class RecordedNotifications {
   final List<ShownNotification> shown = [];
   final List<ShownNotification> summaries = [];

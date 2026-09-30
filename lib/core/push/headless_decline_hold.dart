@@ -40,7 +40,7 @@ Future<void> awaitHeadlessDecline(
       final room = client.getRoomById(decline.roomId);
       if (room != null) await declineCall(room, decline.callId);
     });
-    await ring.cancelIncoming();
+    await ring.cancelIncoming(roomId: decline.roomId, callId: decline.callId);
   } finally {
     poll.cancel();
     await sub.cancel();

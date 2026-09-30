@@ -18,38 +18,23 @@ import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/pending_call_notification_action_provider.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
+import 'package:zuno/core/calls/platform/system_ring.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
+import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/platform_capabilities.dart';
 
-class _SendCapableFakeDatabaseApi extends FakeDatabaseApi {
-  @override
-  Future<void> transaction(Future<void> Function() action) => action();
-
+class _PartialProfilesDatabaseApi extends SendCapableFakeDatabaseApi {
   final Map<String, User> partialRoomProfiles = {};
 
   @override
   Future<User?> getUser(String userId, Room room) async =>
       partialRoomProfiles[userId];
-
-  @override
-  Future<void> storeEventUpdate(
-    String roomId,
-    StrippedStateEvent event,
-    EventUpdateType type,
-    Client client,
-  ) async {}
-
-  @override
-  Future<void> storeRoomUpdate(
-    String roomId,
-    SyncRoomUpdate roomUpdate,
-    Event? lastEvent,
-    Client client,
-  ) async {}
 }
 
 class _TestClient extends Client {
@@ -57,29 +42,6 @@ class _TestClient extends Client {
 
   @override
   String? get deviceID => 'DEVICE';
-}
-
-class _ChannelLog {
-  final calls = <MethodCall>[];
-  Future<Object?> handle(MethodCall call) async {
-    calls.add(call);
-    return null;
-  }
-
-  bool has(String method, [Map<String, Object?>? arguments]) => calls.any(
-    (c) =>
-        c.method == method &&
-        (arguments == null || _mapEquals(c.arguments as Map?, arguments)),
-  );
-}
-
-bool _mapEquals(Map? a, Map<String, Object?>? b) {
-  if (a == null || b == null) return a == b;
-  if (a.length != b.length) return false;
-  for (final key in a.keys) {
-    if (a[key] != b[key]) return false;
-  }
-  return true;
 }
 
 class _RecordingNavigatorObserver extends NavigatorObserver {
@@ -125,30 +87,28 @@ void main() {
   const notificationsChannel = MethodChannel(
     'dexterous.com/flutter/local_notifications',
   );
-  const callsChannel = MethodChannel('zuno/calls');
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   late Client client;
   late Room room;
-  late _SendCapableFakeDatabaseApi db;
+  late _PartialProfilesDatabaseApi db;
   late SharedPreferences prefs;
   late GlobalKey<NavigatorState> navigatorKey;
   late _RecordingNavigatorObserver observer;
-  late _ChannelLog callsLog;
+  late RecordedCallsChannel callsLog;
 
   setUp(() async {
-    callsLog = _ChannelLog();
+    callsLog = installFakeCallsChannel();
     messenger.setMockMethodCallHandler(
       notificationsChannel,
       (call) async => null,
     );
-    messenger.setMockMethodCallHandler(callsChannel, callsLog.handle);
 
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
 
-    db = _SendCapableFakeDatabaseApi();
+    db = _PartialProfilesDatabaseApi();
     client = _TestClient(
       'test',
       database: db,
@@ -168,8 +128,12 @@ void main() {
 
   tearDown(() {
     messenger.setMockMethodCallHandler(notificationsChannel, null);
-    messenger.setMockMethodCallHandler(callsChannel, null);
   });
+
+  List<Object?> lockscreenShows() => [
+    for (final args in callsLog.argsOf('setShowOverLockscreen'))
+      (args! as Map)['show'],
+  ];
 
   IncomingCall call({
     String callId = 'call1',
@@ -473,8 +437,7 @@ void main() {
       expect(find.byType(IncomingCallPage), findsNothing);
       expect(find.text('room list'), findsOneWidget);
       expect(RingingCall.instance.callId, isNull);
-      expect(callsLog.has('setShowOverLockscreen', {'show': true}), isTrue);
-      expect(callsLog.has('setShowOverLockscreen', {'show': false}), isTrue);
+      expect(lockscreenShows(), containsAll([true, false]));
     });
 
     testWidgets('a fast double-tap only sends one decline and dismisses once', (
@@ -561,7 +524,7 @@ void main() {
       expect(session!.callId, 'call1');
       addTearDown(session.dispose);
       expect(observer.events, contains('replace'));
-      expect(callsLog.has('setShowOverLockscreen', {'show': true}), isTrue);
+      expect(lockscreenShows(), contains(true));
     });
 
     testWidgets(
@@ -625,8 +588,8 @@ void main() {
         expect(find.text('room list'), findsOneWidget);
         expect(container.read(activeCallProvider), same(existing));
         expect(RingingCall.instance.callId, isNull);
-        expect(callsLog.has('setShowOverLockscreen', {'show': true}), isTrue);
-        expect(callsLog.has('setShowOverLockscreen', {'show': false}), isFalse);
+        expect(lockscreenShows(), contains(true));
+        expect(lockscreenShows(), isNot(contains(false)));
       },
     );
   });
@@ -842,5 +805,173 @@ void main() {
         expect(find.byType(IncomingCallPage), findsOneWidget);
       },
     );
+  });
+
+  group('system ring', () {
+    setUp(() => ambientCapabilities = androidCapabilities);
+
+    List<SystemRingingCall?> recordSystemRing() {
+      final changes = <SystemRingingCall?>[];
+      void record() => changes.add(SystemRing.instance.ringing.value);
+      SystemRing.instance.ringing.addListener(record);
+      addTearDown(() => SystemRing.instance.ringing.removeListener(record));
+      return changes;
+    }
+
+    Future<void> ring(WidgetTester tester) async {
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+      expect(SystemRing.instance.ringing.value?.callId, 'call1');
+    }
+
+    testWidgets('holds the system ring for its call while it rings', (
+      tester,
+    ) async {
+      await pumpShell(tester);
+
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IncomingCallPage), findsOneWidget);
+      expect(SystemRing.instance.ringing.value, (
+        roomId: room.id,
+        callId: 'call1',
+      ));
+    });
+
+    testWidgets('releases it the moment Decline dismisses the page', (
+      tester,
+    ) async {
+      await pumpShell(tester);
+      await ring(tester);
+
+      await tapAndRunAsync(tester, find.byIcon(Icons.call_end));
+
+      expect(SystemRing.instance.ringing.value, isNull);
+      expect(find.byType(IncomingCallPage), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.byType(IncomingCallPage), findsNothing);
+    });
+
+    testWidgets('releases it on Accept, once the call is already active', (
+      tester,
+    ) async {
+      final container = await pumpShell(tester);
+      await ring(tester);
+      String? activeCallIdAtRelease;
+      void onRingChanged() {
+        if (SystemRing.instance.ringing.value != null) return;
+        activeCallIdAtRelease = container.read(activeCallProvider)?.callId;
+      }
+
+      SystemRing.instance.ringing.addListener(onRingChanged);
+      addTearDown(
+        () => SystemRing.instance.ringing.removeListener(onRingChanged),
+      );
+
+      await tester.tap(find.byIcon(Icons.call));
+
+      final session = container.read(activeCallProvider);
+      expect(session?.callId, 'call1');
+      addTearDown(session!.dispose);
+      expect(SystemRing.instance.ringing.value, isNull);
+      expect(activeCallIdAtRelease, 'call1');
+    });
+
+    testWidgets('releases it the moment the caller hangs up', (tester) async {
+      await pumpShell(tester);
+      await ring(tester);
+
+      client.onTimelineEvent.add(
+        buildTestEvent(
+          room,
+          eventId: r'$summary',
+          senderId: '@bob:example.org',
+          content: const CallSummary(
+            callId: 'call1',
+            kind: 'voice',
+            status: CallSummaryStatus.missed,
+            durationMs: 0,
+          ).toMessageContent(),
+        ),
+      );
+      await tester.pump();
+
+      expect(SystemRing.instance.ringing.value, isNull);
+      expect(find.byType(IncomingCallPage), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.byType(IncomingCallPage), findsNothing);
+    });
+
+    testWidgets('releases it the moment the call is resolved', (tester) async {
+      final container = await pumpShell(tester);
+      await ring(tester);
+
+      container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
+      await tester.pump();
+
+      expect(SystemRing.instance.ringing.value, isNull);
+      expect(find.byType(IncomingCallPage), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.byType(IncomingCallPage), findsNothing);
+    });
+
+    testWidgets('releases it when the page is disposed', (tester) async {
+      await pumpShell(tester);
+      await ring(tester);
+
+      navigatorKey.currentState!.pop();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IncomingCallPage), findsNothing);
+      expect(SystemRing.instance.ringing.value, isNull);
+    });
+
+    testWidgets('never takes it for a call already resolved', (tester) async {
+      final container = await pumpShell(tester);
+      container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
+      final ringChanges = recordSystemRing();
+
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IncomingCallPage), findsNothing);
+      expect(ringChanges, isEmpty);
+    });
+
+    testWidgets('never takes it for a call already active', (tester) async {
+      final container = await pumpShell(tester);
+      final existing = CallSession.forIncoming(
+        room: room,
+        callId: 'call1',
+        kind: CallKind.voice,
+      );
+      addTearDown(existing.dispose);
+      container.read(activeCallProvider.notifier).set(existing);
+      final ringChanges = recordSystemRing();
+
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IncomingCallPage), findsNothing);
+      expect(ringChanges, isEmpty);
+    });
+
+    testWidgets('on iOS never takes it, from ringing through Decline', (
+      tester,
+    ) async {
+      ambientCapabilities = iosCapabilities;
+      await pumpShell(tester);
+      final ringChanges = recordSystemRing();
+
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+      expect(find.byType(IncomingCallPage), findsOneWidget);
+      await tapAndRunAsync(tester, find.byIcon(Icons.call_end));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IncomingCallPage), findsNothing);
+      expect(ringChanges, isEmpty);
+    });
   });
 }

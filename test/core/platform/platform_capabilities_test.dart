@@ -224,6 +224,13 @@ final _capabilities = <_Capability>[
     android: true,
     ios: false,
   ),
+  _Capability('callKit', read: (c) => c.callKit, android: false, ios: true),
+  _Capability(
+    'pictureInPicture',
+    read: (c) => c.pictureInPicture,
+    android: true,
+    ios: false,
+  ),
   _Capability(
     'deliveryModes',
     read: (c) => c.deliveryModes,

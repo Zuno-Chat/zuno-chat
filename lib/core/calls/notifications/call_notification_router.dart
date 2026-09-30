@@ -9,6 +9,7 @@ import '../../errors/global_error_handler.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../navigation/global_navigator.dart';
 import '../../navigation/launch_route.dart';
+import '../../platform/platform_capabilities.dart';
 import '../../settings/app_preferences_provider.dart';
 import '../active_call_provider.dart';
 import '../matrixrtc/call_decline.dart';
@@ -17,6 +18,9 @@ import '../matrixrtc/incoming_call.dart';
 import '../matrixrtc/resolved_call_ids_provider.dart';
 import '../models/call_kind.dart';
 import '../platform/incoming_call_presenter.dart';
+import '../platform/system_call.dart';
+import '../platform/system_ring.dart';
+import '../system_call_sync.dart';
 import 'await_room.dart';
 import 'call_notification_service.dart';
 import 'pending_call_notification_action_provider.dart';
@@ -25,27 +29,94 @@ import 'ringing_call_provider.dart';
 final callNotificationRouterProvider =
     NotifierProvider<CallNotificationRouter, void>(CallNotificationRouter.new);
 
+const _endingCallWait = Duration(seconds: 5);
+
 class CallNotificationRouter extends Notifier<void> {
   bool _checkedLaunchAction = false;
+  final _endingCallIds = <String>{};
 
   @override
   void build() {
-    final sub = CallNotificationService.instance.onAction.listen(handle);
-    ref.onDispose(sub.cancel);
-    final hangUpSub = CallNotificationService.instance.onHangUp.listen(
-      (_) => handleHangUp(),
+    ref.watch(systemCallSyncProvider);
+    final notifications = CallNotificationService.instance;
+    void on<T>(Stream<T> stream, void Function(T event) onEvent) {
+      final sub = stream.listen(onEvent);
+      ref.onDispose(sub.cancel);
+    }
+
+    on(notifications.onAction, handle);
+    on(notifications.onHangUp, handleHangUp);
+    on(notifications.onRingEnded, handleRingEnded);
+    on(notifications.onSystemCallFailed, (callId) {
+      if (ref.read(activeCallProvider)?.callId == callId) return;
+      ref.read(resolvedCallIdsProvider.notifier).markResolved(callId);
+    });
+    on(
+      notifications.onSystemRinging,
+      (call) =>
+          SystemRing.instance.set(roomId: call.roomId, callId: call.callId),
     );
-    ref.onDispose(hangUpSub.cancel);
+    if (ref.read(platformCapabilitiesProvider).callKit) {
+      unawaited(notifications.takeQueuedNativeCalls());
+    }
   }
 
-  Future<void> handleHangUp() async {
+  void _releaseSystemCall(RingingCallInfo call, SystemCallEnd end) {
+    unawaited(
+      ref
+          .read(systemCallProvider)
+          .end(
+            roomId: call.roomId,
+            callId: call.callId,
+            end: end,
+            byUser: false,
+          ),
+    );
+  }
+
+  Future<void> handleHangUp([String? callId]) async {
     final session = ref.read(activeCallProvider);
+    if (callId != null && callId != session?.callId) {
+      _log('hang up for $callId, not the active call; marking it over');
+      ref.read(resolvedCallIdsProvider.notifier).markResolved(callId);
+      return;
+    }
     if (session == null) {
       _log('hang up with no active call; nothing to end');
       return;
     }
     _log('hanging up ${session.callId} from the ongoing-call notification');
-    await session.hangUp();
+    if (callId == null) {
+      await session.hangUp();
+      return;
+    }
+    _endingCallIds.add(callId);
+    try {
+      await session.hangUp();
+    } finally {
+      _endingCallIds.remove(callId);
+    }
+  }
+
+  Future<void> _untilEnded(CallSession session) async {
+    if (session.phase == CallSessionPhase.ended) return;
+    try {
+      await session.phaseStream
+          .firstWhere((phase) => phase == CallSessionPhase.ended)
+          .timeout(_endingCallWait);
+    } catch (_) {}
+  }
+
+  Future<void> handleRingEnded(RingingCallInfo call) async {
+    _log('ring ${call.callId} ended unanswered');
+    ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
+    await ref
+        .read(incomingCallPresenterProvider)
+        .cancelIncoming(
+          roomId: call.roomId,
+          callId: call.callId,
+          end: RingEnd.unanswered,
+        );
   }
 
   Future<void> handleLaunchAction({bool instant = false}) async {
@@ -120,12 +191,17 @@ class CallNotificationRouter extends Notifier<void> {
       ref.read(pendingCallNotificationActionProvider.notifier).consume();
     }
 
-    await ref.read(incomingCallPresenterProvider).cancelIncoming();
+    await ref
+        .read(incomingCallPresenterProvider)
+        .cancelIncoming(roomId: call.roomId, callId: call.callId);
 
     final client = ref.read(matrixClientProvider);
     final room = await awaitRoom(client, call.roomId);
     if (room == null) {
       _reportFailure('Could not open that call. The room is not available.');
+      if (response.action == CallNotificationAction.accept) {
+        _releaseSystemCall(call, SystemCallEnd.failed);
+      }
       await releaseLockscreenIfIdle();
       return;
     }
@@ -137,11 +213,21 @@ class CallNotificationRouter extends Notifier<void> {
       return;
     }
 
+    final active = ref.read(activeCallProvider);
+    if (active != null && active.callId == call.callId) {
+      _log('already on ${call.callId}; nothing more to accept');
+      return;
+    }
+    if (active != null && _endingCallIds.contains(active.callId)) {
+      await _untilEnded(active);
+    }
     if (ref.read(activeCallProvider) != null) {
       _log('already on a call; ignoring accept for ${call.callId}');
+      _releaseSystemCall(call, SystemCallEnd.failed);
       return;
     }
     if (ref.read(resolvedCallIdsProvider).contains(call.callId)) {
+      _releaseSystemCall(call, SystemCallEnd.remoteEnded);
       await releaseLockscreenIfIdle();
       return;
     }

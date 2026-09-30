@@ -9,8 +9,9 @@ const _maxAge = Duration(seconds: 45);
 
 Future<void> saveRingingCall(
   SharedPreferences prefs,
-  RingingCallInfo call,
-) async {
+  RingingCallInfo call, {
+  DateTime? now,
+}) async {
   await prefs.setString(
     _ringingCallKey,
     jsonEncode({
@@ -18,7 +19,7 @@ Future<void> saveRingingCall(
       'callId': call.callId,
       'callerId': call.callerId,
       'isVideo': call.isVideo,
-      'postedAt': DateTime.now().millisecondsSinceEpoch,
+      'postedAt': (now ?? DateTime.now()).millisecondsSinceEpoch,
     }),
   );
 }

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -16,9 +18,12 @@ import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../../helpers/app_lifecycle.dart';
 import '../../../helpers/fake_call_engine.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/platform_capabilities.dart';
 
 class _TestDeviceKeys extends DeviceKeys {
   _TestDeviceKeys(super.json, super.client) : super.fromJson();
@@ -50,6 +55,34 @@ class _FakeSendEventRoom extends Room {
   }
 }
 
+class _PublishCountingClient extends Client {
+  _PublishCountingClient() : super('test', database: FakeDatabaseApi()) {
+    setUserId('@me:example.org');
+  }
+
+  final publishes = <String>[];
+
+  @override
+  String? get deviceID => 'TESTDEVICE';
+
+  @override
+  Future<String> setRoomStateWithKey(
+    String roomId,
+    String eventType,
+    String stateKey,
+    Map<String, Object?> body,
+  ) async {
+    if (eventType == callMemberEventType) publishes.add(jsonEncode(body));
+    return '\$evt';
+  }
+}
+
+typedef _CountingSession = ({
+  CallSession session,
+  List<String> publishes,
+  FakeCallEngine engine,
+});
+
 Client buildCallTestClient(
   Future<http.Response> Function(http.Request) handler,
 ) {
@@ -64,7 +97,7 @@ Client buildCallTestClient(
 }
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
 
   const permissionChannel = MethodChannel(
     'flutter.baseflow.com/permissions/methods',
@@ -583,6 +616,232 @@ void main() {
         expect(session.endReason, CallEndReason.failed);
       },
     );
+  });
+
+  group('asking for the microphone', () {
+    const denied = 0;
+    const granted = 1;
+    const permanentlyDenied = 4;
+    late List<String> permissionCalls;
+    late int microphoneStatus;
+    late int answeredStatus;
+
+    setUp(() {
+      permissionCalls = [];
+      microphoneStatus = denied;
+      answeredStatus = granted;
+      messenger.setMockMethodCallHandler(permissionChannel, (call) async {
+        permissionCalls.add(call.method);
+        return switch (call.method) {
+          'checkPermissionStatus' => microphoneStatus,
+          'requestPermissions' => {
+            for (final p in (call.arguments as List).cast<int>())
+              p: answeredStatus,
+          },
+          _ => null,
+        };
+      });
+    });
+
+    tearDown(binding.resetInternalState);
+
+    CallSession answering(String callId, [FakeCallEngine? engine]) {
+      final session = CallSession.forIncoming(
+        room: room,
+        callId: callId,
+        kind: CallKind.voice,
+        engineBuilder: () async => engine ?? FakeCallEngine(),
+      );
+      addTearDown(session.dispose);
+      return session;
+    }
+
+    test('on iOS, without the microphone and with the app never coming to '
+        'the front, the call fails after three seconds without a prompt', () {
+      ambientCapabilities = iosCapabilities;
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      fakeAsync((async) {
+        final engine = FakeCallEngine();
+        final session = answering('call-bg-no-mic', engine);
+        Object? failure;
+        unawaited(
+          session.accept().catchError((Object e) {
+            failure = e;
+          }),
+        );
+
+        async.elapse(const Duration(milliseconds: 2999));
+        expect(session.phase, CallSessionPhase.connecting);
+        expect(failure, isNull);
+
+        async.elapse(const Duration(milliseconds: 1));
+
+        expect(failure, isNotNull);
+        expect(session.phase, CallSessionPhase.ended);
+        expect(session.endReason, CallEndReason.failed);
+        expect(session.failedMessage, microphoneUnavailableMessage);
+        expect(permissionCalls, ['checkPermissionStatus']);
+        expect(engine.joined, isFalse);
+        expect(engine.disposeCalls, 1);
+      });
+    });
+
+    test('on iOS, coming to the front after the wait has run out brings no '
+        'prompt', () {
+      ambientCapabilities = iosCapabilities;
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      fakeAsync((async) {
+        final session = answering('call-bg-late-resume');
+        unawaited(session.accept().catchError((Object _) {}));
+        async.elapse(const Duration(seconds: 3));
+
+        moveLifecycleTo(binding, AppLifecycleState.resumed);
+        async.flushMicrotasks();
+
+        expect(permissionCalls, ['checkPermissionStatus']);
+        expect(session.phase, CallSessionPhase.ended);
+      });
+    });
+
+    test('on iOS, coming to the front within the wait goes on to ask for the '
+        'microphone', () {
+      ambientCapabilities = iosCapabilities;
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      fakeAsync((async) {
+        final session = answering('call-bg-resumed');
+        var ready = false;
+        unawaited(session.ensurePermissions().then((_) => ready = true));
+        async.elapse(const Duration(seconds: 2));
+        expect(permissionCalls, ['checkPermissionStatus']);
+        expect(ready, isFalse);
+
+        moveLifecycleTo(binding, AppLifecycleState.resumed);
+        async.flushMicrotasks();
+
+        expect(permissionCalls, [
+          'checkPermissionStatus',
+          'requestPermissions',
+        ]);
+        expect(ready, isTrue);
+      });
+    });
+
+    test('on iOS, with the microphone already allowed, nothing waits for the '
+        'app to come to the front', () {
+      ambientCapabilities = iosCapabilities;
+      microphoneStatus = granted;
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      fakeAsync((async) {
+        final session = answering('call-bg-mic-allowed');
+        var ready = false;
+        unawaited(session.ensurePermissions().then((_) => ready = true));
+        async.flushMicrotasks();
+
+        expect(permissionCalls, [
+          'checkPermissionStatus',
+          'requestPermissions',
+        ]);
+        expect(ready, isTrue);
+      });
+    });
+
+    test('on iOS, with the app in the front, the microphone is asked for '
+        'straight away', () {
+      ambientCapabilities = iosCapabilities;
+      moveLifecycleTo(binding, AppLifecycleState.resumed);
+      fakeAsync((async) {
+        final session = answering('call-fg');
+        var ready = false;
+        unawaited(session.ensurePermissions().then((_) => ready = true));
+        async.flushMicrotasks();
+
+        expect(permissionCalls, [
+          'checkPermissionStatus',
+          'requestPermissions',
+        ]);
+        expect(ready, isTrue);
+      });
+    });
+
+    test('on iOS, a microphone turned off in Settings fails the call at once, '
+        'without waiting for the app to come to the front', () {
+      ambientCapabilities = iosCapabilities;
+      microphoneStatus = permanentlyDenied;
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      fakeAsync((async) {
+        final engine = FakeCallEngine();
+        final session = answering('call-mic-off', engine);
+        Object? failure;
+        unawaited(
+          session.accept().catchError((Object e) {
+            failure = e;
+          }),
+        );
+
+        async.flushMicrotasks();
+
+        expect(failure, isException);
+        expect(session.phase, CallSessionPhase.ended);
+        expect(session.failedMessage, microphoneUnavailableMessage);
+        expect(permissionCalls, ['checkPermissionStatus']);
+        expect(engine.joined, isFalse);
+      });
+    });
+
+    test('on iOS, a microphone turned off in Settings is not asked for again '
+        'with the app in the front', () async {
+      ambientCapabilities = iosCapabilities;
+      microphoneStatus = permanentlyDenied;
+      moveLifecycleTo(binding, AppLifecycleState.resumed);
+      final session = answering('call-mic-off-front');
+
+      await expectLater(session.accept(), throwsException);
+
+      expect(permissionCalls, ['checkPermissionStatus']);
+      expect(session.failedMessage, microphoneUnavailableMessage);
+    });
+
+    test('on iOS, a microphone refused at the prompt fails the call with the '
+        'microphone message', () async {
+      ambientCapabilities = iosCapabilities;
+      answeredStatus = permanentlyDenied;
+      moveLifecycleTo(binding, AppLifecycleState.resumed);
+      final session = answering('call-mic-refused');
+
+      await expectLater(session.accept(), throwsException);
+
+      expect(permissionCalls, ['checkPermissionStatus', 'requestPermissions']);
+      expect(session.phase, CallSessionPhase.ended);
+      expect(session.endReason, CallEndReason.failed);
+      expect(session.failedMessage, microphoneUnavailableMessage);
+    });
+
+    test('on Android, a microphone refused at the prompt still fails as a '
+        'call that did not connect', () async {
+      ambientCapabilities = androidCapabilities;
+      answeredStatus = denied;
+      final session = answering('call-mic-refused-android');
+
+      await expectLater(session.accept(), throwsStateError);
+
+      expect(permissionCalls, ['requestPermissions']);
+      expect(session.failedMessage, callDidNotConnectMessage);
+    });
+
+    test('on Android, the microphone is asked for straight away even from '
+        'the background', () {
+      ambientCapabilities = androidCapabilities;
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      fakeAsync((async) {
+        final session = answering('call-android-bg');
+        var ready = false;
+        unawaited(session.ensurePermissions().then((_) => ready = true));
+        async.flushMicrotasks();
+
+        expect(permissionCalls, ['requestPermissions']);
+        expect(ready, isTrue);
+      });
+    });
   });
 
   group('_generateCallKey (via startOutgoing)', () {
@@ -1431,18 +1690,82 @@ void main() {
     });
   });
 
+  group('muting before the engine exists', () {
+    CallSession incoming(
+      String callId,
+      Future<CallEngine> Function() engineBuilder,
+    ) {
+      final session = CallSession.forIncoming(
+        room: room,
+        callId: callId,
+        kind: CallKind.voice,
+        engineBuilder: engineBuilder,
+      );
+      addTearDown(session.dispose);
+      return session;
+    }
+
+    test('a mute asked for while the engine is being built reaches it before '
+        'it joins', () async {
+      final calls = <String>[];
+      final built = Completer<CallEngine>();
+      final session = incoming('call-mute-building', () => built.future);
+      final accepting = session.accept();
+      await pumpEventQueue();
+
+      await session.setMicrophoneMutedWhenReady(true);
+      built.complete(_OrderTrackingCallEngine(calls));
+      await accepting;
+
+      expect(calls, ['setMicrophoneMuted(true)', 'join']);
+    });
+
+    test('only the last mute asked for before connecting is applied', () async {
+      final calls = <String>[];
+      final session = incoming(
+        'call-mute-latest',
+        () async => _OrderTrackingCallEngine(calls),
+      );
+
+      await session.setMicrophoneMutedWhenReady(true);
+      await session.setMicrophoneMutedWhenReady(false);
+      await session.accept();
+
+      expect(calls, ['setMicrophoneMuted(false)', 'join']);
+    });
+
+    test(
+      'a mute asked for once the call is connected goes straight to the engine',
+      () async {
+        final engine = FakeCallEngine();
+        final session = incoming('call-mute-live', () async => engine);
+        await session.accept();
+        expect(engine.microphoneMutedRequests, isEmpty);
+
+        await session.setMicrophoneMutedWhenReady(true);
+
+        expect(engine.microphoneMutedRequests, [true]);
+      },
+    );
+
+    test('on Android, a call nobody muted joins without a mute', () async {
+      ambientCapabilities = androidCapabilities;
+      final calls = <String>[];
+      final session = incoming(
+        'call-mute-none',
+        () async => _OrderTrackingCallEngine(calls),
+      );
+
+      await session.accept();
+
+      expect(calls, ['join']);
+      expect(session.phase, CallSessionPhase.active);
+    });
+  });
+
   group('membership republish throttling', () {
-    Future<
-      ({CallSession session, List<String> publishes, FakeCallEngine engine})
-    >
-    startCountingSession(String callId) async {
-      final publishes = <String>[];
-      final c = buildCallTestClient((request) async {
-        if (request.url.path.contains(callMemberEventType)) {
-          publishes.add(request.body);
-        }
-        return http.Response('{"event_id":"\$evt"}', 200);
-      });
+    Future<_CountingSession> startCountingSession(String callId) async {
+      final c = _PublishCountingClient();
       final engine = FakeCallEngine();
       final session = CallSession.forIncoming(
         room: buildTestRoom(c),
@@ -1452,7 +1775,14 @@ void main() {
       );
       await session.accept();
       await pumpEventQueue();
-      return (session: session, publishes: publishes, engine: engine);
+      return (session: session, publishes: c.publishes, engine: engine);
+    }
+
+    _CountingSession startCountingSessionIn(FakeAsync async, String callId) {
+      late final _CountingSession started;
+      unawaited(startCountingSession(callId).then((r) => started = r));
+      async.elapse(Duration.zero);
+      return started;
     }
 
     test('connecting publishes membership exactly once', () async {
@@ -1461,33 +1791,35 @@ void main() {
       expect(r.publishes, hasLength(1));
     });
 
-    test('a refresh carrying nothing new does not republish', () async {
-      final r = await startCountingSession('call-pub-2');
-      addTearDown(r.session.dispose);
-      final before = r.publishes.length;
+    test('a refresh carrying nothing new does not republish', () {
+      fakeAsync((async) {
+        final r = startCountingSessionIn(async, 'call-pub-2');
+        addTearDown(r.session.dispose);
+        final before = r.publishes.length;
 
-      await r.session.refreshMembership();
-      await r.session.refreshMembership();
-      await r.session.refreshMembership();
-      await Future<void>.delayed(const Duration(milliseconds: 1400));
-      await pumpEventQueue();
+        unawaited(r.session.refreshMembership());
+        unawaited(r.session.refreshMembership());
+        unawaited(r.session.refreshMembership());
+        async.elapse(const Duration(milliseconds: 1400));
 
-      expect(r.publishes.length, before);
+        expect(r.publishes.length, before);
+      });
     });
 
-    test('a refresh after a real change does republish, once', () async {
-      final r = await startCountingSession('call-pub-3');
-      addTearDown(r.session.dispose);
-      final before = r.publishes.length;
+    test('a refresh after a real change does republish, once', () {
+      fakeAsync((async) {
+        final r = startCountingSessionIn(async, 'call-pub-3');
+        addTearDown(r.session.dispose);
+        final before = r.publishes.length;
 
-      r.engine.micMuted = true;
-      await r.session.refreshMembership();
-      await r.session.refreshMembership();
-      await Future<void>.delayed(const Duration(milliseconds: 1400));
-      await pumpEventQueue();
+        r.engine.micMuted = true;
+        unawaited(r.session.refreshMembership());
+        unawaited(r.session.refreshMembership());
+        async.elapse(const Duration(milliseconds: 1400));
 
-      expect(r.publishes.length, before + 1);
-      expect(r.publishes.last, contains('audioMuted'));
+        expect(r.publishes.length, before + 1);
+        expect(r.publishes.last, contains('audioMuted'));
+      });
     });
 
     test('a real change is published at once, not after the window', () async {
@@ -1504,27 +1836,24 @@ void main() {
     });
 
     test('changes inside the window coalesce into one trailing publish '
-        'carrying the final state', () async {
-      final r = await startCountingSession('call-pub-5');
-      addTearDown(r.session.dispose);
-      final before = r.publishes.length;
+        'carrying the final state', () {
+      fakeAsync((async) {
+        final r = startCountingSessionIn(async, 'call-pub-5');
+        addTearDown(r.session.dispose);
+        final before = r.publishes.length;
 
-      r.engine.micMuted = true;
-      await r.session.refreshMembership();
-      r.engine.micMuted = false;
-      await r.session.refreshMembership();
-      r.engine.micMuted = true;
-      await r.session.refreshMembership();
-      r.engine.micMuted = false;
-      await r.session.refreshMembership();
-      await pumpEventQueue();
-      expect(r.publishes.length, before + 1);
+        for (final muted in [true, false, true, false]) {
+          r.engine.micMuted = muted;
+          unawaited(r.session.refreshMembership());
+          async.flushMicrotasks();
+        }
+        expect(r.publishes.length, before + 1);
 
-      await Future<void>.delayed(const Duration(milliseconds: 1400));
-      await pumpEventQueue();
+        async.elapse(const Duration(milliseconds: 1400));
 
-      expect(r.publishes.length, before + 2);
-      expect(r.publishes.last, contains('"audioMuted":false'));
+        expect(r.publishes.length, before + 2);
+        expect(r.publishes.last, contains('"audioMuted":false'));
+      });
     });
   });
 
@@ -1619,6 +1948,77 @@ void main() {
     int summariesIn(_FakeSendEventRoom room) => room.sentEvents
         .where((content) => content['msgtype'] == callSummaryMsgtype)
         .length;
+
+    test('the end button marks the hang-up as the user\'s own', () async {
+      final call = buildActiveCall('by-user');
+      addTearDown(call.session.dispose);
+      await call.session.accept();
+
+      await call.session.hangUp(byUser: true);
+
+      expect(call.session.phase, CallSessionPhase.ended);
+      expect(call.session.endedByUser, isTrue);
+    });
+
+    test('a hang-up from anywhere else is not the user\'s', () async {
+      final call = buildActiveCall('not-by-user');
+      addTearDown(call.session.dispose);
+      await call.session.accept();
+
+      await call.session.hangUp();
+
+      expect(call.session.endedByUser, isFalse);
+    });
+
+    test('the first hang-up decides who ended the call', () async {
+      final call = buildActiveCall('first-decides');
+      addTearDown(call.session.dispose);
+      await call.session.accept();
+
+      await Future.wait([
+        call.session.hangUp(),
+        call.session.hangUp(byUser: true),
+      ]);
+
+      expect(call.session.endedByUser, isFalse);
+      expect(summariesIn(call.room), 1);
+    });
+
+    test('a hang-up for a call its caller already summarised sends no summary '
+        'of its own', () async {
+      final call = buildActiveCall('summarised');
+      addTearDown(call.session.dispose);
+      await call.session.accept();
+
+      await call.session.hangUp(summarized: true);
+
+      expect(call.session.phase, CallSessionPhase.ended);
+      expect(call.session.endReason, CallEndReason.missed);
+      expect(call.engine.leaveCalls, 1);
+      expect(summariesIn(call.room), 0);
+    });
+
+    test('the first hang-up decides whether the call was already '
+        'summarised', () async {
+      final summarisedFirst = buildActiveCall('summarised-first');
+      final plainFirst = buildActiveCall('plain-first');
+      for (final call in [summarisedFirst, plainFirst]) {
+        addTearDown(call.session.dispose);
+        await call.session.accept();
+      }
+
+      await Future.wait([
+        summarisedFirst.session.hangUp(summarized: true),
+        summarisedFirst.session.hangUp(),
+      ]);
+      await Future.wait([
+        plainFirst.session.hangUp(),
+        plainFirst.session.hangUp(summarized: true),
+      ]);
+
+      expect(summariesIn(summarisedFirst.room), 0);
+      expect(summariesIn(plainFirst.room), 1);
+    });
 
     test('hanging up tears the call down exactly once', () async {
       final call = buildActiveCall('hangup-once');
@@ -2445,7 +2845,10 @@ class _OrderTrackingCallEngine implements CallEngine {
   Future<void> leave() async {}
 
   @override
-  Future<void> setMicrophoneMuted(bool muted) async {}
+  Future<void> setMicrophoneMuted(bool muted) async {
+    calls.add('setMicrophoneMuted($muted)');
+  }
+
   @override
   Future<void> setCameraEnabled(bool enabled) async {}
   @override

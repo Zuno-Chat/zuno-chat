@@ -420,6 +420,12 @@ class CloudflareCallEngine implements CallEngine {
 
   @override
   Future<void> join() async {
+    if (_capabilities.callKit) {
+      await runBestEffort(
+        _webRtc.armSystemCallAudio,
+        label: 'arm system call audio',
+      );
+    }
     if (_capabilities.callMuteByInputMixer) {
       await runBestEffort(
         () => _webRtc.setMicrophoneMuteMode(MicrophoneMuteMode.inputMixer),

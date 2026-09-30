@@ -11,12 +11,14 @@ import '../../../core/calls/matrixrtc/call_waiting.dart';
 import '../../../core/calls/matrixrtc/incoming_call.dart';
 import '../../../core/calls/matrixrtc/incoming_call_provider.dart';
 import '../../../core/calls/matrixrtc/resolved_call_ids_provider.dart';
+import '../../../core/calls/matrixrtc/ring_elsewhere_provider.dart';
 import '../../../core/calls/notifications/call_notification_router.dart';
 import '../../../core/calls/notifications/headless_call_decline_provider.dart';
 import '../../../core/calls/notifications/pending_call_notification_action_provider.dart';
 import '../../../core/calls/notifications/ring_notification.dart';
 import '../../../core/calls/notifications/ringing_call_provider.dart';
 import '../../../core/calls/platform/incoming_call_presenter.dart';
+import '../../../core/calls/platform/system_ring.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/errors/global_error_handler.dart';
@@ -36,6 +38,7 @@ import '../../../core/notifications/message_notification_provider.dart';
 import '../../../core/notifications/server_push_rules.dart';
 import '../../../core/onboarding/onboarding_provider.dart';
 import '../../../core/onboarding/onboarding_step.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/new_device_alert_provider.dart';
 import '../../../core/security/security_prompt.dart';
 import '../../../core/security/security_prompt_provider.dart';
@@ -464,11 +467,32 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     }
   }
 
+  bool _systemRingBusy(String callId) {
+    final ringing = SystemRing.instance.ringing.value;
+    return ringing != null && ringing.callId != callId;
+  }
+
+  Future<void> _ringThroughSystem(
+    IncomingCall call,
+    IncomingCallPresenter presenter,
+  ) async {
+    var outcome = RingOutcome.unavailable;
+    try {
+      outcome = await postRingNotification(call, presenter: presenter);
+    } finally {
+      if (outcome != RingOutcome.shown) SystemRing.instance.clear(call.callId);
+    }
+    if (outcome != RingOutcome.unavailable || !mounted) return;
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => IncomingCallPage(call: call)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
     final unreadCorrections = ref.watch(callUnreadCorrectionProvider);
     ref.watch(resolvedCallIdsProvider);
+    ref.watch(ringElsewhereProvider);
     ref.watch(pendingCallNotificationActionProvider);
     ref.watch(messageNotificationProvider);
     ref.watch(roomInviteNotificationProvider);
@@ -512,7 +536,22 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
         return;
       }
 
-      if (ref.read(activeCallProvider) != null) {
+      if (answeredOnAnotherDevice(call.room, call.callId)) {
+        ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
+        unawaited(
+          ref
+              .read(incomingCallPresenterProvider)
+              .cancelIncoming(
+                roomId: call.room.id,
+                callId: call.callId,
+                end: RingEnd.answeredElsewhere,
+              ),
+        );
+        return;
+      }
+
+      if (ref.read(activeCallProvider) != null ||
+          _systemRingBusy(call.callId)) {
         unawaited(autoDeclineIncomingCall(call));
         ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
         final callerName = call.room
@@ -524,12 +563,13 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
         return;
       }
 
-      unawaited(
-        postRingNotification(
-          call,
-          presenter: ref.read(incomingCallPresenterProvider),
-        ),
-      );
+      SystemRing.instance.set(roomId: call.room.id, callId: call.callId);
+      final presenter = ref.read(incomingCallPresenterProvider);
+      if (ref.read(platformCapabilitiesProvider).callKit) {
+        unawaited(_ringThroughSystem(call, presenter));
+        return;
+      }
+      unawaited(postRingNotification(call, presenter: presenter));
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => IncomingCallPage(call: call)));

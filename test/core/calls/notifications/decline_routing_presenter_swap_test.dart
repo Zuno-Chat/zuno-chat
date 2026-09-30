@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -18,7 +19,7 @@ import 'package:zuno/core/push/headless_push_runner.dart';
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/hybrid_fake_async.dart';
 
 class _ScriptedPresenter implements IncomingCallPresenter {
   RingingCallInfo? ringing;
@@ -26,13 +27,14 @@ class _ScriptedPresenter implements IncomingCallPresenter {
   var cancels = 0;
 
   @override
-  Future<void> showIncoming({
+  Future<RingOutcome> showIncoming({
     required String callerName,
     required String callerId,
     required bool isVideo,
     required String roomId,
     required String callId,
     bool isGroupCall = false,
+    String? roomName,
     Uint8List? avatarBytes,
   }) async {
     shown.add(callId);
@@ -42,10 +44,15 @@ class _ScriptedPresenter implements IncomingCallPresenter {
       callerId: callerId,
       isVideo: isVideo,
     );
+    return RingOutcome.shown;
   }
 
   @override
-  Future<void> cancelIncoming() async {
+  Future<void> cancelIncoming({
+    String? roomId,
+    String? callId,
+    RingEnd end = RingEnd.remoteEnded,
+  }) async {
     cancels++;
     ringing = null;
   }
@@ -124,7 +131,7 @@ void main() {
   final presenters = <String, IncomingCallPresenter Function()>{
     'the android presenter': () => const AndroidIncomingCallPresenter(),
     'the presenter that presents nothing': () =>
-        incomingCallPresenterFor(iosCapabilities),
+        const NoopIncomingCallPresenter(),
     'a scripted presenter': _ScriptedPresenter.new,
   };
 
@@ -171,13 +178,22 @@ void main() {
     final presenter = _ScriptedPresenter();
     await ring(presenter);
     final runner = HeadlessPushRunner()..liveClient = client;
+    final time = FakeAsync();
 
-    final hold = awaitHeadlessDecline(runner, presenter: presenter);
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    var held = true;
+    time.run((_) {
+      awaitHeadlessDecline(
+        runner,
+        presenter: presenter,
+      ).whenComplete(() => held = false);
+    });
+    await time.advance(const Duration(seconds: 5));
+    expect(held, isTrue);
     expect(service.stillHoldsDeclinePort(), isTrue);
     tapDeclineWhileHeadless();
-    await hold.timeout(const Duration(seconds: 5));
+    await time.settle();
 
+    expect(held, isFalse);
     expect(sent.single['call_id'], 'call1');
     expect(presenter.cancels, 1);
     expect(service.stillHoldsDeclinePort(), isFalse);
@@ -192,11 +208,18 @@ void main() {
         throw StateError('should not be reached');
       };
 
-    await awaitHeadlessDecline(
-      runner,
-      presenter: incomingCallPresenterFor(iosCapabilities),
-    ).timeout(const Duration(seconds: 5));
+    final time = FakeAsync();
 
+    var held = true;
+    time.run((_) {
+      awaitHeadlessDecline(
+        runner,
+        presenter: const NoopIncomingCallPresenter(),
+      ).whenComplete(() => held = false);
+    });
+    await time.advance(const Duration(seconds: 1));
+
+    expect(held, isFalse);
     expect(builds, 0);
     expect(service.stillHoldsDeclinePort(), isFalse);
   });

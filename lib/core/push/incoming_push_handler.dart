@@ -83,12 +83,12 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
 
   if (isCallSummaryMessage(event.messageType)) {
     final callId = event.content.tryGet<String>('call_id');
+    if (callId != null) await _markResolved(callId);
     final ringAge = callId == null ? null : await _ringAge(callId);
     if (ringAge != null && ringAge < _ringSummaryGrace) {
       await Future<void>.delayed(_ringSummaryGrace - ringAge);
     }
-    await ring.cancelIncoming();
-    if (callId != null) await _markResolved(callId);
+    await ring.cancelIncoming(roomId: event.room.id, callId: callId);
     if (!isMissedCallSummary(event)) {
       await placeholder.retract();
       return IncomingPushOutcome.ignored;
@@ -107,6 +107,17 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
     if (await _isResolved(call.callId)) {
       if (kDebugMode) {
         debugPrint('zuno/push: ${call.callId} already resolved, not ringing');
+      }
+      return IncomingPushOutcome.ignored;
+    }
+    final ringing = await ring.activeRing();
+    if (ringing != null &&
+        ringing.callId != call.callId &&
+        !await _isResolved(ringing.callId)) {
+      if (kDebugMode) {
+        debugPrint(
+          'zuno/push: ${ringing.callId} is ringing, not ringing ${call.callId}',
+        );
       }
       return IncomingPushOutcome.ignored;
     }
@@ -236,7 +247,9 @@ Future<bool> _isResolved(String callId) async {
 
 Future<void> _markResolved(String callId) async {
   try {
-    await markCallResolvedOnDisk(await SharedPreferences.getInstance(), callId);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    await markCallResolvedOnDisk(prefs, callId);
   } catch (_) {}
 }
 

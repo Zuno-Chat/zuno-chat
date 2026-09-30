@@ -117,15 +117,20 @@ capability/seam rules:
 - `ambientCapabilities` is a getter plus a `@visibleForTesting` setter.
   Production never assigns it; a test sets it to run a flow as iOS end to
   end.
+- Where iOS reimplements rather than skips, the difference is an
+  interface: the call seams in `lib/core/calls/platform/`
+  (`IncomingCallPresenter`, `OngoingCallPresenter`, `RingbackTonePlayer`,
+  `SystemCall`, `CallAudioOutput`), each built by a `*For(capabilities)`
+  factory. The per-platform table is in `calls.md`.
 
 Each flag is one of these kinds:
 
 | Kind | Flags | Values |
 |---|---|---|
 | Native handler, both platforms | `nativeVideoTools`, `nativeImageResize`, `nativeSignOutWipe`, `sensitiveClipboard`, `screenSecurity`, `uploadForegroundService`, `networkAvailabilityEvents` | `true` on both |
-| Awaiting an iOS equivalent | every other Android-`true` flag, e.g. `homeScreenShortcuts`, `inboundShare` | iOS flips to `true` once a native handler exists |
+| Awaiting an iOS equivalent | every other Android-`true` flag, e.g. `homeScreenShortcuts`, `inboundShare`, `pictureInPicture` | iOS flips to `true` once a native handler exists |
 | Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent` | iOS stays `false` |
-| Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` | iOS stays `false`; CallKit arrives as a new branch in each `*For()` factory (`calls.md`), never a flag flip |
+| Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` (Android); `callKit` (iOS) | `true` on their own platform only; the call factories check `callKit` first (`calls.md`), so the Android three are never flipped |
 | iOS-only behavior | `apnsRegistration`, `playerNeedsMediaType`, `callMuteByInputMixer`, `signOutWipeKeepsProcess` | `true` on iOS only |
 | Apple limitation | `recorderWritesOgg` (Apple can't write Ogg), `videoCodecOrder` (`null` on iOS, see `calls.md`), `locationServicesSettings` (no link into Location Services), `filesTypedByExtension` (other apps type a file by its name), `screenshotBlocking` (no app can block a screenshot; picks the screen-privacy copy) | differs on iOS for good |
 
@@ -214,7 +219,7 @@ cadence doesn't add lag to noticing recovery.
 `FixedTimeoutHttpClient.defaultNetworkRequestTimeout` is left alone:
 shortening it would cut off real slow transfers.
 
-**Backgrounding pauses `/sync`, except during a call.**
+**Backgrounding pauses `/sync`, except during a call or a ring.**
 `_AuthGate.didChangeAppLifecycleState` (`lib/app.dart`) calls
 `client.abortSync()` on `paused` and sets `client.backgroundSync = true`
 on `resumed`, via the pure predicates
@@ -222,10 +227,13 @@ on `resumed`, via the pure predicates
 (`background_sync_lifecycle.dart`) — both skip this entirely when
 `NotificationDeliveryMode.backgroundService` is active, since that mode's
 whole purpose is keeping `/sync` alive while backgrounded. The pause
-predicate also takes `inCall` (`activeCallProvider != null`) and never
-pauses mid-call, since a call learns of the other side leaving only
-through sync; when the active call clears while still `paused`,
-`_AuthGate` aborts sync at that point. `abortSync`
+predicate also takes `inCall` (a call in `activeCallProvider` or a ring in
+`SystemRing`) and never pauses then, since a call learns of the other side
+leaving, and a ring of an answer elsewhere, only through sync; when the
+call, or on Android the ring, clears while still `paused`, `_AuthGate`
+aborts sync at that point. A CallKit answer on the lock screen never
+resumes the app, so on iOS a ring or call starting in the background
+turns sync back on. `abortSync`
 rather than merely dropping `backgroundSync` is deliberate: it also tears
 down the in-flight long-poll immediately (see the `abortSync` gotcha
 below), rather than letting it run to its next natural timeout.

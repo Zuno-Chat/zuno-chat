@@ -19,4 +19,8 @@ class ActiveCallNotifier extends Notifier<CallSession?> {
     state = session;
     markCallActiveInProcess(session != null);
   }
+
+  void clear(CallSession session) {
+    if (identical(state, session)) set(null);
+  }
 }

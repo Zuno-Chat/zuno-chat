@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,13 +21,13 @@ import 'package:zuno/core/push/incoming_push_handler.dart';
 import '../../helpers/fake_call_style_channel.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
-
-const ringNotificationId = 4002;
+import '../../helpers/hybrid_fake_async.dart';
 
 class _ScriptedClient extends Client {
   _ScriptedClient() : super('test', database: FakeDatabaseApi());
 
   Event? resolved;
+  final events = <String, Event>{};
   Object? throws;
   Completer<Event?>? delayed;
   int resolveCalls = 0;
@@ -65,6 +66,8 @@ class _ScriptedClient extends Client {
     bool returnNullIfSeen = true,
   }) async {
     resolveCalls++;
+    final scripted = events[notification.eventId];
+    if (scripted != null) return scripted;
     final pending = delayed;
     if (pending != null) return pending.future;
     final failure = throws;
@@ -79,8 +82,10 @@ void main() {
   late RecordedNotifications notifications;
   late RecordedCallStyleCalls callStyle;
 
-  PushNotification push({String? roomId = '!room:example.org'}) =>
-      PushNotification(devices: const [], eventId: r'$event', roomId: roomId);
+  PushNotification push({
+    String? roomId = '!room:example.org',
+    String eventId = r'$event',
+  }) => PushNotification(devices: const [], eventId: eventId, roomId: roomId);
 
   Event message({
     String senderId = '@bob:example.org',
@@ -94,19 +99,25 @@ void main() {
     content: {'msgtype': 'm.text', 'body': body},
   );
 
-  Event callInvite({String callId = 'call1'}) => buildTestEvent(
-    room,
-    eventId: r'$event',
-    senderId: '@bob:example.org',
-    content: {'msgtype': callInviteMsgtype, 'call_id': callId, 'kind': 'voice'},
-  );
+  Event callInvite({String callId = 'call1', String eventId = r'$event'}) =>
+      buildTestEvent(
+        room,
+        eventId: eventId,
+        senderId: '@bob:example.org',
+        content: {
+          'msgtype': callInviteMsgtype,
+          'call_id': callId,
+          'kind': 'voice',
+        },
+      );
 
   Event callSummary({
     String callId = 'call1',
     required CallSummaryStatus status,
+    String eventId = r'$event',
   }) => buildTestEvent(
     room,
-    eventId: r'$event',
+    eventId: eventId,
     senderId: '@bob:example.org',
     content: CallSummary(
       callId: callId,
@@ -116,8 +127,28 @@ void main() {
     ).toMessageContent(),
   );
 
-  Future<IncomingPushOutcome> handle({NotifyMe notifyMe = NotifyMe.all}) =>
-      handleIncomingPushNotification(client, push(), notifyMe: notifyMe);
+  Future<IncomingPushOutcome> handle({
+    NotifyMe notifyMe = NotifyMe.all,
+    String eventId = r'$event',
+  }) => handleIncomingPushNotification(
+    client,
+    push(eventId: eventId),
+    notifyMe: notifyMe,
+  );
+
+  Iterable<String> callStyleMethods() => callStyle.calls.map((c) => c.method);
+
+  Future<String?> rememberedCallId() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return readRingingCall(prefs)?.callId;
+  }
+
+  Future<Set<String>> resolvedCallIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return readResolvedCallIds(prefs);
+  }
 
   List<String> mockPushNotices(Map<String, String> notices) {
     final outstanding = Map.of(notices);
@@ -286,10 +317,7 @@ void main() {
         client.resolved = callInvite();
 
         expect(await handle(), IncomingPushOutcome.ignored);
-        expect(
-          callStyle.calls.map((c) => c.method),
-          isNot(contains('showIncomingCallStyle')),
-        );
+        expect(callStyleMethods(), isNot(contains('showIncomingCallStyle')));
         expect(notifications.shown, isEmpty);
       });
 
@@ -308,48 +336,162 @@ void main() {
       });
     });
 
+    group('with another call already ringing', () {
+      const ringingCallId = 'ringing-call';
+
+      setUp(() async {
+        await saveRingingCall(await SharedPreferences.getInstance(), (
+          roomId: room.id,
+          callId: ringingCallId,
+          callerId: '@bob:example.org',
+          isVideo: false,
+        ));
+        notifications.active = [ringNotificationOnScreen()];
+      });
+
+      test('does not ring over it', () async {
+        client.resolved = callInvite(callId: 'call1');
+
+        expect(await handle(), IncomingPushOutcome.ignored);
+        expect(callStyleMethods(), isNot(contains('showIncomingCallStyle')));
+        expect(notifications.shown, isEmpty);
+        expect(await rememberedCallId(), ringingCallId);
+      });
+
+      test('still rings for the call that is ringing', () async {
+        client.resolved = callInvite(callId: ringingCallId);
+
+        expect(await handle(), IncomingPushOutcome.callRinging);
+        expect((callStyle.lastShow.arguments as Map)['callId'], ringingCallId);
+      });
+
+      test('rings once that call is over, though its notification is still '
+          'up', () async {
+        await markCallResolvedOnDisk(
+          await SharedPreferences.getInstance(),
+          ringingCallId,
+        );
+        client.resolved = callInvite(callId: 'call1');
+
+        expect(await handle(), IncomingPushOutcome.callRinging);
+        expect((callStyle.lastShow.arguments as Map)['callId'], 'call1');
+        expect(await rememberedCallId(), 'call1');
+      });
+
+      test('a call dialled again while the summary of that call waits out '
+          'its ring grace still rings, and the summary leaves the new ring '
+          'up', () async {
+        client.events.addAll({
+          r'$summary': callSummary(
+            callId: ringingCallId,
+            status: CallSummaryStatus.ended,
+            eventId: r'$summary',
+          ),
+          r'$redial': callInvite(callId: 'call1', eventId: r'$redial'),
+        });
+        final time = FakeAsync();
+        IncomingPushOutcome? summaryOutcome;
+        time.run((_) {
+          handle(eventId: r'$summary').then((o) => summaryOutcome = o);
+        });
+        await time.settle();
+
+        expect(
+          await handle(eventId: r'$redial'),
+          IncomingPushOutcome.callRinging,
+        );
+        expect((callStyle.lastShow.arguments as Map)['callId'], 'call1');
+        callStyle.clear();
+
+        await time.advance(const Duration(seconds: 3));
+        expect(summaryOutcome, IncomingPushOutcome.ignored);
+        expect(callStyleMethods(), isNot(contains('cancelIncomingCallStyle')));
+        expect(await rememberedCallId(), 'call1');
+      });
+
+      test('rings once its notification is gone, though it is still '
+          'remembered', () async {
+        notifications.active = const [];
+        client.resolved = callInvite(callId: 'call1');
+
+        expect(await handle(), IncomingPushOutcome.callRinging);
+        expect((callStyle.lastShow.arguments as Map)['callId'], 'call1');
+        expect(await rememberedCallId(), 'call1');
+      });
+
+      test('a summary for a different call leaves it ringing, but still '
+          'remembers that call is over', () async {
+        client.resolved = callSummary(
+          callId: 'call1',
+          status: CallSummaryStatus.ended,
+        );
+
+        expect(await handle(), IncomingPushOutcome.ignored);
+        expect(callStyleMethods(), isNot(contains('cancelIncomingCallStyle')));
+        expect(await rememberedCallId(), ringingCallId);
+        expect(await resolvedCallIds(), contains('call1'));
+        expect(await resolvedCallIds(), isNot(contains(ringingCallId)));
+      });
+
+      test('a summary for a different call still cancels once the ring is '
+          'over 45 seconds old', () async {
+        await saveRingingCall(await SharedPreferences.getInstance(), (
+          roomId: room.id,
+          callId: ringingCallId,
+          callerId: '@bob:example.org',
+          isVideo: false,
+        ), now: DateTime.now().subtract(const Duration(seconds: 46)));
+        client.resolved = callSummary(
+          callId: 'call1',
+          status: CallSummaryStatus.ended,
+        );
+
+        expect(await handle(), IncomingPushOutcome.ignored);
+        expect(callStyleMethods(), contains('cancelIncomingCallStyle'));
+      });
+    });
+
     test('a summary cancels the ring and remembers the call is over', () async {
       client.resolved = callSummary(status: CallSummaryStatus.ended);
 
       expect(await handle(), IncomingPushOutcome.ignored);
 
-      expect(
-        callStyle.calls.map((c) => c.method),
-        contains('cancelIncomingCallStyle'),
-      );
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.reload();
-      expect(readResolvedCallIds(prefs), contains('call1'));
+      expect(callStyleMethods(), contains('cancelIncomingCallStyle'));
+      expect(await resolvedCallIds(), contains('call1'));
     });
 
-    test(
-      'a summary for a call that just rang does not cancel it instantly',
-      () async {
-        final prefs = await SharedPreferences.getInstance();
-        await saveRingingCall(prefs, (
-          roomId: room.id,
-          callId: 'call1',
-          callerId: '@bob:example.org',
-          isVideo: false,
-        ));
-        client.resolved = callSummary(status: CallSummaryStatus.ended);
+    test('a summary for a call that just rang marks it over at once, but '
+        'takes its ring down only after the grace', () async {
+      await saveRingingCall(await SharedPreferences.getInstance(), (
+        roomId: room.id,
+        callId: 'call1',
+        callerId: '@bob:example.org',
+        isVideo: false,
+      ));
+      client.resolved = callSummary(status: CallSummaryStatus.ended);
+      final time = FakeAsync();
+      IncomingPushOutcome? outcome;
+      time.run((_) {
+        handle().then((o) => outcome = o);
+      });
 
-        final outcome = handle();
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-        expect(
-          callStyle.calls.map((c) => c.method),
-          isNot(contains('cancelIncomingCallStyle')),
-          reason: 'the ring just posted is still within its grace window',
-        );
+      await time.settle();
+      expect(await resolvedCallIds(), contains('call1'));
+      await time.advance(const Duration(seconds: 2));
+      expect(
+        callStyleMethods(),
+        isNot(contains('cancelIncomingCallStyle')),
+        reason: 'the ring just posted is still within its grace window',
+      );
 
-        await outcome;
-        expect(
-          callStyle.calls.map((c) => c.method),
-          contains('cancelIncomingCallStyle'),
-          reason: 'the summary must still take the ring down eventually',
-        );
-      },
-    );
+      await time.advance(const Duration(seconds: 1));
+      expect(outcome, IncomingPushOutcome.ignored);
+      expect(
+        callStyleMethods(),
+        contains('cancelIncomingCallStyle'),
+        reason: 'the summary must still take the ring down eventually',
+      );
+    });
 
     test(
       'a call that just ended in front of the user is not announced',

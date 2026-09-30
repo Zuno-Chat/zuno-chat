@@ -28,10 +28,21 @@ class ResolvedCallIdsNotifier extends Notifier<Set<String>> {
     final callId = event.content.tryGet<String>('call_id');
     if (callId == null) return;
     markResolved(callId);
-    unawaited(ref.read(incomingCallPresenterProvider).cancelIncoming());
+    unawaited(
+      ref
+          .read(incomingCallPresenterProvider)
+          .cancelIncoming(
+            roomId: event.room.id,
+            callId: callId,
+            end: event.content.tryGet<String>('status') == 'declined'
+                ? RingEnd.declinedElsewhere
+                : RingEnd.remoteEnded,
+          ),
+    );
   }
 
   void markResolved(String callId) {
+    if (state.contains(callId)) return;
     state = {...state, callId};
     unawaited(
       markCallResolvedOnDisk(

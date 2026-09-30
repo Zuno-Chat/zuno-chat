@@ -8,7 +8,8 @@ by design. Signaling is a custom, simplified layer loosely modeled on
 MatrixRTC (MSC3401), not a conformant implementation. Media runs through a
 pluggable `CallEngine` abstraction, currently backed by Cloudflare Calls,
 reached through the `zuno_calls` Synapse module so the app never holds SFU
-credentials.
+credentials. On iOS, CallKit shows the ring and holds the call; Android
+uses a `CallStyle` notification and a foreground service.
 
 ## Architecture
 
@@ -78,37 +79,73 @@ Other integration points:
   `confirmPerson(picturesFirst: true)` over the call.
 
 **Platform seams** (`lib/core/calls/platform/`): what the OS shows or plays
-for a call goes through three interfaces. Each has an Android class
-wrapping the native path and a no-op, picked by a `*For()` factory on one
-capability (and a provider over it):
+for a call goes through five interfaces. Each has a `*For(capabilities)`
+factory, with a provider over it, that checks `callKit` first wherever a
+CallKit class exists; the Android flags in parentheses are never flipped
+on iOS (`app-foundation.md`):
 
-| Seam | Methods | Android | Selected by |
+| Seam | Methods | Android | iOS |
 |---|---|---|---|
-| `IncomingCallPresenter` | `showIncoming`, `cancelIncoming`, `activeRing` | `zuno/call_style` ring notification + `notification_sound_player.dart` ringtone/vibration | `nativeIncomingRingUi` |
-| `OngoingCallPresenter` | `start`, `stop` | `CallForegroundService` | `callForegroundService` |
-| `RingbackTonePlayer` | `start`, `stop`, `restartForRouteChange` | `ToneGenerator` | `nativeRingbackTone` |
+| `IncomingCallPresenter` | `showIncoming` (→ `RingOutcome`), `cancelIncoming`, `activeRing` | `zuno/call_style` ring notification + `notification_sound_player.dart` ringtone/vibration (`nativeIncomingRingUi`) | `reportIncomingCall` / `endIncomingCall`; `activeRing` is always `null` |
+| `OngoingCallPresenter` | `start`, `stop` | `CallForegroundService` (`callForegroundService`) | No-op: `systemCallSyncProvider` drives CallKit |
+| `RingbackTonePlayer` | `start`, `stop`, `restartForRouteChange` | `ToneGenerator` (`nativeRingbackTone`) | Native `CallRingback` |
+| `SystemCall` | `begin`, `connected`, `setMuted`, `upgradeToVideo`, `end` | No-op | `startSystemCall` … `endSystemCall` |
+| `CallAudioOutput` | `read`, `apply`, `watch`, `unwatch` | flutter_webrtc `Helper` + `ondevicechange` | `audioRoute` / `setAudioRoute` + `audioRouteChanged` |
 
-- Ringback has exactly one gate: its factory. Nothing else reads
-  `nativeRingbackTone`. `fullScreenIntent` gates only the full-screen
+- Ringback has exactly one gate: its factory. Both players re-check the
+  Ringtone setting. `fullScreenIntent` gates only the full-screen
   permission UI, never the presenter.
 - **A presenter that really rings extends `RememberingIncomingCallPresenter`**:
   it writes the ringing-call store before `presentIncoming` and clears it
   before `dismissIncoming`, so a platform presenter cannot forget the store
-  that `main.dart` (`pendingRing`) and the push handler read. The no-op
-  presenter remembers nothing, so iOS never reopens a ring it never showed.
-- **Native answer and decline** (a future CallKit) arrive as `answerCall` /
-  `declineCall` on `zuno/calls` with `{roomId, callId, callerId, isVideo}`
-  and join `onAction`, like notification buttons. One that arrives before
-  anything listens (cold start) is held for
-  `takeLaunchCallActionFromNotification`. An open `IncomingCallPage` runs
-  the action itself (the router defers to it) and cancels the presenter as
-  it closes, so two ring UIs never both stay up.
-- CallKit arrives as a new branch in each factory, never a flag flip
-  (`app-foundation.md`).
+  that `main.dart` (`pendingRing`) and the push handler read. The CallKit
+  presenter remembers nothing, like the no-op: a non-null `activeRing`
+  would push `IncomingCallPage` over CallKit's own ring.
+- **A ring cancel names its call** (`cancelIncoming(roomId:, callId:,
+  end:)`), so one call's end never takes down another call's ring: the
+  remembering presenter leaves a stored ring for another call up, and
+  CallKit ends only the named call, with `end` (`RingEnd`) as its reason.
+- **CallKit's answer and decline** arrive as `answerCall` / `declineCall`
+  on `zuno/calls` with `{roomId, callId, callerId, isVideo}` and join
+  `onAction`, like notification buttons. One that arrives before anything
+  listens (cold start) is held for `takeLaunchCallActionFromNotification`.
+  An open `IncomingCallPage` runs the action itself (the router defers to
+  it) and cancels the presenter as it closes, so two ring UIs never both
+  stay up.
 - Decline routing (the `IsolateNameServer` decline-port claim/release, the
   headless response handler) deliberately stays in
   `call_notification_service.dart`: presentation and routing never travel
   together.
+
+**CallKit (iOS)**: native owns CallKit and the audio session; Dart drives
+both over `zuno/calls` (`CallsChannelPlugin.swift`).
+- `CallKitCenter.swift`: a process-wide singleton with a lazy
+  `CXProvider`. Its configuration is re-set before every report and start
+  (Apple DTS's workaround for a call whose audio session never activates),
+  which also picks up the Ringtone setting. An
+  incoming call's UUID is a UUIDv5 of `roomId`+`callId`, so every path
+  names the same call. An ended one leaves a tombstone (last 64): a late
+  report of it is `filtered`, never a second ring. Actions the app
+  requests are tagged, so only the user's own taps reach Dart.
+- Native events queue (32, oldest dropped) until Dart pulls them:
+  `CallNotificationService.initialize` sends `resetSystemCalls` (ending
+  calls a previous Dart owned), then the router's build calls
+  `takeCallEvents`, which also replays each call still ringing.
+  `audioRouteChanged` is live-only.
+- `CallAudio.swift` owns the one audio session (decisions below) and
+  `CallRingback`, a synthesized 425 Hz tone that plays only once the
+  session is active; the pre-call category comes back after the last
+  call. Without CallKit (Simulator, iOS app on Mac) calls run a
+  self-managed session.
+- `systemCallSyncProvider` (`system_call_sync.dart`, watched by the router)
+  binds `activeCallProvider`'s session to its CallKit call: begin
+  (adopting the ringing call, answering it if still ringing), connected on
+  the first remote, mute both ways, video on the first camera, end with the
+  session's reason. The hang-up button's `byUser` end is requested as a
+  `CXEndCallAction`; any other end is reported.
+- A ring report returns `shown`, `filtered` (Focus, block list, tombstone:
+  nothing shows) or `unavailable` (`RoomListPage` falls back to
+  `IncomingCallPage`). A group call rings under the room's name.
 
 ## Data & State
 
@@ -156,6 +193,20 @@ without the relation and pushes as before.
 **End reasons** (`CallSession.endReason`) distinguish declined / missed /
 declinedByThem / failed / normal hangup — `failed` carries a user-facing
 `failedMessage` (e.g. permission-denied) surfaced via snackbar.
+
+**The ringing call** is one singleton on both platforms: `SystemRing`
+(`system_ring.dart`) holds the call ringing in the main isolate, for 60 s
+at most. Every ring path there sets it, the Android ring page for as long
+as it is up, and only that call's id clears it. Call waiting,
+`ringElsewhereProvider` and the background-sync rule read it.
+
+**Resolved calls** (`resolvedCallIdsProvider`, mirrored to disk for the
+push isolate) never ring again: a summary, a decline, an answer or decline
+on another of my devices, or an unanswered ring end marks one. Several
+paths mark the same call, so `markResolved` ignores a known id (no
+rebuild, no write). A summary push takes its call's ring down no sooner
+than 3 s after it was posted, but marks the call first, so a redial in
+that window rings; its cancel names the call, so the redial's ring stays.
 
 **Group-call rules**, since >2 participants breaks assumptions 1:1 calls
 could get away with:
@@ -326,7 +377,9 @@ delivers to a headless engine for the genuinely-killed-process case. A
 ring notification carries its own Accept/Decline actions and a
 full-screen intent; `CallForegroundService.kt` backs the persistent
 in-call notification once active (Android requires a real foreground
-service for background mic/camera capture).
+service for background mic/camera capture). iOS rings from live sync only:
+APNs pushes run no Dart and there is no VoIP push, so a backgrounded or
+closed app does not ring.
 
 **Ongoing-call notification actions**: its `CallStyle` Hang up button
 broadcasts to `CallActionReceiver`, which invokes `hangUpCall` on the
@@ -373,38 +426,41 @@ instead, so a stale notification can't outlive its call.
 - **Screen share is a deliberate no-op.** Android capture needs its own
   MediaProjection consent flow and a `mediaProjection`-typed foreground
   service; `CallForegroundService.kt` only declares `microphone|camera`.
-- **`/sync` stays alive while a call is active, even backgrounded.**
-  Remote departure, declines and key delivery all arrive only through
-  sync. The app-foundation "backgrounding pauses `/sync`" rule takes an
-  `inCall` flag and stands down for the call's duration (the foreground
-  service keeps the process alive); `_AuthGate` pauses sync when the
-  active call clears while still backgrounded.
-- **Voice calls turn the screen off at the ear via Android's
-  `PROXIMITY_SCREEN_OFF_WAKE_LOCK`** (`MainActivity.setProximityScreenOff`
-  over `zuno/calls`), the system dialer's mechanism — no sensor plumbing
-  in Dart. `call_proximity.dart` decides: wanted only for a voice call
-  on the earpiece (not speaker or a headset, as the dialer does) and not
+- **`/sync` stays alive while a call is active or a ring is up, even
+  backgrounded**: remote departure, declines, an answer on another device
+  and key delivery arrive only through sync. The rule, including the
+  CallKit lock-screen case, is in `app-foundation.md` (backgrounding
+  pauses `/sync`).
+- **Voice calls turn the screen off at the ear** with the system dialer's
+  own mechanism, no sensor plumbing in Dart: Android's
+  `PROXIMITY_SCREEN_OFF_WAKE_LOCK` (`MainActivity.setProximityScreenOff`),
+  iOS proximity monitoring (`ProximityScreen`, off only once the sensor
+  clears). `call_proximity.dart` decides: wanted only for a voice call on
+  the earpiece (not speaker or a headset, as the dialer does) and not
   finished (ringing counts). `CallPage` syncs it on init, every route
-  change, voice→video and finish; native also releases it on engine
-  cleanup and activity destroy.
+  change, voice→video and finish; native also releases it with the engine
+  and the Android activity.
 - **The audio route is earpiece, speaker, wired headset or Bluetooth**
   (`call_audio_route.dart`, pure). A call starts on a connected headset
   (Bluetooth first), else the earpiece for voice and the speaker for
-  video. `CallPage` re-reads the outputs on flutter_webrtc's
-  `ondevicechange`, which AudioSwitch fires on every device or selection
-  change: a newly connected headset takes the sound, and losing the one
-  in use falls back to another headset, else the starting route. The
-  speaker button toggles speaker ↔ the preferred headset, else earpiece.
-  Headsets are chosen with `selectAudioOutput`: AudioSwitch keeps the last
+  video; switching voice→video moves the earpiece to the speaker.
+  `CallPage` re-reads the outputs on every device change
+  (`CallAudioOutput.watch`): a newly connected headset takes the sound,
+  and losing the one in use falls back to another headset, else the
+  starting route. The speaker button toggles speaker ↔ the preferred
+  headset, else earpiece.
+- **Android routes through flutter_webrtc** (`WebRtcCallAudioOutput`):
+  outputs are named `bluetooth` / `wired-headset`, and AudioSwitch fires
+  `ondevicechange` on every device or selection change. Headsets are
+  chosen with `selectAudioOutput`: AudioSwitch keeps the last
   user-selected device while it stays connected, so after
   `setSpeakerphoneOn(false)` picked the earpiece, a headset connecting
   later never took over on its own.
-- **Headsets are recognized by Android id or iOS port type.** Android names
-  outputs `bluetooth` / `wired-headset`; iOS reports port UIDs with the type
-  in `groupId` (`BluetoothHFP`, `BluetoothA2DPOutput`, `BluetoothLE`,
-  `Headphones`, `USBAudio`) and lists only the current route. On iOS any
-  `selectAudioOutput` other than `Speaker` just drops the speaker override,
-  so the OS routes to the connected headset.
+- **iOS routes natively** (`CallKitCallAudioOutput`): `CallAudio` reads
+  headsets from the session's port types and reports each route change
+  (`audioRouteChanged`), so the in-app button follows CallKit's own
+  speaker button. Native picks the starting route; Dart applies only taps
+  and headset changes (CallKit decisions below).
 - **Picture-in-picture follows the other side's camera only.** Android
   system PiP (`MainActivity.kt`, `supportsPictureInPicture` in the
   manifest) is eligible while any *remote* participant has video on; the
@@ -419,7 +475,8 @@ instead, so a stale notification can't outlive its call.
   remote camera goes off, or the call ends, native hides the window with
   `moveTaskToBack(false)` and the call carries on behind the ongoing
   notification. The window's Hang up action reuses the notification's
-  `CallActionReceiver` broadcast.
+  `CallActionReceiver` broadcast. iOS has no PiP: `pictureInPicture` is
+  off there, so `setPictureInPicture` is never sent.
 - **Adaptive call quality** (`CloudflareCallEngine`, `getStats()` every
   3s) classifies this device's own connection with separate enter/exit
   thresholds and streak counts, so one bad sample can't flap the tier
@@ -467,15 +524,39 @@ instead, so a stale notification can't outlive its call.
   flutter_webrtc's default voice-processing mode that mute outlives the
   call and every later recording in the app captures silence until
   relaunch. `inputMixer` mode is call-local and also skips iOS's mute
-  sound.
-- **Call waiting**: a second incoming call while already on one is
-  auto-declined, never rung. The main isolate declines it from sync
+  sound. CallKit's own mute is system-wide and can linger the same way,
+  so `CallAudio` clears it after the last call on iOS 17+.
+- **CallKit**, the why behind the iOS shape:
+
+  | Decision | Why |
+  |---|---|
+  | The only iOS ring UI; `IncomingCallPage` only when CallKit is unavailable | No double ring UI, and a filtered ring must stay silent |
+  | The system call follows `activeCallProvider`, not `CallPage` | Nothing renders while locked, so a lock-screen answer may never build the page |
+  | flutter_webrtc's session management off; the AVAudioEngine ADM gated by `setEngineAvailability` from `didActivate` (armed by `CloudflareCallEngine.join`) | Audio must start in the session CallKit activates, and `useManualAudio` gates nothing on this ADM |
+  | One `playAndRecord`/`voiceChat` session, speaker only by override | A mid-call mode change rebuilds the engine |
+  | Native owns the starting route, and restores the last reported one after a media-services reset or a category change | A late `CallPage` build would undo a route picked on the CallKit screen |
+  | Dart mutes, native mirrors with tagged actions, a refused unmute reverts Dart; `begin` hands over a mute made before the app took the call | CallKit's mute holds the uplink system-wide, so the two must never disagree |
+  | Native ring backstop 55 s; a system end after 25 s of ringing counts as missed, earlier as a decline | CallKit ends a ring on its own near 60 s, and that end looks like a decline |
+  | Recents off; the handle is the display name | Recents sync through iCloud, and nothing handles a redial |
+  | Ringtone off plays `silent_ring.caf` | CallKit otherwise plays the system ringtone |
+
+- **Call waiting**: a second incoming call while already on one, or while
+  another call rings (`SystemRing`), is auto-declined, never rung, with a
+  "Missed call from X" SnackBar. The main isolate declines it from sync
   (`room_list_page.dart`). A push handled in a headless isolate can't read
   `activeCallProvider`, so the notifier mirrors it into a process-wide
   `IsolateNameServer` marker (`active_call_marker.dart`) and the push
-  handler stays silent while it is set. The marker dies with the process,
-  so a crash can't mute later rings; the notifier clears it on build
-  because a mapping outlives a hot restart.
+  handler stays silent while it is set, or while another unresolved call
+  rings: a push never replaces a ringing call. The marker dies with the
+  process, so a crash can't mute later rings; the notifier clears it on
+  build because a mapping outlives a hot restart.
+- **A ring ends when another of my devices answers or declines**
+  (`ringElsewhereProvider`, both platforms): my membership on another
+  device joining the call, or my decline from any device, ends the ring
+  and resolves the call. A call already answered elsewhere never rings, is
+  never declined as busy, and loses any ring the push isolate posted. Only
+  a running app watches: nothing about an answer elsewhere pushes, so a
+  ring posted headless learns of it only once the app runs.
 - **TURN provider selection was built, then retired to one path.** A
   per-user `TurnProviderKind` (homeserver vs. Cloudflare) picker existed
   briefly; both branches are now moot — the app derives ICE entirely
@@ -562,7 +643,9 @@ instead, so a stale notification can't outlive its call.
   arrives well inside that window. Fix pattern: `hangUp() => _hangUp ??=
   _hangUpOnce()`, so every racing caller awaits the same future and
   teardown (membership clear, `engine.leave()`, `dispose()`, summary send)
-  runs exactly once regardless of caller count.
+  runs exactly once regardless of caller count. The first caller's flags
+  stick: `byUser` (the hang-up button) and `summarized` (the call already
+  has a summary, so none is sent).
 - **Engine teardown must survive being told twice, and must not block on
   in-flight negotiation.** `leave()` must no-op on a second call;
   `dispose()` must chain onto `leave()` rather than run concurrently with
@@ -698,6 +781,32 @@ instead, so a stale notification can't outlive its call.
 - **Well-known homeserver lookups (`client.getWellknown()`) already cache
   for 3 days** at the SDK level — worth checking before adding another
   cache layer on top for module URL derivation.
+- **`endIncomingCall` ignores an answered call.** The router cancels the
+  ring on every accept, and by then CallKit's call is the ongoing one.
+- **A CallKit callee can join a call that is already over** (the caller
+  gave up while the answer was on its way). The binding hangs up
+  `summarized: true` when the call's summary lands before anyone joined,
+  so no second missed summary goes out, and a callee still alone 15 s
+  after going live hangs up (`emptyCallTimeout`).
+- **A lock-screen answer cannot show a permission prompt.** With the
+  microphone not yet granted, `CallSession` waits 3 s for the app to reach
+  the foreground, else the call ends with "Allow Zuno to use the
+  microphone, then call back."
+- **Native watchdogs end a stuck call as failed** (`callFailed`, "Call did
+  not connect"): an answer the app never adopts within 30 s, or a session
+  CallKit never activates within 10 s. Every end holds a 15 s background
+  task so `leave()` and the summary get out.
+- **Two calls overlap briefly on End & Accept.** `hangUpCall` names the
+  call CallKit ended (Android's Hang up names none): the router hangs up
+  only that call, marks any other id resolved, and holds the next accept
+  until it has ended (5 s at most). So `ActiveCallNotifier.clear(session)`
+  is identity-checked, and an ended `CallPage` under the new one skips its
+  teardown side effects and removes its own route instead of popping.
+- **`CallsChannelPlugin` registers in the implicit engine only.**
+  `CallKitCenter` is process-wide: another engine registering it would
+  take the channel over, and its `resetSystemCalls` would end the calls
+  the main Dart owns. Engine detach ends those calls and closes WebRTC
+  media.
 
 ## Extension Guidance
 
@@ -747,6 +856,11 @@ instead, so a stale notification can't outlive its call.
   channel). Keep the real-session case in `call_page_test.dart` passing:
   it catches a build that touches `session.engine` before the call
   connects.
+- The CallKit path is tested on Linux as iOS: `installFakeCallsChannel` /
+  `sendFromNative` (`test/helpers/fake_calls_channel.dart`) record and
+  play `zuno/calls`; `FakeCallSession` lives in `test/helpers/`.
+  `flutter_test_config.dart` resets `SystemRing` after every test. Native
+  decisions have XCTests (`ios/RunnerTests/RunnerTests.swift`).
 
 ## Dependencies / Integration
 
@@ -758,7 +872,8 @@ instead, so a stale notification can't outlive its call.
 - **Notifications**: `NotificationDeliveryProvider` (FCM/UnifiedPush/
   background-service) is what makes ringing work while backgrounded or
   killed; the platform seams own the ring/ongoing-call notification
-  lifecycle (on Android, `zuno/call_style` and `CallForegroundService.kt`). Calls share the same
+  lifecycle (on Android, `zuno/call_style` and `CallForegroundService.kt`;
+  on iOS, CallKit). Calls share the same
   best-effort, cross-isolate sound/vibration infra as message
   notifications (`notification_sound_player.dart`) but with distinct
   settings toggles (Ringtone / Vibrate for calls, vs. Message tone /
