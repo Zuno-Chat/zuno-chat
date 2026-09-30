@@ -250,13 +250,13 @@ void main() {
 
         expect(call.engine.status, CallEngineStatus.failed);
         expect(call.backend.captures.single.disposed, isTrue);
-        expect(call.pc.closed, isTrue);
+        expect(call.pc.disposed, isTrue);
         expect(call.sfu.pushes, isEmpty);
       });
     });
 
-    test('a refused microphone fails the join, and leaving closes the '
-        'connection it opened', () {
+    test('a refused microphone fails the join, and leaving disposes the '
+        'connection it opened in one step, never closing it first', () {
       inCall((call) {
         call.backend.captureError = StateError('Permission denied');
 
@@ -264,8 +264,8 @@ void main() {
         expect(call.engine.status, CallEngineStatus.failed);
 
         call.leave();
-        expect(call.pc.closed, isTrue);
         expect(call.pc.disposed, isTrue);
+        expect(call.pc.closed, isFalse);
       });
     });
 
@@ -283,7 +283,7 @@ void main() {
 
         expect(call.backend.captures.single.disposed, isTrue);
         expect(call.sfu.pushes, isEmpty);
-        expect(call.pc.closed, isTrue);
+        expect(call.pc.disposed, isTrue);
       }, kind: CallKind.video);
     });
   });
@@ -642,7 +642,7 @@ void main() {
         call.flush();
 
         expect(call.backend.peerConnections, hasLength(2));
-        expect(firstPc.closed, isTrue);
+        expect(firstPc.disposed, isTrue);
         expect(call.sfu.pushes.last.path, '/sessions/s2/tracks/new');
         expect(call.sfu.pulls.last.path, '/sessions/s2/tracks/new');
         expect(call.engine.localFociInfo?['sessionId'], 's2');
@@ -679,7 +679,7 @@ void main() {
         gate.complete();
         call.flush();
 
-        expect(call.backend.peerConnections.last.closed, isTrue);
+        expect(call.backend.peerConnections.last.disposed, isTrue);
         expect(call.sfu.pushes, hasLength(1));
         expect(call.engine.status, CallEngineStatus.disconnected);
       });
@@ -763,7 +763,7 @@ void main() {
           call.backend.streams.where((s) => s.id.startsWith('local_')),
           everyElement(predicate<FakeMediaStream>((s) => s.disposed)),
         );
-        expect(call.pc.closed, isTrue);
+        expect(call.pc.disposed, isTrue);
         expect(call.pc.disposed, isTrue);
         expect(call.engine.status, CallEngineStatus.disconnected);
         expect(call.engine.participants.where((p) => !p.isLocal), isEmpty);

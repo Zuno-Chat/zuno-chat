@@ -501,7 +501,7 @@ class CloudflareCallEngine implements CallEngine {
     final sessionId = results[0] as String;
     final pc = results[1] as RTCPeerConnection;
     if (_left) {
-      await _closePeerConnection(pc);
+      await _disposePeerConnection(pc);
       return;
     }
     pc.onTrack = _handleRemoteTrack;
@@ -512,7 +512,7 @@ class CloudflareCallEngine implements CallEngine {
 
   void _disposeOrphanedConnectResult(Object? value) {
     if (value is! RTCPeerConnection) return;
-    unawaited(_closePeerConnection(value));
+    unawaited(_disposePeerConnection(value));
   }
 
   void _detachConnectionCallbacks(RTCPeerConnection? pc) {
@@ -520,10 +520,8 @@ class CloudflareCallEngine implements CallEngine {
     pc?.onConnectionState = null;
   }
 
-  Future<void> _closePeerConnection(RTCPeerConnection pc) => _quietly(() async {
-    await pc.close();
-    await pc.dispose();
-  });
+  Future<void> _disposePeerConnection(RTCPeerConnection pc) =>
+      _quietly(pc.dispose);
 
   Future<void> _discardLocalCapture(MediaStream? captured) async {
     final audio = _localAudioStream;
@@ -669,14 +667,14 @@ class CloudflareCallEngine implements CallEngine {
     for (final label in const ['local-audio', 'local-video']) {
       await _frameCryptors.remove(label)?.dispose();
     }
-    if (oldPc != null) await _closePeerConnection(oldPc);
+    if (oldPc != null) await _disposePeerConnection(oldPc);
     await _openConnection();
     if (_left) {
       final orphanedPc = _pc;
       _pc = null;
       _sessionId = null;
       _detachConnectionCallbacks(orphanedPc);
-      if (orphanedPc != null) await _closePeerConnection(orphanedPc);
+      if (orphanedPc != null) await _disposePeerConnection(orphanedPc);
       return;
     }
     await _attachLocalMediaAndPublish();
@@ -814,7 +812,7 @@ class CloudflareCallEngine implements CallEngine {
     _localAudioTransceiver = null;
     _localVideoTransceiver = null;
 
-    if (_pc case final pc?) await _closePeerConnection(pc);
+    if (_pc case final pc?) await _disposePeerConnection(pc);
     _pc = null;
     _sessionId = null;
     _api.close();
