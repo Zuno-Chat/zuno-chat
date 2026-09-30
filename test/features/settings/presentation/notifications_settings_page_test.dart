@@ -187,6 +187,50 @@ void main() {
     expect(find.text('Full-screen call alerts'), findsOneWidget);
   });
 
+  group('where the app cannot vibrate', () {
+    testWidgets('there are no vibration switches', (tester) async {
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.fcm,
+        capabilities: capabilitiesLike(
+          androidCapabilities,
+          vibrationPatterns: false,
+        ),
+      );
+
+      expect(find.text('Vibrate for calls'), findsNothing);
+      expect(find.text('Vibrate for messages'), findsNothing);
+      expect(find.text('Sounds & vibration'), findsNothing);
+      expect(find.text('Sounds'), findsOneWidget);
+      expect(find.text('Ringtone'), findsOneWidget);
+      expect(find.text('Message tone'), findsOneWidget);
+    });
+
+    testWidgets('iOS has none either', (tester) async {
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: iosCapabilities,
+      );
+
+      expect(find.text('Vibrate for calls'), findsNothing);
+      expect(find.text('Vibrate for messages'), findsNothing);
+      expect(find.text('Sounds'), findsOneWidget);
+    });
+  });
+
+  testWidgets('Android keeps both vibration switches', (tester) async {
+    await _pumpPage(
+      tester,
+      NotificationDeliveryMode.fcm,
+      capabilities: androidCapabilities,
+    );
+
+    expect(find.text('Sounds & vibration'), findsOneWidget);
+    expect(find.text('Vibrate for calls'), findsOneWidget);
+    expect(find.text('Vibrate for messages'), findsOneWidget);
+  });
+
   testWidgets('mentions only says other messages still show, silently', (
     tester,
   ) async {

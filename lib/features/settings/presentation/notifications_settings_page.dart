@@ -212,7 +212,9 @@ class _NotificationsSettingsPageState
             ],
           ),
           CardGroup(
-            title: 'Sounds & vibration',
+            title: capabilities.vibrationPatterns
+                ? 'Sounds & vibration'
+                : 'Sounds',
             children: [
               SwitchListTile(
                 secondary: const Icon(Icons.music_note_outlined),
@@ -225,14 +227,16 @@ class _NotificationsSettingsPageState
                 onChanged: (value) =>
                     ref.read(ringtoneEnabledProvider.notifier).set(value),
               ),
-              SwitchListTile(
-                secondary: const Icon(Icons.vibration),
-                title: const Text('Vibrate for calls'),
-                subtitle: const Text('Buzz while a call is ringing'),
-                value: callVibration,
-                onChanged: (value) =>
-                    ref.read(callVibrationEnabledProvider.notifier).set(value),
-              ),
+              if (capabilities.vibrationPatterns)
+                SwitchListTile(
+                  secondary: const Icon(Icons.vibration),
+                  title: const Text('Vibrate for calls'),
+                  subtitle: const Text('Buzz while a call is ringing'),
+                  value: callVibration,
+                  onChanged: (value) => ref
+                      .read(callVibrationEnabledProvider.notifier)
+                      .set(value),
+                ),
               SwitchListTile(
                 secondary: const Icon(Icons.notifications_active_outlined),
                 title: const Text('Message tone'),
@@ -241,15 +245,16 @@ class _NotificationsSettingsPageState
                 onChanged: (value) =>
                     ref.read(messageToneEnabledProvider.notifier).set(value),
               ),
-              SwitchListTile(
-                secondary: const Icon(Icons.vibration),
-                title: const Text('Vibrate for messages'),
-                subtitle: const Text('Buzz once for a new message'),
-                value: messageVibration,
-                onChanged: (value) => ref
-                    .read(messageVibrationEnabledProvider.notifier)
-                    .set(value),
-              ),
+              if (capabilities.vibrationPatterns)
+                SwitchListTile(
+                  secondary: const Icon(Icons.vibration),
+                  title: const Text('Vibrate for messages'),
+                  subtitle: const Text('Buzz once for a new message'),
+                  value: messageVibration,
+                  onChanged: (value) => ref
+                      .read(messageVibrationEnabledProvider.notifier)
+                      .set(value),
+                ),
             ],
           ),
           Padding(

@@ -152,6 +152,10 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
     `fullScreenIntent`. Incognito keyboard: `keyboardLearningOptOut`
     (iOS has no way to ask a keyboard not to learn). The "On this device"
     group disappears when neither of its toggles applies.
+  - Vibrate for calls and Vibrate for messages: `vibrationPatterns`, and
+    without them the card reads "Sounds". iOS owns ring and notification
+    haptics (CallKit has no vibration setting), so the switches would do
+    nothing there.
 - **Link previews has no row while `linkPreviewsFeatureAvailable` is
   false.** The provider stays: `room_page.dart` reads it.
 - **Security > Advanced is outside the brand voice, on purpose.**
