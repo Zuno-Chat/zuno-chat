@@ -115,10 +115,18 @@ class _SecurityPrivacySettingsPageState
                 if (capabilities.screenSecurity)
                   SwitchListTile(
                     secondary: const Icon(Icons.screenshot_outlined),
-                    title: const Text('Prevent screenshots'),
-                    subtitle: const Text(
-                      'Blocks screenshots and screen recording, and hides Zuno '
-                      'in the recent apps preview',
+                    title: Text(
+                      capabilities.screenshotBlocking
+                          ? 'Prevent screenshots'
+                          : 'Hide screen content',
+                    ),
+                    subtitle: Text(
+                      capabilities.screenshotBlocking
+                          ? 'Blocks screenshots and screen recording, and '
+                                'hides Zuno in the recent apps preview'
+                          : 'Hides Zuno in the app switcher and while the '
+                                'screen is recorded or shared. Screenshots '
+                                'still work.',
                     ),
                     value: preventScreenshots,
                     onChanged: (value) => ref

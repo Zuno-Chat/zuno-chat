@@ -153,20 +153,58 @@ void main() {
       );
       expect(switchTile('Incognito keyboard'), findsOneWidget);
     });
+  });
 
-    testWidgets('iOS has no toggle either', (tester) async {
+  group('where screen content can be hidden but screenshots not blocked', () {
+    testWidgets('the toggle says what it hides, and that screenshots still '
+        'work', (tester) async {
       await pumpPage(tester, capabilities: iosCapabilities);
 
       expect(switchTile('Prevent screenshots'), findsNothing);
+      final tile = tester.widget<SwitchListTile>(
+        switchTile('Hide screen content'),
+      );
+      expect(tile.value, isTrue);
+      expect(
+        find.text(
+          'Hides Zuno in the app switcher and while the screen is recorded '
+          'or shared. Screenshots still work.',
+          skipOffstage: false,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('recent apps preview', skipOffstage: false),
+        findsNothing,
+      );
+    });
+
+    testWidgets('it turns the same setting off through the same channel', (
+      tester,
+    ) async {
+      final container = await pumpPage(tester, capabilities: iosCapabilities);
+
+      await tester.tap(switchTile('Hide screen content'));
+      await tester.pump();
+
+      expect(container.read(preventScreenshotsProvider), isFalse);
+      expect(
+        calls,
+        contains(
+          isA<MethodCall>()
+              .having((c) => c.method, 'method', 'setPreventScreenshots')
+              .having((c) => c.arguments, 'arguments', {'enabled': false}),
+        ),
+      );
     });
   });
 
-  testWidgets('iOS shows no On this device group: its keyboard cannot be '
-      'asked not to learn, and screenshots cannot be blocked', (tester) async {
+  testWidgets('iOS keeps the On this device group for the screen, without '
+      'the keyboard it cannot ask not to learn', (tester) async {
     await pumpPage(tester, capabilities: iosCapabilities);
 
     expect(switchTile('Incognito keyboard'), findsNothing);
-    expect(find.text('On this device', skipOffstage: false), findsNothing);
+    expect(find.text('On this device', skipOffstage: false), findsOneWidget);
   });
 
   testWidgets('Android keeps the toggle', (tester) async {

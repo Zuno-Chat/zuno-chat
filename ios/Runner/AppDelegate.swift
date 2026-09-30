@@ -39,5 +39,14 @@ import UIKit
     if let registrar = registry.registrar(forPlugin: "ZunoAppDataPlugin") {
       AppDataPlugin.register(with: registrar)
     }
+    if let registrar = registry.registrar(forPlugin: "ZunoCallsChannelPlugin") {
+      CallsChannelPlugin.register(with: registrar)
+    }
+    if let registrar = registry.registrar(forPlugin: "ZunoUploadServicePlugin") {
+      UploadServicePlugin.register(with: registrar)
+    }
+    if let registrar = registry.registrar(forPlugin: "ZunoNetworkPlugin") {
+      NetworkPlugin.register(with: registrar)
+    }
   }
 }

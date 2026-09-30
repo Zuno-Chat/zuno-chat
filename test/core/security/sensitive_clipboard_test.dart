@@ -2,9 +2,9 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zuno/core/platform/app_platform.dart';
-import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/sensitive_clipboard.dart';
+
+import '../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -78,8 +78,12 @@ void main() {
   test('a platform without a sensitive clipboard copies plainly and never '
       'calls native', () {
     fakeAsync((async) {
-      SensitiveClipboard(capabilities: capabilitiesFor(AppPlatform.ios))
-          .copy('recovery code');
+      SensitiveClipboard(
+        capabilities: capabilitiesLike(
+          androidCapabilities,
+          sensitiveClipboard: false,
+        ),
+      ).copy('recovery code');
       async.flushMicrotasks();
 
       expect(clipboardWrites, ['recovery code']);

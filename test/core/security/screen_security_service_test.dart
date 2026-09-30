@@ -1,9 +1,9 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zuno/core/platform/app_platform.dart';
-import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/screen_security_service.dart';
+
+import '../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -48,7 +48,10 @@ void main() {
 
   test('a platform without screen security never calls native', () async {
     final service = ScreenSecurityService(
-      capabilities: capabilitiesFor(AppPlatform.ios),
+      capabilities: capabilitiesLike(
+        androidCapabilities,
+        screenSecurity: false,
+      ),
     );
 
     await service.setPreventScreenshots(true);

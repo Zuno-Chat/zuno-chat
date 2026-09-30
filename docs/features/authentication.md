@@ -58,8 +58,9 @@ The signed-out screens themselves:
   scroll view, so it re-centers above the keyboard. The shared mark keeps
   screen-to-screen transitions from jumping.
 - `password_field.dart` — `PasswordField` plus the `PasswordReveal` mixin:
-  one show/hide toggle per page, `FLAG_SECURE` while shown, back to the
-  person's own setting on hide or dispose.
+  one show/hide toggle per page, screen security on while shown
+  (`FLAG_SECURE`; the iOS cover), back to the person's own setting on hide
+  or dispose.
 - `retry_wait.dart` — `RetryWait` mixin: holds a submit for as long as a
   rate limit said.
 

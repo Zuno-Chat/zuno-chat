@@ -10,6 +10,7 @@ import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/own_profile.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/ui/card_group.dart';
@@ -34,6 +35,9 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
     final client = ref.watch(matrixClientProvider);
+    final screenshotBlocking = ref
+        .watch(platformCapabilitiesProvider)
+        .screenshotBlocking;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: CardListView(
@@ -63,11 +67,13 @@ class SettingsPage extends ConsumerWidget {
           ),
           CardGroup(
             children: [
-              const _CategoryTile(
+              _CategoryTile(
                 icon: Icons.shield_outlined,
                 title: 'Security',
-                subtitle: 'Recovery, devices, screenshots',
-                page: SecurityPrivacySettingsPage(),
+                subtitle: screenshotBlocking
+                    ? 'Recovery, devices, screenshots'
+                    : 'Recovery, devices, screen content',
+                page: const SecurityPrivacySettingsPage(),
               ),
               const _CategoryTile(
                 icon: Icons.info_outline,

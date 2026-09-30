@@ -12,10 +12,10 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -203,11 +203,29 @@ void main() {
       expect(listens, 1);
     });
 
+    test('with iOS capabilities it forwards the native events too', () async {
+      final container = ProviderContainer(
+        overrides: [
+          platformCapabilitiesProvider.overrideWithValue(iosCapabilities),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(await container.read(networkAvailabilityProvider).toList(), [
+        false,
+        true,
+      ]);
+      expect(listens, 1);
+    });
+
     test('without network events it stays empty and never listens', () async {
       final container = ProviderContainer(
         overrides: [
           platformCapabilitiesProvider.overrideWithValue(
-            capabilitiesFor(AppPlatform.ios),
+            capabilitiesLike(
+              androidCapabilities,
+              networkAvailabilityEvents: false,
+            ),
           ),
         ],
       );

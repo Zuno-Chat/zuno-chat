@@ -2,8 +2,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/matrix/upload_foreground_service.dart';
-import 'package:zuno/core/platform/app_platform.dart';
-import 'package:zuno/core/platform/platform_capabilities.dart';
+
+import '../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -88,7 +88,7 @@ void main() {
 
   test('with android capabilities the service is held natively', () async {
     final android = UploadForegroundService.forTest(
-      capabilities: capabilitiesFor(AppPlatform.android),
+      capabilities: androidCapabilities,
     );
     await android.acquire();
     await android.updateProgress(label: 'Uploading…', fraction: 0.5);
@@ -96,16 +96,27 @@ void main() {
     expect(methods(), ['start', 'update', 'stop']);
   });
 
-  test('without a foreground service every call is a no-op', () async {
-    final ios = UploadForegroundService.forTest(
-      capabilities: capabilitiesFor(AppPlatform.ios),
-    );
-    await ios.acquire();
+  test('with iOS capabilities the upload is held natively too', () async {
+    final ios = UploadForegroundService.forTest(capabilities: iosCapabilities);
     await ios.acquire();
     await ios.updateProgress(label: 'Uploading…', fraction: 0.5);
     await ios.release();
-    await ios.release();
-    await ios.release();
+    expect(methods(), ['start', 'update', 'stop']);
+  });
+
+  test('without a native hold every call is a no-op', () async {
+    final none = UploadForegroundService.forTest(
+      capabilities: capabilitiesLike(
+        androidCapabilities,
+        uploadForegroundService: false,
+      ),
+    );
+    await none.acquire();
+    await none.acquire();
+    await none.updateProgress(label: 'Uploading…', fraction: 0.5);
+    await none.release();
+    await none.release();
+    await none.release();
     expect(calls, isEmpty);
   });
 

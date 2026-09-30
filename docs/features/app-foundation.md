@@ -122,12 +122,12 @@ Each flag is one of these kinds:
 
 | Kind | Flags | Values |
 |---|---|---|
-| Native handler, both platforms | `nativeVideoTools`, `nativeImageResize`, `nativeSignOutWipe` | `true` on both |
-| Awaiting an iOS equivalent | every other Android-`true` flag, e.g. `networkAvailabilityEvents` (offline reads as `unreachable` until then) | iOS flips to `true` once a native handler exists |
+| Native handler, both platforms | `nativeVideoTools`, `nativeImageResize`, `nativeSignOutWipe`, `sensitiveClipboard`, `screenSecurity`, `uploadForegroundService`, `networkAvailabilityEvents` | `true` on both |
+| Awaiting an iOS equivalent | every other Android-`true` flag, e.g. `homeScreenShortcuts`, `inboundShare` | iOS flips to `true` once a native handler exists |
 | Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent` | iOS stays `false` |
 | Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` | iOS stays `false`; CallKit arrives as a new branch in each `*For()` factory (`calls.md`), never a flag flip |
 | iOS-only behavior | `apnsRegistration`, `playerNeedsMediaType`, `callMuteByInputMixer`, `signOutWipeKeepsProcess` | `true` on iOS only |
-| Apple limitation | `recorderWritesOgg` (Apple can't write Ogg), `videoCodecOrder` (`null` on iOS, see `calls.md`), `locationServicesSettings` (no link into Location Services), `filesTypedByExtension` (other apps type a file by its name) | differs on iOS for good |
+| Apple limitation | `recorderWritesOgg` (Apple can't write Ogg), `videoCodecOrder` (`null` on iOS, see `calls.md`), `locationServicesSettings` (no link into Location Services), `filesTypedByExtension` (other apps type a file by its name), `screenshotBlocking` (no app can block a screenshot; picks the screen-privacy copy) | differs on iOS for good |
 
 ## Data & State
 The SDK's local database (SQLCipher-encrypted `sqflite`) is the
@@ -187,7 +187,7 @@ fed by two signals. `isOfflineProvider` is derived: anything but
 
 | Signal | Source | Drives |
 |---|---|---|
-| Device network | `NetworkAvailabilityStreamHandler.kt` → EventChannel `zuno/network` (Android default-network callback) | `noInternet`, after the network stays gone 2 s |
+| Device network | EventChannel `zuno/network`: `NetworkAvailabilityStreamHandler.kt` (Android default-network callback), `NetworkPlugin.swift` (`NWPathMonitor`, any status but `unsatisfied` is available) | `noInternet`, after the network stays gone 2 s |
 | Homeserver | `client.onSyncStatus` + probe `GET /_matrix/client/versions` (8 s timeout, <500 = reachable) | `unreachable` |
 
 - A sync connection failure (`SyncConnectionException` or
@@ -273,7 +273,9 @@ fetches, room history requests and starting a new call.
 - **Attachment sends survive backgrounding on their own**: `abortSync`
   leaves the HTTP client alone, and an in-flight send holds a dataSync
   foreground service (`UploadForegroundService`, see chats-messaging.md)
-  so the cached-app freezer doesn't stall it.
+  so the cached-app freezer doesn't stall it. iOS holds a background task
+  instead (`UploadServicePlugin.swift`), about 30 s: a longer upload is
+  still suspended and shows as not sent.
 - **Boot splash matches the Android launch theme exactly** —
   `ZunoBootSplash` (painted at the very first `runApp`, before
   `createMatrixClient()` has even started) and the `loading:` branch of
@@ -283,7 +285,11 @@ fetches, room history requests and starting a new call.
   `LaunchTheme` window background underneath — a cold start paints the
   mark twice, from two independent layers (OS, then Flutter's first
   frame), and any visible mismatch between them reads as two separate
-  loading screens rather than one continuous one.
+  loading screens rather than one continuous one. iOS matches it the same
+  way: `LaunchScreen.storyboard` is amber with `LaunchImage` (the ink mark)
+  pinned at 96 pt. The app icon is one 1024 px image per appearance
+  (default, dark, tinted) from `assets/logo/ios-icon-1024*.svg`, opaque, as
+  App Store validation requires.
 
 ### Launch targets hold the splash, then land without a transition
 

@@ -60,13 +60,19 @@ final _capabilities = <_Capability>[
     'screenSecurity',
     read: (c) => c.screenSecurity,
     android: true,
+    ios: true,
+  ),
+  _Capability(
+    'screenshotBlocking',
+    read: (c) => c.screenshotBlocking,
+    android: true,
     ios: false,
   ),
   _Capability(
     'sensitiveClipboard',
     read: (c) => c.sensitiveClipboard,
     android: true,
-    ios: false,
+    ios: true,
   ),
   _Capability(
     'lockScreenCallUi',
@@ -150,13 +156,13 @@ final _capabilities = <_Capability>[
     'uploadForegroundService',
     read: (c) => c.uploadForegroundService,
     android: true,
-    ios: false,
+    ios: true,
   ),
   _Capability(
     'networkAvailabilityEvents',
     read: (c) => c.networkAvailabilityEvents,
     android: true,
-    ios: false,
+    ios: true,
   ),
   _Capability(
     'keyboardLearningOptOut',

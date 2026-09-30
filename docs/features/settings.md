@@ -143,7 +143,12 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
     other.
   - Background data and distributor battery: `backgroundDataRestriction`
     and `batteryExemption`.
-  - Prevent screenshots: `screenSecurity`. Full-screen call alerts:
+  - Prevent screenshots: `screenSecurity`. Where screenshots cannot be
+    blocked (`screenshotBlocking` off, iOS) the same setting reads "Hide
+    screen content": a launch-screen cover while Zuno is inactive (app
+    switcher, also Control Center and system prompts) or the screen is
+    recorded or mirrored, which also leaves Zuno unusable until it stops.
+    Full-screen call alerts:
     `fullScreenIntent`. Incognito keyboard: `keyboardLearningOptOut`
     (iOS has no way to ask a keyboard not to learn). The "On this device"
     group disappears when neither of its toggles applies.

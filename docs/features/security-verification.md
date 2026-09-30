@@ -384,10 +384,13 @@ differs from the raw SSSS key):**
   (`sensitive_clipboard.dart`) sets `ClipDescription.EXTRA_IS_SENSITIVE`
   (API 33+) and overwrites the clip after 90s, but only while it still
   holds the app's own text — there's no delete-the-clip API, so blindly
-  clearing risks eating whatever the user copied since. This needs
-  `sensitiveClipboard`; iOS has no clear yet, so the recovery code screen's
-  Copy message says the code stays on the clipboard there. Still to do on
-  iOS: a `UIPasteboard` item with an expiration date.
+  clearing risks eating whatever the user copied since. iOS
+  (`CallsChannelPlugin.swift`) writes a `.localOnly` item (no Universal
+  Clipboard) that expires after 90 s on its own, since the Dart timer does
+  not run while the app is suspended; its clear compares `changeCount`
+  rather than reading the pasteboard, which would raise the paste prompt.
+  Without `sensitiveClipboard` the Copy message says the code stays on the
+  clipboard.
 - **Local database is SQLCipher-encrypted** (`sqflite_sqlcipher`), key
   in `flutter_secure_storage`: Keystore on Android, Keychain
   `first_unlock_this_device` on iOS, so a push handled while locked can

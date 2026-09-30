@@ -407,10 +407,11 @@ void main() {
         });
       });
 
-      testWidgets('on Android the copy clears itself after 90 seconds', (
-        tester,
+      Future<void> expectCopyClearsAfter90Seconds(
+        WidgetTester tester,
+        PlatformCapabilities capabilities,
       ) async {
-        await pumpFlow(tester, capabilities: androidCapabilities);
+        await pumpFlow(tester, capabilities: capabilities);
         final code = shownWords(tester).join(' ');
 
         await tester.tap(find.text('Copy'));
@@ -427,13 +428,29 @@ void main() {
 
         expect(calls.last.method, 'clearClipboardIfMatches');
         await tester.pumpAndSettle();
+      }
+
+      testWidgets('on Android the copy clears itself after 90 seconds', (
+        tester,
+      ) async {
+        await expectCopyClearsAfter90Seconds(tester, androidCapabilities);
       });
 
-      testWidgets('on iOS it promises no clearing it cannot do', (
+      testWidgets('on iOS the copy also clears itself after 90 seconds', (
         tester,
       ) async {
         ambientCapabilities = iosCapabilities;
-        await pumpFlow(tester, capabilities: iosCapabilities);
+        await expectCopyClearsAfter90Seconds(tester, iosCapabilities);
+      });
+
+      testWidgets('without a sensitive clipboard it promises no clearing it '
+          'cannot do', (tester) async {
+        final plain = capabilitiesLike(
+          androidCapabilities,
+          sensitiveClipboard: false,
+        );
+        ambientCapabilities = plain;
+        await pumpFlow(tester, capabilities: plain);
         final code = shownWords(tester).join(' ');
 
         await tester.tap(find.text('Copy'));

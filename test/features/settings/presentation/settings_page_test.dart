@@ -5,12 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/account_security_status.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/ui/card_group.dart';
 import 'package:zuno/features/settings/presentation/settings_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/platform_capabilities.dart';
 
 class _OwnMemberDb extends FakeDatabaseApi {
   User? ownMember;
@@ -39,11 +41,14 @@ Future<void> _pumpSettingsPage(
   WidgetTester tester, {
   AccountSecurityStatus? status,
   bool? showFeedback,
+  PlatformCapabilities? capabilities,
 }) {
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
         matrixClientProvider.overrideWithValue(_client()),
+        if (capabilities != null)
+          platformCapabilitiesProvider.overrideWithValue(capabilities),
         if (status != null)
           accountSecurityStatusProvider.overrideWithValue(
             AsyncValue.data(status),
@@ -71,6 +76,22 @@ void main() {
     ]) {
       expect(find.text(category), findsOneWidget);
     }
+  });
+
+  testWidgets('Security names screenshots where they can be blocked', (
+    tester,
+  ) async {
+    await _pumpSettingsPage(tester, capabilities: androidCapabilities);
+
+    expect(find.text('Recovery, devices, screenshots'), findsOneWidget);
+  });
+
+  testWidgets('Security names screen content where screenshots cannot be '
+      'blocked', (tester) async {
+    await _pumpSettingsPage(tester, capabilities: iosCapabilities);
+
+    expect(find.text('Recovery, devices, screen content'), findsOneWidget);
+    expect(find.textContaining('screenshots'), findsNothing);
   });
 
   testWidgets('you are on top: name, username, and a way into Account', (

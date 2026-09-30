@@ -107,6 +107,8 @@ what a message looks like, how it's sent, and how the timeline behaves.
   preview bytes until the upload finishes. The whole send, batch loops
   included, holds `UploadForegroundService` (a dataSync foreground service
   with a progress notification) so backgrounding can't freeze or kill it.
+  On iOS the hold is a background task, about 30 s, with no progress
+  surface (`update` is a no-op).
 - **Inbound share (Android share sheet)**: `ShareActivity.kt` (no UI, owns
   the `SEND`/`SEND_MULTIPLE` filters) forwards to `MainActivity` with a
   read grant. `MainActivity` hands the payload to Dart over `zuno/share`

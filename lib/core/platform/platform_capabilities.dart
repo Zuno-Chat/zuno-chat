@@ -12,6 +12,7 @@ class PlatformCapabilities {
   final bool foregroundSyncService;
   final bool homeScreenShortcuts;
   final bool screenSecurity;
+  final bool screenshotBlocking;
   final bool sensitiveClipboard;
   final bool lockScreenCallUi;
   final bool nativeRingbackTone;
@@ -48,6 +49,7 @@ class PlatformCapabilities {
     required this.foregroundSyncService,
     required this.homeScreenShortcuts,
     required this.screenSecurity,
+    required this.screenshotBlocking,
     required this.sensitiveClipboard,
     required this.lockScreenCallUi,
     required this.nativeRingbackTone,
@@ -88,6 +90,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         foregroundSyncService: true,
         homeScreenShortcuts: true,
         screenSecurity: true,
+        screenshotBlocking: true,
         sensitiveClipboard: true,
         lockScreenCallUi: true,
         nativeRingbackTone: true,
@@ -127,8 +130,9 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         fullScreenIntent: false,
         foregroundSyncService: false,
         homeScreenShortcuts: false,
-        screenSecurity: false,
-        sensitiveClipboard: false,
+        screenSecurity: true,
+        screenshotBlocking: false,
+        sensitiveClipboard: true,
         lockScreenCallUi: false,
         nativeRingbackTone: false,
         callForegroundService: false,
@@ -142,8 +146,8 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nativeSignOutWipe: true,
         nativeImageResize: true,
         nativeVideoTools: true,
-        uploadForegroundService: false,
-        networkAvailabilityEvents: false,
+        uploadForegroundService: true,
+        networkAvailabilityEvents: true,
         keyboardLearningOptOut: false,
         apnsRegistration: true,
         nativeIncomingRingUi: false,
