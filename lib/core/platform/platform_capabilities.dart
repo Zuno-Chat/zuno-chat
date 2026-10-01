@@ -21,7 +21,6 @@ class PlatformCapabilities {
   final bool headlessWakeLocks;
   final bool notificationImages;
   final bool vibrationPatterns;
-  final bool playServices;
   final bool deviceSafetyChecks;
   final bool inboundShare;
   final bool nativeSignOutWipe;
@@ -41,6 +40,11 @@ class PlatformCapabilities {
   final bool signOutWipeKeepsProcess;
   final bool locationServicesSettings;
   final bool filesTypedByExtension;
+  final bool atomicDatabaseBatches;
+  final bool nativeRoomOpens;
+  final bool clientLease;
+  final bool instantPushNotices;
+  final bool notificationAvatars;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
 
@@ -60,7 +64,6 @@ class PlatformCapabilities {
     required this.headlessWakeLocks,
     required this.notificationImages,
     required this.vibrationPatterns,
-    required this.playServices,
     required this.deviceSafetyChecks,
     required this.inboundShare,
     required this.nativeSignOutWipe,
@@ -80,6 +83,11 @@ class PlatformCapabilities {
     required this.signOutWipeKeepsProcess,
     required this.locationServicesSettings,
     required this.filesTypedByExtension,
+    required this.atomicDatabaseBatches,
+    required this.nativeRoomOpens,
+    required this.clientLease,
+    required this.instantPushNotices,
+    required this.notificationAvatars,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
   });
@@ -103,7 +111,6 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         headlessWakeLocks: true,
         notificationImages: true,
         vibrationPatterns: true,
-        playServices: true,
         deviceSafetyChecks: true,
         inboundShare: true,
         nativeSignOutWipe: true,
@@ -123,6 +130,11 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         signOutWipeKeepsProcess: false,
         locationServicesSettings: true,
         filesTypedByExtension: false,
+        atomicDatabaseBatches: true,
+        nativeRoomOpens: true,
+        clientLease: true,
+        instantPushNotices: true,
+        notificationAvatars: true,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
           NotificationDeliveryMode.unifiedPush,
@@ -143,10 +155,9 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nativeRingbackTone: false,
         callForegroundService: false,
         autostartSettings: false,
-        headlessWakeLocks: false,
+        headlessWakeLocks: true,
         notificationImages: false,
         vibrationPatterns: false,
-        playServices: false,
         deviceSafetyChecks: false,
         inboundShare: false,
         nativeSignOutWipe: true,
@@ -166,6 +177,11 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         signOutWipeKeepsProcess: true,
         locationServicesSettings: false,
         filesTypedByExtension: true,
+        atomicDatabaseBatches: false,
+        nativeRoomOpens: true,
+        clientLease: true,
+        instantPushNotices: false,
+        notificationAvatars: false,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,
       ),

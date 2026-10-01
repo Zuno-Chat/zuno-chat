@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_decline.dart';
@@ -65,5 +69,62 @@ void main() {
 
     expect(content['msgtype'], callDeclineMsgtype);
     expect(content, isNot(contains('m.relates_to')));
+  });
+
+  group('a decline that has to reach the server', () {
+    Room roomAnswering(int status) {
+      final client = buildTestClient(
+        userId: '@me:x',
+        database: SendCapableFakeDatabaseApi(),
+        httpClient: MockClient(
+          (request) async => status == 200
+              ? http.Response(jsonEncode({'event_id': r'$decline'}), 200)
+              : http.Response('{"errcode":"M_UNKNOWN"}', status),
+        ),
+      );
+      client.baseUri = Uri.parse('https://example.org');
+      client.bearerToken = 'test-token';
+      final room = buildTestRoom(client);
+      client.rooms.add(room);
+      return room;
+    }
+
+    test('one call is always declined under one transaction id, so a second '
+        'decline from this device is not a second event', () async {
+      final paths = <String>[];
+      final client = buildTestClient(
+        userId: '@me:x',
+        database: SendCapableFakeDatabaseApi(),
+        httpClient: MockClient((request) async {
+          paths.add(request.url.path);
+          return http.Response(jsonEncode({'event_id': r'$decline'}), 200);
+        }),
+      );
+      client.baseUri = Uri.parse('https://example.org');
+      client.bearerToken = 'test-token';
+      final room = buildTestRoom(client);
+      client.rooms.add(room);
+
+      await declineCall(room, 'c1');
+      await declineCallOrFail(room, 'c1');
+
+      expect(paths, hasLength(2));
+      expect(paths.first, paths.last);
+      expect(paths.first, endsWith('/${callDeclineTxid('c1')}'));
+    });
+
+    test('completes once the server has it', () async {
+      await expectLater(declineCallOrFail(roomAnswering(200), 'c1'), completes);
+    });
+
+    test(
+      'fails when the server refused it, so it can be tried again',
+      () async {
+        await expectLater(
+          declineCallOrFail(roomAnswering(500), 'c1'),
+          throwsA(isA<CallDeclineNotSent>()),
+        );
+      },
+    );
   });
 }

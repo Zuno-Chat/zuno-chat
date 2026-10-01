@@ -1,7 +1,12 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/invite_notification_provider.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -100,5 +105,147 @@ void main() {
     final content = inviteNotificationFor(client, inviteEvent());
 
     expect(content?.eventId, r'$invite');
+  });
+
+  test('the sync path\'s stand-in event id is no event id at all', () {
+    final event = Event(
+      eventId: 'invite_for_${room.id}',
+      type: EventTypes.RoomMember,
+      stateKey: '@me:example.org',
+      senderId: '@alice:example.org',
+      originServerTs: DateTime.now(),
+      content: {'membership': 'invite'},
+      room: room,
+    );
+
+    expect(inviteNotificationFor(client, event)?.eventId, isNull);
+  });
+
+  group('announced once, whichever path is first', () {
+    late RecordedNotifications notifications;
+
+    setUp(() async {
+      notifications = installFakeLocalNotifications();
+      installSilentNotificationSideChannels();
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      client.rooms.add(room);
+      final container = ProviderContainer(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(roomInviteNotificationProvider);
+    });
+
+    Event fromSync() => Event(
+      eventId: 'invite_for_${room.id}',
+      type: EventTypes.RoomMember,
+      stateKey: '@me:example.org',
+      senderId: '@alice:example.org',
+      originServerTs: DateTime.now(),
+      content: {'membership': 'invite'},
+      room: room,
+    );
+
+    Future<void> sync(SyncUpdate update) async {
+      client.onSync.add(update);
+      await pumpEventQueue();
+    }
+
+    Future<void> deliver() async {
+      client.onNotification.add(fromSync());
+      await pumpEventQueue();
+    }
+
+    test('an invitation the push already announced is not announced again '
+        'from sync', () async {
+      expect((await claimInviteAnnouncement(room.id)).won, isTrue);
+
+      await deliver();
+
+      expect(notifications.shown, isEmpty);
+    });
+
+    test('an invitation sync repeats is announced once', () async {
+      await deliver();
+      await deliver();
+
+      expect(notifications.shown, hasLength(1));
+      expect((await claimInviteAnnouncement(room.id)).won, isFalse);
+    });
+
+    test('once the invitation is settled, a new one to the same room is '
+        'announced again', () async {
+      await deliver();
+      await sync(
+        SyncUpdate(
+          nextBatch: 's2',
+          rooms: RoomsUpdate(join: {room.id: JoinedRoomUpdate()}),
+        ),
+      );
+
+      await deliver();
+
+      expect(notifications.shown, hasLength(2));
+    });
+
+    test('a declined invitation is settled too', () async {
+      await deliver();
+      await sync(
+        SyncUpdate(
+          nextBatch: 's2',
+          rooms: RoomsUpdate(leave: {room.id: LeftRoomUpdate()}),
+        ),
+      );
+
+      expect((await claimInviteAnnouncement(room.id)).won, isTrue);
+    });
+
+    test('joining from another device settles an invitation another path '
+        'announced', () async {
+      await claimInviteAnnouncement(room.id);
+      await sync(
+        SyncUpdate(
+          nextBatch: 's2',
+          rooms: RoomsUpdate(
+            join: {
+              room.id: JoinedRoomUpdate(
+                timeline: TimelineUpdate(
+                  events: [
+                    MatrixEvent(
+                      type: EventTypes.RoomMember,
+                      stateKey: '@me:example.org',
+                      senderId: '@me:example.org',
+                      eventId: r'$join',
+                      originServerTs: DateTime.now(),
+                      content: {'membership': 'join'},
+                    ),
+                  ],
+                ),
+              ),
+            },
+          ),
+        ),
+      );
+
+      expect((await claimInviteAnnouncement(room.id)).won, isTrue);
+    });
+
+    test('a sync about other rooms settles nothing', () async {
+      await deliver();
+      await sync(
+        SyncUpdate(
+          nextBatch: 's2',
+          rooms: RoomsUpdate(join: {'!other:example.org': JoinedRoomUpdate()}),
+        ),
+      );
+
+      await deliver();
+
+      expect(notifications.shown, hasLength(1));
+    });
   });
 }

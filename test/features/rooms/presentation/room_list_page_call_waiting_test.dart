@@ -17,6 +17,7 @@ import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
+import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
@@ -48,6 +49,7 @@ class _PendingRingPresenter implements IncomingCallPresenter {
     bool isGroupCall = false,
     String? roomName,
     Uint8List? avatarBytes,
+    Future<RingingCallInfo?>? ringingNow,
   }) {
     shownCallIds.add(callId);
     return Completer<RingOutcome>().future;
@@ -321,6 +323,23 @@ void main() {
     expect(find.byType(IncomingCallPage), findsNothing);
     expect(declineCallIds, {'call2', 'call3'});
     expect(container.read(activeCallProvider), same(session));
+  });
+
+  testWidgets('a call another isolate already ended never rings from sync, '
+      'though this isolate\'s memory missed it', (tester) async {
+    final (:presenter, container: _) = await pumpWithPendingRings(tester);
+    await markCallResolvedOnDisk(
+      await SharedPreferences.getInstance(),
+      'call1',
+    );
+    final declined = declinedCallIds();
+
+    await deliverAndSettle(tester, invite(callId: 'call1'));
+
+    expect(presenter.shownCallIds, isEmpty);
+    expect(ringScreenCallIds(tester), isEmpty);
+    expect(declined, isEmpty);
+    expect(SystemRing.instance.ringing.value, isNull);
   });
 
   testWidgets('a call_id already resolved elsewhere is still ignored, not '

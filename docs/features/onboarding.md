@@ -49,7 +49,7 @@ Not a fixed wizard: most launches show nothing at all.
 | `profile` | just registered | "Save" (enabled once a name or photo is set) |
 | `confirmPeople` | not yet shown on this device (every account, existing ones on their next launch) | "Continue" |
 | `notifications` | permission not granted and not permanently denied | OS answers; if full-screen call alerts are still off, one "Open settings" page, advancing on return |
-| `deliveryMethod` | the platform offers more than one mode (`canChooseDelivery`), not yet answered on this device (login or registration), and notifications are allowed or asked in this flow; lists only `capabilities.deliveryModes` | "Continue" after picking a method |
+| `deliveryMethod` | the platform offers more than one mode (`canChooseDelivery`), not yet answered on this device (login or registration), and notifications are allowed or asked in this flow; lists only `capabilities.deliveryModes`, FCM disabled with its reason while the device cannot use it (`deliveryModeChoice`) | "Continue" after picking a method |
 | `batteryExemption` | the platform has `batteryExemption` **and** the chosen mode depends on it (`deliveryDependsOnBatteryExemption`), two separate checks; Android hasn't exempted the app; same notifications condition | OS grants it (checked on resume) |
 | `autostart` | the maker's autostart screen exists on this device (`AutostartDecision.availableFor`: Xiaomi, Oppo, Vivo, Huawei families); same notifications condition | "Open settings", then advances; Android cannot report the setting, so it is asked once |
 | `approveDevice` | recovery exists, this device lacks identity keys | returning from `ApproveThisDevicePage` |
@@ -79,7 +79,10 @@ drops them via `stepsAfterNotificationsAnswer` and marks them shown.
   is skipped. An abandoned flow resumes at the step it stopped on.
 - The delivery step writes `notificationDeliveryModeProvider` and calls
   `kickOffDeliveryMode` (`notification_delivery_provider.dart`), the same
-  follow-up Settings uses.
+  follow-up Settings uses, only when `set()` accepts the pick. The radio
+  shows the stored mode until an enabled one is picked, and a pick that
+  turns disabled falls back to it, so the step never confirms a mode that
+  was not saved; the flow continues with the mode actually saved.
 
 ## Key Design Decisions
 

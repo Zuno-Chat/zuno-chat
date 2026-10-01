@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/message_notification_provider.dart';
+import 'package:zuno/core/notifications/notification_avatar_cache.dart';
 import 'package:zuno/core/notifications/notified_events_store.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -239,6 +243,47 @@ void main() {
       await syncWithCount(2);
 
       expect(notifications.cancelled, isEmpty);
+    });
+
+    test('a room read elsewhere is taken down after the post of that same '
+        'sync lands, never before it', () async {
+      final gate = Completer<void>();
+      NotificationAvatarCache.instance = NotificationAvatarCache(
+        directory: () async {
+          await gate.future;
+          throw const FileSystemException('held');
+        },
+      );
+      addTearDown(
+        () => NotificationAvatarCache.instance = NotificationAvatarCache(),
+      );
+      room.setState(
+        User(
+          '@a:x',
+          displayName: 'Alice',
+          avatarUrl: 'mxc://x/alice',
+          room: room,
+        ),
+      );
+      notifications.active = [
+        {
+          'id': roomNotificationId,
+          'channelId': 'direct_messages',
+          'payload': '',
+        },
+      ];
+
+      client.onTimelineEvent.add(textEvent(body: 'read on the laptop'));
+      await syncWithCount(0);
+      gate.complete();
+      await pumpEventQueue();
+
+      final methods = notifications.methods;
+      expect(methods, contains('show'));
+      expect(
+        methods.lastIndexOf('cancel'),
+        greaterThan(methods.lastIndexOf('show')),
+      );
     });
 
     test('does nothing for a room with no notification showing', () async {

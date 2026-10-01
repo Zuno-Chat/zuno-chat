@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
 
+import '../push/fcm_startup.dart';
+import '../push/push_wake_lock.dart';
 import 'apns_delivery_provider.dart';
 import 'background_sync_delivery_provider.dart';
 import 'fcm_delivery_provider.dart';
@@ -27,8 +31,10 @@ void bindAppStateToPushDelivery({
   ]) {
     runner
       ..currentlyOpenRoomId = currentlyOpenRoomId
-      ..isAppSyncing = isAppSyncing;
+      ..isAppSyncing = isAppSyncing
+      ..nativeAppInFront = nativePushAppInFront;
   }
+  unawaited(markFcmAppReady());
 }
 
 Future<void> stopAllNotificationDelivery(Client client) async {

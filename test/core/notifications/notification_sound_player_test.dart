@@ -1,5 +1,3 @@
-import 'dart:ui' show IsolateNameServer;
-
 import 'package:flutter/foundation.dart' show DebugPrintCallback, debugPrint;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,140 +40,20 @@ void main() {
           });
     });
 
-    tearDown(() async {
-      await NotificationSoundPlayer.instance.stopIncomingRing();
+    tearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, null);
     });
 
-    group('the incoming ring', () {
-      setUp(() {
-        SharedPreferences.setMockInitialValues({
-          ringtoneEnabledKey: false,
-          callVibrationEnabledKey: true,
-        });
-      });
-
-      test(
-        'starts a repeating buzz tagged as a ringtone, not an alarm',
-        () async {
-          await player.startIncomingRing();
-
-          final vibrate = calls.singleWhere((c) => c.method == 'vibrate');
-          expect(vibrate.arguments['pattern'], callVibrationPattern);
-          expect(vibrate.arguments['repeat'], 0);
-          expect(vibrate.arguments['usage'], 'ringtone');
-        },
+    test('a platform without vibration patterns never buzzes for a message '
+        'and makes no native call', () async {
+      final ios = NotificationSoundPlayer(
+        capabilities: capabilitiesFor(AppPlatform.ios),
       );
 
-      test('a stop from an isolate that never started the ring still '
-          'cancels the vibration', () async {
-        expect(player.ownsIncomingRing, isFalse);
+      await ios.vibrateForMessage();
 
-        await player.stopIncomingRing();
-
-        expect(calls.map((c) => c.method), contains('cancel'));
-      });
-
-      test(
-        'starting the ring claims the stop port, stopping releases it',
-        () async {
-          await player.startIncomingRing();
-
-          expect(player.ownsIncomingRing, isTrue);
-          expect(
-            IsolateNameServer.lookupPortByName(ringStopPortName),
-            isNotNull,
-          );
-
-          await player.stopIncomingRing();
-
-          expect(player.ownsIncomingRing, isFalse);
-          expect(IsolateNameServer.lookupPortByName(ringStopPortName), isNull);
-        },
-      );
-
-      test('a stop sent to the port stops the ring in the isolate that owns '
-          'it', () async {
-        await player.startIncomingRing();
-        calls.clear();
-
-        IsolateNameServer.lookupPortByName(ringStopPortName)!.send(null);
-        await Future<void>.delayed(Duration.zero);
-        await Future<void>.delayed(Duration.zero);
-
-        expect(player.ownsIncomingRing, isFalse);
-        expect(calls.map((c) => c.method), contains('cancel'));
-      });
-
-      test('a failing vibration platform never takes the stop down', () async {
-        vibrateError = PlatformException(code: 'no vibrator');
-
-        await expectLater(player.stopIncomingRing(), completes);
-      });
-
-      test(
-        'a failing vibration platform names what failed, in the log',
-        () async {
-          vibrateError = PlatformException(code: 'no vibrator');
-          final logs = <String>[];
-          final originalDebugPrint = debugPrint;
-          debugPrint = (String? message, {int? wrapWidth}) {
-            if (message != null) logs.add(message);
-          };
-          addTearDown(() => debugPrint = originalDebugPrint);
-
-          await player.stopIncomingRing();
-
-          expect(
-            logs,
-            contains(
-              predicate<String>(
-                (m) => m.startsWith('zuno/sound: vibration cancel failed:'),
-              ),
-            ),
-          );
-        },
-      );
-
-      test('a platform without vibration patterns rings with no buzz and no '
-          'native call', () async {
-        SharedPreferences.setMockInitialValues({
-          ringtoneEnabledKey: false,
-          callVibrationEnabledKey: true,
-          messageVibrationEnabledKey: true,
-        });
-        final ios = NotificationSoundPlayer(
-          capabilities: capabilitiesFor(AppPlatform.ios),
-        );
-
-        await ios.startIncomingRing();
-        expect(ios.ownsIncomingRing, isTrue);
-        await ios.vibrateForMessage();
-        await ios.stopIncomingRing();
-
-        expect(ios.ownsIncomingRing, isFalse);
-        expect(calls, isEmpty);
-      });
-
-      test('no vibrator on the device skips the buzz, not logged as a '
-          'failure', () async {
-        hasVibrator = false;
-        final logs = <String>[];
-        final originalDebugPrint = debugPrint;
-        debugPrint = (String? message, {int? wrapWidth}) {
-          if (message != null) logs.add(message);
-        };
-        addTearDown(() => debugPrint = originalDebugPrint);
-
-        await player.startIncomingRing();
-
-        expect(calls.map((c) => c.method), isNot(contains('vibrate')));
-        expect(
-          logs,
-          contains('zuno/sound: ring vibration skipped, no vibrator'),
-        );
-      });
+      expect(calls, isEmpty);
     });
 
     group('prepareMessageNotification', () {
@@ -222,6 +100,22 @@ void main() {
           alert: MessageAlert.silent,
           vibrate: true,
         ));
+      });
+
+      test('follows settings the caller already read instead of reading '
+          'them again', () async {
+        expect(
+          await player.prepareMessageNotification(
+            roomId: room,
+            settings: const NotificationSoundSettings(
+              ringtone: true,
+              callVibration: true,
+              messageTone: false,
+              messageVibration: false,
+            ),
+          ),
+          (alert: MessageAlert.silent, vibrate: false),
+        );
       });
 
       test('preparing never buzzes itself; the buzz is a separate step so it '

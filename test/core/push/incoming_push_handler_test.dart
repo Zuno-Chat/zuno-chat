@@ -11,12 +11,19 @@ import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
+import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
+import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
+import 'package:zuno/core/calls/platform/system_ring.dart';
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/notifications/invite_notification_provider.dart';
+import 'package:zuno/core/notifications/notified_events_store.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/push/incoming_push_handler.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_call_style_channel.dart';
 import '../../helpers/fake_local_notifications.dart';
@@ -33,6 +40,24 @@ class _ScriptedClient extends Client {
   int resolveCalls = 0;
 
   int pushRuleChecks = 0;
+
+  bool syncing = false;
+  final steps = <String>[];
+  final catchUps = <Duration?>[];
+  final stores = <bool>[];
+  Future<void>? catchUpGate;
+  void Function()? onCaughtUp;
+
+  @override
+  bool get syncPending => syncing;
+
+  @override
+  Future<void> oneShotSync({Duration? timeout}) async {
+    steps.add('sync');
+    catchUps.add(timeout);
+    await catchUpGate;
+    onCaughtUp?.call();
+  }
 
   @override
   PushruleEvaluator get pushruleEvaluator =>
@@ -66,6 +91,8 @@ class _ScriptedClient extends Client {
     bool returnNullIfSeen = true,
   }) async {
     resolveCalls++;
+    steps.add('fetch');
+    stores.add(storeInDatabase);
     final scripted = events[notification.eventId];
     if (scripted != null) return scripted;
     final pending = delayed;
@@ -358,12 +385,16 @@ void main() {
         expect(await rememberedCallId(), ringingCallId);
       });
 
-      test('still rings for the call that is ringing', () async {
-        client.resolved = callInvite(callId: ringingCallId);
+      test(
+        'a push for the call that is ringing does not ring it again',
+        () async {
+          client.resolved = callInvite(callId: ringingCallId);
 
-        expect(await handle(), IncomingPushOutcome.callRinging);
-        expect((callStyle.lastShow.arguments as Map)['callId'], ringingCallId);
-      });
+          expect(await handle(), IncomingPushOutcome.callRinging);
+          expect(callStyleMethods(), isNot(contains('showIncomingCallStyle')));
+          expect(await rememberedCallId(), ringingCallId);
+        },
+      );
 
       test('rings once that call is over, though its notification is still '
           'up', () async {
@@ -950,4 +981,427 @@ void main() {
     expect(await handle(), IncomingPushOutcome.message);
     expect(notifications.single.android['actions'], anyOf(isNull, isEmpty));
   });
+
+  group('one truth about which calls are over', () {
+    late ProviderContainer container;
+
+    setUp(() async {
+      final prefs = await SharedPreferences.getInstance();
+      container = ProviderContainer(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(resolvedCallIdsProvider);
+    });
+
+    test('a call a push ends reaches the app at once, so sync never rings '
+        'it again', () async {
+      client.resolved = callSummary(status: CallSummaryStatus.ended);
+
+      await handle();
+
+      expect(container.read(resolvedCallIdsProvider), contains('call1'));
+    });
+
+    test('a call the app knows is over does not ring from push, before its '
+        'disk write has landed', () async {
+      container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
+      await (await SharedPreferences.getInstance()).clear();
+      client.resolved = callInvite();
+
+      expect(await handle(), IncomingPushOutcome.ignored);
+      expect(callStyleMethods(), isNot(contains('showIncomingCallStyle')));
+    });
+  });
+
+  group('a call the app is already ringing', () {
+    test('is not rung again by its push', () async {
+      SystemRing.instance.set(roomId: room.id, callId: 'call1');
+      client.resolved = callInvite();
+
+      expect(await handle(), IncomingPushOutcome.callRinging);
+      expect(callStyleMethods(), isNot(contains('showIncomingCallStyle')));
+    });
+
+    test('is never rung over by another call\'s push', () async {
+      SystemRing.instance.set(roomId: room.id, callId: 'other');
+      client.resolved = callInvite();
+
+      expect(await handle(), IncomingPushOutcome.ignored);
+      expect(callStyleMethods(), isNot(contains('showIncomingCallStyle')));
+      expect(SystemRing.instance.ringing.value?.callId, 'other');
+    });
+
+    test('once over, lets another call\'s push ring', () async {
+      SystemRing.instance.set(roomId: room.id, callId: 'other');
+      await markCallResolved('other');
+      client.resolved = callInvite();
+
+      expect(await handle(), IncomingPushOutcome.callRinging);
+      expect((callStyle.lastShow.arguments as Map)['callId'], 'call1');
+    });
+  });
+
+  test('a ring goes up before the instant notice for its push comes '
+      'down', () async {
+    final order = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(const MethodChannel('zuno/call_style'), (
+      call,
+    ) async {
+      if (call.method == 'showIncomingCallStyle') order.add('ring');
+      return null;
+    });
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('zuno/conversations'),
+      (call) async {
+        if (call.method != 'takePushNotice') return null;
+        order.add('notice');
+        return true;
+      },
+    );
+    client.resolved = callInvite();
+
+    expect(await handle(), IncomingPushOutcome.callRinging);
+
+    expect(order, ['ring', 'notice']);
+  });
+
+  test('a ring looks up what is already ringing only once', () async {
+    final presenter = _CountingAndroidPresenter();
+    client.resolved = callInvite();
+
+    final outcome = await handleIncomingPushNotification(
+      client,
+      push(),
+      notifyMe: NotifyMe.all,
+      incomingCallPresenter: presenter,
+    );
+
+    expect(outcome, IncomingPushOutcome.callRinging);
+    expect(presenter.looks, 1);
+    expect(callStyleMethods(), contains('showIncomingCallStyle'));
+  });
+
+  test('a ring from push becomes the call ringing here, so sync treats a '
+      'second call as call waiting', () async {
+    client.resolved = callInvite();
+
+    expect(await handle(), IncomingPushOutcome.callRinging);
+
+    expect(SystemRing.instance.ringing.value, (
+      roomId: room.id,
+      callId: 'call1',
+    ));
+  });
+
+  test('a ring that cannot be shown is not reported as ringing and holds '
+      'nothing', () async {
+    client.resolved = callInvite();
+
+    final outcome = await handleIncomingPushNotification(
+      client,
+      push(),
+      notifyMe: NotifyMe.all,
+      incomingCallPresenter: const NoopIncomingCallPresenter(),
+    );
+
+    expect(outcome, IncomingPushOutcome.ignored);
+    expect(SystemRing.instance.ringing.value, isNull);
+  });
+
+  test('an invite and its quick cancel on the app\'s own client leave no '
+      'ring behind', () async {
+    final gate = Completer<void>();
+    final presenter = _GatedPresenter(gate.future);
+    client.events.addAll({
+      r'$invite': callInvite(eventId: r'$invite'),
+      r'$summary': callSummary(
+        status: CallSummaryStatus.missed,
+        eventId: r'$summary',
+      ),
+    });
+
+    final ringing = handleIncomingPushNotification(
+      client,
+      push(eventId: r'$invite'),
+      notifyMe: NotifyMe.all,
+      incomingCallPresenter: presenter,
+    );
+    await pumpEventQueue();
+    await handleIncomingPushNotification(
+      client,
+      push(eventId: r'$summary'),
+      notifyMe: NotifyMe.all,
+      incomingCallPresenter: presenter,
+    );
+    gate.complete();
+
+    expect(await ringing, IncomingPushOutcome.ignored);
+    expect(presenter.log.last, 'cancel call1');
+    expect(presenter.log, contains('show call1'));
+    expect(
+      presenter.log.lastIndexOf('cancel call1'),
+      greaterThan(presenter.log.indexOf('show call1')),
+    );
+  });
+
+  group('an invitation another path already announced', () {
+    Event invitation() => buildTestEvent(
+      room,
+      eventId: r'$event',
+      senderId: '@bob:example.org',
+      type: EventTypes.RoomMember,
+      stateKey: '@me:example.org',
+      content: {'membership': 'invite'},
+    );
+
+    void roomNotificationShowing() => notifications.active = [
+      {
+        'id': messageNotificationIdFor(room.id),
+        'channelId': 'direct_messages',
+        'payload': '',
+      },
+    ];
+
+    test('is not announced again by its push', () async {
+      expect((await claimInviteAnnouncement(room.id)).won, isTrue);
+      client.resolved = invitation();
+
+      expect(await handle(), IncomingPushOutcome.ignored);
+      expect(notifications.shown, isEmpty);
+    });
+
+    test('moments ago leaves the room\'s notification standing, though the '
+        'push put a notice there', () async {
+      await claimInviteAnnouncement(room.id);
+      final taken = mockPushNotices({room.id: r'$event'});
+      roomNotificationShowing();
+      client.resolved = invitation();
+
+      await handle();
+
+      expect(taken, ['${room.id}/\$event']);
+      expect(notifications.cancelled, isEmpty);
+    });
+
+    test('long ago takes down the bare notice its push put up', () async {
+      await markInviteAnnouncedOnDisk(
+        await SharedPreferences.getInstance(),
+        room.id,
+        now: DateTime.now().subtract(const Duration(minutes: 10)),
+      );
+      mockPushNotices({room.id: r'$event'});
+      roomNotificationShowing();
+      client.resolved = invitation();
+
+      await handle();
+
+      expect(
+        notifications.cancelled,
+        contains(messageNotificationIdFor(room.id)),
+      );
+    });
+
+    test('an invitation announced by its push first is claimed, so sync stays '
+        'quiet', () async {
+      client.resolved = invitation();
+
+      expect(await handle(), IncomingPushOutcome.message);
+
+      expect((await claimInviteAnnouncement(room.id)).won, isFalse);
+    });
+  });
+
+  group('the app\'s own client', () {
+    tearDown(() => untrackPushClientFreshness(client));
+
+    Event messageWithId(String eventId) => buildTestEvent(
+      room,
+      eventId: eventId,
+      senderId: '@bob:example.org',
+      content: {'msgtype': 'm.text', 'body': 'hello'},
+    );
+
+    test('after a long quiet catches up with the server alongside the fetch, '
+        'without a long poll, and leaves storing the event to it', () async {
+      trackPushClientFreshness(client);
+      client.resolved = message();
+
+      await handle();
+
+      expect(client.steps, ['sync', 'fetch']);
+      expect(client.catchUps, [Duration.zero]);
+      expect(client.stores, [false]);
+    });
+
+    test('a message read on another device during the quiet stays silent '
+        'once the catch-up brings the read marker', () async {
+      trackPushClientFreshness(client);
+      client.onCaughtUp = () => room.roomAccountData['m.fully_read'] =
+          BasicEvent(type: 'm.fully_read', content: {'event_id': r'$event'});
+      client.resolved = message();
+
+      expect(await handle(), IncomingPushOutcome.ignored);
+      expect(notifications.shown, isEmpty);
+    });
+
+    test('a ring never waits for the catch-up', () async {
+      trackPushClientFreshness(client);
+      client.catchUpGate = Completer<void>().future;
+      client.resolved = callInvite();
+
+      expect(
+        await handle().timeout(const Duration(milliseconds: 500)),
+        IncomingPushOutcome.callRinging,
+      );
+    });
+
+    test('a hang-up never waits for the catch-up', () async {
+      trackPushClientFreshness(client);
+      client.catchUpGate = Completer<void>().future;
+      client.resolved = callSummary(status: CallSummaryStatus.ended);
+
+      expect(
+        await handle().timeout(const Duration(milliseconds: 500)),
+        IncomingPushOutcome.ignored,
+      );
+      expect(callStyleMethods(), contains('cancelIncomingCallStyle'));
+    });
+
+    test('a second push during the catch-up joins it, and both wait for it '
+        'before deciding', () async {
+      trackPushClientFreshness(client);
+      final gate = Completer<void>();
+      client.catchUpGate = gate.future;
+      client.events.addAll({
+        r'$first': messageWithId(r'$first'),
+        r'$second': messageWithId(r'$second'),
+      });
+
+      final first = handle(eventId: r'$first');
+      final second = handle(eventId: r'$second');
+      await pumpEventQueue();
+      expect(client.steps, ['sync', 'fetch', 'fetch']);
+      expect(notifications.shown, isEmpty);
+
+      gate.complete();
+      await Future.wait([first, second]);
+      expect(client.catchUps, hasLength(1));
+      expect(notifications.shown, hasLength(2));
+    });
+
+    test('that synced moments ago is not synced again', () async {
+      trackPushClientFreshness(client);
+      client.onSync.add(SyncUpdate(nextBatch: 's2'));
+      await pumpEventQueue();
+      client.resolved = message();
+
+      await handle();
+
+      expect(client.steps, ['fetch']);
+      expect(client.stores, [true]);
+    });
+
+    test('that is syncing already is left to it, storing the event '
+        'included', () async {
+      trackPushClientFreshness(client);
+      client.syncing = true;
+      client.resolved = message();
+
+      await handle();
+
+      expect(client.steps, ['fetch']);
+      expect(client.stores, [false]);
+    });
+
+    test('whose catch-up hangs decides a message on what it knew, after a '
+        'short wait', () async {
+      trackPushClientFreshness(client);
+      client.catchUpGate = Completer<void>().future;
+      client.resolved = message();
+      final time = FakeAsync();
+
+      IncomingPushOutcome? outcome;
+      time.run((_) {
+        handle().then((o) => outcome = o);
+      });
+      await time.advance(const Duration(seconds: 1));
+      expect(client.steps, ['sync', 'fetch']);
+      expect(outcome, isNull);
+      expect(notifications.shown, isEmpty);
+
+      await time.advance(const Duration(seconds: 1));
+      expect(outcome, IncomingPushOutcome.message);
+      expect(notifications.shown, hasLength(1));
+    });
+  });
+
+  test('a client the push built for itself is never synced again by the '
+      'handler', () async {
+    client.resolved = message();
+
+    await handle();
+
+    expect(client.steps, ['fetch']);
+    expect(client.stores, [true]);
+  });
+
+  test('a client the push built that is syncing leaves storing the event to '
+      'that sync too', () async {
+    client.syncing = true;
+    client.resolved = message();
+
+    await handle();
+
+    expect(client.stores, [false]);
+  });
+}
+
+class _CountingAndroidPresenter extends AndroidIncomingCallPresenter {
+  int looks = 0;
+
+  @override
+  Future<RingingCallInfo?> activeRing() {
+    looks++;
+    return super.activeRing();
+  }
+}
+
+class _GatedPresenter implements IncomingCallPresenter {
+  _GatedPresenter(this.gate);
+
+  final Future<void> gate;
+  final log = <String>[];
+
+  @override
+  Future<RingOutcome> showIncoming({
+    required String callerName,
+    required String callerId,
+    required bool isVideo,
+    required String roomId,
+    required String callId,
+    bool isGroupCall = false,
+    String? roomName,
+    Uint8List? avatarBytes,
+    Future<RingingCallInfo?>? ringingNow,
+  }) async {
+    await gate;
+    log.add('show $callId');
+    return RingOutcome.shown;
+  }
+
+  @override
+  Future<void> cancelIncoming({
+    String? roomId,
+    String? callId,
+    RingEnd end = RingEnd.remoteEnded,
+  }) async => log.add('cancel $callId');
+
+  @override
+  Future<RingingCallInfo?> activeRing() async => null;
 }

@@ -20,6 +20,7 @@ class ZunoNotificationsPlugin :
     private lateinit var conversations: MethodChannel
     private lateinit var wakeLocks: MethodChannel
     private lateinit var context: Context
+    private var leaseEngine: Long? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
@@ -27,11 +28,14 @@ class ZunoNotificationsPlugin :
         conversations.setMethodCallHandler(this)
         wakeLocks = MethodChannel(binding.binaryMessenger, WAKE_LOCK_CHANNEL)
         wakeLocks.setMethodCallHandler(this)
+        leaseEngine = ClientLeases.attach(binding.binaryMessenger)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         conversations.setMethodCallHandler(null)
         wakeLocks.setMethodCallHandler(null)
+        leaseEngine?.let { ClientLeases.detach(it) }
+        leaseEngine = null
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -80,11 +84,6 @@ class ZunoNotificationsPlugin :
 
             "release" -> {
                 release(call.argument<String>("tag") ?: DEFAULT_TAG)
-                result.success(null)
-            }
-
-            "releasePush" -> {
-                PushWakeLock.release()
                 result.success(null)
             }
 

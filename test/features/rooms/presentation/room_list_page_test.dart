@@ -12,8 +12,10 @@ import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/notifications/message_notification_action.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/security/security_prompt.dart';
@@ -312,6 +314,26 @@ void main() {
         findsOneWidget,
       );
     });
+  });
+
+  testWidgets('Mark as read handed over from a notification is done by the '
+      'app\'s own client', (tester) async {
+    await pumpRoomList(tester);
+
+    CallNotificationService.instance.onMessageActionForTest(
+      HandedMessageAction((
+        kind: MessageNotificationActionKind.markRead,
+        roomId: room.id,
+        eventId: r'$last',
+        replyText: null,
+      )),
+    );
+    await network(tester);
+
+    expect(
+      jsonDecode(requestsTo('read_markers').single.body),
+      containsPair('m.read', r'$last'),
+    );
   });
 
   testWidgets('tapping a chat opens it', (tester) async {

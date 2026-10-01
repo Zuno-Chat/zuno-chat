@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:matrix/matrix.dart' show Client;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../matrix/matrix_client_provider.dart';
@@ -21,9 +22,14 @@ import '../../notifications/notification_thread_store.dart';
 import '../../notifications/notified_events_store.dart';
 import '../../platform/platform_capabilities.dart';
 import '../../push/push_timing.dart';
+import '../serial_lock.dart';
+import 'call_decline_action.dart';
+import 'live_isolate_route.dart';
 
 export '../../notifications/notification_ids.dart'
     show messageNotificationIdFor;
+export 'live_isolate_route.dart'
+    show answersPing, handOffToLiveIsolate, liveRouteAcceptWithin;
 
 const _channel = MethodChannel('zuno/calls');
 const _conversationsChannel = MethodChannel('zuno/conversations');
@@ -124,10 +130,29 @@ List<SilencedChannel> silencedMessageChannels(
 class HeadlessCallDecline {
   final String roomId;
   final String callId;
-  const HeadlessCallDecline({required this.roomId, required this.callId});
+  final LiveRouteMessage? route;
+
+  const HeadlessCallDecline({
+    required this.roomId,
+    required this.callId,
+    this.route,
+  });
+
+  void finished() => route?.finish();
 }
 
-const _declinePortName = 'zuno_call_decline_port';
+class HandedMessageAction {
+  HandedMessageAction(this.action, {this.route, this.txid});
+
+  final MessageNotificationAction action;
+  final LiveRouteMessage? route;
+  final String? txid;
+
+  void finished() => route?.finish();
+}
+
+const declinePortName = 'zuno_call_decline_port';
+const messageActionPortName = 'zuno_message_action_port';
 
 @pragma('vm:entry-point')
 void _handleBackgroundCallResponse(NotificationResponse response) {
@@ -137,7 +162,16 @@ void _handleBackgroundCallResponse(NotificationResponse response) {
     input: response.input,
   );
   if (messageAction != null) {
-    unawaited(_handleBackgroundMessageAction(messageAction));
+    unawaited(
+      runHeadlessMessageAction(
+        messageAction,
+        handOff: (action, txid) => handOffToLiveIsolate(
+          messageActionPortName,
+          encodeMessageAction(action, txid: txid),
+        ),
+        clientBuilder: _oneShotClient,
+      ),
+    );
     return;
   }
   if (response.actionId != 'decline') return;
@@ -146,19 +180,22 @@ void _handleBackgroundCallResponse(NotificationResponse response) {
   final roomId = decoded['roomId'];
   final callId = decoded['callId'];
   if (roomId is! String || callId is! String) return;
-  IsolateNameServer.lookupPortByName(_declinePortName)
-      ?.send({'roomId': roomId, 'callId': callId});
+  unawaited(
+    runHeadlessCallDecline(
+      roomId: roomId,
+      callId: callId,
+      handOff: () => handOffToLiveIsolate(declinePortName, {
+        'roomId': roomId,
+        'callId': callId,
+      }),
+      clientBuilder: _oneShotClient,
+    ),
+  );
 }
 
-Future<void> _handleBackgroundMessageAction(
-  MessageNotificationAction action,
-) async {
+Future<Client> _oneShotClient() async {
   await installUserAgent();
-  await runHeadlessMessageAction(
-    action,
-    clientBuilder: () async =>
-        (await createMatrixClient(backgroundSync: false)).client,
-  );
+  return (await createMatrixClient(backgroundSync: false)).client;
 }
 
 class CallNotificationService {
@@ -172,6 +209,9 @@ class CallNotificationService {
   PlatformCapabilities get _capabilities =>
       _injectedCapabilities ?? ambientCapabilities;
 
+  @visibleForTesting
+  DateTime Function() now = DateTime.now;
+
   final _plugin = FlutterLocalNotificationsPlugin();
   final _actionController =
       StreamController<CallNotificationResponse>.broadcast();
@@ -179,8 +219,22 @@ class CallNotificationService {
 
   final _messageTapController = StreamController<String>.broadcast();
   final _newDeviceTapController = StreamController<void>.broadcast();
-  final _headlessDeclineController =
-      StreamController<HeadlessCallDecline>.broadcast();
+  late final StreamController<HeadlessCallDecline> _headlessDeclineController =
+      StreamController.broadcast(
+        onListen: () => _releaseHeld(
+          _heldDeclines,
+          _headlessDeclineController,
+          routeOf: (decline) => decline.route,
+        ),
+      );
+  late final StreamController<HandedMessageAction> _messageActionController =
+      StreamController.broadcast(
+        onListen: () => _releaseHeld(
+          _heldActions,
+          _messageActionController,
+          routeOf: (action) => action.route,
+        ),
+      );
   final _hangUpController = StreamController<String?>.broadcast();
   final _systemMuteController = StreamController<SystemMute>.broadcast();
   final _ringEndedController = StreamController<RingingCallInfo>.broadcast();
@@ -196,6 +250,8 @@ class CallNotificationService {
   Stream<void> get onNewDeviceTap => _newDeviceTapController.stream;
   Stream<HeadlessCallDecline> get onHeadlessDecline =>
       _headlessDeclineController.stream;
+  Stream<HandedMessageAction> get onMessageAction =>
+      _messageActionController.stream;
   Stream<String?> get onHangUp => _hangUpController.stream;
   Stream<SystemMute> get onSystemMute => _systemMuteController.stream;
   Stream<RingingCallInfo> get onRingEnded => _ringEndedController.stream;
@@ -219,11 +275,17 @@ class CallNotificationService {
   void onHeadlessDeclineForTest(HeadlessCallDecline decline) =>
       _headlessDeclineController.add(decline);
 
+  @visibleForTesting
+  void onMessageActionForTest(HandedMessageAction action) =>
+      _messageActionController.add(action);
+
   Future<void> initialize({bool claimDeclinePort = true}) async {
+    if (claimDeclinePort && !_ownsLiveRoutes) {
+      _ownsLiveRoutes = true;
+      reclaimLiveRoutes();
+    }
     if (_initialized) return;
     _initialized = true;
-
-    if (claimDeclinePort) _claimDeclinePort();
 
     _channel.setMethodCallHandler((call) async {
       _handleNativeCall(call.method, call.arguments);
@@ -357,47 +419,133 @@ class CallNotificationService {
     ),
   ];
 
+  bool _ownsLiveRoutes = false;
   ReceivePort? _declinePort;
+  ReceivePort? _actionPort;
+  final _heldDeclines = <HeadlessCallDecline>[];
+  final _heldActions = <HandedMessageAction>[];
 
-  void _claimDeclinePort() {
-    final receivePort = ReceivePort();
-    _declinePort = receivePort;
-    IsolateNameServer.removePortNameMapping(_declinePortName);
-    IsolateNameServer.registerPortWithName(
-      receivePort.sendPort,
-      _declinePortName,
-    );
-    receivePort.listen((message) {
-      if (message is! Map) return;
-      final roomId = message['roomId'];
-      final callId = message['callId'];
-      if (roomId is String && callId is String) {
-        _headlessDeclineController.add(
-          HeadlessCallDecline(roomId: roomId, callId: callId),
-        );
-      }
-    });
+  void reclaimLiveRoutes() {
+    if (!_ownsLiveRoutes) return;
+    _declinePort = _route(declinePortName, _declinePort, _onDecline);
+    _actionPort = _route(messageActionPortName, _actionPort, _onMessageAction);
   }
 
-  bool claimDeclinePortIfUnclaimed() {
-    if (IsolateNameServer.lookupPortByName(_declinePortName) != null) {
-      return false;
+  ReceivePort _route(
+    String name,
+    ReceivePort? current,
+    void Function(Object? message) onMessage,
+  ) {
+    final port = current ?? (ReceivePort()..listen(onMessage));
+    if (IsolateNameServer.lookupPortByName(name) != port.sendPort) {
+      IsolateNameServer.removePortNameMapping(name);
+      IsolateNameServer.registerPortWithName(port.sendPort, name);
     }
-    _claimDeclinePort();
+    return port;
+  }
+
+  void _onDecline(Object? message) {
+    if (answerPing(message)) return;
+    final route = LiveRouteMessage.from(message);
+    final roomId = route?.body['roomId'];
+    final callId = route?.body['callId'];
+    if (route == null ||
+        roomId is! String ||
+        callId is! String ||
+        route.stale) {
+      route?.refuse();
+      return;
+    }
+    final decline = HeadlessCallDecline(
+      roomId: roomId,
+      callId: callId,
+      route: route,
+    );
+    if (_headlessDeclineController.hasListener) {
+      route.accept();
+      _headlessDeclineController.add(decline);
+    } else if (_ownsLiveRoutes) {
+      route.accept();
+      _heldDeclines.add(decline);
+    } else {
+      route.refuse();
+    }
+  }
+
+  void _onMessageAction(Object? message) {
+    if (answerPing(message)) return;
+    final route = LiveRouteMessage.from(message);
+    final action = decodeMessageAction(route?.body);
+    if (route == null || action == null || route.stale) {
+      route?.refuse();
+      return;
+    }
+    route.accept();
+    final handed = HandedMessageAction(
+      action,
+      route: route,
+      txid: handedTxidOf(route.body),
+    );
+    if (_messageActionController.hasListener) {
+      _messageActionController.add(handed);
+    } else {
+      _heldActions.add(handed);
+    }
+  }
+
+  void _releaseHeld<T>(
+    List<T> held,
+    StreamController<T> controller, {
+    required LiveRouteMessage? Function(T entry) routeOf,
+  }) {
+    final waiting = [...held];
+    held.clear();
+    for (final entry in waiting) {
+      if (_senderGaveUp(routeOf(entry))) {
+        debugPrint('zuno/calls: dropping held work its sender already did');
+        continue;
+      }
+      controller.add(entry);
+    }
+  }
+
+  bool _senderGaveUp(LiveRouteMessage? route) {
+    final sentAt = route?.body['sentAt'];
+    if (sentAt is! int) return false;
+    final age = now().millisecondsSinceEpoch - sentAt;
+    return age > liveRouteDoneWithin.inMilliseconds;
+  }
+
+  Future<bool> claimDeclinePortUnlessLive({
+    Duration within = liveRouteProbeWithin,
+  }) async {
+    final mapped = IsolateNameServer.lookupPortByName(declinePortName);
+    if (mapped != null) {
+      if (mapped == _declinePort?.sendPort) return false;
+      if (await answersPing(mapped, within: within)) return false;
+      if (IsolateNameServer.lookupPortByName(declinePortName) != mapped) {
+        return false;
+      }
+      debugPrint('zuno/calls: the decline route answered nothing, taking it');
+    }
+    _declinePort = _route(declinePortName, _declinePort, _onDecline);
     return true;
   }
 
   bool stillHoldsDeclinePort() {
     final held = _declinePort;
     if (held == null) return false;
-    return IsolateNameServer.lookupPortByName(_declinePortName) ==
-        held.sendPort;
+    return IsolateNameServer.lookupPortByName(declinePortName) == held.sendPort;
   }
 
   void releaseDeclinePort() {
-    IsolateNameServer.removePortNameMapping(_declinePortName);
-    _declinePort?.close();
+    final held = _declinePort;
     _declinePort = null;
+    if (held == null) return;
+    if (IsolateNameServer.lookupPortByName(declinePortName) == held.sendPort) {
+      IsolateNameServer.removePortNameMapping(declinePortName);
+    }
+    held.close();
   }
 
   CallNotificationResponse? _pendingNativeCallAction;
@@ -485,6 +633,21 @@ class CallNotificationService {
     if (roomId is String) _messageTapController.add(roomId);
   }
 
+  final _rooms = KeyedSerialLock();
+  final _store = SerialLock();
+  final _expectedNotices = <String, Set<String>>{};
+
+  void Function() expectPushNotice(String roomId, String eventId) {
+    final expected = _expectedNotices.putIfAbsent(roomId, () => {})
+      ..add(eventId);
+    return () {
+      expected.remove(eventId);
+      if (expected.isEmpty && identical(_expectedNotices[roomId], expected)) {
+        _expectedNotices.remove(roomId);
+      }
+    };
+  }
+
   Future<void> showMessage(
     MessageNotificationContent content, {
     bool includeMessageActions = false,
@@ -495,32 +658,58 @@ class CallNotificationService {
     String? imageMimeType,
     PushTiming? timing,
   }) async {
-    await initialize();
+    await initialize(claimDeclinePort: false);
     timing?.mark('init');
+    await _rooms.run(
+      content.roomId,
+      () => _showMessageInRoom(
+        content,
+        includeMessageActions: includeMessageActions,
+        senderAvatar: senderAvatar,
+        placeholder: placeholder,
+        refine: refine,
+        imageUri: imageUri,
+        imageMimeType: imageMimeType,
+        timing: timing,
+      ),
+    );
+  }
+
+  Future<void> _showMessageInRoom(
+    MessageNotificationContent content, {
+    required bool includeMessageActions,
+    required Uint8List? senderAvatar,
+    required bool placeholder,
+    required bool refine,
+    required String? imageUri,
+    required String? imageMimeType,
+    required PushTiming? timing,
+  }) async {
     final roomId = content.roomId;
     final title = content.title;
     final eventId = content.eventId;
     final senderAvatarUrl = content.senderAvatarUrl;
-    final prefs = await _reloadedPrefs();
-    if (eventId != null &&
-        !refine &&
-        prefs != null &&
-        wasEventNotified(prefs, eventId)) {
+    final stored = await _withStore(
+      (prefs) => (
+        alreadyShown: eventId != null && wasEventNotified(prefs, eventId),
+        placeholderDealtWith:
+            eventId != null && wasPlaceholderShown(prefs, eventId),
+        lines: readNotificationThread(prefs, roomId)?.lines,
+        sound: readNotificationSoundSettings(prefs),
+      ),
+    );
+    if (eventId != null && !refine && (stored?.alreadyShown ?? false)) {
       debugPrint('zuno/notifications: $eventId already shown, skipping');
-      await retractPushNotice(roomId, eventId);
+      await _retractPushNoticeInRoom(roomId, eventId);
       return;
     }
-    final noticed =
-        !refine && eventId != null && await takePushNotice(roomId, eventId);
-    if (noticed && prefs != null) await clearNotificationThread(prefs, roomId);
+    final noticed = !refine && await _takeNoticeFor(roomId, eventId);
     timing?.mark('prefs');
     final notificationId = messageNotificationIdFor(roomId);
     final showing = (await _activeNotifications()).any(
       (n) => n.id == notificationId,
     );
-    final lines = [
-      ...?(await _showingThread(prefs, roomId, showing: showing))?.lines,
-    ];
+    final lines = [if (showing && !noticed) ...?stored?.lines];
     timing?.mark('thread');
     final index = eventId == null
         ? -1
@@ -543,19 +732,15 @@ class CallNotificationService {
       imageMimeType: imageMimeType ?? previous?.imageMimeType,
       quiet: content.quiet,
     );
-    if (!replacing &&
-        !refine &&
-        eventId != null &&
-        prefs != null &&
-        wasPlaceholderShown(prefs, eventId)) {
+    if (!replacing && !refine && (stored?.placeholderDealtWith ?? false)) {
       debugPrint('zuno/notifications: $eventId placeholder was dealt with');
       return;
     }
-    if (!replacing) {
-      lines.add(line);
-    } else if (!placeholder) {
-      lines[index] = line;
-    }
+    final placed = switch ((replacing, placeholder)) {
+      (false, _) => _inTimeOrder(lines, line),
+      (true, true) => lines,
+      (true, false) => _inTimeOrder(lines, line, replacing: index),
+    };
     if (senderAvatar != null && senderAvatarUrl != null) {
       await NotificationAvatarCache.instance.write(
         senderAvatarUrl,
@@ -577,6 +762,7 @@ class CallNotificationService {
     } else {
       plan = await NotificationSoundPlayer.instance.prepareMessageNotification(
         roomId: roomId,
+        settings: stored?.sound,
       );
     }
     timing?.mark('sound');
@@ -584,72 +770,116 @@ class CallNotificationService {
       roomId: roomId,
       title: title,
       isGroupChat: !content.isDirectChat,
-      lines: lines,
+      lines: placed,
     );
+    final latest = placed.last;
+    final newest = identical(latest, line);
     await _postThread(
       thread,
       alert: plan.alert,
-      body: content.body,
-      eventId: eventId,
+      body: newest ? content.body : _summaryOf(thread, latest),
+      eventId: newest ? eventId : latest.eventId,
       includeMessageActions: includeMessageActions,
       unreadCount: content.unreadCount,
-      latestAvatar: senderAvatar,
+      freshAvatar: senderAvatar == null
+          ? null
+          : (senderId: line.senderId, bytes: senderAvatar),
+      shortcut: !placeholder && !refine,
       timing: timing,
     );
-    if (prefs != null) await writeNotificationThread(prefs, thread);
+    await _withStore((prefs) async {
+      await writeNotificationThread(prefs, thread);
+      if (eventId == null || refine) return;
+      if (placeholder) {
+        await markPlaceholderShownOnDisk(prefs, eventId);
+      } else {
+        await markEventNotifiedOnDisk(prefs, eventId);
+      }
+    });
     timing?.mark('store');
     if (plan.vibrate) {
       await NotificationSoundPlayer.instance.vibrateForMessage();
     }
-    if (eventId == null) return;
-    if (placeholder) {
-      await _rememberPlaceholder(eventId);
-    } else {
-      await _rememberNotified(eventId);
+  }
+
+  Future<bool> _takeNoticeFor(String roomId, String? eventId) async {
+    if (eventId != null && await takePushNotice(roomId, eventId)) return true;
+    for (final expected in [...?_expectedNotices[roomId]]) {
+      if (expected == eventId) continue;
+      if (await takePushNotice(roomId, expected)) return true;
     }
+    return false;
   }
 
-  Future<void> _rememberPlaceholder(String eventId) async {
-    try {
-      await markPlaceholderShownOnDisk(
-        await SharedPreferences.getInstance(),
-        eventId,
-      );
-    } catch (_) {}
+  List<NotificationLine> _inTimeOrder(
+    List<NotificationLine> lines,
+    NotificationLine line, {
+    int? replacing,
+  }) {
+    final ordered = [...lines];
+    if (replacing != null) {
+      if (ordered[replacing].timestamp.isAtSameMomentAs(line.timestamp)) {
+        return ordered..[replacing] = line;
+      }
+      ordered.removeAt(replacing);
+    }
+    var at = ordered.length;
+    while (at > 0 && ordered[at - 1].timestamp.isAfter(line.timestamp)) {
+      at--;
+    }
+    return ordered..insert(at, line);
   }
 
-  Future<void> retractPlaceholder(String roomId, String eventId) async {
+  String _summaryOf(NotificationThread thread, NotificationLine line) =>
+      thread.isGroupChat ? '${line.senderName}: ${line.text}' : line.text;
+
+  Future<void> retractPlaceholder(String roomId, String eventId) =>
+      _rooms.run(roomId, () async {
+        final thread = await _withStore(
+          (prefs) => readNotificationThread(prefs, roomId),
+        );
+        if (thread == null) return;
+        final kept = thread.lines
+            .where((l) => !(l.placeholder && l.eventId == eventId))
+            .toList();
+        if (kept.length == thread.lines.length) return;
+        if (kept.isEmpty) {
+          await _cancelInRoom(roomId);
+          return;
+        }
+        final remaining = NotificationThread(
+          roomId: roomId,
+          title: thread.title,
+          isGroupChat: thread.isGroupChat,
+          lines: kept,
+        );
+        final last = kept.last;
+        await _postThread(
+          remaining,
+          alert: MessageAlert.silentUpdate,
+          body: _summaryOf(remaining, last),
+          eventId: last.eventId,
+          includeMessageActions: true,
+          unreadCount: null,
+          freshAvatar: null,
+          shortcut: false,
+          timing: null,
+        );
+        await _withStore((prefs) => writeNotificationThread(prefs, remaining));
+      });
+
+  Future<T?> _withStore<T>(
+    FutureOr<T> Function(SharedPreferences prefs) step,
+  ) => _store.run(() async {
     final prefs = await _reloadedPrefs();
-    if (prefs == null) return;
-    final thread = readNotificationThread(prefs, roomId);
-    if (thread == null) return;
-    final kept = thread.lines
-        .where((l) => !(l.placeholder && l.eventId == eventId))
-        .toList();
-    if (kept.length == thread.lines.length) return;
-    if (kept.isEmpty) {
-      await cancelMessageNotification(roomId);
-      return;
+    if (prefs == null) return null;
+    try {
+      return await step(prefs);
+    } catch (e) {
+      debugPrint('zuno/notifications: notification store step failed ($e)');
+      return null;
     }
-    final remaining = NotificationThread(
-      roomId: roomId,
-      title: thread.title,
-      isGroupChat: thread.isGroupChat,
-      lines: kept,
-    );
-    final last = kept.last;
-    await _postThread(
-      remaining,
-      alert: MessageAlert.silentUpdate,
-      body: thread.isGroupChat ? '${last.senderName}: ${last.text}' : last.text,
-      eventId: last.eventId,
-      includeMessageActions: true,
-      unreadCount: null,
-      latestAvatar: null,
-      timing: null,
-    );
-    await writeNotificationThread(prefs, remaining);
-  }
+  });
 
   Future<SharedPreferences?> _reloadedPrefs() async {
     try {
@@ -659,17 +889,6 @@ class CallNotificationService {
     } catch (_) {
       return null;
     }
-  }
-
-  Future<NotificationThread?> _showingThread(
-    SharedPreferences? prefs,
-    String roomId, {
-    required bool showing,
-  }) async {
-    if (prefs == null) return null;
-    if (showing) return readNotificationThread(prefs, roomId);
-    await clearNotificationThread(prefs, roomId);
-    return null;
   }
 
   Future<List<ActiveNotification>> _activeNotifications() async {
@@ -691,7 +910,8 @@ class CallNotificationService {
     required String? eventId,
     required bool includeMessageActions,
     required int? unreadCount,
-    required Uint8List? latestAvatar,
+    required ({String senderId, Uint8List bytes})? freshAvatar,
+    required bool shortcut,
     required PushTiming? timing,
   }) async {
     final roomId = thread.roomId;
@@ -701,14 +921,16 @@ class CallNotificationService {
       (false, true) => (_groupMessagesChannelId, 'Room messages'),
       (false, false) => (messagesChannelId, 'Chat messages'),
     };
-    final avatars = await _avatarsFor(thread, latest: latestAvatar);
+    final avatars = await _avatarsFor(thread, fresh: freshAvatar);
     timing?.mark('avatars');
     final latestLine = thread.lines.isEmpty ? null : thread.lines.last;
     final largeIcon = thread.isGroupChat || latestLine == null
         ? null
         : avatars[latestLine.senderId];
-    await _pushConversationShortcut(thread, avatar: largeIcon);
-    timing?.mark('shortcut');
+    if (shortcut) {
+      await _pushConversationShortcut(thread, avatar: largeIcon);
+      timing?.mark('shortcut');
+    }
     final actions = <AndroidNotificationAction>[
       if (includeMessageActions && eventId != null)
         const AndroidNotificationAction(
@@ -779,6 +1001,9 @@ class CallNotificationService {
             (true, null) => _replyOnlyCategoryId,
             (true, _) => _markReadCategoryId,
           },
+          presentAlert: interrupts,
+          presentBanner: interrupts,
+          presentList: true,
           presentSound: interrupts && alert == MessageAlert.tone,
           interruptionLevel: interrupts
               ? InterruptionLevel.active
@@ -796,7 +1021,7 @@ class CallNotificationService {
 
   Future<Map<String, Uint8List>> _avatarsFor(
     NotificationThread thread, {
-    required Uint8List? latest,
+    required ({String senderId, Uint8List bytes})? fresh,
   }) async {
     final avatars = <String, Uint8List>{};
     for (final line in thread.lines.reversed) {
@@ -806,10 +1031,7 @@ class CallNotificationService {
       final bytes = await NotificationAvatarCache.instance.read(url);
       if (bytes != null) avatars[line.senderId] = bytes;
     }
-    final latestLine = thread.lines.isEmpty ? null : thread.lines.last;
-    if (latest != null && latestLine != null) {
-      avatars[latestLine.senderId] = latest;
-    }
+    if (fresh != null) avatars[fresh.senderId] = fresh.bytes;
     return avatars;
   }
 
@@ -832,21 +1054,12 @@ class CallNotificationService {
     }
   }
 
-  Future<void> _rememberNotified(String eventId) async {
-    try {
-      await markEventNotifiedOnDisk(
-        await SharedPreferences.getInstance(),
-        eventId,
-      );
-    } catch (_) {}
-  }
-
   Future<void> showNewDevice({
     required String deviceId,
     required String title,
     required String body,
   }) async {
-    await initialize();
+    await initialize(claimDeclinePort: false);
     await _plugin.show(
       id: _newDeviceNotificationId(deviceId),
       title: title,
@@ -868,13 +1081,16 @@ class CallNotificationService {
   int _newDeviceNotificationId(String deviceId) =>
       ('device:$deviceId').hashCode & 0x7fffffff;
 
-  Future<void> cancelMessageNotification(String roomId) async {
+  Future<void> cancelMessageNotification(String roomId) =>
+      _rooms.run(roomId, () => _cancelInRoom(roomId));
+
+  Future<void> _cancelInRoom(String roomId) async {
     await _plugin.cancel(id: messageNotificationIdFor(roomId));
-    final prefs = await _reloadedPrefs();
-    if (prefs != null) await clearNotificationThread(prefs, roomId);
+    await _withStore((prefs) => clearNotificationThread(prefs, roomId));
   }
 
   Future<bool> takePushNotice(String roomId, String eventId) async {
+    if (!_capabilities.instantPushNotices) return false;
     try {
       final taken = await _conversationsChannel.invokeMethod<bool>(
         'takePushNotice',
@@ -886,10 +1102,13 @@ class CallNotificationService {
     }
   }
 
-  Future<void> retractPushNotice(String roomId, String eventId) async {
+  Future<void> retractPushNotice(String roomId, String eventId) =>
+      _rooms.run(roomId, () => _retractPushNoticeInRoom(roomId, eventId));
+
+  Future<void> _retractPushNoticeInRoom(String roomId, String eventId) async {
     if (!await takePushNotice(roomId, eventId)) return;
     debugPrint('zuno/notifications: cancelling the instant notice for $roomId');
-    await cancelMessageNotification(roomId);
+    await _cancelInRoom(roomId);
   }
 
   Future<void> cancelMessageNotificationsIfShowing(
@@ -909,15 +1128,14 @@ class CallNotificationService {
   };
 
   Future<void> cancelAllMessageNotifications() async {
-    await initialize();
+    await initialize(claimDeclinePort: false);
     for (final notification in await _activeNotifications()) {
       final id = notification.id;
       if (id == null) continue;
       if (!_isMessageNotification(notification)) continue;
       await _plugin.cancel(id: id);
     }
-    final prefs = await _reloadedPrefs();
-    if (prefs != null) await clearAllNotificationThreads(prefs);
+    await _withStore(clearAllNotificationThreads);
   }
 
   Future<String?> takeLaunchRoomIdFromNotification() async {

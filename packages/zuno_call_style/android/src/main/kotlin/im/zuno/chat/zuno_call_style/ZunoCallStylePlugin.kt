@@ -5,16 +5,17 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
-import android.os.Build
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 import androidx.core.graphics.drawable.IconCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import io.flutter.plugin.common.PluginRegistry
 import org.json.JSONObject
 
 // Builds and posts the incoming-call ring notification using Android's
@@ -27,26 +28,6 @@ import org.json.JSONObject
 // and notification id (4002, matching _ringNotificationId in
 // lib/core/calls/platform/incoming_call_presenter.dart) are unchanged —
 // only how the Notification object for that id gets built.
-//
-// Why this is a real local *plugin* — a FlutterPlugin, `pluginClass` in
-// pubspec.yaml, its own package under packages/ — rather than an object
-// the app's own Activity hand-attaches to a MethodChannel in
-// configureFlutterEngine (which is what this started as): a
-// hand-attached channel exists only on the engine that attached it, and
-// the ring's most important case is the one where that engine doesn't
-// exist. A push-delivered ring arrives with the app process killed and
-// runs on a *headless* engine — either ZunoPushService's (UnifiedPush)
-// or, worse, firebase_messaging's own
-// `FlutterFirebaseMessagingBackgroundExecutor`, which builds a bare
-// `FlutterEngine(context)` internally with no subclass or override hook
-// this app can reach at all. On those engines the manual channel has no
-// handler, `_invoke` swallows the MissingPluginException, and the phone
-// silently never rings. `packages/zuno_vibration` exists for exactly
-// this reason, found live on the sound/vibration path — see
-// ZunoVibrationPlugin's doc comment. A real plugin is auto-registered by
-// GeneratedPluginRegistrant on every engine anyone builds, including the
-// ones this app never constructs, so the guarantee holds by
-// construction rather than by every call site remembering to attach.
 //
 // The channel name is `zuno/call_style`, deliberately not the app's
 // existing `zuno/calls`: MethodChannel.setMethodCallHandler replaces any
@@ -76,18 +57,71 @@ import org.json.JSONObject
 // still holds.
 class ZunoCallStylePlugin :
     FlutterPlugin,
-    MethodCallHandler {
+    MethodCallHandler,
+    ActivityAware,
+    PluginRegistry.NewIntentListener {
     private lateinit var channel: MethodChannel
     private lateinit var context: Context
+    private lateinit var assets: FlutterPlugin.FlutterAssets
+    private var activityBinding: ActivityPluginBinding? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
+        assets = binding.flutterAssets
         channel = MethodChannel(binding.binaryMessenger, "zuno/call_style")
         channel.setMethodCallHandler(this)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
+    }
+
+    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+        attachTo(binding)
+        silenceIfAnswered(binding.activity.intent)
+    }
+
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+        attachTo(binding)
+    }
+
+    override fun onDetachedFromActivityForConfigChanges() {
+        detachFromActivity()
+    }
+
+    override fun onDetachedFromActivity() {
+        detachFromActivity()
+    }
+
+    override fun onNewIntent(intent: Intent): Boolean {
+        silenceIfAnswered(intent)
+        return false
+    }
+
+    private fun attachTo(binding: ActivityPluginBinding) {
+        activityBinding = binding
+        binding.addOnNewIntentListener(this)
+    }
+
+    private fun detachFromActivity() {
+        activityBinding?.removeOnNewIntentListener(this)
+        activityBinding = null
+    }
+
+    private fun silenceIfAnswered(intent: Intent?) {
+        if (intent == null) return
+        val answered = RingDecisions.answered(
+            intent.action,
+            intent.getIntExtra(NOTIFICATION_ID_EXTRA, -1),
+            intent.getStringExtra(ACTION_ID_EXTRA),
+        )
+        if (!answered) return
+        val callId = try {
+            JSONObject(intent.getStringExtra(PAYLOAD_EXTRA) ?: "").opt("callId") as? String
+        } catch (e: Exception) {
+            null
+        }
+        IncomingRing.stopFor(context, callId, takeDownNotification = false)
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -100,8 +134,8 @@ class ZunoCallStylePlugin :
             }
 
             "cancelIncomingCallStyle" -> {
-                cancel(context)
-                result.success(null)
+                val callId = (call.arguments as? Map<*, *>)?.get("callId") as? String
+                result.success(IncomingRing.dismiss(context, callId))
             }
 
             else -> result.notImplemented()
@@ -168,7 +202,7 @@ class ZunoCallStylePlugin :
         val answerIntent = launchIntentFlags(context) { intent ->
             intent.action = SELECT_FOREGROUND_NOTIFICATION_ACTION
             intent.putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
-            intent.putExtra(ACTION_ID_EXTRA, "accept")
+            intent.putExtra(ACTION_ID_EXTRA, RingDecisions.ANSWER_ACTION_ID)
             intent.putExtra(CANCEL_NOTIFICATION_EXTRA, true)
             intent.putExtra(PAYLOAD_EXTRA, payload)
         }
@@ -191,8 +225,10 @@ class ZunoCallStylePlugin :
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setTimeoutAfter(RingDecisions.RING_TIMEOUT_MS)
             .setContentIntent(contentPendingIntent)
             .setFullScreenIntent(contentPendingIntent, true)
+            .setDeleteIntent(IncomingRing.dismissIntent(context, callId))
             .setStyle(
                 NotificationCompat.CallStyle.forIncomingCall(
                     caller,
@@ -202,11 +238,14 @@ class ZunoCallStylePlugin :
             )
             .build()
 
-        NotificationManagerCompat.from(context).notify(RING_NOTIFICATION_ID, notification)
-    }
-
-    private fun cancel(context: Context) {
-        NotificationManagerCompat.from(context).cancel(RING_NOTIFICATION_ID)
+        val ring = RingPlan.from(args)
+        IncomingRing.present(
+            context,
+            callId,
+            notification,
+            ring.ringtoneAsset?.let { assets.getAssetFilePathByName(it) },
+            ring.vibrationPattern,
+        )
     }
 
     private fun smallIconResId(context: Context): Int = context.resources.getIdentifier(
@@ -225,21 +264,16 @@ class ZunoCallStylePlugin :
         return intent
     }
 
-    private fun pendingIntentFlags(): Int {
-        var flags = PendingIntent.FLAG_UPDATE_CURRENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags = flags or PendingIntent.FLAG_IMMUTABLE
-        }
-        return flags
-    }
+    private fun pendingIntentFlags(): Int =
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
 
     private companion object {
-        const val RING_NOTIFICATION_ID = 4002
+        const val RING_NOTIFICATION_ID = IncomingRing.NOTIFICATION_ID
         const val NOTIFICATION_ID_EXTRA = "notificationId"
         const val PAYLOAD_EXTRA = "payload"
         const val ACTION_ID_EXTRA = "actionId"
         const val CANCEL_NOTIFICATION_EXTRA = "cancelNotification"
-        const val SELECT_FOREGROUND_NOTIFICATION_ACTION = "SELECT_FOREGROUND_NOTIFICATION"
+        const val SELECT_FOREGROUND_NOTIFICATION_ACTION = RingDecisions.SELECT_NOTIFICATION_ACTION
         const val FALLBACK_CALLER_NAME = "Incoming call"
         const val SMALL_ICON_NAME = "ic_stat_zuno_mark"
         const val ACTION_TAPPED =

@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:math';
 
+import '../errors/best_effort.dart';
 import '../security/secret_store.dart';
+import 'database_raw_key.dart';
 
 const _databaseKeyName = 'matrix_database_cipher';
 
@@ -16,11 +18,21 @@ class DatabaseKeyUnavailable implements Exception {
 Future<String> obtainDatabaseCipher({
   SecretStore store = const SecureSecretStore(),
   String? databasePath,
+  bool createIfMissing = true,
 }) async {
   final existing = await _read(store);
   if (existing != null && existing.isNotEmpty) return existing;
+  if (!createIfMissing) {
+    throw DatabaseKeyUnavailable(
+      'there is no database key yet, and only the app may make one',
+    );
+  }
 
   if (databasePath != null) await _deleteDatabaseFiles(databasePath);
+  await runBestEffort(
+    () => forgetDatabaseRawKey(store),
+    label: 'forget the derived key of the replaced database',
+  );
   final generated = _generateCipher();
   try {
     await store.write(_databaseKeyName, generated);
@@ -36,6 +48,17 @@ Future<String> obtainDatabaseCipher({
     );
   }
   return generated;
+}
+
+Future<void> discardDatabaseCipher({
+  SecretStore store = const SecureSecretStore.discardingUnreadable(),
+}) async {
+  try {
+    await forgetDatabaseRawKey(store);
+    await store.delete(_databaseKeyName);
+  } catch (e) {
+    throw DatabaseKeyUnavailable('could not discard the database key: $e');
+  }
 }
 
 Future<void> _deleteDatabaseFiles(String path) async {

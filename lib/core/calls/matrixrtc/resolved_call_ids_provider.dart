@@ -19,7 +19,15 @@ class ResolvedCallIdsNotifier extends Notifier<Set<String>> {
   Set<String> build() {
     final client = ref.watch(matrixClientProvider);
     final sub = client.onTimelineEvent.stream.listen(_handleEvent);
-    ref.onDispose(sub.cancel);
+    final mirror = ResolvedCallsMirror(
+      contains: (callId) => state.contains(callId),
+      add: _learn,
+    );
+    attachResolvedCallsMirror(mirror);
+    ref.onDispose(() {
+      detachResolvedCallsMirror(mirror);
+      unawaited(sub.cancel());
+    });
     return readResolvedCallIds(ref.read(sharedPreferencesProvider));
   }
 
@@ -41,14 +49,13 @@ class ResolvedCallIdsNotifier extends Notifier<Set<String>> {
     );
   }
 
-  void markResolved(String callId) {
-    if (state.contains(callId)) return;
+  bool _learn(String callId) {
+    if (state.contains(callId)) return false;
     state = {...state, callId};
-    unawaited(
-      markCallResolvedOnDisk(
-        ref.read(sharedPreferencesProvider),
-        callId,
-      ).catchError((_) {}),
-    );
+    return true;
+  }
+
+  void markResolved(String callId) {
+    if (_learn(callId)) unawaited(rememberCallResolved(callId));
   }
 }

@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm_pusher.dart';
 import 'package:zuno/core/push/fcm_registration_store.dart';
 
@@ -63,28 +63,25 @@ Map<String, Object?> _serverPusher(String pushkey) => {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('zuno/play_services');
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   late FcmDeliveryProvider provider;
   late _RecordingClient client;
-  String playServices = 'AVAILABLE';
+  var availability = FcmAvailability.available;
+  var availabilityChecks = 0;
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-    playServices = 'AVAILABLE';
-    messenger.setMockMethodCallHandler(
-      channel,
-      (call) async => call.method == 'checkPlayServices' ? playServices : null,
-    );
+    availability = FcmAvailability.available;
+    availabilityChecks = 0;
     client = _RecordingClient();
     provider = FcmDeliveryProvider()
+      ..availabilityReader = (() async {
+        availabilityChecks++;
+        return availability;
+      })
       ..tokenReader = (() async => 'token-abc')
       ..tokenDeleter = (() async {});
   });
-
-  tearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
   test('registers a pusher and reports ready', () async {
     await provider.start(client);
@@ -113,7 +110,7 @@ void main() {
   test(
     'stops at playServicesUnavailable without touching the homeserver',
     () async {
-      playServices = 'UNAVAILABLE';
+      availability = FcmAvailability.unavailable;
 
       await provider.start(client);
 
@@ -123,12 +120,107 @@ void main() {
   );
 
   test('distinguishes an update from an absence', () async {
-    playServices = 'UPDATE_REQUIRED';
+    availability = FcmAvailability.updateRequired;
 
     await provider.start(client);
 
     expect(provider.status.value, FcmStatus.playServicesUpdateRequired);
     expect(client.posted, isEmpty);
+  });
+
+  test('tells a turned-off Google Play services apart', () async {
+    availability = FcmAvailability.disabled;
+
+    await provider.start(client);
+
+    expect(provider.status.value, FcmStatus.playServicesDisabled);
+    expect(client.posted, isEmpty);
+    expect(provider.retryScheduled, isFalse);
+  });
+
+  test('a build without Google services stops at notConfigured and never '
+      'asks for a token', () async {
+    availability = FcmAvailability.notConfigured;
+    var tokenReads = 0;
+    provider.tokenReader = () async {
+      tokenReads++;
+      return 'token-abc';
+    };
+
+    await provider.start(client);
+
+    expect(provider.status.value, FcmStatus.notConfigured);
+    expect(tokenReads, 0);
+    expect(provider.retryScheduled, isFalse);
+  });
+
+  group('a token request that fails', () {
+    setUp(() => addTearDown(() => provider.stop(client)));
+
+    test('because Google Play services is missing is not retried', () async {
+      provider.tokenReader = () async =>
+          throw const FcmTokenException(FcmTokenFailure.noPlayServices);
+
+      await provider.start(client);
+
+      expect(provider.status.value, FcmStatus.playServicesUnavailable);
+      expect(provider.retryScheduled, isFalse);
+      expect(client.posted, isEmpty);
+    });
+
+    test('because the build has no Google services is not retried', () async {
+      provider.tokenReader = () async =>
+          throw const FcmTokenException(FcmTokenFailure.notConfigured);
+
+      await provider.start(client);
+
+      expect(provider.status.value, FcmStatus.notConfigured);
+      expect(provider.retryScheduled, isFalse);
+    });
+
+    for (final failure in [
+      FcmTokenFailure.unavailable,
+      FcmTokenFailure.failed,
+    ]) {
+      test('with ${failure.name} is retried later', () async {
+        provider
+          ..retryDelay = ((_) => const Duration(days: 1))
+          ..tokenReader = () async => throw FcmTokenException(failure);
+
+        await provider.start(client);
+
+        expect(provider.status.value, FcmStatus.tokenFailed);
+        expect(provider.retryScheduled, isTrue);
+      });
+    }
+  });
+
+  group('fixPlayServices', () {
+    test('registers once Google reports the device fixed', () async {
+      availability = FcmAvailability.updateRequired;
+      await provider.start(client);
+      expect(provider.status.value, FcmStatus.playServicesUpdateRequired);
+
+      provider.playServicesFixer = () async {
+        availability = FcmAvailability.available;
+        return availability;
+      };
+      await provider.fixPlayServices(client);
+
+      expect(provider.status.value, FcmStatus.ready);
+      expect(client.posted, hasLength(1));
+    });
+
+    test('keeps the status when the fix did not help', () async {
+      availability = FcmAvailability.updateRequired;
+      await provider.start(client);
+
+      provider.playServicesFixer = () async => availability;
+      await provider.fixPlayServices(client);
+
+      expect(provider.status.value, FcmStatus.playServicesUpdateRequired);
+      expect(client.posted, isEmpty);
+    });
   });
 
   test('reports tokenFailed when Firebase yields no token', () async {
@@ -208,7 +300,7 @@ void main() {
     );
 
     test('no Play Services is not something to retry in a loop', () async {
-      playServices = 'UNAVAILABLE';
+      availability = FcmAvailability.unavailable;
 
       await provider.start(client);
 
@@ -296,6 +388,48 @@ void main() {
       expect(client.posted, hasLength(1));
     });
 
+    for (final blocked in [
+      FcmAvailability.updateRequired,
+      FcmAvailability.disabled,
+      FcmAvailability.unavailable,
+    ]) {
+      test('registers on resume once a ${blocked.name} device is '
+          'fixed', () async {
+        availability = blocked;
+        await provider.start(client);
+        expect(client.posted, isEmpty);
+
+        availability = FcmAvailability.available;
+        await provider.recheckRegistration(client);
+
+        expect(provider.status.value, FcmStatus.ready);
+        expect(client.posted, hasLength(1));
+      });
+    }
+
+    test('stays put on resume while the device still cannot use Google '
+        'services', () async {
+      availability = FcmAvailability.updateRequired;
+      await provider.start(client);
+      final checks = availabilityChecks;
+
+      await provider.recheckRegistration(client);
+
+      expect(availabilityChecks, checks + 1);
+      expect(provider.status.value, FcmStatus.playServicesUpdateRequired);
+      expect(client.posted, isEmpty);
+    });
+
+    test('never re-checks a build without Google services', () async {
+      availability = FcmAvailability.notConfigured;
+      await provider.start(client);
+      final checks = availabilityChecks;
+
+      await provider.recheckRegistration(client);
+
+      expect(availabilityChecks, checks);
+    });
+
     test('does nothing when not registered at all', () async {
       now = now.add(registrationRecheckInterval);
 
@@ -328,6 +462,35 @@ void main() {
     expect(client.posted, hasLength(2));
     expect(client.posted.last.pushkey, 'token-def');
     expect(provider.token, 'token-def');
+  });
+
+  test('a refreshed token removes the pusher it replaces', () async {
+    final refreshes = StreamController<String>.broadcast();
+    provider.tokenRefreshStream = () => refreshes.stream;
+    addTearDown(refreshes.close);
+    await provider.start(client);
+
+    refreshes.add('token-def');
+    await pumpEventQueue();
+
+    expect(client.deleted.single.pushkey, 'token-abc');
+    expect(
+      readFcmRegistration(await SharedPreferences.getInstance()),
+      'token-def',
+    );
+  });
+
+  test('a refresh to the same token changes nothing', () async {
+    final refreshes = StreamController<String>.broadcast();
+    provider.tokenRefreshStream = () => refreshes.stream;
+    addTearDown(refreshes.close);
+    await provider.start(client);
+
+    refreshes.add('token-abc');
+    await pumpEventQueue();
+
+    expect(client.posted, hasLength(1));
+    expect(client.deleted, isEmpty);
   });
 
   test('stop deletes the pusher before deleting the token', () async {
@@ -474,14 +637,272 @@ void main() {
       expect(provider.status.value, FcmStatus.ready);
     });
 
-    test('re-registers a token that rotated while the app was off', () async {
+    for (final (label, lost, status) in [
+      (
+        'Google Play services is gone',
+        FcmAvailability.unavailable,
+        FcmStatus.playServicesUnavailable,
+      ),
+      (
+        'Google Play services needs an update',
+        FcmAvailability.updateRequired,
+        FcmStatus.playServicesUpdateRequired,
+      ),
+      (
+        'Google Play services is turned off',
+        FcmAvailability.disabled,
+        FcmStatus.playServicesDisabled,
+      ),
+    ]) {
+      test('is not reported active when $label', () async {
+        availability = lost;
+        var tokenReads = 0;
+        provider.tokenReader = () async {
+          tokenReads++;
+          return 'token-abc';
+        };
+
+        await provider.start(client);
+
+        expect(provider.status.value, status);
+        expect(tokenReads, 0);
+        expect(client.posted, isEmpty);
+        expect(
+          readFcmRegistration(await SharedPreferences.getInstance()),
+          'token-abc',
+        );
+      });
+    }
+
+    test('checks the device once per start', () async {
+      await provider.start(client);
+
+      expect(availabilityChecks, 1);
+    });
+
+    test('re-registers a token that rotated while the app was off, and '
+        'removes the pusher it replaces', () async {
       provider.tokenReader = () async => 'token-rotated';
 
       await provider.start(client);
 
       expect(client.posted, hasLength(1));
       expect(client.posted.single.pushkey, 'token-rotated');
+      expect(client.deleted.single.pushkey, 'token-abc');
       expect(provider.status.value, FcmStatus.ready);
+    });
+
+    test('is kept, with the device\'s state shown, while Google Play services '
+        'is turned off', () async {
+      availability = FcmAvailability.disabled;
+
+      await provider.start(client);
+
+      expect(provider.status.value, FcmStatus.playServicesDisabled);
+      expect(provider.registered, isTrue);
+      expect(provider.token, 'token-abc');
+      expect(client.deleted, isEmpty);
+    });
+
+    test('stays active when the device check itself fails, and asks again on '
+        'the next resume', () async {
+      availability = FcmAvailability.unknown;
+
+      await provider.start(client);
+
+      expect(provider.status.value, FcmStatus.ready);
+      expect(provider.registered, isTrue);
+
+      availability = FcmAvailability.disabled;
+      await provider.recheckRegistration(client);
+
+      expect(provider.status.value, FcmStatus.playServicesDisabled);
+      expect(provider.registered, isTrue);
+      expect(client.deleted, isEmpty);
+    });
+
+    test('a device check that keeps failing changes nothing on '
+        'resume', () async {
+      availability = FcmAvailability.unknown;
+      await provider.start(client);
+      final checks = availabilityChecks;
+
+      await provider.recheckRegistration(client);
+
+      expect(availabilityChecks, checks + 1);
+      expect(provider.status.value, FcmStatus.ready);
+    });
+
+    test('a device check that answers on resume is not asked again', () async {
+      availability = FcmAvailability.unknown;
+      await provider.start(client);
+      availability = FcmAvailability.available;
+      await provider.recheckRegistration(client);
+      final checks = availabilityChecks;
+
+      await provider.recheckRegistration(client);
+
+      expect(availabilityChecks, checks);
+    });
+  });
+
+  group('following the token FCM has now', () {
+    setUp(
+      () => SharedPreferences.setMockInitialValues({
+        'push.fcm.token': 'token-abc',
+      }),
+    );
+
+    Future<SharedPreferences> prefs() async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      return prefs;
+    }
+
+    test('a resume moves the pusher to a token that changed since '
+        'start', () async {
+      await provider.start(client);
+      provider.tokenReader = () async => 'token-new';
+
+      await provider.recheckRegistration(client);
+
+      expect(client.posted.single.pushkey, 'token-new');
+      expect(client.deleted.single.pushkey, 'token-abc');
+      expect(provider.token, 'token-new');
+      expect(readFcmRegistration(await prefs()), 'token-new');
+    });
+
+    test('a token change found on resume is not posted once notifications are '
+        'off', () async {
+      await provider.start(client);
+      provider
+        ..tokenReader = (() async => 'token-new')
+        ..notificationsAllowed = (() async => false);
+
+      await provider.recheckRegistration(client);
+
+      expect(client.posted, isEmpty);
+      expect(provider.token, 'token-abc');
+    });
+
+    test('a resume with the same token posts nothing', () async {
+      await provider.start(client);
+
+      await provider.recheckRegistration(client);
+
+      expect(client.posted, isEmpty);
+    });
+
+    test('a token the background engine could not post is posted on the '
+        'next resume, then forgotten', () async {
+      await provider.start(client);
+      provider.tokenReader = () async => throw Exception('no network');
+      await (await prefs()).setString(fcmPendingTokenKey, 'token-pending');
+
+      await provider.recheckRegistration(client);
+
+      expect(client.posted.single.pushkey, 'token-pending');
+      expect(client.deleted.single.pushkey, 'token-abc');
+      expect((await prefs()).getString(fcmPendingTokenKey), isNull);
+      expect(readFcmRegistration(await prefs()), 'token-pending');
+    });
+
+    test('start posts a token the background engine could not post', () async {
+      provider.tokenReader = () async => throw Exception('no network');
+      await (await prefs()).setString(fcmPendingTokenKey, 'token-pending');
+
+      await provider.start(client);
+
+      expect(client.posted.single.pushkey, 'token-pending');
+      expect(provider.status.value, FcmStatus.ready);
+      expect((await prefs()).getString(fcmPendingTokenKey), isNull);
+    });
+
+    test('a pending token waits for a later try when its post fails', () async {
+      provider.tokenReader = () async => throw Exception('no network');
+      await (await prefs()).setString(fcmPendingTokenKey, 'token-pending');
+      client.postError = Exception('offline');
+
+      await provider.start(client);
+
+      expect(provider.status.value, FcmStatus.pusherFailed);
+      expect((await prefs()).getString(fcmPendingTokenKey), 'token-pending');
+      expect(provider.registered, isTrue);
+    });
+
+    test('a pending token FCM has moved past is dropped, not posted', () async {
+      await (await prefs()).setString(fcmPendingTokenKey, 'token-stale');
+
+      await provider.start(client);
+
+      expect(client.posted, isEmpty);
+      expect((await prefs()).getString(fcmPendingTokenKey), isNull);
+    });
+
+    test('a pusher the background engine moved is adopted, so the next '
+        'token change removes the right one', () async {
+      await provider.start(client);
+      await (await prefs()).setString('push.fcm.token', 'token-moved');
+      provider.tokenReader = () async => 'token-moved';
+
+      await provider.recheckRegistration(client);
+
+      expect(client.posted, isEmpty);
+      expect(provider.token, 'token-moved');
+    });
+
+    test('stop removes the pusher the background engine moved to as well as '
+        'the one this app knew, and forgets a pending token', () async {
+      await provider.start(client);
+      await (await prefs()).setString('push.fcm.token', 'token-moved');
+      await (await prefs()).setString(fcmPendingTokenKey, 'token-pending');
+
+      await provider.stop(client);
+
+      expect(
+        client.deleted.map((p) => p.pushkey),
+        unorderedEquals(['token-abc', 'token-moved']),
+      );
+      expect((await prefs()).getString(fcmPendingTokenKey), isNull);
+      expect(provider.registered, isFalse);
+    });
+  });
+
+  group('a device check that fails', () {
+    setUp(() => availability = FcmAvailability.unknown);
+
+    test('never stops a first registration: the token request '
+        'decides', () async {
+      await provider.start(client);
+
+      expect(provider.status.value, FcmStatus.ready);
+      expect(client.posted.single.pushkey, 'token-abc');
+    });
+
+    test('while the device is blocked keeps the blocked state and asks for no '
+        'token', () async {
+      availability = FcmAvailability.disabled;
+      var tokenReads = 0;
+      provider.tokenReader = () async {
+        tokenReads++;
+        return 'token-abc';
+      };
+      await provider.start(client);
+
+      availability = FcmAvailability.unknown;
+      await provider.recheckRegistration(client);
+
+      expect(provider.status.value, FcmStatus.playServicesDisabled);
+      expect(tokenReads, 0);
+    });
+
+    test('after a fix registers, so the token request decides', () async {
+      provider.playServicesFixer = () async => FcmAvailability.unknown;
+
+      await provider.fixPlayServices(client);
+
+      expect(provider.status.value, FcmStatus.ready);
+      expect(client.posted, hasLength(1));
     });
   });
 
@@ -516,6 +937,7 @@ void main() {
         isNull,
       );
       final relaunched = FcmDeliveryProvider()
+        ..availabilityReader = (() async => FcmAvailability.available)
         ..tokenReader = (() async => 'token-abc')
         ..tokenDeleter = (() async {});
       final freshClient = _RecordingClient();

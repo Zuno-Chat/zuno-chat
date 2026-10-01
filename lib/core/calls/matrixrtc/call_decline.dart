@@ -17,5 +17,26 @@ Map<String, Object?> callDeclineContent(Room room, String callId) {
   };
 }
 
+String callDeclineTxid(String callId) => 'zuno-decline-$callId';
+
+Future<String?> _sendDecline(Room room, String callId) => room.sendEvent(
+  callDeclineContent(room, callId),
+  txid: callDeclineTxid(callId),
+);
+
 Future<void> declineCall(Room room, String callId) =>
-    room.sendEvent(callDeclineContent(room, callId));
+    _sendDecline(room, callId);
+
+class CallDeclineNotSent implements Exception {
+  const CallDeclineNotSent(this.callId);
+
+  final String callId;
+
+  @override
+  String toString() => 'CallDeclineNotSent($callId)';
+}
+
+Future<void> declineCallOrFail(Room room, String callId) async {
+  final sent = await _sendDecline(room, callId);
+  if (sent == null) throw CallDeclineNotSent(callId);
+}

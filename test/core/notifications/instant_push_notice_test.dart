@@ -9,6 +9,7 @@ import 'package:zuno/core/notifications/notification_thread_store.dart';
 import 'package:zuno/core/notifications/notified_events_store.dart';
 
 import '../../helpers/fake_local_notifications.dart';
+import '../../helpers/platform_capabilities.dart';
 
 void main() {
   const roomId = '!room:example.org';
@@ -107,6 +108,36 @@ void main() {
       expect(notifications.lastPlatformSpecifics['onlyAlertOnce'], isFalse);
     },
   );
+
+  test('where the platform posts no instant notices, nothing asks for '
+      'one', () async {
+    final service = CallNotificationService(
+      capabilities: capabilitiesLike(
+        androidCapabilities,
+        instantPushNotices: false,
+      ),
+    );
+    noticed[roomId] = r'$e1';
+
+    expect(await service.takePushNotice(roomId, r'$e1'), isFalse);
+    await service.retractPushNotice(roomId, r'$e1');
+    await service.showMessage(
+      MessageNotificationContent(
+        roomId: roomId,
+        title: 'Alice',
+        body: 'hi',
+        text: 'hi',
+        eventId: r'$e1',
+        isDirectChat: true,
+        senderId: '@a:x',
+        senderName: 'Alice',
+        timestamp: DateTime.utc(2031),
+      ),
+    );
+
+    expect(taken, isEmpty);
+    expect(noticed, containsPair(roomId, r'$e1'));
+  });
 
   test('a refine never consumes the notice', () async {
     noticed[roomId] = r'$e1';

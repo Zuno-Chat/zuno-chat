@@ -12,7 +12,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
-import 'package:zuno/core/notifications/notification_sound_player.dart';
 import 'package:zuno/core/push/headless_decline_hold.dart';
 import 'package:zuno/core/push/headless_push_runner.dart';
 
@@ -36,6 +35,7 @@ class _ScriptedPresenter implements IncomingCallPresenter {
     bool isGroupCall = false,
     String? roomName,
     Uint8List? avatarBytes,
+    Future<RingingCallInfo?>? ringingNow,
   }) async {
     shown.add(callId);
     ringing = (
@@ -95,7 +95,6 @@ void main() {
   tearDown(() async {
     service.releaseDeclinePort();
     await pumpEventQueue();
-    await NotificationSoundPlayer.instance.stopIncomingRing();
   });
 
   void tapDeclineWhileHeadless() {
@@ -143,14 +142,14 @@ void main() {
           final presenter = build();
 
           expect(service.stillHoldsDeclinePort(), isFalse);
-          expect(service.claimDeclinePortIfUnclaimed(), isTrue);
+          expect(await service.claimDeclinePortUnlessLive(), isTrue);
 
           await ring(presenter);
           await presenter.activeRing();
           await presenter.cancelIncoming();
 
           expect(service.stillHoldsDeclinePort(), isTrue);
-          expect(service.claimDeclinePortIfUnclaimed(), isFalse);
+          expect(await service.claimDeclinePortUnlessLive(), isFalse);
           service.releaseDeclinePort();
           expect(service.stillHoldsDeclinePort(), isFalse);
         },
@@ -217,7 +216,7 @@ void main() {
         presenter: const NoopIncomingCallPresenter(),
       ).whenComplete(() => held = false);
     });
-    await time.advance(const Duration(seconds: 1));
+    await time.advance(declineGrace + declinePollEvery);
 
     expect(held, isFalse);
     expect(builds, 0);

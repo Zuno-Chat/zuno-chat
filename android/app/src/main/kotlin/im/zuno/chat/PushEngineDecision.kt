@@ -20,5 +20,27 @@ object PushEngineDecision {
     }
 
     fun shouldHoldWakeLock(appEngineAlive: Boolean, hasHeadlessEngine: Boolean): Boolean =
-        !appEngineAlive && hasHeadlessEngine
+        appEngineAlive || hasHeadlessEngine
+}
+
+class PushHolds(private val timeoutMs: Long, private val writeOffMs: Long) {
+    private class Hold(val key: String?, val at: Long)
+
+    private val holds = ArrayList<Hold>()
+
+    fun acquire(key: String?, now: Long) {
+        writeOff(now)
+        holds += Hold(key, now)
+    }
+
+    fun release(key: String?, now: Long): Boolean {
+        writeOff(now)
+        val index = if (key == null) 0 else holds.indexOfFirst { it.key == key }
+        if (index in holds.indices) holds.removeAt(index)
+        return holds.none { now - it.at < timeoutMs }
+    }
+
+    private fun writeOff(now: Long) {
+        holds.removeAll { now - it.at >= writeOffMs }
+    }
 }

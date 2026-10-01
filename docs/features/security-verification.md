@@ -397,7 +397,16 @@ differs from the raw SSSS key):**
   still open the database and the key never leaves the phone in a backup. Directly relevant here:
   the access token, Olm account pickle, and every inbound Megolm session
   live in that one file — this feature's cryptographic state has no
-  protection independent of that encryption-at-rest layer.
+  protection independent of that encryption-at-rest layer. So the store is
+  guarded against losing it (`app-foundation.md`): an Android Keystore read
+  error never discards the key (`resetOnError: false`), only the app mints a key,
+  background clients never clear the store, and a failed start asks before
+  anything is deleted. A cached derived key (`matrix_database_raw_key`)
+  sits beside the passphrase in the same storage.
+- **One Matrix client per process** (`app-foundation.md`): the SDK writes
+  the Olm account and each identity key's Olm sessions as whole values from
+  its own cache, so a second live client on the store would silently undo
+  this device's one-time-key and session writes.
 - **Media/account recovery are two different things, both required.**
   The recovery code recovers *message history*; it does not recover
   *account access* (login). A forgotten password with no 3PID on file
@@ -612,10 +621,10 @@ differs from the raw SSSS key):**
   banner and (via the notification-delivery path) a push notification;
   the two exist for different app states (foreground vs. backgrounded)
   and share one dismiss model.
-- **`flutter_secure_storage`** backs the SQLCipher database key that
-  protects this feature's persisted crypto state at rest; not part of
-  this feature's own code but a hard dependency of its security
-  properties.
+- **`flutter_secure_storage`** backs the SQLCipher database key, and its
+  cached derived key, that protect this feature's persisted crypto state at
+  rest; not part of this feature's own code but a hard dependency of its
+  security properties.
 - **Account recovery (password reset / 3PID)** is a *different*,
   currently unbuilt mechanism — see Key Design Decisions. Do not conflate
   the recovery code (message-history recovery) with account-access

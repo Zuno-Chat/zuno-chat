@@ -7,8 +7,11 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
+import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ring_notification.dart';
+import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
@@ -28,9 +31,12 @@ void main() {
     room = buildTestRoom(client);
   });
 
-  IncomingCall call({CallKind kind = CallKind.voice}) => IncomingCall(
+  IncomingCall call({
+    CallKind kind = CallKind.voice,
+    String callId = 'call1',
+  }) => IncomingCall(
     room: room,
-    callId: 'call1',
+    callId: callId,
     callerId: '@bob:example.org',
     kind: kind,
   );
@@ -85,7 +91,7 @@ void main() {
     expect(lastShowArgs()['title'], 'Incoming video call');
 
     callStyle.clear();
-    await postRingNotification(call());
+    await postRingNotification(call(callId: 'call2'));
     expect(lastShowArgs()['title'], 'Incoming voice call');
   });
 
@@ -144,4 +150,72 @@ void main() {
 
     expect(lastShowArgs()['avatarBytes'], isNull);
   });
+
+  group('a call that ends while it is being rung', () {
+    test('has its ring taken back at once, so it never rings on', () async {
+      final presenter = _ScriptedPresenter(
+        whileShowing: () => markCallResolved('call1'),
+      );
+
+      final outcome = await postRingNotification(call(), presenter: presenter);
+
+      expect(outcome, RingOutcome.filtered);
+      expect(presenter.cancelled, ['call1']);
+    });
+
+    test('still live once rung, keeps its ring', () async {
+      final presenter = _ScriptedPresenter();
+
+      final outcome = await postRingNotification(call(), presenter: presenter);
+
+      expect(outcome, RingOutcome.shown);
+      expect(presenter.cancelled, isEmpty);
+    });
+
+    test('never shown, has nothing taken back', () async {
+      final presenter = _ScriptedPresenter(
+        outcome: RingOutcome.unavailable,
+        whileShowing: () => markCallResolved('call1'),
+      );
+
+      final outcome = await postRingNotification(call(), presenter: presenter);
+
+      expect(outcome, RingOutcome.unavailable);
+      expect(presenter.cancelled, isEmpty);
+    });
+  });
+}
+
+class _ScriptedPresenter implements IncomingCallPresenter {
+  _ScriptedPresenter({this.outcome = RingOutcome.shown, this.whileShowing});
+
+  final RingOutcome outcome;
+  final Future<void> Function()? whileShowing;
+  final cancelled = <String?>[];
+
+  @override
+  Future<RingOutcome> showIncoming({
+    required String callerName,
+    required String callerId,
+    required bool isVideo,
+    required String roomId,
+    required String callId,
+    bool isGroupCall = false,
+    String? roomName,
+    Uint8List? avatarBytes,
+    Future<RingingCallInfo?>? ringingNow,
+  }) async {
+    await whileShowing?.call();
+    return outcome;
+  }
+
+  @override
+  Future<void> cancelIncoming({
+    String? roomId,
+    String? callId,
+    RingEnd end = RingEnd.remoteEnded,
+  }) async => cancelled.add(callId);
+
+  @override
+  Future<RingingCallInfo?> activeRing() async => null;
 }

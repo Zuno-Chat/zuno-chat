@@ -36,7 +36,7 @@ List<PushDeliveryRecord> parsePushDeliveryLog(String? text) => [
 
 PushDeliveryRecord? _parseLine(String line) {
   final columns = line.split('\t');
-  if (columns.length != 6) return null;
+  if (columns.length < 6) return null;
   final received = int.tryParse(columns[0]);
   if (received == null) return null;
   final sent = int.tryParse(columns[1]);

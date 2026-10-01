@@ -2,7 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
-import 'package:zuno/core/push/fcm_background_handler.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
+import 'package:zuno/core/push/fcm_headless_entry.dart';
 import 'package:zuno/core/push/headless_push_runner.dart';
 
 import '../../helpers/fake_call_style_channel.dart';
@@ -10,6 +11,9 @@ import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
 
 class _RingingClient extends Client {
+  @override
+  bool isLogged() => true;
+
   _RingingClient() : super('test', database: FakeDatabaseApi()) {
     setUserId('@me:example.org');
   }
@@ -56,10 +60,14 @@ void main() {
   Future<Map<String, Object?>> ringViaFcm() async {
     final runner = HeadlessPushRunner()
       ..clientBuilder = () async => _RingingClient();
-    await handleFcmMessage(runner, {
-      'event_id': '\$invite',
-      'room_id': '!room:example.org',
-    });
+    await handleFcmPush(
+      runner,
+      FcmPush(
+        id: 'push',
+        data: {'event_id': '\$invite', 'room_id': '!room:example.org'},
+        appInFront: false,
+      ),
+    );
     return (callStyle.lastShow.arguments as Map).cast<String, Object?>();
   }
 

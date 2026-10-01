@@ -4,7 +4,7 @@ description: >
   which hardcodes every call as AudioAttributes.USAGE_ALARM with no way to
   ask for anything else, and gets ZunoVibrationPlugin auto-registered on
   every FlutterEngine the app creates or is created on its behalf (e.g.
-  firebase_messaging's own background engine), which a hand-attached
+  flutter_local_notifications' own action engine), which a hand-attached
   channel cannot be. Not published; internal to the Zuno app only.
 version: 0.0.1
 publish_to: none

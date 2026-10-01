@@ -180,6 +180,14 @@ asymmetric sender/receiver views).
   because the default push handler (`messageNotificationFor`) only
   recognizes `m.room.message` and silently drops `m.room.member` (invite)
   pushes.
+- **One notification per invitation**: both paths claim the room in
+  `notifications.announced_invites` (room → time, kept 7 days, serialized
+  per isolate) before posting, and a failed post gives the claim back. A
+  sync showing the room joined or left forgets it, so a later invitation
+  announces again. A push for an invitation already announced retracts its
+  instant notice, except within 30 s of the announcement, when that post
+  has already replaced the notice in place. The live path posts without an
+  event id: the SDK's id for it is a synthetic `invite_for_<roomId>`.
 - Tapping an invite notification opens `RoomInvitePage` via `app.dart`'s
   `_openRoomById`, never the room itself — an unjoined room has no
   timeline or composer.

@@ -12,6 +12,7 @@ import '../../../core/errors/best_effort.dart';
 import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/background_sync_service.dart';
+import '../../../core/notifications/fcm_availability_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
 import '../../../core/notifications/notification_permission.dart';
@@ -19,6 +20,7 @@ import '../../../core/notifications/notification_permission_provider.dart';
 import '../../../core/onboarding/onboarding_provider.dart';
 import '../../../core/onboarding/onboarding_step.dart';
 import '../../../core/platform/platform_capabilities.dart';
+import '../../../core/push/fcm_bridge.dart' show FcmAvailability;
 import '../../../core/push/unified_push_distributor_names.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_prompt_provider.dart';
@@ -328,24 +330,45 @@ class _DeliveryStep extends ConsumerStatefulWidget {
 }
 
 class _DeliveryStepState extends ConsumerState<_DeliveryStep> {
-  late NotificationDeliveryMode _selected = ref.read(
-    notificationDeliveryModeProvider,
-  );
+  NotificationDeliveryMode? _picked;
   bool _saving = false;
+
+  NotificationDeliveryMode _selection({
+    required NotificationDeliveryMode current,
+    required FcmAvailability? fcm,
+  }) {
+    final picked = _picked;
+    if (picked == null || !deliveryModeChoice(picked, fcm: fcm).enabled) {
+      return current;
+    }
+    return picked;
+  }
 
   Future<void> _confirm() async {
     setState(() => _saving = true);
-    final previous = ref.read(notificationDeliveryModeProvider);
-    if (_selected != previous) {
-      await ref.read(notificationDeliveryModeProvider.notifier).set(_selected);
-      unawaited(kickOffDeliveryMode(ref.read(matrixClientProvider), _selected));
+    final current = ref.read(notificationDeliveryModeProvider);
+    final selected = _selection(
+      current: current,
+      fcm: ref.read(fcmAvailabilityProvider).value,
+    );
+    final modes = ref.read(notificationDeliveryModeProvider.notifier);
+    final client = ref.read(matrixClientProvider);
+    var chosen = current;
+    if (selected != current && await modes.set(selected)) {
+      chosen = selected;
+      unawaited(kickOffDeliveryMode(client, selected));
     }
     if (mounted) setState(() => _saving = false);
-    await widget.onChosen(_selected);
+    await widget.onChosen(chosen);
   }
 
   @override
   Widget build(BuildContext context) {
+    final fcm = ref.watch(fcmAvailabilityProvider).value;
+    final selected = _selection(
+      current: ref.watch(notificationDeliveryModeProvider),
+      fcm: fcm,
+    );
     return _StepScaffold(
       icon: Icons.send_outlined,
       title: 'How should messages reach you?',
@@ -358,20 +381,25 @@ class _DeliveryStepState extends ConsumerState<_DeliveryStep> {
       ),
       children: [
         RadioGroup<NotificationDeliveryMode>(
-          groupValue: _selected,
+          groupValue: selected,
           onChanged: (mode) {
-            if (mode != null) setState(() => _selected = mode);
+            if (mode != null) setState(() => _picked = mode);
           },
           child: Column(
             children: [
               for (final mode
                   in ref.watch(platformCapabilitiesProvider).deliveryModes)
-                RadioListTile<NotificationDeliveryMode>(
-                  value: mode,
-                  title: Text(mode.label),
-                  subtitle: Text(mode.description),
-                  contentPadding: EdgeInsets.zero,
-                ),
+                if (deliveryModeChoice(mode, fcm: fcm) case (
+                  :final enabled,
+                  :final subtitle,
+                ))
+                  RadioListTile<NotificationDeliveryMode>(
+                    value: mode,
+                    enabled: enabled,
+                    title: Text(mode.label),
+                    subtitle: Text(subtitle),
+                    contentPadding: EdgeInsets.zero,
+                  ),
             ],
           ),
         ),

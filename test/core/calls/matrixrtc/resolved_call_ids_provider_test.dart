@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -192,6 +194,42 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(readResolvedCallIds(prefs), contains('c9'));
+  });
+
+  group('one truth with the push path', () {
+    test('a call the push path resolves in this isolate reaches the provider '
+        'at once', () {
+      unawaited(markCallResolved('from-push'));
+
+      expect(container.read(resolvedCallIdsProvider), contains('from-push'));
+    });
+
+    test('a call another isolate resolved after the provider loaded is found '
+        'on disk, and the provider learns it', () async {
+      await markCallResolvedOnDisk(prefs, 'from-headless');
+      expect(container.read(resolvedCallIdsProvider), isEmpty);
+
+      expect(await isCallResolved('from-headless'), isTrue);
+      expect(container.read(resolvedCallIdsProvider), {'from-headless'});
+    });
+
+    test('a call the provider resolved is resolved for the push path before '
+        'its disk write lands', () async {
+      container.read(resolvedCallIdsProvider.notifier).markResolved('c1');
+      await prefs.clear();
+
+      expect(await isCallResolved('c1'), isTrue);
+    });
+
+    test('once the provider is gone, a push-path mark goes to disk '
+        'only', () async {
+      container.dispose();
+
+      await markCallResolved('after-dispose');
+
+      await prefs.reload();
+      expect(readResolvedCallIds(prefs), contains('after-dispose'));
+    });
   });
 
   Future<void> summarize(

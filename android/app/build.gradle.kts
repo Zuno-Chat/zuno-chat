@@ -147,13 +147,9 @@ dependencies {
     // explicitly rather than relying on that.
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.exifinterface:exifinterface:1.4.1")
-    // GoogleApiAvailability + makeGooglePlayServicesAvailable, for the
-    // Play Services probe MethodChannel in MainActivity. Present at runtime
-    // transitively via firebase-messaging, but that only pulls
-    // play-services-basement (GoogleApiAvailabilityLight, which has no
-    // makeGooglePlayServicesAvailable) — so it has to be declared here to
-    // be on the compile classpath.
     implementation("com.google.android.gms:play-services-base:18.5.0")
+    implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
+    implementation("com.google.firebase:firebase-messaging")
     // Required by compileOptions.isCoreLibraryDesugaringEnabled above.
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

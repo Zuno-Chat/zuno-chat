@@ -1,6 +1,7 @@
 import AVFoundation
 import CallKit
 import UIKit
+import UserNotifications
 import XCTest
 
 @testable import Runner
@@ -607,5 +608,779 @@ private func integer(_ data: Data, at offset: Int, bytes: Int) -> Int {
 private func samples(_ wav: Data) -> [Int16] {
   stride(from: 44, to: wav.count, by: 2).map {
     Int16(bitPattern: UInt16(integer(wav, at: $0, bytes: 2)))
+  }
+}
+
+final class OnceCompletionTests: XCTestCase {
+  func testTheHandlerRunsOnceWithTheFirstValue() {
+    let calls = Recorded<Int>()
+    let completion = OnceCompletion<Int> { calls.append($0) }
+    completion(1)
+    completion(2)
+    XCTAssertEqual(calls.values, [1])
+  }
+
+  func testItIsDoneOnlyAfterTheFirstCall() {
+    let completion = OnceCompletion<Void> { _ in }
+    XCTAssertFalse(completion.isDone)
+    completion(())
+    XCTAssertTrue(completion.isDone)
+  }
+
+  func testCallsRacingOnManyThreadsRunTheHandlerOnce() {
+    let calls = Recorded<Int>()
+    let completion = OnceCompletion<Int> { calls.append($0) }
+    DispatchQueue.concurrentPerform(iterations: 200) { completion($0) }
+    XCTAssertEqual(calls.values.count, 1)
+  }
+}
+
+final class NotificationResponseRouteTests: XCTestCase {
+  private let actions: [NotificationAction] = [.open, .dismiss, .reply, .markRead, .other]
+
+  func testActionIdentifiersMapToTheirActions() {
+    XCTAssertEqual(NotificationAction(UNNotificationDefaultActionIdentifier), .open)
+    XCTAssertEqual(NotificationAction(UNNotificationDismissActionIdentifier), .dismiss)
+    XCTAssertEqual(NotificationAction("reply"), .reply)
+    XCTAssertEqual(NotificationAction("mark_read"), .markRead)
+    for identifier in ["", "accept", "decline", "Reply", "mark-read"] {
+      XCTAssertEqual(NotificationAction(identifier), .other, identifier)
+    }
+  }
+
+  func testOnlyCustomActionsOnLocalNotificationsHoldTheBridgeTask() {
+    for action in actions {
+      let custom = action != .open && action != .dismiss
+      XCTAssertEqual(route(pushed: false, action).holdsBridgeTask, custom, "\(action)")
+      XCTAssertFalse(route(pushed: true, action).holdsBridgeTask, "\(action)")
+    }
+  }
+
+  func testAResponseAPluginHandledNeedsNothingMore() {
+    for pushed in [false, true] {
+      for action in actions {
+        let route = route(pushed: pushed, action, roomId: "!r:x", replyText: "hi")
+        XCTAssertEqual(route.outcome(handledByPlugin: true), .handled, "\(pushed) \(action)")
+        XCTAssertFalse(route.releasesBridgeTask(handledByPlugin: true), "\(pushed) \(action)")
+      }
+    }
+  }
+
+  func testATapWithARoomNoPluginTookOpensTheRoom() {
+    for pushed in [false, true] {
+      XCTAssertEqual(
+        route(pushed: pushed, .open, roomId: "!r:x").outcome(handledByPlugin: false),
+        .openRoom("!r:x"))
+    }
+  }
+
+  func testATapWithoutARoomNoPluginTookOnlyCompletes() {
+    for pushed in [false, true] {
+      XCTAssertEqual(route(pushed: pushed, .open).outcome(handledByPlugin: false), .complete)
+    }
+  }
+
+  func testAReplyNoPluginTookIsReportedAsNotSent() {
+    for pushed in [false, true] {
+      XCTAssertEqual(
+        route(pushed: pushed, .reply, roomId: "!r:x", replyText: " See you soon ")
+          .outcome(handledByPlugin: false),
+        .replyNotSent)
+    }
+    XCTAssertEqual(
+      route(pushed: false, .reply, replyText: "hi").outcome(handledByPlugin: false), .replyNotSent)
+  }
+
+  func testABlankReplyNoPluginTookIsDroppedQuietly() {
+    for text in [nil, "", "   ", " \n\t "] {
+      XCTAssertEqual(
+        route(pushed: false, .reply, roomId: "!r:x", replyText: text)
+          .outcome(handledByPlugin: false),
+        .complete, "\(String(describing: text))")
+    }
+  }
+
+  func testOtherActionsNoPluginTookOnlyComplete() {
+    for action in [NotificationAction.markRead, .dismiss, .other] {
+      for pushed in [false, true] {
+        XCTAssertEqual(
+          route(pushed: pushed, action, roomId: "!r:x", replyText: "hi")
+            .outcome(handledByPlugin: false),
+          .complete, "\(pushed) \(action)")
+      }
+    }
+  }
+
+  func testTheBridgeTaskIsReleasedOnlyWhenHeldAndNoPluginTookTheAction() {
+    XCTAssertTrue(route(pushed: false, .reply).releasesBridgeTask(handledByPlugin: false))
+    XCTAssertTrue(route(pushed: false, .markRead).releasesBridgeTask(handledByPlugin: false))
+    XCTAssertFalse(route(pushed: false, .open).releasesBridgeTask(handledByPlugin: false))
+    XCTAssertFalse(route(pushed: true, .reply).releasesBridgeTask(handledByPlugin: false))
+  }
+
+  func testAPushedNotificationNoPluginPresentedStaysOutOfTheForeground() {
+    XCTAssertEqual(NotificationResponseRoute.presentation(pushed: true), [])
+  }
+
+  func testALocalNotificationNoPluginPresentedShowsABannerAndAListEntry() {
+    XCTAssertEqual(NotificationResponseRoute.presentation(pushed: false), [.banner, .list])
+  }
+
+  func testTheRoomComesFromTheRoomIdFirst() {
+    let userInfo: [AnyHashable: Any] = [
+      "room_id": "!pushed:x", "payload": #"{"type":"message","roomId":"!local:x"}"#,
+    ]
+    XCTAssertEqual(NotificationResponseRoute.roomId(in: userInfo), "!pushed:x")
+  }
+
+  func testTheRoomComesFromAMessagePayload() {
+    let userInfo: [AnyHashable: Any] = [
+      "payload": #"{"type":"message","roomId":"!r:x","eventId":"$e"}"#
+    ]
+    XCTAssertEqual(NotificationResponseRoute.roomId(in: userInfo), "!r:x")
+  }
+
+  func testAPayloadThatIsNotAMessageHasNoRoom() {
+    let payloads: [Any] = [
+      #"{"type":"newDevice","deviceId":"D","roomId":"!r:x"}"#,
+      #"{"roomId":"!r:x"}"#,
+      #"{"type":"message","roomId":7}"#,
+      #"["message","!r:x"]"#,
+      "not json",
+      "",
+      42,
+    ]
+    for payload in payloads {
+      XCTAssertNil(NotificationResponseRoute.roomId(in: ["payload": payload]), "\(payload)")
+    }
+    XCTAssertNil(NotificationResponseRoute.roomId(in: [:]))
+    XCTAssertNil(NotificationResponseRoute.roomId(in: ["room_id": 7]))
+  }
+
+  private func route(
+    pushed: Bool, _ action: NotificationAction, roomId: String? = nil, replyText: String? = nil
+  ) -> NotificationResponseRoute {
+    NotificationResponseRoute(pushed: pushed, action: action, roomId: roomId, replyText: replyText)
+  }
+}
+
+final class ReplyNotSentNoticeTests: XCTestCase {
+  func testTheNoticeKeepsTheConversationTitleAndThread() {
+    let notice = ReplyNotSentNotice.request(
+      title: "Maya", threadIdentifier: "!r:x", roomId: "!r:x")
+    XCTAssertEqual(notice.content.title, "Maya")
+    XCTAssertEqual(notice.content.threadIdentifier, "!r:x")
+  }
+
+  func testTheNoticeSaysWhatHappenedAndWhatToDo() {
+    let notice = ReplyNotSentNotice.request(title: "Maya", threadIdentifier: "", roomId: nil)
+    XCTAssertEqual(notice.content.body, "Message not sent. Open Zuno and send it again.")
+  }
+
+  func testTappingTheNoticeOpensItsRoom() {
+    let notice = ReplyNotSentNotice.request(title: "Maya", threadIdentifier: "", roomId: "!r:x")
+    let roomId = NotificationResponseRoute.roomId(in: notice.content.userInfo)
+    XCTAssertEqual(roomId, "!r:x")
+    let tap = NotificationResponseRoute(
+      pushed: false, action: .open, roomId: roomId, replyText: nil)
+    XCTAssertEqual(tap.outcome(handledByPlugin: false), .openRoom("!r:x"))
+  }
+
+  func testANewNoticeForTheSameRoomReplacesTheLastOne() {
+    let first = ReplyNotSentNotice.request(title: "A", threadIdentifier: "", roomId: "!a:x")
+    let again = ReplyNotSentNotice.request(title: "A", threadIdentifier: "", roomId: "!a:x")
+    let other = ReplyNotSentNotice.request(title: "B", threadIdentifier: "", roomId: "!b:x")
+    XCTAssertEqual(first.identifier, again.identifier)
+    XCTAssertNotEqual(first.identifier, other.identifier)
+  }
+
+  func testANoticeWithoutARoomStandsAloneAndOpensNothing() {
+    let first = ReplyNotSentNotice.request(title: "A", threadIdentifier: "", roomId: nil)
+    let second = ReplyNotSentNotice.request(title: "A", threadIdentifier: "", roomId: nil)
+    XCTAssertNotEqual(first.identifier, second.identifier)
+    XCTAssertTrue(first.content.userInfo.isEmpty)
+  }
+
+  func testTheNoticeArrivesAtOnceWithoutSoundOrActions() {
+    let notice = ReplyNotSentNotice.request(title: "A", threadIdentifier: "", roomId: "!a:x")
+    XCTAssertNil(notice.trigger)
+    XCTAssertNil(notice.content.sound)
+    XCTAssertEqual(notice.content.categoryIdentifier, "")
+  }
+}
+
+@MainActor
+final class WakeLockLedgerTests: XCTestCase {
+  func testAcquireBeginsANamedTaskAndHoldsItUntilTheTimeout() {
+    let harness = WakeLockHarness()
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    XCTAssertEqual(harness.tasks.events, ["begin zuno:message_action #1"])
+    XCTAssertEqual(harness.ledger.heldTags, ["message_action"])
+    XCTAssertEqual(harness.timers.pendingDelays, [30_000])
+  }
+
+  func testAcquiringTheSameTagAgainReplacesTheEarlierTask() {
+    let harness = WakeLockHarness()
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    harness.ledger.acquire("message_action", timeoutMs: 20_000)
+    XCTAssertEqual(
+      harness.tasks.events,
+      ["begin zuno:message_action #1", "end #1", "begin zuno:message_action #2"])
+    XCTAssertEqual(harness.tasks.running, [2])
+    XCTAssertEqual(harness.timers.pendingDelays, [20_000])
+  }
+
+  func testReleaseEndsTheTaskAndCancelsItsTimeout() {
+    let harness = WakeLockHarness()
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    harness.ledger.release("message_action")
+    XCTAssertEqual(harness.tasks.events, ["begin zuno:message_action #1", "end #1"])
+    XCTAssertTrue(harness.ledger.heldTags.isEmpty)
+    XCTAssertTrue(harness.timers.pendingDelays.isEmpty)
+  }
+
+  func testTheTimeoutEndsTheTask() {
+    let harness = WakeLockHarness()
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    harness.timers.fire(0)
+    XCTAssertEqual(harness.tasks.running, [])
+    XCTAssertTrue(harness.ledger.heldTags.isEmpty)
+  }
+
+  func testAStaleTimeoutLeavesTheTaskThatReplacedItRunning() {
+    let harness = WakeLockHarness()
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    harness.timers.fire(0, evenIfCancelled: true)
+    XCTAssertEqual(harness.tasks.running, [2])
+    XCTAssertEqual(harness.ledger.heldTags, ["message_action"])
+  }
+
+  func testTheSystemExpiringTheTaskEndsIt() {
+    let harness = WakeLockHarness()
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    harness.tasks.expire(1)
+    XCTAssertEqual(harness.tasks.events, ["begin zuno:message_action #1", "end #1"])
+    XCTAssertTrue(harness.ledger.heldTags.isEmpty)
+    XCTAssertTrue(harness.timers.pendingDelays.isEmpty)
+  }
+
+  func testAStaleExpirationLeavesTheTaskThatReplacedItRunning() {
+    let harness = WakeLockHarness()
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    harness.tasks.expire(1)
+    XCTAssertEqual(harness.tasks.running, [2])
+    XCTAssertEqual(harness.tasks.events.filter { $0.hasPrefix("end") }, ["end #1"])
+  }
+
+  func testADartLockTakesOverTheResponseHoldWithoutAGap() {
+    let harness = WakeLockHarness()
+    harness.ledger.holdResponse(timeoutMs: 10_000)
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    XCTAssertEqual(
+      harness.tasks.events,
+      ["begin zuno:notification_response #1", "begin zuno:message_action #2", "end #1"])
+    XCTAssertEqual(harness.ledger.heldTags, ["message_action"])
+    XCTAssertEqual(harness.timers.pendingDelays, [30_000])
+  }
+
+  func testAcquiringTheResponseTagKeepsItHeld() {
+    let harness = WakeLockHarness()
+    harness.ledger.acquire(WakeLockLedger.responseTag, timeoutMs: 10_000)
+    XCTAssertEqual(harness.ledger.heldTags, [WakeLockLedger.responseTag])
+    XCTAssertEqual(harness.tasks.running, [1])
+  }
+
+  func testReleasingTheResponseHoldEndsIt() {
+    let harness = WakeLockHarness()
+    harness.ledger.holdResponse(timeoutMs: 10_000)
+    harness.ledger.release(WakeLockLedger.responseTag)
+    XCTAssertEqual(harness.tasks.running, [])
+    XCTAssertTrue(harness.timers.pendingDelays.isEmpty)
+  }
+
+  func testLocksWithDifferentTagsAreIndependent() {
+    let harness = WakeLockHarness()
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    harness.ledger.acquire("call_decline", timeoutMs: 30_000)
+    harness.ledger.release("message_action")
+    XCTAssertEqual(harness.ledger.heldTags, ["call_decline"])
+    XCTAssertEqual(harness.tasks.running, [2])
+  }
+
+  func testATaskTheSystemRefusesHoldsNothing() {
+    let harness = WakeLockHarness()
+    harness.tasks.refuses = true
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    harness.ledger.release("message_action")
+    XCTAssertTrue(harness.ledger.heldTags.isEmpty)
+    XCTAssertTrue(harness.timers.pendingDelays.isEmpty)
+    XCTAssertTrue(harness.tasks.events.isEmpty)
+  }
+
+  func testReleasingATagThatIsNotHeldDoesNothing() {
+    let harness = WakeLockHarness()
+    harness.ledger.acquire("message_action", timeoutMs: 30_000)
+    harness.ledger.release("call_decline")
+    XCTAssertEqual(harness.tasks.running, [1])
+  }
+
+  func testANegativeTimeoutCountsAsZero() {
+    let harness = WakeLockHarness()
+    harness.ledger.acquire("message_action", timeoutMs: -5)
+    XCTAssertEqual(harness.timers.pendingDelays, [0])
+  }
+}
+
+@MainActor
+final class MainActorTimerTests: XCTestCase {
+  func testAScheduledTimerFiresAfterItsDelay() {
+    let fired = expectation(description: "fired")
+    _ = MainActorTimer.schedule(10) { fired.fulfill() }
+    wait(for: [fired], timeout: 2)
+  }
+
+  func testACancelledTimerNeverFires() {
+    let fired = expectation(description: "fired")
+    fired.isInverted = true
+    let cancel = MainActorTimer.schedule(10) { fired.fulfill() }
+    cancel()
+    wait(for: [fired], timeout: 0.3)
+  }
+
+  func testAnAbsurdDelayIsCappedInsteadOfOverflowing() {
+    let fired = expectation(description: "fired")
+    fired.isInverted = true
+    let cancel = MainActorTimer.schedule(Int.max) { fired.fulfill() }
+    wait(for: [fired], timeout: 0.1)
+    cancel()
+  }
+}
+
+final class RoomLaunchStateTests: XCTestCase {
+  func testARoomOpenedBeforeAnyEngineWaitsForTheLaunch() {
+    var state = RoomLaunchState()
+    XCTAssertFalse(state.open("!r:x"))
+    let engine = state.attach()
+    XCTAssertEqual(state.take(engine), "!r:x")
+    XCTAssertNil(state.pendingRoomId)
+  }
+
+  func testTheLatestRoomWinsWhileNobodyListens() {
+    var state = RoomLaunchState()
+    let engine = state.attach()
+    XCTAssertFalse(state.open("!a:x"))
+    XCTAssertFalse(state.open("!b:x"))
+    XCTAssertEqual(state.take(engine), "!b:x")
+  }
+
+  func testOnceTheAppTookTheLaunchRoomOpensAreDelivered() {
+    var state = RoomLaunchState()
+    let engine = state.attach()
+    XCTAssertNil(state.take(engine))
+    XCTAssertTrue(state.open("!r:x"))
+    XCTAssertNil(state.pendingRoomId)
+  }
+
+  func testTheLaunchRoomIsHandedOutOnce() {
+    var state = RoomLaunchState()
+    let engine = state.attach()
+    _ = state.open("!r:x")
+    XCTAssertEqual(state.take(engine), "!r:x")
+    XCTAssertNil(state.take(engine))
+  }
+
+  func testANewEngineTakesTheLaunchBeforeRoomsAreDelivered() {
+    var state = RoomLaunchState()
+    let first = state.attach()
+    _ = state.take(first)
+    let second = state.attach()
+    XCTAssertFalse(state.open("!r:x"))
+    XCTAssertEqual(state.take(second), "!r:x")
+    XCTAssertTrue(state.open("!s:x"))
+  }
+
+  func testAnOlderEngineCannotTakeThePendingRoom() {
+    var state = RoomLaunchState()
+    let first = state.attach()
+    let second = state.attach()
+    _ = state.open("!r:x")
+    XCTAssertNil(state.take(first))
+    XCTAssertEqual(state.pendingRoomId, "!r:x")
+    XCTAssertFalse(state.open("!r:x"))
+    XCTAssertEqual(state.take(second), "!r:x")
+  }
+
+  func testRoomsOpenedAfterTheListeningEngineDetachedWait() {
+    var state = RoomLaunchState()
+    let engine = state.attach()
+    _ = state.take(engine)
+    state.detach(engine)
+    XCTAssertFalse(state.open("!r:x"))
+    XCTAssertEqual(state.pendingRoomId, "!r:x")
+  }
+
+  func testAnOlderEngineDetachingKeepsTheNewListener() {
+    var state = RoomLaunchState()
+    let first = state.attach()
+    let second = state.attach()
+    _ = state.take(second)
+    state.detach(first)
+    XCTAssertTrue(state.open("!r:x"))
+  }
+}
+
+@MainActor
+final class ClientLeaseLedgerTests: XCTestCase {
+  func testAFreeLeaseIsGrantedAtOnce() {
+    let harness = LeaseHarness()
+    XCTAssertEqual(harness.acquire(1, .app).calls, ["t1"])
+    XCTAssertEqual(harness.ledger.holders, [1: .app])
+    XCTAssertTrue(harness.timers.pendingDelays.isEmpty)
+  }
+
+  func testAnEngineThatHoldsTheLeaseIsGrantedAgainWhateverTheKind() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(1, .background)
+    XCTAssertEqual(harness.acquire(1, .app).calls, ["t2"])
+    XCTAssertEqual(harness.acquire(1, .background).calls, ["t3"])
+    XCTAssertEqual(harness.ledger.holders, [1: .app])
+    XCTAssertTrue(harness.yields.isEmpty)
+  }
+
+  func testAnEngineHoldingAnyAppTokenCountsAsAnAppHolder() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(1, .app)
+    for _ in 0..<19 {
+      _ = harness.acquire(1, .background)
+    }
+    XCTAssertEqual(harness.ledger.holders, [1: .app])
+    XCTAssertEqual(harness.acquire(2, .background).calls, [nil])
+    XCTAssertTrue(harness.yields.isEmpty)
+  }
+
+  func testABackgroundRequestIsRefusedAtOnceWhileAnotherEngineHoldsAnAppLease() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(1, .app)
+    XCTAssertEqual(harness.acquire(2, .background).calls, [nil])
+    XCTAssertTrue(harness.yields.isEmpty)
+    XCTAssertTrue(harness.ledger.waitingEngines.isEmpty)
+    XCTAssertTrue(harness.timers.pendingDelays.isEmpty)
+  }
+
+  func testAnAppRequestWaitsForAnotherAppHolderAndGetsTheLeaseOnRelease() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(1, .app)
+    let waiting = harness.acquire(2, .app, waitMs: 5_000)
+    XCTAssertTrue(waiting.calls.isEmpty)
+    XCTAssertTrue(harness.yields.isEmpty)
+    XCTAssertEqual(harness.timers.pendingDelays, [5_000])
+    harness.ledger.release(token: "t1")
+    XCTAssertEqual(waiting.calls, ["t2"])
+    XCTAssertEqual(harness.ledger.holders, [2: .app])
+    XCTAssertTrue(harness.timers.pendingDelays.isEmpty)
+  }
+
+  func testAnAppRequestIsForceGrantedWhenAnotherAppHolderKeepsTheLease() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(1, .app)
+    let waiting = harness.acquire(2, .app, waitMs: 5_000)
+    harness.timers.fire(0)
+    XCTAssertEqual(waiting.calls, ["t2"])
+    XCTAssertEqual(harness.ledger.holders, [1: .app, 2: .app])
+    XCTAssertEqual(harness.logs.count, 1)
+  }
+
+  func testAnAppRequestAsksABackgroundHolderToYieldAndGetsTheLeaseOnRelease() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(2, .background)
+    let app = harness.acquire(1, .app)
+    XCTAssertEqual(harness.yields, [2])
+    XCTAssertTrue(app.calls.isEmpty)
+    harness.ledger.release(token: "t1")
+    XCTAssertEqual(app.calls, ["t2"])
+    XCTAssertEqual(harness.ledger.holders, [1: .app])
+    XCTAssertTrue(harness.logs.isEmpty)
+  }
+
+  func testAnAppRequestIsForceGrantedAndLoggedWhenABackgroundHolderDoesNotYield() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(2, .background)
+    let app = harness.acquire(1, .app, waitMs: 3_000)
+    XCTAssertEqual(harness.timers.pendingDelays, [3_000])
+    harness.timers.fire(0)
+    XCTAssertEqual(app.calls, ["t2"])
+    XCTAssertEqual(harness.ledger.holders, [1: .app, 2: .background])
+    XCTAssertEqual(
+      harness.logs, ["force-granted an app lease to engine 1 while engines [2] held it"])
+  }
+
+  func testABackgroundRequestQueuesBehindABackgroundHolderAndAsksItToYield() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(2, .background)
+    let waiting = harness.acquire(3, .background)
+    XCTAssertEqual(harness.yields, [2])
+    XCTAssertTrue(waiting.calls.isEmpty)
+    harness.ledger.release(token: "t1")
+    XCTAssertEqual(waiting.calls, ["t2"])
+    XCTAssertEqual(harness.ledger.holders, [3: .background])
+  }
+
+  func testABackgroundRequestGetsNothingWhenItsWaitRunsOut() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(2, .background)
+    let waiting = harness.acquire(3, .background, waitMs: 2_000)
+    harness.timers.fire(0)
+    XCTAssertEqual(waiting.calls, [nil])
+    XCTAssertEqual(harness.ledger.holders, [2: .background])
+    XCTAssertTrue(harness.ledger.waitingEngines.isEmpty)
+    XCTAssertTrue(harness.logs.isEmpty)
+  }
+
+  func testBackgroundWaitersAreServedInTheOrderTheyAsked() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(2, .background)
+    let first = harness.acquire(3, .background)
+    let second = harness.acquire(4, .background)
+    XCTAssertEqual(harness.ledger.waitingEngines, [3, 4])
+    harness.ledger.release(token: "t1")
+    XCTAssertEqual(first.calls, ["t2"])
+    XCTAssertTrue(second.calls.isEmpty)
+    XCTAssertEqual(harness.yields, [2, 3])
+    harness.ledger.release(token: "t2")
+    XCTAssertEqual(second.calls, ["t3"])
+  }
+
+  func testAppWaitersGoAheadOfBackgroundWaitersWhoAreThenRefused() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(2, .background)
+    let background = harness.acquire(3, .background)
+    let app = harness.acquire(1, .app)
+    XCTAssertEqual(harness.ledger.waitingEngines, [1, 3])
+    harness.ledger.release(token: "t1")
+    XCTAssertEqual(app.calls, ["t2"])
+    XCTAssertEqual(background.calls, [nil])
+    XCTAssertTrue(harness.timers.pendingDelays.isEmpty)
+  }
+
+  func testAppWaitersAreServedInTheOrderTheyAsked() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(1, .app)
+    let first = harness.acquire(2, .app)
+    let second = harness.acquire(3, .app)
+    harness.ledger.release(token: "t1")
+    XCTAssertEqual(first.calls, ["t2"])
+    XCTAssertTrue(second.calls.isEmpty)
+    harness.ledger.release(token: "t2")
+    XCTAssertEqual(second.calls, ["t3"])
+  }
+
+  func testAnEngineHoldsTheLeaseUntilItsLastTokenIsReleased() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(2, .background)
+    _ = harness.acquire(2, .background)
+    let app = harness.acquire(1, .app)
+    harness.ledger.release(token: "t1")
+    XCTAssertTrue(app.calls.isEmpty)
+    harness.ledger.release(token: "t2")
+    XCTAssertEqual(app.calls, ["t3"])
+  }
+
+  func testADetachedEngineLosesItsLeasesAndItsWaitersGetNothing() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(2, .background)
+    let app = harness.acquire(1, .app)
+    let leaving = harness.acquire(3, .background)
+    harness.ledger.detach(engine: 3)
+    XCTAssertEqual(leaving.calls, [nil])
+    XCTAssertTrue(app.calls.isEmpty)
+    XCTAssertEqual(harness.timers.pendingDelays.count, 1)
+    harness.ledger.detach(engine: 2)
+    XCTAssertEqual(app.calls, ["t2"])
+    XCTAssertEqual(harness.ledger.holders, [1: .app])
+    XCTAssertTrue(harness.timers.pendingDelays.isEmpty)
+  }
+
+  func testReleasingAnUnknownTokenChangesNothing() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(1, .app)
+    let waiting = harness.acquire(2, .app)
+    harness.ledger.release(token: "unknown")
+    harness.ledger.release(token: "t1")
+    harness.ledger.release(token: "t1")
+    XCTAssertEqual(waiting.calls, ["t2"])
+    XCTAssertEqual(harness.ledger.holders, [2: .app])
+  }
+
+  func testAForceGrantedAppLeaseRefusesTheBackgroundWaiters() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(2, .background)
+    let background = harness.acquire(3, .background, waitMs: 9_000)
+    let app = harness.acquire(1, .app, waitMs: 5_000)
+    harness.timers.fire(1)
+    XCTAssertEqual(app.calls, ["t2"])
+    XCTAssertEqual(background.calls, [nil])
+    XCTAssertTrue(harness.timers.pendingDelays.isEmpty)
+  }
+
+  func testAWaiterIsAnsweredOnceEvenIfItsTimerFiresAfterItWasServed() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(1, .app)
+    let waiting = harness.acquire(2, .app)
+    harness.ledger.release(token: "t1")
+    harness.timers.fire(0, evenIfCancelled: true)
+    XCTAssertEqual(waiting.calls, ["t2"])
+    XCTAssertEqual(harness.ledger.holders, [2: .app])
+    XCTAssertTrue(harness.logs.isEmpty)
+  }
+
+  func testAHolderIsAskedToYieldOncePerHoldAndAgainWhenItHoldsAgain() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(2, .background)
+    _ = harness.acquire(3, .background)
+    _ = harness.acquire(4, .background)
+    XCTAssertEqual(harness.yields, [2])
+    harness.ledger.release(token: "t1")
+    harness.ledger.release(token: "t2")
+    XCTAssertEqual(harness.yields, [2, 3])
+    _ = harness.acquire(2, .background)
+    XCTAssertEqual(harness.yields, [2, 3, 4])
+    harness.ledger.release(token: "t3")
+    _ = harness.acquire(3, .background)
+    XCTAssertEqual(harness.yields, [2, 3, 4, 2])
+  }
+
+  func testAnAppHolderIsNeverAskedToYield() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(1, .app)
+    _ = harness.acquire(2, .app)
+    _ = harness.acquire(3, .background)
+    XCTAssertTrue(harness.yields.isEmpty)
+  }
+
+  func testANegativeWaitCountsAsZero() {
+    let harness = LeaseHarness()
+    _ = harness.acquire(1, .app)
+    _ = harness.acquire(2, .app, waitMs: -1)
+    XCTAssertEqual(harness.timers.pendingDelays, [0])
+  }
+}
+
+private final class Recorded<Value: Sendable>: @unchecked Sendable {
+  private let lock = NSLock()
+  private var recorded: [Value] = []
+
+  var values: [Value] {
+    lock.lock()
+    defer { lock.unlock() }
+    return recorded
+  }
+
+  func append(_ value: Value) {
+    lock.lock()
+    recorded.append(value)
+    lock.unlock()
+  }
+}
+
+@MainActor
+private final class FakeTimers {
+  private final class Entry {
+    let milliseconds: Int
+    let fire: @MainActor @Sendable () -> Void
+    var done = false
+
+    init(milliseconds: Int, fire: @escaping @MainActor @Sendable () -> Void) {
+      self.milliseconds = milliseconds
+      self.fire = fire
+    }
+  }
+
+  private var entries: [Entry] = []
+
+  var pendingDelays: [Int] { entries.filter { !$0.done }.map(\.milliseconds) }
+
+  func schedule(
+    _ milliseconds: Int, _ fire: @escaping @MainActor @Sendable () -> Void
+  ) -> @MainActor () -> Void {
+    let entry = Entry(milliseconds: milliseconds, fire: fire)
+    entries.append(entry)
+    return { entry.done = true }
+  }
+
+  func fire(_ index: Int, evenIfCancelled: Bool = false) {
+    let entry = entries[index]
+    guard evenIfCancelled || !entry.done else { return }
+    entry.done = true
+    entry.fire()
+  }
+}
+
+@MainActor
+private final class FakeBackgroundTasks {
+  private var expirations: [Int: @MainActor @Sendable () -> Void] = [:]
+  private var next = 0
+  private(set) var events: [String] = []
+  private(set) var running: [Int] = []
+  var refuses = false
+
+  func begin(_ name: String, _ expired: @escaping @MainActor @Sendable () -> Void) -> Int? {
+    guard !refuses else { return nil }
+    next += 1
+    expirations[next] = expired
+    running.append(next)
+    events.append("begin \(name) #\(next)")
+    return next
+  }
+
+  func end(_ task: Int) {
+    running.removeAll { $0 == task }
+    events.append("end #\(task)")
+  }
+
+  func expire(_ task: Int) {
+    expirations[task]?()
+  }
+}
+
+@MainActor
+private final class WakeLockHarness {
+  let tasks = FakeBackgroundTasks()
+  let timers = FakeTimers()
+  private(set) lazy var ledger = WakeLockLedger(
+    begin: { [tasks] in tasks.begin($0, $1) },
+    end: { [tasks] in tasks.end($0) },
+    schedule: { [timers] in timers.schedule($0, $1) })
+}
+
+@MainActor
+private final class LeaseReply {
+  private(set) var calls: [String?] = []
+
+  func record(_ token: String?) {
+    calls.append(token)
+  }
+}
+
+@MainActor
+private final class LeaseHarness {
+  let timers = FakeTimers()
+  private(set) var yields: [Int] = []
+  private(set) var logs: [String] = []
+  private var tokens = 0
+  private(set) lazy var ledger = ClientLeaseLedger(
+    makeToken: { [unowned self] in
+      tokens += 1
+      return "t\(tokens)"
+    },
+    schedule: { [timers] in timers.schedule($0, $1) },
+    sendYield: { [unowned self] in yields.append($0) },
+    log: { [unowned self] in logs.append($0) })
+
+  func acquire(_ engine: Int, _ kind: ClientLeaseKind, waitMs: Int = 5_000) -> LeaseReply {
+    let reply = LeaseReply()
+    ledger.acquire(engine: engine, kind: kind, waitMs: waitMs) { reply.record($0) }
+    return reply
   }
 }

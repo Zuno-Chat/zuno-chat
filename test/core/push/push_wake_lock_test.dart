@@ -1,16 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuno/core/platform/app_platform.dart';
-import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/push_wake_lock.dart';
+
+import '../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('zuno/push_wakelock');
+  const refinementChannel = MethodChannel('zuno/wake_lock');
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
-  tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+  tearDown(() {
+    messenger.setMockMethodCallHandler(channel, null);
+    messenger.setMockMethodCallHandler(refinementChannel, null);
+  });
 
   test('releasing tells the native side to let the CPU sleep', () async {
     final calls = <String>[];
@@ -20,6 +26,22 @@ void main() {
     });
     await releasePushWakeLock();
     expect(calls, ['release']);
+  });
+
+  test('releasing names the push the lock was held for', () async {
+    final arguments = <Object?>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      arguments.add(call.arguments);
+      return null;
+    });
+
+    await releasePushWakeLock(key: r'$event');
+    await releasePushWakeLock();
+
+    expect(arguments, [
+      {'key': r'$event'},
+      null,
+    ]);
   });
 
   group('never takes push handling down with it', () {
@@ -36,37 +58,103 @@ void main() {
     });
   });
 
-  group('the FCM push wake lock', () {
-    const fcmChannel = MethodChannel('zuno/wake_lock');
-
-    tearDown(() => messenger.setMockMethodCallHandler(fcmChannel, null));
-
-    test('is released through the notifications plugin', () async {
-      final calls = <String>[];
-      messenger.setMockMethodCallHandler(fcmChannel, (call) async {
-        calls.add(call.method);
-        return null;
-      });
-      await releaseFcmPushWakeLock();
-      expect(calls, ['releasePush']);
+  group('whether the app is in front', () {
+    test('is asked of the native side', () async {
+      for (final answer in [true, false]) {
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          expect(call.method, 'appInFront');
+          return answer;
+        });
+        expect(await nativePushAppInFront(), answer);
+      }
     });
 
-    test('survives the native side throwing', () async {
-      messenger.setMockMethodCallHandler(fcmChannel, (call) async {
-        throw PlatformException(code: 'NO_LOCK');
+    test('counts as in front when the native side cannot say', () async {
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        throw PlatformException(code: 'error');
       });
-      await expectLater(releaseFcmPushWakeLock(), completes);
+      expect(await nativePushAppInFront(), isTrue);
+
+      messenger.setMockMethodCallHandler(channel, null);
+      expect(await nativePushAppInFront(), isTrue);
+    });
+  });
+
+  group('keepAwakeWhile', () {
+    late List<MethodCall> locks;
+
+    setUp(() {
+      locks = [];
+      messenger.setMockMethodCallHandler(refinementChannel, (call) async {
+        locks.add(call);
+        return null;
+      });
+    });
+
+    Map<Object?, Object?> argumentsOf(MethodCall call) =>
+        call.arguments as Map<Object?, Object?>;
+
+    test('holds a capped wake lock until the work settles', () async {
+      final work = Completer<void>();
+
+      final kept = keepAwakeWhile(work.future);
+      await pumpEventQueue();
+      expect(locks.map((c) => c.method), ['acquire']);
+      expect(
+        argumentsOf(locks.single)['timeoutMs'],
+        allOf(greaterThan(0), lessThanOrEqualTo(10000)),
+      );
+
+      work.complete();
+      await kept;
+      expect(locks.map((c) => c.method), ['acquire', 'release']);
+      expect(argumentsOf(locks.last)['tag'], argumentsOf(locks.first)['tag']);
+    });
+
+    test('lets go when the work fails too', () async {
+      await expectLater(
+        keepAwakeWhile(Future<void>.error(StateError('offline'))),
+        throwsStateError,
+      );
+
+      expect(locks.map((c) => c.method), ['acquire', 'release']);
+    });
+
+    test('gives each piece of work a lock of its own', () async {
+      final first = Completer<void>();
+      final second = Completer<void>();
+
+      final keptFirst = keepAwakeWhile(first.future);
+      final keptSecond = keepAwakeWhile(second.future);
+      await pumpEventQueue();
+      final tags = locks.map((c) => argumentsOf(c)['tag']).toList();
+      expect(tags, hasLength(2));
+      expect(tags.first, isNot(tags.last));
+
+      first.complete();
+      second.complete();
+      await Future.wait([keptFirst, keptSecond]);
+    });
+
+    test('a native side that fails never fails the work', () async {
+      messenger.setMockMethodCallHandler(refinementChannel, (call) async {
+        throw PlatformException(code: 'error');
+      });
+
+      await expectLater(keepAwakeWhile(Future<void>.value()), completes);
     });
   });
 
   group('on a platform without wake locks', () {
-    const fcmChannel = MethodChannel('zuno/wake_lock');
-    final ios = capabilitiesFor(AppPlatform.ios);
+    final noLocks = capabilitiesLike(
+      androidCapabilities,
+      headlessWakeLocks: false,
+    );
     late List<String> calls;
 
     setUp(() {
       calls = [];
-      for (final lockChannel in [channel, fcmChannel]) {
+      for (final lockChannel in [channel, refinementChannel]) {
         messenger.setMockMethodCallHandler(lockChannel, (call) async {
           calls.add('${lockChannel.name} ${call.method}');
           return null;
@@ -74,12 +162,30 @@ void main() {
       }
     });
 
-    tearDown(() => messenger.setMockMethodCallHandler(fcmChannel, null));
+    test('releasing the push lock never reaches the native side', () async {
+      await releasePushWakeLock(capabilities: noLocks);
 
-    test('releasing either push lock never reaches the native side', () async {
-      await releasePushWakeLock(capabilities: ios);
-      await releaseFcmPushWakeLock(capabilities: ios);
+      expect(calls, isEmpty);
+    });
 
+    test(
+      'asking whether the app is in front never reaches it either',
+      () async {
+        expect(await nativePushAppInFront(capabilities: noLocks), isTrue);
+
+        expect(calls, isEmpty);
+      },
+    );
+
+    test('work still runs, with no lock taken', () async {
+      var ran = false;
+
+      await keepAwakeWhile(
+        Future<void>(() => ran = true),
+        capabilities: noLocks,
+      );
+
+      expect(ran, isTrue);
       expect(calls, isEmpty);
     });
   });

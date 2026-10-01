@@ -10,7 +10,6 @@ import '../../../core/notifications/delivery_failure_provider.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
-import '../../../core/push/play_services.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../settings/presentation/notification_delivery_page.dart';
@@ -44,8 +43,11 @@ class NotificationDeliveryBanner extends ConsumerWidget {
         await ref
             .read(notificationDeliveryModeProvider.notifier)
             .set(NotificationDeliveryMode.backgroundService);
-      case DeliveryFailureAction.fixGoogleServices:
-        await PlayServicesProbe.instance.requestFix();
+      case DeliveryFailureAction.updatePlayServices:
+      case DeliveryFailureAction.turnOnPlayServices:
+        await fcmDeliveryProvider.fixPlayServices(
+          ref.read(matrixClientProvider),
+        );
       case DeliveryFailureAction.retry:
         final client = ref.read(matrixClientProvider);
         switch (ref.read(notificationDeliveryModeProvider)) {
@@ -94,7 +96,7 @@ class NotificationDeliveryBanner extends ConsumerWidget {
             if (!failure.notice) const AttentionStripe(),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+                padding: const EdgeInsets.fromLTRB(12, 10, 4, 4),
                 child: Row(
                   children: [
                     Icon(
@@ -103,17 +105,28 @@ class NotificationDeliveryBanner extends ConsumerWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        failure.message,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: foreground,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            failure.message,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: foreground,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                          Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: TextButton(
+                              onPressed: () => _act(context, ref, failure),
+                              child: Text(
+                                deliveryFailureActionLabel(failure.action),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    TextButton(
-                      onPressed: () => _act(context, ref, failure),
-                      child: Text(deliveryFailureActionLabel(failure.action)),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),

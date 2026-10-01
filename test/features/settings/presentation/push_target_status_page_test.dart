@@ -14,6 +14,7 @@ import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm_pusher.dart';
 import 'package:zuno/core/push/push_delivery_log.dart';
 import 'package:zuno/core/push/pusher_info.dart';
@@ -134,24 +135,16 @@ PusherInfo _pusher({required String appId, required String pushkey}) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('zuno/play_services');
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
-    messenger.setMockMethodCallHandler(
-      channel,
-      (call) async => call.method == 'checkPlayServices' ? 'AVAILABLE' : null,
-    );
     fcmDeliveryProvider
+      ..availabilityReader = (() async => FcmAvailability.available)
       ..tokenReader = (() async => 'fcm-token-abc')
       ..tokenDeleter = (() async {});
     await fcmDeliveryProvider.registerNow(_NoopPusherClient());
   });
 
   tearDown(() async {
-    messenger.setMockMethodCallHandler(channel, null);
     await fcmDeliveryProvider.stop(_NoopPusherClient());
     unifiedPushDeliveryProvider.lastPusherError = null;
   });

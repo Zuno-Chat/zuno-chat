@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
+import 'package:zuno/core/calls/serial_lock.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
@@ -30,6 +32,8 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
 
   tearDown(_resetAmbientCapabilities);
   tearDown(SystemRing.instance.reset);
+  tearDown(KeyedSerialLock.forgetAllForTest);
+  tearDown(RememberingIncomingCallPresenter.forgetForTest);
 
   await testMain();
 }

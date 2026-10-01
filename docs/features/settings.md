@@ -129,14 +129,24 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   Autostart on phones that need it) are
   set once and troubleshooting-shaped, so they stay off the everyday
   page. The delivery banner's "Open settings" opens
-  `NotificationDeliveryPage` directly.
+  `NotificationDeliveryPage` directly. When Play services is missing or the
+  build has no Firebase config, the banner's action switches to
+  UnifiedPush, or to background sync when no distributor is installed.
 - **Platform-specific rows are capability-gated**
   (`platformCapabilitiesProvider`, `app-foundation.md`), never
   `Platform`-checked:
   - Delivery method picker: lists `capabilities.deliveryModes`; with one
-    mode it becomes a static row naming that mode.
+    mode it becomes a static row naming that mode. FCM shows disabled,
+    with the reason as its subtitle, while the device cannot use it
+    (`fcmAvailabilityProvider`, `notifications.md`); the notifier's `set()`
+    refuses a disabled mode, and the page starts a mode only once it saved.
   - Apple push status row: `apnsRegistration`. It shares `_pushStatusRow`
-    (and `PushStatusAction`) with the FCM row.
+    (and `PushStatusAction`) with the FCM row. While Google Play services
+    needs an update or is turned off, the FCM row adds "Update Google Play
+    services" or "Turn on Google Play services" under it
+    (`fixPlayServices`, which registers once the fix took).
+  - Message tone: on `apnsRegistration` it also re-posts the APNs pusher, so
+    pushes follow the setting (`messageToneChanged`).
   - Unrestricted battery usage: keeps its per-mode logic (each mode its
     own copy, none for `apns`) **and** requires `batteryExemption`. The
     per-mode and per-platform checks stay separate; neither implies the

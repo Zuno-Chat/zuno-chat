@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -128,6 +130,7 @@ final messageNotificationProvider =
 
 class MessageNotificationNotifier extends Notifier<void> {
   final _roomCache = NotificationRoomCacheWriter();
+  final _posting = <String, Set<Future<void>>>{};
 
   @override
   void build() {
@@ -155,6 +158,7 @@ class MessageNotificationNotifier extends Notifier<void> {
         if (room.unreadNotifications?.notificationCount == 0) roomId,
     ];
     if (readRooms.isEmpty) return;
+    await Future.wait([for (final roomId in readRooms) ...?_posting[roomId]]);
     await CallNotificationService.instance.cancelMessageNotificationsIfShowing(
       readRooms,
     );
@@ -185,10 +189,26 @@ class MessageNotificationNotifier extends Notifier<void> {
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
       return;
     }
-    await postMessageNotification(
-      content,
-      client: client,
-      fetchImage: () => fetchMessageNotificationImage(event),
-    );
+    final posted = Completer<void>();
+    final inRoom = _posting.putIfAbsent(content.roomId, () => {})
+      ..add(posted.future);
+    void settle() {
+      if (!posted.isCompleted) posted.complete();
+      inRoom.remove(posted.future);
+      if (inRoom.isEmpty && identical(_posting[content.roomId], inRoom)) {
+        _posting.remove(content.roomId);
+      }
+    }
+
+    try {
+      await postMessageNotification(
+        content,
+        client: client,
+        fetchImage: () => fetchMessageNotificationImage(event),
+        onPosted: settle,
+      );
+    } finally {
+      settle();
+    }
   }
 }

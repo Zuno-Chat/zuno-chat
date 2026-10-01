@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/calls/notifications/call_notification_service.dart';
+import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/notifications/apns_delivery_provider.dart';
 import '../../../core/notifications/background_sync_service.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_permission.dart';
@@ -94,6 +96,13 @@ class _NotificationsSettingsPageState
       case NotificationPermissionAction.none:
         break;
     }
+  }
+
+  Future<void> _setMessageTone(bool on) async {
+    final applePush = ref.read(platformCapabilitiesProvider).apnsRegistration;
+    final client = applePush ? ref.read(matrixClientProvider) : null;
+    await ref.read(messageToneEnabledProvider.notifier).set(on);
+    if (client != null) await apnsDeliveryProvider.messageToneChanged(client);
   }
 
   void _maybeRefreshBackgroundSync(
@@ -242,8 +251,7 @@ class _NotificationsSettingsPageState
                 title: const Text('Message tone'),
                 subtitle: const Text('Play a sound for new messages'),
                 value: messageTone,
-                onChanged: (value) =>
-                    ref.read(messageToneEnabledProvider.notifier).set(value),
+                onChanged: _setMessageTone,
               ),
               if (capabilities.vibrationPatterns)
                 SwitchListTile(

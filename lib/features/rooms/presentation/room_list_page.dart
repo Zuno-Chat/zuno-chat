@@ -11,9 +11,11 @@ import '../../../core/calls/matrixrtc/call_waiting.dart';
 import '../../../core/calls/matrixrtc/incoming_call.dart';
 import '../../../core/calls/matrixrtc/incoming_call_provider.dart';
 import '../../../core/calls/matrixrtc/resolved_call_ids_provider.dart';
+import '../../../core/calls/matrixrtc/resolved_call_ids_store.dart';
 import '../../../core/calls/matrixrtc/ring_elsewhere_provider.dart';
 import '../../../core/calls/notifications/call_notification_router.dart';
 import '../../../core/calls/notifications/headless_call_decline_provider.dart';
+import '../../../core/calls/notifications/headless_message_action_provider.dart';
 import '../../../core/calls/notifications/pending_call_notification_action_provider.dart';
 import '../../../core/calls/notifications/ring_notification.dart';
 import '../../../core/calls/notifications/ringing_call_provider.dart';
@@ -472,6 +474,50 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     return ringing != null && ringing.callId != callId;
   }
 
+  Future<void> _onIncomingCall(IncomingCall call) async {
+    bool settled() =>
+        RingingCall.instance.callId == call.callId ||
+        ref.read(resolvedCallIdsProvider).contains(call.callId);
+    if (settled() || await isCallResolved(call.callId)) return;
+    if (!mounted || settled()) return;
+
+    if (answeredOnAnotherDevice(call.room, call.callId)) {
+      ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
+      unawaited(
+        ref
+            .read(incomingCallPresenterProvider)
+            .cancelIncoming(
+              roomId: call.room.id,
+              callId: call.callId,
+              end: RingEnd.answeredElsewhere,
+            ),
+      );
+      return;
+    }
+
+    if (ref.read(activeCallProvider) != null || _systemRingBusy(call.callId)) {
+      unawaited(autoDeclineIncomingCall(call));
+      ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
+      final callerName = call.room
+          .unsafeGetUserFromMemoryOrFallback(call.callerId)
+          .calcDisplayname();
+      globalScaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text('Missed call from $callerName')),
+      );
+      return;
+    }
+
+    SystemRing.instance.set(roomId: call.room.id, callId: call.callId);
+    final presenter = ref.read(incomingCallPresenterProvider);
+    if (ref.read(platformCapabilitiesProvider).callKit) {
+      unawaited(_ringThroughSystem(call, presenter));
+      return;
+    }
+    unawaited(postRingNotification(call, presenter: presenter));
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => IncomingCallPage(call: call)));
+  }
+
   Future<void> _ringThroughSystem(
     IncomingCall call,
     IncomingCallPresenter presenter,
@@ -503,6 +549,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     ref.watch(newDeviceAlertProvider);
     ref.watch(unvouchedDeviceWarningProvider);
     ref.watch(headlessCallDeclineProvider);
+    ref.watch(headlessMessageActionProvider);
     ref.watch(callNotificationRouterProvider);
     ref.listen<AsyncValue<List<OnboardingStep>>>(onboardingStepsProvider, (
       _,
@@ -530,49 +577,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     });
     ref.listen<AsyncValue<IncomingCall>>(incomingCallProvider, (_, next) {
       final call = next.value;
-      if (call == null ||
-          RingingCall.instance.callId == call.callId ||
-          ref.read(resolvedCallIdsProvider).contains(call.callId)) {
-        return;
-      }
-
-      if (answeredOnAnotherDevice(call.room, call.callId)) {
-        ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
-        unawaited(
-          ref
-              .read(incomingCallPresenterProvider)
-              .cancelIncoming(
-                roomId: call.room.id,
-                callId: call.callId,
-                end: RingEnd.answeredElsewhere,
-              ),
-        );
-        return;
-      }
-
-      if (ref.read(activeCallProvider) != null ||
-          _systemRingBusy(call.callId)) {
-        unawaited(autoDeclineIncomingCall(call));
-        ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
-        final callerName = call.room
-            .unsafeGetUserFromMemoryOrFallback(call.callerId)
-            .calcDisplayname();
-        globalScaffoldMessengerKey.currentState?.showSnackBar(
-          SnackBar(content: Text('Missed call from $callerName')),
-        );
-        return;
-      }
-
-      SystemRing.instance.set(roomId: call.room.id, callId: call.callId);
-      final presenter = ref.read(incomingCallPresenterProvider);
-      if (ref.read(platformCapabilitiesProvider).callKit) {
-        unawaited(_ringThroughSystem(call, presenter));
-        return;
-      }
-      unawaited(postRingNotification(call, presenter: presenter));
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => IncomingCallPage(call: call)));
+      if (call != null) unawaited(_onIncomingCall(call));
     });
 
     final communities = _tab == HomeTab.communities;

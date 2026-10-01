@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,6 +35,7 @@ import 'package:zuno/core/notifications/notification_permission_provider.dart';
 import 'package:zuno/core/notifications/unified_push_delivery_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/incoming_push_handler.dart';
 import 'package:zuno/core/security/device_safety.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_splash.dart';
@@ -635,6 +638,40 @@ void main() {
             .arguments,
         {'show': false},
       );
+    });
+
+    testWidgets('a return to the app takes back the routes a Decline or a '
+        'Reply from a notification reach it by', (tester) async {
+      await CallNotificationService.instance.initialize();
+      await pumpApp(tester);
+      await settle(tester);
+      final stranger = ReceivePort();
+      addTearDown(stranger.close);
+      for (final name in [declinePortName, messageActionPortName]) {
+        IsolateNameServer.removePortNameMapping(name);
+        IsolateNameServer.registerPortWithName(stranger.sendPort, name);
+      }
+
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
+
+      expect(CallNotificationService.instance.stillHoldsDeclinePort(), isTrue);
+      expect(
+        IsolateNameServer.lookupPortByName(messageActionPortName),
+        isNot(stranger.sendPort),
+      );
+    });
+
+    testWidgets('push handling keeps the app\'s own client fresh while the '
+        'app is up, and lets go of it after', (tester) async {
+      await pumpApp(tester);
+      await settle(tester);
+
+      expect(tracksPushClientFreshness(client), isTrue);
+
+      await tester.pumpWidget(const SizedBox());
+
+      expect(tracksPushClientFreshness(client), isFalse);
     });
 
     testWidgets('push delivery sees the open chat and whether the app syncs', (

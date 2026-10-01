@@ -34,4 +34,35 @@ void main() {
     expect(apnsAppIdFor(release: true), 'im.zuno.chat.ios');
     expect(apnsAppIdFor(release: false), 'im.zuno.chat.ios.dev');
   });
+
+  group('the alert Apple shows when the app is not running', () {
+    Object? payloadWith({required bool sound}) => buildApnsPusher(
+      appId: 'im.zuno.chat.ios',
+      pushkey: 'obLD1A==',
+      gatewayUrl: Uri.parse(
+        'https://matrix.example.org/_matrix/push/v1/notify',
+      ),
+      deviceDisplayName: 'Zuno on iOS',
+      sound: sound,
+    ).data.toJson()['default_payload'];
+
+    test('plays the default sound while Message tone is on', () {
+      expect(payloadWith(sound: true), {
+        'aps': {
+          'mutable-content': 1,
+          'alert': {'body': 'New message'},
+          'sound': 'default',
+        },
+      });
+    });
+
+    test('carries no sound while Message tone is off', () {
+      expect(payloadWith(sound: false), {
+        'aps': {
+          'mutable-content': 1,
+          'alert': {'body': 'New message'},
+        },
+      });
+    });
+  });
 }

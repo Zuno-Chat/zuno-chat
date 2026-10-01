@@ -13,6 +13,7 @@ DeliveryFailure? failureFor(
   int apnsDropped = 0,
   bool distributorBatteryRestricted = false,
   String? distributor,
+  bool? distributorInstalled,
   NotificationDeliveryMode? autoSelected,
 }) => notificationDeliveryFailure(
   mode: mode,
@@ -22,6 +23,7 @@ DeliveryFailure? failureFor(
   apnsDropped: apnsDropped,
   distributorBatteryRestricted: distributorBatteryRestricted,
   distributor: distributor,
+  distributorInstalled: distributorInstalled,
   autoSelected: autoSelected,
 );
 
@@ -33,15 +35,112 @@ void main() {
         fcm: FcmStatus.playServicesUnavailable,
       );
       expect(failure?.action, DeliveryFailureAction.switchToUnifiedPush);
-      expect(failure?.message, 'This device does not have Google services');
+      expect(
+        failure?.message,
+        'This device does not have Google Play services',
+      );
     });
 
-    test('an update needed offers the one-tap fix, not a transport swap', () {
+    test('an update needed offers the one-tap update, not a transport '
+        'swap', () {
       final failure = failureFor(
         NotificationDeliveryMode.fcm,
         fcm: FcmStatus.playServicesUpdateRequired,
       );
-      expect(failure?.action, DeliveryFailureAction.fixGoogleServices);
+      expect(failure?.action, DeliveryFailureAction.updatePlayServices);
+      expect(failure?.message, 'Google Play services needs an update');
+      expect(
+        deliveryFailureActionLabel(failure!.action),
+        'Update Google Play services',
+      );
+    });
+
+    group('where Google services cannot work', () {
+      for (final status in [
+        FcmStatus.playServicesUnavailable,
+        FcmStatus.notConfigured,
+      ]) {
+        test('${status.name} with no distributor installed offers background '
+            'sync directly', () {
+          final failure = failureFor(
+            NotificationDeliveryMode.fcm,
+            fcm: status,
+            distributorInstalled: false,
+          );
+          expect(
+            failure?.action,
+            DeliveryFailureAction.switchToBackgroundService,
+          );
+          expect(
+            deliveryFailureActionLabel(failure!.action),
+            'Use background sync',
+          );
+        });
+
+        test('${status.name} with a distributor installed offers '
+            'UnifiedPush', () {
+          expect(
+            failureFor(
+              NotificationDeliveryMode.fcm,
+              fcm: status,
+              distributorInstalled: true,
+            )?.action,
+            DeliveryFailureAction.switchToUnifiedPush,
+          );
+        });
+
+        test('${status.name} offers UnifiedPush until the distributors are '
+            'known', () {
+          expect(
+            failureFor(NotificationDeliveryMode.fcm, fcm: status)?.action,
+            DeliveryFailureAction.switchToUnifiedPush,
+          );
+        });
+      }
+
+      test('a device Zuno can fix is offered the fix, distributor or not', () {
+        for (final (status, action) in [
+          (
+            FcmStatus.playServicesUpdateRequired,
+            DeliveryFailureAction.updatePlayServices,
+          ),
+          (
+            FcmStatus.playServicesDisabled,
+            DeliveryFailureAction.turnOnPlayServices,
+          ),
+        ]) {
+          for (final installed in [true, false, null]) {
+            expect(
+              failureFor(
+                NotificationDeliveryMode.fcm,
+                fcm: status,
+                distributorInstalled: installed,
+              )?.action,
+              action,
+              reason: '$status/$installed',
+            );
+          }
+        }
+      });
+
+      test('a missing distributor changes nothing for the other methods', () {
+        expect(
+          failureFor(
+            NotificationDeliveryMode.unifiedPush,
+            unifiedPush: UnifiedPushStatus.ready,
+            distributorInstalled: false,
+          ),
+          isNull,
+        );
+        expect(
+          failureFor(
+            NotificationDeliveryMode.fcm,
+            fcm: FcmStatus.tokenFailed,
+            distributorInstalled: false,
+          )?.action,
+          DeliveryFailureAction.retry,
+        );
+      });
     });
 
     test('a token failure is worth retrying', () {
@@ -143,6 +242,40 @@ void main() {
         isNull,
       );
     }
+  });
+
+  test('a turned-off Google Play services offers to turn it on', () {
+    final failure = failureFor(
+      NotificationDeliveryMode.fcm,
+      fcm: FcmStatus.playServicesDisabled,
+    );
+    expect(failure?.message, 'Google Play services is turned off');
+    expect(failure?.action, DeliveryFailureAction.turnOnPlayServices);
+    expect(
+      deliveryFailureActionLabel(failure!.action),
+      'Turn on Google Play services',
+    );
+  });
+
+  test('an action that acts on Google Play services calls it by that '
+      'name', () {
+    for (final action in DeliveryFailureAction.values) {
+      final label = deliveryFailureActionLabel(action);
+      if (!label.contains('Google')) continue;
+      expect(label, contains('Google Play services'), reason: '$action');
+    }
+  });
+
+  test('a build without Google services offers another method', () {
+    final failure = failureFor(
+      NotificationDeliveryMode.fcm,
+      fcm: FcmStatus.notConfigured,
+    );
+    expect(
+      failure?.message,
+      'This version of Zuno does not include Google services',
+    );
+    expect(failure?.action, DeliveryFailureAction.switchToUnifiedPush);
   });
 
   test('a phone with no push infrastructure is never left with no button', () {
@@ -300,33 +433,44 @@ void main() {
       for (final fcm in FcmStatus.values) {
         for (final up in UnifiedPushStatus.values) {
           for (final apns in ApnsStatus.values) {
-            final failure = notificationDeliveryFailure(
-              mode: mode,
-              fcm: fcm,
-              unifiedPush: up,
-              apns: apns,
-            );
-            if (failure == null) continue;
-            expect(failure.message, isNotEmpty, reason: '$mode/$fcm/$up/$apns');
-            expect(
-              deliveryFailureActionLabel(failure.action),
-              isNotEmpty,
-              reason: '$mode/$fcm/$up/$apns',
-            );
+            for (final installed in [true, false, null]) {
+              final failure = notificationDeliveryFailure(
+                mode: mode,
+                fcm: fcm,
+                unifiedPush: up,
+                apns: apns,
+                distributorInstalled: installed,
+              );
+              if (failure == null) continue;
+              final reason = '$mode/$fcm/$up/$apns/$installed';
+              expect(failure.message, isNotEmpty, reason: reason);
+              expect(
+                deliveryFailureActionLabel(failure.action),
+                isNotEmpty,
+                reason: reason,
+              );
+            }
           }
         }
       }
     }
   });
 
-  test('no failure message shouts or apologises', () {
+  test('no failure message shouts, apologises or uses a contraction', () {
     for (final mode in NotificationDeliveryMode.values) {
       for (final fcm in FcmStatus.values) {
-        final failure = failureFor(mode, fcm: fcm);
-        if (failure == null) continue;
-        expect(failure.message, isNot(contains('!')));
-        expect(failure.message.toLowerCase(), isNot(contains('sorry')));
-        expect(failure.message.toLowerCase(), isNot(contains('error')));
+        for (final autoSelected in [null, mode]) {
+          final failure = failureFor(
+            mode,
+            fcm: fcm,
+            autoSelected: autoSelected,
+          );
+          if (failure == null) continue;
+          expect(failure.message, isNot(contains('!')));
+          expect(failure.message, isNot(contains("'")));
+          expect(failure.message.toLowerCase(), isNot(contains('sorry')));
+          expect(failure.message.toLowerCase(), isNot(contains('error')));
+        }
       }
     }
   });
@@ -376,8 +520,43 @@ void main() {
       );
       expect(notice?.notice, isTrue);
       expect(notice?.action, DeliveryFailureAction.openSettings);
-      expect(notice?.message, contains('UnifiedPush'));
-      expect(notice?.message, contains('Google'));
+      expect(
+        notice?.message,
+        'Google services cannot be used, so notifications use UnifiedPush',
+      );
+    });
+
+    test('names background sync when that is what Zuno switched to, in '
+        'lower case as everywhere else mid-sentence', () {
+      expect(
+        failureFor(
+          NotificationDeliveryMode.backgroundService,
+          autoSelected: NotificationDeliveryMode.backgroundService,
+        )?.message,
+        'Google services cannot be used, so notifications use background '
+        'sync',
+      );
+    });
+
+    test('names each method the way the rest of Zuno does mid-sentence', () {
+      for (final (mode, named) in [
+        (NotificationDeliveryMode.backgroundService, 'background sync'),
+        (NotificationDeliveryMode.unifiedPush, 'UnifiedPush'),
+        (NotificationDeliveryMode.fcm, 'Google services'),
+        (NotificationDeliveryMode.apns, 'Apple push'),
+      ]) {
+        expect(
+          failureFor(
+            mode,
+            fcm: FcmStatus.ready,
+            unifiedPush: UnifiedPushStatus.ready,
+            apns: ApnsStatus.ready,
+            autoSelected: mode,
+          )?.message,
+          endsWith('so notifications use $named'),
+          reason: '$mode',
+        );
+      }
     });
 
     test('a real failure outranks the notice', () {

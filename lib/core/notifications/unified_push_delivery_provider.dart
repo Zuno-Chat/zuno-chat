@@ -17,6 +17,7 @@ import '../push/headless_push_runner.dart';
 import '../push/incoming_push_handler.dart';
 import '../push/matrix_unified_push_gateway.dart';
 import '../push/push_notification_codec.dart';
+import '../push/push_wake_lock.dart';
 import '../push/pusher_reconciliation.dart';
 import '../push/registration_retry.dart';
 import '../push/unified_push_pusher.dart';
@@ -49,6 +50,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
   Pusher? _pendingPusher;
   bool _callbacksRegistered = false;
   bool _active = false;
+  PushWakeLockRelease? _releaseAfterPush;
 
   final status = ValueNotifier<UnifiedPushStatus>(UnifiedPushStatus.idle);
 
@@ -79,17 +81,23 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   Uri? get endpointUrl => _endpointUrl;
 
-  Future<void> ensureCallbacksRegistered(Client client) async {
+  Future<void> ensureCallbacksRegistered(
+    Client client, {
+    PushWakeLockRelease releaseAfterPush = releasePushWakeLock,
+  }) async {
     _runner.liveClient = client;
+    _releaseAfterPush = releaseAfterPush;
     await _initializePlugin();
   }
 
   Future<void> ensureHeadlessCallbacksRegistered({
     required Future<Client> Function() clientBuilder,
     required Future<void> Function(IncomingPushOutcome outcome) onPushHandled,
+    PushWakeLockRelease releaseAfterPush = releasePushWakeLock,
   }) async {
     _runner.clientBuilder = clientBuilder;
     _runner.onPushHandled = onPushHandled;
+    _releaseAfterPush = releaseAfterPush;
     await _initializePlugin();
   }
 
@@ -444,13 +452,18 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
       _onMessage(message, 'default');
 
   Future<void> _onMessage(PushMessage message, String instance) async {
-    debugPrint('zuno/push: push received (${message.content.length} bytes)');
-    final notification = pushNotificationFromMessageBytes(message.content);
-    if (notification == null) {
-      debugPrint('zuno/push: push payload could not be decoded');
-      _runner.signalCallbackDone();
-      return;
+    PushNotification? notification;
+    try {
+      debugPrint('zuno/push: push received (${message.content.length} bytes)');
+      notification = pushNotificationFromMessageBytes(message.content);
+      if (notification == null) {
+        debugPrint('zuno/push: push payload could not be decoded');
+        _runner.signalCallbackDone();
+        return;
+      }
+      await _runner.deliver(notification);
+    } finally {
+      await _releaseAfterPush?.call(key: notification?.eventId);
     }
-    await _runner.deliver(notification);
   }
 }

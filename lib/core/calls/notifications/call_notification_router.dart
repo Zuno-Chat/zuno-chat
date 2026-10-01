@@ -16,6 +16,7 @@ import '../matrixrtc/call_decline.dart';
 import '../matrixrtc/call_session.dart';
 import '../matrixrtc/incoming_call.dart';
 import '../matrixrtc/resolved_call_ids_provider.dart';
+import '../matrixrtc/resolved_call_ids_store.dart';
 import '../models/call_kind.dart';
 import '../platform/incoming_call_presenter.dart';
 import '../platform/system_call.dart';
@@ -141,7 +142,7 @@ class CallNotificationRouter extends Notifier<void> {
   Future<bool> _showRingingScreen(RingingCallInfo ringing, bool instant) async {
     if (ref.read(activeCallProvider) != null) return true;
     if (RingingCall.instance.callId == ringing.callId) return true;
-    if (ref.read(resolvedCallIdsProvider).contains(ringing.callId)) {
+    if (await _isOver(ringing.callId)) {
       _log('ring ${ringing.callId} already resolved');
       return false;
     }
@@ -221,12 +222,18 @@ class CallNotificationRouter extends Notifier<void> {
     if (active != null && _endingCallIds.contains(active.callId)) {
       await _untilEnded(active);
     }
-    if (ref.read(activeCallProvider) != null) {
+    final over = await _isOver(call.callId);
+    final current = ref.read(activeCallProvider);
+    if (current != null && current.callId == call.callId) {
+      _log('already on ${call.callId}; nothing more to accept');
+      return;
+    }
+    if (current != null) {
       _log('already on a call; ignoring accept for ${call.callId}');
       _releaseSystemCall(call, SystemCallEnd.failed);
       return;
     }
-    if (ref.read(resolvedCallIdsProvider).contains(call.callId)) {
+    if (over) {
       _releaseSystemCall(call, SystemCallEnd.remoteEnded);
       await releaseLockscreenIfIdle();
       return;
@@ -258,6 +265,10 @@ class CallNotificationRouter extends Notifier<void> {
     _log('accepted ${call.callId}, opening the call screen');
     unawaited(session.accept().catchError((_) {}));
   }
+
+  Future<bool> _isOver(String callId) async =>
+      ref.read(resolvedCallIdsProvider).contains(callId) ||
+      await isCallResolved(callId);
 
   void _log(String message) => debugPrint('zuno/call-router: $message');
 

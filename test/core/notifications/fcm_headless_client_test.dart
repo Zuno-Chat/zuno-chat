@@ -1,12 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:zuno/core/push/fcm_background_handler.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
+import 'package:zuno/core/push/fcm_headless_entry.dart';
 import 'package:zuno/core/push/headless_push_runner.dart';
 
 import '../../helpers/fake_matrix.dart';
 
 class _RecordingClient extends Client {
+  @override
+  bool isLogged() => true;
+
   _RecordingClient() : super('test', database: FakeDatabaseApi());
 
   int disposeCalls = 0;
@@ -36,7 +40,8 @@ void main() {
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('opens and disposes one client per push', () async {
+  test('back-to-back pushes share one client, let go without closing the '
+      'database', () async {
     final built = <_RecordingClient>[];
     final runner = HeadlessPushRunner()
       ..clientBuilder = () async {
@@ -45,19 +50,30 @@ void main() {
         return client;
       };
 
-    await handleFcmMessage(runner, {
-      'event_id': '\$one',
-      'room_id': '!room:example.org',
-    });
-    await handleFcmMessage(runner, {
-      'event_id': '\$two',
-      'room_id': '!room:example.org',
-    });
+    await handleFcmPush(
+      runner,
+      FcmPush(
+        id: 'push',
+        data: {'event_id': '\$one', 'room_id': '!room:example.org'},
+        appInFront: false,
+      ),
+    );
+    await handleFcmPush(
+      runner,
+      FcmPush(
+        id: 'push',
+        data: {'event_id': '\$two', 'room_id': '!room:example.org'},
+        appInFront: false,
+      ),
+    );
 
-    expect(built, hasLength(2));
-    expect(built.every((c) => c.resolveCalls == 1), isTrue);
-    expect(built.every((c) => c.disposeCalls == 1), isTrue);
-    expect(built.every((c) => c.closedDatabase == false), isTrue);
+    expect(built, hasLength(1));
+    expect(built.single.resolveCalls, 2);
+    expect(built.single.disposeCalls, 0);
+
+    expect(await runner.settle(), isTrue);
+    expect(built.single.disposeCalls, 1);
+    expect(built.single.closedDatabase, isFalse);
   });
 
   test('opens no client at all for a payload with no event', () async {
@@ -68,7 +84,14 @@ void main() {
         return _RecordingClient();
       };
 
-    await handleFcmMessage(runner, {'room_id': '!room:example.org'});
+    await handleFcmPush(
+      runner,
+      FcmPush(
+        id: 'push',
+        data: {'room_id': '!room:example.org'},
+        appInFront: false,
+      ),
+    );
 
     expect(builds, 0);
   });
@@ -77,6 +100,9 @@ void main() {
     final runner = HeadlessPushRunner()
       ..clientBuilder = () async => _RecordingClient();
 
-    await handleFcmMessage(runner, const {});
+    await handleFcmPush(
+      runner,
+      FcmPush(id: 'push', data: const {}, appInFront: false),
+    );
   });
 }

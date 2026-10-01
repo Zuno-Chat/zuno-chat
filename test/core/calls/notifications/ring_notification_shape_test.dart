@@ -19,6 +19,7 @@ void main() {
   });
 
   Future<Map<String, Object?>> postRing({
+    String callId = 'call1',
     bool isVideo = false,
     bool isGroupCall = false,
     Uint8List? avatarBytes,
@@ -28,7 +29,7 @@ void main() {
       callerId: '@bob:example.org',
       isVideo: isVideo,
       roomId: '!room:example.org',
-      callId: 'call1',
+      callId: callId,
       isGroupCall: isGroupCall,
       avatarBytes: avatarBytes,
     );
@@ -41,7 +42,7 @@ void main() {
     expect(video['callerName'], 'Bob');
 
     callStyle.clear();
-    final voice = await postRing();
+    final voice = await postRing(callId: 'call2');
     expect(voice['title'], 'Incoming voice call');
   });
 
@@ -51,7 +52,7 @@ void main() {
     expect(direct['channelId'], 'calls_ringing');
 
     callStyle.clear();
-    final group = await postRing(isGroupCall: true);
+    final group = await postRing(callId: 'call2', isGroupCall: true);
     expect(group['channelId'], 'calls_ringing_group');
   });
 
@@ -72,7 +73,7 @@ void main() {
       expect(withAvatar['avatarBytes'], bytes);
 
       callStyle.clear();
-      final withoutAvatar = await postRing();
+      final withoutAvatar = await postRing(callId: 'call2');
       expect(withoutAvatar['avatarBytes'], isNull);
     },
   );

@@ -1,6 +1,8 @@
 package im.zuno.chat
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PushEngineDecisionTest {
@@ -78,30 +80,21 @@ class PushEngineDecisionTest {
 
     @Test
     fun `holds a wakelock for a delivery into our own headless engine`() {
-        assertEquals(
-            true,
-            PushEngineDecision.shouldHoldWakeLock(
-                appEngineAlive = false,
-                hasHeadlessEngine = true,
-            ),
+        assertTrue(
+            PushEngineDecision.shouldHoldWakeLock(appEngineAlive = false, hasHeadlessEngine = true),
         )
     }
 
     @Test
-    fun `takes no wakelock when the app engine will handle the delivery`() {
-        assertEquals(
-            false,
-            PushEngineDecision.shouldHoldWakeLock(
-                appEngineAlive = true,
-                hasHeadlessEngine = true,
-            ),
+    fun `holds a wakelock for every delivery into the app engine, so each release has a hold`() {
+        assertTrue(
+            PushEngineDecision.shouldHoldWakeLock(appEngineAlive = true, hasHeadlessEngine = false),
         )
     }
 
     @Test
-    fun `takes no wakelock when no engine of ours exists`() {
-        assertEquals(
-            false,
+    fun `takes no wakelock when no engine of ours exists to release it`() {
+        assertFalse(
             PushEngineDecision.shouldHoldWakeLock(
                 appEngineAlive = false,
                 hasHeadlessEngine = false,

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../errors/crash_reporting.dart';
 import '../matrix/matrix_client_provider.dart';
+import '../notifications/fcm_availability_provider.dart';
 import '../notifications/notification_delivery_mode.dart';
 import '../notifications/notification_sound_settings.dart';
 import '../notifications/notify_me.dart';
@@ -180,13 +181,20 @@ class NotificationDeliveryModeNotifier
   bool _availableHere(NotificationDeliveryMode mode) =>
       ref.read(platformCapabilitiesProvider).deliveryModes.contains(mode);
 
-  Future<void> set(NotificationDeliveryMode mode) async {
-    if (!_availableHere(mode)) return;
+  bool _pickableNow(NotificationDeliveryMode mode) {
+    if (!ref.exists(fcmAvailabilityProvider)) return true;
+    final fcm = ref.read(fcmAvailabilityProvider).value;
+    return deliveryModeChoice(mode, fcm: fcm).enabled;
+  }
+
+  Future<bool> set(NotificationDeliveryMode mode) async {
+    if (!_availableHere(mode) || !_pickableNow(mode)) return false;
     state = mode;
     final prefs = ref.read(sharedPreferencesProvider);
     await prefs.setString(_notificationDeliveryModeKey, mode.name);
     await prefs.setBool(_notificationDeliveryModeChosenKey, true);
     await prefs.remove(notificationDeliveryModeAutoKey);
+    return true;
   }
 
   Future<void> autoSelect(NotificationDeliveryMode mode) async {

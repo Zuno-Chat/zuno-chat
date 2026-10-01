@@ -73,6 +73,33 @@ void main() {
     });
   });
 
+  test('a message, a placeholder and their clean-up never ask iOS for an '
+      'instant notice', () async {
+    final conversations = installFakeConversationsChannel();
+    const message = MessageNotificationContent(
+      roomId: _roomId,
+      title: 'Alice',
+      body: 'hi',
+      eventId: r'$1',
+    );
+
+    await service.showMessage(message, includeMessageActions: true);
+    await service.showMessage(
+      const MessageNotificationContent(
+        roomId: _roomId,
+        title: 'Alice',
+        body: 'Tap to open',
+        eventId: r'$2',
+      ),
+      placeholder: true,
+    );
+    await service.retractPlaceholder(_roomId, r'$2');
+    await service.retractPushNotice(_roomId, r'$1');
+
+    expect(await service.takePushNotice(_roomId, r'$1'), isFalse);
+    expect(conversations.named('takePushNotice'), isEmpty);
+  });
+
   group('posting', () {
     test(
       'a message is threaded by room and offers Reply and Mark as read',
@@ -156,6 +183,65 @@ void main() {
         expect(ios['interruptionLevel'], 1);
       });
 
+      test('a new message shows its banner while Zuno is open, and stays in '
+          'the list', () async {
+        SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
+
+        await service.showMessage(message);
+
+        final ios = notifications.lastPlatformSpecifics;
+        expect(ios['presentBanner'], isTrue);
+        expect(ios['presentAlert'], isTrue);
+        expect(ios['presentList'], isTrue);
+      });
+
+      test('a quiet message never shows a banner while Zuno is open, but '
+          'stays in the list', () async {
+        SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
+
+        await service.showMessage(
+          const MessageNotificationContent(
+            roomId: _roomId,
+            title: 'Alice',
+            body: 'hi',
+            eventId: r'$1',
+            quiet: true,
+          ),
+        );
+
+        final ios = notifications.lastPlatformSpecifics;
+        expect(ios['presentBanner'], isFalse);
+        expect(ios['presentAlert'], isFalse);
+        expect(ios['presentSound'], isFalse);
+        expect(ios['presentList'], isTrue);
+      });
+
+      test('a second message in the same room inside the tone interval '
+          'updates the list without a banner or sound', () async {
+        SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
+        await service.showMessage(message);
+        notifications.active = [
+          {
+            'id': messageNotificationIdFor(_roomId),
+            'payload': _messagePayload(_roomId),
+          },
+        ];
+
+        await service.showMessage(
+          const MessageNotificationContent(
+            roomId: _roomId,
+            title: 'Alice',
+            body: 'and again',
+            eventId: r'$2',
+          ),
+        );
+
+        final ios = notifications.lastPlatformSpecifics;
+        expect(ios['presentBanner'], isFalse);
+        expect(ios['presentSound'], isFalse);
+        expect(ios['presentList'], isTrue);
+      });
+
       test('with the message tone off, a new message lights the screen '
           'without sound', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: false});
@@ -212,6 +298,9 @@ void main() {
           expect(notifications.shown.last.body, 'hi, with the photo');
           expect(ios['presentSound'], isFalse);
           expect(ios['interruptionLevel'], 0);
+          expect(ios['presentBanner'], isFalse);
+          expect(ios['presentAlert'], isFalse);
+          expect(ios['presentList'], isTrue);
         },
       );
     });

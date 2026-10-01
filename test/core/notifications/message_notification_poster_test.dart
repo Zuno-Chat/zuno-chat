@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/notifications/message_notification_image.dart';
 import 'package:zuno/core/notifications/message_notification_poster.dart';
 import 'package:zuno/core/notifications/message_notification_provider.dart';
@@ -15,6 +16,7 @@ import 'package:zuno/core/push/push_timing.dart';
 
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/platform_capabilities.dart';
 
 void main() {
   const roomId = '!room:example.org';
@@ -71,6 +73,12 @@ void main() {
   Iterable<ShownNotification> roomPosts() =>
       notifications.shown.where((n) => n.id == roomNotificationId);
 
+  Future<void> firstPost() async {
+    for (var i = 0; i < 500 && roomPosts().isEmpty; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+  }
+
   test(
     'posts the text first and refines with the avatar once fetched',
     () async {
@@ -83,7 +91,7 @@ void main() {
           return fetched.future;
         },
       );
-      await pumpEventQueue();
+      await firstPost();
       expect(roomPosts(), hasLength(1));
       expect(roomPosts().single.android['largeIcon'], isNull);
 
@@ -103,6 +111,32 @@ void main() {
     },
   );
 
+  test('where notifications show no sender avatars, no avatar is looked up, '
+      'fetched or refined', () async {
+    final appDir = await Directory.systemTemp.createTemp('app_avatars');
+    addTearDown(() => appDir.delete(recursive: true));
+    final appAvatars = DiskAttachmentCache.forTest(appDir);
+    await appAvatars.put('avatar:$avatarUrl:small', bytes);
+
+    await postMessageNotification(
+      content(avatar: avatarUrl),
+      client: client,
+      appAvatars: appAvatars,
+      capabilities: capabilitiesLike(
+        androidCapabilities,
+        notificationAvatars: false,
+      ),
+      fetchAvatar: (_, _) async {
+        fetches++;
+        return bytes;
+      },
+    );
+
+    expect(fetches, 0);
+    expect(roomPosts(), hasLength(1));
+    expect(roomPosts().single.android['largeIcon'], isNull);
+  });
+
   test('uses a cached avatar straight away without fetching', () async {
     await NotificationAvatarCache.instance.write(avatarUrl, bytes);
 
@@ -118,6 +152,77 @@ void main() {
     expect(roomPosts(), hasLength(1));
     expect(roomPosts().single.android['largeIcon'], bytes);
     expect(fetches, 0);
+  });
+
+  group('an avatar the app already keeps for the sender', () {
+    late DiskAttachmentCache appAvatars;
+
+    setUp(() async {
+      final appDir = await Directory.systemTemp.createTemp('app-avatars');
+      addTearDown(() => appDir.delete(recursive: true));
+      appAvatars = DiskAttachmentCache.forTest(appDir);
+    });
+
+    test('is on the first post, with nothing fetched', () async {
+      await appAvatars.put('avatar:$avatarUrl:small', bytes);
+
+      await postMessageNotification(
+        content(avatar: avatarUrl),
+        client: client,
+        appAvatars: appAvatars,
+        fetchAvatar: (_, _) async {
+          fetches++;
+          return null;
+        },
+      );
+
+      expect(roomPosts(), hasLength(1));
+      expect(roomPosts().single.android['largeIcon'], bytes);
+      expect(fetches, 0);
+    });
+
+    test('is kept for the notifications that follow', () async {
+      await appAvatars.put('avatar:$avatarUrl:small', bytes);
+
+      await postMessageNotification(
+        content(avatar: avatarUrl),
+        client: client,
+        appAvatars: appAvatars,
+      );
+
+      expect(await NotificationAvatarCache.instance.read(avatarUrl), bytes);
+    });
+
+    test('of another size or another sender is not used', () async {
+      await appAvatars.put('avatar:$avatarUrl:large', bytes);
+      await appAvatars.put('avatar:mxc://x/bob:small', bytes);
+
+      await postMessageNotification(
+        content(avatar: avatarUrl),
+        client: client,
+        appAvatars: appAvatars,
+        fetchAvatar: (_, _) async {
+          fetches++;
+          return null;
+        },
+      );
+
+      expect(roomPosts().single.android['largeIcon'], isNull);
+      expect(fetches, 1);
+    });
+
+    test('is not looked up once the notification has its own copy', () async {
+      await NotificationAvatarCache.instance.write(avatarUrl, bytes);
+      await appAvatars.put('avatar:$avatarUrl:small', Uint8List.fromList([1]));
+
+      await postMessageNotification(
+        content(avatar: avatarUrl),
+        client: client,
+        appAvatars: appAvatars,
+      );
+
+      expect(roomPosts().single.android['largeIcon'], bytes);
+    });
   });
 
   test('a placeholder never fetches anything', () async {
@@ -143,6 +248,62 @@ void main() {
     );
 
     expect(roomPosts(), hasLength(1));
+  });
+
+  group('with the refinement handed back', () {
+    test('returns after the first post and refines on its own', () async {
+      final fetched = Completer<Uint8List?>();
+      final refinements = <Future<void>>[];
+
+      await postMessageNotification(
+        content(avatar: avatarUrl),
+        client: client,
+        fetchAvatar: (_, _) => fetched.future,
+        onRefining: refinements.add,
+      );
+
+      expect(roomPosts(), hasLength(1));
+      expect(refinements, hasLength(1));
+
+      showing();
+      fetched.complete(bytes);
+      await refinements.single;
+
+      expect(roomPosts(), hasLength(2));
+      expect(roomPosts().last.android['largeIcon'], bytes);
+    });
+
+    test('a refinement that throws ends quietly', () async {
+      final refinements = <Future<void>>[];
+
+      await postMessageNotification(
+        content(avatar: avatarUrl),
+        client: client,
+        fetchAvatar: (_, _) async => throw StateError('offline'),
+        onRefining: refinements.add,
+      );
+
+      await expectLater(refinements.single, completes);
+      expect(roomPosts(), hasLength(1));
+    });
+
+    test('nothing to refine hands nothing back', () async {
+      final refinements = <Future<void>>[];
+
+      await postMessageNotification(
+        content(),
+        client: client,
+        onRefining: refinements.add,
+      );
+      await postMessageNotification(
+        content(avatar: avatarUrl),
+        client: client,
+        placeholder: true,
+        onRefining: refinements.add,
+      );
+
+      expect(refinements, isEmpty);
+    });
   });
 
   test('a sender without an avatar is posted once, no fetch', () async {
@@ -199,7 +360,7 @@ void main() {
             return 'content://zuno/thumb';
           },
         );
-        await pumpEventQueue();
+        await firstPost();
         expect(roomPosts(), hasLength(1));
         expect(linesOf(roomPosts().single).single['dataUri'], isNull);
 

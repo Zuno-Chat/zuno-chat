@@ -12,11 +12,13 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/notifications/fcm_availability_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/security/security_prompt_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/step_hero.dart';
@@ -89,6 +91,9 @@ void main() {
     http.Client? httpClient,
     PlatformCapabilities? capabilities,
     Client? client,
+    AsyncValue<FcmAvailability> fcm = const AsyncData(
+      FcmAvailability.available,
+    ),
   }) async {
     final container = ProviderContainer(
       overrides: [
@@ -96,6 +101,7 @@ void main() {
         matrixClientProvider.overrideWithValue(
           client ?? buildTestClient(userId: _userId, httpClient: httpClient),
         ),
+        fcmAvailabilityProvider.overrideWithValue(fcm),
         if (capabilities != null)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
       ],
@@ -461,6 +467,12 @@ void main() {
       );
     }
 
+    Future<void> pick(WidgetTester tester, String label) async {
+      await tester.ensureVisible(find.text(label));
+      await tester.tap(find.text(label));
+      await tester.pump();
+    }
+
     testWidgets('lists every method with the current one preselected', (
       tester,
     ) async {
@@ -508,12 +520,15 @@ void main() {
         OnboardingStep.setUpRecovery,
       ]);
 
-      await tester.tap(find.text('Background sync'));
-      await tester.pump();
+      await pick(tester, 'Background sync');
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
       expect(find.text('Set up recovery'), findsOneWidget);
+      expect(
+        prefs.getString('settings.notification_delivery_mode'),
+        'backgroundService',
+      );
     });
 
     testWidgets('Android offers its three methods and nothing else', (
@@ -584,6 +599,216 @@ void main() {
 
       expect(find.text('Set up recovery'), findsOneWidget);
       expect(find.text('Let Zuno wake up'), findsNothing);
+    });
+
+    NotificationDeliveryMode? preselected(WidgetTester tester) => tester
+        .widget<RadioGroup<NotificationDeliveryMode>>(
+          find.byType(RadioGroup<NotificationDeliveryMode>),
+        )
+        .groupValue;
+
+    RadioListTile<NotificationDeliveryMode> option(
+      WidgetTester tester,
+      String label,
+    ) => tester.widget<RadioListTile<NotificationDeliveryMode>>(
+      find.widgetWithText(RadioListTile<NotificationDeliveryMode>, label),
+    );
+
+    NotificationDeliveryModeNotifier deliveryModes(WidgetTester tester) =>
+        ProviderScope.containerOf(
+          tester.element(find.byType(OnboardingFlowPage)),
+        ).read(notificationDeliveryModeProvider.notifier);
+
+    for (final (fcm, reason) in [
+      (
+        FcmAvailability.unavailable,
+        'This device does not have Google Play services.',
+      ),
+      (
+        FcmAvailability.disabled,
+        'Google Play services is turned off. Turn it on in your device '
+            'settings to use this.',
+      ),
+      (
+        FcmAvailability.notConfigured,
+        'This version of Zuno does not include Google services.',
+      ),
+    ]) {
+      testWidgets('${fcm.name}: Google services is listed with its reason '
+          'but cannot be picked', (tester) async {
+        await prefs.setString(
+          'settings.notification_delivery_mode',
+          NotificationDeliveryMode.unifiedPush.name,
+        );
+        await pumpFlow(tester, [
+          OnboardingStep.deliveryMethod,
+        ], fcm: AsyncData(fcm));
+
+        expect(option(tester, 'Google services').enabled, isFalse);
+        expect(find.text(reason), findsOneWidget);
+        expect(option(tester, 'UnifiedPush').enabled, isTrue);
+
+        await pick(tester, 'Google services');
+
+        expect(preselected(tester), NotificationDeliveryMode.unifiedPush);
+      });
+    }
+
+    testWidgets('a device that needs an update can pick Google services and '
+        'is told what comes next', (tester) async {
+      stubBatteryExemption(granted: true);
+      await prefs.setString(
+        'settings.notification_delivery_mode',
+        NotificationDeliveryMode.backgroundService.name,
+      );
+      await pumpFlow(tester, [
+        OnboardingStep.deliveryMethod,
+        OnboardingStep.setUpRecovery,
+      ], fcm: const AsyncData(FcmAvailability.updateRequired));
+
+      expect(
+        find.text(
+          'Google Play services needs an update. Zuno offers the update once '
+          'you choose this.',
+        ),
+        findsOneWidget,
+      );
+      await pick(tester, 'Google services');
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(prefs.getString('settings.notification_delivery_mode'), 'fcm');
+      expect(find.text('Set up recovery'), findsOneWidget);
+    });
+
+    group('while Zuno switches the method on its own', () {
+      testWidgets('the step follows the switch, and Continue keeps it '
+          'without recording a choice', (tester) async {
+        stubBatteryExemption(granted: true);
+        final store = await pumpFlow(tester, [
+          OnboardingStep.deliveryMethod,
+          OnboardingStep.setUpRecovery,
+        ]);
+        expect(preselected(tester), NotificationDeliveryMode.fcm);
+
+        await deliveryModes(tester)
+            .autoSelect(NotificationDeliveryMode.unifiedPush);
+        await tester.pump();
+
+        expect(preselected(tester), NotificationDeliveryMode.unifiedPush);
+
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Set up recovery'), findsOneWidget);
+        expect(store.shown(_userId), {OnboardingStep.deliveryMethod});
+        expect(
+          prefs.getString('settings.notification_delivery_mode'),
+          'unifiedPush',
+        );
+        expect(
+          prefs.getBool('settings.notification_delivery_mode_chosen'),
+          isNull,
+        );
+        expect(
+          prefs.getString('settings.notification_delivery_mode_auto'),
+          'unifiedPush',
+        );
+      });
+
+      testWidgets('a method the person picked stays picked, and Continue '
+          'saves it', (tester) async {
+        stubBatteryExemption(granted: true);
+        await pumpFlow(tester, [
+          OnboardingStep.deliveryMethod,
+          OnboardingStep.setUpRecovery,
+        ]);
+
+        await pick(tester, 'Background sync');
+        await deliveryModes(tester)
+            .autoSelect(NotificationDeliveryMode.unifiedPush);
+        await tester.pump();
+
+        expect(preselected(tester), NotificationDeliveryMode.backgroundService);
+
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
+
+        expect(
+          prefs.getString('settings.notification_delivery_mode'),
+          'backgroundService',
+        );
+        expect(
+          prefs.getBool('settings.notification_delivery_mode_chosen'),
+          isTrue,
+        );
+      });
+
+      testWidgets('Skip keeps the switch and records no choice', (
+        tester,
+      ) async {
+        final store = await pumpFlow(tester, [OnboardingStep.deliveryMethod]);
+
+        await deliveryModes(tester)
+            .autoSelect(NotificationDeliveryMode.backgroundService);
+        await tester.pump();
+        await tester.tap(find.text('Skip'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('open'), findsOneWidget);
+        expect(store.shown(_userId), {OnboardingStep.deliveryMethod});
+        expect(
+          prefs.getString('settings.notification_delivery_mode'),
+          'backgroundService',
+        );
+        expect(
+          prefs.getBool('settings.notification_delivery_mode_chosen'),
+          isNull,
+        );
+      });
+
+      testWidgets('a pick of Google services that stops working falls back '
+          'to the current method', (tester) async {
+        stubBatteryExemption(granted: true);
+        await prefs.setString(
+          'settings.notification_delivery_mode',
+          NotificationDeliveryMode.backgroundService.name,
+        );
+        await pumpFlow(tester, [
+          OnboardingStep.deliveryMethod,
+          OnboardingStep.setUpRecovery,
+        ]);
+        await pick(tester, 'Google services');
+        expect(preselected(tester), NotificationDeliveryMode.fcm);
+
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(OnboardingFlowPage)),
+        );
+        container.updateOverrides([
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          matrixClientProvider.overrideWithValue(
+            container.read(matrixClientProvider),
+          ),
+          fcmAvailabilityProvider.overrideWithValue(
+            const AsyncData(FcmAvailability.disabled),
+          ),
+        ]);
+        await tester.pump();
+
+        expect(preselected(tester), NotificationDeliveryMode.backgroundService);
+
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
+
+        expect(
+          prefs.getString('settings.notification_delivery_mode'),
+          'backgroundService',
+        );
+        expect(
+          prefs.getBool('settings.notification_delivery_mode_chosen'),
+          isNull,
+        );
+      });
     });
   });
 

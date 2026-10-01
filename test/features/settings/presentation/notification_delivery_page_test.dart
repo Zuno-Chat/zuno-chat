@@ -7,11 +7,13 @@ import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.da
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/apns_delivery_provider.dart';
+import 'package:zuno/core/notifications/fcm_availability_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
 import 'package:zuno/core/notifications/unified_push_delivery_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/notification_delivery_page.dart';
 import 'package:zuno/features/settings/presentation/push_target_status_page.dart';
@@ -42,6 +44,7 @@ Future<ProviderContainer> _pumpPage(
   WidgetTester tester,
   NotificationDeliveryMode mode, {
   PlatformCapabilities? capabilities,
+  AsyncValue<FcmAvailability> fcm = const AsyncData(FcmAvailability.available),
   bool settle = true,
 }) async {
   SharedPreferences.setMockInitialValues({});
@@ -53,6 +56,7 @@ Future<ProviderContainer> _pumpPage(
       notificationDeliveryModeProvider.overrideWith(
         () => _FixedDeliveryModeNotifier(mode),
       ),
+      fcmAvailabilityProvider.overrideWithValue(fcm),
       if (capabilities != null)
         platformCapabilitiesProvider.overrideWithValue(capabilities),
     ],
@@ -574,6 +578,121 @@ void main() {
           NotificationDeliveryMode.fcm,
         );
       });
+
+      ListTile sheetRow(WidgetTester tester, String label) =>
+          tester.widget<ListTile>(
+            find.descendant(
+              of: find.byType(BottomSheet),
+              matching: find.widgetWithText(ListTile, label),
+            ),
+          );
+
+      for (final (fcm, reason) in [
+        (
+          FcmAvailability.unavailable,
+          'This device does not have Google Play services.',
+        ),
+        (
+          FcmAvailability.disabled,
+          'Google Play services is turned off. Turn it on in your device '
+              'settings to use this.',
+        ),
+        (
+          FcmAvailability.notConfigured,
+          'This version of Zuno does not include Google services.',
+        ),
+      ]) {
+        testWidgets('${fcm.name}: Google services is listed, says why it '
+            'cannot be picked, and tapping it changes nothing', (tester) async {
+          final container = await _pumpPage(
+            tester,
+            NotificationDeliveryMode.backgroundService,
+            fcm: AsyncData(fcm),
+          );
+
+          await openSheet(tester);
+          expect(sheetRow(tester, 'Google services').enabled, isFalse);
+          expect(inSheet(reason), findsOneWidget);
+          expect(sheetRow(tester, 'UnifiedPush').enabled, isTrue);
+          expect(sheetRow(tester, 'Background sync').enabled, isTrue);
+
+          await tester.tap(inSheet('Google services'));
+          await tester.pumpAndSettle();
+
+          expect(find.byType(BottomSheet), findsOneWidget);
+          expect(
+            container.read(notificationDeliveryModeProvider),
+            NotificationDeliveryMode.backgroundService,
+          );
+          expect(
+            container
+                .read(sharedPreferencesProvider)
+                .getBool('settings.notification_delivery_mode_chosen'),
+            isNull,
+          );
+          expect(registrations, isEmpty);
+        });
+      }
+
+      testWidgets('while this device is checked, Google services waits', (
+        tester,
+      ) async {
+        await _pumpPage(
+          tester,
+          NotificationDeliveryMode.backgroundService,
+          fcm: const AsyncLoading(),
+        );
+
+        await openSheet(tester);
+
+        expect(sheetRow(tester, 'Google services').enabled, isFalse);
+        expect(inSheet('Checking this device…'), findsOneWidget);
+      });
+
+      testWidgets('a device that needs an update can still pick it, and is '
+          'told what comes next', (tester) async {
+        final container = await _pumpPage(
+          tester,
+          NotificationDeliveryMode.backgroundService,
+          fcm: const AsyncData(FcmAvailability.updateRequired),
+        );
+
+        await openSheet(tester);
+        expect(
+          inSheet(
+            'Google Play services needs an update. Zuno offers the update '
+            'once you choose this.',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(inSheet('Google services'));
+        await tester.pumpAndSettle();
+
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.fcm,
+        );
+        expect(registrations, ['fcm']);
+      });
+
+      testWidgets('the other methods keep their usual description', (
+        tester,
+      ) async {
+        await _pumpPage(
+          tester,
+          NotificationDeliveryMode.fcm,
+          fcm: const AsyncData(FcmAvailability.unavailable),
+        );
+
+        await openSheet(tester);
+
+        for (final mode in [
+          NotificationDeliveryMode.unifiedPush,
+          NotificationDeliveryMode.backgroundService,
+        ]) {
+          expect(inSheet(mode.description), findsOneWidget, reason: '$mode');
+        }
+      });
     });
 
     group('battery and background data', () {
@@ -819,6 +938,8 @@ void main() {
       for (final (status, icon) in [
         (FcmStatus.idle, Icons.pause_circle_outline),
         (FcmStatus.playServicesUnavailable, Icons.warning_amber_outlined),
+        (FcmStatus.playServicesDisabled, Icons.warning_amber_outlined),
+        (FcmStatus.notConfigured, Icons.warning_amber_outlined),
         (FcmStatus.playServicesUpdateRequired, Icons.system_update_outlined),
         (FcmStatus.ready, Icons.check_circle_outline),
         (FcmStatus.tokenFailed, Icons.error_outline),
@@ -866,6 +987,66 @@ void main() {
         await tester.pump();
 
         expect(registrations, ['fcm']);
+      });
+
+      for (final (status, availability, label) in [
+        (
+          FcmStatus.playServicesUpdateRequired,
+          FcmAvailability.updateRequired,
+          'Update Google Play services',
+        ),
+        (
+          FcmStatus.playServicesDisabled,
+          FcmAvailability.disabled,
+          'Turn on Google Play services',
+        ),
+      ]) {
+        testWidgets('${status.name} offers $label, named in full, and it '
+            'starts the fix', (tester) async {
+          var fixes = 0;
+          final fixer = fcmDeliveryProvider.playServicesFixer;
+          fcmDeliveryProvider.playServicesFixer = () async {
+            fixes++;
+            return availability;
+          };
+          addTearDown(() => fcmDeliveryProvider.playServicesFixer = fixer);
+          fcmDeliveryProvider.status.value = status;
+          await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+          expect(inStatusRow(find.byType(TextButton)), findsNothing);
+          expect(find.text('Fix'), findsNothing);
+          await tester.tap(find.text(label));
+          await tester.pump();
+
+          expect(fixes, 1);
+          expect(registrations, isEmpty);
+          expect(fcmDeliveryProvider.status.value, status);
+        });
+      }
+
+      testWidgets('a status with nothing to fix offers no fix row', (
+        tester,
+      ) async {
+        fcmDeliveryProvider.status.value = FcmStatus.tokenFailed;
+        await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+        expect(find.text('Update Google Play services'), findsNothing);
+        expect(find.text('Turn on Google Play services'), findsNothing);
+      });
+
+      testWidgets('a device that cannot run it offers nothing to tap', (
+        tester,
+      ) async {
+        fcmDeliveryProvider.status.value = FcmStatus.notConfigured;
+        await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+        expect(
+          inStatusRow(
+            find.text('This version of Zuno does not include Google services'),
+          ),
+          findsOneWidget,
+        );
+        expect(inStatusRow(find.byType(TextButton)), findsNothing);
       });
 
       testWidgets('a working registration leads to its details', (

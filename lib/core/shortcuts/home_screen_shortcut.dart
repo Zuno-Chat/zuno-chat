@@ -13,8 +13,11 @@ Stream<String> get onOpenRoomShortcut => _openRoomController.stream;
 bool _hasShortcuts(PlatformCapabilities? capabilities) =>
     (capabilities ?? ambientCapabilities).homeScreenShortcuts;
 
+bool _opensRoomsFromNative(PlatformCapabilities? capabilities) =>
+    (capabilities ?? ambientCapabilities).nativeRoomOpens;
+
 void initHomeScreenShortcutChannel({PlatformCapabilities? capabilities}) {
-  if (!_hasShortcuts(capabilities)) return;
+  if (!_opensRoomsFromNative(capabilities)) return;
   _channel.setMethodCallHandler((call) async {
     if (call.method == 'openRoom') {
       _openRoomController.add(call.arguments as String);
@@ -26,7 +29,7 @@ void initHomeScreenShortcutChannel({PlatformCapabilities? capabilities}) {
 Future<String?> takeLaunchRoomShortcut({
   PlatformCapabilities? capabilities,
 }) async {
-  if (!_hasShortcuts(capabilities)) return null;
+  if (!_opensRoomsFromNative(capabilities)) return null;
   return _channel.invokeMethod<String>('takeLaunchRoomId');
 }
 

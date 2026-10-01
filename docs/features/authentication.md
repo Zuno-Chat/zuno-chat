@@ -196,9 +196,10 @@ top-level routing decision in the app; everything past sign-in is
   Matrix error from `/refresh` (a rate limit, a 500) becomes a plain
   exception, because the SDK answers a `MatrixException` from the handler by
   clearing the local session — a transient server fault would otherwise wipe
-  the device's keys.
+  the device's keys. Only the app's client clears; a background client's
+  `clear()` is a no-op (`app-foundation.md`).
 - **A refused refresh is retried once against the stored token.** The app
-  and the background push isolate share one refresh token, and the server
+  and a push engine's client share one refresh token, and the server
   rotates it on every use, so the loser of that race holds a dead token. The
   handler waits, re-reads the token the other isolate stored, and retries
   with it; only an unchanged token counts as a verdict.

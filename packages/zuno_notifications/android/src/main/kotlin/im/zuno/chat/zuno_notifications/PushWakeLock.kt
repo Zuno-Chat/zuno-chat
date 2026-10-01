@@ -2,12 +2,26 @@ package im.zuno.chat.zuno_notifications
 
 import android.content.Context
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 
-object PushWakeLockCount {
-    fun afterAcquire(holders: Int, held: Boolean): Int = if (held) holders + 1 else 1
+class PushWakeLockKeys(private val timeoutMs: Long) {
+    private val held = LinkedHashMap<String, Long>()
 
-    fun afterRelease(holders: Int): Int = (holders - 1).coerceAtLeast(0)
+    fun acquire(key: String, now: Long) {
+        prune(now)
+        held[key] = now
+    }
+
+    fun release(key: String, now: Long): Boolean {
+        prune(now)
+        if (held.remove(key) == null) return false
+        return held.isEmpty()
+    }
+
+    private fun prune(now: Long) {
+        held.entries.removeAll { now - it.value >= timeoutMs }
+    }
 }
 
 object PushWakeLock {
@@ -16,16 +30,16 @@ object PushWakeLock {
     private const val TIMEOUT_MS = 30_000L
 
     private var wakeLock: PowerManager.WakeLock? = null
-    private var holders = 0
+    private val keys = PushWakeLockKeys(TIMEOUT_MS)
 
     @Synchronized
-    fun acquire(context: Context) {
+    fun acquire(context: Context, key: String) {
         try {
             val lock = wakeLock ?: (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
                 .apply { setReferenceCounted(false) }
                 .also { wakeLock = it }
-            holders = PushWakeLockCount.afterAcquire(holders, lock.isHeld)
+            keys.acquire(key, SystemClock.elapsedRealtime())
             lock.acquire(TIMEOUT_MS)
         } catch (e: Exception) {
             Log.w(TAG, "Could not take the push wake lock", e)
@@ -33,9 +47,8 @@ object PushWakeLock {
     }
 
     @Synchronized
-    fun release() {
-        holders = PushWakeLockCount.afterRelease(holders)
-        if (holders > 0) return
+    fun release(key: String) {
+        if (!keys.release(key, SystemClock.elapsedRealtime())) return
         try {
             wakeLock?.takeIf { it.isHeld }?.release()
         } catch (e: Exception) {

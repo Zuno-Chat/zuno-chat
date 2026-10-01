@@ -12,6 +12,7 @@ import '../push/pusher_reconciliation.dart';
 import '../push/registration_retry.dart';
 import 'notification_delivery_provider.dart';
 import 'notification_permission.dart';
+import 'notification_sound_settings.dart';
 
 enum ApnsStatus {
   idle,
@@ -27,6 +28,7 @@ const _channel = MethodChannel('zuno/apns');
 const _tokenKey = 'push.apns.token';
 const _appIdKey = 'push.apns.app_id';
 const _droppedKey = 'push.apns.dropped';
+const _soundKey = 'push.apns.sound';
 
 typedef _Registration = ({String appId, String token, String pushkey});
 
@@ -51,6 +53,10 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
   _Registration? _registration;
   String? get token => _registration?.token;
   String? get pushkey => _registration?.pushkey;
+
+  bool? _postedSound;
+  bool _syncingSound = false;
+  bool _soundChanged = false;
 
   @visibleForTesting
   Future<String?> Function() tokenReader = () =>
@@ -81,6 +87,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     }
     _registration = stored;
     dropped.value = await _storedDropped();
+    _postedSound = await _storedSound();
     lastPusherError = null;
     status.value = ApnsStatus.ready;
     _recheck.markChecked();
@@ -103,6 +110,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       return;
     }
     await _reconcile(client, stored);
+    await _syncSound(client);
   }
 
   Future<void> retryIfFailed(Client client) async {
@@ -117,9 +125,11 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
   Future<void> recheckRegistration(Client client) async {
     final registration = _registration;
     if (status.value != ApnsStatus.ready || registration == null) return;
-    if (!_recheck.claimDue()) return;
-    await _reconcile(client, registration);
+    if (_recheck.claimDue()) await _reconcile(client, registration);
+    await _syncSound(client);
   }
+
+  Future<void> messageToneChanged(Client client) => _syncSound(client);
 
   Future<void> registerNow(Client client) async {
     if (!_capabilities.apnsRegistration) return;
@@ -169,27 +179,14 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     }
 
     status.value = ApnsStatus.postingPusher;
-    final gatewayUrl = fcmGatewayUri(client.homeserver);
-    if (gatewayUrl == null) {
-      lastPusherError = 'No server to send notifications through yet.';
-      status.value = ApnsStatus.pusherFailed;
-      return;
-    }
-    try {
-      await client.postPusher(
-        buildApnsPusher(
-          appId: appId,
-          pushkey: pushkey,
-          gatewayUrl: gatewayUrl,
-          deviceDisplayName: sessionDisplayName('ios'),
-        ),
-      );
-    } catch (e) {
-      lastPusherError = e.toString();
-      status.value = ApnsStatus.pusherFailed;
-      _retry.schedule(() => _register(client));
-      return;
-    }
+    final sound = await _messageTone();
+    final posted = await _post(
+      client,
+      appId: appId,
+      pushkey: pushkey,
+      sound: sound,
+    );
+    if (!posted) return;
     final previous = _registration ?? await _storedRegistration();
     final registration = (appId: appId, token: token, pushkey: pushkey);
     _registration = registration;
@@ -202,6 +199,91 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
         (previous.appId != appId || previous.pushkey != pushkey)) {
       await _forget(client, previous);
     }
+    await _syncSound(client);
+  }
+
+  Future<void> _syncSound(Client client) async {
+    _soundChanged = true;
+    if (_syncingSound) return;
+    _syncingSound = true;
+    try {
+      while (_soundChanged) {
+        _soundChanged = false;
+        final registration = _registration;
+        if (status.value != ApnsStatus.ready || registration == null) return;
+        final sound = await _messageTone();
+        if (sound == _postedSound) continue;
+        final gatewayUrl = fcmGatewayUri(client.homeserver);
+        if (gatewayUrl == null) return;
+        try {
+          await _send(
+            client,
+            appId: registration.appId,
+            pushkey: registration.pushkey,
+            gatewayUrl: gatewayUrl,
+            sound: sound,
+          );
+        } catch (e) {
+          debugPrint(
+            'zuno/push: Message tone not on the APNs pusher yet, trying '
+            'again on resume ($e)',
+          );
+          return;
+        }
+        _soundChanged = true;
+      }
+    } finally {
+      _syncingSound = false;
+    }
+  }
+
+  Future<bool> _post(
+    Client client, {
+    required String appId,
+    required String pushkey,
+    required bool sound,
+  }) async {
+    final gatewayUrl = fcmGatewayUri(client.homeserver);
+    if (gatewayUrl == null) {
+      lastPusherError = 'No server to send notifications through yet.';
+      status.value = ApnsStatus.pusherFailed;
+      return false;
+    }
+    try {
+      await _send(
+        client,
+        appId: appId,
+        pushkey: pushkey,
+        gatewayUrl: gatewayUrl,
+        sound: sound,
+      );
+    } catch (e) {
+      lastPusherError = e.toString();
+      status.value = ApnsStatus.pusherFailed;
+      _retry.schedule(() => _register(client));
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _send(
+    Client client, {
+    required String appId,
+    required String pushkey,
+    required Uri gatewayUrl,
+    required bool sound,
+  }) async {
+    await client.postPusher(
+      buildApnsPusher(
+        appId: appId,
+        pushkey: pushkey,
+        gatewayUrl: gatewayUrl,
+        deviceDisplayName: sessionDisplayName('ios'),
+        sound: sound,
+      ),
+    );
+    _postedSound = sound;
+    await _storeSound(sound);
   }
 
   @override
@@ -214,6 +296,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       await prefs.remove(_tokenKey);
       await prefs.remove(_appIdKey);
       await prefs.remove(_droppedKey);
+      await prefs.remove(_soundKey);
     } catch (e) {
       debugPrint('zuno/push: could not forget the APNs registration ($e)');
     }
@@ -226,6 +309,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       }
     }
     _registration = null;
+    _postedSound = null;
     dropped.value = 0;
     status.value = ApnsStatus.idle;
   }
@@ -271,6 +355,31 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       await (await SharedPreferences.getInstance()).setInt(_droppedKey, count);
     } catch (e) {
       debugPrint('zuno/push: could not record the APNs drop count ($e)');
+    }
+  }
+
+  Future<bool> _messageTone() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return readNotificationSoundSettings(prefs).messageTone;
+    } catch (_) {
+      return NotificationSoundSettings.defaults.messageTone;
+    }
+  }
+
+  Future<bool> _storedSound() async {
+    try {
+      return (await SharedPreferences.getInstance()).getBool(_soundKey) ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<void> _storeSound(bool sound) async {
+    try {
+      await (await SharedPreferences.getInstance()).setBool(_soundKey, sound);
+    } catch (e) {
+      debugPrint('zuno/push: could not record the APNs pusher sound ($e)');
     }
   }
 

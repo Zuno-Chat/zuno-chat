@@ -12,6 +12,7 @@ import 'package:zuno/core/notifications/delivery_failure_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
+import 'package:zuno/core/notifications/notification_permission_provider.dart';
 import 'package:zuno/core/notifications/unified_push_delivery_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
@@ -50,6 +51,11 @@ class _FixedMode extends NotificationDeliveryModeNotifier {
   NotificationDeliveryMode build() => mode;
 }
 
+class _NotificationsAllowed extends NotificationsAllowedNotifier {
+  @override
+  bool? build() => true;
+}
+
 Widget _wrap(DeliveryFailure? failure) => ProviderScope(
   overrides: [deliveryFailureProvider.overrideWithValue(failure)],
   child: const MaterialApp(home: Scaffold(body: NotificationDeliveryBanner())),
@@ -84,8 +90,8 @@ void main() {
     await tester.pumpWidget(
       _wrap(
         const DeliveryFailure(
-          message: 'Google services needs an update',
-          action: DeliveryFailureAction.fixGoogleServices,
+          message: 'Google Play services needs an update',
+          action: DeliveryFailureAction.updatePlayServices,
         ),
       ),
     );
@@ -126,6 +132,30 @@ void main() {
       );
     },
   );
+
+  testWidgets('on a narrow phone a long action sits under the message, '
+      'which keeps its width', (tester) async {
+    tester.view
+      ..physicalSize = const Size(360, 640)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      _wrap(
+        const DeliveryFailure(
+          message: 'Google Play services is turned off',
+          action: DeliveryFailureAction.turnOnPlayServices,
+        ),
+      ),
+    );
+
+    final message = tester.getRect(
+      find.text('Google Play services is turned off'),
+    );
+    final action = tester.getRect(find.text('Turn on Google Play services'));
+    expect(action.top, greaterThanOrEqualTo(message.bottom));
+    expect(message.width, greaterThan(200));
+  });
 
   testWidgets('renders exactly one action button, never a choice', (
     tester,
@@ -182,6 +212,72 @@ void main() {
     await tester.pump();
 
     expect(client.posted.map((p) => p.appId), [apnsAppId]);
+  });
+
+  group('on a device without Google Play services', () {
+    late SharedPreferences prefs;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({
+        'settings.notification_delivery_mode': 'fcm',
+        'settings.notification_delivery_mode_chosen': true,
+      });
+      prefs = await SharedPreferences.getInstance();
+      fcmDeliveryProvider.status.value = FcmStatus.playServicesUnavailable;
+      addTearDown(() => fcmDeliveryProvider.status.value = FcmStatus.idle);
+    });
+
+    Future<void> pumpBanner(
+      WidgetTester tester, {
+      required bool distributorInstalled,
+    }) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            matrixClientProvider.overrideWithValue(buildTestClient()),
+            notificationsAllowedProvider.overrideWith(
+              _NotificationsAllowed.new,
+            ),
+            unifiedPushDistributorInstalledProvider.overrideWithValue(
+              AsyncData(distributorInstalled),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: NotificationDeliveryBanner()),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('with no distributor installed, offers background sync '
+        'directly, and it takes one tap', (tester) async {
+      await pumpBanner(tester, distributorInstalled: false);
+
+      expect(
+        find.text('This device does not have Google Play services'),
+        findsOneWidget,
+      );
+      expect(find.text('Switch to UnifiedPush'), findsNothing);
+
+      await tester.tap(find.text('Use background sync'));
+      await tester.pump();
+
+      expect(
+        prefs.getString('settings.notification_delivery_mode'),
+        'backgroundService',
+      );
+      expect(find.byKey(const ValueKey('deliveryFailureBanner')), findsNothing);
+    });
+
+    testWidgets('with a distributor installed, offers UnifiedPush', (
+      tester,
+    ) async {
+      await pumpBanner(tester, distributorInstalled: true);
+
+      expect(find.text('Switch to UnifiedPush'), findsOneWidget);
+      expect(find.text('Use background sync'), findsNothing);
+    });
   });
 
   group('each action', () {
@@ -359,20 +455,30 @@ void main() {
       );
     });
 
-    testWidgets('Fix Google services asks Android to fix them', (tester) async {
-      recordChannel(tester, 'zuno/play_services');
-      await pumpBanner(
-        tester,
-        const DeliveryFailure(
-          message: 'Google services needs an update',
-          action: DeliveryFailureAction.fixGoogleServices,
-        ),
-      );
+    for (final (action, message, label) in [
+      (
+        DeliveryFailureAction.updatePlayServices,
+        'Google Play services needs an update',
+        'Update Google Play services',
+      ),
+      (
+        DeliveryFailureAction.turnOnPlayServices,
+        'Google Play services is turned off',
+        'Turn on Google Play services',
+      ),
+    ]) {
+      testWidgets('$label asks Android for exactly that', (tester) async {
+        recordChannel(tester, 'zuno/fcm');
+        await pumpBanner(
+          tester,
+          DeliveryFailure(message: message, action: action),
+        );
 
-      await act(tester, 'Fix Google services');
+        await act(tester, label);
 
-      expect(channelCalls, ['zuno/play_services fixPlayServices']);
-    });
+        expect(channelCalls, ['zuno/fcm fixPlayServices']);
+      });
+    }
 
     for (final (mode, provider) in [
       (NotificationDeliveryMode.fcm, 'fcm'),

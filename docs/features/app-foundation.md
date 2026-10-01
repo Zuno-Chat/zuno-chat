@@ -15,7 +15,10 @@ feature folders (`lib/features/<feature>/presentation/`) hold screens
 only, and screens call SDK methods directly (`client.login`,
 `room.sendTextEvent`, ...). SDK types (`Client`/`Room`/`Event`/
 `Timeline`) *are* the app state — Riverpod providers expose the client
-and derived streams, not a separate app-level model.
+and derived streams, not a separate app-level model. While the app runs it
+is also the only Matrix client in the process: push engines and
+notification actions open their own short-lived clients only under the
+client lease (One Matrix client per process, below).
 
 Key providers (`matrix_client_provider.dart`):
 - `matrixClientProvider` — the `Client`, overridden in `main.dart` once
@@ -127,20 +130,56 @@ Each flag is one of these kinds:
 
 | Kind | Flags | Values |
 |---|---|---|
-| Native handler, both platforms | `nativeVideoTools`, `nativeImageResize`, `nativeSignOutWipe`, `sensitiveClipboard`, `screenSecurity`, `uploadForegroundService`, `networkAvailabilityEvents` | `true` on both |
-| Awaiting an iOS equivalent | every other Android-`true` flag, e.g. `homeScreenShortcuts`, `inboundShare`, `pictureInPicture` | iOS flips to `true` once a native handler exists |
-| Permanent: Android concept | `playServices`, `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent` | iOS stays `false` |
+| Native handler, both platforms | `nativeVideoTools`, `nativeImageResize`, `nativeSignOutWipe`, `sensitiveClipboard`, `screenSecurity`, `uploadForegroundService`, `networkAvailabilityEvents`, `headlessWakeLocks`, `nativeRoomOpens` (`zuno/shortcuts` room opens; pinning stays on `homeScreenShortcuts`), `clientLease` | `true` on both |
+| Awaiting an iOS equivalent | every other Android-`true` flag, e.g. `homeScreenShortcuts`, `inboundShare`, `pictureInPicture`, `notificationAvatars` (iOS shows no sender avatar without communication notifications, so it fetches none) | iOS flips to `true` once a native handler exists |
+| Permanent: Android concept | `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent` | iOS stays `false` |
+| Android-only behavior | `atomicDatabaseBatches` (one database connection shared by every engine), `instantPushNotices` (a native notice posted from the push; on iOS the APNs alert is the system's) | `true` on Android only |
 | Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` (Android); `callKit` (iOS) | `true` on their own platform only; the call factories check `callKit` first (`calls.md`), so the Android three are never flipped |
 | iOS-only behavior | `apnsRegistration`, `playerNeedsMediaType`, `callMuteByInputMixer`, `signOutWipeKeepsProcess` | `true` on iOS only |
 | Apple limitation | `recorderWritesOgg` (Apple can't write Ogg), `videoCodecOrder` (`null` on iOS, see `calls.md`), `locationServicesSettings` (no link into Location Services), `filesTypedByExtension` (other apps type a file by its name), `screenshotBlocking` (no app can block a screenshot; picks the screen-privacy copy) | differs on iOS for good |
+
+### One Matrix client per process
+
+**At most one Matrix client is live per process, and the app's always
+wins** (`zuno/client_lease`, `client_lease.dart`). matrix SDK 12.0.1 writes
+`olm_account` and each identity key's Olm session map as whole values from
+the client's own box cache, so two live clients on one store silently lose
+each other's crypto writes (one-time keys, Olm sessions).
+
+| Holder | Rule |
+|---|---|
+| App, `createMatrixClient()` | Takes the app lease before opening the store and keeps it for the process. A background holder is asked to `yield`; after 5 s the app is force-granted (logged), the one case where two clients overlap. With no native answer Dart goes on after 7 s |
+| Background, `createMatrixClient(backgroundSync: false)` | Denied while the app holds the lease. Otherwise it waits up to 8 s behind another background holder, which is asked to yield; one request per isolate at a time. `ZunoClient.dispose` releases it; a detached engine's leases are released and its waiters denied |
+
+What each background path does on `ClientLeaseDenied`:
+
+| Path | Then |
+|---|---|
+| Push | Dropped; the instant notice stays (`notifications.md`) |
+| Push engine's ring hold, sending a decline | Hands it to the app's decline route (`calls.md`) |
+| Notification action or Decline in the action engine | Retries the hand-off to the app's live route for about 6 s |
+| FCM token move in a push engine | Saved as the pending token |
+
+- Native halves: Android `ClientLeases` over the pure, JUnit-tested
+  `ClientLeaseBook` in `zuno_notifications`, on every engine that plugin
+  reaches; iOS `ClientLeasePlugin` over `ClientLeaseLedger` (XCTests), on the
+  app engine and the notification-action engine. Without the native half
+  (`MissingPluginException`) both kinds go on unleased.
+- **Background clients never clear the store** (`ZunoClient(appClient:
+  false)`): the SDK's own `clear()` on a failed init or refresh would
+  otherwise wipe the shared database from a push engine.
+- Cost: a background push or action is denied while the app holds the
+  client; the native notice or the hand-off covers it.
 
 ## Data & State
 The SDK's local database (SQLCipher-encrypted `sqflite`) is the
 persistence layer — everything the SDK tracks (access token, Olm
 account, Megolm sessions, cached room/event state) lives in one file,
-opened in `createMatrixClient()` via `_openDatabase()`. No app-level
-database or cache sits alongside it. `client.init()` restores any prior
-session from that database and, if logged in, starts the sync loop.
+`zuno.db`, opened in `createMatrixClient()` via `_openDatabase()`. No
+app-level database or cache sits alongside it. `client.init()` restores
+any prior session from that database and, if logged in, starts the sync
+loop. Push engines and notification actions open the same file from their
+own engines in the same process, one client at a time.
 
 The database is always opened with its key; there is no plaintext
 upgrade path, so a plaintext `zuno.db` fails to open rather than being
@@ -148,15 +187,65 @@ read unencrypted. `PRAGMA cipher_version` is checked explicitly after
 opening (`_assertSqlCipherPresent`) because `PRAGMA key` fails silently
 on stock sqlite3 with no other signal.
 
-A `zuno.db` whose key is gone can never be opened, so
-`obtainDatabaseCipher(databasePath:)` deletes it before generating a new
-key, and the device starts signed out instead of failing at launch. The
-likely cause is an iOS backup restored on another phone: the key is
-`first_unlock_this_device` and never travels. Only a genuinely absent key
-triggers it; an unreadable one (a locked Keychain) throws
-`DatabaseKeyUnavailable` first. It also deletes the `-wal`, `-shm` and
-`-journal` files itself: sqflite_sqlcipher's delete removes only the main
-file on iOS.
+**Only the app mints a database key.** A `zuno.db` whose key is gone can
+never be opened, so the app's `obtainDatabaseCipher(databasePath:)` deletes
+it before generating a new key, and the device starts signed out instead of
+failing at launch. The likely cause is an iOS backup restored on another
+phone: the key is `first_unlock_this_device` and never travels. Only a
+genuinely absent key triggers it; an unreadable one (a locked Keychain)
+throws `DatabaseKeyUnavailable` first. It also deletes the `-wal`, `-shm`
+and `-journal` files itself: sqflite_sqlcipher's delete removes only the
+main file on iOS. A background client passes `createIfMissing: false` and
+throws `DatabaseKeyUnavailable` instead, so it can never replace the app's
+store.
+
+**Nothing discards the key on a read error.** On Android
+`SecureSecretStore` sets `resetOnError: false`: flutter_secure_storage's
+default deletes every stored secret after one Keystore read error, which
+would lose the key and make the next open delete the database. Only Start
+over uses the discarding variant (`SecureSecretStore.discardingUnreadable`).
+
+**SQLCipher's derived key is cached** (`database_raw_key.dart`) as a raw-key
+literal tagged with the file's 16-byte salt (`<salt hex>:x'<key hex>'`,
+secure storage key `matrix_database_raw_key`). The passphrase is already 256
+random bits, so SQLCipher's 256,000 PBKDF2-HMAC-SHA512 rounds per cold
+process buy nothing.
+- An open with the cache needs a matching salt and a read-only probe that
+  reads the keyed tables. Any failure forgets the cache and opens with the
+  passphrase; the file is never touched.
+- Only the app derives it, unawaited after its store opens: vodozemac's
+  native `CryptoUtils.pbkdf2` in an isolate, falling back to the pure-Dart
+  PBKDF2 kept as the vector-tested reference. A wrong result fails the probe
+  and is never cached; the native path is covered by that runtime probe,
+  not by unit tests.
+- Minting or discarding the database key forgets it. It is shared Dart, so
+  iOS has it too.
+
+**On Android every SDK write transaction is one native batch**
+(`AtomicBatchDatabase`, `atomicDatabaseBatches`). Android's sqflite_sqlcipher
+keeps one native connection per path in a process-wide registry, shared by
+every engine. A Dart-side transaction spans channel round trips, so an
+engine that dies inside one leaves the shared connection mid-transaction,
+and every later write in the process, Olm and Megolm state included, is
+silently discarded. The wrapper replays each `Batch.commit` as
+`BEGIN IMMEDIATE … COMMIT` in one native call, rolls back on failure,
+refuses `continueOnError`, and serializes every call. iOS registers its
+connections per engine, so it stays unwrapped. Residual: a batch failing
+after `BEGIN` needs a second `ROLLBACK` call, and another engine's write in
+that round trip can be rolled back with it. The trigger is disk full, an I/O
+error or corruption; owning a fork of the crypto database plugin was judged
+the bigger risk.
+
+**Opening the shared store** (`shared_database_open.dart`): a keyed open
+that meets another engine's transaction on the Android connection fails with
+a `TypeError` (sqflite casts the keyed open's options while handling
+`recoveredInTransaction`). The open retries, 10 ms doubling to 250 ms, for
+1 s, then treats the transaction as abandoned. Only for a file whose header
+says encrypted, it reopens without the key with
+`rollbackActiveTransactionOnOpen`, which returns the shared keyed connection
+rolled back. It never deletes the store: it deletes a file only when its
+header proves it plaintext after that reopen, closes a connection that
+cannot read the keyed tables, and leaves an unreadable file as it is.
 
 App data stays out of device backups. Android sets `allowBackup="false"`.
 iOS flags Application Support (database, notification avatars) and
@@ -170,9 +259,10 @@ clears it on first launch.
 **Cold start.** `main()`'s independent setup steps (notifications,
 building the Matrix client, reading stored preferences) run in
 parallel, not sequentially — none depends on the others. Inside
-`createMatrixClient()`, vodozemac (E2EE) init and opening the local
-database likewise run concurrently, joined with an explicit `await`
-only where crypto actually needs it. `client.init()` is called with
+`createMatrixClient()`, after the app lease, vodozemac (E2EE) init and
+opening the local database likewise run concurrently, joined with an
+explicit `await` only where crypto actually needs it. A start that throws
+is retried, then asked about (Key Design Decisions). `client.init()` is called with
 `waitForFirstSync: false`: the SDK's default (`true`) blocks return
 until a live `/sync` round trip completes, holding up `runApp` on every
 cold start even though everything needed to render the room list
@@ -255,6 +345,18 @@ fetches, room history requests and starting a new call.
 - **Single `Client`, no repository layer** — SDK types are the app
   state; screens call SDK methods directly. Keeps one source of truth
   and avoids a parallel app-level model drifting from the SDK's own.
+- **A failed start asks before deleting anything.** The SDK clears the
+  whole store on an unexpected `Client.init` error; `ZunoClient` skips that
+  clear during session restore (sign-in and registration still clear).
+  `createMatrixClient` tries three times (250 ms, then 1 s apart), then
+  `StartupFailurePage` (`lib/features/startup/`) says nothing was deleted
+  and offers Try again, or a confirmed "Start over on this device", which
+  discards the key and the database and starts signed out. Each failed round
+  is reported like a zone error. Why: a full disk or a flaky Keystore must
+  not cost someone their encryption keys (`docs/brand-voice.md`:
+  protective), and a client that cannot start gets a screen instead of an
+  endless splash. A stored session needs no network to init, so an offline
+  launch never fails the start.
 - **`waitForFirstSync: false`** — cold start must not block on a live
   network round trip when the local database already has everything
   needed to render; see Communication above.
@@ -392,8 +494,9 @@ the ring case, so it was not done.
   kills the process and drops files, prefs, keys, notifications, channels,
   shortcuts and runtime permissions; the next launch is a fresh install.
   The marker is what separates a sign-out from a device that never signed
-  in, and it catches a sign-out noticed elsewhere (remote, or a headless
-  push isolate) at the next launch. Sign-out paths therefore clean nothing
+  in, and it catches a sign-out noticed elsewhere (remote) at the next
+  launch; push engines never sign out on their own, since background
+  clients never clear the store. Sign-out paths therefore clean nothing
   local themselves. The native reply must be `true`: anything else counts
   as refused and keeps the marker, so the next launch retries. A wipe that
   leaves the process running clears the marker and releases the latch, so a
@@ -423,15 +526,19 @@ the ring case, so it was not done.
 - **`vod.init()` (vodozemac) throws on a second call within the same
   isolate** — it does not no-op. `createMatrixClient()` always calls
   `ensureVodozemacInitialized()` (never a bare `vod.init()`), which
-  matters because the headless `--unifiedpush-bg` isolate calls
-  `createMatrixClient()` once per push.
+  matters because push engines and the notification-action isolate call
+  `createMatrixClient()` more than once.
+- **The SDK's `BoxCollection.transaction` has no `try/finally`** (matrix
+  12.0.1, upstream): an action that throws leaves `_activeBatch` set, so
+  later direct writes land in a batch nobody commits until the next
+  transaction replaces it, while the box cache already shows them.
 - **The User-Agent is per isolate and per client.** `installUserAgent()`
   (`lib/core/network/user_agent.dart`) sets `HttpOverrides.global`, so
   every dart:io client created afterwards sends
   `Zuno/<version> (Android; im.zuno.chat)`, or `(iOS; …)` from
   `currentAppPlatform` — Matrix SDK, modules, images,
-  tiles. It runs first in `_runApp` (covering `--unifiedpush-bg`), in
-  `fcmBackgroundHandler` and in the background notification action; a new
+  tiles. It runs first in `_runApp` (covering `--unifiedpush-bg` and
+  `--fcm-bg`) and in the notification-action isolate's client builder; a new
   isolate entry point must call it before anything builds an HTTP client,
   or its traffic goes out as `Dart/x.y`. The version comes from
   `PackageInfo`; unreadable, the agent drops it rather than failing.
@@ -501,9 +608,9 @@ the ring case, so it was not done.
   value — an exception between the two calls (e.g. an offline pull)
   would otherwise leave the app with no sync loop for the rest of the
   session. This unconditional restore is specific to `forceSyncNow`'s
-  normal callers (pull-to-refresh, post-recovery refresh) — the headless
-  `--unifiedpush-bg` isolate deliberately runs with no sync loop and
-  must never call it. `didChangeAppLifecycleState`'s background-pause
+  normal callers (pull-to-refresh, post-recovery refresh) — background
+  clients (push engines, notification actions) deliberately run with no
+  sync loop and must never call it. `didChangeAppLifecycleState`'s background-pause
   relies on this same side effect the opposite way: `abortSync()` on
   `paused` leaves `backgroundSync` false until `resumed` explicitly sets
   it back to `true` — there is no third caller racing to restore it
@@ -516,6 +623,11 @@ the ring case, so it was not done.
   where the underlying stream doesn't replay (`isLoggedInProvider`,
   `connectionStatusProvider` are the template), read via `ref.watch`/`ref.read`
   directly in screens — not behind a new repository abstraction.
+- A new background entry point (engine or isolate) opens its client only
+  through `createMatrixClient(backgroundSync: false)` (background lease, no
+  key minting, no store clearing) and handles `ClientLeaseDenied`. It calls
+  `installUserAgent()` first and never `CallNotificationService.initialize()`
+  with the default claim (`calls.md`).
 - Do not reintroduce sequential blocking init. Any new setup step in
   `main()` or `createMatrixClient()` that doesn't depend on an existing
   step's result should start concurrently and be joined only where a
@@ -540,8 +652,12 @@ the ring case, so it was not done.
   existing global keys (`globalScaffoldMessengerKey`,
   `globalNavigatorKey`, both wired on `MaterialApp` in `app.dart`)
   rather than introducing a second mechanism.
+- A new Swift class goes into an existing file under `ios/Runner/`: adding a
+  file needs `project.pbxproj` edits that only an iOS build can verify. So
+  `WakeLockPlugin` and `ClientLeasePlugin` live in
+  `UploadServicePlugin.swift`, `RoomLaunchPlugin` in `ApnsTokenPlugin.swift`.
 - The iOS Runner compiles in Swift 6 mode. A new channel handler copies
-  the shape of the four in `ios/Runner/`: a `@MainActor` class,
+  the shape of the ones in `ios/Runner/`: a `@MainActor` class,
   `@preconcurrency FlutterPlugin` conformance, and
   `@preconcurrency import Flutter`, since Flutter's headers carry no
   concurrency annotations. Blocking work leaves the main actor, either on
@@ -554,9 +670,11 @@ the ring case, so it was not done.
 ## Dependencies / Integration
 - **matrix SDK** (`Client`, `MatrixSdkDatabase`, `NativeImplementations`)
   — the foundation this whole layer wraps.
-- **sqflite_sqlcipher** — encrypted local database backing.
+- **sqflite_sqlcipher** — encrypted local database backing; on Android one
+  native connection per path, shared by every engine.
 - **vodozemac** (via the SDK's encryption layer) — E2EE; initialized
-  once per isolate through `ensureVodozemacInitialized()`.
+  once per isolate through `ensureVodozemacInitialized()`. A direct
+  dependency too: its `CryptoUtils.pbkdf2` derives the cached SQLCipher key.
 - **flutter_riverpod** — provider plumbing for `Client`, login state,
   connectivity.
 - Feature layers that build on this one: authentication (`isLoggedInProvider`,

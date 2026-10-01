@@ -21,6 +21,9 @@ enum AvatarBucket {
       diameter <= 56 ? small : large;
 }
 
+String avatarCacheKey(Uri mxc, AvatarBucket bucket) =>
+    'avatar:$mxc:${bucket.name}';
+
 class MxcAvatarImage extends ImageProvider<MxcAvatarImage> {
   final Client client;
   final Uri mxc;
@@ -34,7 +37,7 @@ class MxcAvatarImage extends ImageProvider<MxcAvatarImage> {
     this.disk,
   });
 
-  String get _cacheKey => 'avatar:$mxc:${bucket.name}';
+  String get _cacheKey => avatarCacheKey(mxc, bucket);
 
   @override
   Future<MxcAvatarImage> obtainKey(ImageConfiguration configuration) =>

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/apns_delivery_provider.dart';
+import 'package:zuno/core/notifications/notification_sound_settings.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
 import 'package:zuno/core/push/registration_retry.dart';
 
@@ -23,9 +26,13 @@ class _RecordingClient extends Client {
   final posted = <Pusher>[];
   final deleted = <PusherId>[];
   Object? postError;
+  Completer<void>? holdNextPost;
 
   @override
   Future<void> postPusher(Pusher pusher, {bool? append}) async {
+    final hold = holdNextPost;
+    holdNextPost = null;
+    await hold?.future;
     if (postError != null) throw postError!;
     posted.add(pusher);
   }
@@ -316,5 +323,197 @@ void main() {
 
     expect(client.deleted, isEmpty);
     expect(tokenReads, 0);
+  });
+
+  group('Message tone', () {
+    Object? soundOf(Pusher pusher) =>
+        ((pusher.data.toJson()['default_payload'] as Map)['aps']
+            as Map)['sound'];
+
+    Future<void> setMessageTone(bool on) async =>
+        (await SharedPreferences.getInstance()).setBool(
+          messageToneEnabledKey,
+          on,
+        );
+
+    test('off at registration, the pusher is posted without a sound', () async {
+      await setMessageTone(false);
+
+      await provider.start(client);
+
+      expect(provider.status.value, ApnsStatus.ready);
+      expect(client.posted.map(soundOf), [null]);
+    });
+
+    test('turning it off re-posts the same pusher without a sound', () async {
+      await provider.start(client);
+      await setMessageTone(false);
+
+      await provider.messageToneChanged(client);
+
+      expect(client.posted.map(soundOf), ['default', null]);
+      expect(client.posted.last.appId, apnsAppId);
+      expect(client.posted.last.pushkey, _pushkey);
+      expect(client.deleted, isEmpty);
+      expect(provider.status.value, ApnsStatus.ready);
+    });
+
+    test('turning it back on re-posts with the default sound', () async {
+      await setMessageTone(false);
+      await provider.start(client);
+      await setMessageTone(true);
+
+      await provider.messageToneChanged(client);
+
+      expect(client.posted.map(soundOf), [null, 'default']);
+    });
+
+    test('a change the pusher already carries posts nothing', () async {
+      await provider.start(client);
+      await provider.messageToneChanged(client);
+      await setMessageTone(false);
+      await provider.messageToneChanged(client);
+
+      await provider.messageToneChanged(client);
+
+      expect(client.posted.map(soundOf), ['default', null]);
+    });
+
+    test('with nothing registered a change asks for no token and posts '
+        'nothing', () async {
+      await setMessageTone(false);
+
+      await provider.messageToneChanged(client);
+
+      expect(tokenReads, 0);
+      expect(client.posted, isEmpty);
+      expect(provider.status.value, ApnsStatus.idle);
+    });
+
+    test('a re-post the server rejects leaves the working registration '
+        'ready, and the next resume posts the sound again', () async {
+      await provider.start(client);
+      final reads = tokenReads;
+      client.postError = Exception('M_UNKNOWN');
+      await setMessageTone(false);
+
+      await provider.messageToneChanged(client);
+
+      expect(provider.status.value, ApnsStatus.ready);
+      expect(provider.lastPusherError, isNull);
+      expect(provider.retryScheduled, isFalse);
+      expect(tokenReads, reads);
+
+      client.postError = null;
+      await provider.recheckRegistration(client);
+
+      expect(provider.status.value, ApnsStatus.ready);
+      expect(client.posted.map(soundOf), ['default', null]);
+      expect(tokenReads, reads);
+    });
+
+    test('a sound that already reached the server is not posted again on '
+        'resume', () async {
+      await provider.start(client);
+      await setMessageTone(false);
+      await provider.messageToneChanged(client);
+
+      await provider.recheckRegistration(client);
+
+      expect(client.posted.map(soundOf), ['default', null]);
+    });
+
+    test('a re-post the server rejects is tried again on the next launch, '
+        'too', () async {
+      await provider.start(client);
+      client.postError = Exception('M_UNKNOWN');
+      await setMessageTone(false);
+      await provider.messageToneChanged(client);
+      client
+        ..postError = null
+        ..pushersOnServer = [_serverPusher(_pushkey)];
+
+      final relaunched = providerWith(registration: true);
+      await relaunched.start(client);
+
+      expect(client.posted.map(soundOf), ['default', null]);
+      expect(relaunched.status.value, ApnsStatus.ready);
+    });
+
+    test('a change while the pusher is being registered is posted once the '
+        'registration lands', () async {
+      final hold = client.holdNextPost = Completer<void>();
+      final starting = provider.start(client);
+      await pumpEventQueue();
+      expect(provider.status.value, ApnsStatus.postingPusher);
+
+      await setMessageTone(false);
+      await provider.messageToneChanged(client);
+      hold.complete();
+      await starting;
+
+      expect(client.posted.map(soundOf), ['default', null]);
+      expect(provider.status.value, ApnsStatus.ready);
+    });
+
+    test('switching back while a re-post is in flight ends on the last '
+        'choice', () async {
+      await provider.start(client);
+      final hold = client.holdNextPost = Completer<void>();
+      await setMessageTone(false);
+      final first = provider.messageToneChanged(client);
+      await pumpEventQueue();
+
+      await setMessageTone(true);
+      await provider.messageToneChanged(client);
+      hold.complete();
+      await first;
+
+      expect(client.posted.map(soundOf), ['default', null, 'default']);
+      expect(provider.status.value, ApnsStatus.ready);
+    });
+
+    test(
+      'a relaunch re-posts a pusher whose sound no longer matches',
+      () async {
+        await provider.start(client);
+        client.posted.clear();
+        client.pushersOnServer = [_serverPusher(_pushkey)];
+        await setMessageTone(false);
+
+        final relaunched = providerWith(registration: true);
+        await relaunched.start(client);
+
+        expect(client.posted.map(soundOf), [null]);
+        expect(relaunched.status.value, ApnsStatus.ready);
+      },
+    );
+
+    test('a relaunch whose pusher already matches posts nothing', () async {
+      await setMessageTone(false);
+      await provider.start(client);
+      client.posted.clear();
+      client.pushersOnServer = [_serverPusher(_pushkey)];
+
+      final relaunched = providerWith(registration: true);
+      await relaunched.start(client);
+
+      expect(client.posted, isEmpty);
+    });
+
+    test('a pusher registered before Message tone reached Apple push is '
+        're-posted without a sound when the tone is off', () async {
+      SharedPreferences.setMockInitialValues({
+        'push.apns.token': _token,
+        'push.apns.app_id': apnsAppId,
+        messageToneEnabledKey: false,
+      });
+      client.pushersOnServer = [_serverPusher(_pushkey)];
+
+      await provider.start(client);
+
+      expect(client.posted.map(soundOf), [null]);
+      expect(provider.status.value, ApnsStatus.ready);
+    });
   });
 }

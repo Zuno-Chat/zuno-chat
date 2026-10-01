@@ -30,11 +30,13 @@ because Sentry hooks that zone only when it owns `appRunner`, which it
 does not here. `installGlobalErrorHandlers` chains whatever handler it
 replaces, so either init order works.
 
-Three isolates initialize separately: the app, the UnifiedPush headless
-entry, and the FCM background handler. The two headless ones go through
-`initHeadlessCrashReporting()`, which turns session tracking off — a
-push wake is not a user session, and counting it as one would bury the
-crash-free rate under hundreds of one-second sessions a day.
+Three isolates initialize separately: the app, the UnifiedPush push
+engine, and the FCM push engine (`runFcmHeadless`), which starts it
+unawaited after its first push or token job, so it never delays a delivery.
+The two push engines go through `initHeadlessCrashReporting()`, which turns
+session tracking off — a push wake is not a user session, and counting it
+as one would bury the crash-free rate under hundreds of one-second sessions
+a day.
 
 `sendFeedback` builds its own `SentryClient` over a bare `SentryOptions`,
 sends one feedback event and closes it. It never touches the global hub,

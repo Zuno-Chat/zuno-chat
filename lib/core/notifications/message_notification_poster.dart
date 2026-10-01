@@ -1,9 +1,13 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
 
 import '../calls/notifications/call_notification_service.dart';
 import '../calls/notifications/caller_avatar.dart';
+import '../matrix/attachment_cache.dart';
+import '../matrix/mxc_avatar_image.dart' show AvatarBucket, avatarCacheKey;
+import '../platform/platform_capabilities.dart';
 import '../push/push_timing.dart';
 import 'message_notification_content.dart';
 import 'message_notification_image.dart';
@@ -20,15 +24,23 @@ Future<void> postMessageNotification(
   bool placeholder = false,
   bool includeMessageActions = true,
   AvatarFetcher? fetchAvatar,
+  DiskAttachmentCache? appAvatars,
   Future<NotificationImage?> Function()? fetchImage,
   ImagePublisher publishImage = publishNotificationImage,
   void Function()? onPosted,
+  void Function(Future<void> refinement)? onRefining,
   PushTiming? timing,
+  PlatformCapabilities? capabilities,
 }) async {
-  final avatarUrl = content.senderAvatarUrl;
-  final cached = avatarUrl == null
+  final avatarUrl = (capabilities ?? ambientCapabilities).notificationAvatars
+      ? content.senderAvatarUrl
+      : null;
+  final kept =
+      avatarUrl != null &&
+      await NotificationAvatarCache.instance.contains(avatarUrl);
+  final fromApp = avatarUrl == null || kept
       ? null
-      : await NotificationAvatarCache.instance.read(avatarUrl);
+      : await _avatarTheAppShows(avatarUrl, appAvatars);
 
   Future<void> show({
     Uint8List? avatar,
@@ -46,26 +58,54 @@ Future<void> postMessageNotification(
     timing: refine ? null : timing,
   );
 
-  await show(avatar: cached);
+  await show(avatar: fromApp);
   onPosted?.call();
   if (placeholder) return;
 
-  if (avatarUrl != null && cached == null) {
-    final fetch =
-        fetchAvatar ??
-        (client, url) => fetchCallerAvatarBytes(
-          client,
-          url,
-          timeout: notificationAvatarTimeout,
-        );
-    final bytes = await fetch(client, avatarUrl);
-    if (bytes != null) await show(avatar: bytes, refine: true);
+  final needsAvatar = avatarUrl != null && !kept && fromApp == null;
+  final needsImage = content.isPhoto && fetchImage != null;
+  if (!needsAvatar && !needsImage) return;
+
+  Future<void> refine() async {
+    if (needsAvatar) {
+      final fetch =
+          fetchAvatar ??
+          (client, url) => fetchCallerAvatarBytes(
+            client,
+            url,
+            timeout: notificationAvatarTimeout,
+          );
+      final bytes = await fetch(client, avatarUrl);
+      if (bytes != null) await show(avatar: bytes, refine: true);
+    }
+
+    if (!needsImage) return;
+    final image = await fetchImage();
+    if (image == null) return;
+    final uri = await publishImage(image);
+    if (uri == null) return;
+    await show(refine: true, imageUri: uri, imageMimeType: image.mimeType);
   }
 
-  if (!content.isPhoto || fetchImage == null) return;
-  final image = await fetchImage();
-  if (image == null) return;
-  final uri = await publishImage(image);
-  if (uri == null) return;
-  await show(refine: true, imageUri: uri, imageMimeType: image.mimeType);
+  if (onRefining == null) {
+    await refine();
+    return;
+  }
+  onRefining(_quietly(refine()));
+}
+
+Future<Uint8List?> _avatarTheAppShows(
+  Uri avatarUrl,
+  DiskAttachmentCache? appAvatars,
+) => (appAvatars ?? DiskAttachmentCache.instance).get(
+  avatarCacheKey(avatarUrl, AvatarBucket.small),
+  expires: false,
+);
+
+Future<void> _quietly(Future<void> refinement) async {
+  try {
+    await refinement;
+  } catch (e) {
+    debugPrint('zuno/push: notification refinement failed ($e)');
+  }
 }

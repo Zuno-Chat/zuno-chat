@@ -98,4 +98,17 @@ class PushNoticeDecisionTest {
         assertNull(PushNoticeDecision.conversationFor(null))
         assertNull(PushNoticeDecision.conversationFor(CachedRoom("  ", true)))
     }
+
+    @Test
+    fun `a missed-pushes notice needs notifications on and its channel created`() {
+        assertTrue(
+            PushNoticeDecision.shouldPostMissed(notificationsEnabled = true, channelExists = true),
+        )
+        assertFalse(
+            PushNoticeDecision.shouldPostMissed(notificationsEnabled = false, channelExists = true),
+        )
+        assertFalse(
+            PushNoticeDecision.shouldPostMissed(notificationsEnabled = true, channelExists = false),
+        )
+    }
 }

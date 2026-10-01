@@ -6,7 +6,7 @@ import 'package:zuno/core/notifications/background_sync_service.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/push_wake_lock.dart';
+import 'package:zuno/core/shortcuts/home_screen_shortcut.dart';
 
 class _Capability {
   final String name;
@@ -102,7 +102,7 @@ final _capabilities = <_Capability>[
     'headlessWakeLocks',
     read: (c) => c.headlessWakeLocks,
     android: true,
-    ios: false,
+    ios: true,
   ),
   _Capability(
     'notificationImages',
@@ -113,12 +113,6 @@ final _capabilities = <_Capability>[
   _Capability(
     'vibrationPatterns',
     read: (c) => c.vibrationPatterns,
-    android: true,
-    ios: false,
-  ),
-  _Capability(
-    'playServices',
-    read: (c) => c.playServices,
     android: true,
     ios: false,
   ),
@@ -181,6 +175,36 @@ final _capabilities = <_Capability>[
     read: (c) => c.filesTypedByExtension,
     android: false,
     ios: true,
+  ),
+  _Capability(
+    'atomicDatabaseBatches',
+    read: (c) => c.atomicDatabaseBatches,
+    android: true,
+    ios: false,
+  ),
+  _Capability(
+    'nativeRoomOpens',
+    read: (c) => c.nativeRoomOpens,
+    android: true,
+    ios: true,
+  ),
+  _Capability(
+    'clientLease',
+    read: (c) => c.clientLease,
+    android: true,
+    ios: true,
+  ),
+  _Capability(
+    'instantPushNotices',
+    read: (c) => c.instantPushNotices,
+    android: true,
+    ios: false,
+  ),
+  _Capability(
+    'notificationAvatars',
+    read: (c) => c.notificationAvatars,
+    android: true,
+    ios: false,
   ),
   _Capability(
     'signOutWipeKeepsProcess',
@@ -327,11 +351,11 @@ void main() {
     final ios = capabilitiesFor(AppPlatform.ios);
     const nativeChannels = [
       MethodChannel('zuno/background_sync'),
-      MethodChannel('zuno/push_wakelock'),
+      MethodChannel('zuno/shortcuts'),
     ];
     const nativeCalls = [
       'zuno/background_sync startBackgroundSyncService',
-      'zuno/push_wakelock release',
+      'zuno/shortcuts pinShortcut',
     ];
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -361,7 +385,7 @@ void main() {
 
     Future<void> useSingletonConsumers() async {
       await BackgroundSyncService.instance.start();
-      await releasePushWakeLock();
+      await pinRoomShortcut(roomId: '!room:example.org', label: 'Room');
     }
 
     test('is the host platform by default, for every consumer', () async {
@@ -405,7 +429,11 @@ void main() {
       expect(container.read(platformCapabilitiesProvider), same(android));
 
       await BackgroundSyncService(capabilities: android).start();
-      await releasePushWakeLock(capabilities: android);
+      await pinRoomShortcut(
+        roomId: '!room:example.org',
+        label: 'Room',
+        capabilities: android,
+      );
 
       expect(calls, nativeCalls);
     });

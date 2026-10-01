@@ -37,6 +37,15 @@ void main() {
       ]);
     });
 
+    test('reads lines that carry the newer timing columns', () {
+      final record = parsePushDeliveryLog(
+        '2000\t1500\thigh\tnormal\t1\t40\t12\t1\t40\tdart\t2340',
+      ).single;
+
+      expect(record.receivedAt.millisecondsSinceEpoch, 2000);
+      expect(record.standbyBucket, 40);
+    });
+
     test('an empty log has no records', () {
       expect(parsePushDeliveryLog(null), isEmpty);
       expect(parsePushDeliveryLog(''), isEmpty);

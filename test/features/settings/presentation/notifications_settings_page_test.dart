@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -30,6 +32,21 @@ class _FixedDeliveryModeNotifier extends NotificationDeliveryModeNotifier {
   NotificationDeliveryMode build() => _mode;
 }
 
+class _PusherRecordingClient extends Client {
+  _PusherRecordingClient() : super('test', database: FakeDatabaseApi()) {
+    homeserver = Uri.parse('https://matrix.example.org');
+  }
+
+  final posted = <Pusher>[];
+
+  @override
+  Future<void> postPusher(Pusher pusher, {bool? append}) async =>
+      posted.add(pusher);
+
+  @override
+  Future<void> deletePusher(PusherId pusherId) async {}
+}
+
 void _stubNotificationPermission({required bool granted}) {
   const channel = MethodChannel('flutter.baseflow.com/permissions/methods');
   final messenger =
@@ -46,6 +63,7 @@ Future<ProviderContainer> _pumpPage(
   WidgetTester tester,
   NotificationDeliveryMode mode, {
   PlatformCapabilities? capabilities,
+  Client? client,
 }) async {
   await tester.binding.setSurfaceSize(const Size(800, 3000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -54,7 +72,7 @@ Future<ProviderContainer> _pumpPage(
   final container = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
-      matrixClientProvider.overrideWithValue(buildTestClient()),
+      matrixClientProvider.overrideWithValue(client ?? buildTestClient()),
       notificationDeliveryModeProvider.overrideWith(
         () => _FixedDeliveryModeNotifier(mode),
       ),
@@ -539,5 +557,86 @@ void main() {
         expect(tester.widget<SwitchListTile>(switchTile(title)).value, !before);
       });
     }
+  });
+
+  group('Message tone with an Apple pusher registered', () {
+    late _PusherRecordingClient client;
+
+    setUp(() {
+      ambientCapabilities = iosCapabilities;
+      client = _PusherRecordingClient();
+      final tokenReader = apnsDeliveryProvider.tokenReader;
+      final notificationsAllowed = apnsDeliveryProvider.notificationsAllowed;
+      apnsDeliveryProvider
+        ..tokenReader = (() async => 'a1b2c3d4' * 8)
+        ..notificationsAllowed = (() async => true);
+      addTearDown(() async {
+        await apnsDeliveryProvider.stop(client);
+        apnsDeliveryProvider
+          ..tokenReader = tokenReader
+          ..notificationsAllowed = notificationsAllowed;
+      });
+    });
+
+    Object? soundOf(Pusher pusher) =>
+        ((pusher.data.toJson()['default_payload'] as Map)['aps']
+            as Map)['sound'];
+
+    Finder messageTone() => find.widgetWithText(SwitchListTile, 'Message tone');
+
+    testWidgets('on iOS, turning it off re-posts the pusher without a sound', (
+      tester,
+    ) async {
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: iosCapabilities,
+        client: client,
+      );
+      await apnsDeliveryProvider.start(client);
+
+      await tester.tap(messageTone());
+      await tester.pumpAndSettle();
+
+      expect(client.posted.map(soundOf), ['default', null]);
+      expect(apnsDeliveryProvider.status.value, ApnsStatus.ready);
+    });
+
+    testWidgets('on iOS, turning it back on re-posts it with the sound', (
+      tester,
+    ) async {
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: iosCapabilities,
+        client: client,
+      );
+      await apnsDeliveryProvider.start(client);
+
+      await tester.tap(messageTone());
+      await tester.pumpAndSettle();
+      await tester.tap(messageTone());
+      await tester.pumpAndSettle();
+
+      expect(client.posted.map(soundOf), ['default', null, 'default']);
+    });
+
+    testWidgets('on Android capabilities the switch leaves Apple push alone', (
+      tester,
+    ) async {
+      final container = await _pumpPage(
+        tester,
+        NotificationDeliveryMode.fcm,
+        capabilities: androidCapabilities,
+        client: client,
+      );
+      await apnsDeliveryProvider.start(client);
+
+      await tester.tap(messageTone());
+      await tester.pumpAndSettle();
+
+      expect(container.read(messageToneEnabledProvider), isFalse);
+      expect(client.posted.map(soundOf), ['default']);
+    });
   });
 }

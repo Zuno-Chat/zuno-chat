@@ -32,7 +32,6 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.Lifecycle
-import com.google.android.gms.common.GoogleApiAvailability
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -44,6 +43,7 @@ class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var shareChannel: MethodChannel? = null
     private var networkStreamHandler: NetworkAvailabilityStreamHandler? = null
+    private var fcmEngineId: Int? = null
 
     private fun applyShowOverLockscreenIfLocked() {
         val keyguardManager = getSystemService(KEYGUARD_SERVICE) as? KeyguardManager
@@ -60,6 +60,8 @@ class MainActivity : FlutterActivity() {
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         ZunoPushService.appEngineAlive = false
+        fcmEngineId?.let { FcmRouter.detachApp(it) }
+        fcmEngineId = null
         callsChannel = null
         networkStreamHandler?.stop()
         networkStreamHandler = null
@@ -70,6 +72,9 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         ZunoPushService.appEngineAlive = true
+        fcmEngineId = FcmRouter.attachApp(flutterEngine, this)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ZunoPushService.WAKELOCK_CHANNEL)
+            .setMethodCallHandler(ZunoPushService.wakeLockHandler(this))
 
         val methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
         channel = methodChannel
@@ -449,26 +454,6 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        val playServicesChannel =
-            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PLAY_SERVICES_CHANNEL)
-        playServicesChannel.setMethodCallHandler { call, result ->
-            when (call.method) {
-                "checkPlayServices" -> {
-                    val code = GoogleApiAvailability.getInstance()
-                        .isGooglePlayServicesAvailable(this)
-                    result.success(PlayServicesDecision.decide(code).name)
-                }
-
-                "fixPlayServices" -> {
-                    GoogleApiAvailability.getInstance()
-                        .makeGooglePlayServicesAvailable(this)
-                    result.success(null)
-                }
-
-                else -> result.notImplemented()
-            }
-        }
-
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APP_DATA_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -761,7 +746,6 @@ class MainActivity : FlutterActivity() {
         private const val UPLOAD_CHANNEL = "zuno/upload_service"
         private const val IMAGE_CHANNEL = "zuno/image"
         private const val VIDEO_CHANNEL = "zuno/video"
-        private const val PLAY_SERVICES_CHANNEL = "zuno/play_services"
         private const val DEVICE_SAFETY_CHANNEL = "zuno/device_safety"
         private const val APP_DATA_CHANNEL = "zuno/app_data"
         private const val EXTRA_ROOM_ID = "room_id"

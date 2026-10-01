@@ -52,4 +52,47 @@ void main() {
     expect(wasEventNotified(prefs, r'$p'), isFalse);
     expect(wasPlaceholderShown(prefs, r'$other'), isFalse);
   });
+
+  group('announced invitations', () {
+    const room = '!room:example.org';
+    final noon = DateTime(2031, 3, 1, 12);
+
+    test('an announced invitation is remembered with when it was '
+        'announced', () async {
+      await markInviteAnnouncedOnDisk(prefs, room, now: noon);
+
+      expect(inviteAnnouncedAt(prefs, room, now: noon), noon);
+      expect(inviteAnnouncedAt(prefs, '!other:example.org', now: noon), isNull);
+    });
+
+    test('forgetting one leaves the others', () async {
+      await markInviteAnnouncedOnDisk(prefs, room, now: noon);
+      await markInviteAnnouncedOnDisk(prefs, '!other:example.org', now: noon);
+
+      expect(await forgetInviteAnnouncementsOnDisk(prefs, [room]), isTrue);
+
+      expect(inviteAnnouncedAt(prefs, room, now: noon), isNull);
+      expect(inviteAnnouncedAt(prefs, '!other:example.org', now: noon), noon);
+    });
+
+    test('forgetting rooms never announced writes nothing', () async {
+      expect(await forgetInviteAnnouncementsOnDisk(prefs, [room]), isFalse);
+      expect(prefs.getKeys(), isEmpty);
+    });
+
+    test('an announcement older than the invite memory is gone', () async {
+      await markInviteAnnouncedOnDisk(prefs, room, now: noon);
+
+      expect(
+        inviteAnnouncedAt(prefs, room, now: noon.add(inviteAnnouncementMemory)),
+        isNull,
+      );
+    });
+
+    test('a corrupt stored value reads as nothing announced', () async {
+      await prefs.setString('notifications.announced_invites', '[1,2]');
+
+      expect(inviteAnnouncedAt(prefs, room, now: noon), isNull);
+    });
+  });
 }

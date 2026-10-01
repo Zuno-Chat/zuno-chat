@@ -13,6 +13,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 
 object PushNotice {
@@ -24,6 +25,11 @@ object PushNotice {
     private const val TAG = "PushNotice"
     private const val SMALL_ICON = "ic_stat_zuno_mark"
     private val vibrationPattern = longArrayOf(0, 300, 150, 300)
+    private const val MISSED_CHANNEL = "direct_messages"
+    private const val MISSED_NOTIFICATION_ID = 4105
+    private const val MISSED_TITLE = "Zuno"
+    private const val MISSED_TEXT =
+        "Some notifications could not be delivered. Open Zuno to see new messages."
 
     private val posted = HashMap<String, String>()
 
@@ -40,7 +46,8 @@ object PushNotice {
         roomId: String?,
         eventId: String?,
         appInFront: Boolean = appInFront(context),
-    ) {
+    ): Boolean {
+        var notified = false
         try {
             val manager = context.getSystemService(
                 Context.NOTIFICATION_SERVICE,
@@ -49,12 +56,12 @@ object PushNotice {
             val showing =
                 notificationId != null &&
                     manager.activeNotifications.any { it.id == notificationId }
-            if (!PushNoticeDecision.shouldPost(roomId, eventId, appInFront, showing)) return
-            if (roomId == null || eventId == null || notificationId == null) return
+            if (!PushNoticeDecision.shouldPost(roomId, eventId, appInFront, showing)) return false
+            if (roomId == null || eventId == null || notificationId == null) return false
             val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
             if (PushNoticeDecision.mutedByNotifyMe(prefs.getString(NOTIFY_ME_KEY, null))) {
                 Log.d(TAG, "Notify me is mentions only, no instant notice")
-                return
+                return false
             }
             val cached = PushNoticeDecision.parseRoomCache(
                 prefs.getString(ROOM_CACHE_KEY, null),
@@ -64,7 +71,7 @@ object PushNotice {
                 manager.getNotificationChannel(channel) == null
             ) {
                 Log.d(TAG, "No $channel channel yet, no instant notice")
-                return
+                return false
             }
             val copy = PushNoticeDecision.copyFor(cached)
             val tap = PendingIntent.getActivity(
@@ -106,11 +113,46 @@ object PushNotice {
                 )
             }
             manager.notify(notificationId, builder.build())
+            notified = true
             synchronized(posted) { posted[roomId] = eventId }
             if (prefs.getBoolean(VIBRATION_KEY, true)) vibrate(context)
             Log.d(TAG, "Instant notice posted for $roomId")
         } catch (e: Exception) {
             Log.w(TAG, "Could not post the instant notice", e)
+        }
+        return notified
+    }
+
+    fun postMissed(context: Context) {
+        try {
+            val manager = context.getSystemService(
+                Context.NOTIFICATION_SERVICE,
+            ) as NotificationManager
+            val channelExists = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+                manager.getNotificationChannel(MISSED_CHANNEL) != null
+            val enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+            if (!PushNoticeDecision.shouldPostMissed(enabled, channelExists)) return
+            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            val tap = launch?.let {
+                PendingIntent.getActivity(
+                    context,
+                    MISSED_NOTIFICATION_ID,
+                    it,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                )
+            }
+            val notification = NotificationCompat.Builder(context, MISSED_CHANNEL)
+                .setSmallIcon(smallIcon(context))
+                .setContentTitle(MISSED_TITLE)
+                .setContentText(MISSED_TEXT)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
+                .setContentIntent(tap)
+                .build()
+            manager.notify(MISSED_NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not post the missed-notifications notice", e)
         }
     }
 

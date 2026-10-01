@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -167,6 +168,36 @@ void main() {
     },
   );
 
+  test('a placeholder pushes no conversation shortcut, the message that '
+      'replaces it does', () async {
+    await post(eventId: r'$1', text: 'New message', placeholder: true);
+    expect(conversations.named('pushConversationShortcut'), isEmpty);
+    showing();
+
+    await post(eventId: r'$1', text: 'hello');
+
+    expect(conversations.named('pushConversationShortcut'), hasLength(1));
+  });
+
+  test('a refinement pushes no conversation shortcut again', () async {
+    await post(eventId: r'$1');
+    showing();
+
+    await post(eventId: r'$1', refine: true, senderAvatar: Uint8List(1));
+
+    expect(conversations.named('pushConversationShortcut'), hasLength(1));
+  });
+
+  test('taking a placeholder back pushes no conversation shortcut', () async {
+    await post(eventId: r'$1');
+    showing();
+    await post(eventId: r'$2', text: 'New message', placeholder: true);
+
+    await CallNotificationService.instance.retractPlaceholder(roomId, r'$2');
+
+    expect(conversations.named('pushConversationShortcut'), hasLength(1));
+  });
+
   test('carries the unread count as the badge number', () async {
     await post(eventId: r'$1', unreadCount: 5);
 
@@ -208,6 +239,20 @@ void main() {
       expect(lastRoomPost()['largeIcon'], bytes);
     },
   );
+
+  test('a refinement leaves the notified list alone, since its first post '
+      'already wrote it', () async {
+    await post(eventId: r'$1');
+    showing();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('notifications.notified_events');
+
+    await post(eventId: r'$1', refine: true, senderAvatar: Uint8List(1));
+
+    await prefs.reload();
+    expect(readNotifiedEventIds(prefs), isEmpty);
+    expect(notifications.shown, hasLength(2));
+  });
 
   test(
     'remembers an avatar for the senders of earlier lines in a group',
@@ -415,4 +460,133 @@ void main() {
       expect(posts, hasLength(1));
     },
   );
+
+  group('posts racing in one room', () {
+    List<String?> linesOfLastPost() =>
+        messagesOf(lastRoomPost()).map((m) => m['text'] as String?).toList();
+
+    void noticePendingFor(String eventId) {
+      var pending = true;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(const MethodChannel('zuno/conversations'), (
+            call,
+          ) async {
+            if (call.method != 'takePushNotice') return null;
+            final args = (call.arguments as Map).cast<String, Object?>();
+            if (!pending || args['eventId'] != eventId) return false;
+            pending = false;
+            return true;
+          });
+    }
+
+    test('two posts at once both keep their line', () async {
+      showing();
+
+      await Future.wait([
+        post(eventId: r'$1', text: 'one'),
+        post(
+          eventId: r'$2',
+          text: 'two',
+          timestamp: noon.add(const Duration(seconds: 1)),
+        ),
+      ]);
+
+      expect(linesOfLastPost(), ['one', 'two']);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      expect(readNotificationThread(prefs, roomId)!.lines.map((l) => l.text), [
+        'one',
+        'two',
+      ]);
+      expect(wasEventNotified(prefs, r'$1'), isTrue);
+      expect(wasEventNotified(prefs, r'$2'), isTrue);
+    });
+
+    test('an older message posted after a newer one reads in time order, and '
+        'the notification leads with the newest', () async {
+      final later = noon.add(const Duration(minutes: 1));
+      await post(eventId: r'$2', text: 'newer', timestamp: later);
+      showing();
+
+      await post(eventId: r'$1', text: 'older');
+
+      expect(linesOfLastPost(), ['older', 'newer']);
+      expect(lastRoomPost()['when'], later.millisecondsSinceEpoch);
+      final shown = notifications.shown.last;
+      expect(shown.body, 'newer');
+      expect(jsonDecode(shown.payload)['eventId'], r'$2');
+    });
+
+    test('a real message replacing its placeholder moves to its own place '
+        'in time', () async {
+      await post(
+        eventId: r'$late',
+        text: 'New message',
+        placeholder: true,
+        timestamp: noon.add(const Duration(minutes: 5)),
+      );
+      showing();
+      await post(
+        eventId: r'$2',
+        text: 'two',
+        timestamp: noon.add(const Duration(minutes: 2)),
+      );
+
+      await post(eventId: r'$late', text: 'one');
+
+      expect(linesOfLastPost(), ['one', 'two']);
+    });
+
+    test('a post that lands first takes over the instant notice another push '
+        'put up, so stale lines never come back and the notice\'s own post '
+        'wipes nothing', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await writeNotificationThread(
+        prefs,
+        NotificationThread(
+          roomId: roomId,
+          title: 'Alice',
+          isGroupChat: false,
+          lines: [
+            NotificationLine(
+              eventId: r'$stale',
+              senderId: '@a:x',
+              senderName: 'Alice',
+              text: 'from yesterday',
+              timestamp: noon.subtract(const Duration(days: 1)),
+            ),
+          ],
+        ),
+      );
+      noticePendingFor(r'$a');
+      showing();
+      final forget = CallNotificationService.instance.expectPushNotice(
+        roomId,
+        r'$a',
+      );
+      addTearDown(forget);
+
+      await post(
+        eventId: r'$b',
+        text: 'second',
+        timestamp: noon.add(const Duration(seconds: 1)),
+      );
+      expect(linesOfLastPost(), ['second']);
+      expect(lastRoomPost()['onlyAlertOnce'], isTrue);
+
+      await post(eventId: r'$a', text: 'first');
+
+      expect(linesOfLastPost(), ['first', 'second']);
+    });
+
+    test('a notice no push is waiting on any more is not taken', () async {
+      noticePendingFor(r'$a');
+      showing();
+      CallNotificationService.instance.expectPushNotice(roomId, r'$a')();
+
+      await post(eventId: r'$b', text: 'second');
+
+      expect(lastRoomPost()['onlyAlertOnce'], isFalse);
+    });
+  });
 }

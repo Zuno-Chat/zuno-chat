@@ -7,7 +7,11 @@ import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.da
 import 'package:zuno/core/notifications/delivery_auto_fallback.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
+import 'package:zuno/core/push/fcm_registration_store.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+
+import '../../helpers/fake_matrix.dart';
 
 class _FakeUnifiedPush extends UnifiedPushPlatform {
   List<String> installed = const [];
@@ -60,6 +64,7 @@ void main() {
       expect(
         autoFallbackFor(
           fcm: FcmStatus.playServicesUnavailable,
+          fcmRegistered: false,
           userChoseMode: false,
           hasDistributor: true,
         ),
@@ -73,6 +78,7 @@ void main() {
         expect(
           autoFallbackFor(
             fcm: FcmStatus.playServicesUnavailable,
+            fcmRegistered: false,
             userChoseMode: false,
             hasDistributor: false,
           ),
@@ -81,15 +87,63 @@ void main() {
       },
     );
 
+    for (final status in [
+      FcmStatus.playServicesDisabled,
+      FcmStatus.notConfigured,
+    ]) {
+      test('switches away when ${status.name}, like a missing Google Play '
+          'services', () {
+        expect(
+          autoFallbackFor(
+            fcm: status,
+            fcmRegistered: false,
+            userChoseMode: false,
+            hasDistributor: true,
+          ),
+          NotificationDeliveryMode.unifiedPush,
+        );
+        expect(
+          autoFallbackFor(
+            fcm: status,
+            fcmRegistered: false,
+            userChoseMode: true,
+            hasDistributor: true,
+          ),
+          isNull,
+        );
+      });
+    }
+
     test('never overrides a mode the user chose', () {
       expect(
         autoFallbackFor(
           fcm: FcmStatus.playServicesUnavailable,
+          fcmRegistered: false,
           userChoseMode: true,
           hasDistributor: true,
         ),
         isNull,
       );
+    });
+
+    test('never moves a device that holds a Google services registration, '
+        'whatever the device reports', () {
+      for (final status in [
+        FcmStatus.playServicesUnavailable,
+        FcmStatus.playServicesDisabled,
+        FcmStatus.notConfigured,
+      ]) {
+        expect(
+          autoFallbackFor(
+            fcm: status,
+            fcmRegistered: true,
+            userChoseMode: false,
+            hasDistributor: true,
+          ),
+          isNull,
+          reason: '$status',
+        );
+      }
     });
 
     test('an update-required or transient state is not a reason to switch', () {
@@ -102,6 +156,7 @@ void main() {
         expect(
           autoFallbackFor(
             fcm: status,
+            fcmRegistered: false,
             userChoseMode: false,
             hasDistributor: true,
           ),
@@ -149,6 +204,44 @@ void main() {
         container.read(autoSelectedDeliveryModeProvider),
         NotificationDeliveryMode.unifiedPush,
       );
+    });
+
+    test('keeps a device whose Google services registration is in place on '
+        'Google services when Google Play services turns off', () async {
+      fake.installed = ['io.heckel.ntfy'];
+      await build();
+      await saveFcmRegistration(
+        await SharedPreferences.getInstance(),
+        token: 'token-abc',
+      );
+      final provider = fcmDeliveryProvider;
+      final seams = (
+        provider.availabilityReader,
+        provider.notificationsAllowed,
+        provider.tokenDeleter,
+      );
+      provider
+        ..availabilityReader = (() async => FcmAvailability.disabled)
+        ..notificationsAllowed = (() async => true)
+        ..tokenDeleter = (() async {});
+      final client = buildTestClient();
+      addTearDown(() async {
+        await provider.stop(client);
+        provider
+          ..availabilityReader = seams.$1
+          ..notificationsAllowed = seams.$2
+          ..tokenDeleter = seams.$3;
+      });
+
+      await provider.start(client);
+      await pumpEventQueue();
+
+      expect(provider.status.value, FcmStatus.playServicesDisabled);
+      expect(
+        container.read(notificationDeliveryModeProvider),
+        NotificationDeliveryMode.fcm,
+      );
+      expect(container.read(autoSelectedDeliveryModeProvider), isNull);
     });
 
     test('leaves a mode the user set alone', () async {

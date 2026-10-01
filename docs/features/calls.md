@@ -86,7 +86,7 @@ on iOS (`app-foundation.md`):
 
 | Seam | Methods | Android | iOS |
 |---|---|---|---|
-| `IncomingCallPresenter` | `showIncoming` (→ `RingOutcome`), `cancelIncoming`, `activeRing` | `zuno/call_style` ring notification + `notification_sound_player.dart` ringtone/vibration (`nativeIncomingRingUi`) | `reportIncomingCall` / `endIncomingCall`; `activeRing` is always `null` |
+| `IncomingCallPresenter` | `showIncoming` (→ `RingOutcome`), `cancelIncoming`, `activeRing` | `zuno/call_style` CallStyle notification with its native tone and vibration (`nativeIncomingRingUi`) | `reportIncomingCall` / `endIncomingCall`; `activeRing` is always `null` |
 | `OngoingCallPresenter` | `start`, `stop` | `CallForegroundService` (`callForegroundService`) | No-op: `systemCallSyncProvider` drives CallKit |
 | `RingbackTonePlayer` | `start`, `stop`, `restartForRouteChange` | `ToneGenerator` (`nativeRingbackTone`) | Native `CallRingback` |
 | `SystemCall` | `begin`, `connected`, `setMuted`, `upgradeToVideo`, `end` | No-op | `startSystemCall` … `endSystemCall` |
@@ -96,11 +96,20 @@ on iOS (`app-foundation.md`):
   Ringtone setting. `fullScreenIntent` gates only the full-screen
   permission UI, never the presenter.
 - **A presenter that really rings extends `RememberingIncomingCallPresenter`**:
-  it writes the ringing-call store before `presentIncoming` and clears it
-  before `dismissIncoming`, so a platform presenter cannot forget the store
-  that `main.dart` (`pendingRing`) and the push handler read. The CallKit
+  it writes the ringing-call store before `presentIncoming`, so a platform
+  presenter cannot forget the store that `main.dart` (`pendingRing`) and
+  the push handler read. Written after, a Decline or summary in the gap
+  would miss the cancel and leave the ring sounding. `forgetAndDismiss`
+  drops the record with the dismiss: on Android natively, in one
+  remove-if-matches step with the ring (a record for another call younger
+  than 45 s survives); Dart clears it only when that call fails. The CallKit
   presenter remembers nothing, like the no-op: a non-null `activeRing`
   would push `IncomingCallPage` over CallKit's own ring.
+- **A ring is idempotent per call id, across push and sync.** Rings are
+  serialized per isolate, and a call already ringing (presented here within
+  `SystemRing.lifetime` and still remembered, or the active ring) answers
+  `shown` without ringing again. A ring shown for a call that resolved
+  meanwhile is taken back (`filtered`).
 - **A ring cancel names its call** (`cancelIncoming(roomId:, callId:,
   end:)`), so one call's end never takes down another call's ring: the
   remembering presenter leaves a stored ring for another call up, and
@@ -112,10 +121,9 @@ on iOS (`app-foundation.md`):
   An open `IncomingCallPage` runs the action itself (the router defers to
   it) and cancels the presenter as it closes, so two ring UIs never both
   stay up.
-- Decline routing (the `IsolateNameServer` decline-port claim/release, the
-  headless response handler) deliberately stays in
-  `call_notification_service.dart`: presentation and routing never travel
-  together.
+- Decline routing (the live routes, the headless response handler)
+  deliberately stays in `call_notification_service.dart`: presentation and
+  routing never travel together.
 
 **CallKit (iOS)**: native owns CallKit and the audio session; Dart drives
 both over `zuno/calls` (`CallsChannelPlugin.swift`).
@@ -146,6 +154,40 @@ both over `zuno/calls` (`CallsChannelPlugin.swift`).
 - A ring report returns `shown`, `filtered` (Focus, block list, tombstone:
   nothing shows) or `unavailable` (`RoomListPage` falls back to
   `IncomingCallPage`). A group call rings under the room's name.
+
+### Live routes and declines
+
+**A Decline, Reply or Mark as read tap goes to the running app first**
+(`live_isolate_route.dart`). The app registers two named ports,
+`zuno_call_decline_port` and `zuno_message_action_port`, when `main.dart`
+initializes `CallNotificationService`, and re-claims them on every resume
+and every ring it presents (`reclaimLiveRoutes`). A sender gives up at the
+first step that misses its bound:
+
+| Step | Bound |
+|---|---|
+| `ping` answered by `pong` | 2 s, the receiver's freshness window |
+| `accepted` | 4 s |
+| `done` | 25 s |
+
+- The receiver refuses a malformed message or one older than 2 s. With
+  nobody listening yet (cold start) the app accepts and holds it, and drops
+  held entries older than 25 s once a listener arrives: their sender has
+  done the work itself by then.
+- Why the probe waits the full 2 s: a busy but alive app read as gone hands
+  the work to a second client, whose stale in-memory Megolm outbound session
+  can reuse a message index.
+- Every path of one action carries one txid, so a hand-off that timed out
+  and its fallback never send twice: one per Reply or Mark as read tap (the
+  app performs a txid once), `zuno-decline-<callId>` for a decline.
+
+**Where a Decline goes:**
+
+| Stage | Behavior |
+|---|---|
+| flutter_local_notifications' action engine (`runHeadlessCallDecline`) | Per-run wake lock; stops the ring and marks the call resolved; hands the decline to whoever holds the decline route. Nobody takes it: opens its own client, retries the hand-off for about 6 s when the lease is denied, sends with retries (2 s, 5 s) |
+| Push engine's ring hold (`awaitHeadlessDecline`) | Claims the decline route only when nobody holds it or its holder answers no ping. Holds up to 45 s, checking every 3 s that the route is still its own and the ring still shows (5 s grace once it does not). Sends through its burst client; a denied lease hands the decline to the app's route. Reports `done` only once sent or handed over |
+| The app (`HeadlessCallDeclineNotifier`) | Cancels the ring (`declinedElsewhere`), marks the call resolved, sends with retries, then reports `done` |
 
 ## Data & State
 
@@ -194,19 +236,25 @@ without the relation and pushes as before.
 declinedByThem / failed / normal hangup — `failed` carries a user-facing
 `failedMessage` (e.g. permission-denied) surfaced via snackbar.
 
-**The ringing call** is one singleton on both platforms: `SystemRing`
-(`system_ring.dart`) holds the call ringing in the main isolate, for 60 s
-at most. Every ring path there sets it, the Android ring page for as long
-as it is up, and only that call's id clears it. Call waiting,
-`ringElsewhereProvider` and the background-sync rule read it.
+**The ringing call** is one singleton per isolate on both platforms:
+`SystemRing` (`system_ring.dart`) holds the call ringing, for 60 s at most.
+Every ring path sets it (the push handler too, in whichever engine handles
+the push), the Android ring page for as long as it is up, and only that
+call's id clears it. Call waiting, `ringElsewhereProvider` and the
+background-sync rule read the app's.
 
-**Resolved calls** (`resolvedCallIdsProvider`, mirrored to disk for the
-push isolate) never ring again: a summary, a decline, an answer or decline
-on another of my devices, or an unanswered ring end marks one. Several
-paths mark the same call, so `markResolved` ignores a known id (no
-rebuild, no write). A summary push takes its call's ring down no sooner
-than 3 s after it was posted, but marks the call first, so a redial in
-that window rings; its cancel names the call, so the redial's ring stays.
+**Resolved calls** never ring again: a summary, a decline, an answer or
+decline on another of my devices, or an unanswered ring end marks one.
+Every isolate goes through `markCallResolved`/`isCallResolved`
+(`resolved_call_ids_store.dart`): one prefs key per call
+(`calls.resolved.<callId>`, kept 5 min, newest 32), serialized per isolate,
+with the app's `resolvedCallIdsProvider` as the in-memory mirror. One key
+per call, because a lost id rings a finished call again, and two isolates
+rewriting one shared value could drop each other's ids. Several paths mark
+the same call, so `markResolved` ignores a known id (no rebuild, no write).
+A summary push takes its call's ring down no sooner than 3 s after it was
+posted, but marks the call first, so a redial in that window rings; its
+cancel names the call, so the redial's ring stays.
 
 **Group-call rules**, since >2 participants breaks assumptions 1:1 calls
 could get away with:
@@ -370,10 +418,11 @@ rejoin is the only path back.
   opened rather than leaking it.
 
 **Incoming call delivery**: live sync (`client.onTimelineEvent`) drives
-ringing while the process is alive; a persistent foreground service
-(default notification delivery mode) keeps the process from being
-suspended for the common backgrounded case. Push (FCM/UnifiedPush)
-delivers to a headless engine for the genuinely-killed-process case. A
+ringing while the process is alive; under the background-sync delivery
+mode a persistent foreground service keeps the process from being
+suspended. Push (FCM, the default, or UnifiedPush)
+reaches the app's engine while it runs and a push engine otherwise
+(`notifications.md`), so a killed process still rings. A
 ring notification carries its own Accept/Decline actions and a
 full-screen intent; `CallForegroundService.kt` backs the persistent
 in-call notification once active (Android requires a real foreground
@@ -556,7 +605,8 @@ instead, so a stale notification can't outlive its call.
   and resolves the call. A call already answered elsewhere never rings, is
   never declined as busy, and loses any ring the push isolate posted. Only
   a running app watches: nothing about an answer elsewhere pushes, so a
-  ring posted headless learns of it only once the app runs.
+  ring posted headless learns of it only once the app runs; the native 60 s
+  stop ends it regardless.
 - **TURN provider selection was built, then retired to one path.** A
   per-user `TurnProviderKind` (homeserver vs. Cloudflare) picker existed
   briefly; both branches are now moot — the app derives ICE entirely
@@ -572,22 +622,29 @@ instead, so a stale notification can't outlive its call.
   those two backend types. If a LiveKit adapter is built, building it
   directly on the SDK's own voip module may be less work than extending
   this app's custom signaling layer to a second backend.
-- **Ringtone/ringback/vibration are app-played, not notification-channel
-  sounds.** An Android notification channel plays its sound/vibration
-  pattern once and can never change after first registration — incompatible
-  with a ring that must continue until answered and toggles that must take
-  effect immediately. `calls_ringing` (and its group-call sibling,
-  `calls_ringing_group` — see the notifications feature doc) is created
-  with `playSound: false, enableVibration: false`; the ring's sound and
-  vibration come from `notification_sound_player.dart`. Ring sound
-  and ring notification share one start/stop lifecycle, keyed to
-  `IncomingCallPresenter.showIncoming`/`cancelIncoming` (the
-  choke points every path — live sync, push handler, ring page dispose,
-  cold-start accept — goes through), with a 60s backstop timer past the
-  45s ring timeout.
+- **The ring plays natively and process-wide, not as a channel sound**
+  (`IncomingRing` in `zuno_call_style`): one looping `MediaPlayer`
+  (`assets/sounds/ringtone.wav`, ringtone usage) and the vibrator, keyed by
+  the ringing call id and never touched when an engine detaches. Dart passes
+  the Ringtone and Vibrate-for-calls settings with `showIncomingCallStyle`.
+  Why native: Dart-owned audio dies with its engine and never stops while
+  the process is frozen. Why not the channel: a channel plays its
+  sound/vibration once and can never change after first registration, so
+  `calls_ringing` and `calls_ringing_group` are created with
+  `playSound: false, enableVibration: false`. Every stop names the call and
+  cancels the others:
+
+  | Stop | Covers |
+  |---|---|
+  | `cancelIncomingCallStyle`, from every `cancelIncoming` | Live sync, the push handler, ring page dispose, cold-start accept |
+  | The notification's delete intent | A swipe, and its own 60 s `setTimeoutAfter`; the system delivers it even while the app is frozen or in Doze |
+  | The Answer intent | Silences at once when Answer launches the activity |
+  | An `AlarmManager` window at 60 s | Backstop for a frozen process |
+  | An in-process 60 s timer | A live process, including API 24–25, which have no notification timeout |
+
 - **Ringback is a native `ToneGenerator` on `STREAM_VOICE_CALL`**
-  (`AndroidRingbackTonePlayer` → `MainActivity.kt`), not a bundled asset played through `audioplayers`
-  like every other app sound — it needs to ride the call's own audio
+  (`AndroidRingbackTonePlayer` → `MainActivity.kt`), not a bundled asset —
+  it needs to ride the call's own audio
   stream so it follows earpiece/speaker routing and in-call volume for
   free, without touching global audio state or requiring audio focus.
   Ringback keys off `CallSession.everHadRemote`/`remoteJoinedStream`
@@ -595,14 +652,12 @@ instead, so a stale notification can't outlive its call.
   everywhere else) — not call `phase == active`, which for the caller
   only means "our own SFU join finished," unrelated to the other side
   answering.
-- **All app sounds request no audio focus**
-  (`AndroidAudioFocus.none`) — both because a ringback taking focus would
-  otherwise get paused the moment the call's own audio session claims
-  `AUDIOFOCUS_GAIN`, and because Android denies a focus request from a
-  non-foreground app outright (confirmed on Android 16) with no
-  `audioplayers` fallback for a denied request — it just never plays.
-  Routing/volume still goes through the ring/notification/voice-call
-  usage types; only the "duck other apps" behavior is given up.
+- **The ring and ringback request no audio focus**: a ringback taking focus
+  would get paused the moment the call's own audio session claims
+  `AUDIOFOCUS_GAIN`, and Android denies a focus request from a
+  non-foreground app outright (confirmed on Android 16). Routing and volume
+  still follow the ringtone and voice-call usages; only the "duck other
+  apps" behavior is given up.
 
 ## Gotchas & Constraints
 
@@ -723,13 +778,14 @@ instead, so a stale notification can't outlive its call.
   explicit pre-check and the connect sequence's own internal request
   share one real platform-channel call rather than racing or duplicating
   it.
-- **Vibration is process-wide state; a ring sound handle is per-isolate.**
-  A push-delivered ring can be started in a headless isolate and stopped
-  in the main one after cold-start. Cancel the vibrator unconditionally
-  from any isolate (safe — the vibrator is a system service, and
-  cancelling a non-running vibration costs nothing). Audio must be routed
-  isolate-to-isolate explicitly (an `IsolateNameServer` stop-port,
-  local-only on receipt so a forwarded stop can't bounce back into a loop).
+- **The ring's `AlarmManager` backstop fires 60–105 s after the ring**:
+  Android 12+ stretches short windows. The delete intent is the precise
+  60 s stop on API 26+, so only a ring whose notification is blocked can
+  sound that long.
+- **`AssetManager.openFd` refuses a compressed asset**, so `IncomingRing`
+  falls back to a copy of the ringtone in `cacheDir` (`zuno_ringtone`).
+- **The ring cancels the vibrator only if it started a vibration itself**,
+  so stopping a silent ring never cuts a message buzz.
 - **`room.states` (the SDK's in-memory state cache) is only kept live for
   event types in `client.importantStateEvents`.** `m.call.member` is
   non-standard and must be added explicitly at client construction
@@ -737,21 +793,19 @@ instead, so a stale notification can't outlive its call.
   the database but is silently dropped from memory on a `Room` this app
   never calls `postLoad()` on, and one side of a call never sees the
   other join.
-- **Every entrypoint initializes `CallNotificationService` before any
-  presenter runs.** `AndroidIncomingCallPresenter` calls `initialize()`
-  itself, and a first `initialize()` on an isolate claims the decline port
-  by default, which would take declines away from the isolate that owns
-  them. `main.dart` initializes (and claims); both headless entries go
-  through `prepareHeadlessPush`, which initializes with
-  `claimDeclinePort: false` before any push is handled. A new entrypoint
-  must do the same.
+- **Only the app's `initialize()` claims the live routes.** `main.dart`
+  calls it with the default; every other caller (the presenters,
+  `showMessage`, the headless entries through `prepareHeadlessPush`) passes
+  `claimDeclinePort: false`. A new entry point must too, or it takes the
+  routes away from the app.
 - **Push-delivered headless call handling must not serialize the "ring
   down" push behind the "ring up" push's own long-lived hold.** A single
   queue serializing all headless pushes on one client/database, combined
   with a 45s blocking wait *inside* that same queued unit (to keep a
   client alive for a Decline tap), starves every other push — including
   the hangup summary that's supposed to cancel the ring — for the whole
-  ring duration.
+  ring duration. FCM runs the hold from `onRinging`, beside the ack;
+  UnifiedPush awaits it in `onPushHandled`, after the client work.
 - **`CallStyle.forOngoingCall`'s second argument is the hang-up intent,
   not a content intent.** Handing it the app-launch PendingIntent
   compiles, renders a normal-looking Hang up button, and silently does
@@ -859,8 +913,10 @@ instead, so a stale notification can't outlive its call.
 - The CallKit path is tested on Linux as iOS: `installFakeCallsChannel` /
   `sendFromNative` (`test/helpers/fake_calls_channel.dart`) record and
   play `zuno/calls`; `FakeCallSession` lives in `test/helpers/`.
-  `flutter_test_config.dart` resets `SystemRing` after every test. Native
-  decisions have XCTests (`ios/RunnerTests/RunnerTests.swift`).
+  `flutter_test_config.dart` resets `SystemRing`, the presenter's ring
+  memory and every `KeyedSerialLock` after each test. Native decisions have
+  XCTests (`ios/RunnerTests/RunnerTests.swift`) and JUnit tests
+  (`IncomingRingDecisionsTest`, over `RingDecisions`).
 
 ## Dependencies / Integration
 
@@ -873,11 +929,11 @@ instead, so a stale notification can't outlive its call.
   background-service) is what makes ringing work while backgrounded or
   killed; the platform seams own the ring/ongoing-call notification
   lifecycle (on Android, `zuno/call_style` and `CallForegroundService.kt`;
-  on iOS, CallKit). Calls share the same
-  best-effort, cross-isolate sound/vibration infra as message
-  notifications (`notification_sound_player.dart`) but with distinct
-  settings toggles (Ringtone / Vibrate for calls, vs. Message tone /
-  Vibrate for messages).
+  on iOS, CallKit). Calls share the raw-prefs sound settings with message
+  notifications, readable from any engine, with distinct toggles (Ringtone
+  / Vibrate for calls, vs. Message tone / Vibrate for messages); the ring
+  plays natively in `IncomingRing`. Declines share the live routes and the
+  action engine with the message actions.
 - **Room roles & permissions**: `canPublishCallMemberState` mirrors the
   same power-level model documented for room roles generally — calling
   requires the same state-event send permission the homeserver itself

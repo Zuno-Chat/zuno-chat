@@ -47,6 +47,9 @@ object PushNoticeDecision {
 
     fun mutedByNotifyMe(notifyMe: String?): Boolean = notifyMe == MENTIONS_ONLY
 
+    fun shouldPostMissed(notificationsEnabled: Boolean, channelExists: Boolean): Boolean =
+        notificationsEnabled && channelExists
+
     fun conversationFor(room: CachedRoom?): NoticeConversation? {
         if (room == null) return null
         val name = room.name.trim()

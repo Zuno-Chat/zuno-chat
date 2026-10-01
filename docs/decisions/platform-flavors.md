@@ -12,15 +12,14 @@ shared code.
 
 ## `foss` dropped (was: F-Droid eligibility)
 
-Decided 2026-09-26. Firebase shipped 2026-09-08 as pubspec plugins
-(`firebase_core`, `firebase_messaging`), and a Flutter plugin compiles into
-every variant — `GeneratedPluginRegistrant` registers it unconditionally,
-so no source-set or dependency-exclusion trick yields a Firebase-free APK
-short of forking the registrant. `mobile_scanner` additionally ships ML Kit,
+Decided 2026-09-26. Firebase is a native dependency of the Android app
+module (`firebase-messaging` through the BoM, used by `FcmService` and the
+FCM router), so a Firebase-free APK needs a flavor that drops that
+dependency and those classes. `mobile_scanner` additionally ships ML Kit,
 a proprietary blob F-Droid rejects outright. A `foss` flavor would carry
 permanent build complexity for a channel we are not pursuing. Reopening
-F-Droid is a fresh decision that must solve both: the registrant problem,
-and the scanner swap (`flutter_zxing`; gotcha — the Matrix verification QR
+F-Droid is a fresh decision that must solve both: the FCM split, and the
+scanner swap (`flutter_zxing`; gotcha — the Matrix verification QR
 payload is raw bytes, not text; a String-shaped scanner API corrupts it
 silently, and only an on-device scan proves a replacement handles it).
 
@@ -49,19 +48,20 @@ is once no build-time flavor exists.
   provider or take injected capabilities, so the iOS path is testable on
   Linux.
 - An iOS `false` means "no equivalent built yet", except Android concepts
-  that stay `false` for good: `playServices`, `batteryExemption`,
+  that stay `false` for good: `atomicDatabaseBatches`, `batteryExemption`,
   `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`,
   `foregroundSyncService`, `vibrationPatterns`, `fullScreenIntent` (its
   permission UI only), and the seam selectors `nativeIncomingRingUi`,
   `callForegroundService`, `nativeRingbackTone` (CallKit is a new branch
   per factory, never a flip).
 
-The gated surface: 16 `zuno/*` platform channels across 20 `lib/` files
+The gated surface: every `zuno/*` platform channel in `lib/`
 (notifications, call ring/ongoing/ringback presentation, push wake locks,
-background sync, shortcuts, conversations, inbound share, screen security,
-clipboard, device safety, play services, image/video processing, upload
-service, vibration, wake locks, network, sign-out wipe). Ungated, each
-throws `MissingPluginException` on iOS and surfaces as a red SnackBar.
+FCM delivery, background sync, shortcuts and room opens, conversations,
+inbound share, screen security, clipboard, device safety, image/video
+processing, upload service, vibration, wake locks, the client lease,
+network, sign-out wipe). Ungated, each throws `MissingPluginException` on
+iOS and surfaces as a red SnackBar.
 
 ## Call seams
 
@@ -73,7 +73,8 @@ throws `MissingPluginException` on iOS and surfaces as a red SnackBar.
 layer drives the CallKit call (`calls.md`).
 
 The risk: `call_notification_service.dart` also owns cross-isolate decline
-routing (`IsolateNameServer` port claim/release, the headless response
+and message-action routing (`IsolateNameServer` routes with a ping, accept
+and done hand-off in `live_isolate_route.dart`, the headless response
 handler) — none of it platform-specific, and the most subtle code in the
 app. The seam cuts between how a ring is *presented* and how a decline is
 *routed*; the port machinery stays put. This step lands alone, call tests

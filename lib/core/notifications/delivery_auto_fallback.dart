@@ -10,14 +10,23 @@ import 'notification_delivery_mode.dart';
 
 NotificationDeliveryMode? autoFallbackFor({
   required FcmStatus fcm,
+  required bool fcmRegistered,
   required bool userChoseMode,
   required bool hasDistributor,
 }) {
-  if (userChoseMode || fcm != FcmStatus.playServicesUnavailable) return null;
+  if (userChoseMode || fcmRegistered || !_fallbackStatuses.contains(fcm)) {
+    return null;
+  }
   return hasDistributor
       ? NotificationDeliveryMode.unifiedPush
       : NotificationDeliveryMode.backgroundService;
 }
+
+const _fallbackStatuses = {
+  FcmStatus.playServicesUnavailable,
+  FcmStatus.playServicesDisabled,
+  FcmStatus.notConfigured,
+};
 
 final autoSelectedDeliveryModeProvider =
     NotifierProvider<
@@ -69,12 +78,17 @@ class DeliveryAutoFallbackNotifier extends Notifier<void> {
       return;
     }
     final status = fcmDeliveryProvider.status.value;
-    if (status != FcmStatus.playServicesUnavailable || modes.userChose) return;
+    if (!_fallbackStatuses.contains(status) ||
+        modes.userChose ||
+        fcmDeliveryProvider.registered) {
+      return;
+    }
     _switching = true;
     try {
       final distributors = await UnifiedPush.getDistributors();
       final target = autoFallbackFor(
         fcm: fcmDeliveryProvider.status.value,
+        fcmRegistered: fcmDeliveryProvider.registered,
         userChoseMode: modes.userChose,
         hasDistributor: distributors.isNotEmpty,
       );

@@ -6,7 +6,8 @@ import 'unified_push_delivery_provider.dart';
 
 enum DeliveryFailureAction {
   switchToUnifiedPush,
-  fixGoogleServices,
+  updatePlayServices,
+  turnOnPlayServices,
   switchToBackgroundService,
   retry,
   openDistributorSettings,
@@ -28,7 +29,8 @@ class DeliveryFailure {
 String deliveryFailureActionLabel(DeliveryFailureAction action) {
   return switch (action) {
     DeliveryFailureAction.switchToUnifiedPush => 'Switch to UnifiedPush',
-    DeliveryFailureAction.fixGoogleServices => 'Fix Google services',
+    DeliveryFailureAction.updatePlayServices => 'Update Google Play services',
+    DeliveryFailureAction.turnOnPlayServices => 'Turn on Google Play services',
     DeliveryFailureAction.switchToBackgroundService => 'Use background sync',
     DeliveryFailureAction.retry => 'Retry',
     DeliveryFailureAction.openDistributorSettings => 'Open settings',
@@ -44,10 +46,14 @@ DeliveryFailure? notificationDeliveryFailure({
   int apnsDropped = 0,
   bool distributorBatteryRestricted = false,
   String? distributor,
+  bool? distributorInstalled,
   NotificationDeliveryMode? autoSelected,
 }) {
   final failure = switch (mode) {
-    NotificationDeliveryMode.fcm => _fcmFailure(fcm),
+    NotificationDeliveryMode.fcm => _fcmFailure(
+      fcm,
+      distributorInstalled: distributorInstalled,
+    ),
     NotificationDeliveryMode.unifiedPush =>
       _unifiedPushFailure(unifiedPush) ??
           _distributorBatteryFailure(
@@ -62,14 +68,21 @@ DeliveryFailure? notificationDeliveryFailure({
   if (autoSelected != null && autoSelected == mode) {
     return DeliveryFailure(
       message:
-          'No Google services on this device, so notifications use '
-          '${mode.label}',
+          'Google services cannot be used, so notifications use '
+          '${_midSentence(mode)}',
       action: DeliveryFailureAction.openSettings,
       notice: true,
     );
   }
   return null;
 }
+
+String _midSentence(NotificationDeliveryMode mode) => switch (mode) {
+  NotificationDeliveryMode.backgroundService => 'background sync',
+  NotificationDeliveryMode.fcm ||
+  NotificationDeliveryMode.unifiedPush ||
+  NotificationDeliveryMode.apns => mode.label,
+};
 
 DeliveryFailure? _distributorBatteryFailure(
   UnifiedPushStatus status, {
@@ -86,20 +99,34 @@ DeliveryFailure? _distributorBatteryFailure(
   );
 }
 
-DeliveryFailure? _fcmFailure(FcmStatus status) {
+DeliveryFailure? _fcmFailure(
+  FcmStatus status, {
+  required bool? distributorInstalled,
+}) {
+  final switchAway = distributorInstalled == false
+      ? DeliveryFailureAction.switchToBackgroundService
+      : DeliveryFailureAction.switchToUnifiedPush;
   return switch (status) {
     FcmStatus.idle ||
     FcmStatus.checkingPlayServices ||
     FcmStatus.registering ||
     FcmStatus.postingPusher ||
     FcmStatus.ready => null,
-    FcmStatus.playServicesUnavailable => const DeliveryFailure(
-      message: 'This device does not have Google services',
-      action: DeliveryFailureAction.switchToUnifiedPush,
+    FcmStatus.playServicesUnavailable => DeliveryFailure(
+      message: 'This device does not have Google Play services',
+      action: switchAway,
     ),
     FcmStatus.playServicesUpdateRequired => const DeliveryFailure(
-      message: 'Google services needs an update',
-      action: DeliveryFailureAction.fixGoogleServices,
+      message: 'Google Play services needs an update',
+      action: DeliveryFailureAction.updatePlayServices,
+    ),
+    FcmStatus.playServicesDisabled => const DeliveryFailure(
+      message: 'Google Play services is turned off',
+      action: DeliveryFailureAction.turnOnPlayServices,
+    ),
+    FcmStatus.notConfigured => DeliveryFailure(
+      message: 'This version of Zuno does not include Google services',
+      action: switchAway,
     ),
     FcmStatus.tokenFailed => const DeliveryFailure(
       message: 'Could not set up notifications on this device',

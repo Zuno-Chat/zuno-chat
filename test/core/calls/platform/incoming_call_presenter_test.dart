@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:isolate';
+import 'dart:ui';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
@@ -8,13 +10,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
-import 'package:zuno/core/calls/notifications/call_notification_service.dart'
-    show RingingCallInfo;
+import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ring_notification.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
-import 'package:zuno/core/notifications/notification_sound_player.dart';
+import 'package:zuno/core/notifications/notification_sound_settings.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_call_style_channel.dart';
@@ -36,10 +37,7 @@ void main() {
     callStyle = installFakeCallStyleChannel();
   });
 
-  tearDown(() async {
-    await pumpEventQueue();
-    await NotificationSoundPlayer.instance.stopIncomingRing();
-  });
+  tearDown(pumpEventQueue);
 
   Future<RingOutcome> ring(IncomingCallPresenter presenter) =>
       presenter.showIncoming(
@@ -112,8 +110,8 @@ void main() {
   group('the android presenter', () {
     const presenter = AndroidIncomingCallPresenter();
 
-    test('posts the call-style ring with everything its actions need, and '
-        'remembers the call', () async {
+    test('posts the call-style ring with everything its actions and its '
+        'sound need, and remembers the call', () async {
       await ring(presenter);
 
       expect((callStyle.lastShow.arguments as Map).cast<String, Object?>(), {
@@ -125,8 +123,145 @@ void main() {
         'roomId': '!room:example.org',
         'callId': 'call1',
         'avatarBytes': Uint8List.fromList([1, 2, 3]),
+        'ringtone': true,
+        'ringtoneAsset': 'assets/sounds/ringtone.wav',
+        'vibrate': true,
+        'vibrationPattern': [0, 800, 500, 800, 2000],
       });
       expect((await remembered())?.callId, 'call1');
+    });
+
+    test('rings and buzzes exactly as the Ringtone and Vibrate for calls '
+        'settings say', () async {
+      const cases = {
+        (ringtone: true, vibration: false): (ringtone: true, vibrate: false),
+        (ringtone: false, vibration: true): (ringtone: false, vibrate: true),
+        (ringtone: false, vibration: false): (ringtone: false, vibrate: false),
+      };
+
+      for (final MapEntry(key: settings, value: asked) in cases.entries) {
+        SharedPreferences.setMockInitialValues({
+          ringtoneEnabledKey: settings.ringtone,
+          callVibrationEnabledKey: settings.vibration,
+        });
+        RememberingIncomingCallPresenter.forgetForTest();
+
+        await ring(presenter);
+
+        final args = callStyle.lastShow.arguments as Map;
+        expect(
+          (ringtone: args['ringtone'], vibrate: args['vibrate']),
+          asked,
+          reason: '$settings',
+        );
+      }
+    });
+
+    test('asks for no buzz on a platform without vibration patterns', () async {
+      ambientCapabilities = capabilitiesLike(
+        androidCapabilities,
+        vibrationPatterns: false,
+      );
+
+      await ring(presenter);
+
+      expect((callStyle.lastShow.arguments as Map)['vibrate'], isFalse);
+    });
+
+    test('plays a ringtone that ships with the app', () async {
+      await ring(presenter);
+
+      final asset =
+          (callStyle.lastShow.arguments as Map)['ringtoneAsset'] as String;
+      expect((await rootBundle.load(asset)).lengthInBytes, greaterThan(0));
+    });
+
+    test('leaves the sound to the native side, so no engine going away can '
+        'cut it short', () async {
+      final dartSound = <String>[];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      for (final name in const [
+        'zuno/vibration',
+        'xyz.luan/audioplayers',
+        'xyz.luan/audioplayers.global',
+      ]) {
+        final channel = MethodChannel(name);
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          dartSound.add('$name ${call.method}');
+          return call.method == 'hasVibrator' ? true : null;
+        });
+        addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      }
+
+      await ring(presenter);
+      await pumpEventQueue();
+      await presenter.cancelIncoming(
+        roomId: '!room:example.org',
+        callId: 'call1',
+      );
+      await pumpEventQueue();
+
+      expect(dartSound, isEmpty);
+    });
+
+    test('takes the ring down through the native side, naming the call it '
+        'means', () async {
+      await ring(presenter);
+
+      await presenter.cancelIncoming(
+        roomId: '!room:example.org',
+        callId: 'call1',
+      );
+      await presenter.cancelIncoming();
+
+      expect(
+        callStyle.calls
+            .where((c) => c.method == 'cancelIncomingCallStyle')
+            .map((c) => c.arguments),
+        [
+          {'callId': 'call1'},
+          {'callId': null},
+        ],
+      );
+    });
+
+    test('leaves forgetting the ring to the native side, which checks and '
+        'forgets it in one step', () async {
+      for (final answer in [true, false]) {
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(
+          const MethodChannel('zuno/call_style'),
+          (call) async =>
+              call.method == 'cancelIncomingCallStyle' ? answer : null,
+        );
+        RememberingIncomingCallPresenter.forgetForTest();
+        await ring(presenter);
+
+        await presenter.cancelIncoming(
+          roomId: '!room:example.org',
+          callId: 'call1',
+        );
+
+        expect((await remembered())?.callId, 'call1', reason: '$answer');
+      }
+    });
+
+    test('without the native side, still forgets the ring itself', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('zuno/call_style'),
+            null,
+          );
+      await ring(presenter);
+
+      await presenter.cancelIncoming(
+        roomId: '!room:example.org',
+        callId: 'call1',
+      );
+
+      expect(await remembered(), isNull);
     });
 
     test('reports the ring only while its notification is on screen', () async {
@@ -220,6 +355,10 @@ void main() {
         'roomId': '!room:example.org',
         'callId': 'call1',
         'avatarBytes': null,
+        'ringtone': true,
+        'ringtoneAsset': 'assets/sounds/ringtone.wav',
+        'vibrate': true,
+        'vibrationPattern': [0, 800, 500, 800, 2000],
       });
       expect(callStyle.calls.map((c) => c.method), [
         'showIncomingCallStyle',
@@ -228,6 +367,116 @@ void main() {
       expect(native.methods, isNot(contains('reportIncomingCall')));
       expect(native.methods, isNot(contains('endIncomingCall')));
     });
+  });
+
+  group('a call that already rings', () {
+    const presenter = AndroidIncomingCallPresenter();
+
+    Iterable<MethodCall> posts() =>
+        callStyle.calls.where((c) => c.method == 'showIncomingCallStyle');
+
+    test('is not posted again, so its ring is not restarted and nothing takes '
+        'it down', () async {
+      await ring(presenter);
+
+      expect(await ring(presenter), RingOutcome.shown);
+      await pumpEventQueue();
+
+      expect(callStyle.calls.map((c) => c.method), ['showIncomingCallStyle']);
+    });
+
+    test('presented twice at once is posted once', () async {
+      await Future.wait([ring(presenter), ring(presenter)]);
+
+      expect(posts(), hasLength(1));
+    });
+
+    test('rung by another isolate is not rung again here', () async {
+      await saveRingingCall(await SharedPreferences.getInstance(), (
+        roomId: '!room:example.org',
+        callId: 'call1',
+        callerId: '@bob:example.org',
+        isVideo: true,
+      ));
+      notifications.active = [ringNotificationOnScreen()];
+
+      expect(await ring(presenter), RingOutcome.shown);
+
+      expect(posts(), isEmpty);
+    });
+
+    test('is forgotten by a test reset, so no test inherits a ring from the '
+        'one before', () async {
+      await ring(presenter);
+
+      RememberingIncomingCallPresenter.forgetForTest();
+      await ring(presenter);
+
+      expect(posts(), hasLength(2));
+    });
+
+    test('rings again once its ring was cancelled', () async {
+      await ring(presenter);
+      await presenter.cancelIncoming(
+        roomId: '!room:example.org',
+        callId: 'call1',
+      );
+
+      await ring(presenter);
+
+      expect(posts(), hasLength(2));
+    });
+
+    test('does not stop a different call from ringing as before', () async {
+      await ring(presenter);
+
+      await presenter.showIncoming(
+        callerName: 'Carol',
+        callerId: '@carol:example.org',
+        isVideo: false,
+        roomId: '!room:example.org',
+        callId: 'call2',
+      );
+
+      expect(posts().map((c) => (c.arguments as Map)['callId']), [
+        'call1',
+        'call2',
+      ]);
+    });
+
+    test('a cancel that lands while the call is still being presented takes '
+        'it down once it is up', () async {
+      final presenting = Completer<void>();
+      final slow = _FakeRememberingPresenter(presenting: presenting.future);
+
+      final shown = ring(slow);
+      await pumpEventQueue();
+      final cancelled = slow.cancelIncoming(
+        roomId: '!room:example.org',
+        callId: 'call1',
+      );
+      await pumpEventQueue();
+      expect(slow.dismissals, isEmpty);
+
+      presenting.complete();
+      await Future.wait([shown, cancelled]);
+
+      expect(slow.presented, 1);
+      expect(slow.dismissals, ['call1']);
+      expect(await remembered(), isNull);
+    });
+  });
+
+  test('presenting a ring takes the app\'s decline route back', () async {
+    await CallNotificationService.instance.initialize();
+    final stranger = ReceivePort();
+    addTearDown(stranger.close);
+    IsolateNameServer.removePortNameMapping(declinePortName);
+    IsolateNameServer.registerPortWithName(stranger.sendPort, declinePortName);
+
+    await ring(const AndroidIncomingCallPresenter());
+
+    expect(CallNotificationService.instance.stillHoldsDeclinePort(), isTrue);
   });
 
   group('every presenter that really rings', () {
@@ -241,14 +490,15 @@ void main() {
       expect((await remembered())?.isVideo, isTrue);
     });
 
-    test('forgets the call when the ring is cancelled', () async {
+    test('a cancel naming no call hands the whole ring over to be forgotten '
+        'and taken down', () async {
       final presenter = _FakeRememberingPresenter();
       await ring(presenter);
 
       await presenter.cancelIncoming();
 
+      expect(presenter.dismissals, [null]);
       expect(await remembered(), isNull);
-      expect(presenter.dismissed, 1);
     });
 
     test('cancelling another call leaves the remembered ring up and dismisses '
@@ -263,11 +513,11 @@ void main() {
       );
 
       expect((await remembered())?.callId, 'call1');
-      expect(presenter.dismissed, 0);
+      expect(presenter.dismissals, isEmpty);
     });
 
-    test('cancelling the ringing call by name dismisses it and forgets '
-        'it', () async {
+    test('cancelling the ringing call by name hands that call over to be '
+        'forgotten and taken down', () async {
       final presenter = _FakeRememberingPresenter();
       await ring(presenter);
 
@@ -277,8 +527,8 @@ void main() {
         end: RingEnd.remoteEnded,
       );
 
+      expect(presenter.dismissals, ['call1']);
       expect(await remembered(), isNull);
-      expect(presenter.dismissed, 1);
     });
 
     test('a cancel that names only the room takes down whatever '
@@ -291,12 +541,12 @@ void main() {
         end: RingEnd.unanswered,
       );
 
+      expect(presenter.dismissals, [null]);
       expect(await remembered(), isNull);
-      expect(presenter.dismissed, 1);
     });
 
     test('a remembered ring of another call too old to still be ringing does '
-        'not hold the cancel back, and is forgotten', () async {
+        'not hold the cancel back', () async {
       final presenter = _FakeRememberingPresenter();
       final prefs = await SharedPreferences.getInstance();
       await saveRingingCall(prefs, (
@@ -312,8 +562,7 @@ void main() {
         end: RingEnd.remoteEnded,
       );
 
-      expect(ringAgeFor(prefs, 'call1'), isNull);
-      expect(presenter.dismissed, 1);
+      expect(presenter.dismissals, ['call2']);
     });
 
     test('with nothing remembered, a cancel naming a call still '
@@ -326,9 +575,26 @@ void main() {
         end: RingEnd.remoteEnded,
       );
 
-      expect(await remembered(), isNull);
-      expect(presenter.dismissed, 1);
+      expect(presenter.dismissals, ['call1']);
     });
+
+    test(
+      'an unreadable remembered ring does not hold the cancel back',
+      () async {
+        final presenter = _FakeRememberingPresenter();
+        SharedPreferences.setMockInitialValues({
+          'calls.ringing_notification': '{not json',
+        });
+
+        await presenter.cancelIncoming(
+          roomId: '!room:example.org',
+          callId: 'call1',
+          end: RingEnd.remoteEnded,
+        );
+
+        expect(presenter.dismissals, ['call1']);
+      },
+    );
   });
 
   group('the presenter for a platform with neither a ring screen nor '
@@ -350,7 +616,6 @@ void main() {
 
         expect(callStyle.calls, isEmpty);
         expect(notifications.methods, isEmpty);
-        expect(NotificationSoundPlayer.instance.ownsIncomingRing, isFalse);
         expect(await remembered(), isNull);
       },
     );
@@ -655,7 +920,6 @@ void main() {
 
       expect(callStyle.calls, isEmpty);
       expect(notifications.methods, isEmpty);
-      expect(NotificationSoundPlayer.instance.ownsIncomingRing, isFalse);
       expect(await remembered(), isNull);
     });
 
@@ -669,10 +933,12 @@ void main() {
 }
 
 class _FakeRememberingPresenter extends RememberingIncomingCallPresenter {
-  _FakeRememberingPresenter({this.fails = false});
+  _FakeRememberingPresenter({this.fails = false, this.presenting});
 
   final bool fails;
-  int dismissed = 0;
+  final Future<void>? presenting;
+  int presented = 0;
+  final dismissals = <String?>[];
 
   @override
   Future<void> presentIncoming({
@@ -684,11 +950,16 @@ class _FakeRememberingPresenter extends RememberingIncomingCallPresenter {
     required bool isGroupCall,
     Uint8List? avatarBytes,
   }) async {
+    await presenting;
     if (fails) throw StateError('no ring screen');
+    presented++;
   }
 
   @override
-  Future<void> dismissIncoming() async => dismissed++;
+  Future<void> forgetAndDismiss(String? callId) async {
+    dismissals.add(callId);
+    await clearRingingCall(await SharedPreferences.getInstance());
+  }
 
   @override
   Future<RingingCallInfo?> activeRing() => rememberedRing();

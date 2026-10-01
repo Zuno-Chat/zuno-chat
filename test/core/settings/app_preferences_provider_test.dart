@@ -6,9 +6,11 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/notifications/fcm_availability_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -370,6 +372,136 @@ void main() {
             .set(mode);
         expect(container.read(notificationDeliveryModeProvider), mode);
       }
+    });
+
+    group('Google services the picker shows closed', () {
+      Future<ProviderContainer> checkedAs(
+        AsyncValue<FcmAvailability> fcm,
+      ) async {
+        SharedPreferences.setMockInitialValues({
+          'settings.notification_delivery_mode': 'unifiedPush',
+          'settings.notification_delivery_mode_auto': 'unifiedPush',
+        });
+        final prefs = await SharedPreferences.getInstance();
+        final container = ProviderContainer(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            platformCapabilitiesProvider.overrideWithValue(androidCapabilities),
+            fcmAvailabilityProvider.overrideWithValue(fcm),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(fcmAvailabilityProvider, (_, _) {});
+        return container;
+      }
+
+      void expectUntouched(ProviderContainer container) {
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.unifiedPush,
+        );
+        final prefs = container.read(sharedPreferencesProvider);
+        expect(
+          prefs.getString('settings.notification_delivery_mode'),
+          'unifiedPush',
+        );
+        expect(
+          prefs.getBool('settings.notification_delivery_mode_chosen'),
+          isNull,
+        );
+        expect(
+          prefs.getString('settings.notification_delivery_mode_auto'),
+          'unifiedPush',
+        );
+      }
+
+      for (final fcm in [
+        FcmAvailability.unavailable,
+        FcmAvailability.disabled,
+        FcmAvailability.notConfigured,
+      ]) {
+        test('set(fcm) is refused when ${fcm.name}, and nothing is '
+            'recorded as chosen', () async {
+          final container = await checkedAs(AsyncData(fcm));
+
+          final saved = await container
+              .read(notificationDeliveryModeProvider.notifier)
+              .set(NotificationDeliveryMode.fcm);
+
+          expect(saved, isFalse);
+          expectUntouched(container);
+        });
+      }
+
+      test('set(fcm) is refused while this device is still being '
+          'checked', () async {
+        final container = await checkedAs(const AsyncLoading());
+
+        final saved = await container
+            .read(notificationDeliveryModeProvider.notifier)
+            .set(NotificationDeliveryMode.fcm);
+
+        expect(saved, isFalse);
+        expectUntouched(container);
+      });
+
+      test('set(fcm) goes through on a device that only needs an '
+          'update', () async {
+        final container = await checkedAs(
+          const AsyncData(FcmAvailability.updateRequired),
+        );
+
+        final saved = await container
+            .read(notificationDeliveryModeProvider.notifier)
+            .set(NotificationDeliveryMode.fcm);
+
+        expect(saved, isTrue);
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.fcm,
+        );
+        expect(
+          container
+              .read(sharedPreferencesProvider)
+              .getBool('settings.notification_delivery_mode_chosen'),
+          isTrue,
+        );
+      });
+
+      test('the other methods are still set where Google services is '
+          'closed', () async {
+        final container = await checkedAs(
+          const AsyncData(FcmAvailability.unavailable),
+        );
+
+        final saved = await container
+            .read(notificationDeliveryModeProvider.notifier)
+            .set(NotificationDeliveryMode.backgroundService);
+
+        expect(saved, isTrue);
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.backgroundService,
+        );
+      });
+
+      test('set(fcm) goes through when no picker has checked this '
+          'device', () async {
+        final container = await _containerWith({});
+        addTearDown(container.dispose);
+
+        final saved = await container
+            .read(notificationDeliveryModeProvider.notifier)
+            .set(NotificationDeliveryMode.fcm);
+
+        expect(saved, isTrue);
+        expect(
+          container
+              .read(sharedPreferencesProvider)
+              .getString('settings.notification_delivery_mode'),
+          'fcm',
+        );
+      });
     });
   });
 

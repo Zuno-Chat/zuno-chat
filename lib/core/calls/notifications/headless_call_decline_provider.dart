@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../matrix/matrix_client_provider.dart';
+import '../../notifications/message_notification_action.dart';
 import '../matrixrtc/call_decline.dart';
 import '../matrixrtc/resolved_call_ids_provider.dart';
+import '../platform/incoming_call_presenter.dart';
 import 'call_notification_service.dart';
 
 final headlessCallDeclineProvider =
@@ -20,10 +23,24 @@ class HeadlessCallDeclineNotifier extends Notifier<void> {
   }
 
   Future<void> _handle(HeadlessCallDecline decline) async {
-    final client = ref.read(matrixClientProvider);
-    final room = client.getRoomById(decline.roomId);
-    if (room == null) return;
-    await declineCall(room, decline.callId);
-    ref.read(resolvedCallIdsProvider.notifier).markResolved(decline.callId);
+    final presenter = ref.read(incomingCallPresenterProvider);
+    final resolved = ref.read(resolvedCallIdsProvider.notifier);
+    final room = ref.read(matrixClientProvider).getRoomById(decline.roomId);
+    try {
+      await presenter.cancelIncoming(
+        roomId: decline.roomId,
+        callId: decline.callId,
+        end: RingEnd.declinedElsewhere,
+      );
+      resolved.markResolved(decline.callId);
+      if (room == null) return;
+      await retryNotificationAction(
+        () => declineCallOrFail(room, decline.callId),
+      );
+    } catch (e) {
+      debugPrint('zuno/calls: decline of ${decline.callId} failed: $e');
+    } finally {
+      decline.finished();
+    }
   }
 }

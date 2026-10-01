@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
+import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_router.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
@@ -484,6 +485,24 @@ void main() {
           expect(container.read(activeCallProvider), isNull);
         },
       );
+
+      test('as ended by the other side when another isolate ended the call '
+          'after the app loaded', () async {
+        expect(container.read(resolvedCallIdsProvider), isEmpty);
+        await markCallResolvedOnDisk(prefs, 'call1');
+
+        await router().handle(accept());
+        await pumpEventQueue();
+
+        expect(toNative.argsOf('endSystemCall'), [
+          {
+            'roomId': room.id,
+            'callId': 'call1',
+            'reason': 'remoteEnded',
+            'byUser': false,
+          },
+        ]);
+      });
 
       testWidgets('as failed when the room never arrives', (tester) async {
         final handling = router().handle(accept(roomId: '!gone:example.org'));

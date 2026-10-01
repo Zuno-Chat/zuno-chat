@@ -5,6 +5,8 @@ import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/shortcuts/home_screen_shortcut.dart';
 
+import '../../helpers/platform_capabilities.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('zuno/shortcuts');
@@ -81,8 +83,57 @@ void main() {
     },
   );
 
-  group('on a platform without home screen shortcuts', () {
+  group('on iOS, a tapped Apple push opens its room', () {
     final ios = capabilitiesFor(AppPlatform.ios);
+    late List<String> calls;
+
+    setUp(() {
+      calls = [];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call.method);
+        return call.method == 'pinShortcut' ? true : '!pushed:example.org';
+      });
+    });
+
+    test('the launch room is the one whose notification started the '
+        'app', () async {
+      expect(
+        await takeLaunchRoomShortcut(capabilities: ios),
+        '!pushed:example.org',
+      );
+      expect(calls, ['takeLaunchRoomId']);
+    });
+
+    test('a tap while running opens its room', () async {
+      channel.setMethodCallHandler(null);
+      initHomeScreenShortcutChannel(capabilities: ios);
+      final opened = onOpenRoomShortcut.first;
+
+      await messenger.handlePlatformMessage(
+        channel.name,
+        channel.codec.encodeMethodCall(
+          const MethodCall('openRoom', '!pushed:example.org'),
+        ),
+        (data) {},
+      );
+
+      expect(await opened, '!pushed:example.org');
+    });
+
+    test('pinning still reports not added and never calls native', () async {
+      final pinned = await pinRoomShortcut(
+        roomId: '!abc:example.org',
+        label: 'Alice',
+        capabilities: ios,
+      );
+
+      expect(pinned, isFalse);
+      expect(calls, isEmpty);
+    });
+  });
+
+  group('on a platform whose native side opens no rooms', () {
+    final neither = capabilitiesLike(iosCapabilities, nativeRoomOpens: false);
     late List<String> calls;
 
     setUp(() {
@@ -94,7 +145,7 @@ void main() {
     });
 
     test('there is never a launch room', () async {
-      expect(await takeLaunchRoomShortcut(capabilities: ios), isNull);
+      expect(await takeLaunchRoomShortcut(capabilities: neither), isNull);
       expect(calls, isEmpty);
     });
 
@@ -102,16 +153,16 @@ void main() {
       final pinned = await pinRoomShortcut(
         roomId: '!abc:example.org',
         label: 'Alice',
-        capabilities: ios,
+        capabilities: neither,
       );
 
       expect(pinned, isFalse);
       expect(calls, isEmpty);
     });
 
-    test('no handler is registered for opened shortcuts', () async {
+    test('no handler is registered for opened rooms', () async {
       channel.setMethodCallHandler(null);
-      initHomeScreenShortcutChannel(capabilities: ios);
+      initHomeScreenShortcutChannel(capabilities: neither);
 
       var replied = false;
       ByteData? reply;

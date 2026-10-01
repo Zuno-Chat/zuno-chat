@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:matrix/matrix.dart' show Client;
 
 import 'core/calls/active_call_provider.dart';
 import 'core/calls/matrixrtc/incoming_call.dart';
@@ -26,6 +27,7 @@ import 'core/notifications/notification_delivery_mode.dart';
 import 'core/notifications/notification_delivery_provider.dart';
 import 'core/notifications/notification_permission_provider.dart';
 import 'core/platform/platform_capabilities.dart';
+import 'core/push/incoming_push_handler.dart';
 import 'core/settings/app_preferences_provider.dart';
 import 'core/share/inbound_share.dart';
 import 'core/shortcuts/home_screen_shortcut.dart';
@@ -128,11 +130,13 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   bool _launchHandled = false;
   bool _sawFirstResume = false;
   late final Future<void> _pendingRingShown;
+  late final Client _client = ref.read(matrixClientProvider);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    trackPushClientFreshness(_client);
     bindAppStateToPushDelivery(
       currentlyOpenRoomId: () =>
           mounted ? ref.read(currentlyOpenRoomIdProvider) : null,
@@ -209,6 +213,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
 
   @override
   void dispose() {
+    untrackPushClientFreshness(_client);
     WidgetsBinding.instance.removeObserver(this);
     SystemRing.instance.ringing.removeListener(_onSystemRingChanged);
     _shortcutSub?.cancel();
@@ -235,6 +240,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     }
 
     if (state != AppLifecycleState.resumed) return;
+    CallNotificationService.instance.reclaimLiveRoutes();
     if (!_sawFirstResume) {
       _sawFirstResume = true;
       return;

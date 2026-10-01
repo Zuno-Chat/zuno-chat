@@ -54,8 +54,6 @@ const callVibrationPattern = <int>[0, 800, 500, 800, 2000];
 
 const messageVibrationPattern = <int>[0, 300, 150, 300];
 
-const maxRingDuration = Duration(seconds: 60);
-
 const minMessageToneInterval = Duration(seconds: 2);
 
 enum MessageAlert { tone, silentUpdate, silent }

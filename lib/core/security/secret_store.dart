@@ -6,17 +6,27 @@ abstract class SecretStore {
   Future<void> delete(String key);
 }
 
+const _iosOptions = IOSOptions(
+  accessibility: KeychainAccessibility.first_unlock_this_device,
+);
+
 class SecureSecretStore implements SecretStore {
   final FlutterSecureStorage _storage;
 
   const SecureSecretStore([
     this._storage = const FlutterSecureStorage(
-      aOptions: AndroidOptions(),
-      iOptions: IOSOptions(
-        accessibility: KeychainAccessibility.first_unlock_this_device,
-      ),
+      aOptions: AndroidOptions(resetOnError: false),
+      iOptions: _iosOptions,
     ),
   ]);
+
+  const SecureSecretStore.discardingUnreadable()
+    : this(
+        const FlutterSecureStorage(
+          aOptions: AndroidOptions(resetOnError: true),
+          iOptions: _iosOptions,
+        ),
+      );
 
   @override
   Future<String?> read(String key) => _storage.read(key: key);

@@ -76,7 +76,9 @@ what a message looks like, how it's sent, and how the timeline behaves.
   person costs one request per bucket however many sizes show them.
   Flutter's image cache holds the decoded picture (no flicker on rebuild);
   bytes go through `fetchCachedAvatar`: disk only, never expiring, write
-  awaited. The initial shows until the first frame or on error, sized to
+  awaited. The disk key (`avatarCacheKey`) is shared with the notification
+  poster, which shows the small-bucket entry on a sender's first post
+  instead of fetching it. The initial shows until the first frame or on error, sized to
   the avatar, on one of eight tones picked by a folded FNV-1a hash of
   `toneSeed` (pinned by tests: changing it recolors everyone). Seed with a
   stable Matrix ID where one exists, so a rename keeps the color.

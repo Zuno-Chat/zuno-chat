@@ -1,7 +1,5 @@
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:zuno/core/notifications/notification_sound_player.dart';
 import 'package:zuno/core/notifications/notification_sound_settings.dart';
 
 void main() {
@@ -136,29 +134,6 @@ void main() {
           now: now,
         ),
         MessageAlert.silentUpdate,
-      );
-    });
-  });
-
-  group('audio focus', () {
-    test('nothing posted from the background asks for audio focus', () {
-      expect(
-        ringAudioContext.android.audioFocus,
-        AndroidAudioFocus.none,
-        reason: 'a focus request the OS denies costs the sound entirely',
-      );
-      expect(
-        ringAudioContext.android.usageType,
-        AndroidUsageType.notificationRingtone,
-      );
-    });
-
-    test('no sound played during a call carries an audio context', () {
-      expect(
-        ringAudioContext.android.audioMode,
-        AndroidAudioMode.normal,
-        reason:
-            'the ring only ever plays outside a call, where normal is right',
       );
     });
   });

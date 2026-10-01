@@ -4,8 +4,8 @@ description: >
   NotificationCompat.CallStyle (which flutter_local_notifications 22.3.0
   has no API for). A real plugin rather than a hand-attached channel so
   ZunoCallStylePlugin is auto-registered on every FlutterEngine the app
-  creates or is created on its behalf (e.g. firebase_messaging's own
-  background engine) — the push-delivered ring runs on one of those.
+  creates or is created on its behalf (e.g. flutter_local_notifications'
+  own action engine) — a ring's Decline runs on one of those.
   Not published; internal to the Zuno app only.
 version: 0.0.1
 publish_to: none

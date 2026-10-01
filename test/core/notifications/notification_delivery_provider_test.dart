@@ -9,6 +9,7 @@ import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
 
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
@@ -177,7 +178,14 @@ void main() {
     );
   });
 
-  test('bindAppStateToPushDelivery reaches both push runners', () {
+  test('bindAppStateToPushDelivery reaches both push runners', () async {
+    const lock = MethodChannel('zuno/push_wakelock');
+    messenger.setMockMethodCallHandler(
+      lock,
+      (call) async => call.method == 'appInFront' ? false : null,
+    );
+    addTearDown(() => messenger.setMockMethodCallHandler(lock, null));
+
     bindAppStateToPushDelivery(
       currentlyOpenRoomId: () => '!open:example.org',
       isAppSyncing: () => true,
@@ -189,27 +197,75 @@ void main() {
     ]) {
       expect(runner.currentlyOpenRoomId(), '!open:example.org');
       expect(runner.isAppSyncing(), isTrue);
+      expect(await runner.nativeAppInFront(), isFalse);
     }
   });
 
+  group('telling FCM the app takes pushes', () {
+    const fcm = MethodChannel('zuno/fcm');
+    late List<String> fcmCalls;
+
+    setUp(() {
+      fcmCalls = [];
+      fcmDeliveryProvider.runner
+        ..liveClient = buildTestClient()
+        ..currentlyOpenRoomId = (() => null)
+        ..isAppSyncing = (() => false);
+      addTearDown(() => fcmDeliveryProvider.runner.liveClient = null);
+      addTearDown(() => messenger.setMockMethodCallHandler(fcm, null));
+    });
+
+    test('happens only once the app state is bound', () async {
+      String? openRoomWhenReady;
+      bool? syncingWhenReady;
+      messenger.setMockMethodCallHandler(fcm, (call) async {
+        fcmCalls.add(call.method);
+        if (call.method == 'ready') {
+          openRoomWhenReady = fcmDeliveryProvider.runner.currentlyOpenRoomId();
+          syncingWhenReady = fcmDeliveryProvider.runner.isAppSyncing();
+        }
+        return true;
+      });
+
+      bindAppStateToPushDelivery(
+        currentlyOpenRoomId: () => '!ready:example.org',
+        isAppSyncing: () => true,
+      );
+      await pumpEventQueue();
+
+      expect(fcmCalls, ['ready']);
+      expect(openRoomWhenReady, '!ready:example.org');
+      expect(syncingWhenReady, isTrue);
+    });
+
+    test('never happens where FCM is not offered', () async {
+      ambientCapabilities = iosCapabilities;
+      messenger.setMockMethodCallHandler(fcm, (call) async {
+        fcmCalls.add(call.method);
+        return true;
+      });
+
+      bindAppStateToPushDelivery(
+        currentlyOpenRoomId: () => null,
+        isAppSyncing: () => false,
+      );
+      await pumpEventQueue();
+
+      expect(fcmCalls, isEmpty);
+    });
+  });
+
   group('routing to the active transport', () {
-    const playServices = MethodChannel('zuno/play_services');
     late _PusherClient client;
 
     setUp(() {
       SharedPreferences.setMockInitialValues({});
-      messenger.setMockMethodCallHandler(
-        playServices,
-        (call) async => call.method == 'checkPlayServices' ? 'AVAILABLE' : null,
-      );
       client = _PusherClient();
       fcmDeliveryProvider
+        ..availabilityReader = (() async => FcmAvailability.available)
         ..tokenReader = (() async => 'token-xyz')
         ..tokenDeleter = (() async {});
-      addTearDown(() async {
-        await fcmDeliveryProvider.stop(client);
-        messenger.setMockMethodCallHandler(playServices, null);
-      });
+      addTearDown(() => fcmDeliveryProvider.stop(client));
     });
 
     test('retryFailedDelivery re-registers a failed FCM transport', () async {

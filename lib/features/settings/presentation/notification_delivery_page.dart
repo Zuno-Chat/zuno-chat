@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/apns_delivery_provider.dart';
 import '../../../core/notifications/background_sync_service.dart';
+import '../../../core/notifications/fcm_availability_provider.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
@@ -129,6 +130,11 @@ class _NotificationDeliveryPageState
     unawaited(fcmDeliveryProvider.registerNow(client));
   }
 
+  void _fixFcm() {
+    final client = ref.read(matrixClientProvider);
+    unawaited(fcmDeliveryProvider.fixPlayServices(client));
+  }
+
   void _registerApns() {
     final client = ref.read(matrixClientProvider);
     unawaited(apnsDeliveryProvider.registerNow(client));
@@ -143,26 +149,38 @@ class _NotificationDeliveryPageState
     final chosen = await showModalBottomSheet<NotificationDeliveryMode>(
       context: context,
       builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            for (final mode
-                in ref.read(platformCapabilitiesProvider).deliveryModes)
-              ListTile(
-                leading: mode == current
-                    ? const Icon(Icons.check_outlined)
-                    : const SizedBox(width: 24),
-                title: Text(mode.label),
-                subtitle: Text(mode.description),
-                onTap: () => Navigator.of(context).pop(mode),
-              ),
-          ],
+        child: Consumer(
+          builder: (context, ref, _) {
+            final fcm = ref.watch(fcmAvailabilityProvider).value;
+            return Wrap(
+              children: [
+                for (final mode
+                    in ref.watch(platformCapabilitiesProvider).deliveryModes)
+                  if (deliveryModeChoice(mode, fcm: fcm) case (
+                    :final enabled,
+                    :final subtitle,
+                  ))
+                    ListTile(
+                      enabled: enabled,
+                      leading: mode == current
+                          ? const Icon(Icons.check_outlined)
+                          : const SizedBox(width: 24),
+                      title: Text(mode.label),
+                      subtitle: Text(subtitle),
+                      onTap: () => Navigator.of(context).pop(mode),
+                    ),
+              ],
+            );
+          },
         ),
       ),
     );
     if (chosen == null || chosen == current || !mounted) return;
     final client = ref.read(matrixClientProvider);
-    await ref.read(notificationDeliveryModeProvider.notifier).set(chosen);
-    unawaited(kickOffDeliveryMode(client, chosen));
+    final saved = await ref
+        .read(notificationDeliveryModeProvider.notifier)
+        .set(chosen);
+    if (saved) unawaited(kickOffDeliveryMode(client, chosen));
   }
 
   List<Widget> _deliveryModeSettings(
@@ -265,13 +283,32 @@ class _NotificationDeliveryPageState
         return [
           ValueListenableBuilder<FcmStatus>(
             valueListenable: fcmDeliveryProvider.status,
-            builder: (context, fcmStatus, _) => _pushStatusRow(
-              busy: fcmStatusIsBusy(fcmStatus),
-              action: fcmStatusAction(fcmStatus),
-              icon: _fcmStatusIcon(fcmStatus),
-              label: fcmStatusLabel(fcmStatus),
-              register: _registerFcm,
-            ),
+            builder: (context, fcmStatus, _) {
+              final fix = fcmFixLabel(fcmStatus);
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _pushStatusRow(
+                    busy: fcmStatusIsBusy(fcmStatus),
+                    action: fcmStatusAction(fcmStatus),
+                    icon: _fcmStatusIcon(fcmStatus),
+                    label: fcmStatusLabel(fcmStatus),
+                    register: _registerFcm,
+                  ),
+                  if (fix != null)
+                    ListTile(
+                      leading: Icon(
+                        fcmStatus == FcmStatus.playServicesDisabled
+                            ? Icons.toggle_on_outlined
+                            : Icons.upgrade_outlined,
+                      ),
+                      title: Text(fix),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _fixFcm,
+                    ),
+                ],
+              );
+            },
           ),
           ..._batteryExemptionRows(mode, capabilities),
         ];
@@ -312,7 +349,7 @@ class _NotificationDeliveryPageState
       subtitle: Text(label),
       onTap: action == PushStatusAction.open ? _openPushTargetStatus : null,
       trailing: switch (action) {
-        PushStatusAction.none => null,
+        PushStatusAction.none || PushStatusAction.fix => null,
         PushStatusAction.register => TextButton(
           onPressed: busy ? null : register,
           child: const Text('Register'),
@@ -370,6 +407,7 @@ class _NotificationDeliveryPageState
     final deliveryMode = ref.watch(notificationDeliveryModeProvider);
     final capabilities = ref.watch(platformCapabilitiesProvider);
     final canChoose = capabilities.deliveryModes.length > 1;
+    ref.watch(fcmAvailabilityProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Delivery')),
@@ -449,6 +487,8 @@ IconData _fcmStatusIcon(FcmStatus status) {
     case FcmStatus.postingPusher:
       return Icons.sync_outlined;
     case FcmStatus.playServicesUnavailable:
+    case FcmStatus.playServicesDisabled:
+    case FcmStatus.notConfigured:
       return Icons.warning_amber_outlined;
     case FcmStatus.playServicesUpdateRequired:
       return Icons.system_update_outlined;

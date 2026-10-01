@@ -1,128 +1,161 @@
-import 'package:firebase_core_platform_interface/firebase_core_platform_interface.dart';
-import 'package:firebase_messaging_platform_interface/firebase_messaging_platform_interface.dart';
+import 'dart:async';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuno/core/push/fcm_background_handler.dart';
+import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm_startup.dart';
 
+import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
 
-class _FakeFirebase extends FirebasePlatform {
-  Object? failure;
-  int starts = 0;
+class _RecordingClient extends Client {
+  _RecordingClient({this.loggedIn = true})
+    : super('test', database: FakeDatabaseApi());
+
+  final bool loggedIn;
+  final fetched = <String?>[];
 
   @override
-  Future<FirebaseAppPlatform> initializeApp({
-    String? name,
-    FirebaseOptions? options,
+  bool isLogged() => loggedIn;
+
+  @override
+  Future<Event?> getEventByPushNotification(
+    PushNotification notification, {
+    bool storeInDatabase = true,
+    Duration timeoutForServerRequests = const Duration(seconds: 8),
+    bool returnNullIfSeen = true,
   }) async {
-    starts++;
-    if (failure case final error?) throw error;
-    return FirebaseAppPlatform(
-      defaultFirebaseAppName,
-      const FirebaseOptions(
-        apiKey: 'key',
-        appId: 'app',
-        messagingSenderId: 'sender',
-        projectId: 'project',
-      ),
-    );
+    fetched.add(notification.eventId);
+    return null;
   }
-}
-
-class _FakeMessaging extends FirebaseMessagingPlatform {
-  final backgroundHandlers = <BackgroundMessageHandler>[];
-
-  @override
-  Future<void> registerBackgroundMessageHandler(
-    BackgroundMessageHandler handler,
-  ) async => backgroundHandlers.add(handler);
 }
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  const channel = MethodChannel('zuno/fcm');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  final calls = <String>[];
+  Object? readyAnswer;
 
-  group('isDuplicateFirebaseAppError', () {
-    test('true for a [core/duplicate-app] FirebaseException', () {
-      expect(
-        isDuplicateFirebaseAppError(
-          FirebaseException(plugin: 'core', code: 'duplicate-app'),
-        ),
-        isTrue,
-      );
-    });
-
-    test('false for a different FirebaseException code', () {
-      expect(
-        isDuplicateFirebaseAppError(
-          FirebaseException(plugin: 'core', code: 'no-app'),
-        ),
-        isFalse,
-      );
-    });
-
-    test('false for a non-FirebaseException error', () {
-      expect(isDuplicateFirebaseAppError(StateError('boom')), isFalse);
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    calls.clear();
+    readyAnswer = true;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call.method);
+      return call.method == 'ready' ? readyAnswer : null;
     });
   });
 
-  group('initializeFcmDelivery', () {
-    final firebase = _FakeFirebase();
-    final messaging = _FakeMessaging();
+  tearDown(() {
+    messenger.setMockMethodCallHandler(channel, null);
+    channel.setMethodCallHandler(null);
+    fcmDeliveryProvider.runner.liveClient = null;
+  });
 
-    setUpAll(() {
-      FirebasePlatform.instance = firebase;
-      FirebaseMessagingPlatform.instance = messaging;
-    });
-
-    setUp(() {
-      firebase
-        ..failure = null
-        ..starts = 0;
-      messaging.backgroundHandlers.clear();
-    });
-
-    test('starts Firebase, then takes pushes in the background and the '
-        'foreground', () async {
-      await initializeFcmDelivery();
-
-      expect(firebase.starts, 1);
-      expect(messaging.backgroundHandlers, [fcmBackgroundHandler]);
-      expect(FirebaseMessagingPlatform.onMessage.hasListener, isTrue);
-    });
-
-    test('a platform that does not offer Google services starts nothing, so '
-        'the Apple push handler owns the token', () async {
-      await initializeFcmDelivery(capabilities: iosCapabilities);
-
-      expect(firebase.starts, 0);
-      expect(messaging.backgroundHandlers, isEmpty);
-    });
-
-    test(
-      'carries on when Firebase is already running after a hot restart',
-      () async {
-        firebase.failure = FirebaseException(
-          plugin: 'core',
-          code: 'duplicate-app',
-        );
-
-        await initializeFcmDelivery();
-
-        expect(messaging.backgroundHandlers, [fcmBackgroundHandler]);
-      },
+  Future<void> fromNative(String method, Object? arguments) {
+    final replied = Completer<void>();
+    messenger.handlePlatformMessage(
+      channel.name,
+      channel.codec.encodeMethodCall(MethodCall(method, arguments)),
+      (_) => replied.complete(),
     );
+    return replied.future;
+  }
 
-    for (final (label, failure) in [
-      ('Firebase', FirebaseException(plugin: 'core', code: 'no-app')),
-      ('the platform', StateError('no Google Play services')),
-    ]) {
-      test('a failure inside $label never propagates, and no push handler '
-          'is registered', () async {
-        firebase.failure = failure;
+  Map<String, Object?> push(String eventId) => {
+    'id': 'job-$eventId',
+    'data': {'event_id': eventId, 'room_id': '!r:x'},
+    'appInFront': false,
+  };
 
-        await expectLater(initializeFcmDelivery(), completes);
-        expect(messaging.backgroundHandlers, isEmpty);
-      });
-    }
+  test('binding the app engine alone does not claim pushes yet', () async {
+    await initializeFcmDelivery();
+
+    expect(calls, isEmpty);
+  });
+
+  test('attaching the client alone does not claim pushes yet', () async {
+    await initializeFcmDelivery();
+    final client = _RecordingClient();
+
+    attachFcmAppClient(client);
+
+    expect(calls, isEmpty);
+    expect(fcmDeliveryProvider.runner.liveClient, same(client));
+  });
+
+  test('once the app is ready its engine takes pushes on the client', () async {
+    await initializeFcmDelivery();
+    final client = _RecordingClient();
+    attachFcmAppClient(client);
+
+    expect(await markFcmAppReady(), isTrue);
+    await fromNative('push', push(r'$one'));
+
+    expect(calls, ['ready']);
+    expect(client.fetched, [r'$one']);
+  });
+
+  test('the app is never ready without a client to take pushes on', () async {
+    await initializeFcmDelivery();
+
+    expect(await markFcmAppReady(), isFalse);
+    expect(calls, isEmpty);
+  });
+
+  test('reports an app engine the router passed over', () async {
+    readyAnswer = false;
+    await initializeFcmDelivery();
+    attachFcmAppClient(_RecordingClient());
+
+    expect(await markFcmAppReady(), isFalse);
+    expect(calls, ['ready']);
+  });
+
+  test('a push reaching a signed-out app is answered and dropped', () async {
+    await initializeFcmDelivery();
+    final client = _RecordingClient(loggedIn: false);
+    attachFcmAppClient(client);
+    await markFcmAppReady();
+
+    await fromNative('push', push(r'$one'));
+
+    expect(client.fetched, isEmpty);
+  });
+
+  test('an undecodable push is answered and dropped', () async {
+    await initializeFcmDelivery();
+    final client = _RecordingClient();
+    attachFcmAppClient(client);
+    await markFcmAppReady();
+
+    await fromNative('push', {
+      'id': 'job',
+      'data': {'unrelated': 'x'},
+    });
+
+    expect(client.fetched, isEmpty);
+  });
+
+  group('where FCM is not offered', () {
+    final bridge = FcmBridge(capabilities: iosCapabilities);
+
+    test('nothing is bound and nothing is claimed', () async {
+      await initializeFcmDelivery(bridge: bridge);
+      final client = _RecordingClient();
+      attachFcmAppClient(client, bridge: bridge);
+
+      expect(await markFcmAppReady(bridge: bridge), isFalse);
+      await fromNative('push', push(r'$one'));
+
+      expect(calls, isEmpty);
+      expect(client.fetched, isEmpty);
+      expect(fcmDeliveryProvider.runner.liveClient, isNull);
+    });
   });
 }

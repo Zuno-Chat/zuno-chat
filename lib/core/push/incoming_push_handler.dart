@@ -1,17 +1,20 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kDebugMode, visibleForTesting;
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../calls/active_call_marker.dart';
 import '../calls/matrixrtc/call_summary_message.dart';
+import '../calls/matrixrtc/incoming_call.dart';
 import '../calls/matrixrtc/incoming_call_provider.dart';
 import '../calls/matrixrtc/resolved_call_ids_store.dart';
 import '../calls/notifications/call_notification_service.dart';
 import '../calls/notifications/ring_notification.dart';
 import '../calls/notifications/ringing_call_store.dart';
 import '../calls/platform/incoming_call_presenter.dart';
+import '../calls/platform/system_ring.dart';
 import '../matrix/room_title.dart';
 import '../matrix/undecryptable_event.dart';
 import '../notifications/invite_notification_provider.dart';
@@ -24,6 +27,65 @@ import '../platform/platform_capabilities.dart';
 import 'push_timing.dart';
 
 const defaultPlaceholderAfter = Duration(seconds: 3);
+const messageCatchUpWait = Duration(milliseconds: 1500);
+const _staleAfter = Duration(seconds: 15);
+const _noticeReplacedWithin = Duration(seconds: 30);
+
+final _lastSyncs = Expando<DateTime>();
+final _freshness = Expando<StreamSubscription<SyncUpdate>>();
+final _catchUps = Expando<Future<void>>();
+
+void trackPushClientFreshness(Client client) {
+  if (_freshness[client] != null) return;
+  _freshness[client] = client.onSync.stream.listen(
+    (_) => _lastSyncs[client] = DateTime.now(),
+  );
+}
+
+void untrackPushClientFreshness(Client client) {
+  unawaited(_freshness[client]?.cancel());
+  _freshness[client] = null;
+  _lastSyncs[client] = null;
+}
+
+@visibleForTesting
+bool tracksPushClientFreshness(Client client) => _freshness[client] != null;
+
+Future<void>? _catchUpIfStale(Client client) {
+  if (_freshness[client] == null) return null;
+  final running = _catchUps[client];
+  if (running != null) return running;
+  if (client.syncPending) return null;
+  final last = _lastSyncs[client];
+  if (last != null && DateTime.now().difference(last) < _staleAfter) {
+    return null;
+  }
+  debugPrint('zuno/push: the app\'s client is behind, catching up alongside');
+  final catchUp = client
+      .oneShotSync(timeout: Duration.zero)
+      .then<void>((_) {}, onError: (_) {});
+  _catchUps[client] = catchUp;
+  unawaited(
+    catchUp.whenComplete(() {
+      if (identical(_catchUps[client], catchUp)) _catchUps[client] = null;
+    }),
+  );
+  return catchUp;
+}
+
+Future<bool> _readSince(Client client, Event event) async {
+  final room = client.getRoomById(event.room.id) ?? event.room;
+  final fullyRead = room.fullyRead;
+  if (fullyRead.isEmpty) return false;
+  if (fullyRead == event.eventId) return true;
+  try {
+    final marker = await client.database.getEventById(fullyRead, room);
+    return marker != null &&
+        marker.originServerTs.isAfter(event.originServerTs);
+  } catch (_) {
+    return false;
+  }
+}
 
 Future<IncomingPushOutcome> handleIncomingPushNotification(
   Client client,
@@ -33,9 +95,42 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
   Duration placeholderAfter = defaultPlaceholderAfter,
   PushTiming? timing,
   IncomingCallPresenter? incomingCallPresenter,
+  void Function(Future<void> refinement)? onRefining,
 }) async {
-  final ring =
-      incomingCallPresenter ?? incomingCallPresenterFor(ambientCapabilities);
+  final roomId = notification.roomId;
+  final eventId = notification.eventId;
+  final forgetNotice = roomId == null || eventId == null
+      ? null
+      : CallNotificationService.instance.expectPushNotice(roomId, eventId);
+  try {
+    return await _handle(
+      client,
+      notification,
+      notifyMe: notifyMe,
+      currentlyOpenRoomId: currentlyOpenRoomId,
+      placeholderAfter: placeholderAfter,
+      timing: timing,
+      ring:
+          incomingCallPresenter ??
+          incomingCallPresenterFor(ambientCapabilities),
+      onRefining: onRefining,
+    );
+  } finally {
+    forgetNotice?.call();
+  }
+}
+
+Future<IncomingPushOutcome> _handle(
+  Client client,
+  PushNotification notification, {
+  required NotifyMe notifyMe,
+  required String? currentlyOpenRoomId,
+  required Duration placeholderAfter,
+  required PushTiming? timing,
+  required IncomingCallPresenter ring,
+  required void Function(Future<void> refinement)? onRefining,
+}) async {
+  final handlingSince = DateTime.now();
   if (kDebugMode) {
     debugPrint('zuno/push: resolving event ${notification.eventId}');
   }
@@ -44,10 +139,14 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
     notification,
     quiet: notifyMe == NotifyMe.mentionsOnly,
   );
+  final catchUp = _catchUpIfStale(client);
   final Event? event;
   try {
     event = await placeholder.race(
-      () => client.getEventByPushNotification(notification),
+      () => client.getEventByPushNotification(
+        notification,
+        storeInDatabase: catchUp == null && !client.syncPending,
+      ),
       after: placeholderAfter,
     );
   } catch (e) {
@@ -83,7 +182,7 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
 
   if (isCallSummaryMessage(event.messageType)) {
     final callId = event.content.tryGet<String>('call_id');
-    if (callId != null) await _markResolved(callId);
+    if (callId != null) await markCallResolved(callId);
     final ringAge = callId == null ? null : await _ringAge(callId);
     if (ringAge != null && ringAge < _ringSummaryGrace) {
       await Future<void>.delayed(_ringSummaryGrace - ringAge);
@@ -97,44 +196,35 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
 
   final call = incomingCallFromEvent(client, event);
   if (call != null) {
+    final outcome = await _ring(call, ring);
     await placeholder.retract();
-    if (isCallActiveInProcess()) {
-      if (kDebugMode) {
-        debugPrint('zuno/push: already on a call, not ringing ${call.callId}');
-      }
-      return IncomingPushOutcome.ignored;
-    }
-    if (await _isResolved(call.callId)) {
-      if (kDebugMode) {
-        debugPrint('zuno/push: ${call.callId} already resolved, not ringing');
-      }
-      return IncomingPushOutcome.ignored;
-    }
-    final ringing = await ring.activeRing();
-    if (ringing != null &&
-        ringing.callId != call.callId &&
-        !await _isResolved(ringing.callId)) {
-      if (kDebugMode) {
-        debugPrint(
-          'zuno/push: ${ringing.callId} is ringing, not ringing ${call.callId}',
-        );
-      }
-      return IncomingPushOutcome.ignored;
-    }
-    await postRingNotification(call, presenter: ring);
-    if (kDebugMode) {
-      debugPrint('zuno/push: ring notification posted for ${call.callId}');
-    }
-    return IncomingPushOutcome.callRinging;
+    return outcome;
   }
 
   final invite = inviteNotificationFor(client, event);
   if (invite != null) {
-    await postMessageNotification(
-      invite,
-      client: client,
-      includeMessageActions: false,
-    );
+    final claim = await claimInviteAnnouncement(invite.roomId);
+    if (!claim.won) {
+      debugPrint('zuno/push: invitation to ${invite.roomId} already shown');
+      final announcedAt = claim.announcedAt;
+      await placeholder.settleAfterAnnounced(
+        replacedNotice:
+            announcedAt != null &&
+            announcedAt.isAfter(handlingSince.subtract(_noticeReplacedWithin)),
+      );
+      return IncomingPushOutcome.ignored;
+    }
+    try {
+      await postMessageNotification(
+        invite,
+        client: client,
+        includeMessageActions: false,
+        onRefining: onRefining,
+      );
+    } catch (_) {
+      await forgetInviteAnnouncements([invite.roomId]);
+      rethrow;
+    }
     await placeholder.retract();
     return IncomingPushOutcome.message;
   }
@@ -145,9 +235,18 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
       verification,
       client: client,
       includeMessageActions: false,
+      onRefining: onRefining,
     );
     await placeholder.retract();
     return IncomingPushOutcome.message;
+  }
+
+  if (catchUp != null &&
+      await placeholder.caughtUp(catchUp) &&
+      await _readSince(client, event)) {
+    debugPrint('zuno/push: read on another device, as the catch-up showed');
+    await placeholder.retract();
+    return IncomingPushOutcome.ignored;
   }
 
   final decision = messageNotificationFor(
@@ -171,6 +270,7 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
     client: client,
     fetchImage: () => fetchMessageNotificationImage(resolved),
     onPosted: () => timing?.mark('post'),
+    onRefining: onRefining,
     timing: timing,
   );
   timing?.mark('refine');
@@ -184,19 +284,32 @@ class _Placeholder {
   final PushNotification notification;
   final bool quiet;
   bool _posted = false;
+  Future<void>? _mark;
 
   Future<Event?> race(
     Future<Event?> Function() resolve, {
     required Duration after,
   }) async {
     final resolution = resolve();
+    final mark = _mark = Future<void>.delayed(after);
     final settled = Completer<void>();
     unawaited(
       resolution.then((_) {}, onError: (_) {}).whenComplete(settled.complete),
     );
-    await Future.any([settled.future, Future<void>.delayed(after)]);
+    await Future.any([settled.future, mark]);
     if (!settled.isCompleted) await post();
     return resolution;
+  }
+
+  Future<bool> caughtUp(Future<void> catchUp) async {
+    var landed = false;
+    final mark = _mark;
+    await Future.any([
+      catchUp.then((_) => landed = true),
+      Future<void>.delayed(messageCatchUpWait),
+      if (!_posted && mark != null) mark,
+    ]);
+    return landed;
   }
 
   Future<bool> post() async {
@@ -213,14 +326,83 @@ class _Placeholder {
     return true;
   }
 
-  Future<void> retract() async {
+  Future<void> retract() =>
+      _settle(CallNotificationService.instance.retractPushNotice);
+
+  Future<void> settleAfterAnnounced({required bool replacedNotice}) {
+    if (!replacedNotice) return retract();
+    return _settle(CallNotificationService.instance.takePushNotice);
+  }
+
+  Future<void> _settle(
+    Future<void> Function(String roomId, String eventId) settleNotice,
+  ) async {
     final roomId = notification.roomId;
     final eventId = notification.eventId;
     if (roomId == null || eventId == null) return;
-    await CallNotificationService.instance.retractPushNotice(roomId, eventId);
+    await settleNotice(roomId, eventId);
     if (!_posted) return;
     await CallNotificationService.instance.retractPlaceholder(roomId, eventId);
   }
+}
+
+Future<IncomingPushOutcome> _ring(
+  IncomingCall call,
+  IncomingCallPresenter ring,
+) async {
+  final callId = call.callId;
+  if (isCallActiveInProcess()) {
+    if (kDebugMode) {
+      debugPrint('zuno/push: already on a call, not ringing $callId');
+    }
+    return IncomingPushOutcome.ignored;
+  }
+  if (await isCallResolved(callId)) {
+    if (kDebugMode) {
+      debugPrint('zuno/push: $callId already resolved, not ringing');
+    }
+    return IncomingPushOutcome.ignored;
+  }
+  final heldHere = await _whileRinging(
+    SystemRing.instance.ringing.value?.callId,
+    callId,
+  );
+  if (heldHere != null) return heldHere;
+  final ringingNow = ring.activeRing();
+  final busy = await _whileRinging((await ringingNow)?.callId, callId);
+  if (busy != null) return busy;
+  SystemRing.instance.set(roomId: call.room.id, callId: callId);
+  var outcome = RingOutcome.unavailable;
+  try {
+    outcome = await postRingNotification(
+      call,
+      presenter: ring,
+      ringingNow: ringingNow,
+    );
+  } finally {
+    if (outcome != RingOutcome.shown) SystemRing.instance.clear(callId);
+  }
+  if (outcome != RingOutcome.shown) return IncomingPushOutcome.ignored;
+  if (kDebugMode) {
+    debugPrint('zuno/push: ring notification posted for $callId');
+  }
+  return IncomingPushOutcome.callRinging;
+}
+
+Future<IncomingPushOutcome?> _whileRinging(
+  String? ringing,
+  String callId,
+) async {
+  if (ringing == null) return null;
+  if (ringing == callId) {
+    if (kDebugMode) debugPrint('zuno/push: $callId already rings');
+    return IncomingPushOutcome.callRinging;
+  }
+  if (await isCallResolved(ringing)) return null;
+  if (kDebugMode) {
+    debugPrint('zuno/push: $ringing is ringing, not ringing $callId');
+  }
+  return IncomingPushOutcome.ignored;
 }
 
 const _ringSummaryGrace = Duration(seconds: 3);
@@ -233,24 +415,6 @@ Future<Duration?> _ringAge(String callId) async {
   } catch (_) {
     return null;
   }
-}
-
-Future<bool> _isResolved(String callId) async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
-    return readResolvedCallIds(prefs).contains(callId);
-  } catch (_) {
-    return false;
-  }
-}
-
-Future<void> _markResolved(String callId) async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
-    await markCallResolvedOnDisk(prefs, callId);
-  } catch (_) {}
 }
 
 MessageNotificationContent? unresolvedPushNotification(

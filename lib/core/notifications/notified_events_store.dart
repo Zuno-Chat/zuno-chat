@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _notifiedEventsKey = 'notifications.notified_events';
@@ -36,3 +38,55 @@ Future<void> markPlaceholderShownOnDisk(
 
 bool wasPlaceholderShown(SharedPreferences prefs, String eventId) =>
     wasEventNotified(prefs, '$_placeholderPrefix$eventId');
+
+const _announcedInvitesKey = 'notifications.announced_invites';
+const inviteAnnouncementMemory = Duration(days: 7);
+
+Map<String, int> _announcedInvites(SharedPreferences prefs, DateTime now) {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(prefs.getString(_announcedInvitesKey) ?? '{}');
+  } catch (_) {
+    return {};
+  }
+  if (decoded is! Map) return {};
+  final cutoff = now.subtract(inviteAnnouncementMemory).millisecondsSinceEpoch;
+  return {
+    for (final MapEntry(:key, :value) in decoded.entries)
+      if (key is String && value is int && value > cutoff) key: value,
+  };
+}
+
+DateTime? inviteAnnouncedAt(
+  SharedPreferences prefs,
+  String roomId, {
+  DateTime? now,
+}) {
+  final at = _announcedInvites(prefs, now ?? DateTime.now())[roomId];
+  return at == null ? null : DateTime.fromMillisecondsSinceEpoch(at);
+}
+
+Future<void> markInviteAnnouncedOnDisk(
+  SharedPreferences prefs,
+  String roomId, {
+  DateTime? now,
+}) {
+  final at = now ?? DateTime.now();
+  final announced = _announcedInvites(prefs, at)
+    ..[roomId] = at.millisecondsSinceEpoch;
+  return prefs.setString(_announcedInvitesKey, jsonEncode(announced));
+}
+
+Future<bool> forgetInviteAnnouncementsOnDisk(
+  SharedPreferences prefs,
+  Iterable<String> roomIds, {
+  DateTime? now,
+}) async {
+  final announced = _announcedInvites(prefs, now ?? DateTime.now());
+  final before = announced.length;
+  final settled = roomIds.toSet();
+  announced.removeWhere((roomId, _) => settled.contains(roomId));
+  if (announced.length == before) return false;
+  await prefs.setString(_announcedInvitesKey, jsonEncode(announced));
+  return true;
+}

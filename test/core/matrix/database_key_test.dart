@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/matrix/database_key.dart';
 
+import '../../helpers/in_memory_secret_store.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -102,6 +104,23 @@ void main() {
       expect(filesLeft(), [true, true, true, true]);
     });
 
+    test('is kept, and no key is made, by a start that may not make one, as '
+        'in a push engine', () async {
+      final store = InMemorySecretStore();
+
+      await expectLater(
+        obtainDatabaseCipher(
+          store: store,
+          databasePath: databasePath,
+          createIfMissing: false,
+        ),
+        throwsA(isA<DatabaseKeyUnavailable>()),
+      );
+      expect(filesLeft(), [true, true, true, true]);
+      expect(store.values, isEmpty);
+      expect(store.writes, 0);
+    });
+
     test(
       'is kept when the key cannot be read, as while the phone is locked',
       () async {
@@ -114,6 +133,29 @@ void main() {
         expect(filesLeft(), [true, true, true, true]);
       },
     );
+  });
+
+  group('discarding the key', () {
+    test('removes it, so the next start makes a new one', () async {
+      final store = InMemorySecretStore();
+      final old = await obtainDatabaseCipher(store: store);
+
+      await discardDatabaseCipher(store: store);
+
+      expect(store.values, isEmpty);
+      final fresh = await obtainDatabaseCipher(store: store);
+      expect(fresh, hasLength(databaseCipherLength));
+      expect(fresh, isNot(old));
+    });
+
+    test('that fails is reported, not ignored', () async {
+      final store = InMemorySecretStore()..failDeletes = true;
+
+      await expectLater(
+        discardDatabaseCipher(store: store),
+        throwsA(isA<DatabaseKeyUnavailable>()),
+      );
+    });
   });
 
   group('cipher generation', () {

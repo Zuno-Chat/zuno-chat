@@ -104,6 +104,7 @@ void main() {
           deviceRisksProvider.overrideWithValue(
             const AsyncValue.data(<DeviceRisk>{}),
           ),
+          matrixClientProvider.overrideWithValue(buildTestClient()),
         ],
         child: const ZunoApp(),
       ),
