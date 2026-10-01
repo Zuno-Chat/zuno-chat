@@ -1,14 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/services.dart';
 
+import '../navigation/held_broadcast.dart';
 import '../platform/platform_capabilities.dart';
 
 const _channel = MethodChannel('zuno/shortcuts');
 
-final _openRoomController = StreamController<String>.broadcast();
+final _openRooms = HeldBroadcast<String>();
 
-Stream<String> get onOpenRoomShortcut => _openRoomController.stream;
+Stream<String> get onOpenRoomShortcut => _openRooms.stream;
 
 bool _hasShortcuts(PlatformCapabilities? capabilities) =>
     (capabilities ?? ambientCapabilities).homeScreenShortcuts;
@@ -19,9 +18,7 @@ bool _opensRoomsFromNative(PlatformCapabilities? capabilities) =>
 void initHomeScreenShortcutChannel({PlatformCapabilities? capabilities}) {
   if (!_opensRoomsFromNative(capabilities)) return;
   _channel.setMethodCallHandler((call) async {
-    if (call.method == 'openRoom') {
-      _openRoomController.add(call.arguments as String);
-    }
+    if (call.method == 'openRoom') _openRooms.add(call.arguments as String);
     return null;
   });
 }

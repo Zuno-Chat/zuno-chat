@@ -28,7 +28,8 @@ const _channel = MethodChannel('zuno/apns');
 const _tokenKey = 'push.apns.token';
 const _appIdKey = 'push.apns.app_id';
 const _droppedKey = 'push.apns.dropped';
-const _soundKey = 'push.apns.sound';
+const _soundKey = 'push.apns.sound_name';
+const _legacySoundKey = 'push.apns.sound';
 
 typedef _Registration = ({String appId, String token, String pushkey});
 
@@ -54,7 +55,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
   String? get token => _registration?.token;
   String? get pushkey => _registration?.pushkey;
 
-  bool? _postedSound;
+  ({String? sound})? _postedSound;
   bool _syncingSound = false;
   bool _soundChanged = false;
 
@@ -179,7 +180,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     }
 
     status.value = ApnsStatus.postingPusher;
-    final sound = await _messageTone();
+    final sound = await _alertSound();
     final posted = await _post(
       client,
       appId: appId,
@@ -211,8 +212,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
         _soundChanged = false;
         final registration = _registration;
         if (status.value != ApnsStatus.ready || registration == null) return;
-        final sound = await _messageTone();
-        if (sound == _postedSound) continue;
+        final sound = await _alertSound();
+        if ((sound: sound) == _postedSound) continue;
         final gatewayUrl = fcmGatewayUri(client.homeserver);
         if (gatewayUrl == null) return;
         try {
@@ -241,12 +242,13 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     Client client, {
     required String appId,
     required String pushkey,
-    required bool sound,
+    required String? sound,
   }) async {
     final gatewayUrl = fcmGatewayUri(client.homeserver);
     if (gatewayUrl == null) {
       lastPusherError = 'No server to send notifications through yet.';
       status.value = ApnsStatus.pusherFailed;
+      _retry.schedule(() => _register(client));
       return false;
     }
     try {
@@ -258,6 +260,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
         sound: sound,
       );
     } catch (e) {
+      debugPrint('zuno/push: the APNs pusher was refused ($e)');
       lastPusherError = e.toString();
       status.value = ApnsStatus.pusherFailed;
       _retry.schedule(() => _register(client));
@@ -271,7 +274,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     required String appId,
     required String pushkey,
     required Uri gatewayUrl,
-    required bool sound,
+    required String? sound,
   }) async {
     await client.postPusher(
       buildApnsPusher(
@@ -282,7 +285,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
         sound: sound,
       ),
     );
-    _postedSound = sound;
+    _postedSound = (sound: sound);
     await _storeSound(sound);
   }
 
@@ -297,6 +300,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       await prefs.remove(_appIdKey);
       await prefs.remove(_droppedKey);
       await prefs.remove(_soundKey);
+      await prefs.remove(_legacySoundKey);
     } catch (e) {
       debugPrint('zuno/push: could not forget the APNs registration ($e)');
     }
@@ -358,26 +362,35 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     }
   }
 
-  Future<bool> _messageTone() async {
+  Future<String?> _alertSound() async {
+    bool tone;
     try {
       final prefs = await SharedPreferences.getInstance();
-      return readNotificationSoundSettings(prefs).messageTone;
+      tone = readNotificationSoundSettings(prefs).messageTone;
     } catch (_) {
-      return NotificationSoundSettings.defaults.messageTone;
+      tone = NotificationSoundSettings.defaults.messageTone;
+    }
+    return tone ? darwinMessageToneSound : null;
+  }
+
+  Future<({String? sound})?> _storedSound() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return switch (prefs.getString(_soundKey)) {
+        null => null,
+        '' => (sound: null),
+        final sound => (sound: sound),
+      };
+    } catch (_) {
+      return null;
     }
   }
 
-  Future<bool> _storedSound() async {
+  Future<void> _storeSound(String? sound) async {
     try {
-      return (await SharedPreferences.getInstance()).getBool(_soundKey) ?? true;
-    } catch (_) {
-      return true;
-    }
-  }
-
-  Future<void> _storeSound(bool sound) async {
-    try {
-      await (await SharedPreferences.getInstance()).setBool(_soundKey, sound);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_soundKey, sound ?? '');
+      await prefs.remove(_legacySoundKey);
     } catch (e) {
       debugPrint('zuno/push: could not record the APNs pusher sound ($e)');
     }

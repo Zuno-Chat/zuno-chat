@@ -335,9 +335,10 @@ asymmetric sender/receiver views).
   `roomTitle()` (`room_title.dart`) returns their name instead and is the
   single title source for every surface: list, chat, notifications, push,
   calls, room info, share picker. `canPostInRoom()` then drops the
-  composer, mention suggestions, swipe-to-reply and the reply/react/edit
-  actions. Redaction deliberately stays — removing your own message is
-  cleanup, not communication. Call buttons needed no new gate:
+  composer, mention suggestions, swipe-to-reply, the reply/react/edit
+  actions and the room's place in the share picker. Redaction deliberately
+  stays — removing your own message is cleanup, not communication. Call
+  buttons needed no new gate:
   `hasSomeoneToCall` already requires `joined > 1`, and an abandoned DM
   has exactly one.
 - **Moderation tooling lives outside the app entirely** (planned, not

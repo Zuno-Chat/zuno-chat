@@ -129,11 +129,11 @@ class PendingAttachmentTile extends StatelessWidget {
   }
 }
 
-class FailedGalleryTile extends StatelessWidget {
+class FailedMediaTile extends StatelessWidget {
   final List<FailedMediaSend> failed;
   final void Function(FailedMediaSend) onRetry;
 
-  const FailedGalleryTile({
+  const FailedMediaTile({
     super.key,
     required this.failed,
     required this.onRetry,

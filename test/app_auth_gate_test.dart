@@ -38,6 +38,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/incoming_push_handler.dart';
 import 'package:zuno/core/security/device_safety.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/share/inbound_share.dart';
 import 'package:zuno/core/ui/zuno_splash.dart';
 import 'package:zuno/features/auth/presentation/signed_out_entry.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
@@ -326,6 +327,25 @@ void main() {
       await tester.pump();
 
       expect(find.byType(RoomListPage), findsOneWidget);
+    });
+
+    testWidgets('a share that came in before the sign-in state was known '
+        'still opens the picker', (tester) async {
+      initInboundShareChannel();
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+            'zuno/share',
+            const StandardMethodCodec().encodeMethodCall(
+              const MethodCall('share', {'text': 'early'}),
+            ),
+            (_) {},
+          );
+
+      await pumpApp(tester, loginStates: Stream.value(true));
+      await settle(tester);
+      await pumpRoute(tester);
+
+      expect(find.byType(SharePickerPage), findsOneWidget);
     });
 
     testWidgets('a shared text goes to the chat picked for it', (tester) async {

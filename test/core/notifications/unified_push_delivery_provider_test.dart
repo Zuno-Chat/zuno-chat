@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -55,10 +56,13 @@ class _FakeUnifiedPush extends UnifiedPushPlatform {
   }
 
   int unregisterCalls = 0;
+  Object? unregisterError;
 
   @override
   Future<void> unregister(String instance) async {
     unregisterCalls++;
+    final error = unregisterError;
+    if (error != null) throw error;
   }
 
   @override
@@ -538,6 +542,97 @@ void main() {
       await provider.stop(buildTestClient());
 
       expect(provider.retryScheduled, isFalse);
+    });
+  });
+
+  group('a push target the user removes', () {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await saveUnifiedPushRegistration(
+        await SharedPreferences.getInstance(),
+        endpointUrl: Uri.parse('https://ntfy.sh/abc123'),
+        gatewayUrl: Uri.parse('https://ntfy.sh/_matrix/push/v1/notify'),
+      );
+      fake
+        ..installed = ['io.heckel.ntfy']
+        ..ackDistributor = 'io.heckel.ntfy';
+    });
+
+    test('is taken down and marked removed', () async {
+      final env = postingClient();
+      await provider.start(env.client);
+      expect(provider.status.value, UnifiedPushStatus.ready);
+
+      await provider.remove(env.client);
+
+      expect(provider.removed.value, isTrue);
+      expect(provider.status.value, UnifiedPushStatus.idle);
+      expect(fake.unregisterCalls, 1);
+      expect(env.pusherPosts.last, contains('"kind":null'));
+      expect(
+        readUnifiedPushRegistration(await SharedPreferences.getInstance()),
+        isNull,
+      );
+    });
+
+    test('a removal the distributor refuses is not marked removed', () async {
+      final env = postingClient();
+      await provider.start(env.client);
+      fake.unregisterError = PlatformException(code: 'gone');
+
+      await expectLater(
+        provider.remove(env.client),
+        throwsA(isA<PlatformException>()),
+      );
+
+      expect(provider.removed.value, isFalse);
+    });
+
+    test('is no longer marked once registering again', () async {
+      final env = postingClient();
+      await provider.start(env.client);
+      await provider.remove(env.client);
+
+      await provider.registerNow(env.client);
+
+      expect(provider.removed.value, isFalse);
+      expect(fake.registerCalls, 1);
+    });
+
+    test('is registered again by the next start, and unmarked once that '
+        'registration succeeds', () async {
+      final env = postingClient();
+      await provider.start(env.client);
+      await provider.remove(env.client);
+
+      await provider.start(env.client);
+      expect(fake.registerCalls, 1);
+      fake.onNewEndpoint!(PushEndpoint('https://ntfy.sh/def', null), 'default');
+      await pumpEventQueue();
+
+      expect(provider.status.value, UnifiedPushStatus.ready);
+      expect(provider.removed.value, isFalse);
+    });
+
+    test('is no longer marked once stopped', () async {
+      final env = postingClient();
+      await provider.start(env.client);
+      await provider.remove(env.client);
+
+      await provider.stop(env.client);
+
+      expect(provider.removed.value, isFalse);
+    });
+
+    test('is never marked by stop alone', () async {
+      final env = postingClient();
+      await provider.start(env.client);
+
+      await provider.stop(env.client);
+      expect(provider.removed.value, isFalse);
+
+      await provider.stop(env.client);
+      expect(provider.removed.value, isFalse);
     });
   });
 

@@ -38,6 +38,8 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
@@ -54,6 +56,17 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val launch = intent
+        if (launch != null &&
+            !LaunchIntentDecision.carriesLaunchTarget(launch.flags, savedInstanceState != null)
+        ) {
+            intent = Intent(launch).apply {
+                action = Intent.ACTION_MAIN
+                data = null
+                clipData = null
+                replaceExtras(Bundle())
+            }
+        }
         super.onCreate(savedInstanceState)
         applyShowOverLockscreenIfLocked()
     }
@@ -116,6 +129,7 @@ class MainActivity : FlutterActivity() {
             }
         }
         pendingShare = ShareActivity.channelPayload(intent)
+        pruneSharedCache()
 
         val networkStreamHandler = NetworkAvailabilityStreamHandler(
             getSystemService(ConnectivityManager::class.java),
@@ -656,21 +670,29 @@ class MainActivity : FlutterActivity() {
         return share
     }
 
+    private fun pruneSharedCache() {
+        val sharedCache = File(cacheDir, SHARED_CACHE_DIR)
+        sharedCacheWork.execute {
+            val cutoff = System.currentTimeMillis() - SHARED_CACHE_LIFETIME_MS
+            sharedCache.listFiles()
+                ?.filter { it.lastModified() < cutoff }
+                ?.forEach { it.deleteRecursively() }
+        }
+    }
+
     private fun copySharedToCache(
         uris: List<String>,
         names: List<String>,
         onDone: (List<String?>) -> Unit,
     ) {
-        val root = File(cacheDir, "shared")
+        val batch = File(File(cacheDir, SHARED_CACHE_DIR), UUID.randomUUID().toString())
         val mainThread = Handler(Looper.getMainLooper())
-        Thread {
-            root.deleteRecursively()
-            val batch = File(root, UUID.randomUUID().toString())
+        sharedCacheWork.execute {
             val paths = uris.mapIndexed { i, uri ->
                 copySharedFile(File(batch, i.toString()), uri, names.getOrNull(i) ?: "shared")
             }
             mainThread.post { onDone(paths) }
-        }.start()
+        }
     }
 
     private fun copySharedFile(dir: File, uri: String, name: String): String? = runCatching {
@@ -740,6 +762,9 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL = "zuno/shortcuts"
         private const val SHARE_CHANNEL = "zuno/share"
+        private const val SHARED_CACHE_DIR = "shared"
+        private const val SHARED_CACHE_LIFETIME_MS = 24 * 60 * 60 * 1000L
+        private val sharedCacheWork: ExecutorService = Executors.newSingleThreadExecutor()
         private const val NETWORK_CHANNEL = "zuno/network"
         private const val CALLS_CHANNEL = "zuno/calls"
         private const val BACKGROUND_SYNC_CHANNEL = "zuno/background_sync"

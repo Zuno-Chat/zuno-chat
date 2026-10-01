@@ -12,12 +12,20 @@ import im.zuno.chat.InboundShareDecision.SharedFile
 class ShareActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val text = intent.getStringExtra(Intent.EXTRA_TEXT)
-        val files = sharedFiles(intent)
+        val text = runCatching { InboundShareDecision.joinedText(sharedTexts(intent)) }.getOrNull()
+        val files = runCatching { sharedFiles(intent) }.getOrDefault(emptyList())
         if (InboundShareDecision.payload(text, files) != null) {
             startActivity(forwardIntent(text, files))
         }
         finish()
+    }
+
+    private fun sharedTexts(intent: Intent): List<CharSequence?> = when (intent.action) {
+        Intent.ACTION_SEND_MULTIPLE ->
+            intent.getCharSequenceArrayListExtra(Intent.EXTRA_TEXT)
+                ?: listOf(intent.getCharSequenceExtra(Intent.EXTRA_TEXT))
+
+        else -> listOf(intent.getCharSequenceExtra(Intent.EXTRA_TEXT))
     }
 
     private fun sharedFiles(intent: Intent): List<SharedFile> {

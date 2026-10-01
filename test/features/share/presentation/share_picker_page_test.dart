@@ -56,6 +56,40 @@ void main() {
       ]);
     });
 
+    test('drops rooms the user cannot post in', () {
+      final announcements = _named(client, '!r:example.org', 'Announcements');
+      applyOptimisticRoomState(announcements, EventTypes.RoomPowerLevels, {
+        'events_default': 50,
+        'users': {'@admin:example.org': 100},
+      });
+      final rooms = [announcements, _named(client, '!a:example.org', 'Alice')];
+
+      expect(filterShareTargets(rooms, '').map((r) => r.id), [
+        '!a:example.org',
+      ]);
+    });
+
+    test('drops a direct chat the other person left', () {
+      final left = _named(client, '!d:example.org', 'Bob');
+      client.accountData['m.direct'] = BasicEvent(
+        type: 'm.direct',
+        content: {
+          '@bob:example.org': ['!d:example.org'],
+        },
+      );
+      applyOptimisticRoomState(left, EventTypes.RoomMember, {
+        'membership': 'leave',
+      }, stateKey: '@bob:example.org');
+      left.summary
+        ..mJoinedMemberCount = 1
+        ..mInvitedMemberCount = 0;
+      final rooms = [left, _named(client, '!a:example.org', 'Alice')];
+
+      expect(filterShareTargets(rooms, '').map((r) => r.id), [
+        '!a:example.org',
+      ]);
+    });
+
     test('matches the display name case-insensitively', () {
       final rooms = [
         _named(client, '!a:example.org', 'Alice'),

@@ -144,7 +144,9 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     );
     _pendingRingShown = _showPendingRing();
     _shortcutSub = onOpenRoomShortcut.listen(_openRoomById);
-    _shareSub = onInboundShare.listen(_openSharePicker);
+    _shareSub = onInboundShare.listen(
+      (share) => unawaited(_openSharePicker(share)),
+    );
     _messageTapSub = CallNotificationService.instance.onMessageTap.listen(
       _openRoomById,
     );
@@ -359,9 +361,17 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     return takeLaunchShare();
   }
 
-  void _openSharePicker(InboundShare share, {bool instant = false}) {
+  Future<void> _openSharePicker(
+    InboundShare share, {
+    bool instant = false,
+  }) async {
     if (!mounted) return;
-    if (!(ref.read(isLoggedInProvider).value ?? false)) return;
+    final loggedIn =
+        ref.read(isLoggedInProvider).value ??
+        await ref
+            .read(isLoggedInProvider.future)
+            .catchError((Object _) => false);
+    if (!mounted || !loggedIn) return;
     final client = ref.read(matrixClientProvider);
     Navigator.of(context).push(
       pageRoute(
@@ -401,7 +411,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
 
   Future<void> _openLaunchShare() async {
     final share = await _takeLaunchShareOnce();
-    if (share != null) _openSharePicker(share, instant: true);
+    if (share != null) await _openSharePicker(share, instant: true);
   }
 
   void _syncNotificationDelivery(

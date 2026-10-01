@@ -16,6 +16,8 @@ import 'package:zuno/core/notifications/notification_permission_provider.dart';
 import 'package:zuno/core/notifications/unified_push_delivery_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
+import 'package:zuno/core/push/fcm_pusher.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/rooms/presentation/notification_delivery_banner.dart';
@@ -163,7 +165,7 @@ void main() {
     await tester.pumpWidget(
       _wrap(
         const DeliveryFailure(
-          message: 'The server did not accept this device',
+          message: 'Could not set up notifications on this device',
           action: DeliveryFailureAction.retry,
         ),
       ),
@@ -177,23 +179,27 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    ambientCapabilities = capabilitiesLike(
-      iosCapabilities,
-      apnsRegistration: true,
-    );
+    ambientCapabilities = iosCapabilities;
     final client = _PusherClient();
+    final tokenReader = apnsDeliveryProvider.tokenReader;
+    final notificationsAllowed = apnsDeliveryProvider.notificationsAllowed;
     apnsDeliveryProvider
       ..tokenReader = (() async => _apnsToken)
       ..notificationsAllowed = (() async => true)
       ..status.value = ApnsStatus.pusherFailed;
-    addTearDown(() => apnsDeliveryProvider.stop(client));
+    addTearDown(() async {
+      await apnsDeliveryProvider.stop(client);
+      apnsDeliveryProvider
+        ..tokenReader = tokenReader
+        ..notificationsAllowed = notificationsAllowed;
+    });
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           deliveryFailureProvider.overrideWithValue(
             const DeliveryFailure(
-              message: 'The server did not accept this device',
+              message: 'Could not set up notifications on this device',
               action: DeliveryFailureAction.retry,
             ),
           ),
@@ -577,4 +583,138 @@ void main() {
       );
     });
   });
+
+  group('after this device is removed as a push target', () {
+    const notRegistered = 'This device is not registered for notifications';
+    late _PusherClient client;
+
+    Future<void> pumpBanner(
+      WidgetTester tester,
+      NotificationDeliveryMode mode,
+    ) async {
+      SharedPreferences.setMockInitialValues({
+        'settings.notification_delivery_mode': mode.name,
+        'settings.notification_delivery_mode_chosen': true,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            matrixClientProvider.overrideWithValue(client),
+            notificationsAllowedProvider.overrideWith(
+              _NotificationsAllowed.new,
+            ),
+            unifiedPushDistributorInstalledProvider.overrideWithValue(
+              const AsyncData(true),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: NotificationDeliveryBanner()),
+          ),
+        ),
+      );
+    }
+
+    Future<void> retry(WidgetTester tester) async {
+      await tester.tap(find.text('Retry'));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
+
+    setUp(() => client = _PusherClient());
+
+    testWidgets('with Google services it says so, and Retry registers this '
+        'device again', (tester) async {
+      final availabilityReader = fcmDeliveryProvider.availabilityReader;
+      final tokenReader = fcmDeliveryProvider.tokenReader;
+      final tokenDeleter = fcmDeliveryProvider.tokenDeleter;
+      final notificationsAllowed = fcmDeliveryProvider.notificationsAllowed;
+      fcmDeliveryProvider
+        ..availabilityReader = (() async => FcmAvailability.available)
+        ..tokenReader = (() async => 'fcm-token-abc')
+        ..tokenDeleter = (() async {})
+        ..notificationsAllowed = (() async => true);
+      addTearDown(() async {
+        await fcmDeliveryProvider.stop(client);
+        fcmDeliveryProvider
+          ..availabilityReader = availabilityReader
+          ..tokenReader = tokenReader
+          ..tokenDeleter = tokenDeleter
+          ..notificationsAllowed = notificationsAllowed
+          ..runner.liveClient = null;
+      });
+      await tester.runAsync(() async {
+        await fcmDeliveryProvider.registerNow(client);
+        await fcmDeliveryProvider.remove(client);
+      });
+
+      await pumpBanner(tester, NotificationDeliveryMode.fcm);
+
+      expect(find.text(notRegistered), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+
+      await retry(tester);
+
+      expect(client.posted.map((p) => p.appId), [fcmAppId, fcmAppId]);
+      expect(fcmDeliveryProvider.status.value, FcmStatus.ready);
+      expect(find.byKey(const ValueKey('deliveryFailureBanner')), findsNothing);
+    });
+
+    testWidgets('with UnifiedPush it says so, and Retry asks the distributor '
+        'again', (tester) async {
+      final unifiedPush = _RegisteringUnifiedPush();
+      final platform = UnifiedPushPlatform.instance;
+      final notificationsAllowed =
+          unifiedPushDeliveryProvider.notificationsAllowed;
+      final batteryCheck =
+          unifiedPushDeliveryProvider.distributorIgnoresBatteryOptimizations;
+      UnifiedPushPlatform.instance = unifiedPush;
+      unifiedPushDeliveryProvider
+        ..notificationsAllowed = (() async => true)
+        ..distributorIgnoresBatteryOptimizations = ((_) async => true);
+      addTearDown(() async {
+        await unifiedPushDeliveryProvider.stop(client);
+        UnifiedPushPlatform.instance = platform;
+        unifiedPushDeliveryProvider
+          ..notificationsAllowed = notificationsAllowed
+          ..distributorIgnoresBatteryOptimizations = batteryCheck
+          ..savedDistributor = null
+          ..status.value = UnifiedPushStatus.idle
+          ..runner.liveClient = null;
+      });
+      await tester.runAsync(() => unifiedPushDeliveryProvider.remove(client));
+
+      await pumpBanner(tester, NotificationDeliveryMode.unifiedPush);
+
+      expect(find.text(notRegistered), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+
+      await retry(tester);
+
+      expect(unifiedPush.registered, 1);
+      expect(
+        unifiedPushDeliveryProvider.status.value,
+        UnifiedPushStatus.registering,
+      );
+      expect(find.byKey(const ValueKey('deliveryFailureBanner')), findsNothing);
+    });
+  });
+}
+
+class _RegisteringUnifiedPush extends FakeUnifiedPush {
+  int registered = 0;
+
+  @override
+  Future<List<String>> getDistributors(List<String> features) async => [
+    'io.heckel.ntfy',
+  ];
+
+  @override
+  Future<void> register(
+    String instance,
+    List<String> features,
+    String? messageForDistributor,
+    String? vapid,
+  ) async => registered++;
 }

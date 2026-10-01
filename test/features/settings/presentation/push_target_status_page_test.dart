@@ -192,10 +192,7 @@ void main() {
 
     test('this session is identified by its device token, and its pusher is '
         'never an "other push target"', () async {
-      ambientCapabilities = capabilitiesLike(
-        iosCapabilities,
-        apnsRegistration: true,
-      );
+      ambientCapabilities = iosCapabilities;
       apnsDeliveryProvider
         ..tokenReader = (() async => _apnsToken)
         ..notificationsAllowed = (() async => true);
@@ -229,8 +226,12 @@ void main() {
     });
 
     tearDown(() {
-      fcmDeliveryProvider.lastPusherError = null;
-      unifiedPushDeliveryProvider.savedDistributor = null;
+      fcmDeliveryProvider
+        ..lastPusherError = null
+        ..removed.value = false;
+      unifiedPushDeliveryProvider
+        ..savedDistributor = null
+        ..removed.value = false;
     });
 
     Future<void> pumpPage(
@@ -647,8 +648,37 @@ void main() {
 
         expect(client.deleted, ['fcm-token-abc']);
         expect(fcmDeliveryProvider.token, isNull);
+        expect(fcmDeliveryProvider.removed.value, isTrue);
         expect(find.byType(PushTargetStatusPage), findsNothing);
       });
+
+      for (final (mode, detail) in [
+        (
+          NotificationDeliveryMode.fcm,
+          "The server forgets this device, and this device's registration "
+              'token is dropped.',
+        ),
+        (
+          NotificationDeliveryMode.unifiedPush,
+          'The server forgets this device, and the distributor registration '
+              'is dropped.',
+        ),
+      ]) {
+        testWidgets('with ${mode.name} the warning says a restart registers '
+            'it again too', (tester) async {
+          await pumpPage(tester, mode);
+
+          await startRemoving(tester);
+
+          expect(
+            find.text(
+              'This device stops receiving notifications until you register '
+              'again or Zuno restarts. $detail',
+            ),
+            findsOneWidget,
+          );
+        });
+      }
 
       testWidgets('Cancel keeps it', (tester) async {
         await pumpPage(tester, NotificationDeliveryMode.fcm);
@@ -658,6 +688,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(client.deleted, isEmpty);
+        expect(fcmDeliveryProvider.removed.value, isFalse);
         expect(find.byType(PushTargetStatusPage), findsOneWidget);
       });
 
@@ -677,6 +708,7 @@ void main() {
         );
         await confirmRemove(tester);
 
+        expect(unifiedPushDeliveryProvider.removed.value, isTrue);
         expect(find.byType(PushTargetStatusPage), findsNothing);
       });
 
@@ -688,6 +720,7 @@ void main() {
         await confirmRemove(tester);
 
         expect(tester.takeException(), isNull);
+        expect(unifiedPushDeliveryProvider.removed.value, isFalse);
         expect(find.byType(PushTargetStatusPage), findsOneWidget);
         expect(find.text('Not removed. Try again.'), findsOneWidget);
         expect(

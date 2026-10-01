@@ -36,7 +36,7 @@ void main() {
   });
 
   group('the alert Apple shows when the app is not running', () {
-    Object? payloadWith({required bool sound}) => buildApnsPusher(
+    Object? payloadWith({required String? sound}) => buildApnsPusher(
       appId: 'im.zuno.chat.ios',
       pushkey: 'obLD1A==',
       gatewayUrl: Uri.parse(
@@ -46,18 +46,18 @@ void main() {
       sound: sound,
     ).data.toJson()['default_payload'];
 
-    test('plays the default sound while Message tone is on', () {
-      expect(payloadWith(sound: true), {
+    test('plays the sound it is given, a file in the app bundle', () {
+      expect(payloadWith(sound: 'message_tone.caf'), {
         'aps': {
           'mutable-content': 1,
           'alert': {'body': 'New message'},
-          'sound': 'default',
+          'sound': 'message_tone.caf',
         },
       });
     });
 
-    test('carries no sound while Message tone is off', () {
-      expect(payloadWith(sound: false), {
+    test('carries no sound without one', () {
+      expect(payloadWith(sound: null), {
         'aps': {
           'mutable-content': 1,
           'alert': {'body': 'New message'},

@@ -10,7 +10,7 @@ three now live in or under Settings.
 | Category | Holds |
 |---|---|
 | Account | Profile picture, display name, username, change password |
-| Notifications | Enable, a row per silenced chat channel, full-screen call alerts, notify-for, sounds & vibration, and a **Delivery** row opening its own page; full-screen alerts and Delivery only while notifications are allowed |
+| Notifications | Enable, a row per silenced chat channel, full-screen call alerts, notify-for, sounds & vibration, and a **Delivery** row opening its own page where there is a delivery choice, else a problem row while push fails; full-screen alerts, Delivery and the problem row only while notifications are allowed |
 | Chats & calls | Theme, typing indicator, prevent accidental calls |
 | Data & storage | Reduce media size, use less data for calls, clear cache, clear media cache |
 | Security | Status card, recovery, devices, blocked people, incognito keyboard, prevent screenshots, Advanced (disabled placeholder) |
@@ -21,7 +21,7 @@ Send feedback, Sign out and Delete account sit on the root list itself.
 Security & Privacy sub-settings (cryptography, active sessions, secure
 backup, key management, app protection) are a sibling feature — see
 `docs/features/security-verification.md`. Notification delivery transports
-(background sync, UnifiedPush, FCM) and the push pipeline are covered in
+(background sync, UnifiedPush, FCM, APNs) and the push pipeline are covered in
 `docs/features/notifications.md`. This doc covers the Settings shell itself
 and the categories that aren't deep enough to warrant their own doc:
 Account, Chats & calls, Data & storage, About, and log-out placement.
@@ -44,6 +44,8 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   `notifications_settings_page.dart` (+ `notification_delivery_page.dart`),
   `chats_calls_settings_page.dart`, `data_storage_settings_page.dart`,
   `security_privacy_settings_page.dart`, `about_page.dart`.
+  `delivery_failure_action.dart` runs a delivery failure's action for both
+  the home banner and the Notifications problem row.
 - `settings_widgets.dart` — shared row widgets, including
   `ComingSoonTile`/`ComingSoonSwitchTile`: disabled placeholder rows used
   for features not yet built, so the eventual location is visible without
@@ -124,27 +126,46 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   (`openNotificationSettings`, `ACTION_APP_NOTIFICATION_SETTINGS`), not
   app info: turning off, and turning back on after a permanent refusal,
   both happen on that page's own switch.
-- **Delivery is a sub-page of Notifications.** The method picker and its
-  per-transport rows (distributor, status, battery, background data,
-  Autostart on phones that need it) are
+- **Delivery is a sub-page of Notifications, and only where there is a
+  choice.** The method picker and its per-transport rows (distributor,
+  status, battery, background data, Autostart on phones that need it) are
   set once and troubleshooting-shaped, so they stay off the everyday
-  page. The delivery banner's "Open settings" opens
+  page. With one delivery mode (iOS) there is no Delivery row or page, so no
+  Push target page either: a push failure shows as a problem row with its
+  action on the Notifications page, beside the home banner, and stays there
+  after the banner is dismissed. The delivery banner's "Open settings" opens
   `NotificationDeliveryPage` directly. When Play services is missing or the
   build has no Firebase config, the banner's action switches to
   UnifiedPush, or to background sync when no distributor is installed.
+- **Push status copy never names the server.** The pusher step reads
+  "Finishing registration…" and its failure "Could not finish
+  registration" on the FCM and UnifiedPush Status rows; failure copy follows
+  the same rule (`notifications.md`). While Google Play services needs an
+  update or is turned off, the FCM row adds "Update Google Play services" or
+  "Turn on Google Play services" under it (`fixPlayServices`, which
+  registers once the fix took).
+- **Removing the push target lasts until Register or the next start.** The
+  removal is remembered in memory only (`notifications.md`), so the
+  confirmation says the device stops receiving notifications "until you
+  register again or Zuno restarts". After a removal UnifiedPush's Status row
+  offers Register (an idle row otherwise offers nothing); FCM's idle row
+  always does.
 - **Platform-specific rows are capability-gated**
   (`platformCapabilitiesProvider`, `app-foundation.md`), never
   `Platform`-checked:
-  - Delivery method picker: lists `capabilities.deliveryModes`; with one
-    mode it becomes a static row naming that mode. FCM shows disabled,
+  - Delivery row, page and method picker: only with more than one
+    `capabilities.deliveryModes`; the picker lists them. FCM shows disabled,
     with the reason as its subtitle, while the device cannot use it
     (`fcmAvailabilityProvider`, `notifications.md`); the notifier's `set()`
     refuses a disabled mode, and the page starts a mode only once it saved.
-  - Apple push status row: `apnsRegistration`. It shares `_pushStatusRow`
-    (and `PushStatusAction`) with the FCM row. While Google Play services
-    needs an update or is turned off, the FCM row adds "Update Google Play
-    services" or "Turn on Google Play services" under it
-    (`fixPlayServices`, which registers once the fix took).
+  - Problem row (`deliveryFailureProvider`): only with a single delivery
+    mode.
+  - Settings root: the Notifications subtitle reads "Sounds, delivery" with
+    a delivery choice, else "Sounds, mentions".
+  - Enable notifications: with `fullScreenIntent` its subtitle says calls
+    can ring full screen, and under background sync also where its status
+    shows; without it (iOS), that new messages show even while Zuno is
+    closed.
   - Message tone: on `apnsRegistration` it also re-posts the APNs pusher, so
     pushes follow the setting (`messageToneChanged`).
   - Unrestricted battery usage: keeps its per-mode logic (each mode its
@@ -307,8 +328,8 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   to it.
 - **Notifications**: the delivery-mode picker and its transports
   (background sync, UnifiedPush, FCM) are configured from Settings →
-  Notifications → Delivery but documented in
-  `docs/features/notifications.md`.
+  Notifications → Delivery (Android; iOS has only APNs and no Delivery page)
+  but documented in `docs/features/notifications.md`.
 - **`matrix` Dart SDK**: `Client` is the single app-wide instance
   (`createMatrixClient()`); Settings screens call its methods directly —
   no service/repository layer, matching the rest of the app.

@@ -51,6 +51,30 @@ class InboundShareDecisionTest {
     }
 
     @Test
+    fun `rich shared text keeps its words`() {
+        assertEquals(
+            "bold words",
+            InboundShareDecision.joinedText(listOf(StringBuilder("bold words"))),
+        )
+    }
+
+    @Test
+    fun `several shared texts are joined line by line, skipping blanks and repeats`() {
+        assertEquals(
+            "first\nsecond",
+            InboundShareDecision.joinedText(
+                listOf("first", null, "  ", StringBuilder("second"), "first"),
+            ),
+        )
+    }
+
+    @Test
+    fun `no shared text gives nothing`() {
+        assertNull(InboundShareDecision.joinedText(emptyList()))
+        assertNull(InboundShareDecision.joinedText(listOf(null, " \n")))
+    }
+
+    @Test
     fun `payload is null when nothing was shared`() {
         assertNull(InboundShareDecision.payload("  ", emptyList()))
         assertNull(InboundShareDecision.payload(null, emptyList()))

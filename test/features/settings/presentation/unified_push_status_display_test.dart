@@ -30,6 +30,17 @@ void main() {
       );
     });
 
+    test('offers Register again after this device was removed', () {
+      expect(
+        unifiedPushStatusAction(UnifiedPushStatus.idle, removed: true),
+        UnifiedPushStatusAction.register,
+      );
+      expect(
+        unifiedPushStatusAction(UnifiedPushStatus.ready, removed: true),
+        UnifiedPushStatusAction.open,
+      );
+    });
+
     test('offers nothing while there is no distributor, or mid-flight', () {
       for (final status in [
         UnifiedPushStatus.idle,
@@ -72,6 +83,27 @@ void main() {
         unifiedPushStatusLabel(UnifiedPushStatus.registrationFailed),
         isNot(unifiedPushStatusLabel(UnifiedPushStatus.pusherFailed)),
       );
+    });
+
+    test('says how far registration got', () {
+      expect(
+        unifiedPushStatusLabel(UnifiedPushStatus.postingPusher),
+        'Finishing registration…',
+      );
+      expect(
+        unifiedPushStatusLabel(UnifiedPushStatus.pusherFailed),
+        'Could not finish registration',
+      );
+    });
+
+    test('never names the server, shouts or uses a contraction', () {
+      for (final status in UnifiedPushStatus.values) {
+        final label = unifiedPushStatusLabel(status);
+        expect(label, isNotEmpty, reason: '$status');
+        expect(label.toLowerCase(), isNot(contains('server')), reason: label);
+        expect(label, isNot(contains('!')), reason: label);
+        expect(label, isNot(contains(RegExp("['’]"))), reason: label);
+      }
     });
   });
 

@@ -94,6 +94,23 @@ void main() {
     expect(find.textContaining('screenshots'), findsNothing);
   });
 
+  testWidgets('Notifications names delivery where there is a choice of it', (
+    tester,
+  ) async {
+    await _pumpSettingsPage(tester, capabilities: androidCapabilities);
+
+    expect(find.text('Sounds, delivery'), findsOneWidget);
+  });
+
+  testWidgets('Notifications names mentions where delivery has no choice', (
+    tester,
+  ) async {
+    await _pumpSettingsPage(tester, capabilities: iosCapabilities);
+
+    expect(find.text('Sounds, mentions'), findsOneWidget);
+    expect(find.textContaining('delivery'), findsNothing);
+  });
+
   testWidgets('you are on top: name, username, and a way into Account', (
     tester,
   ) async {

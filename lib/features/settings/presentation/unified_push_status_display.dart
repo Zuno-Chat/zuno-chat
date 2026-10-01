@@ -4,9 +4,15 @@ import '../../../core/push/unified_push_distributor_names.dart';
 
 enum UnifiedPushStatusAction { none, register, retry, open }
 
-UnifiedPushStatusAction unifiedPushStatusAction(UnifiedPushStatus status) {
+UnifiedPushStatusAction unifiedPushStatusAction(
+  UnifiedPushStatus status, {
+  bool removed = false,
+}) {
   switch (status) {
     case UnifiedPushStatus.idle:
+      return removed
+          ? UnifiedPushStatusAction.register
+          : UnifiedPushStatusAction.none;
     case UnifiedPushStatus.findingDistributor:
     case UnifiedPushStatus.noDistributorFound:
     case UnifiedPushStatus.registering:
@@ -34,13 +40,13 @@ String unifiedPushStatusLabel(UnifiedPushStatus status) {
     case UnifiedPushStatus.registering:
       return 'Registering…';
     case UnifiedPushStatus.postingPusher:
-      return 'Registering with the server…';
+      return 'Finishing registration…';
     case UnifiedPushStatus.ready:
       return 'Active. Receiving notifications.';
     case UnifiedPushStatus.registrationFailed:
       return 'The distributor refused the registration';
     case UnifiedPushStatus.pusherFailed:
-      return 'The server rejected the registration';
+      return 'Could not finish registration';
   }
 }
 

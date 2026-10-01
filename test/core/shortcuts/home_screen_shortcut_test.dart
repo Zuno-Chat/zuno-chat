@@ -83,6 +83,27 @@ void main() {
     },
   );
 
+  test('a room opened before anyone listens reaches the first listener, '
+      'once', () async {
+    channel.setMethodCallHandler(null);
+    initHomeScreenShortcutChannel();
+    await messenger.handlePlatformMessage(
+      channel.name,
+      channel.codec.encodeMethodCall(
+        const MethodCall('openRoom', '!early:example.org'),
+      ),
+      (data) {},
+    );
+
+    expect(await onOpenRoomShortcut.first, '!early:example.org');
+
+    final later = <String>[];
+    final sub = onOpenRoomShortcut.listen(later.add);
+    addTearDown(sub.cancel);
+    await pumpEventQueue();
+    expect(later, isEmpty);
+  });
+
   group('on iOS, a tapped Apple push opens its room', () {
     final ios = capabilitiesFor(AppPlatform.ios);
     late List<String> calls;

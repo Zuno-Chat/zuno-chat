@@ -1,7 +1,6 @@
 # Platform split — `android` and `ios`
 
-**Status: redesigned 2026-09-26; Sequencing steps 1-5 built (uncommitted),
-step 6 (doc updates) lands with the commit. Supersedes the 2026-09-06
+**Status: redesigned 2026-09-26 and built. Supersedes the 2026-09-06
 `google`/`foss`/iOS plan that previously lived here.**
 
 Two flavors, `android` and `ios`, resolved in Dart from the running
@@ -50,7 +49,8 @@ is once no build-time flavor exists.
 - An iOS `false` means "no equivalent built yet", except Android concepts
   that stay `false` for good: `atomicDatabaseBatches`, `batteryExemption`,
   `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`,
-  `foregroundSyncService`, `vibrationPatterns`, `fullScreenIntent` (its
+  `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`,
+  `homeScreenShortcuts` (pinning), `fullScreenIntent` (its
   permission UI only), and the seam selectors `nativeIncomingRingUi`,
   `callForegroundService`, `nativeRingbackTone` (CallKit is a new branch
   per factory, never a flip).
@@ -82,12 +82,14 @@ green on both sides.
 
 ## Notification delivery
 
-`NotificationDeliveryMode` gains `apns`, resolving to a no-op provider —
-the enum names the seam before an implementation exists. Android keeps
-`fcm` as its default; iOS defaults to `apns`.
+`NotificationDeliveryMode` gains `apns` (`ApnsDeliveryProvider`, APNs
+through Sygnal: `notifications.md`). Android keeps `fcm` as its default;
+iOS defaults to `apns`, its only mode.
 
-- The Settings picker iterates `capabilities.deliveryModes`, not `values`,
-  and hides itself entirely at one option.
+- The Settings picker iterates `capabilities.deliveryModes`, not `values`.
+  With one mode there is no Delivery row or page at all; a push failure
+  shows as a problem row with its action on the Notifications page, beside
+  the home banner.
 - A stored mode unavailable on this platform falls back to the platform
   default — otherwise a carried-over preference selects a dead transport
   and silently delivers nothing (the pusher-left-behind failure class).

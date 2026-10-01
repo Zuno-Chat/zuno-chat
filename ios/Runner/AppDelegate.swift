@@ -150,6 +150,9 @@ import sqflite_sqlcipher
     if let registrar = registry.registrar(forPlugin: "ZunoRoomLaunchPlugin") {
       RoomLaunchPlugin.register(with: registrar)
     }
+    if let registrar = registry.registrar(forPlugin: "ZunoShareInboxPlugin") {
+      ShareInboxPlugin.register(with: registrar)
+    }
     if let registrar = registry.registrar(forPlugin: "ZunoWakeLockPlugin") {
       WakeLockPlugin.register(with: registrar)
     }

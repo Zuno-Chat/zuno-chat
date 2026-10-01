@@ -84,6 +84,10 @@ class _MessageListViewState extends State<MessageListView> {
       if (id == null) return false;
       return !visible.any((e) => galleryGroupOf(e)?.id == id);
     }).toList();
+    final singles = [
+      for (final failed in widget.failedSends.reversed)
+        if (failed.gallery == null) failed,
+    ];
     final loadingMore = timeline.isRequestingHistory;
     final exhausted = !loadingMore && !timeline.canRequestHistory;
     final ownUserId = widget.room.client.userID;
@@ -99,7 +103,7 @@ class _MessageListViewState extends State<MessageListView> {
     final now = DateTime.now();
     final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
     final hasEndRow = loadingMore || exhausted;
-    final leading = 1 + (orphaned.isEmpty ? 0 : 1);
+    final leading = 1 + singles.length + (orphaned.isEmpty ? 0 : 1);
 
     List<FailedMediaSend> failuresFor(List<Event>? gallery) {
       if (gallery == null || gallery.isEmpty) return const [];
@@ -137,8 +141,14 @@ class _MessageListViewState extends State<MessageListView> {
             },
           );
         }
-        if (orphaned.isNotEmpty && position == 1) {
-          return FailedGalleryTile(
+        if (position <= singles.length) {
+          return FailedMediaTile(
+            failed: [singles[position - 1]],
+            onRetry: widget.onRetryFailedSend,
+          );
+        }
+        if (orphaned.isNotEmpty && position == singles.length + 1) {
+          return FailedMediaTile(
             failed: orphaned,
             onRetry: widget.onRetryFailedSend,
           );
@@ -148,7 +158,7 @@ class _MessageListViewState extends State<MessageListView> {
           return _EndRow(
             room: widget.room,
             exhausted: exhausted,
-            empty: messages.isEmpty && orphaned.isEmpty,
+            empty: messages.isEmpty && orphaned.isEmpty && singles.isEmpty,
             pendingSend: widget.pendingSend,
           );
         }

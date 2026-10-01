@@ -1056,6 +1056,42 @@ void main() {
       recordChannel('zuno/background_sync');
     });
 
+    testWidgets('asks to show messages and ring for calls', (tester) async {
+      await pumpFlow(tester, [OnboardingStep.notifications]);
+
+      expect(
+        find.text(
+          'Zuno needs your permission to show new messages and ring for '
+          'calls.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('on iOS, where calls ring without it, asks for messages only '
+        'and moves straight on', (tester) async {
+      ambientCapabilities = iosCapabilities;
+      stubNotificationPermission(granted: true);
+      fullScreenAllowed = false;
+      await pumpFlow(tester, [
+        OnboardingStep.notifications,
+        OnboardingStep.setUpRecovery,
+      ], capabilities: iosCapabilities);
+
+      expect(
+        find.text('Zuno needs your permission to show new messages.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('ring for calls'), findsNothing);
+
+      await tester.tap(find.text('Turn on notifications'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Let calls take over the screen'), findsNothing);
+      expect(find.text('Set up recovery'), findsOneWidget);
+      expect(channelCalls, isNot(contains('canUseFullScreenIntent')));
+    });
+
     testWidgets('moves on once allowed and calls may ring full screen', (
       tester,
     ) async {

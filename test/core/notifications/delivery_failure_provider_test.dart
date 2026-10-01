@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
+import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/delivery_failure.dart';
 import 'package:zuno/core/notifications/delivery_failure_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
+import 'package:zuno/core/notifications/notification_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_permission_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -78,6 +80,163 @@ void main() {
     final container = await _container(allowed: null);
 
     expect(container.read(deliveryFailureProvider), isNull);
+  });
+
+  group('with Apple push', () {
+    tearDown(() {
+      apnsDeliveryProvider.status.value = ApnsStatus.idle;
+      apnsDeliveryProvider.dropped.value = 0;
+    });
+
+    Future<ProviderContainer> applePush() => _container(
+      allowed: true,
+      mode: 'apns',
+      autoSelected: null,
+      capabilities: iosCapabilities,
+    );
+
+    test('follows the registration as it fails and recovers', () async {
+      final container = await applePush();
+      expect(container.read(deliveryFailureProvider), isNull);
+
+      apnsDeliveryProvider.status.value = ApnsStatus.tokenFailed;
+
+      expect(
+        container.read(deliveryFailureProvider)?.message,
+        'Could not set up notifications on this device',
+      );
+
+      apnsDeliveryProvider.status.value = ApnsStatus.ready;
+
+      expect(container.read(deliveryFailureProvider), isNull);
+    });
+
+    test('follows the drop count while registered', () async {
+      apnsDeliveryProvider.status.value = ApnsStatus.ready;
+      final container = await applePush();
+      expect(container.read(deliveryFailureProvider), isNull);
+
+      apnsDeliveryProvider.dropped.value = 1;
+
+      expect(
+        container.read(deliveryFailureProvider)?.message,
+        'Notifications may not reach this device',
+      );
+    });
+  });
+
+  group('a dismissed failure', () {
+    tearDown(() {
+      fcmDeliveryProvider.status.value = FcmStatus.idle;
+    });
+
+    Future<ProviderContainer> googleServices() =>
+        _container(allowed: true, mode: 'fcm', autoSelected: null);
+
+    bool dismissed(ProviderContainer container) => deliveryFailureIsDismissed(
+      container.read(deliveryFailureProvider)!,
+      container.read(dismissedDeliveryFailureProvider),
+    );
+
+    test('stays dismissed while registration keeps failing', () async {
+      final container = await googleServices();
+      fcmDeliveryProvider.status.value = FcmStatus.tokenFailed;
+      container
+          .read(dismissedDeliveryFailureProvider.notifier)
+          .dismiss(container.read(deliveryFailureProvider)!);
+
+      fcmDeliveryProvider.status.value = FcmStatus.registering;
+      fcmDeliveryProvider.status.value = FcmStatus.tokenFailed;
+
+      expect(dismissed(container), isTrue);
+    });
+
+    test('shows again once delivery worked in between, even with the same '
+        'message', () async {
+      final container = await googleServices();
+      fcmDeliveryProvider.status.value = FcmStatus.tokenFailed;
+      container
+          .read(dismissedDeliveryFailureProvider.notifier)
+          .dismiss(container.read(deliveryFailureProvider)!);
+
+      fcmDeliveryProvider.status.value = FcmStatus.ready;
+      fcmDeliveryProvider.status.value = FcmStatus.pusherFailed;
+
+      expect(dismissed(container), isFalse);
+    });
+
+    test('shows again after the user acts on it', () async {
+      final container = await googleServices();
+      fcmDeliveryProvider.status.value = FcmStatus.tokenFailed;
+      final notifier = container.read(dismissedDeliveryFailureProvider.notifier)
+        ..dismiss(container.read(deliveryFailureProvider)!);
+
+      notifier.clear();
+
+      expect(dismissed(container), isFalse);
+    });
+  });
+
+  group('after the user removes this device', () {
+    setUp(() {
+      final original = UnifiedPushPlatform.instance;
+      UnifiedPushPlatform.instance = FakeUnifiedPush();
+      addTearDown(() {
+        UnifiedPushPlatform.instance = original;
+        fcmDeliveryProvider.removed.value = false;
+        unifiedPushDeliveryProvider.removed.value = false;
+      });
+    });
+
+    for (final (mode, removed) in [
+      ('fcm', fcmDeliveryProvider.removed),
+      ('unifiedPush', unifiedPushDeliveryProvider.removed),
+    ]) {
+      test('with $mode follows the removal and the registration after '
+          'it', () async {
+        final container = await _container(
+          allowed: true,
+          mode: mode,
+          autoSelected: null,
+        );
+        expect(container.read(deliveryFailureProvider), isNull);
+
+        removed.value = true;
+
+        expect(
+          container.read(deliveryFailureProvider)?.message,
+          'This device is not registered for notifications',
+        );
+
+        removed.value = false;
+
+        expect(container.read(deliveryFailureProvider), isNull);
+      });
+    }
+
+    test('a removal in another method changes nothing', () async {
+      final container = await _container(
+        allowed: true,
+        mode: 'fcm',
+        autoSelected: null,
+      );
+      expect(container.read(deliveryFailureProvider), isNull);
+
+      unifiedPushDeliveryProvider.removed.value = true;
+
+      expect(container.read(deliveryFailureProvider), isNull);
+    });
+
+    test('shows nothing while notifications are off', () async {
+      fcmDeliveryProvider.removed.value = true;
+      final container = await _container(
+        allowed: false,
+        mode: 'fcm',
+        autoSelected: null,
+      );
+
+      expect(container.read(deliveryFailureProvider), isNull);
+    });
   });
 
   group('without Google Play services', () {

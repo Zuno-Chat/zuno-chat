@@ -8,6 +8,8 @@ import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/apns_delivery_provider.dart';
 import '../../../core/notifications/background_sync_service.dart';
+import '../../../core/notifications/delivery_failure.dart';
+import '../../../core/notifications/delivery_failure_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_permission.dart';
 import '../../../core/notifications/notification_permission_provider.dart';
@@ -16,6 +18,7 @@ import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import 'delivery_failure_action.dart';
 import 'notification_delivery_page.dart';
 
 class NotificationsSettingsPage extends ConsumerStatefulWidget {
@@ -124,6 +127,7 @@ class _NotificationsSettingsPageState
   @override
   Widget build(BuildContext context) {
     final capabilities = ref.watch(platformCapabilitiesProvider);
+    final canChooseDelivery = capabilities.deliveryModes.length > 1;
     final deliveryMode = ref.watch(notificationDeliveryModeProvider);
     final notifyMe = ref.watch(notifyMeProvider);
     final ringtone = ref.watch(ringtoneEnabledProvider);
@@ -131,6 +135,20 @@ class _NotificationsSettingsPageState
     final messageTone = ref.watch(messageToneEnabledProvider);
     final messageVibration = ref.watch(messageVibrationEnabledProvider);
     final notificationsEnabled = _status.isGranted;
+    final deliveryFailure = notificationsEnabled && !canChooseDelivery
+        ? ref.watch(deliveryFailureProvider)
+        : null;
+    final enabledSubtitle = switch ((
+      capabilities.fullScreenIntent,
+      deliveryMode,
+    )) {
+      (false, _) =>
+        'New messages show on this device, even while Zuno is closed',
+      (true, NotificationDeliveryMode.backgroundService) =>
+        'Calls can ring full screen, and background sync shows its status in '
+            'the notification shade',
+      (true, _) => 'Calls can ring full screen',
+    };
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -144,8 +162,7 @@ class _NotificationsSettingsPageState
                 title: const Text('Enable notifications'),
                 subtitle: Text(
                   notificationsEnabled
-                      ? 'Calls can ring full screen, and background sync shows '
-                            'its status in the notification shade'
+                      ? enabledSubtitle
                       : 'Off. This device is not registered for notifications, '
                             'so nothing is delivered to it.',
                 ),
@@ -183,17 +200,36 @@ class _NotificationsSettingsPageState
                     onTap: () => CallNotificationService.instance
                         .openFullScreenIntentSettings(),
                   ),
-                ListTile(
-                  leading: const Icon(Icons.cloud_sync_outlined),
-                  title: const Text('Delivery'),
-                  subtitle: Text(deliveryMode.label),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const NotificationDeliveryPage(),
+                if (canChooseDelivery)
+                  ListTile(
+                    leading: const Icon(Icons.cloud_sync_outlined),
+                    title: const Text('Delivery'),
+                    subtitle: Text(deliveryMode.label),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationDeliveryPage(),
+                      ),
                     ),
                   ),
-                ),
+                if (deliveryFailure != null)
+                  ListTile(
+                    leading: Icon(
+                      Icons.error_outline,
+                      color: theme.colorScheme.error,
+                    ),
+                    title: Text(deliveryFailure.message),
+                    trailing: TextButton(
+                      onPressed: () => runDeliveryFailureAction(
+                        context,
+                        ref,
+                        deliveryFailure,
+                      ),
+                      child: Text(
+                        deliveryFailureActionLabel(deliveryFailure.action),
+                      ),
+                    ),
+                  ),
               ],
             ],
           ),

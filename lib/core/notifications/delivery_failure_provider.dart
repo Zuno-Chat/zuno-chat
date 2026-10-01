@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show Listenable, debugPrint;
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:unifiedpush/unifiedpush.dart';
@@ -12,6 +12,7 @@ import 'fcm_delivery_provider.dart';
 import 'notification_delivery_mode.dart';
 import 'notification_delivery_provider.dart';
 import 'notification_permission_provider.dart';
+import 'unified_push_delivery_provider.dart' show UnifiedPushStatus;
 
 final unifiedPushDistributorInstalledProvider =
     FutureProvider.autoDispose<bool>((ref) async {
@@ -39,20 +40,17 @@ final deliveryFailureProvider = Provider<DeliveryFailure?>((ref) {
       : null;
 
   void rebuild() => ref.invalidateSelf();
-  fcmDeliveryProvider.status.addListener(rebuild);
-  unifiedPushDeliveryProvider.status.addListener(rebuild);
-  apnsDeliveryProvider.status.addListener(rebuild);
-  apnsDeliveryProvider.dropped.addListener(rebuild);
-  unifiedPushDeliveryProvider.distributorBatteryRestricted.addListener(rebuild);
-  ref.onDispose(() {
-    fcmDeliveryProvider.status.removeListener(rebuild);
-    unifiedPushDeliveryProvider.status.removeListener(rebuild);
-    apnsDeliveryProvider.status.removeListener(rebuild);
-    apnsDeliveryProvider.dropped.removeListener(rebuild);
-    unifiedPushDeliveryProvider.distributorBatteryRestricted.removeListener(
-      rebuild,
-    );
-  });
+  final watched = Listenable.merge([
+    fcmDeliveryProvider.status,
+    fcmDeliveryProvider.removed,
+    unifiedPushDeliveryProvider.status,
+    unifiedPushDeliveryProvider.removed,
+    unifiedPushDeliveryProvider.distributorBatteryRestricted,
+    apnsDeliveryProvider.status,
+    apnsDeliveryProvider.dropped,
+  ]);
+  watched.addListener(rebuild);
+  ref.onDispose(() => watched.removeListener(rebuild));
 
   return notificationDeliveryFailure(
     mode: mode,
@@ -65,6 +63,8 @@ final deliveryFailureProvider = Provider<DeliveryFailure?>((ref) {
     distributor: unifiedPushDeliveryProvider.savedDistributor,
     distributorInstalled: distributorInstalled,
     autoSelected: autoSelected,
+    fcmRemoved: fcmDeliveryProvider.removed.value,
+    unifiedPushRemoved: unifiedPushDeliveryProvider.removed.value,
   );
 });
 
@@ -75,9 +75,30 @@ final dismissedDeliveryFailureProvider =
 
 class DismissedDeliveryFailureNotifier extends Notifier<DeliveryFailure?> {
   @override
-  DeliveryFailure? build() => null;
+  DeliveryFailure? build() {
+    final statuses = Listenable.merge([
+      fcmDeliveryProvider.status,
+      unifiedPushDeliveryProvider.status,
+      apnsDeliveryProvider.status,
+      apnsDeliveryProvider.dropped,
+    ]);
+    statuses.addListener(_clearOnceDelivering);
+    ref.onDispose(() => statuses.removeListener(_clearOnceDelivering));
+    return null;
+  }
+
+  void _clearOnceDelivering() {
+    final delivering =
+        fcmDeliveryProvider.status.value == FcmStatus.ready ||
+        unifiedPushDeliveryProvider.status.value == UnifiedPushStatus.ready ||
+        (apnsDeliveryProvider.status.value == ApnsStatus.ready &&
+            apnsDeliveryProvider.dropped.value == 0);
+    if (delivering) state = null;
+  }
 
   void dismiss(DeliveryFailure failure) => state = failure;
+
+  void clear() => state = null;
 }
 
 bool deliveryFailureIsDismissed(

@@ -159,7 +159,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         notificationImages: false,
         vibrationPatterns: false,
         deviceSafetyChecks: false,
-        inboundShare: false,
+        inboundShare: true,
         nativeSignOutWipe: true,
         nativeImageResize: true,
         nativeVideoTools: true,

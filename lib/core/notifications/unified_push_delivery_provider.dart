@@ -56,6 +56,8 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   final distributorBatteryRestricted = ValueNotifier<bool>(false);
 
+  final removed = ValueNotifier<bool>(false);
+
   Future<bool> Function(String package) distributorIgnoresBatteryOptimizations =
       BackgroundSyncService.instance.isPackageIgnoringBatteryOptimizations;
 
@@ -292,7 +294,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     status.value = UnifiedPushStatus.distributorSelected;
   }
 
-  Future<void> removeRegistration(Client client) async {
+  Future<void> remove(Client client) async {
     _retry.reset();
     final pushkey = _pushkey ?? _endpointUrl?.toString();
     if (pushkey != null) {
@@ -309,6 +311,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     savedDistributor = null;
     lastPusherError = null;
     status.value = UnifiedPushStatus.idle;
+    removed.value = true;
   }
 
   Future<void> _saveDistributor(String distributor) async {
@@ -323,6 +326,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
   Future<void> registerNow(Client client) async {
     _runner.liveClient = client;
     if (!await notificationsAllowed()) return;
+    removed.value = false;
     await ensureCallbacksRegistered(client);
     if (await knownDistributor() == null) {
       await discoverDistributors();
@@ -341,6 +345,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   @override
   Future<void> stop(Client client) async {
+    removed.value = false;
     _retry.reset();
     final prefs = await SharedPreferences.getInstance();
     final persisted = readUnifiedPushRegistration(prefs);
@@ -404,6 +409,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     }
     _pushkey = pusher.pushkey;
     lastPusherError = null;
+    removed.value = false;
     _retry.reset();
     _recheck.markChecked();
     await saveUnifiedPushRegistration(

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,9 +7,11 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/send_progress.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
+import 'package:zuno/features/chat/data/composed_video.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 import 'package:zuno/features/chat/presentation/date_divider.dart';
 import 'package:zuno/features/chat/presentation/empty_room_notice.dart';
+import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/pending_attachment_tile.dart';
 import 'package:zuno/features/chat/presentation/message_list_view.dart';
 import 'package:zuno/features/chat/presentation/message_tile.dart';
@@ -58,6 +62,7 @@ void main() {
     WidgetTester tester,
     Timeline Function() timeline, {
     List<FailedMediaSend> failedSends = const [],
+    void Function(FailedMediaSend failed)? onRetry,
   }) async {
     final cache = ReplyTargetCache((id) async => null);
     final controller = ScrollController();
@@ -83,7 +88,7 @@ void main() {
                   onLongPress: (_, _) {},
                   onSwipeReply: (_) {},
                   onResend: (_) {},
-                  onRetryFailedSend: (_) {},
+                  onRetryFailedSend: onRetry ?? (_) {},
                 );
               },
             ),
@@ -212,6 +217,37 @@ void main() {
     expect(find.text('No earlier messages'), findsNothing);
   });
 
+  testWidgets('a chat whose only message failed to send is not called '
+      'empty', (tester) async {
+    final timeline = await timelineOf(tester, [
+      buildTestEvent(
+        room,
+        eventId: r'$create',
+        senderId: bob,
+        type: EventTypes.RoomCreate,
+        stateKey: '',
+        originServerTs: noon,
+        content: {'creator': bob},
+      ),
+    ]);
+    await tester.runAsync(timeline.requestHistory);
+    await pumpList(
+      tester,
+      () => timeline,
+      failedSends: [
+        FailedMediaSend(
+          gallery: null,
+          bytes: base64Decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          ),
+        ),
+      ],
+    );
+
+    expect(find.byType(FailedMediaTile), findsOneWidget);
+    expect(find.byType(EmptyRoomNotice), findsNothing);
+  });
+
   testWidgets('an upload tick rebuilds only the upload tile', (tester) async {
     final timeline = await timelineOf(tester, [text(r'$m1')]);
     await pumpList(tester, () => timeline);
@@ -248,8 +284,41 @@ void main() {
       ],
     );
 
-    expect(find.byType(FailedGalleryTile), findsOneWidget);
+    expect(find.byType(FailedMediaTile), findsOneWidget);
     expect(find.byKey(const ValueKey(r'$m1')), findsOneWidget);
+  });
+
+  testWidgets('a failed single photo or video gets its own tile, and a tap '
+      'retries just that one', (tester) async {
+    final timeline = await timelineOf(tester, [text(r'$m1')]);
+    final photo = FailedMediaSend(
+      gallery: null,
+      bytes: base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      ),
+    );
+    const video = FailedMediaSend(
+      gallery: null,
+      video: ComposedVideo(
+        path: '/tmp/clip.mp4',
+        name: 'clip.mp4',
+        caption: '',
+      ),
+    );
+    final retried = <FailedMediaSend>[];
+    await pumpList(
+      tester,
+      () => timeline,
+      failedSends: [photo, video],
+      onRetry: retried.add,
+    );
+
+    expect(find.byType(FailedMediaTile), findsNWidgets(2));
+    expect(find.text('Not sent. Tap to try again.'), findsNWidgets(2));
+
+    await tester.tap(find.byType(GalleryFailedThumbnail).first);
+
+    expect(retried, [video]);
   });
 
   testWidgets('a new message at the bottom keeps the state of the others', (

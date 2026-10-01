@@ -58,7 +58,7 @@ final class ApnsTokenPlugin: NSObject, @preconcurrency FlutterPlugin {
 
 @MainActor
 final class RoomLaunchPlugin: NSObject, @preconcurrency FlutterPlugin {
-  private static var state = RoomLaunchState()
+  private static var state = LaunchHandoff<String>()
   private static weak var current: RoomLaunchPlugin?
 
   private let channel: FlutterMethodChannel
@@ -79,7 +79,7 @@ final class RoomLaunchPlugin: NSObject, @preconcurrency FlutterPlugin {
   }
 
   static func open(_ roomId: String) {
-    guard state.open(roomId), let plugin = current else { return }
+    guard state.offer(roomId), let plugin = current else { return }
     plugin.channel.invokeMethod("openRoom", arguments: roomId)
   }
 
@@ -93,38 +93,5 @@ final class RoomLaunchPlugin: NSObject, @preconcurrency FlutterPlugin {
       return
     }
     result(Self.state.take(attachment))
-  }
-}
-
-struct RoomLaunchState: Equatable, Sendable {
-  private(set) var pendingRoomId: String?
-  private(set) var listener: Int?
-  private var attachments = 0
-
-  mutating func attach() -> Int {
-    attachments += 1
-    listener = nil
-    return attachments
-  }
-
-  mutating func detach(_ attachment: Int) {
-    if listener == attachment {
-      listener = nil
-    }
-  }
-
-  mutating func open(_ roomId: String) -> Bool {
-    guard listener != nil else {
-      pendingRoomId = roomId
-      return false
-    }
-    return true
-  }
-
-  mutating func take(_ attachment: Int) -> String? {
-    guard attachment == attachments else { return nil }
-    listener = attachment
-    defer { pendingRoomId = nil }
-    return pendingRoomId
   }
 }

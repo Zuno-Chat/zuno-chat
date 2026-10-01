@@ -71,10 +71,10 @@ String fcmStatusLabel(FcmStatus status) {
     case FcmStatus.tokenFailed:
       return 'Could not set up notifications on this device';
     case FcmStatus.postingPusher:
-      return 'Registering with the server…';
+      return 'Finishing registration…';
     case FcmStatus.ready:
       return 'Active. Receiving notifications.';
     case FcmStatus.pusherFailed:
-      return 'The server rejected the registration';
+      return 'Could not finish registration';
   }
 }

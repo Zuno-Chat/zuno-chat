@@ -604,9 +604,9 @@ instead, so a stale notification can't outlive its call.
   device joining the call, or my decline from any device, ends the ring
   and resolves the call. A call already answered elsewhere never rings, is
   never declined as busy, and loses any ring the push isolate posted. Only
-  a running app watches: nothing about an answer elsewhere pushes, so a
-  ring posted headless learns of it only once the app runs; the native 60 s
-  stop ends it regardless.
+  an app that is syncing watches: nothing about an answer elsewhere pushes,
+  so a ring posted headless learns of it only once the app syncs; the
+  native 60 s stop ends it regardless.
 - **TURN provider selection was built, then retired to one path.** A
   per-user `TurnProviderKind` (homeserver vs. Cloudflare) picker existed
   briefly; both branches are now moot — the app derives ICE entirely

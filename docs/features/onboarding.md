@@ -86,11 +86,13 @@ drops them via `stepsAfterNotificationsAnswer` and marks them shown.
 
 ## Key Design Decisions
 
+- **The notifications step asks only for what the permission covers.** Its
+  body names new messages and ringing for calls; with `callKit` (iOS) it
+  names messages only, since CallKit rings without the permission.
 - **Declining notifications answers the delivery steps too.** They are
   marked shown, not merely hidden: otherwise turning notifications on
   later in Settings would open the flow over Settings on the next sync
   tick. The Delivery page in Settings is where they are set afterwards.
-
 - **A predicate-driven queue, not a wizard.** Each step carries its own
   condition; the common case is an empty list. Asking everything cold is
   how notification permission gets reflexively denied and recovery codes

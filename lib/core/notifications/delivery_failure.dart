@@ -48,14 +48,17 @@ DeliveryFailure? notificationDeliveryFailure({
   String? distributor,
   bool? distributorInstalled,
   NotificationDeliveryMode? autoSelected,
+  bool fcmRemoved = false,
+  bool unifiedPushRemoved = false,
 }) {
   final failure = switch (mode) {
     NotificationDeliveryMode.fcm => _fcmFailure(
       fcm,
       distributorInstalled: distributorInstalled,
+      removed: fcmRemoved,
     ),
     NotificationDeliveryMode.unifiedPush =>
-      _unifiedPushFailure(unifiedPush) ??
+      _unifiedPushFailure(unifiedPush, removed: unifiedPushRemoved) ??
           _distributorBatteryFailure(
             unifiedPush,
             restricted: distributorBatteryRestricted,
@@ -99,14 +102,26 @@ DeliveryFailure? _distributorBatteryFailure(
   );
 }
 
+const _notRegistered = DeliveryFailure(
+  message: 'This device is not registered for notifications',
+  action: DeliveryFailureAction.retry,
+);
+
+const _setupFailed = DeliveryFailure(
+  message: 'Could not set up notifications on this device',
+  action: DeliveryFailureAction.retry,
+);
+
 DeliveryFailure? _fcmFailure(
   FcmStatus status, {
   required bool? distributorInstalled,
+  required bool removed,
 }) {
   final switchAway = distributorInstalled == false
       ? DeliveryFailureAction.switchToBackgroundService
       : DeliveryFailureAction.switchToUnifiedPush;
   return switch (status) {
+    FcmStatus.idle when removed => _notRegistered,
     FcmStatus.idle ||
     FcmStatus.checkingPlayServices ||
     FcmStatus.registering ||
@@ -128,41 +143,31 @@ DeliveryFailure? _fcmFailure(
       message: 'This version of Zuno does not include Google services',
       action: switchAway,
     ),
-    FcmStatus.tokenFailed => const DeliveryFailure(
-      message: 'Could not set up notifications on this device',
-      action: DeliveryFailureAction.retry,
-    ),
-    FcmStatus.pusherFailed => const DeliveryFailure(
-      message: 'The server did not accept this device',
-      action: DeliveryFailureAction.retry,
-    ),
+    FcmStatus.tokenFailed || FcmStatus.pusherFailed => _setupFailed,
   };
 }
 
 DeliveryFailure? _apnsFailure(ApnsStatus status, {required int dropped}) {
   return switch (status) {
     ApnsStatus.ready when dropped > 0 => const DeliveryFailure(
-      message:
-          'The server dropped this device, so notifications may not arrive',
+      message: 'Notifications may not reach this device',
       action: DeliveryFailureAction.retry,
     ),
     ApnsStatus.idle ||
     ApnsStatus.registering ||
     ApnsStatus.postingPusher ||
     ApnsStatus.ready => null,
-    ApnsStatus.tokenFailed => const DeliveryFailure(
-      message: 'Could not set up notifications on this device',
-      action: DeliveryFailureAction.retry,
-    ),
-    ApnsStatus.pusherFailed => const DeliveryFailure(
-      message: 'The server did not accept this device',
-      action: DeliveryFailureAction.retry,
-    ),
+    ApnsStatus.tokenFailed || ApnsStatus.pusherFailed => _setupFailed,
   };
 }
 
-DeliveryFailure? _unifiedPushFailure(UnifiedPushStatus status) {
+DeliveryFailure? _unifiedPushFailure(
+  UnifiedPushStatus status, {
+  required bool removed,
+}) {
   return switch (status) {
+    UnifiedPushStatus.idle ||
+    UnifiedPushStatus.distributorSelected when removed => _notRegistered,
     UnifiedPushStatus.idle ||
     UnifiedPushStatus.findingDistributor ||
     UnifiedPushStatus.distributorSelected ||
@@ -177,9 +182,6 @@ DeliveryFailure? _unifiedPushFailure(UnifiedPushStatus status) {
       message: 'The distributor app refused to register this device',
       action: DeliveryFailureAction.retry,
     ),
-    UnifiedPushStatus.pusherFailed => const DeliveryFailure(
-      message: 'The server did not accept this device',
-      action: DeliveryFailureAction.retry,
-    ),
+    UnifiedPushStatus.pusherFailed => _setupFailed,
   };
 }

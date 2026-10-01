@@ -393,11 +393,13 @@ differs from the raw SSSS key):**
   clipboard.
 - **Local database is SQLCipher-encrypted** (`sqflite_sqlcipher`), key
   in `flutter_secure_storage`: Keystore on Android, Keychain
-  `first_unlock_this_device` on iOS, so a push handled while locked can
-  still open the database and the key never leaves the phone in a backup. Directly relevant here:
-  the access token, Olm account pickle, and every inbound Megolm session
-  live in that one file — this feature's cryptographic state has no
-  protection independent of that encryption-at-rest layer. So the store is
+  `first_unlock_this_device` on iOS, so a push or notification action
+  handled while locked (on iOS only an action, Reply or Mark as read: no
+  Dart runs on an iOS push) can still open the database and the key never
+  leaves the phone in a backup. Directly relevant here: the access token,
+  Olm account pickle, and every inbound Megolm session live in that one
+  file — this feature's cryptographic state has no protection independent
+  of that encryption-at-rest layer. So the store is
   guarded against losing it (`app-foundation.md`): an Android Keystore read
   error never discards the key (`resetOnError: false`), only the app mints a key,
   background clients never clear the store, and a failed start asks before

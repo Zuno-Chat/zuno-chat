@@ -63,6 +63,7 @@ final class AppDataPlugin: NSObject, @preconcurrency FlutterPlugin {
     empty(files.urls(for: .documentDirectory, in: .userDomainMask).first)
     empty(files.urls(for: .cachesDirectory, in: .userDomainMask).first)
     empty(files.temporaryDirectory)
+    empty(ShareInbox.root(), required: false)
     let library = files.urls(for: .libraryDirectory, in: .userDomainMask).first
     empty(library?.appendingPathComponent("SplashBoard/Snapshots"), required: false)
     empty(library?.appendingPathComponent("Saved Application State"), required: false)

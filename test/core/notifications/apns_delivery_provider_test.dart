@@ -124,7 +124,7 @@ void main() {
           'aps': {
             'mutable-content': 1,
             'alert': {'body': 'New message'},
-            'sound': 'default',
+            'sound': 'message_tone.caf',
           },
         },
         'format': 'event_id_only',
@@ -194,6 +194,17 @@ void main() {
 
     expect(provider.status.value, ApnsStatus.ready);
     expect(provider.lastPusherError, isNull);
+  });
+
+  test('with no server to send through yet, registering is tried again '
+      'later', () async {
+    client.homeserver = null;
+
+    await provider.start(client);
+
+    expect(provider.status.value, ApnsStatus.pusherFailed);
+    expect(provider.retryScheduled, isTrue);
+    expect(client.posted, isEmpty);
   });
 
   test(
@@ -351,21 +362,21 @@ void main() {
 
       await provider.messageToneChanged(client);
 
-      expect(client.posted.map(soundOf), ['default', null]);
+      expect(client.posted.map(soundOf), ['message_tone.caf', null]);
       expect(client.posted.last.appId, apnsAppId);
       expect(client.posted.last.pushkey, _pushkey);
       expect(client.deleted, isEmpty);
       expect(provider.status.value, ApnsStatus.ready);
     });
 
-    test('turning it back on re-posts with the default sound', () async {
+    test('turning it back on re-posts with the Zuno tone', () async {
       await setMessageTone(false);
       await provider.start(client);
       await setMessageTone(true);
 
       await provider.messageToneChanged(client);
 
-      expect(client.posted.map(soundOf), [null, 'default']);
+      expect(client.posted.map(soundOf), [null, 'message_tone.caf']);
     });
 
     test('a change the pusher already carries posts nothing', () async {
@@ -376,7 +387,7 @@ void main() {
 
       await provider.messageToneChanged(client);
 
-      expect(client.posted.map(soundOf), ['default', null]);
+      expect(client.posted.map(soundOf), ['message_tone.caf', null]);
     });
 
     test('with nothing registered a change asks for no token and posts '
@@ -408,7 +419,7 @@ void main() {
       await provider.recheckRegistration(client);
 
       expect(provider.status.value, ApnsStatus.ready);
-      expect(client.posted.map(soundOf), ['default', null]);
+      expect(client.posted.map(soundOf), ['message_tone.caf', null]);
       expect(tokenReads, reads);
     });
 
@@ -420,7 +431,7 @@ void main() {
 
       await provider.recheckRegistration(client);
 
-      expect(client.posted.map(soundOf), ['default', null]);
+      expect(client.posted.map(soundOf), ['message_tone.caf', null]);
     });
 
     test('a re-post the server rejects is tried again on the next launch, '
@@ -436,7 +447,7 @@ void main() {
       final relaunched = providerWith(registration: true);
       await relaunched.start(client);
 
-      expect(client.posted.map(soundOf), ['default', null]);
+      expect(client.posted.map(soundOf), ['message_tone.caf', null]);
       expect(relaunched.status.value, ApnsStatus.ready);
     });
 
@@ -452,7 +463,7 @@ void main() {
       hold.complete();
       await starting;
 
-      expect(client.posted.map(soundOf), ['default', null]);
+      expect(client.posted.map(soundOf), ['message_tone.caf', null]);
       expect(provider.status.value, ApnsStatus.ready);
     });
 
@@ -469,7 +480,11 @@ void main() {
       hold.complete();
       await first;
 
-      expect(client.posted.map(soundOf), ['default', null, 'default']);
+      expect(client.posted.map(soundOf), [
+        'message_tone.caf',
+        null,
+        'message_tone.caf',
+      ]);
       expect(provider.status.value, ApnsStatus.ready);
     });
 
@@ -499,6 +514,26 @@ void main() {
       await relaunched.start(client);
 
       expect(client.posted, isEmpty);
+    });
+
+    test('a pusher whose sound was never recorded is re-posted once with the '
+        'Zuno tone', () async {
+      SharedPreferences.setMockInitialValues({
+        'push.apns.token': _token,
+        'push.apns.app_id': apnsAppId,
+        'push.apns.sound': true,
+      });
+      client.pushersOnServer = [_serverPusher(_pushkey)];
+
+      await provider.start(client);
+      final relaunched = providerWith(registration: true);
+      await relaunched.start(client);
+
+      expect(client.posted.map(soundOf), ['message_tone.caf']);
+      expect(provider.status.value, ApnsStatus.ready);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey('push.apns.sound'), isFalse);
+      expect(prefs.getString('push.apns.sound_name'), 'message_tone.caf');
     });
 
     test('a pusher registered before Message tone reached Apple push is '

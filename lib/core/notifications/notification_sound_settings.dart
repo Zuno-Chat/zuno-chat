@@ -5,6 +5,8 @@ const callVibrationEnabledKey = 'settings.call_vibration_enabled';
 const messageToneEnabledKey = 'settings.message_tone_enabled';
 const messageVibrationEnabledKey = 'settings.message_vibration_enabled';
 
+const darwinMessageToneSound = 'message_tone.caf';
+
 class NotificationSoundSettings {
   final bool ringtone;
   final bool callVibration;

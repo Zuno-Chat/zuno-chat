@@ -27,7 +27,7 @@ Pusher buildApnsPusher({
   required String pushkey,
   required Uri gatewayUrl,
   required String deviceDisplayName,
-  required bool sound,
+  required String? sound,
 }) {
   return Pusher(
     appId: appId,
@@ -44,7 +44,7 @@ Pusher buildApnsPusher({
           'aps': {
             'mutable-content': 1,
             'alert': const {'body': 'New message'},
-            if (sound) 'sound': 'default',
+            'sound': ?sound,
           },
         },
       },

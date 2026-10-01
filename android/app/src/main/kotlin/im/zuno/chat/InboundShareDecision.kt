@@ -26,6 +26,13 @@ object InboundShareDecision {
         return if (cleaned.isEmpty() || cleaned == "." || cleaned == "..") "shared" else cleaned
     }
 
+    fun joinedText(texts: List<CharSequence?>): String? = texts
+        .mapNotNull { it?.toString() }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .joinToString("\n")
+        .ifEmpty { null }
+
     fun payload(text: String?, files: List<SharedFile>): Map<String, Any?>? {
         val cleanText = text?.takeIf { it.isNotBlank() }
         if (cleanText == null && files.isEmpty()) return null

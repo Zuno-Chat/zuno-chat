@@ -43,6 +43,8 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
 
   final status = ValueNotifier<FcmStatus>(FcmStatus.idle);
 
+  final removed = ValueNotifier<bool>(false);
+
   String? lastPusherError;
 
   String? _token;
@@ -212,6 +214,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
   Future<void> registerNow(Client client) async {
     _runner.liveClient = client;
     if (!await notificationsAllowed()) return;
+    removed.value = false;
 
     status.value = FcmStatus.checkingPlayServices;
     final availability = await availabilityReader();
@@ -279,6 +282,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     }
     _token = token;
     lastPusherError = null;
+    removed.value = false;
     status.value = FcmStatus.ready;
     _recheck.markChecked();
     _retry.reset();
@@ -348,8 +352,14 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     });
   }
 
+  Future<void> remove(Client client) async {
+    await stop(client);
+    removed.value = true;
+  }
+
   @override
   Future<void> stop(Client client) async {
+    removed.value = false;
     _retry.reset();
     final prefs = await _reloadedPrefs();
     final tokens = {

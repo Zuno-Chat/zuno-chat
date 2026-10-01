@@ -575,6 +575,91 @@ void main() {
     expect(provider.status.value, FcmStatus.idle);
   });
 
+  group('a push target the user removes', () {
+    test('is taken down and marked removed', () async {
+      await provider.start(client);
+
+      await provider.remove(client);
+
+      expect(provider.removed.value, isTrue);
+      expect(provider.status.value, FcmStatus.idle);
+      expect(provider.registered, isFalse);
+      expect(client.deleted.single.pushkey, 'token-abc');
+      expect(
+        readFcmRegistration(await SharedPreferences.getInstance()),
+        isNull,
+      );
+    });
+
+    test('is no longer marked once registering again', () async {
+      await provider.start(client);
+      await provider.remove(client);
+
+      await provider.registerNow(client);
+
+      expect(provider.removed.value, isFalse);
+      expect(provider.status.value, FcmStatus.ready);
+      expect(client.posted, hasLength(2));
+    });
+
+    test('is registered again by the next start', () async {
+      await provider.start(client);
+      await provider.remove(client);
+
+      await provider.start(client);
+
+      expect(provider.removed.value, isFalse);
+      expect(provider.status.value, FcmStatus.ready);
+      expect(client.posted, hasLength(2));
+    });
+
+    test('a registration that fails again reports that failure '
+        'instead', () async {
+      provider.retryDelay = (_) => const Duration(days: 1);
+      addTearDown(() => provider.stop(client));
+      await provider.start(client);
+      await provider.remove(client);
+      client.postError = Exception('server said no');
+
+      await provider.registerNow(client);
+
+      expect(provider.removed.value, isFalse);
+      expect(provider.status.value, FcmStatus.pusherFailed);
+    });
+
+    test('is no longer marked once a refreshed token registers', () async {
+      final refreshes = StreamController<String>.broadcast();
+      provider.tokenRefreshStream = () => refreshes.stream;
+      addTearDown(refreshes.close);
+      await provider.start(client);
+      provider.removed.value = true;
+
+      refreshes.add('token-def');
+      await pumpEventQueue();
+
+      expect(provider.removed.value, isFalse);
+    });
+
+    test('is no longer marked once stopped', () async {
+      await provider.start(client);
+      await provider.remove(client);
+
+      await provider.stop(client);
+
+      expect(provider.removed.value, isFalse);
+    });
+
+    test('is never marked by stop alone', () async {
+      await provider.start(client);
+
+      await provider.stop(client);
+      expect(provider.removed.value, isFalse);
+
+      await provider.stop(client);
+      expect(provider.removed.value, isFalse);
+    });
+  });
+
   group('a registration the homeserver already confirmed', () {
     setUp(
       () => SharedPreferences.setMockInitialValues({

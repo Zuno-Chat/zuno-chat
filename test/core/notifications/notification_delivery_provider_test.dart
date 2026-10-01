@@ -122,10 +122,7 @@ void main() {
 
       setUp(() {
         SharedPreferences.setMockInitialValues({});
-        ambientCapabilities = capabilitiesLike(
-          iosCapabilities,
-          apnsRegistration: true,
-        );
+        ambientCapabilities = iosCapabilities;
         client = _PusherClient();
         apnsDeliveryProvider.tokenReader = () async => _apnsToken;
         addTearDown(() => apnsDeliveryProvider.stop(client));

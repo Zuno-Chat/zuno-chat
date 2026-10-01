@@ -20,6 +20,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
+import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -399,6 +400,53 @@ void main() {
       expect(galleryOf(harness.sent.single)!['index'], 0);
     });
 
+    testWidgets('a photo that fails after leaving the chat still says so', (
+      tester,
+    ) async {
+      final upload = Completer<void>();
+      picker.answer = [_photo('IMG_1.jpg')];
+      await openRoom(tester);
+      final respond = harness.respond!;
+      harness.respond = (request) async {
+        if (!request.url.path.contains('/upload')) return respond(request);
+        await upload.future;
+        return http.Response(
+          jsonEncode({'errcode': 'M_UNKNOWN', 'error': 'boom'}),
+          500,
+        );
+      };
+
+      await choose(tester, 'Take photo');
+      await sendFromComposer(tester);
+      await tester.pumpWidget(
+        await harness.app(home: const Scaffold(body: SizedBox())),
+      );
+      upload.complete();
+      await harness.drive(tester);
+
+      expect(find.byType(RoomPage), findsNothing);
+      expect(find.text('Not sent. Try again.'), findsOneWidget);
+    });
+
+    testWidgets('a single failed photo goes again when its tile is tapped', (
+      tester,
+    ) async {
+      uploadsFail = true;
+      picker.answer = [_photo('IMG_1.jpg')];
+      await openRoom(tester);
+
+      await choose(tester, 'Take photo');
+      await sendFromComposer(tester);
+      expect(harness.sent, isEmpty);
+
+      uploadsFail = false;
+      await tester.tap(find.byType(GalleryFailedThumbnail));
+      await harness.drive(tester);
+
+      expect(harness.sent.single['msgtype'], 'm.image');
+      expect(find.text('Not sent. Tap to try again.'), findsNothing);
+    });
+
     testWidgets('a single failed photo says so and goes again once back '
         'online', (tester) async {
       final status = StreamController<ConnectionStatus>.broadcast();
@@ -418,7 +466,8 @@ void main() {
       await sendFromComposer(tester);
 
       expect(harness.sent, isEmpty);
-      expect(find.text('Not sent. Try again.'), findsOneWidget);
+      expect(find.text('Not sent. Tap to try again.'), findsOneWidget);
+      expect(find.text('Not sent. Try again.'), findsNothing);
 
       uploadsFail = false;
       status.add(ConnectionStatus.noInternet);

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/notifications/apns_delivery_provider.dart';
 import '../../../core/notifications/background_sync_service.dart';
 import '../../../core/notifications/fcm_availability_provider.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
@@ -17,7 +16,6 @@ import '../../../core/push/unified_push_distributor_names.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
-import 'apns_status_display.dart';
 import 'fcm_status_display.dart';
 import 'push_target_status_page.dart';
 import 'unified_push_status_display.dart';
@@ -46,6 +44,10 @@ class _NotificationDeliveryPageState
   bool _backgroundDataRestricted = false;
   bool _hasAutostartSettings = false;
   String? _unifiedPushDistributor;
+  late final _unifiedPushChanges = Listenable.merge([
+    unifiedPushDeliveryProvider.status,
+    unifiedPushDeliveryProvider.removed,
+  ]);
 
   @override
   void initState() {
@@ -54,7 +56,7 @@ class _NotificationDeliveryPageState
     _refreshBackgroundSyncPermissions();
     _refreshUnifiedPushStatus();
     _checkAutostartSettings();
-    unifiedPushDeliveryProvider.status.addListener(_onUnifiedPushStatusChanged);
+    _unifiedPushChanges.addListener(_onUnifiedPushStatusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (ref.read(notificationDeliveryModeProvider) ==
@@ -67,9 +69,7 @@ class _NotificationDeliveryPageState
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unifiedPushDeliveryProvider.status.removeListener(
-      _onUnifiedPushStatusChanged,
-    );
+    _unifiedPushChanges.removeListener(_onUnifiedPushStatusChanged);
     super.dispose();
   }
 
@@ -133,11 +133,6 @@ class _NotificationDeliveryPageState
   void _fixFcm() {
     final client = ref.read(matrixClientProvider);
     unawaited(fcmDeliveryProvider.fixPlayServices(client));
-  }
-
-  void _registerApns() {
-    final client = ref.read(matrixClientProvider);
-    unawaited(apnsDeliveryProvider.registerNow(client));
   }
 
   void _openPushTargetStatus() {
@@ -212,7 +207,10 @@ class _NotificationDeliveryPageState
       case NotificationDeliveryMode.unifiedPush:
         final upStatus = unifiedPushDeliveryProvider.status.value;
         final busy = _unifiedPushStatusIsBusy(upStatus);
-        final action = unifiedPushStatusAction(upStatus);
+        final action = unifiedPushStatusAction(
+          upStatus,
+          removed: unifiedPushDeliveryProvider.removed.value,
+        );
         return [
           ListTile(
             leading: const Icon(Icons.info_outline),
@@ -288,13 +286,7 @@ class _NotificationDeliveryPageState
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _pushStatusRow(
-                    busy: fcmStatusIsBusy(fcmStatus),
-                    action: fcmStatusAction(fcmStatus),
-                    icon: _fcmStatusIcon(fcmStatus),
-                    label: fcmStatusLabel(fcmStatus),
-                    register: _registerFcm,
-                  ),
+                  _fcmStatusRow(fcmStatus),
                   if (fix != null)
                     ListTile(
                       leading: Icon(
@@ -313,49 +305,26 @@ class _NotificationDeliveryPageState
           ..._batteryExemptionRows(mode, capabilities),
         ];
       case NotificationDeliveryMode.apns:
-        if (!capabilities.apnsRegistration) return const [];
-        return [
-          ListenableBuilder(
-            listenable: Listenable.merge([
-              apnsDeliveryProvider.status,
-              apnsDeliveryProvider.dropped,
-            ]),
-            builder: (context, _) {
-              final apnsStatus = apnsDeliveryProvider.status.value;
-              final dropped = apnsDeliveryProvider.dropped.value;
-              return _pushStatusRow(
-                busy: apnsStatusIsBusy(apnsStatus),
-                action: apnsStatusAction(apnsStatus),
-                icon: _apnsStatusIcon(apnsStatus, dropped: dropped),
-                label: apnsStatusLabel(apnsStatus, dropped: dropped),
-                register: _registerApns,
-              );
-            },
-          ),
-        ];
+        return const [];
     }
   }
 
-  Widget _pushStatusRow({
-    required bool busy,
-    required PushStatusAction action,
-    required IconData icon,
-    required String label,
-    required VoidCallback register,
-  }) {
+  Widget _fcmStatusRow(FcmStatus status) {
+    final busy = fcmStatusIsBusy(status);
+    final action = fcmStatusAction(status);
     return ListTile(
-      leading: busy ? _statusSpinner : Icon(icon),
+      leading: busy ? _statusSpinner : Icon(_fcmStatusIcon(status)),
       title: const Text('Status'),
-      subtitle: Text(label),
+      subtitle: Text(fcmStatusLabel(status)),
       onTap: action == PushStatusAction.open ? _openPushTargetStatus : null,
       trailing: switch (action) {
         PushStatusAction.none || PushStatusAction.fix => null,
         PushStatusAction.register => TextButton(
-          onPressed: busy ? null : register,
+          onPressed: busy ? null : _registerFcm,
           child: const Text('Register'),
         ),
         PushStatusAction.retry => TextButton(
-          onPressed: busy ? null : register,
+          onPressed: busy ? null : _registerFcm,
           child: const Text('Retry'),
         ),
         PushStatusAction.open => const Icon(Icons.chevron_right),
@@ -406,40 +375,30 @@ class _NotificationDeliveryPageState
   Widget build(BuildContext context) {
     final deliveryMode = ref.watch(notificationDeliveryModeProvider);
     final capabilities = ref.watch(platformCapabilitiesProvider);
-    final canChoose = capabilities.deliveryModes.length > 1;
     ref.watch(fcmAvailabilityProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Delivery')),
       body: CardListView(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(28, 12, 28, 8),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(28, 12, 28, 8),
             child: Text(
-              canChoose
-                  ? 'How messages and calls reach you while Zuno is closed. '
-                        'Background sync needs no setup. UnifiedPush needs a '
-                        'distributor app, such as ntfy, installed. Google '
-                        'services needs Google Play services.'
-                  : 'How messages and calls reach you while Zuno is closed.',
+              'How messages and calls reach you while Zuno is closed. '
+              'Background sync needs no setup. UnifiedPush needs a '
+              'distributor app, such as ntfy, installed. Google '
+              'services needs Google Play services.',
             ),
           ),
           CardGroup(
             children: [
-              if (canChoose)
-                ListTile(
-                  leading: const Icon(Icons.cloud_sync_outlined),
-                  title: const Text('Delivery method'),
-                  subtitle: Text(deliveryMode.label),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _chooseDeliveryMode(deliveryMode),
-                )
-              else
-                ListTile(
-                  leading: const Icon(Icons.cloud_sync_outlined),
-                  title: Text(deliveryMode.label),
-                  subtitle: Text(deliveryMode.description),
-                ),
+              ListTile(
+                leading: const Icon(Icons.cloud_sync_outlined),
+                title: const Text('Delivery method'),
+                subtitle: Text(deliveryMode.label),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _chooseDeliveryMode(deliveryMode),
+              ),
               ..._deliveryModeSettings(deliveryMode, capabilities),
               if (_hasAutostartSettings)
                 ListTile(
@@ -499,15 +458,6 @@ IconData _fcmStatusIcon(FcmStatus status) {
       return Icons.error_outline;
   }
 }
-
-IconData _apnsStatusIcon(ApnsStatus status, {required int dropped}) =>
-    switch (status) {
-      ApnsStatus.idle => Icons.pause_circle_outline,
-      ApnsStatus.registering || ApnsStatus.postingPusher => Icons.sync_outlined,
-      ApnsStatus.ready when dropped > 0 => Icons.warning_amber_outlined,
-      ApnsStatus.ready => Icons.check_circle_outline,
-      ApnsStatus.tokenFailed || ApnsStatus.pusherFailed => Icons.error_outline,
-    };
 
 IconData _unifiedPushStatusIcon(UnifiedPushStatus status) {
   switch (status) {

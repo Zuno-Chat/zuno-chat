@@ -39,8 +39,8 @@ offers apns only.
   picker shows disabled (FCM availability below) and returns whether it
   saved.
 - **Apple push is gated by `apnsRegistration`** (iOS only). Off,
-  `start`/`registerNow` do nothing and the Delivery page shows no status row.
-  `stop` touches only what was stored, so stopping it on Android is safe.
+  `start`/`registerNow` do nothing. `stop` touches only what was stored, so
+  stopping it on Android is safe.
 - **The token handler is `ApnsTokenPlugin.swift`**, registered as a plugin
   application delegate so the other plugins still see the token callbacks.
   `getToken` calls `registerForRemoteNotifications` and replies the hex
@@ -54,10 +54,16 @@ offers apns only.
   (`deliveryLogsEachPush`): it is the one method where app code handles every
   push.
 - **The APNs pusher follows Message tone**: `default_payload` carries
-  `sound: default` only while it is on. Toggling it re-posts the pusher
-  (`messageToneChanged`); start and every resume recheck re-post it when the
-  posted value (`push.apns.sound`) differs. A failed re-post keeps the
-  registration ready and retries on the next resume.
+  `aps.sound: message_tone.caf` (`darwinMessageToneSound`, bundled in
+  Runner) only while it is on, and no sound while it is off. Toggling it
+  re-posts the pusher (`messageToneChanged`); start and every resume
+  recheck re-post it when the posted name (`push.apns.sound_name`, empty
+  for none) differs. A missing record (only the old on/off key
+  `push.apns.sound`) or an unknown name re-posts once. A failed re-post
+  keeps the registration ready and retries on the next resume.
+- **A refused APNs pusher post is logged** (`zuno/push:`) and, like a post
+  with no homeserver to point the gateway at yet, ends `pusherFailed` and
+  retries with backoff.
 - **The APNs pushkey is the token bytes in base64**, never the hex the
   handler replies with. Sygnal base64-decodes every pushkey by default, and
   64 hex characters are valid base64 that decode to junk: APNs rejects it and
@@ -68,10 +74,11 @@ offers apns only.
   pusher deleted. The registration stores its app id; a relaunch under
   another id or token re-registers and deletes the old pusher.
 - **A dropped Apple pusher is counted before it is re-posted**
-  (`push.apns.dropped`, persisted): the banner and the Delivery row show it,
-  Register, Retry and stop reset it. Sygnal deletes a pusher only after APNs
-  rejected its token, so a rising count means wrong environment, topic or
-  encoding, and a silent re-post every 6 h would hide exactly that.
+  (`push.apns.dropped`, persisted): the home banner and the Notifications
+  page's problem row show it ("Notifications may not reach this device");
+  Retry (`registerNow`) and stop reset it. Sygnal deletes a pusher only
+  after APNs rejected its token, so a rising count means wrong environment,
+  topic or encoding, and a silent re-post every 6 h would hide exactly that.
 - **Firebase is not in the iOS app.** It is a Gradle dependency of the
   Android app module, not a Flutter plugin, so nothing registers it on iOS;
   `FcmBridge` does nothing where FCM is not an offered mode.
@@ -98,8 +105,9 @@ token refresh; UnifiedPush in `start`, `registerNow` and `onNewEndpoint`;
 background sync in `start`. That covers the callers that bypass
 `_AuthGate`: the Settings Register buttons, `kickOffDeliveryMode` and the
 push engines. A failed permission read counts as allowed, so a broken
-read never silences delivery. The delivery banner and the Settings rows
-for delivery and full-screen alerts are hidden while notifications are off.
+read never silences delivery. The delivery banner, the problem row and the
+Settings rows for delivery and full-screen alerts are hidden while
+notifications are off.
 
 **Registration resilience** (`registration_retry.dart`): the push
 providers share `RegistrationRetry` (exponential backoff, 1 min doubling to
@@ -137,6 +145,23 @@ notice through the delivery banner ("Google services cannot be used, so
 notifications use …"). "Chose" means `NotificationDeliveryModeNotifier.set`
 ran; a stored mode alone does not count.
 
+**Delivery failures** (`delivery_failure.dart`, `deliveryFailureProvider`):
+the active mode's state becomes at most one `DeliveryFailure`, a message and
+one action. The home banner (`NotificationDeliveryBanner`) shows it; where
+there is no delivery choice (iOS) the Notifications page also shows it as a
+problem row. Both run `runDeliveryFailureAction`
+(`delivery_failure_action.dart`).
+- Failure copy never names the server. A refused pusher reads like a failed
+  token ("Could not set up notifications on this device", Retry).
+- A banner dismissal holds until a push transport is `ready` again (APNs:
+  with no drops) or the user acts on a failure, so the same failure coming
+  back later shows again. The problem row ignores dismissals.
+- **A push target the user removed** (Push target → Remove) is remembered in
+  memory only. `remove(client)` on FCM or UnifiedPush deregisters and sets
+  `removed`, which reads "This device is not registered for notifications"
+  with Retry. `registerNow`, a successful registration and `stop` clear it;
+  the next `start`, at the latest the next launch, registers again.
+
 **Instant notice** (`PushNotice.kt` in `zuno_notifications`,
 `PushNoticeReceiver.kt`, `ZunoPushService.onMessage`): the native side posts
 a "New message" notification from the push itself, before any Dart runs:
@@ -172,7 +197,9 @@ small-bucket avatar the app itself shows (`avatarCacheKey`). It then refines
 the same line silently, twice at most: with a fetched avatar on a miss and,
 for photos, with the thumbnail published through the `zuno_notifications`
 file provider. Where notifications show no sender avatars
-(`notificationAvatars` off, iOS) it neither looks one up nor fetches it.
+(`notificationAvatars` off, iOS) it neither looks one up nor fetches it, and
+where they show no images (`notificationImages` off, iOS) it fetches no
+thumbnail.
 
 **Presentation** (`call_notification_service.dart`): one notification id
 per room, FNV-1a over the room id (`notification_ids.dart`, Kotlin twin
@@ -198,9 +225,11 @@ iOS posts carry `DarwinNotificationDetails`: `threadIdentifier` is the room,
 and the category is `message` (Reply + Mark as read) or `reply` (no event
 to mark), registered at `initialize()` with the same action ids as Android,
 so one response handler serves both. Both actions run in the background.
-A tone plays only for `MessageAlert.tone`; quiet lines and thread updates are
-`passive` and list-only (no banner), so they reach the list without lighting
-the screen. Active notifications come from the base plugin: Android reports
+A tone plays only for `MessageAlert.tone`, and only then does `sound` name
+`message_tone.caf`, the file the APNs pusher names too, so a local post and
+an APNs alert sound alike. Quiet lines and thread updates are `passive` and
+list-only (no banner), so they reach the list without lighting the screen.
+Active notifications come from the base plugin: Android reports
 a `channelId`, iOS only the payload, so a message notification is either one
 (`_isMessageNotification`).
 
@@ -373,7 +402,8 @@ one after iOS terminated the app.
 
 - **`RoomLaunchPlugin`** is iOS's half of `zuno/shortcuts`, gated by
   `nativeRoomOpens`: `openRoom` while Dart listens, else held for
-  `takeLaunchRoomId` at launch.
+  `takeLaunchRoomId` at launch (`LaunchHandoff`, shared with the share
+  inbox: the latest held value wins, and only the newest engine takes it).
 - **`WakeLockPlugin`** serves `zuno/wake_lock` as tag-keyed background tasks
   (`beginBackgroundTask`, each with its own timeout) and
   `zuno/push_wakelock` (`release` is a no-op, `appInFront` is "app active"),
@@ -419,6 +449,8 @@ one after iOS terminated the app.
   token a push engine could not register.
 - **UnifiedPush registration**: endpoint, gateway, and, for a WebPush
   pusher, the p256dh pushkey and auth secret.
+- **APNs registration**: `push.apns.token`, `.app_id`, `.dropped` and
+  `.sound_name`.
 - **Announced invitations** (`notifications.announced_invites`):
   `rooms-membership.md`.
 - **Failed sends** retry once on the offline→online edge, session-scoped.
@@ -705,7 +737,9 @@ one after iOS terminated the app.
   hides them and nothing resolves. A custom ROM on that hardware (LineageOS)
   has no such screen and gets neither the step nor the Settings row.
 - **Settings**: `notifications_settings_page.dart` for the permission,
-  sound toggles and silenced-channel rows; `notification_delivery_page.dart`
-  for mode choice and the transport rows, including the battery row (every
-  Android mode) and Autostart; `push_target_status_page.dart` for pusher management
-  and Recent pushes.
+  sound toggles, silenced-channel rows and, with one delivery mode, the
+  problem row; `notification_delivery_page.dart`, only where there is a
+  delivery choice, for mode choice and the transport rows, including the
+  battery row (every Android mode) and Autostart;
+  `push_target_status_page.dart` (reached from the Delivery page) for pusher
+  management and Recent pushes.

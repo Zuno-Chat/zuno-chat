@@ -35,29 +35,31 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
     final client = ref.watch(matrixClientProvider);
-    final screenshotBlocking = ref
-        .watch(platformCapabilitiesProvider)
-        .screenshotBlocking;
+    final capabilities = ref.watch(platformCapabilitiesProvider);
+    final screenshotBlocking = capabilities.screenshotBlocking;
+    final canChooseDelivery = capabilities.deliveryModes.length > 1;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: CardListView(
         children: [
           CardGroup(children: [_ProfileRow(client: client)]),
-          const CardGroup(
+          CardGroup(
             children: [
               _CategoryTile(
                 icon: Icons.notifications_outlined,
                 title: 'Notifications',
-                subtitle: 'Sounds, delivery',
-                page: NotificationsSettingsPage(),
+                subtitle: canChooseDelivery
+                    ? 'Sounds, delivery'
+                    : 'Sounds, mentions',
+                page: const NotificationsSettingsPage(),
               ),
-              _CategoryTile(
+              const _CategoryTile(
                 icon: Icons.chat_bubble_outline,
                 title: 'Chats & calls',
                 subtitle: 'Theme, typing, calls',
                 page: ChatsCallsSettingsPage(),
               ),
-              _CategoryTile(
+              const _CategoryTile(
                 icon: Icons.data_usage_outlined,
                 title: 'Data & storage',
                 subtitle: 'Media size, call data, cache',

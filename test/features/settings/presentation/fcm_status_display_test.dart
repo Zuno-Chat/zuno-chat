@@ -92,12 +92,22 @@ void main() {
     expect(fcmStatusIsBusy(FcmStatus.ready), isFalse);
   });
 
-  test('every status has a label, and none of them shouts', () {
+  test('says how far registration got', () {
+    expect(fcmStatusLabel(FcmStatus.postingPusher), 'Finishing registration…');
+    expect(
+      fcmStatusLabel(FcmStatus.pusherFailed),
+      'Could not finish registration',
+    );
+  });
+
+  test('every status has a label that never names the server, shouts or '
+      'uses a contraction', () {
     for (final status in FcmStatus.values) {
       final label = fcmStatusLabel(status);
       expect(label, isNotEmpty, reason: '$status');
-      expect(label, isNot(contains('!')), reason: '$status');
-      expect(label, isNot(contains("'")), reason: '$status');
+      expect(label.toLowerCase(), isNot(contains('server')), reason: label);
+      expect(label, isNot(contains('!')), reason: label);
+      expect(label, isNot(contains(RegExp("['’]"))), reason: label);
     }
   });
 }

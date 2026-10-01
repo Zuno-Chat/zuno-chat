@@ -15,6 +15,8 @@ DeliveryFailure? failureFor(
   String? distributor,
   bool? distributorInstalled,
   NotificationDeliveryMode? autoSelected,
+  bool fcmRemoved = false,
+  bool unifiedPushRemoved = false,
 }) => notificationDeliveryFailure(
   mode: mode,
   fcm: fcm,
@@ -25,7 +27,11 @@ DeliveryFailure? failureFor(
   distributor: distributor,
   distributorInstalled: distributorInstalled,
   autoSelected: autoSelected,
+  fcmRemoved: fcmRemoved,
+  unifiedPushRemoved: unifiedPushRemoved,
 );
+
+const _notRegistered = 'This device is not registered for notifications';
 
 void main() {
   group('fcm', () {
@@ -153,14 +159,14 @@ void main() {
       );
     });
 
-    test('a rejected pusher is worth retrying', () {
-      expect(
-        failureFor(
-          NotificationDeliveryMode.fcm,
-          fcm: FcmStatus.pusherFailed,
-        )?.action,
-        DeliveryFailureAction.retry,
+    test('a refused registration reads like a missing token, with a '
+        'retry', () {
+      final failure = failureFor(
+        NotificationDeliveryMode.fcm,
+        fcm: FcmStatus.pusherFailed,
       );
+      expect(failure?.message, 'Could not set up notifications on this device');
+      expect(failure?.action, DeliveryFailureAction.retry);
     });
 
     test('ready and every in-flight state warn about nothing', () {
@@ -202,14 +208,14 @@ void main() {
       );
     });
 
-    test('a rejected pusher is worth retrying', () {
-      expect(
-        failureFor(
-          NotificationDeliveryMode.unifiedPush,
-          unifiedPush: UnifiedPushStatus.pusherFailed,
-        )?.action,
-        DeliveryFailureAction.retry,
+    test('a refused registration reads like a missing token, with a '
+        'retry', () {
+      final failure = failureFor(
+        NotificationDeliveryMode.unifiedPush,
+        unifiedPush: UnifiedPushStatus.pusherFailed,
       );
+      expect(failure?.message, 'Could not set up notifications on this device');
+      expect(failure?.action, DeliveryFailureAction.retry);
     });
 
     test('no distributor installed offers the transport that needs none', () {
@@ -232,6 +238,116 @@ void main() {
         ),
         isNull,
       );
+    });
+  });
+
+  group('a push target the user removed', () {
+    test('with Google services says this device is not registered, with '
+        'Retry', () {
+      final failure = failureFor(
+        NotificationDeliveryMode.fcm,
+        fcmRemoved: true,
+      );
+      expect(failure?.message, _notRegistered);
+      expect(failure?.action, DeliveryFailureAction.retry);
+      expect(failure?.notice, isFalse);
+    });
+
+    test('with UnifiedPush says so too, whether or not a distributor is '
+        'picked', () {
+      for (final status in [
+        UnifiedPushStatus.idle,
+        UnifiedPushStatus.distributorSelected,
+      ]) {
+        final failure = failureFor(
+          NotificationDeliveryMode.unifiedPush,
+          unifiedPush: status,
+          unifiedPushRemoved: true,
+        );
+        expect(failure?.message, _notRegistered, reason: '$status');
+        expect(failure?.action, DeliveryFailureAction.retry, reason: '$status');
+      }
+    });
+
+    test('says nothing while a registration is in flight or working', () {
+      for (final fcm in [
+        FcmStatus.checkingPlayServices,
+        FcmStatus.registering,
+        FcmStatus.postingPusher,
+        FcmStatus.ready,
+      ]) {
+        expect(
+          failureFor(NotificationDeliveryMode.fcm, fcm: fcm, fcmRemoved: true),
+          isNull,
+          reason: '$fcm',
+        );
+      }
+      for (final unifiedPush in [
+        UnifiedPushStatus.findingDistributor,
+        UnifiedPushStatus.registering,
+        UnifiedPushStatus.postingPusher,
+        UnifiedPushStatus.ready,
+      ]) {
+        expect(
+          failureFor(
+            NotificationDeliveryMode.unifiedPush,
+            unifiedPush: unifiedPush,
+            unifiedPushRemoved: true,
+          ),
+          isNull,
+          reason: '$unifiedPush',
+        );
+      }
+    });
+
+    test('a failure since then keeps its own message and action', () {
+      expect(
+        failureFor(
+          NotificationDeliveryMode.fcm,
+          fcm: FcmStatus.playServicesDisabled,
+          fcmRemoved: true,
+        )?.action,
+        DeliveryFailureAction.turnOnPlayServices,
+      );
+      expect(
+        failureFor(
+          NotificationDeliveryMode.unifiedPush,
+          unifiedPush: UnifiedPushStatus.noDistributorFound,
+          unifiedPushRemoved: true,
+        )?.action,
+        DeliveryFailureAction.switchToBackgroundService,
+      );
+    });
+
+    test('never shows while another method is in use', () {
+      expect(
+        failureFor(NotificationDeliveryMode.unifiedPush, fcmRemoved: true),
+        isNull,
+      );
+      expect(
+        failureFor(NotificationDeliveryMode.fcm, unifiedPushRemoved: true),
+        isNull,
+      );
+      for (final mode in [
+        NotificationDeliveryMode.backgroundService,
+        NotificationDeliveryMode.apns,
+      ]) {
+        expect(
+          failureFor(mode, fcmRemoved: true, unifiedPushRemoved: true),
+          isNull,
+          reason: '$mode',
+        );
+      }
+    });
+
+    test('outranks the switched-method notice', () {
+      final failure = failureFor(
+        NotificationDeliveryMode.unifiedPush,
+        unifiedPushRemoved: true,
+        autoSelected: NotificationDeliveryMode.unifiedPush,
+      );
+      expect(failure?.message, _notRegistered);
+      expect(failure?.notice, isFalse);
     });
   });
 
@@ -342,25 +458,23 @@ void main() {
       expect(failure?.action, DeliveryFailureAction.retry);
     });
 
-    test('a registration the server refused offers a retry', () {
+    test('a refused registration reads like a missing token, with a '
+        'retry', () {
       final failure = failureFor(
         NotificationDeliveryMode.apns,
         apns: ApnsStatus.pusherFailed,
       );
-      expect(failure?.message, 'The server did not accept this device');
+      expect(failure?.message, 'Could not set up notifications on this device');
       expect(failure?.action, DeliveryFailureAction.retry);
     });
 
-    test('a registration the server dropped is called out, with Retry', () {
+    test('a dropped registration is called out, with Retry', () {
       final failure = failureFor(
         NotificationDeliveryMode.apns,
         apns: ApnsStatus.ready,
         apnsDropped: 1,
       );
-      expect(
-        failure?.message,
-        'The server dropped this device, so notifications may not arrive',
-      );
+      expect(failure?.message, 'Notifications may not reach this device');
       expect(failure?.action, DeliveryFailureAction.retry);
     });
 
@@ -379,7 +493,7 @@ void main() {
           apns: ApnsStatus.pusherFailed,
           apnsDropped: 1,
         )?.message,
-        'The server did not accept this device',
+        'Could not set up notifications on this device',
       );
     });
 
@@ -434,21 +548,25 @@ void main() {
         for (final up in UnifiedPushStatus.values) {
           for (final apns in ApnsStatus.values) {
             for (final installed in [true, false, null]) {
-              final failure = notificationDeliveryFailure(
-                mode: mode,
-                fcm: fcm,
-                unifiedPush: up,
-                apns: apns,
-                distributorInstalled: installed,
-              );
-              if (failure == null) continue;
-              final reason = '$mode/$fcm/$up/$apns/$installed';
-              expect(failure.message, isNotEmpty, reason: reason);
-              expect(
-                deliveryFailureActionLabel(failure.action),
-                isNotEmpty,
-                reason: reason,
-              );
+              for (final removed in [false, true]) {
+                final failure = notificationDeliveryFailure(
+                  mode: mode,
+                  fcm: fcm,
+                  unifiedPush: up,
+                  apns: apns,
+                  distributorInstalled: installed,
+                  fcmRemoved: removed,
+                  unifiedPushRemoved: removed,
+                );
+                if (failure == null) continue;
+                final reason = '$mode/$fcm/$up/$apns/$installed/$removed';
+                expect(failure.message, isNotEmpty, reason: reason);
+                expect(
+                  deliveryFailureActionLabel(failure.action),
+                  isNotEmpty,
+                  reason: reason,
+                );
+              }
             }
           }
         }
@@ -456,22 +574,38 @@ void main() {
     }
   });
 
-  test('no failure message shouts, apologises or uses a contraction', () {
-    for (final mode in NotificationDeliveryMode.values) {
-      for (final fcm in FcmStatus.values) {
-        for (final autoSelected in [null, mode]) {
-          final failure = failureFor(
-            mode,
-            fcm: fcm,
-            autoSelected: autoSelected,
-          );
-          if (failure == null) continue;
-          expect(failure.message, isNot(contains('!')));
-          expect(failure.message, isNot(contains("'")));
-          expect(failure.message.toLowerCase(), isNot(contains('sorry')));
-          expect(failure.message.toLowerCase(), isNot(contains('error')));
-        }
-      }
+  test('no failure message names the server, shouts, apologises or uses a '
+      'contraction', () {
+    final messages = {
+      for (final mode in NotificationDeliveryMode.values)
+        for (final fcm in FcmStatus.values)
+          for (final unifiedPush in UnifiedPushStatus.values)
+            for (final apns in ApnsStatus.values)
+              for (final dropped in [0, 1])
+                for (final restricted in [false, true])
+                  for (final distributor in [null, 'io.heckel.ntfy'])
+                    for (final autoSelected in [null, mode])
+                      for (final removed in [false, true])
+                        ?failureFor(
+                          mode,
+                          fcm: fcm,
+                          unifiedPush: unifiedPush,
+                          apns: apns,
+                          apnsDropped: dropped,
+                          distributorBatteryRestricted: restricted,
+                          distributor: distributor,
+                          autoSelected: autoSelected,
+                          fcmRemoved: removed,
+                          unifiedPushRemoved: removed,
+                        )?.message,
+    };
+    expect(messages, contains(_notRegistered));
+    for (final message in messages) {
+      expect(message.toLowerCase(), isNot(contains('server')), reason: message);
+      expect(message, isNot(contains('!')), reason: message);
+      expect(message, isNot(contains(RegExp("['’]"))), reason: message);
+      expect(message.toLowerCase(), isNot(contains('sorry')), reason: message);
+      expect(message.toLowerCase(), isNot(contains('error')), reason: message);
     }
   });
 

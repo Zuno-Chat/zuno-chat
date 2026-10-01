@@ -958,76 +958,76 @@ final class MainActorTimerTests: XCTestCase {
   }
 }
 
-final class RoomLaunchStateTests: XCTestCase {
+final class LaunchHandoffTests: XCTestCase {
   func testARoomOpenedBeforeAnyEngineWaitsForTheLaunch() {
-    var state = RoomLaunchState()
-    XCTAssertFalse(state.open("!r:x"))
+    var state = LaunchHandoff<String>()
+    XCTAssertFalse(state.offer("!r:x"))
     let engine = state.attach()
     XCTAssertEqual(state.take(engine), "!r:x")
-    XCTAssertNil(state.pendingRoomId)
+    XCTAssertNil(state.pending)
   }
 
   func testTheLatestRoomWinsWhileNobodyListens() {
-    var state = RoomLaunchState()
+    var state = LaunchHandoff<String>()
     let engine = state.attach()
-    XCTAssertFalse(state.open("!a:x"))
-    XCTAssertFalse(state.open("!b:x"))
+    XCTAssertFalse(state.offer("!a:x"))
+    XCTAssertFalse(state.offer("!b:x"))
     XCTAssertEqual(state.take(engine), "!b:x")
   }
 
   func testOnceTheAppTookTheLaunchRoomOpensAreDelivered() {
-    var state = RoomLaunchState()
+    var state = LaunchHandoff<String>()
     let engine = state.attach()
     XCTAssertNil(state.take(engine))
-    XCTAssertTrue(state.open("!r:x"))
-    XCTAssertNil(state.pendingRoomId)
+    XCTAssertTrue(state.offer("!r:x"))
+    XCTAssertNil(state.pending)
   }
 
   func testTheLaunchRoomIsHandedOutOnce() {
-    var state = RoomLaunchState()
+    var state = LaunchHandoff<String>()
     let engine = state.attach()
-    _ = state.open("!r:x")
+    _ = state.offer("!r:x")
     XCTAssertEqual(state.take(engine), "!r:x")
     XCTAssertNil(state.take(engine))
   }
 
   func testANewEngineTakesTheLaunchBeforeRoomsAreDelivered() {
-    var state = RoomLaunchState()
+    var state = LaunchHandoff<String>()
     let first = state.attach()
     _ = state.take(first)
     let second = state.attach()
-    XCTAssertFalse(state.open("!r:x"))
+    XCTAssertFalse(state.offer("!r:x"))
     XCTAssertEqual(state.take(second), "!r:x")
-    XCTAssertTrue(state.open("!s:x"))
+    XCTAssertTrue(state.offer("!s:x"))
   }
 
   func testAnOlderEngineCannotTakeThePendingRoom() {
-    var state = RoomLaunchState()
+    var state = LaunchHandoff<String>()
     let first = state.attach()
     let second = state.attach()
-    _ = state.open("!r:x")
+    _ = state.offer("!r:x")
     XCTAssertNil(state.take(first))
-    XCTAssertEqual(state.pendingRoomId, "!r:x")
-    XCTAssertFalse(state.open("!r:x"))
+    XCTAssertEqual(state.pending, "!r:x")
+    XCTAssertFalse(state.offer("!r:x"))
     XCTAssertEqual(state.take(second), "!r:x")
   }
 
   func testRoomsOpenedAfterTheListeningEngineDetachedWait() {
-    var state = RoomLaunchState()
+    var state = LaunchHandoff<String>()
     let engine = state.attach()
     _ = state.take(engine)
     state.detach(engine)
-    XCTAssertFalse(state.open("!r:x"))
-    XCTAssertEqual(state.pendingRoomId, "!r:x")
+    XCTAssertFalse(state.offer("!r:x"))
+    XCTAssertEqual(state.pending, "!r:x")
   }
 
   func testAnOlderEngineDetachingKeepsTheNewListener() {
-    var state = RoomLaunchState()
+    var state = LaunchHandoff<String>()
     let first = state.attach()
     let second = state.attach()
     _ = state.take(second)
     state.detach(first)
-    XCTAssertTrue(state.open("!r:x"))
+    XCTAssertTrue(state.offer("!r:x"))
   }
 }
 

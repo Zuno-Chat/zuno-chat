@@ -652,12 +652,14 @@ class _NotificationsStepState extends ConsumerState<_NotificationsStep>
       );
     }
 
+    final callKit = ref.watch(platformCapabilitiesProvider).callKit;
     return _StepScaffold(
       icon: Icons.notifications_none_outlined,
       title: 'Hear about new messages',
-      body:
-          'Zuno needs your permission to show new messages and ring for '
-          'calls.',
+      body: callKit
+          ? 'Zuno needs your permission to show new messages.'
+          : 'Zuno needs your permission to show new messages and ring for '
+                'calls.',
       action: FilledButton(
         onPressed: _asking ? null : _request,
         child: const Text('Turn on notifications'),

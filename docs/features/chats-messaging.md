@@ -111,17 +111,31 @@ what a message looks like, how it's sent, and how the timeline behaves.
   with a progress notification) so backgrounding can't freeze or kill it.
   On iOS the hold is a background task, about 30 s, with no progress
   surface (`update` is a no-op).
-- **Inbound share (Android share sheet)**: `ShareActivity.kt` (no UI, owns
-  the `SEND`/`SEND_MULTIPLE` filters) forwards to `MainActivity` with a
-  read grant. `MainActivity` hands the payload to Dart over `zuno/share`
-  (`lib/core/share/inbound_share.dart`, same shape as the shortcut
-  channel: a stream while running, a one-shot take on cold start).
-  `_AuthGate` pushes `SharePickerPage` (joined chats, search), which
-  replaces itself with `RoomPage(pendingShare:)`. `RoomPage` prefills text
-  into the composer and sends files through `_sendPickedMedia` (the
-  gallery picker's dispatch) or `_sendFile`. Files are copied into
-  `cacheDir/shared/<uuid>/<i>/<name>` by `MainActivity` off the main
-  thread only after a chat is picked, and deleted when the send ends.
+- **Inbound share** (`zuno/share`, `lib/core/share/inbound_share.dart`,
+  both platforms): native hands Dart text plus file URIs, as a stream while
+  running and a one-shot `takeLaunchShare` on cold start. The stream is a
+  `HeldBroadcast` (`core/navigation/held_broadcast.dart`, also behind room
+  opens): the latest event that arrived before anyone listened goes to the
+  first listener. `_AuthGate` pushes `SharePickerPage` (joined chats you can
+  post in, `canPostInRoom`; search), waiting for the sign-in state if it is
+  still loading, and the picker replaces itself with
+  `RoomPage(pendingShare:)`. `RoomPage` prefills text into the composer,
+  has native copy the files (`copyToCache`) only now, and sends them
+  through `_sendPickedMedia` (the gallery picker's dispatch) or `_sendFile`.
+  Files that could not be copied are counted in one SnackBar ("… could not
+  be opened. Share … again."); the rest still go.
+  - Android: `ShareActivity.kt` (no UI, owns the `SEND`/`SEND_MULTIPLE`
+    filters) reads every extra defensively, joins several or rich
+    (`CharSequence`) texts line by line, and forwards to `MainActivity` with
+    a read grant. `MainActivity` copies into
+    `cacheDir/shared/<uuid>/<i>/<name>` on one background thread, which also
+    prunes batches older than 24 h at engine start, never at a copy, so a
+    copy still kept for a retry survives the next share. A relaunch from
+    Recents or a restored activity never repeats the share
+    (`app-foundation.md`).
+  - iOS: the `ShareExtension` target files the share into an App Group
+    inbox, and `ShareInboxPlugin` takes it from there (Key Design
+    Decisions).
 
 ## Data & State
 
@@ -200,10 +214,16 @@ what a message looks like, how it's sent, and how the timeline behaves.
   `FileTooBigMatrixException` is terminal too (no retry record). Every
   failed media send discards the SDK's own error placeholder
   (`discardSendPlaceholder`), because the app tracks failures itself.
-- **Failed media sends** (`_failedSends`, `FailedMediaSend`): an item of a
-  gallery keeps a tap-to-retry thumbnail (`FailedGalleryTile`, or inline
-  in its gallery). A single photo or video gets only the "Not sent" snackbar
-  and no row; the reconnect pass resends it.
+- **Failed media sends** (`_failedSends`, `FailedMediaSend`) keep a
+  tap-to-retry tile (`FailedMediaTile`). A single photo or video gets its
+  own, newest at the bottom; a gallery item shows inline in its gallery, or
+  with the gallery's other failures in one tile while the gallery is out of
+  view. The reconnect pass resends them all. "Not sent. Try again." shows
+  only when the chat is gone by the time a send fails, and for a plain
+  file, which has no tile.
+- **Shared copies** are reference-counted per path while a batch or a retry
+  uses them, kept while a failed video send still points at one (a failed
+  photo keeps its bytes), and deleted once unused or when the chat closes.
 - **Pickers can throw.** image_picker reports a refused permission as
   `camera_access_denied` / `photo_access_denied`; `_showAttachmentMenu`
   catches every picker failure and names the permission to allow.
@@ -231,8 +251,10 @@ what a message looks like, how it's sent, and how the timeline behaves.
   "Reduce media size", on by default) at JPEG quality 85 / 75, PNG stays
   PNG, orientation baked into pixels; an 800px thumbnail only when the main image is larger
   and the thumbnail actually smaller; blurhash from a 32px sample in an
-  isolate. The picker no longer re-encodes (`imageQuality` unset), so the
-  resizer is the single lossy step.
+  isolate. The picker is called with `imageQuality` unset, so on Android
+  the resizer is the single lossy step. image_picker_ios re-encodes every
+  non-GIF pick regardless: JPEG, HEIC and WebP come back as JPEG at quality
+  1.0, PNG stays PNG.
 - **Video send plan** (`video_send_plan.dart`, pure): a native probe
   (dimensions, bitrate, codecs) picks remux vs re-encode. H.264 with AAC or
   no audio, within the cap and at or under the target bitrate plus 25%, is
@@ -416,7 +438,7 @@ but grouping would differ per device and shift as history paginates). The
 custom-content-key-on-ordinary-events approach was chosen specifically for
 cross-client compatibility and graceful degradation.
 
-### Inbound share: trampoline activity, copy after pick
+### Inbound share: a trampoline on Android, an inbox on iOS
 
 `MainActivity` keeps the template's empty `taskAffinity`, so a `SEND` from
 another app would start a second `MainActivity` and a second Flutter
@@ -430,6 +452,36 @@ Content is copied only after a chat is picked: no blank trampoline while
 a large video copies, no I/O when the picker is cancelled. Shared text is
 prefilled, never auto-sent. Not built: Direct Share targets in the system
 sheet (additive, would reuse the pinned-shortcut code).
+
+On iOS a share extension is its own process with no Flutter engine, so it
+hands over through files in the App Group (`app-foundation.md`), managed by
+`ShareInbox` in `ios/Shared/`, compiled into both targets:
+- **Extension** (`ShareViewController`): copies each attachment into a
+  per-share folder, `ShareInbox/<id>/<i>/<name>`, and writes
+  `manifest.json` last; a folder without one is still being written. It
+  then opens `im.zuno.chat://share` through the responder chain (an
+  extension has no `UIApplication.shared`). If iOS refuses, it says "Open
+  Zuno in the next few minutes to finish sharing."
+- **What an attachment is** (`ShareItemKind`, by type identifier): a file
+  URL's content type, else the file at that URL; then an image, video or
+  audio (a Live Photo shares its still); then a link, sent as text; then
+  plain text; then any other data. Live Photo bundles and web archives are
+  never taken. The extension is offered for any item with text or an
+  attachment conforming to `public.data` or `public.url`.
+- **Freshness**: a share is offered for 10 minutes. After that it is swept,
+  never offered, so an abandoned share cannot pop up later.
+- **Host** (`ShareInboxPlugin`): collects the newest fresh share, dropping
+  older ones, on app activation, on `takeLaunchShare` and on the share URL
+  (`scene(_:openURLContexts:)` through `addSceneDelegate`), and moves it
+  into `Caches/Share/Imports` (pruned after 24 h). The URL carries nothing:
+  every trigger reads the inbox, so a cold start needs no URL handling, and
+  with `FlutterDeepLinkingEnabled` off Flutter never turns it into a route.
+  `LaunchHandoff` holds the share until Dart listens, as `RoomLaunchPlugin`
+  does for room opens. `copyToCache` moves the files on into
+  `Caches/Share/Copies` and refuses any other source. `Caches/Share` is
+  cleared once per process, at the first registration, so a second engine
+  never deletes the first one's files.
+- The inbox is kept out of backups and emptied by the sign-out wipe.
 
 ## Gotchas & Constraints
 
@@ -447,9 +499,15 @@ sheet (additive, would reuse the pinned-shortcut code).
   per-event widget memo; theme changes still rebuild via the inherited
   dependency.
 - **Shared file names are attacker-controlled**: `DISPLAY_NAME` comes from
-  the sending app's provider. `InboundShareDecision.safeFileName` strips
-  separators and rejects `.`/`..`, and the copy refuses a target outside
-  its per-file directory. Keep both if the copy ever moves.
+  the sending app's provider, and an iOS attachment names itself.
+  `InboundShareDecision.safeFileName` (Kotlin) and `ShareFileName.safe`
+  (Swift) strip separators and reject `.`/`..`; keep the two in step. The
+  Android copy also refuses a target outside its per-file directory, and
+  iOS's `copyToCache` a source outside `Caches/Share/Imports`. Keep these
+  checks if the copy ever moves.
+- **A debug build cannot be cold-launched by the share extension**: iOS
+  runs a Flutter debug build only when the tooling or Xcode launches it.
+  Test sharing into a closed app with profile or release.
 - **`Event.body`/`Event.plaintextBody`**: `Event.body` is the literal
   `body` field and can be empty or the SDK's raw `"Unknown message format of
   type ..."` fallback for any client-native-formatted (HTML) message

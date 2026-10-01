@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/matrix/room_invite.dart';
+import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../rooms/presentation/room_kind_avatar.dart';
 
@@ -11,6 +12,7 @@ List<Room> filterShareTargets(List<Room> rooms, String query) {
     for (final room in rooms)
       if (room.membership == Membership.join &&
           !room.isSpace &&
+          canPostInRoom(room) &&
           (needle.isEmpty || roomTitle(room).toLowerCase().contains(needle)))
         room,
   ];

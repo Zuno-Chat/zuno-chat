@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -76,7 +77,7 @@ class RoomPageHarness {
   final requests = <String>[];
   final httpRequests = <http.Request>[];
   final sent = <Map<String, Object?>>[];
-  http.Response? Function(http.Request request)? respond;
+  FutureOr<http.Response?> Function(http.Request request)? respond;
   final PlatformCapabilities? capabilities;
   final List<Override> overrides;
   late final Client client;
@@ -113,7 +114,7 @@ class RoomPageHarness {
       MockClient((request) async {
         requests.add(request.url.path);
         httpRequests.add(request);
-        final custom = respond?.call(request);
+        final custom = await respond?.call(request);
         if (custom != null) return custom;
         if (request.url.path.endsWith('/versions')) {
           return http.Response(

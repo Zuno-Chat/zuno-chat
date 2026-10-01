@@ -407,6 +407,31 @@ void main() {
       },
     );
 
+    test('where notifications show no images, the photo is never '
+        'downloaded', () async {
+      var published = 0;
+      await postMessageNotification(
+        content(photo: true),
+        client: client,
+        fetchImage: () async {
+          fetches++;
+          return thumb;
+        },
+        publishImage: (_) async {
+          published++;
+          return 'content://zuno/thumb';
+        },
+        capabilities: capabilitiesLike(
+          androidCapabilities,
+          notificationImages: false,
+        ),
+      );
+
+      expect(fetches, 0);
+      expect(published, 0);
+      expect(roomPosts(), hasLength(1));
+    });
+
     test('a placeholder never fetches an image', () async {
       await postMessageNotification(
         content(photo: true),

@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/fcm_availability_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
@@ -241,119 +240,12 @@ void main() {
         findsNothing,
       );
     });
-
-    testWidgets('with one method there is no picker at all', (tester) async {
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: iosCapabilities,
-      );
-
-      expect(find.text('Delivery method'), findsNothing);
-      expect(find.byIcon(Icons.chevron_right), findsNothing);
-      expect(find.text('Apple push'), findsOneWidget);
-      expect(
-        find.text(NotificationDeliveryMode.apns.description),
-        findsOneWidget,
-      );
-      expect(find.textContaining('UnifiedPush'), findsNothing);
-
-      await tester.tap(find.text('Apple push'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(BottomSheet), findsNothing);
-    });
-  });
-
-  group('Apple push status', () {
-    tearDown(() {
-      apnsDeliveryProvider.status.value = ApnsStatus.idle;
-      apnsDeliveryProvider.dropped.value = 0;
-    });
-
-    testWidgets('a registration the server keeps dropping says so', (
-      tester,
-    ) async {
-      apnsDeliveryProvider.status.value = ApnsStatus.ready;
-      apnsDeliveryProvider.dropped.value = 2;
-
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: capabilitiesLike(iosCapabilities, apnsRegistration: true),
-      );
-
-      expect(
-        find.text('Active, but the server dropped this device 2 times'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('has no row while APNs registration is off', (tester) async {
-      apnsDeliveryProvider.status.value = ApnsStatus.tokenFailed;
-
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: capabilitiesLike(
-          iosCapabilities,
-          apnsRegistration: false,
-        ),
-      );
-
-      expect(find.text('Status'), findsNothing);
-    });
-
-    testWidgets('a failed registration shows why, with Retry', (tester) async {
-      apnsDeliveryProvider.status.value = ApnsStatus.tokenFailed;
-
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: capabilitiesLike(iosCapabilities, apnsRegistration: true),
-      );
-
-      expect(find.text('Status'), findsOneWidget);
-      expect(
-        find.text('Could not set up notifications on this device'),
-        findsOneWidget,
-      );
-      expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
-    });
-
-    testWidgets('a working registration leads to its details', (tester) async {
-      apnsDeliveryProvider.status.value = ApnsStatus.ready;
-
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: capabilitiesLike(iosCapabilities, apnsRegistration: true),
-      );
-
-      final row = tester.widget<ListTile>(
-        find.widgetWithText(ListTile, 'Status'),
-      );
-      expect(find.text('Active. Receiving notifications.'), findsOneWidget);
-      expect(row.onTap, isNotNull);
-    });
   });
 
   group('battery and background data guidance', () {
     tearDown(() {
       unifiedPushDeliveryProvider.distributorBatteryRestricted.value = false;
       unifiedPushDeliveryProvider.savedDistributor = null;
-    });
-
-    testWidgets('iOS shows none of it', (tester) async {
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: iosCapabilities,
-      );
-
-      expect(find.text('Unrestricted battery usage'), findsNothing);
-      expect(find.text('Background data'), findsNothing);
-      expect(find.text('Autostart'), findsNothing);
     });
 
     testWidgets('no battery row where the platform has no battery exemption, '
@@ -437,8 +329,14 @@ void main() {
     testWidgets('never runs where it is not', (tester) async {
       await _pumpPage(
         tester,
-        NotificationDeliveryMode.apns,
-        capabilities: iosCapabilities,
+        NotificationDeliveryMode.fcm,
+        capabilities: capabilitiesLike(
+          androidCapabilities,
+          deliveryModes: const [
+            NotificationDeliveryMode.fcm,
+            NotificationDeliveryMode.backgroundService,
+          ],
+        ),
       );
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
@@ -461,7 +359,6 @@ void main() {
       dataRestricted = false;
       final up = unifiedPushDeliveryProvider.notificationsAllowed;
       final fcm = fcmDeliveryProvider.notificationsAllowed;
-      final apns = apnsDeliveryProvider.notificationsAllowed;
       Future<bool> Function() recording(String name) => () async {
         registrations.add(name);
         return false;
@@ -470,7 +367,6 @@ void main() {
         'unifiedPush',
       );
       fcmDeliveryProvider.notificationsAllowed = recording('fcm');
-      apnsDeliveryProvider.notificationsAllowed = recording('apns');
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
       const channel = MethodChannel('zuno/background_sync');
@@ -489,13 +385,11 @@ void main() {
           ..notificationsAllowed = up
           ..status.value = UnifiedPushStatus.idle
           ..savedDistributor = null
-          ..distributorBatteryRestricted.value = false;
+          ..distributorBatteryRestricted.value = false
+          ..removed.value = false;
         fcmDeliveryProvider
           ..notificationsAllowed = fcm
           ..status.value = FcmStatus.idle;
-        apnsDeliveryProvider
-          ..notificationsAllowed = apns
-          ..status.value = ApnsStatus.idle;
       });
     });
 
@@ -787,20 +681,6 @@ void main() {
         );
         expect(open.arguments, {'package': 'io.heckel.ntfy'});
       });
-
-      testWidgets('Apple push never shows a battery row, even where an '
-          'exemption exists', (tester) async {
-        await _pumpPage(
-          tester,
-          NotificationDeliveryMode.apns,
-          capabilities: capabilitiesLike(
-            iosCapabilities,
-            batteryExemption: true,
-          ),
-        );
-
-        expect(find.text('Unrestricted battery usage'), findsNothing);
-      });
     });
 
     group('UnifiedPush status', () {
@@ -818,6 +698,25 @@ void main() {
           inStatusRow(find.byIcon(Icons.pause_circle_outline)),
           findsOneWidget,
         );
+      });
+
+      testWidgets('a removed one offers Register, which registers again', (
+        tester,
+      ) async {
+        await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
+
+        unifiedPushDeliveryProvider
+          ..status.value = UnifiedPushStatus.idle
+          ..removed.value = true;
+        await tester.pumpAndSettle();
+        registrations.clear();
+
+        await tester.tap(
+          inStatusRow(find.widgetWithText(TextButton, 'Register')),
+        );
+        await tester.pump();
+
+        expect(registrations, ['unifiedPush']);
       });
 
       testWidgets('an idle one on opening looks for a distributor', (
@@ -1060,24 +959,6 @@ void main() {
 
         expect(find.byType(PushTargetStatusPage), findsOneWidget);
       });
-    });
-
-    testWidgets('Apple push Retry registers again', (tester) async {
-      ambientCapabilities = capabilitiesLike(
-        iosCapabilities,
-        apnsRegistration: true,
-      );
-      apnsDeliveryProvider.status.value = ApnsStatus.pusherFailed;
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: capabilitiesLike(iosCapabilities, apnsRegistration: true),
-      );
-
-      await tester.tap(inStatusRow(find.text('Retry')));
-      await tester.pump();
-
-      expect(registrations, ['apns']);
     });
   });
 }

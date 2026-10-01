@@ -103,8 +103,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     final confirmed = await _confirm(
       title: 'Remove push target?',
       message:
-          'This device stops receiving notifications until you register again. '
-          '${_removalDetail(mode)}',
+          'This device stops receiving notifications until you register again '
+          'or Zuno restarts. ${_removalDetail(mode)}',
     );
     if (confirmed != true || !mounted) return;
     setState(() => _removing = true);
@@ -113,9 +113,9 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     try {
       switch (mode) {
         case NotificationDeliveryMode.unifiedPush:
-          await unifiedPushDeliveryProvider.removeRegistration(client);
+          await unifiedPushDeliveryProvider.remove(client);
         case NotificationDeliveryMode.fcm:
-          await fcmDeliveryProvider.stop(client);
+          await fcmDeliveryProvider.remove(client);
         case NotificationDeliveryMode.apns:
           await apnsDeliveryProvider.stop(client);
         case NotificationDeliveryMode.backgroundService:

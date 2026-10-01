@@ -1,17 +1,18 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter/services.dart';
 
+import '../errors/best_effort.dart';
 import '../matrix/looks_like_video.dart';
+import '../navigation/held_broadcast.dart';
 import '../platform/platform_capabilities.dart';
 
 const _channel = MethodChannel('zuno/share');
 
-final _shareController = StreamController<InboundShare>.broadcast();
+final _shares = HeldBroadcast<InboundShare>();
 
-Stream<InboundShare> get onInboundShare => _shareController.stream;
+Stream<InboundShare> get onInboundShare => _shares.stream;
 
 class SharedFile {
   final String uri;
@@ -81,7 +82,7 @@ void initInboundShareChannel({PlatformCapabilities? capabilities}) {
   _channel.setMethodCallHandler((call) async {
     if (call.method == 'share') {
       final share = InboundShare.fromChannel(call.arguments);
-      if (share != null) _shareController.add(share);
+      if (share != null) _shares.add(share);
     }
     return null;
   });
@@ -101,10 +102,19 @@ Future<List<XFile>> copySharedFilesToCache(
   PlatformCapabilities? capabilities,
 }) async {
   if (files.isEmpty || !_receivesShares(capabilities)) return const [];
-  final paths = await _channel.invokeListMethod<String?>('copyToCache', {
-    'uris': [for (final file in files) file.uri],
-    'names': [for (final file in files) file.name],
-  });
+  final List<String?>? paths;
+  try {
+    paths = await _channel.invokeListMethod<String?>('copyToCache', {
+      'uris': [for (final file in files) file.uri],
+      'names': [for (final file in files) file.name],
+    });
+  } on PlatformException catch (e) {
+    logCaught('copy shared files', e);
+    return const [];
+  } on MissingPluginException catch (e) {
+    logCaught('copy shared files', e);
+    return const [];
+  }
   if (paths == null) return const [];
   return [
     for (var i = 0; i < files.length && i < paths.length; i++)

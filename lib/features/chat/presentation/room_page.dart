@@ -88,6 +88,10 @@ String _formatDateTime(DateTime time) {
   return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
 }
 
+String _unopenedSharesMessage(int count) => count == 1
+    ? 'One shared file could not be opened. Share it again.'
+    : '$count shared files could not be opened. Share them again.';
+
 class RoomPage extends ConsumerStatefulWidget {
   final Room room;
   final InboundShare? pendingShare;
@@ -120,6 +124,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
   bool _activeCallBannerShown = false;
 
   final List<FailedMediaSend> _failedSends = [];
+  final _shareCopies = <String>{};
+  final _shareCopyUses = <String, int>{};
 
   final _recorder = AudioRecorder();
   bool _recording = false;
@@ -227,6 +233,12 @@ class _RoomPageState extends ConsumerState<RoomPage>
     _recorder.dispose();
     _typingRefreshTimer?.cancel();
     _typingIdleTimer?.cancel();
+    unawaited(
+      discardSharedCopies([
+        for (final path in _shareCopies)
+          if (!_shareCopyUses.containsKey(path)) XFile(path),
+      ]),
+    );
     if (_isTypingSent) {
       unawaited(
         runBestEffort(
@@ -1013,8 +1025,13 @@ class _RoomPageState extends ConsumerState<RoomPage>
     if (share.files.isEmpty) return;
 
     final copies = await copySharedFilesToCache(share.files);
+    final paths = [for (final copy in copies) copy.path];
+    _shareCopies.addAll(paths);
+    paths.forEach(_useShareCopy);
     try {
       if (!mounted) return;
+      final unopened = share.files.length - copies.length;
+      if (unopened > 0) _snack(_unopenedSharesMessage(unopened));
       final (:media, :others) = partitionSharedFiles(copies);
       if (media.isNotEmpty) await _sendPickedMedia(media);
       for (final file in others) {
@@ -1022,8 +1039,36 @@ class _RoomPageState extends ConsumerState<RoomPage>
         await _sendFile(await file.readAsBytes(), name: file.name);
       }
     } finally {
-      await discardSharedCopies(copies);
+      paths.forEach(_doneWithShareCopy);
+      await _releaseShareCopies(paths);
     }
+  }
+
+  void _useShareCopy(String path) =>
+      _shareCopyUses.update(path, (uses) => uses + 1, ifAbsent: () => 1);
+
+  void _doneWithShareCopy(String path) {
+    final uses = (_shareCopyUses[path] ?? 1) - 1;
+    if (uses > 0) {
+      _shareCopyUses[path] = uses;
+    } else {
+      _shareCopyUses.remove(path);
+    }
+  }
+
+  Future<void> _releaseShareCopies(Iterable<String> paths) async {
+    final unused = <XFile>[];
+    for (final path in paths) {
+      if (!_shareCopies.contains(path) || _shareCopyUses.containsKey(path)) {
+        continue;
+      }
+      if (mounted && _failedSends.any((failed) => failed.video?.path == path)) {
+        continue;
+      }
+      _shareCopies.remove(path);
+      unused.add(XFile(path));
+    }
+    await discardSharedCopies(unused);
   }
 
   Future<void> _sendMixedMediaBatch(List<XFile> picked) async {
@@ -1221,20 +1266,30 @@ class _RoomPageState extends ConsumerState<RoomPage>
     required Object error,
     required ScaffoldMessengerState messenger,
   }) {
-    if (failed.gallery == null) {
+    if (!mounted) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Not sent. Try again.')),
       );
+      return;
     }
-    if (!mounted) return;
     setState(() => _failedSends.add(failed));
   }
 
   Future<void> _retryFailedSend(FailedMediaSend failed) async {
+    if (!_failedSends.contains(failed)) return;
     setState(() => _failedSends.remove(failed));
     switch (failed) {
       case FailedMediaSend(video: final video?):
-        await _sendVideoAttachment(video, gallery: failed.gallery);
+        final shared = _shareCopies.contains(video.path);
+        if (shared) _useShareCopy(video.path);
+        try {
+          await _sendVideoAttachment(video, gallery: failed.gallery);
+        } finally {
+          if (shared) {
+            _doneWithShareCopy(video.path);
+            await _releaseShareCopies([video.path]);
+          }
+        }
       case FailedMediaSend(bytes: final bytes?):
         await _sendPhoto(
           bytes,

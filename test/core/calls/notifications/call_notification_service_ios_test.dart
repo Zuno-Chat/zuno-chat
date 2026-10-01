@@ -180,6 +180,7 @@ void main() {
 
         final ios = notifications.lastPlatformSpecifics;
         expect(ios['presentSound'], isTrue);
+        expect(ios['sound'], 'message_tone.caf');
         expect(ios['interruptionLevel'], 1);
       });
 
@@ -213,6 +214,7 @@ void main() {
         expect(ios['presentBanner'], isFalse);
         expect(ios['presentAlert'], isFalse);
         expect(ios['presentSound'], isFalse);
+        expect(ios['sound'], isNull);
         expect(ios['presentList'], isTrue);
       });
 
@@ -239,6 +241,7 @@ void main() {
         final ios = notifications.lastPlatformSpecifics;
         expect(ios['presentBanner'], isFalse);
         expect(ios['presentSound'], isFalse);
+        expect(ios['sound'], isNull);
         expect(ios['presentList'], isTrue);
       });
 
@@ -250,6 +253,7 @@ void main() {
 
         final ios = notifications.lastPlatformSpecifics;
         expect(ios['presentSound'], isFalse);
+        expect(ios['sound'], isNull);
         expect(ios['interruptionLevel'], 1);
       });
 
@@ -269,6 +273,7 @@ void main() {
 
         final ios = notifications.lastPlatformSpecifics;
         expect(ios['presentSound'], isFalse);
+        expect(ios['sound'], isNull);
         expect(ios['interruptionLevel'], 0);
       });
 
@@ -297,6 +302,7 @@ void main() {
           final ios = notifications.lastPlatformSpecifics;
           expect(notifications.shown.last.body, 'hi, with the photo');
           expect(ios['presentSound'], isFalse);
+          expect(ios['sound'], isNull);
           expect(ios['interruptionLevel'], 0);
           expect(ios['presentBanner'], isFalse);
           expect(ios['presentAlert'], isFalse);

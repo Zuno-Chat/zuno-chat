@@ -950,6 +950,7 @@ class CallNotificationService {
     ];
     final when = latestLine?.timestamp.millisecondsSinceEpoch;
     final interrupts = !quiet && alert != MessageAlert.silentUpdate;
+    final playsTone = interrupts && alert == MessageAlert.tone;
     await _plugin.show(
       id: messageNotificationIdFor(roomId),
       title: thread.title,
@@ -1004,7 +1005,8 @@ class CallNotificationService {
           presentAlert: interrupts,
           presentBanner: interrupts,
           presentList: true,
-          presentSound: interrupts && alert == MessageAlert.tone,
+          presentSound: playsTone,
+          sound: playsTone ? darwinMessageToneSound : null,
           interruptionLevel: interrupts
               ? InterruptionLevel.active
               : InterruptionLevel.passive,

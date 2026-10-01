@@ -126,7 +126,7 @@ final _capabilities = <_Capability>[
     'inboundShare',
     read: (c) => c.inboundShare,
     android: true,
-    ios: false,
+    ios: true,
   ),
   _Capability(
     'nativeSignOutWipe',

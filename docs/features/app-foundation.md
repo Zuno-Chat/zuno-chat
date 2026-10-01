@@ -3,9 +3,9 @@
 ## Overview
 Cross-cutting infrastructure the rest of the app sits on: a single
 app-wide Matrix `Client`, cold start, connectivity awareness, global
-error handling, the android/ios capability layer, and the Android launch
-icon/splash. Not a user-facing feature — every screen depends on this
-layer.
+error handling, the android/ios capability layer, the iOS project, and the
+Android launch icon/splash. Not a user-facing feature — every screen
+depends on this layer.
 
 ## Architecture
 One `Client` instance for the whole app's lifetime, built by
@@ -62,9 +62,9 @@ Navigation has exactly one routing decision: `isLoggedInProvider` +
 flow (`SignedOutEntry`) and `RoomListPage`. Everything else in the app
 is `Navigator.push`. `_AuthGate` also owns the cold-start launch checks
 (launch shortcut, notification tap, call launch action or ring, pending
-ring, launch share), takes a launch share regardless of login (dropped
-when logged out) and syncs notification-delivery transports to login
-state.
+ring, launch share), takes a launch share regardless of login (waiting for
+the login state if it is still loading, dropped when logged out) and syncs
+notification-delivery transports to login state.
 
 **Look and motion live in `lib/core/ui/`**, and nowhere else. Screens read
 `Theme.of(context)`, so these three files restyle the whole app:
@@ -102,8 +102,9 @@ state.
   once the push slide has finished. Work that would land mid-slide (apply
   a timeline, request members) goes there.
 - `zuno_motion.dart` — `ZunoDurations` and `ZunoSlideTransitionsBuilder`,
-  registered in the theme, so every `MaterialPageRoute` slides with no
-  call-site change. Movement only, no fade.
+  registered in the theme for Android only, so every `MaterialPageRoute`
+  there slides with no call-site change. Movement only, no fade. iOS keeps
+  the Cupertino transition, and with it the edge swipe back.
 
 **Every platform difference is a capability in `lib/core/platform/`.**
 `AppPlatform {android, ios}` comes from `Platform.isIOS`, so `flutter test`
@@ -130,13 +131,39 @@ Each flag is one of these kinds:
 
 | Kind | Flags | Values |
 |---|---|---|
-| Native handler, both platforms | `nativeVideoTools`, `nativeImageResize`, `nativeSignOutWipe`, `sensitiveClipboard`, `screenSecurity`, `uploadForegroundService`, `networkAvailabilityEvents`, `headlessWakeLocks`, `nativeRoomOpens` (`zuno/shortcuts` room opens; pinning stays on `homeScreenShortcuts`), `clientLease` | `true` on both |
-| Awaiting an iOS equivalent | every other Android-`true` flag, e.g. `homeScreenShortcuts`, `inboundShare`, `pictureInPicture`, `notificationAvatars` (iOS shows no sender avatar without communication notifications, so it fetches none) | iOS flips to `true` once a native handler exists |
-| Permanent: Android concept | `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent` | iOS stays `false` |
+| Native handler, both platforms | `nativeVideoTools`, `nativeImageResize`, `nativeSignOutWipe`, `sensitiveClipboard`, `screenSecurity`, `uploadForegroundService`, `networkAvailabilityEvents`, `headlessWakeLocks`, `nativeRoomOpens` (`zuno/shortcuts` room opens; pinning stays on `homeScreenShortcuts`), `clientLease`, `inboundShare` | `true` on both |
+| Awaiting an iOS equivalent | every other Android-`true` flag, e.g. `pictureInPicture`, `notificationImages` (off, the poster fetches no thumbnail), `notificationAvatars` (iOS shows no sender avatar without communication notifications, so it fetches none) | iOS flips to `true` once a native handler exists |
+| Permanent: Android concept | `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent`, `homeScreenShortcuts` (pinning; iOS quick actions would be a new flag) | iOS stays `false` |
 | Android-only behavior | `atomicDatabaseBatches` (one database connection shared by every engine), `instantPushNotices` (a native notice posted from the push; on iOS the APNs alert is the system's) | `true` on Android only |
 | Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` (Android); `callKit` (iOS) | `true` on their own platform only; the call factories check `callKit` first (`calls.md`), so the Android three are never flipped |
 | iOS-only behavior | `apnsRegistration`, `playerNeedsMediaType`, `callMuteByInputMixer`, `signOutWipeKeepsProcess` | `true` on iOS only |
 | Apple limitation | `recorderWritesOgg` (Apple can't write Ogg), `videoCodecOrder` (`null` on iOS, see `calls.md`), `locationServicesSettings` (no link into Location Services), `filesTypedByExtension` (other apps type a file by its name), `screenshotBlocking` (no app can block a screenshot; picks the screen-privacy copy) | differs on iOS for good |
+
+### iOS project
+
+| Path | Holds |
+|---|---|
+| `ios/Runner/` | The app target: plugins, `Runner.entitlements`, `PrivacyInfo.xcprivacy`, bundled sounds (`message_tone.caf`, `silent_ring.caf`) |
+| `ios/ShareExtension/` | The share extension target (`im.zuno.chat.ShareExtension`, `chats-messaging.md`): own Info.plist, entitlements, privacy manifest, and an xcconfig taking its version from Flutter's build name and number, since an extension's version must match its app's |
+| `ios/Shared/` | Swift compiled into both targets (`ShareInbox.swift`) |
+| `ios/RunnerTests/` | XCTests against `@testable import Runner` |
+
+- **App Group** `group.im.zuno.chat.$(DEVELOPMENT_TEAM)`, from the
+  project-level `ZUNO_APP_GROUP`, in both targets' entitlements. It is
+  team-scoped because a group registered on the Personal Team may stay
+  stuck there. Code never spells it: it reads `ZunoAppGroup` from its own
+  Info.plist.
+- **Privacy manifests**: Runner declares UserDefaults (`CA92.1`) and file
+  timestamps (`C617.1`), the extension file timestamps only.
+
+Runner's Info.plist keys beyond usage descriptions and background modes:
+
+| Key | Why |
+|---|---|
+| `CFBundleURLTypes` | The `im.zuno.chat` scheme, which the share extension opens |
+| `FlutterDeepLinkingEnabled` `false` | Flutter would otherwise turn an opened URL into a route. Plugins claim URLs through `addSceneDelegate` (UIScene delivers them to `scene(_:openURLContexts:)`); an unclaimed one is ignored |
+| `ITSAppUsesNonExemptEncryption` `false` | Skips the export-compliance question per upload; holds only while France is unselected in App Store Connect (`docs/plan-ios-native.md`) |
+| `ZunoAppGroup` | `$(ZUNO_APP_GROUP)`, for code |
 
 ### One Matrix client per process
 
@@ -197,7 +224,9 @@ throws `DatabaseKeyUnavailable` first. It also deletes the `-wal`, `-shm`
 and `-journal` files itself: sqflite_sqlcipher's delete removes only the
 main file on iOS. A background client passes `createIfMissing: false` and
 throws `DatabaseKeyUnavailable` instead, so it can never replace the app's
-store.
+store. On iOS the Keychain key survives sign-out by design (the iOS wipe
+keeps the open database, Gotchas) and survives uninstall; a reinstall
+reuses it for a fresh database.
 
 **Nothing discards the key on a read error.** On Android
 `SecureSecretStore` sets `resetOnError: false`: flutter_secure_storage's
@@ -250,7 +279,8 @@ cannot read the keyed tables, and leaves an unreadable file as it is.
 App data stays out of device backups. Android sets `allowBackup="false"`.
 iOS flags Application Support (database, notification avatars) and
 Documents `isExcludedFromBackup` at every launch in `AppDelegate`; the flag
-on a directory covers files created later. `Library/Preferences` still
+on a directory covers files created later. The share inbox in the App Group
+is flagged when it is created. `Library/Preferences` still
 backs up (cfprefsd rewrites the plist, so a flag would not stick): a restore
 brings back the signed-in marker without a database, so the sign-out wipe
 clears it on first launch.
@@ -415,6 +445,16 @@ about a second on a cold process (the active-ring notification query
 dominates). Gating on the fast reads only would bring the flash back for
 the ring case, so it was not done.
 
+**A launch target is taken once.** Android hands a relaunch from Recents
+(`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`) and a restored activity the original
+launch intent again. `MainActivity.onCreate` swaps such an intent for a bare
+`ACTION_MAIN` before `super.onCreate` attaches the plugins
+(`LaunchIntentDecision`, JUnit-tested), so its share, room or notification
+tap never repeats. A share or room open that arrives before anyone listens
+is held, the latest only: on iOS natively until the newest engine takes its
+launch value (`LaunchHandoff`), and in Dart for the first listener
+(`HeldBroadcast`).
+
 ## Gotchas & Constraints
 - **Two ambers.** Brand amber as text on the paper surface is 2:1.
   `primary` is a darker amber for text, icons and lines;
@@ -510,8 +550,9 @@ the ring case, so it was not done.
   leave free pages behind), then passes its exact path as `keep`.
   `AppDataPlugin.swift` refuses without one, then empties Application
   Support (bar that file and its sidecars), Documents, Caches (decrypted
-  media), tmp (picker originals), the app-switcher snapshots and the prefs
-  domain, skipping iOS's own `com.apple.*` items. Dart then reloads
+  media), tmp (picker originals), the App Group share inbox, the
+  app-switcher snapshots and the prefs domain, skipping iOS's own
+  `com.apple.*` items. Dart then reloads
   `SharedPreferences`, whose in-memory cache would otherwise keep the old
   values.
 - **`_AuthGate`'s `ref.listenManual` subscriptions must not become
@@ -576,6 +617,12 @@ the ring case, so it was not done.
   `addPostFrameCallback`, which only fires if another frame is actually
   scheduled) — this is a durable, general risk for anything this
   handler ever reports, not tied to one bug.
+- **`project.pbxproj` changes go through CocoaPods' own xcodeproj gem**
+  (`GEM_HOME=/opt/homebrew/Cellar/cocoapods/1.17.0/libexec`), which keeps
+  `objectVersion` at 60. Xcode 27 writes 110 for new projects, CocoaPods
+  cannot read it, and `pod install` then fails. Keep "Embed Foundation
+  Extensions" above "Run Script" in Runner, or the build reports a cycle
+  through Thin Binary, and keep extensions out of the Podfile.
 - **Adaptive icon safe zone is a circle, not a square** — a square mark
   must be sized to its diagonal (`safe-zone-diameter / sqrt(2)`) to
   clear a circular/squircle mask, not to the safe-zone figure as drawn.
@@ -652,10 +699,11 @@ the ring case, so it was not done.
   existing global keys (`globalScaffoldMessengerKey`,
   `globalNavigatorKey`, both wired on `MaterialApp` in `app.dart`)
   rather than introducing a second mechanism.
-- A new Swift class goes into an existing file under `ios/Runner/`: adding a
-  file needs `project.pbxproj` edits that only an iOS build can verify. So
-  `WakeLockPlugin` and `ClientLeasePlugin` live in
-  `UploadServicePlugin.swift`, `RoomLaunchPlugin` in `ApnsTokenPlugin.swift`.
+- A new Swift file or target goes in through the xcodeproj gem (Gotchas).
+  Swift both the app and an extension need goes in `ios/Shared/`, compiled
+  into both targets. Not every class has its own file: `WakeLockPlugin` and
+  `ClientLeasePlugin` live in `UploadServicePlugin.swift`,
+  `RoomLaunchPlugin` in `ApnsTokenPlugin.swift`.
 - The iOS Runner compiles in Swift 6 mode. A new channel handler copies
   the shape of the ones in `ios/Runner/`: a `@MainActor` class,
   `@preconcurrency FlutterPlugin` conformance, and

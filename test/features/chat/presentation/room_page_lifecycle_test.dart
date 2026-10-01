@@ -5,19 +5,26 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/matrix/connection_monitor.dart';
+import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/currently_open_room_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/share/inbound_share.dart';
 import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
+import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_tile.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
+import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_video_player.dart';
 import '../../../helpers/platform_capabilities.dart';
 import 'room_page_harness.dart';
 
@@ -52,8 +59,14 @@ void main() {
     readMarkersFail = false;
   });
 
-  RoomPageHarness makeHarness({StoredEventsFakeDatabaseApi? db}) {
-    final harness = RoomPageHarness(db: db ?? SendingFakeDatabaseApi());
+  RoomPageHarness makeHarness({
+    StoredEventsFakeDatabaseApi? db,
+    List<Override> overrides = const [],
+  }) {
+    final harness = RoomPageHarness(
+      db: db ?? SendingFakeDatabaseApi(),
+      overrides: overrides,
+    );
     harness.respond = (request) {
       if (readMarkersFail && request.url.path.endsWith('/read_markers')) {
         return http.Response(jsonEncode({'errcode': 'M_UNKNOWN'}), 500);
@@ -266,11 +279,22 @@ void main() {
 
   group('a share from another app', () {
     late Directory temp;
+    late Directory work;
     late List<MethodCall> shareCalls;
+    late Set<String> unreadable;
+    late PlatformException? copyFailure;
+    late bool uploadsFail;
+    late Completer<void>? probeGate;
 
     setUp(() {
       temp = Directory.systemTemp.createTempSync('zuno_share_');
+      work = Directory.systemTemp.createTempSync('zuno_share_work_');
       shareCalls = [];
+      unreadable = {};
+      copyFailure = null;
+      uploadsFail = false;
+      probeGate = null;
+      installFakeVideoPlayer();
       ambientCapabilities = capabilitiesLike(
         androidCapabilities,
         nativeImageResize: false,
@@ -279,28 +303,88 @@ void main() {
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
       const share = MethodChannel('zuno/share');
+      const video = MethodChannel('zuno/video');
+      const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
       messenger.setMockMethodCallHandler(share, (call) async {
         shareCalls.add(call);
+        if (copyFailure case final failure?) throw failure;
         final names = (call.arguments as Map)['names'] as List;
         return [
           for (final name in names)
-            (File('${temp.path}/$name')..writeAsBytesSync([1, 2, 3])).path,
+            unreadable.contains(name)
+                ? null
+                : (File(
+                    '${temp.path}/$name',
+                  )..writeAsBytesSync([1, 2, 3])).path,
         ];
       });
+      messenger.setMockMethodCallHandler(video, (call) async {
+        final args = call.arguments as Map;
+        switch (call.method) {
+          case 'probe':
+            await probeGate?.future;
+            return {
+              'width': 480,
+              'height': 270,
+              'durationMs': 5000,
+              'bitrate': 400000,
+              'videoCodec': 'video/avc',
+              'audioCodec': 'audio/mp4a-latm',
+            };
+          case 'remux':
+            File(args['input'] as String).copySync(args['output'] as String);
+            return true;
+          case 'thumbnail':
+            return {
+              'bytes': Uint8List.fromList(
+                img.encodeJpg(img.Image(width: 48, height: 27)),
+              ),
+              'width': 48,
+              'height': 27,
+              'mimeType': 'image/jpeg',
+            };
+        }
+        return null;
+      });
+      messenger.setMockMethodCallHandler(
+        pathProvider,
+        (call) async => work.path,
+      );
       addTearDown(() {
         messenger.setMockMethodCallHandler(share, null);
+        messenger.setMockMethodCallHandler(video, null);
+        messenger.setMockMethodCallHandler(pathProvider, null);
         temp.deleteSync(recursive: true);
+        work.deleteSync(recursive: true);
       });
     });
 
-    Future<void> openWithShare(WidgetTester tester, InboundShare share) async {
-      harness = makeHarness();
-      harness.respond = (request) => request.url.path.contains('/upload')
-          ? http.Response(
-              jsonEncode({'content_uri': 'mxc://example.org/shared'}),
-              200,
-            )
-          : null;
+    Future<void> openWithShare(
+      WidgetTester tester,
+      InboundShare share, {
+      List<Override> overrides = const [],
+    }) async {
+      harness = makeHarness(overrides: overrides);
+      harness.respond = (request) {
+        final path = request.url.path;
+        if (path.contains('/download/')) {
+          return http.Response.bytes(
+            img.encodeJpg(img.Image(width: 48, height: 27)),
+            200,
+            headers: {'content-type': 'image/jpeg'},
+          );
+        }
+        if (!path.contains('/upload')) return null;
+        return uploadsFail
+            ? http.Response(
+                jsonEncode({'errcode': 'M_UNKNOWN', 'error': 'boom'}),
+                500,
+              )
+            : http.Response(
+                jsonEncode({'content_uri': 'mxc://example.org/shared'}),
+                200,
+              );
+      };
       harness.db.events = [harness.message(r'$m1')];
       await tester.pumpWidget(
         await harness.app(
@@ -309,6 +393,22 @@ void main() {
       );
       await harness.drive(tester);
     }
+
+    const sharedVideo = InboundShare(
+      files: [
+        SharedFile(
+          uri: 'content://media/2',
+          name: 'clip.mp4',
+          mimeType: 'video/mp4',
+        ),
+      ],
+    );
+
+    SharedFile document(String name) => SharedFile(
+      uri: 'content://docs/$name',
+      name: name,
+      mimeType: 'application/pdf',
+    );
 
     testWidgets('shared text waits in the composer', (tester) async {
       await openWithShare(tester, const InboundShare(text: 'look at this'));
@@ -355,6 +455,159 @@ void main() {
       );
 
       expect(find.byType(ImageCaptionComposerPage), findsOneWidget);
+    });
+
+    testWidgets('a shared video that fails keeps its copy, and a retry sends '
+        'it and then removes the copy', (tester) async {
+      final connection = StreamController<ConnectionStatus>.broadcast();
+      addTearDown(connection.close);
+      uploadsFail = true;
+      await openWithShare(
+        tester,
+        sharedVideo,
+        overrides: [
+          connectionStatusProvider.overrideWith((ref) => connection.stream),
+        ],
+      );
+      connection.add(ConnectionStatus.online);
+      await harness.drive(tester, turns: 2);
+
+      expect(find.byType(VideoCaptionComposerPage), findsOneWidget);
+      await tester.tap(find.byTooltip('Send'));
+      await harness.drive(tester);
+
+      expect(harness.sent, isEmpty);
+      expect(find.text('Not sent. Tap to try again.'), findsOneWidget);
+      expect(temp.listSync().map((f) => f.uri.pathSegments.last), ['clip.mp4']);
+
+      uploadsFail = false;
+      connection.add(ConnectionStatus.noInternet);
+      await harness.drive(tester, turns: 2);
+      connection.add(ConnectionStatus.online);
+      for (var i = 0; i < 6 && temp.listSync().isNotEmpty; i++) {
+        await harness.drive(tester);
+      }
+
+      expect(harness.sent.single['msgtype'], 'm.video');
+      expect(temp.listSync(), isEmpty);
+    });
+
+    testWidgets('a retry that fails again keeps the copy for the next try', (
+      tester,
+    ) async {
+      uploadsFail = true;
+      await openWithShare(tester, sharedVideo);
+      await tester.tap(find.byTooltip('Send'));
+      await harness.drive(tester);
+
+      await tester.tap(find.byType(GalleryFailedThumbnail));
+      await harness.drive(tester);
+
+      expect(harness.sent, isEmpty);
+      expect(find.text('Not sent. Tap to try again.'), findsOneWidget);
+      expect(temp.listSync(), hasLength(1));
+
+      uploadsFail = false;
+      await tester.tap(find.byType(GalleryFailedThumbnail));
+      for (var i = 0; i < 6 && temp.listSync().isNotEmpty; i++) {
+        await harness.drive(tester);
+      }
+
+      expect(harness.sent.single['msgtype'], 'm.video');
+      expect(temp.listSync(), isEmpty);
+    });
+
+    testWidgets('a retry still running when the rest of the share finishes '
+        'keeps its copy until it is done', (tester) async {
+      final pdfUpload = Completer<void>();
+      var videoUploadsFail = true;
+      await openWithShare(
+        tester,
+        InboundShare(files: [sharedVideo.files.single, document('b.pdf')]),
+      );
+      harness.respond = (request) async {
+        if (!request.url.path.contains('/upload')) return null;
+        final name = request.url.queryParameters['filename'] ?? '';
+        if (name.endsWith('.pdf')) await pdfUpload.future;
+        if (!name.endsWith('.pdf') && videoUploadsFail) {
+          return http.Response(
+            jsonEncode({'errcode': 'M_UNKNOWN', 'error': 'boom'}),
+            500,
+          );
+        }
+        return http.Response(
+          jsonEncode({'content_uri': 'mxc://example.org/shared'}),
+          200,
+        );
+      };
+      await tester.tap(find.byTooltip('Send'));
+      await harness.drive(tester);
+      expect(find.text('Not sent. Tap to try again.'), findsOneWidget);
+
+      videoUploadsFail = false;
+      probeGate = Completer<void>();
+      await tester.tap(find.byType(GalleryFailedThumbnail));
+      await harness.drive(tester, turns: 2);
+      pdfUpload.complete();
+      await harness.drive(tester);
+      expect(temp.listSync().map((f) => f.uri.pathSegments.last), ['clip.mp4']);
+
+      probeGate!.complete();
+      for (var i = 0; i < 6 && temp.listSync().isNotEmpty; i++) {
+        await harness.drive(tester);
+      }
+
+      expect(harness.sent.map((sent) => sent['msgtype']), [
+        'm.file',
+        'm.video',
+      ]);
+      expect(temp.listSync(), isEmpty);
+    });
+
+    testWidgets('leaving the chat removes a shared video kept for a retry', (
+      tester,
+    ) async {
+      uploadsFail = true;
+      await openWithShare(tester, sharedVideo);
+      await tester.tap(find.byTooltip('Send'));
+      await harness.drive(tester);
+      expect(temp.listSync(), hasLength(1));
+
+      await tester.pumpWidget(const SizedBox());
+      await harness.drive(tester, turns: 4);
+
+      expect(temp.listSync(), isEmpty);
+    });
+
+    testWidgets('a shared file that cannot be opened says so, and the rest '
+        'is sent', (tester) async {
+      unreadable = {'broken.pdf'};
+      await openWithShare(
+        tester,
+        InboundShare(files: [document('notes.pdf'), document('broken.pdf')]),
+      );
+
+      expect(
+        find.text('One shared file could not be opened. Share it again.'),
+        findsOneWidget,
+      );
+      expect(harness.sent.single['body'], 'notes.pdf');
+    });
+
+    testWidgets('shared files that fail to copy say how many, and nothing '
+        'breaks', (tester) async {
+      copyFailure = PlatformException(code: 'bad_arguments');
+      await openWithShare(
+        tester,
+        InboundShare(files: [document('a.pdf'), document('b.pdf')]),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.text('2 shared files could not be opened. Share them again.'),
+        findsOneWidget,
+      );
+      expect(harness.sent, isEmpty);
     });
   });
 
