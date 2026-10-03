@@ -686,6 +686,9 @@ hands over through files in the App Group (`app-foundation.md`), managed by
   4. Never special-case a new type directly in `RoomPage`'s preview/filter
      logic, the room-list tile, or the notification body — route through
      `event_display.dart` instead, even if it feels like a one-off.
+  5. Teach the iOS extension's Swift twin (`NseClassifier`) to show or hide
+     it, and add a case to `test/fixtures/push/nse_dispatch_v1.json`, which
+     runs on both sides (`notifications.md`).
 - **Adding a new attachment kind**: follow the two-tier cache
   (`fetchCachedAttachment` for small media, `fetchCachedAttachmentFile` for
   anything large) for fetch/display, and the pending-send pattern

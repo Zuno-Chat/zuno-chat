@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +10,8 @@ import '../calls/notifications/call_notification_service.dart';
 import '../calls/serial_lock.dart';
 import '../matrix/join_requests.dart';
 import '../matrix/matrix_client_provider.dart';
+import '../platform/platform_capabilities.dart';
+import '../push/read_model/nse_app_channel.dart';
 import 'message_notification_poster.dart';
 import 'message_notification_provider.dart';
 import 'notified_events_store.dart';
@@ -91,6 +94,15 @@ class RoomInviteNotificationNotifier extends Notifier<void> {
     final content = inviteNotificationFor(client, event);
     if (content == null) return;
     if (ref.read(joinRequestsProvider).contains(content.roomId)) return;
+    final presentsInFrontOnly = ref
+        .read(platformCapabilitiesProvider)
+        .nseNotifications;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (presentsInFrontOnly &&
+        lifecycle != AppLifecycleState.resumed &&
+        lifecycle != AppLifecycleState.inactive) {
+      return;
+    }
     if (!(await claimInviteAnnouncement(content.roomId)).won) return;
     try {
       await postMessageNotification(
@@ -98,6 +110,13 @@ class RoomInviteNotificationNotifier extends Notifier<void> {
         client: client,
         includeMessageActions: false,
       );
+      if (presentsInFrontOnly) {
+        unawaited(
+          ref.read(nseAppChannelProvider).writeShown([
+            'invite:${content.roomId}',
+          ]),
+        );
+      }
     } catch (e) {
       await forgetInviteAnnouncements([content.roomId]);
       debugPrint('zuno/notifications: invitation not announced ($e)');

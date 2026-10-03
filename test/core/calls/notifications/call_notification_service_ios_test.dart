@@ -6,9 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/notifications/message_notification_content.dart';
+import 'package:zuno/core/notifications/notification_preview.dart';
 import 'package:zuno/core/notifications/notification_sound_player.dart';
 import 'package:zuno/core/notifications/notification_sound_settings.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/read_model/opaque_thread_ids.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -27,7 +29,10 @@ void main() {
     ambientCapabilities = iosCapabilities;
     notifications = installFakeLocalNotifications(platform: TargetPlatform.iOS);
     installSilentNotificationSideChannels();
-    service = CallNotificationService(capabilities: iosCapabilities);
+    service = CallNotificationService(
+      capabilities: iosCapabilities,
+      threadIds: OpaqueThreadIds(threadKey: (roomId) async => 'tok-$roomId'),
+    );
   });
 
   group('clearing', () {
@@ -101,24 +106,22 @@ void main() {
   });
 
   group('posting', () {
-    test(
-      'a message is threaded by room and offers Reply and Mark as read',
-      () async {
-        await service.showMessage(
-          const MessageNotificationContent(
-            roomId: _roomId,
-            title: 'Alice',
-            body: 'hi',
-            eventId: r'$1',
-          ),
-          includeMessageActions: true,
-        );
+    test('a message is threaded by its room token and offers Reply and Mark as '
+        'read', () async {
+      await service.showMessage(
+        const MessageNotificationContent(
+          roomId: _roomId,
+          title: 'Alice',
+          body: 'hi',
+          eventId: r'$1',
+        ),
+        includeMessageActions: true,
+      );
 
-        final ios = notifications.lastPlatformSpecifics;
-        expect(ios['threadIdentifier'], _roomId);
-        expect(ios['categoryIdentifier'], 'message');
-      },
-    );
+      final ios = notifications.lastPlatformSpecifics;
+      expect(ios['threadIdentifier'], 'tok-$_roomId');
+      expect(ios['categoryIdentifier'], 'message');
+    });
 
     test('without an event to mark read, only Reply is offered', () async {
       await service.showMessage(
@@ -312,9 +315,15 @@ void main() {
     });
   });
 
-  test('startup registers the Reply and Mark as read actions, running in the '
-      'background with no screen opened', () async {
-    await service.initialize(claimDeclinePort: false);
+  test('before native actions, startup registers the Reply and Mark as read '
+      'actions, running in the background with no screen opened', () async {
+    final flnOwned = CallNotificationService(
+      capabilities: capabilitiesLike(
+        iosCapabilities,
+        nativeNotificationActions: false,
+      ),
+    );
+    await flnOwned.initialize(claimDeclinePort: false);
 
     final categories = {
       for (final category
@@ -333,6 +342,130 @@ void main() {
     expect(categories, {
       'message': [('reply', 'text', true), ('mark_read', 'plain', true)],
       'reply': [('reply', 'text', true)],
+    });
+  });
+
+  test('the Darwin category follows the actions and whether there is an '
+      'event to mark', () {
+    expect(
+      darwinMessageCategory(includeMessageActions: false, eventId: r'$1'),
+      isNull,
+    );
+    expect(
+      darwinMessageCategory(includeMessageActions: true, eventId: null),
+      'reply',
+    );
+    expect(
+      darwinMessageCategory(includeMessageActions: true, eventId: r'$1'),
+      'message',
+    );
+  });
+
+  group('with native notification actions', () {
+    final native = capabilitiesLike(
+      iosCapabilities,
+      nseNotifications: true,
+      nativeNotificationActions: true,
+    );
+    final threadIds = OpaqueThreadIds(
+      threadKey: (roomId) async => 'tok-$roomId',
+    );
+    const message = MessageNotificationContent(
+      roomId: _roomId,
+      title: 'Alice',
+      body: 'hi',
+      eventId: r'$1',
+    );
+
+    test('startup leaves the categories to native code', () async {
+      await CallNotificationService(
+        capabilities: native,
+        threadIds: threadIds,
+      ).initialize(claimDeclinePort: false);
+
+      expect(
+        notifications.initializeArguments!['notificationCategories'],
+        isEmpty,
+      );
+    });
+
+    for (final (preview, category) in [
+      (NotificationPreview.full, 'message'),
+      (NotificationPreview.nameOnly, null),
+      (NotificationPreview.nothing, null),
+    ]) {
+      test('at ${preview.name}, a message offers '
+          '${category ?? 'no actions'}', () async {
+        SharedPreferences.setMockInitialValues({
+          notificationPreviewKey: preview.name,
+        });
+
+        await CallNotificationService(
+          capabilities: native,
+          threadIds: threadIds,
+        ).showMessage(message, includeMessageActions: true);
+
+        expect(
+          notifications.lastPlatformSpecifics['categoryIdentifier'],
+          category,
+        );
+      });
+    }
+
+    test(
+      'before native actions, the preview level takes no action away',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          notificationPreviewKey: NotificationPreview.nothing.name,
+        });
+
+        await CallNotificationService(
+          capabilities: capabilitiesLike(
+            iosCapabilities,
+            nseNotifications: true,
+            nativeNotificationActions: false,
+          ),
+          threadIds: threadIds,
+        ).showMessage(message, includeMessageActions: true);
+
+        expect(
+          notifications.lastPlatformSpecifics['categoryIdentifier'],
+          'message',
+        );
+      },
+    );
+
+    test('taking back a placeholder re-posts the thread without actions at '
+        'Name only', () async {
+      SharedPreferences.setMockInitialValues({
+        notificationPreviewKey: NotificationPreview.nameOnly.name,
+      });
+      final service = CallNotificationService(
+        capabilities: native,
+        threadIds: threadIds,
+      );
+      await service.showMessage(message, includeMessageActions: true);
+      notifications.active = [
+        {
+          'id': messageNotificationIdFor(_roomId),
+          'payload': _messagePayload(_roomId),
+        },
+      ];
+      await service.showMessage(
+        const MessageNotificationContent(
+          roomId: _roomId,
+          title: 'Alice',
+          body: 'Tap to open',
+          eventId: r'$2',
+        ),
+        placeholder: true,
+        includeMessageActions: true,
+      );
+
+      await service.retractPlaceholder(_roomId, r'$2');
+
+      expect(notifications.shown, hasLength(3));
+      expect(notifications.lastPlatformSpecifics['categoryIdentifier'], isNull);
     });
   });
 }

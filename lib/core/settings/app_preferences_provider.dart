@@ -9,6 +9,7 @@ import '../errors/crash_reporting.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../notifications/fcm_availability_provider.dart';
 import '../notifications/notification_delivery_mode.dart';
+import '../notifications/notification_preview.dart';
 import '../notifications/notification_sound_settings.dart';
 import '../notifications/notify_me.dart';
 import '../platform/platform_capabilities.dart';
@@ -220,6 +221,24 @@ class NotifyMeNotifier extends Notifier<NotifyMe> {
     await ref
         .read(sharedPreferencesProvider)
         .setString(notifyMePreferenceKey, mode.name);
+  }
+}
+
+final notificationPreviewProvider =
+    NotifierProvider<NotificationPreviewNotifier, NotificationPreview>(
+      NotificationPreviewNotifier.new,
+    );
+
+class NotificationPreviewNotifier extends Notifier<NotificationPreview> {
+  @override
+  NotificationPreview build() =>
+      notificationPreviewFromPreferences(ref.watch(sharedPreferencesProvider));
+
+  Future<void> set(NotificationPreview level) async {
+    state = level;
+    await ref
+        .read(sharedPreferencesProvider)
+        .setString(notificationPreviewKey, level.name);
   }
 }
 

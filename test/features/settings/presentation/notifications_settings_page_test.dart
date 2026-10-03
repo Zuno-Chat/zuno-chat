@@ -16,12 +16,17 @@ import 'package:zuno/core/notifications/delivery_failure.dart';
 import 'package:zuno/core/notifications/delivery_failure_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
+import 'package:zuno/core/notifications/notification_preview.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/push_diagnostics_report.dart';
+import 'package:zuno/core/push/push_diagnostics_source.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/card_group.dart';
 import 'package:zuno/features/settings/presentation/notification_delivery_page.dart';
 import 'package:zuno/features/settings/presentation/notifications_settings_page.dart';
+import 'package:zuno/features/settings/presentation/push_diagnostics_page.dart';
+import 'package:zuno/features/settings/presentation/push_target_status_page.dart';
 
 import '../../../helpers/card_layout.dart';
 import '../../../helpers/fake_local_notifications.dart';
@@ -70,6 +75,7 @@ Future<ProviderContainer> _pumpPage(
   PlatformCapabilities? capabilities,
   Client? client,
   List<Override> overrides = const [],
+  String osVersion = '27.0',
 }) async {
   await tester.binding.setSurfaceSize(const Size(800, 3000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -92,11 +98,24 @@ Future<ProviderContainer> _pumpPage(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const MaterialApp(home: NotificationsSettingsPage()),
+      child: MaterialApp(home: NotificationsSettingsPage(osVersion: osVersion)),
     ),
   );
   await tester.pumpAndSettle();
   return container;
+}
+
+class _DiagnosticsSource implements PushDiagnosticsSource {
+  @override
+  Future<PushDiagnosticsInputs> load(PlatformCapabilities capabilities) async =>
+      PushDiagnosticsInputs(
+        capabilities: capabilities,
+        now: DateTime(2026, 10, 2),
+        appVersion: '1.2.0 (build 2)',
+      );
+
+  @override
+  Future<PushTestOutcome> sendTest() async => PushTestOutcome.sent;
 }
 
 void main() {
@@ -211,6 +230,34 @@ void main() {
     expect(find.text('Full-screen call alerts'), findsOneWidget);
   });
 
+  testWidgets('with push diagnostics a Diagnostics row opens the diagnostics', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      NotificationDeliveryMode.apns,
+      capabilities: capabilitiesLike(iosCapabilities, pushDiagnostics: true),
+      overrides: [
+        pushDiagnosticsSourceProvider.overrideWithValue(_DiagnosticsSource()),
+      ],
+    );
+
+    await tester.tap(find.text('Diagnostics'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PushDiagnosticsPage), findsOneWidget);
+  });
+
+  testWidgets('Android has no Diagnostics row', (tester) async {
+    await _pumpPage(
+      tester,
+      NotificationDeliveryMode.fcm,
+      capabilities: androidCapabilities,
+    );
+
+    expect(find.text('Diagnostics'), findsNothing);
+  });
+
   group('on Android, Enable notifications', () {
     String subtitle(WidgetTester tester) =>
         (tester
@@ -300,14 +347,18 @@ void main() {
       client = _PusherRecordingClient();
       final tokenReader = apnsDeliveryProvider.tokenReader;
       final notificationsAllowed = apnsDeliveryProvider.notificationsAllowed;
+      final environmentReader = apnsDeliveryProvider.environmentReader;
       apnsDeliveryProvider
         ..tokenReader = (() async => 'a1b2c3d4' * 8)
-        ..notificationsAllowed = (() async => true);
+        ..notificationsAllowed = (() async => true)
+        ..environmentReader = (() async => 'development');
       addTearDown(() async {
         await apnsDeliveryProvider.stop(client);
         apnsDeliveryProvider
           ..tokenReader = tokenReader
-          ..notificationsAllowed = notificationsAllowed;
+          ..notificationsAllowed = notificationsAllowed
+          ..environmentReader = environmentReader
+          ..resetEnvironmentForTesting();
       });
     });
 
@@ -338,6 +389,64 @@ void main() {
 
       expect(find.widgetWithText(ListTile, 'Delivery'), findsNothing);
       expect(find.byIcon(Icons.cloud_sync_outlined), findsNothing);
+    });
+
+    testWidgets('with diagnostics on, Push target opens the page that shows '
+        'them', (tester) async {
+      const channel = MethodChannel('zuno/push_diag');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async => null);
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      _stubNotificationPermission(granted: true);
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: capabilitiesLike(iosCapabilities, pushDiagnostics: true),
+        client: client,
+      );
+
+      final row = find.widgetWithText(ListTile, 'Push target');
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.text('How notifications reach this device'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PushTargetStatusPage), findsOneWidget);
+      expect(find.text('Diagnostics'), findsOneWidget);
+    });
+
+    testWidgets('with diagnostics off there is no Push target row', (
+      tester,
+    ) async {
+      _stubNotificationPermission(granted: true);
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: capabilitiesLike(iosCapabilities, pushDiagnostics: false),
+        client: client,
+      );
+
+      expect(find.widgetWithText(ListTile, 'Push target'), findsNothing);
+    });
+
+    testWidgets('with notifications off there is no Push target row', (
+      tester,
+    ) async {
+      _stubNotificationPermission(granted: false);
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: capabilitiesLike(iosCapabilities, pushDiagnostics: true),
+        client: client,
+      );
+
+      expect(find.widgetWithText(ListTile, 'Push target'), findsNothing);
     });
 
     testWidgets('Enable notifications says what it does on this device', (
@@ -849,14 +958,18 @@ void main() {
       client = _PusherRecordingClient();
       final tokenReader = apnsDeliveryProvider.tokenReader;
       final notificationsAllowed = apnsDeliveryProvider.notificationsAllowed;
+      final environmentReader = apnsDeliveryProvider.environmentReader;
       apnsDeliveryProvider
         ..tokenReader = (() async => 'a1b2c3d4' * 8)
-        ..notificationsAllowed = (() async => true);
+        ..notificationsAllowed = (() async => true)
+        ..environmentReader = (() async => 'development');
       addTearDown(() async {
         await apnsDeliveryProvider.stop(client);
         apnsDeliveryProvider
           ..tokenReader = tokenReader
-          ..notificationsAllowed = notificationsAllowed;
+          ..notificationsAllowed = notificationsAllowed
+          ..environmentReader = environmentReader
+          ..resetEnvironmentForTesting();
       });
     });
 
@@ -923,6 +1036,115 @@ void main() {
 
       expect(container.read(messageToneEnabledProvider), isFalse);
       expect(client.posted.map(soundOf), ['message_tone.caf']);
+    });
+  });
+
+  group('notification content', () {
+    final withExtension = capabilitiesLike(
+      iosCapabilities,
+      nseNotifications: true,
+    );
+
+    testWidgets('offers three levels with Name and message chosen', (
+      tester,
+    ) async {
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: withExtension,
+      );
+
+      expect(find.text('Notification content'), findsOneWidget);
+      expect(find.text('Name and message'), findsOneWidget);
+      expect(find.text('Name only'), findsOneWidget);
+      expect(find.text('Nothing'), findsOneWidget);
+      final chosen = tester.widget<RadioGroup<NotificationPreview>>(
+        find.byType(RadioGroup<NotificationPreview>),
+      );
+      expect(chosen.groupValue, NotificationPreview.full);
+      expect(find.textContaining('message text stays in Zuno'), findsOneWidget);
+    });
+
+    testWidgets('choosing Nothing stores it', (tester) async {
+      final container = await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: withExtension,
+      );
+
+      await tester.tap(find.text('Nothing'));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(notificationPreviewProvider),
+        NotificationPreview.nothing,
+      );
+    });
+
+    testWidgets('Android and an iOS build without the extension show none of '
+        'it', (tester) async {
+      await _pumpPage(tester, NotificationDeliveryMode.fcm);
+      expect(find.text('Notification content'), findsNothing);
+
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: capabilitiesLike(
+          iosCapabilities,
+          nseNotifications: false,
+        ),
+      );
+      expect(find.text('Notification content'), findsNothing);
+    });
+
+    testWidgets('an iOS version that keeps deleted notifications suggests '
+        'Name only once', (tester) async {
+      final container = await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: withExtension,
+        osVersion: 'Version 26.4.1 (Build 23E246)',
+      );
+
+      await tester.tap(find.text('Use Name only'));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(notificationPreviewProvider),
+        NotificationPreview.nameOnly,
+      );
+      expect(find.text('Use Name only'), findsNothing);
+    });
+
+    testWidgets('keeping the level also retires the suggestion', (
+      tester,
+    ) async {
+      final container = await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: withExtension,
+        osVersion: '18.7.7',
+      );
+
+      await tester.tap(find.text('Keep as is'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Keep as is'), findsNothing);
+      expect(
+        container.read(notificationPreviewProvider),
+        NotificationPreview.full,
+      );
+    });
+
+    testWidgets('a fixed iOS version gets no suggestion', (tester) async {
+      await _pumpPage(
+        tester,
+        NotificationDeliveryMode.apns,
+        capabilities: withExtension,
+        osVersion: '26.4.2',
+      );
+
+      expect(find.text('Use Name only'), findsNothing);
     });
   });
 }

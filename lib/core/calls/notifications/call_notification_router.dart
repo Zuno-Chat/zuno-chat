@@ -45,19 +45,21 @@ class CallNotificationRouter extends Notifier<void> {
       ref.onDispose(sub.cancel);
     }
 
-    on(notifications.onAction, handle);
+    final capabilities = ref.read(platformCapabilitiesProvider);
+    if (!capabilities.voipRing) on(notifications.onAction, handle);
     on(notifications.onHangUp, handleHangUp);
     on(notifications.onRingEnded, handleRingEnded);
     on(notifications.onSystemCallFailed, (callId) {
       if (ref.read(activeCallProvider)?.callId == callId) return;
       ref.read(resolvedCallIdsProvider.notifier).markResolved(callId);
     });
+    if (capabilities.voipRing) return;
     on(
       notifications.onSystemRinging,
       (call) =>
           SystemRing.instance.set(roomId: call.roomId, callId: call.callId),
     );
-    if (ref.read(platformCapabilitiesProvider).callKit) {
+    if (capabilities.callKit) {
       unawaited(notifications.takeQueuedNativeCalls());
     }
   }
@@ -249,11 +251,39 @@ class CallNotificationRouter extends Notifier<void> {
     ref.read(activeCallProvider.notifier).set(session);
     final navigator = globalNavigatorKey.currentState;
     if (navigator == null) {
-      ref.read(activeCallProvider.notifier).set(null);
-      RingingCall.instance.clear(call.callId);
-      _reportFailure('Could not open the call screen.');
+      if (!ref.read(platformCapabilitiesProvider).voipRing) {
+        ref.read(activeCallProvider.notifier).set(null);
+        RingingCall.instance.clear(call.callId);
+        _reportFailure('Could not open the call screen.');
+        return;
+      }
+      unawaited(_openCallPageWhenShown(session, instant: instant));
+    } else {
+      _pushCallPage(navigator, session, instant: instant);
+    }
+    _log('accepted ${call.callId}, opening the call screen');
+    unawaited(session.accept().catchError((_) {}));
+  }
+
+  Future<void> _openCallPageWhenShown(
+    CallSession session, {
+    required bool instant,
+  }) async {
+    while (identical(ref.read(activeCallProvider), session)) {
+      await WidgetsBinding.instance.endOfFrame;
+      final navigator = globalNavigatorKey.currentState;
+      if (navigator == null) continue;
+      if (!identical(ref.read(activeCallProvider), session)) return;
+      _pushCallPage(navigator, session, instant: instant);
       return;
     }
+  }
+
+  void _pushCallPage(
+    NavigatorState navigator,
+    CallSession session, {
+    required bool instant,
+  }) {
     unawaited(
       navigator.push(
         pageRoute(
@@ -262,8 +292,6 @@ class CallNotificationRouter extends Notifier<void> {
         ),
       ),
     );
-    _log('accepted ${call.callId}, opening the call screen');
-    unawaited(session.accept().catchError((_) {}));
   }
 
   Future<bool> _isOver(String callId) async =>

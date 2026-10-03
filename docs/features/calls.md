@@ -8,8 +8,9 @@ by design. Signaling is a custom, simplified layer loosely modeled on
 MatrixRTC (MSC3401), not a conformant implementation. Media runs through a
 pluggable `CallEngine` abstraction, currently backed by Cloudflare Calls,
 reached through the `zuno_calls` Synapse module so the app never holds SFU
-credentials. On iOS, CallKit shows the ring and holds the call; Android
-uses a `CallStyle` notification and a foreground service.
+credentials. On iOS, CallKit shows the ring and holds the call, and a closed
+Zuno rings from a server VoIP push (iOS ring path below); Android uses a
+`CallStyle` notification and a foreground service.
 
 ## Architecture
 
@@ -79,10 +80,10 @@ Other integration points:
   `confirmPerson(picturesFirst: true)` over the call.
 
 **Platform seams** (`lib/core/calls/platform/`): what the OS shows or plays
-for a call goes through five interfaces. Each has a `*For(capabilities)`
+for a call goes through six interfaces. Each has a `*For(capabilities)`
 factory, with a provider over it, that checks `callKit` first wherever a
-CallKit class exists; the Android flags in parentheses are never flipped
-on iOS (`app-foundation.md`):
+CallKit class exists (`PushRingBridge` checks `voipRing`); the Android flags
+in parentheses are never flipped on iOS (`app-foundation.md`):
 
 | Seam | Methods | Android | iOS |
 |---|---|---|---|
@@ -91,6 +92,7 @@ on iOS (`app-foundation.md`):
 | `RingbackTonePlayer` | `start`, `stop`, `restartForRouteChange` | `ToneGenerator` (`nativeRingbackTone`) | Native `CallRingback` |
 | `SystemCall` | `begin`, `connected`, `setMuted`, `upgradeToVideo`, `end` | No-op | `startSystemCall` … `endSystemCall` |
 | `CallAudioOutput` | `read`, `apply`, `watch`, `unwatch` | flutter_webrtc `Helper` + `ondevicechange` | `audioRoute` / `setAudioRoute` + `audioRouteChanged` |
+| `PushRingBridge` | `updateIncoming`, `bindIncoming`, `endUnbound`, `declineSent` | No-op | The same calls on `zuno/calls` (iOS ring path) |
 
 - Ringback has exactly one gate: its factory. Both players re-check the
   Ringtone setting. `fullScreenIntent` gates only the full-screen
@@ -116,8 +118,9 @@ on iOS (`app-foundation.md`):
   CallKit ends only the named call, with `end` (`RingEnd`) as its reason.
 - **CallKit's answer and decline** arrive as `answerCall` / `declineCall`
   on `zuno/calls` with `{roomId, callId, callerId, isVideo}` and join
-  `onAction`, like notification buttons. One that arrives before anything
-  listens (cold start) is held for `takeLaunchCallActionFromNotification`.
+  `onAction`, like notification buttons; on iOS `RingCoordinator` takes
+  them (iOS ring path). One that arrives before anything listens (cold
+  start) is held for `takeLaunchCallActionFromNotification`.
   An open `IncomingCallPage` runs the action itself (the router defers to
   it) and cancels the presenter as it closes, so two ring UIs never both
   stay up.
@@ -130,16 +133,19 @@ both over `zuno/calls` (`CallsChannelPlugin.swift`).
 - `CallKitCenter.swift`: a process-wide singleton with a lazy
   `CXProvider`. Its configuration is re-set before every report and start
   (Apple DTS's workaround for a call whose audio session never activates),
-  which also picks up the Ringtone setting. An
-  incoming call's UUID is a UUIDv5 of `roomId`+`callId`, so every path
-  names the same call. An ended one leaves a tombstone (last 64): a late
-  report of it is `filtered`, never a second ring. Actions the app
-  requests are tagged, so only the user's own taps reach Dart.
+  which also picks up the Ringtone setting. Every call's UUID, incoming or
+  outgoing, is UUIDv5 over `room_id + "\n" + call_id` (`CallIdentity`, a
+  fixed namespace, vectors in `call_uuid_v5.json`), so sync, push, the
+  extension and Dart name the same call. An ended one leaves a tombstone
+  (last 64) and a resolved ledger entry: a late report of it is `filtered`,
+  never a second ring. Actions the app requests are tagged, so only the
+  user's own taps reach Dart.
 - Native events queue (32, oldest dropped) until Dart pulls them:
   `CallNotificationService.initialize` sends `resetSystemCalls` (ending
-  calls a previous Dart owned), then the router's build calls
+  calls a previous Dart owned), then `RingCoordinator` calls
   `takeCallEvents`, which also replays each call still ringing.
-  `audioRouteChanged` is live-only.
+  `audioRouteChanged` and a pushed ring's `ringing` are sent live only
+  (the replay covers the ring).
 - `CallAudio.swift` owns the one audio session (decisions below) and
   `CallRingback`, a synthesized 425 Hz tone that plays only once the
   session is active; the pre-call category comes back after the last
@@ -152,8 +158,9 @@ both over `zuno/calls` (`CallsChannelPlugin.swift`).
   session's reason. The hang-up button's `byUser` end is requested as a
   `CXEndCallAction`; any other end is reported.
 - A ring report returns `shown`, `filtered` (Focus, block list, tombstone:
-  nothing shows) or `unavailable` (`RoomListPage` falls back to
-  `IncomingCallPage`). A group call rings under the room's name.
+  nothing shows) or `unavailable` (`RingCoordinator` falls back to
+  `IncomingCallPage`). A group call rings under the room's name. The name
+  follows the preview level (`notifications.md`): "Zuno call" at Nothing.
 
 ### Live routes and declines
 
@@ -188,6 +195,106 @@ first step that misses its bound:
 | flutter_local_notifications' action engine (`runHeadlessCallDecline`) | Per-run wake lock; stops the ring and marks the call resolved; hands the decline to whoever holds the decline route. Nobody takes it: opens its own client, retries the hand-off for about 6 s when the lease is denied, sends with retries (2 s, 5 s) |
 | Push engine's ring hold (`awaitHeadlessDecline`) | Claims the decline route only when nobody holds it or its holder answers no ping. Holds up to 45 s, checking every 3 s that the route is still its own and the ring still shows (5 s grace once it does not). Sends through its burst client; a denied lease hands the decline to the app's route. Reports `done` only once sent or handed over |
 | The app (`HeadlessCallDeclineNotifier`) | Cancels the ring (`declinedElsewhere`), marks the call resolved, sends with retries, then reports `done` |
+
+### iOS ring path (`voipRing`)
+
+With Zuno closed the server rings; a running app still rings from sync, on
+the same CallKit UUID. Why from the server, and what was rejected:
+[ios-push-and-ring.md](../decisions/ios-push-and-ring.md).
+
+1. **Server**: the `zuno_push` Synapse module (its own repo) watches
+   `m.call.member` and posts one sealed blob per device to Sygnal
+   (`im.zuno.chat.ios.voip`, `.ios.dev.voip`; topic `im.zuno.chat.voip`),
+   which APNs delivers as a VoIP push.
+2. **Native**: `PushRingHandler` (PushKit) opens the blob, `RingDecision`
+   picks the action, and `CallKitCenter.reportPush` reports it to CallKit
+   before PushKit's completion runs. A shown ring prewarms the app engine
+   (`EngineHost.startForRing`, `app-foundation.md`).
+3. **Dart**: `RingCoordinator` (`ring_coordinator.dart`, kept alive by
+   `pushRingServicesProvider`) takes the ring, the answer and the decline.
+   Android keeps the `RoomListPage` path.
+
+**Every push is reported.** iOS kills an app that returns from a VoIP push
+without reporting a call (MetricKit code `0xbaadca11`, in the diagnostics),
+so a push that must not ring is reported as a "Zuno call" placeholder and
+ended at once. Only iOS 26.4's `mustReport == false` lets one complete
+unreported.
+
+**The blob** (`VoipBlob`): ChaCha20-Poly1305 under this device's 32-byte
+key, padded to 512 or 1024 bytes, so Apple learns only that a call arrived.
+It carries room, call, caller, names, kind and timestamps, and expires 45 s
+after `min(sent, received + 30 s)`, judged on the server's clock (`meta`'s
+offset).
+
+| Push | Ring decision |
+|---|---|
+| New call | Rings, named from the room's title file (DM partner or room title), else the blob's names; until the blob expires, 55 s at most |
+| A call CallKit already tracks | Updates its name and video flag |
+| Stale, resolved, own, or a canary | Reported, then ended |
+| Another call ringing or active | A placeholder, then ended |
+| Unknown key or version | A generic "Zuno call" for Dart to bind (45 s) and a re-registration; from the third in 10 min, ended as failed |
+| Forged (the tag fails) | Reported, then ended as failed |
+| Before first unlock | A generic ring, silent if Ringtone was off (`ring.flag`); the blob is kept and opened once protected data arrives |
+| Signed out, no session | Reported, ended, and VoIP pushes turned off |
+
+**Registration** (`VoipRegistration`, `zuno/voip`): the PushKit token and
+key go up with `PUT voip` at sign-in, on resume once the token or key
+changed or 6 h passed, and on Retry, never gated on notification
+permission. A refusal
+shows "Calls may not ring while Zuno is closed" (`notifications.md`). The
+key is in the Keychain (`im.zuno.chat.voip`, the app only), new per session
+and per token not yet acknowledged; the previous one still opens blobs for
+24 h after the new one is acknowledged. Sign-out sends `DELETE device`,
+deletes the key, ends every call and stops VoIP pushes. Prefs:
+`push.voip.session`, `push.voip.acked`.
+
+**Binding a ring to its call:**
+- A generic ring carries no call. The coordinator binds it
+  (`bindIncoming`) to the newest call another member started in the last
+  45 s (`m.call.member`), checked on each sync and the next invite, or ends
+  it after 20 s (`endUnbound`).
+- A sync invite for a call a push already rang only updates its name
+  (`updateIncoming`); any other one rings through CallKit as before (call
+  waiting applies; `IncomingCallPage` when CallKit is unavailable).
+- Native rings reach Dart as `ringing` with a `source` (`NativeRing`:
+  `sync`, `push`, `generic`, `bfu`).
+
+**Answer and decline of a pushed ring:**
+- Dart first reads the caller's `m.call.member` from the server
+  (`checkCallLiveness`, 5 s). A call no longer listed ends as remote-ended;
+  a timeout or error goes on, since the blob was authenticated. Why: local
+  state is stale after suspension.
+- CallKit's answer is held until Dart reports the call connected, or 2 s
+  before the action times out. Dart has 45 s to take it over (30 s for a
+  sync ring), else the call ends as failed: the engine may be starting cold.
+- An answer before first unlock that never binds ends as failed and posts a
+  "Missed call" notice: "Unlock this device after a restart to answer
+  calls."
+- A ringing pushed call holds a 30 s background task, so the engine can
+  start and sync; a decline holds 25 s until Dart has sent it
+  (`declineSent`).
+
+**The call ledger** (`ledger` in the notify App Group): native records each
+incoming CallKit call's state (`ringing`, `answered`, `ended`, `declined`,
+`missed`; source `push` or `sync`; last 64) and posts
+`im.zuno.chat.ring.changed`. A resolved entry stops a late push from
+ringing; the extension reads it to tell whether CallKit rang.
+
+**The extension's fallback ring** (`NsePipelineCalls`): the invite's message
+push reaches the extension too. With no ledger entry for the call it waits
+up to 8 s for CallKit to ring, then shows a time-sensitive "Incoming voice
+call" (`fallback_ring.caf`, or `silent_ring.caf` with Ringtone off) and asks
+the module's `ring/status`, within 23 s of starting:
+- A ring the module sent gets until 8 s after its send time.
+- `failed`, `no_token`, an unknown answer and `suppressed` for
+  `voip_failing` keep the fallback.
+- Any other suppression, `pending`, or the ledger catching up turn it into
+  a quiet "Voice call" line.
+
+Once CallKit shows a pushed ring, the app removes that fallback and the
+room's floor lines from the last 20 s (`RingFloorSweeper`). A missed or
+declined summary the extension sees ends that ring in the app
+(`im.zuno.chat.calls.changed`), ahead of Dart's sync.
 
 ## Data & State
 
@@ -426,9 +533,8 @@ reaches the app's engine while it runs and a push engine otherwise
 ring notification carries its own Accept/Decline actions and a
 full-screen intent; `CallForegroundService.kt` backs the persistent
 in-call notification once active (Android requires a real foreground
-service for background mic/camera capture). iOS rings from live sync only:
-APNs pushes run no Dart and there is no VoIP push, so a backgrounded or
-closed app does not ring.
+service for background mic/camera capture). On iOS a running app rings from
+sync and a closed or suspended one from a VoIP push (iOS ring path).
 
 **Ongoing-call notification actions**: its `CallStyle` Hang up button
 broadcasts to `CallActionReceiver`, which invokes `hangUpCall` on the
@@ -586,19 +692,21 @@ instead, so a stale notification can't outlive its call.
   | Native owns the starting route, and restores the last reported one after a media-services reset or a category change | A late `CallPage` build would undo a route picked on the CallKit screen |
   | Dart mutes, native mirrors with tagged actions, a refused unmute reverts Dart; `begin` hands over a mute made before the app took the call | CallKit's mute holds the uplink system-wide, so the two must never disagree |
   | Native ring backstop 55 s; a system end after 25 s of ringing counts as missed, earlier as a decline | CallKit ends a ring on its own near 60 s, and that end looks like a decline |
-  | Recents off; the handle is the display name | Recents sync through iCloud, and nothing handles a redial |
+  | Recents off; the handle is the room's opaque token (`zuno` without one), never a name | Recents sync through iCloud, nothing handles a redial, and system stores keep what a call shows |
   | Ringtone off plays `silent_ring.caf` | CallKit otherwise plays the system ringtone |
 
 - **Call waiting**: a second incoming call while already on one, or while
   another call rings (`SystemRing`), is auto-declined, never rung, with a
   "Missed call from X" SnackBar. The main isolate declines it from sync
-  (`room_list_page.dart`). A push handled in a headless isolate can't read
-  `activeCallProvider`, so the notifier mirrors it into a process-wide
-  `IsolateNameServer` marker (`active_call_marker.dart`) and the push
-  handler stays silent while it is set, or while another unresolved call
-  rings: a push never replaces a ringing call. The marker dies with the
-  process, so a crash can't mute later rings; the notifier clears it on
-  build because a mapping outlives a hot restart.
+  (`room_list_page.dart`; on iOS `RingCoordinator`, and a pushed ring that
+  finds CallKit busy is a placeholder ended at once). A push handled in a
+  headless isolate can't read `activeCallProvider`, so the notifier
+  mirrors it into a process-wide `IsolateNameServer` marker
+  (`active_call_marker.dart`) and the push handler stays silent while it is
+  set, or while another unresolved call rings: a push never replaces a
+  ringing call. The marker dies with the process, so a crash can't mute
+  later rings; the notifier clears it on build because a mapping outlives a
+  hot restart.
 - **A ring ends when another of my devices answers or declines**
   (`ringElsewhereProvider`, both platforms): my membership on another
   device joining the call, or my decline from any device, ends the ring
@@ -847,20 +955,31 @@ instead, so a stale notification can't outlive its call.
   the foreground, else the call ends with "Allow Zuno to use the
   microphone, then call back."
 - **Native watchdogs end a stuck call as failed** (`callFailed`, "Call did
-  not connect"): an answer the app never adopts within 30 s, or a session
-  CallKit never activates within 10 s. Every end holds a 15 s background
-  task so `leave()` and the summary get out.
+  not connect"): an answer the app never adopts within 30 s (45 s for a
+  pushed ring), or a session CallKit never activates within 10 s. Every end
+  holds a 15 s background task so `leave()` and the summary get out.
 - **Two calls overlap briefly on End & Accept.** `hangUpCall` names the
   call CallKit ended (Android's Hang up names none): the router hangs up
   only that call, marks any other id resolved, and holds the next accept
   until it has ended (5 s at most). So `ActiveCallNotifier.clear(session)`
   is identity-checked, and an ended `CallPage` under the new one skips its
   teardown side effects and removes its own route instead of popping.
-- **`CallsChannelPlugin` registers in the implicit engine only.**
+- **`CallsChannelPlugin` registers only on `EngineHost`'s engine.**
   `CallKitCenter` is process-wide: another engine registering it would
   take the channel over, and its `resetSystemCalls` would end the calls
   the main Dart owns. Engine detach ends those calls and closes WebRTC
   media.
+- **iOS detaches a video renderer before disposing it**
+  (`videoRendererNeedsDetach`): `CallPage` clears its `srcObject`, waits
+  500 ms, then disposes. flutter_webrtc's iOS renderer queues main-thread
+  frame blocks that dereference a nil `strongSelf`, so disposing one with
+  frames in flight crashes the app, and a crashed app never clears its
+  `m.call.member`.
+- **The `zuno_push` module's `sygnal_notify_url` needs a hostname without
+  `_`.** Synapse's HTTP client IDNA-encodes the host and fails before
+  connecting: the module logs "Sygnal answered nothing" while curl to the
+  same URL works, and no ring goes out. Message pushes use the public
+  notify path, so they can keep working (`notifications.md`).
 
 ## Extension Guidance
 
@@ -915,8 +1034,14 @@ instead, so a stale notification can't outlive its call.
   play `zuno/calls`; `FakeCallSession` lives in `test/helpers/`.
   `flutter_test_config.dart` resets `SystemRing`, the presenter's ring
   memory and every `KeyedSerialLock` after each test. Native decisions have
-  XCTests (`ios/RunnerTests/RunnerTests.swift`) and JUnit tests
-  (`IncomingRingDecisionsTest`, over `RingDecisions`).
+  XCTests (`ios/RunnerTests/`: `RingDecisionTests`, `PushRingHandlerTests`,
+  `CallKitCenterPushTests` among them) and JUnit tests
+  (`IncomingRingDecisionsTest`, over `RingDecisions`). The VoIP blob,
+  CallKit UUID and opaque-id vectors (`test/fixtures/push/`) run in Dart and
+  Swift, and the `zuno_push` module must pass the same files: change them
+  on both sides together. On a device, `tool/push_test/apns_send.swift`
+  sends a sealed VoIP push or an alert straight to APNs, with the values
+  from Push target's development card.
 
 ## Dependencies / Integration
 
@@ -927,9 +1052,11 @@ instead, so a stale notification can't outlive its call.
   by `canPublishCallMemberState`).
 - **Notifications**: `NotificationDeliveryProvider` (FCM/UnifiedPush/
   background-service) is what makes ringing work while backgrounded or
-  killed; the platform seams own the ring/ongoing-call notification
-  lifecycle (on Android, `zuno/call_style` and `CallForegroundService.kt`;
-  on iOS, CallKit). Calls share the raw-prefs sound settings with message
+  killed on Android, the `zuno_push` VoIP push on iOS; the extension and
+  the read model it shares with the ring are in `notifications.md`. The
+  platform seams own the ring/ongoing-call notification lifecycle (on
+  Android, `zuno/call_style` and `CallForegroundService.kt`; on iOS,
+  CallKit). Calls share the raw-prefs sound settings with message
   notifications, readable from any engine, with distinct toggles (Ringtone
   / Vibrate for calls, vs. Message tone / Vibrate for messages); the ring
   plays natively in `IncomingRing`. Declines share the live routes and the
@@ -938,6 +1065,11 @@ instead, so a stale notification can't outlive its call.
   same power-level model documented for room roles generally — calling
   requires the same state-event send permission the homeserver itself
   enforces on `m.call.member`.
+- **`zuno_push` Synapse module (external, its own repo)**: rings closed iOS
+  devices (iOS ring path), answers the extension's `ring/status` and holds
+  each device's VoIP token and key. The app's client is
+  `zuno_push_api.dart` (`notifications.md`); `zuno_calls` is untouched by
+  it.
 - **`zuno_calls` Synapse module (external, its own repo)**:
   `calls_module.dart` is a client against a module loaded into the
   homeserver, not part of this app. It proxies Cloudflare Calls (SFU)

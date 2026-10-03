@@ -6,6 +6,22 @@ import 'package:matrix/matrix.dart';
 const apnsProductionAppId = 'im.zuno.chat.ios';
 const apnsDevelopmentAppId = 'im.zuno.chat.ios.dev';
 
+const apnsPusherFormat = 'event_id_only';
+
+enum ApnsEnvironment { production, development }
+
+ApnsEnvironment? apnsEnvironmentNamed(Object? name) => switch (name) {
+  'production' => ApnsEnvironment.production,
+  'development' => ApnsEnvironment.development,
+  _ => null,
+};
+
+String apnsAppIdForEnvironment(ApnsEnvironment environment) =>
+    switch (environment) {
+      ApnsEnvironment.production => apnsProductionAppId,
+      ApnsEnvironment.development => apnsDevelopmentAppId,
+    };
+
 String apnsAppIdFor({required bool release}) =>
     release ? apnsProductionAppId : apnsDevelopmentAppId;
 
@@ -38,7 +54,7 @@ Pusher buildApnsPusher({
     lang: 'en',
     data: PusherData(
       url: gatewayUrl,
-      format: 'event_id_only',
+      format: apnsPusherFormat,
       additionalProperties: {
         'default_payload': {
           'aps': {

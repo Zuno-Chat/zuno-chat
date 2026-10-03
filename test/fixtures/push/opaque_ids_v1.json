@@ -1,0 +1,26 @@
+{
+  "cases" : [
+    {
+      "input" : "!abc:zuno.im",
+      "kind" : "room",
+      "token" : "2d2de6b6c6565ad95bf365845db19da9"
+    },
+    {
+      "input" : "$ev1:zuno.im",
+      "kind" : "event",
+      "token" : "f79169d67a42d7034d5c3f6a66d7d58a"
+    },
+    {
+      "input" : "!caf\u00e9:zuno.im",
+      "kind" : "room",
+      "token" : "d39ed913b4b73c550dcc955b6d688d43"
+    },
+    {
+      "input" : "$Zk3qY9_long-event.id:zuno.im",
+      "kind" : "event",
+      "token" : "d2254a65b3375b1ffdb27d4bf960d295"
+    }
+  ],
+  "install_key" : "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
+  "length" : 32
+}

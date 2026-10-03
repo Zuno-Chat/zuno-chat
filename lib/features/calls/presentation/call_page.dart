@@ -18,6 +18,7 @@ import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/calls/platform/call_audio_output.dart';
 import '../../../core/calls/platform/ongoing_call_presenter.dart';
 import '../../../core/calls/platform/ringback_tone_player.dart';
+import '../../../core/errors/best_effort.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/platform/platform_capabilities.dart';
@@ -31,6 +32,14 @@ import 'call_picture_in_picture.dart';
 import 'call_proximity.dart';
 import 'call_view.dart';
 import 'participant_tile.dart';
+
+const _videoDrainDelay = Duration(milliseconds: 500);
+
+Future<void> _releaseAfterDetach(RTCVideoRenderer renderer) async {
+  await runBestEffort(renderer.setSrcObject, label: 'detach call video');
+  await Future<void>.delayed(_videoDrainDelay);
+  await runBestEffort(renderer.dispose, label: 'release call video');
+}
 
 class CallPage extends ConsumerStatefulWidget {
   final CallSession session;
@@ -53,6 +62,7 @@ class _CallPageState extends ConsumerState<CallPage> {
   late final RingbackTonePlayer _ringback;
   late final CallAudioOutput _audioOutput;
   late final bool _systemRoutesAudio;
+  late final bool _detachVideoBeforeRelease;
   CallEngineStatus? _engineStatus;
   final Map<VoipParticipantId, RTCVideoRenderer> _renderers = {};
   List<CallEngineParticipant> _participants = [];
@@ -75,6 +85,7 @@ class _CallPageState extends ConsumerState<CallPage> {
     final capabilities = ref.read(platformCapabilitiesProvider);
     _audioOutput = callAudioOutputFor(capabilities);
     _systemRoutesAudio = capabilities.callKit;
+    _detachVideoBeforeRelease = capabilities.videoRendererNeedsDetach;
     _phaseSub = session.phaseStream.listen(_onPhase);
     _remoteJoinedSub = session.remoteJoinedStream.listen((_) {
       _syncRingback();
@@ -211,7 +222,13 @@ class _CallPageState extends ConsumerState<CallPage> {
     final liveIds = participants.map((p) => p.id).toSet();
     final stale = _renderers.keys.where((id) => !liveIds.contains(id)).toList();
     for (final id in stale) {
-      await _renderers.remove(id)?.dispose();
+      final renderer = _renderers.remove(id);
+      if (renderer == null) continue;
+      if (_detachVideoBeforeRelease) {
+        unawaited(_releaseAfterDetach(renderer));
+      } else {
+        await renderer.dispose();
+      }
     }
     if (mounted) {
       setState(() {
@@ -273,7 +290,11 @@ class _CallPageState extends ConsumerState<CallPage> {
     _statusSub?.cancel();
     _localStateSub?.cancel();
     for (final renderer in _renderers.values) {
-      renderer.dispose();
+      if (_detachVideoBeforeRelease) {
+        unawaited(_releaseAfterDetach(renderer));
+      } else {
+        renderer.dispose();
+      }
     }
     super.dispose();
   }

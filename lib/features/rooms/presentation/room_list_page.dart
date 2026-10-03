@@ -576,6 +576,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       }
     });
     ref.listen<AsyncValue<IncomingCall>>(incomingCallProvider, (_, next) {
+      if (ref.read(platformCapabilitiesProvider).voipRing) return;
       final call = next.value;
       if (call != null) unawaited(_onIncomingCall(call));
     });

@@ -5,8 +5,14 @@ import UIKit
 final class ApnsTokenPlugin: NSObject, @preconcurrency FlutterPlugin {
   private static let tokenTimeoutNanos: UInt64 = 30 * NSEC_PER_SEC
 
+  private let alerts: any DeliveredAlertStore
   private var pending: [FlutterResult] = []
   private var timeout: Task<Void, Never>?
+
+  init(alerts: any DeliveredAlertStore = SystemDeliveredAlerts()) {
+    self.alerts = alerts
+    super.init()
+  }
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let instance = ApnsTokenPlugin()
@@ -16,10 +22,23 @@ final class ApnsTokenPlugin: NSObject, @preconcurrency FlutterPlugin {
   }
 
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    guard call.method == "getToken" else {
+    switch call.method {
+    case "getToken":
+      requestToken(result)
+    case "environment":
+      result(PushEnvironment.current.rawValue)
+    case "removeDelivered":
+      let roomIds = (call.arguments as? [String: Any])?["roomIds"] as? [String] ?? []
+      let tokens = Set(roomIds.compactMap { ReadModelCache.shared.roomToken($0) })
+      Task {
+        result(await DeliveredAlerts.remove(inRooms: Set(roomIds), tokens: tokens, from: alerts))
+      }
+    default:
       result(FlutterMethodNotImplemented)
-      return
     }
+  }
+
+  private func requestToken(_ result: @escaping FlutterResult) {
     pending.append(result)
     guard pending.count == 1 else { return }
     timeout = Task { [weak self] in

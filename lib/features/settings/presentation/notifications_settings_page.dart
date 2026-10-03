@@ -1,4 +1,5 @@
 import 'dart:async' show unawaited;
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +14,7 @@ import '../../../core/notifications/delivery_failure_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_permission.dart';
 import '../../../core/notifications/notification_permission_provider.dart';
+import '../../../core/notifications/notification_preview.dart';
 import '../../../core/notifications/notify_me.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/settings/app_preferences_provider.dart';
@@ -20,9 +22,13 @@ import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import 'delivery_failure_action.dart';
 import 'notification_delivery_page.dart';
+import 'push_diagnostics_page.dart';
+import 'push_target_status_page.dart';
 
 class NotificationsSettingsPage extends ConsumerStatefulWidget {
-  const NotificationsSettingsPage({super.key});
+  const NotificationsSettingsPage({super.key, this.osVersion});
+
+  final String? osVersion;
 
   @override
   ConsumerState<NotificationsSettingsPage> createState() =>
@@ -101,6 +107,27 @@ class _NotificationsSettingsPageState
     }
   }
 
+  Future<void> _setPreview(NotificationPreview level) async {
+    await ref.read(notificationPreviewProvider.notifier).set(level);
+    await _finishPreviewHint();
+  }
+
+  Future<void> _finishPreviewHint() async {
+    await ref
+        .read(sharedPreferencesProvider)
+        .setBool(notificationPreviewHintKey, true);
+    if (mounted) setState(() {});
+  }
+
+  bool _previewHintDue(NotificationPreview preview) {
+    final prefs = ref.read(sharedPreferencesProvider);
+    return preview == NotificationPreview.full &&
+        prefs.getBool(notificationPreviewHintKey) != true &&
+        notificationRetentionUnpatched(
+          widget.osVersion ?? Platform.operatingSystemVersion,
+        );
+  }
+
   Future<void> _setMessageTone(bool on) async {
     final applePush = ref.read(platformCapabilitiesProvider).apnsRegistration;
     final client = applePush ? ref.read(matrixClientProvider) : null;
@@ -130,6 +157,7 @@ class _NotificationsSettingsPageState
     final canChooseDelivery = capabilities.deliveryModes.length > 1;
     final deliveryMode = ref.watch(notificationDeliveryModeProvider);
     final notifyMe = ref.watch(notifyMeProvider);
+    final preview = ref.watch(notificationPreviewProvider);
     final ringtone = ref.watch(ringtoneEnabledProvider);
     final callVibration = ref.watch(callVibrationEnabledProvider);
     final messageTone = ref.watch(messageToneEnabledProvider);
@@ -230,6 +258,18 @@ class _NotificationsSettingsPageState
                       ),
                     ),
                   ),
+                if (capabilities.pushDiagnostics)
+                  ListTile(
+                    leading: const Icon(Icons.troubleshoot_outlined),
+                    title: const Text('Push target'),
+                    subtitle: const Text('How notifications reach this device'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PushTargetStatusPage(),
+                      ),
+                    ),
+                  ),
               ],
             ],
           ),
@@ -256,6 +296,68 @@ class _NotificationsSettingsPageState
               ),
             ],
           ),
+          if (capabilities.nseNotifications) ...[
+            CardGroup(
+              title: 'Notification content',
+              children: [
+                RadioGroup<NotificationPreview>(
+                  groupValue: preview,
+                  onChanged: (level) => _setPreview(level!),
+                  child: Column(
+                    children: [
+                      for (final level in NotificationPreview.values)
+                        RadioListTile<NotificationPreview>(
+                          title: Text(level.label),
+                          subtitle: Text(level.description),
+                          value: level,
+                        ),
+                    ],
+                  ),
+                ),
+                if (_previewHintDue(preview))
+                  ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text(
+                      'This iOS version can keep notification text after it '
+                      'is deleted',
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Name only keeps message text out of notifications.',
+                        ),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            TextButton(
+                              onPressed: () =>
+                                  _setPreview(NotificationPreview.nameOnly),
+                              child: const Text('Use Name only'),
+                            ),
+                            TextButton(
+                              onPressed: _finishPreviewHint,
+                              child: const Text('Keep as is'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 6, 28, 8),
+              child: Text(
+                'This device keeps a copy of what notifications show. With '
+                'Name only or Nothing, message text stays in Zuno. Incoming '
+                'calls follow this setting too.',
+                style: theme.textTheme.bodySmall!.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
           CardGroup(
             title: capabilities.vibrationPatterns
                 ? 'Sounds & vibration'
@@ -311,6 +413,24 @@ class _NotificationsSettingsPageState
               ),
             ),
           ),
+          if (capabilities.pushDiagnostics)
+            CardGroup(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.fact_check_outlined),
+                  title: const Text('Diagnostics'),
+                  subtitle: const Text(
+                    'Check how notifications and calls reach this device',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const PushDiagnosticsPage(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );

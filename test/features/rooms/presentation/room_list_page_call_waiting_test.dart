@@ -410,8 +410,26 @@ void main() {
     expect(container.read(activeCallProvider), same(session));
   });
 
-  group('ios', () {
-    setUp(() => ambientCapabilities = iosCapabilities);
+  testWidgets('with VoIP rings on iOS the room list leaves an invite to the '
+      'ring coordinator', (tester) async {
+    ambientCapabilities = capabilitiesLike(iosCapabilities, voipRing: true);
+    ringReply = 'shown';
+    await pumpRoomList(tester);
+
+    await deliverAndSettle(tester, invite(callId: 'call1'));
+
+    expect(native.argsOf('reportIncomingCall'), isEmpty);
+    expect(find.byType(IncomingCallPage), findsNothing);
+    expect(SystemRing.instance.ringing.value, isNull);
+  });
+
+  group('ios without VoIP rings', () {
+    setUp(
+      () => ambientCapabilities = capabilitiesLike(
+        iosCapabilities,
+        voipRing: false,
+      ),
+    );
 
     testWidgets('a ring the system shows opens no ring screen of its own', (
       tester,

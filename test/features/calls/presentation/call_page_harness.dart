@@ -151,6 +151,7 @@ class CallPageHarness {
   Future<void> close() async {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(seconds: 1));
   }
 
   Future<void> changeAudioOutputs(List<String> ids) async {

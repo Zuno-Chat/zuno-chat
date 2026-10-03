@@ -1,0 +1,109 @@
+{
+  "cases" : [
+    {
+      "input" : "Alice",
+      "name" : "ascii_short",
+      "output" : "Alice"
+    },
+    {
+      "input" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "name" : "ascii_exactly_64",
+      "output" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "input" : "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij",
+      "name" : "ascii_over_64",
+      "output" : "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcd"
+    },
+    {
+      "input" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00e9",
+      "name" : "two_byte_straddles_64",
+      "output" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "input" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u674ex",
+      "name" : "three_byte_straddles_64",
+      "output" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "input" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ud835\udce9",
+      "name" : "astral_straddles_64",
+      "output" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "input" : "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+      "name" : "emoji_only",
+      "output" : "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00"
+    },
+    {
+      "input" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ud83d\udc4d\ud83c\udffd",
+      "name" : "emoji_modifier_split",
+      "output" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ud83d\udc4d"
+    },
+    {
+      "input" : "Al\u0000ice\n\tSmith\u007f\u0085",
+      "name" : "controls_stripped",
+      "output" : "AliceSmith"
+    },
+    {
+      "input" : "Ann\u007fa",
+      "name" : "delete_stripped",
+      "output" : "Anna"
+    },
+    {
+      "input" : "Bob\u0085by",
+      "name" : "c1_control_stripped",
+      "output" : "Bobby"
+    },
+    {
+      "input" : "\u202eevil\u202c \u200fname\u2066x\u2069\u200e",
+      "name" : "bidi_stripped",
+      "output" : "evil namex"
+    },
+    {
+      "input" : "Ana\u061cis",
+      "name" : "arabic_letter_mark_stripped",
+      "output" : "Anais"
+    },
+    {
+      "input" : "\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "name" : "strip_before_cut",
+      "output" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "input" : "a\u200db\u200cc\ufeffd",
+      "name" : "joiners_kept",
+      "output" : "a\u200db\u200cc\ufeffd"
+    },
+    {
+      "input" : "a\u00a0b",
+      "name" : "no_break_space_kept",
+      "output" : "a\u00a0b"
+    },
+    {
+      "input" : "a\u2065b",
+      "name" : "just_below_isolates_kept",
+      "output" : "a\u2065b"
+    },
+    {
+      "input" : "a\u206ab",
+      "name" : "just_above_isolates_kept",
+      "output" : "a\u206ab"
+    },
+    {
+      "input" : "\u0645\u0631\u062d\u0628\u0627 \u0628\u0643",
+      "name" : "right_to_left_text_kept",
+      "output" : "\u0645\u0631\u062d\u0628\u0627 \u0628\u0643"
+    },
+    {
+      "input" : "\u202e\u0000\u009f",
+      "name" : "only_controls",
+      "output" : ""
+    },
+    {
+      "input" : "",
+      "name" : "empty",
+      "output" : ""
+    }
+  ]
+}

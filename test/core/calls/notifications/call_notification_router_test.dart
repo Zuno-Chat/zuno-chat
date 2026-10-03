@@ -31,6 +31,8 @@ import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/recording_incoming_call_presenter.dart';
 
+final legacyIos = capabilitiesLike(iosCapabilities, voipRing: false);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   FlutterLocalNotificationsPlatform.instance =
@@ -316,7 +318,7 @@ void main() {
       await startNotificationService();
       toNative = installFakeCallsChannel();
       presenter = RecordingIncomingCallPresenter();
-      restartRouterOn(iosCapabilities, presenter: presenter);
+      restartRouterOn(legacyIos, presenter: presenter);
     });
 
     test('a ring it shows, that call is marked as ringing', () async {
@@ -371,10 +373,7 @@ void main() {
     setUp(() async {
       await startNotificationService();
       toNative = installFakeCallsChannel();
-      restartRouterOn(
-        iosCapabilities,
-        presenter: RecordingIncomingCallPresenter(),
-      );
+      restartRouterOn(legacyIos, presenter: RecordingIncomingCallPresenter());
     });
 
     test('ending the call in progress and answering the next starts the '
@@ -553,6 +552,69 @@ void main() {
     });
   });
 
+  group('with VoIP rings, the router leaves native call events alone', () {
+    late RecordedCallsChannel toNative;
+    final voipRing = capabilitiesLike(iosCapabilities, voipRing: true);
+
+    setUp(() async {
+      await startNotificationService();
+      toNative = installFakeCallsChannel(
+        reply: (call) => call.method == 'startSystemCall'
+            ? <String, Object?>{'muted': false}
+            : null,
+      );
+    });
+
+    test('it takes no queued events and answers nothing on its own', () async {
+      restartRouterOn(voipRing);
+      await pumpEventQueue();
+
+      await sendFromNative('answerCall', bobsCall());
+      await pumpEventQueue();
+
+      expect(toNative.methods, isNot(contains('takeCallEvents')));
+      expect(container.read(activeCallProvider), isNull);
+    });
+
+    test('an accept with no screen to show starts the call anyway', () async {
+      restartRouterOn(voipRing);
+      const permissions = MethodChannel(
+        'flutter.baseflow.com/permissions/methods',
+      );
+      final asked = <String>[];
+      messenger.setMockMethodCallHandler(permissions, (call) async {
+        asked.add(call.method);
+        if (call.method == 'checkPermissionStatus') return 1;
+        if (call.method != 'requestPermissions') return null;
+        return {for (final p in (call.arguments as List).cast<int>()) p: 0};
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(permissions, null));
+      final started = <String>[];
+      container.listen(activeCallProvider, (_, session) {
+        if (session != null) started.add(session.callId);
+      });
+
+      await router().handle(accept());
+      await pumpEventQueue();
+
+      expect(started, ['call1']);
+      expect(callIdsSent(toNative, 'startSystemCall'), ['call1']);
+      expect(asked, contains('requestPermissions'));
+    });
+
+    test(
+      'without VoIP rings an accept with no screen still gives up',
+      () async {
+        restartRouterOn(legacyIos);
+
+        await router().handle(accept());
+        await pumpEventQueue();
+
+        expect(container.read(activeCallProvider), isNull);
+      },
+    );
+  });
+
   group('starting the router', () {
     late RecordedCallsChannel toNative;
 
@@ -563,7 +625,7 @@ void main() {
     test(
       'on iOS takes the events CallKit queued before Dart listened, once',
       () async {
-        restartRouterOn(iosCapabilities);
+        restartRouterOn(legacyIos);
         container.read(callNotificationRouterProvider);
         await pumpEventQueue();
 

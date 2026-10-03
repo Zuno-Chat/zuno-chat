@@ -10,15 +10,20 @@ import '../../../core/notifications/apns_delivery_provider.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
+import '../../../core/platform/platform_capabilities.dart';
+import '../../../core/push/apns_pusher_check.dart';
 import '../../../core/push/fcm_gateway.dart';
 import '../../../core/push/matrix_unified_push_gateway.dart';
 import '../../../core/push/push_delivery_log.dart';
+import '../../../core/push/push_diagnostics.dart';
 import '../../../core/push/pusher_info.dart';
 import '../../../core/push/pusher_reconciliation.dart';
 import '../../../core/push/unified_push_distributor_names.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import 'push_diagnostics_display.dart';
+import 'voip_dev_export_card.dart';
 
 String? currentPushkeyFor(NotificationDeliveryMode mode) {
   switch (mode) {
@@ -63,6 +68,10 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
 
   List<PushDeliveryRecord>? _deliveries;
 
+  PushDiagnosticsSnapshot? _diagnostics;
+
+  bool _diagnosticsRead = false;
+
   bool _removing = false;
 
   @override
@@ -77,6 +86,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
   Future<void> _refresh() async {
     final mode = _mode;
     final client = ref.read(matrixClientProvider);
+    final capabilities = ref.read(platformCapabilitiesProvider);
     final distributor = mode == NotificationDeliveryMode.unifiedPush
         ? await unifiedPushDeliveryProvider.knownDistributor()
         : null;
@@ -84,12 +94,17 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     final deliveries = deliveryLogsEachPush(mode)
         ? await readPushDeliveryLog(await SharedPreferences.getInstance())
         : const <PushDeliveryRecord>[];
+    final snapshot = capabilities.pushDiagnostics
+        ? await PushDiagnostics(capabilities: capabilities).snapshot()
+        : null;
     if (!mounted) return;
     setState(() {
       _distributor = distributor ?? '';
       _pushers = pushers ?? const [];
       _pushersFailed = pushers == null;
       _deliveries = deliveries;
+      _diagnostics = snapshot;
+      _diagnosticsRead = true;
     });
   }
 
@@ -116,9 +131,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
           await unifiedPushDeliveryProvider.remove(client);
         case NotificationDeliveryMode.fcm:
           await fcmDeliveryProvider.remove(client);
-        case NotificationDeliveryMode.apns:
-          await apnsDeliveryProvider.stop(client);
         case NotificationDeliveryMode.backgroundService:
+        case NotificationDeliveryMode.apns:
           break;
       }
     } catch (e) {
@@ -143,9 +157,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
         return "The server forgets this device, and this device's registration "
             'token is dropped.';
       case NotificationDeliveryMode.backgroundService:
-        return 'Background sync has nothing registered to remove.';
       case NotificationDeliveryMode.apns:
-        return 'The server forgets this device.';
+        return 'Background sync has nothing registered to remove.';
     }
   }
 
@@ -219,6 +232,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final capabilities = ref.watch(platformCapabilitiesProvider);
     final mode = ref.watch(notificationDeliveryModeProvider);
     final client = ref.watch(matrixClientProvider);
     final currentPushkey = currentPushkeyFor(mode);
@@ -287,26 +301,32 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
                     title: const Text('Last error'),
                     subtitle: Text(lastPusherError),
                   ),
-                ListTile(
-                  leading: _removing
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: Padding(
-                            padding: EdgeInsets.all(2),
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      : Icon(Icons.delete_outline, color: colors.error),
-                  title: Text(
-                    'Remove push target',
-                    style: TextStyle(color: colors.error),
+                if (mode != NotificationDeliveryMode.apns)
+                  ListTile(
+                    leading: _removing
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Padding(
+                              padding: EdgeInsets.all(2),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : Icon(Icons.delete_outline, color: colors.error),
+                    title: Text(
+                      'Remove push target',
+                      style: TextStyle(color: colors.error),
+                    ),
+                    subtitle: Text(_removalSubtitle(mode)),
+                    onTap: _removing ? null : _removeTarget,
                   ),
-                  subtitle: Text(_removalSubtitle(mode)),
-                  onTap: _removing ? null : _removeTarget,
-                ),
               ],
             ),
+            if (capabilities.pushDiagnostics)
+              CardGroup(
+                title: 'Diagnostics',
+                children: _diagnosticRows(client),
+              ),
             if (deliveryLogsEachPush(mode))
               CardGroup(
                 title: 'Recent pushes',
@@ -323,6 +343,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
                 ..._pusherRows(groups.others, pushers == null),
               ],
             ),
+            if (capabilities.voipRing) const VoipDevExportCard(),
           ],
         ),
       ),
@@ -350,10 +371,35 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
         return "Makes the server forget this device and drops this device's "
             'registration token';
       case NotificationDeliveryMode.backgroundService:
-        return 'Nothing is registered for background sync';
       case NotificationDeliveryMode.apns:
-        return 'Makes the server forget this device';
+        return 'Nothing is registered for background sync';
     }
+  }
+
+  List<Widget> _diagnosticRows(Client client) {
+    if (!_diagnosticsRead) return const [_EmptyNote('Loading…')];
+    final snapshot = _diagnostics;
+    if (snapshot == null) {
+      return const [_EmptyNote('Could not read. Pull down to try again.')];
+    }
+    final appId = apnsDeliveryProvider.registeredAppId;
+    final pushkey = apnsDeliveryProvider.pushkey;
+    final check = appId == null || pushkey == null
+        ? null
+        : checkApnsPusher(
+            _pushersFailed ? null : _pushers,
+            appId: appId,
+            pushkey: pushkey,
+            gatewayUrl: fcmGatewayUri(client.homeserver),
+          );
+    return [
+      for (final row in pushDiagnosticRows(
+        snapshot,
+        pusherCheck: check,
+        dropped: apnsDeliveryProvider.dropped.value,
+      ))
+        _DetailRow(label: row.label, value: row.value),
+    ];
   }
 
   List<Widget> _deliveryRows(List<PushDeliveryRecord>? deliveries) {

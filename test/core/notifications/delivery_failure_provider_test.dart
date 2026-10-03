@@ -11,10 +11,12 @@ import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_permission_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/voip/voip_registration.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/app_lifecycle.dart';
 import '../../helpers/fake_unified_push.dart';
+import '../../helpers/fake_voip_registration.dart';
 import '../../helpers/platform_capabilities.dart';
 
 class _FixedNotificationsAllowed extends NotificationsAllowedNotifier {
@@ -41,6 +43,7 @@ Future<ProviderContainer> _container({
   String mode = 'backgroundService',
   String? autoSelected = 'backgroundService',
   PlatformCapabilities? capabilities,
+  VoipRegistration? voip,
 }) async {
   SharedPreferences.setMockInitialValues({
     'settings.notification_delivery_mode': mode,
@@ -55,6 +58,7 @@ Future<ProviderContainer> _container({
       ),
       if (capabilities != null)
         platformCapabilitiesProvider.overrideWithValue(capabilities),
+      if (voip != null) voipRegistrationProvider.overrideWithValue(voip),
     ],
   );
   addTearDown(container.dispose);
@@ -80,6 +84,67 @@ void main() {
     final container = await _container(allowed: null);
 
     expect(container.read(deliveryFailureProvider), isNull);
+  });
+
+  group('calls on iOS', () {
+    late FakeVoipRegistration voip;
+
+    setUp(() => voip = FakeVoipRegistration());
+
+    Future<ProviderContainer> start({required bool? allowed}) => _container(
+      allowed: allowed,
+      mode: 'apns',
+      autoSelected: null,
+      capabilities: capabilitiesLike(iosCapabilities, voipRing: true),
+      voip: voip,
+    );
+
+    test('a refused registration says calls may not ring, even with '
+        'notifications off', () async {
+      final container = await start(allowed: false);
+
+      voip.stateValue.value = VoipRegistrationState.failed;
+
+      expect(container.read(deliveryFailureProvider), callsMayNotRing);
+    });
+
+    test('a server that is not there yet stays quiet', () async {
+      final container = await start(allowed: true);
+
+      voip.stateValue.value = VoipRegistrationState.unreachable;
+
+      expect(container.read(deliveryFailureProvider), isNull);
+    });
+
+    test(
+      'a failing alert registration is shown before the calls one',
+      () async {
+        apnsDeliveryProvider.status.value = ApnsStatus.tokenFailed;
+        addTearDown(() => apnsDeliveryProvider.status.value = ApnsStatus.idle);
+        final container = await start(allowed: true);
+
+        voip.stateValue.value = VoipRegistrationState.failed;
+
+        expect(
+          container.read(deliveryFailureProvider)?.action,
+          DeliveryFailureAction.retry,
+        );
+      },
+    );
+
+    test('Android never shows it', () async {
+      final container = await _container(
+        allowed: true,
+        mode: 'fcm',
+        autoSelected: null,
+        capabilities: androidCapabilities,
+        voip: voip,
+      );
+
+      voip.stateValue.value = VoipRegistrationState.failed;
+
+      expect(container.read(deliveryFailureProvider), isNot(callsMayNotRing));
+    });
   });
 
   group('with Apple push', () {

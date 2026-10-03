@@ -61,7 +61,6 @@ final class WakeLockPlugin: NSObject, @preconcurrency FlutterPlugin {
 
   private static let defaultTag = "notification"
   private static let defaultTimeoutMs = 30_000
-  private static let responseTimeoutMs = 10_000
   private static let ledger = WakeLockLedger(
     begin: { name, expired in
       let task = UIApplication.shared.beginBackgroundTask(withName: name) { expired() }
@@ -83,14 +82,6 @@ final class WakeLockPlugin: NSObject, @preconcurrency FlutterPlugin {
         channel: FlutterMethodChannel(
           name: channel.rawValue, binaryMessenger: registrar.messenger()))
     }
-  }
-
-  static func holdForNotificationResponse() {
-    ledger.holdResponse(timeoutMs: responseTimeoutMs)
-  }
-
-  static func releaseNotificationResponse() {
-    ledger.release(WakeLockLedger.responseTag)
   }
 
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -126,8 +117,6 @@ final class WakeLockLedger {
       _ milliseconds: Int, _ fire: @escaping @MainActor @Sendable () -> Void
     ) -> @MainActor () -> Void
 
-  static let responseTag = "notification_response"
-
   private struct Held {
     let task: Int
     let generation: Int
@@ -148,24 +137,13 @@ final class WakeLockLedger {
 
   var heldTags: Set<String> { Set(held.keys) }
 
-  func acquire(_ tag: String, timeoutMs: Int) {
-    hold(tag, timeoutMs: timeoutMs)
-    if tag != Self.responseTag {
-      release(Self.responseTag)
-    }
-  }
-
-  func holdResponse(timeoutMs: Int) {
-    hold(Self.responseTag, timeoutMs: timeoutMs)
-  }
-
   func release(_ tag: String) {
     guard let lock = held.removeValue(forKey: tag) else { return }
     lock.cancelTimeout()
     end(lock.task)
   }
 
-  private func hold(_ tag: String, timeoutMs: Int) {
+  func acquire(_ tag: String, timeoutMs: Int) {
     release(tag)
     generation += 1
     let current = generation

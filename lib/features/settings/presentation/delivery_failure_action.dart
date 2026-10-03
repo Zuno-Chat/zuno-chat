@@ -10,6 +10,7 @@ import '../../../core/notifications/delivery_failure_provider.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
+import '../../../core/push/voip/voip_registration.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import 'notification_delivery_page.dart';
 
@@ -55,5 +56,9 @@ Future<void> runDeliveryFailureAction(
         case NotificationDeliveryMode.backgroundService:
           break;
       }
+    case DeliveryFailureAction.retryCalls:
+      await ref
+          .read(voipRegistrationProvider)
+          .registerNow(ref.read(matrixClientProvider));
   }
 }

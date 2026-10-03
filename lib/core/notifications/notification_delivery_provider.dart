@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
 
+import '../platform/platform_capabilities.dart';
 import '../push/fcm_startup.dart';
 import '../push/push_wake_lock.dart';
+import '../push/voip/voip_registration.dart';
 import 'apns_delivery_provider.dart';
 import 'background_sync_delivery_provider.dart';
 import 'fcm_delivery_provider.dart';
@@ -41,6 +43,11 @@ Future<void> stopAllNotificationDelivery(Client client) async {
   for (final mode in NotificationDeliveryMode.values) {
     try {
       await notificationDeliveryProviderFor(mode).stop(client);
+    } catch (_) {}
+  }
+  if (ambientCapabilities.voipRing) {
+    try {
+      await voipRegistration.stop(client);
     } catch (_) {}
   }
 }

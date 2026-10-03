@@ -4,6 +4,7 @@ import 'package:zuno/core/notifications/delivery_failure.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/unified_push_delivery_provider.dart';
+import 'package:zuno/core/push/voip/voip_registration.dart';
 
 DeliveryFailure? failureFor(
   NotificationDeliveryMode mode, {
@@ -712,5 +713,17 @@ void main() {
         isNull,
       );
     });
+  });
+
+  test('only a refused call registration is shown, with Retry', () {
+    for (final state in VoipRegistrationState.values) {
+      expect(
+        callsDeliveryFailure(state),
+        state == VoipRegistrationState.failed ? callsMayNotRing : isNull,
+        reason: state.name,
+      );
+    }
+    expect(callsMayNotRing.message, 'Calls may not ring while Zuno is closed');
+    expect(deliveryFailureActionLabel(callsMayNotRing.action), 'Retry');
   });
 }

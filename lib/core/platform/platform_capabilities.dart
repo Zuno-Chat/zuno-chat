@@ -45,6 +45,11 @@ class PlatformCapabilities {
   final bool clientLease;
   final bool instantPushNotices;
   final bool notificationAvatars;
+  final bool pushDiagnostics;
+  final bool voipRing;
+  final bool nseNotifications;
+  final bool nativeNotificationActions;
+  final bool videoRendererNeedsDetach;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
 
@@ -88,6 +93,11 @@ class PlatformCapabilities {
     required this.clientLease,
     required this.instantPushNotices,
     required this.notificationAvatars,
+    required this.pushDiagnostics,
+    required this.voipRing,
+    required this.nseNotifications,
+    required this.nativeNotificationActions,
+    required this.videoRendererNeedsDetach,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
   });
@@ -135,6 +145,11 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         clientLease: true,
         instantPushNotices: true,
         notificationAvatars: true,
+        pushDiagnostics: false,
+        voipRing: false,
+        nseNotifications: false,
+        nativeNotificationActions: false,
+        videoRendererNeedsDetach: false,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
           NotificationDeliveryMode.unifiedPush,
@@ -182,6 +197,11 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         clientLease: true,
         instantPushNotices: false,
         notificationAvatars: false,
+        pushDiagnostics: true,
+        voipRing: true,
+        nseNotifications: true,
+        nativeNotificationActions: true,
+        videoRendererNeedsDetach: true,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,
       ),

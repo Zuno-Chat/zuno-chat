@@ -10,7 +10,7 @@ three now live in or under Settings.
 | Category | Holds |
 |---|---|
 | Account | Profile picture, display name, username, change password |
-| Notifications | Enable, a row per silenced chat channel, full-screen call alerts, notify-for, sounds & vibration, and a **Delivery** row opening its own page where there is a delivery choice, else a problem row while push fails; full-screen alerts, Delivery and the problem row only while notifications are allowed |
+| Notifications | Enable, a row per silenced chat channel, full-screen call alerts, notify-for, sounds & vibration, and a **Delivery** row opening its own page where there is a delivery choice, else a problem row while push fails; full-screen alerts, Delivery and the problem row only while notifications are allowed. iOS adds a Push target row (also only while allowed), Notification content and Diagnostics |
 | Chats & calls | Theme, typing indicator, prevent accidental calls |
 | Data & storage | Reduce media size, use less data for calls, clear cache, clear media cache |
 | Security | Status card, recovery, devices, blocked people, incognito keyboard, prevent screenshots, Advanced (disabled placeholder) |
@@ -46,6 +46,8 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   `security_privacy_settings_page.dart`, `about_page.dart`.
   `delivery_failure_action.dart` runs a delivery failure's action for both
   the home banner and the Notifications problem row.
+  `push_target_status_page.dart` and `push_diagnostics_page.dart` (iOS,
+  report built by `push_diagnostics_report.dart`) sit under Notifications.
 - `settings_widgets.dart` — shared row widgets, including
   `ComingSoonTile`/`ComingSoonSwitchTile`: disabled placeholder rows used
   for features not yet built, so the eventual location is visible without
@@ -67,8 +69,8 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
 - **Local device prefs** (`shared_preferences`, via
   `app_preferences_provider.dart`): theme mode (System/Light/Dark),
   "Send 'Typing…' indicator" toggle, notification delivery mode enum,
-  incognito keyboard toggle. These are per-device, not synced across a
-  user's sessions.
+  notification preview level (iOS), incognito keyboard toggle. These are
+  per-device, not synced across a user's sessions.
 - **On by default**: prevent accidental calls, reduce media size, use less
   data for calls, incognito keyboard, prevent screenshots. The default
   applies only while nothing is stored, so a toggle someone already set
@@ -130,13 +132,14 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   choice.** The method picker and its per-transport rows (distributor,
   status, battery, background data, Autostart on phones that need it) are
   set once and troubleshooting-shaped, so they stay off the everyday
-  page. With one delivery mode (iOS) there is no Delivery row or page, so no
-  Push target page either: a push failure shows as a problem row with its
-  action on the Notifications page, beside the home banner, and stays there
-  after the banner is dismissed. The delivery banner's "Open settings" opens
-  `NotificationDeliveryPage` directly. When Play services is missing or the
-  build has no Firebase config, the banner's action switches to
-  UnifiedPush, or to background sync when no distributor is installed.
+  page. With one delivery mode (iOS) there is no Delivery row or page:
+  Push target opens from its own row, and a push failure shows as a problem
+  row with its action on the Notifications page, beside the home banner,
+  and stays there after the banner is dismissed. The delivery banner's
+  "Open settings" opens `NotificationDeliveryPage` directly. When Play
+  services is missing or the build has no Firebase config, the banner's
+  action switches to UnifiedPush, or to background sync when no distributor
+  is installed.
 - **Push status copy never names the server.** The pusher step reads
   "Finishing registration…" and its failure "Could not finish
   registration" on the FCM and UnifiedPush Status rows; failure copy follows
@@ -149,7 +152,27 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   confirmation says the device stops receiving notifications "until you
   register again or Zuno restarts". After a removal UnifiedPush's Status row
   offers Register (an idle row otherwise offers nothing); FCM's idle row
-  always does.
+  always does. The Remove row is Android-only: Apple push shows none.
+- **Push target on iOS is a diagnostics view**: the pusher details and
+  other registrations as on Android, a Diagnostics card (iOS notification
+  settings, the push environment and this build's app id, whether a device
+  token arrived, whether the server's pusher still matches
+  (`checkApnsPusher`), the drop count) and, in the development APNs
+  environment, the VoIP test values for `tool/push_test`, copied through the
+  sensitive clipboard.
+- **Diagnostics is one page for the whole push and ring chain**
+  (`PushDiagnosticsPage`, `notifications.md`): Permission, This device,
+  Calls, Notification extension, Delivery and Device reports, each row with
+  a status icon. "Send a test notification" goes through the server (shown
+  even with Zuno open; "Too many tests in the last hour" past its limit).
+  "Share diagnostics" shares the report as text with Matrix ids, URLs and
+  long tokens redacted (`redactDiagnostics`).
+- **Notification content is the preview level** (`NotificationPreview`,
+  `notifications.md`): Name and message, Name only or Nothing, under a note
+  that the device keeps a copy of what notifications show and that calls
+  follow the setting too. On an iOS version that keeps deleted notification
+  text (`notificationRetentionUnpatched`) a one-time hint at Name and
+  message offers "Use Name only" or "Keep as is".
 - **Platform-specific rows are capability-gated**
   (`platformCapabilitiesProvider`, `app-foundation.md`), never
   `Platform`-checked:
@@ -160,6 +183,9 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
     refuses a disabled mode, and the page starts a mode only once it saved.
   - Problem row (`deliveryFailureProvider`): only with a single delivery
     mode.
+  - Push target row (while notifications are allowed), the Diagnostics row
+    and the Push target page's Diagnostics card: `pushDiagnostics`. The
+    VoIP test card: `voipRing`. Notification content: `nseNotifications`.
   - Settings root: the Notifications subtitle reads "Sounds, delivery" with
     a delivery choice, else "Sounds, mentions".
   - Enable notifications: with `fullScreenIntent` its subtitle says calls
@@ -329,7 +355,8 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
 - **Notifications**: the delivery-mode picker and its transports
   (background sync, UnifiedPush, FCM) are configured from Settings →
   Notifications → Delivery (Android; iOS has only APNs and no Delivery page)
-  but documented in `docs/features/notifications.md`.
+  but documented in `docs/features/notifications.md`, as are the iOS
+  extension, preview levels and what the diagnostics check.
 - **`matrix` Dart SDK**: `Client` is the single app-wide instance
   (`createMatrixClient()`); Settings screens call its methods directly —
   no service/repository layer, matching the rest of the app.

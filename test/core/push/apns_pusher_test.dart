@@ -29,10 +29,29 @@ void main() {
     });
   });
 
-  test('a release build registers under the production app id, any other '
-      'build under the development one', () {
+  test('when the environment cannot be read, a release build falls back to '
+      'the production app id and any other build to the development one', () {
     expect(apnsAppIdFor(release: true), 'im.zuno.chat.ios');
     expect(apnsAppIdFor(release: false), 'im.zuno.chat.ios.dev');
+  });
+
+  test('names only the two Apple push environments', () {
+    expect(apnsEnvironmentNamed('production'), ApnsEnvironment.production);
+    expect(apnsEnvironmentNamed('development'), ApnsEnvironment.development);
+    for (final other in [null, '', 'Production', 'sandbox', 1]) {
+      expect(apnsEnvironmentNamed(other), isNull, reason: '$other');
+    }
+  });
+
+  test('each environment registers under its own app id', () {
+    expect(
+      apnsAppIdForEnvironment(ApnsEnvironment.production),
+      'im.zuno.chat.ios',
+    );
+    expect(
+      apnsAppIdForEnvironment(ApnsEnvironment.development),
+      'im.zuno.chat.ios.dev',
+    );
   });
 
   group('the alert Apple shows when the app is not running', () {

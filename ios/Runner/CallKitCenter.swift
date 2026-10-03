@@ -1,30 +1,10 @@
 @preconcurrency import AVFoundation
 @preconcurrency import CallKit
-import CryptoKit
 @preconcurrency import Flutter
 import UIKit
 import os
 
-enum CallIdentity {
-  private static let namespace = UUID(uuidString: "5C2B7E0A-3D4F-4B8E-9A61-2F7C8D0E1B34")!
-
-  static func uuid(roomId: String, callId: String) -> UUID {
-    var name = withUnsafeBytes(of: namespace.uuid) { Array($0) }
-    name.append(contentsOf: key(roomId: roomId, callId: callId).utf8)
-    var hash = Array(Insecure.SHA1.hash(data: name).prefix(16))
-    hash[6] = (hash[6] & 0x0F) | 0x50
-    hash[8] = (hash[8] & 0x3F) | 0x80
-    return UUID(
-      uuid: (
-        hash[0], hash[1], hash[2], hash[3], hash[4], hash[5], hash[6], hash[7],
-        hash[8], hash[9], hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]
-      ))
-  }
-
-  static func key(roomId: String, callId: String) -> String {
-    "\(roomId)\n\(callId)"
-  }
-
+extension CallIdentity {
   static func endedReason(_ name: String?) -> CXCallEndedReason {
     switch name {
     case "unanswered": return .unanswered
@@ -34,21 +14,52 @@ enum CallIdentity {
     default: return .remoteEnded
     }
   }
+
+  static func endedReason(_ reason: RingEndReason) -> CXCallEndedReason {
+    switch reason {
+    case .failed: return .failed
+    case .unanswered: return .unanswered
+    case .remoteEnded: return .remoteEnded
+    }
+  }
+}
+
+enum CallSource: String, Sendable {
+  case sync
+  case push
+  case generic
+  case bfu
+}
+
+struct CallLedgerChange: Equatable, Sendable {
+  let identity: UUID
+  let roomId: String
+  let state: Ledger.State
+  let source: Ledger.Source
+}
+
+enum PushReport: Equatable, Sendable {
+  case shown(UUID)
+  case notShown
+  case completed
 }
 
 @MainActor
 private final class TrackedCall {
-  let key: String
+  private(set) var key: String
   let uuid: UUID
-  let roomId: String
-  let callId: String
-  let callerId: String
+  private(set) var roomId: String
+  private(set) var callId: String
+  private(set) var callerId: String
   let incoming: Bool
+  var source: CallSource
   let reportedAt = Date()
   var name: String
   var isVideo: Bool
+  let ringSeconds: TimeInterval
   var reportCompleted: Bool
   var pendingEnd: CXCallEndedReason?
+  var endState: Ledger.State?
   var answered = false
   var adopted = false
   var usesCallKit = true
@@ -56,23 +67,45 @@ private final class TrackedCall {
   var started = false
   var connectedAt: Date?
   var ownActions: Set<UUID> = []
+  var heldAnswer: (any AnswerActionHandle)?
+  var ringHold: UUID?
   var ringTimer: Task<Void, Never>?
   var adoptTimer: Task<Void, Never>?
   var activationTimer: Task<Void, Never>?
+  var heldAnswerTimer: Task<Void, Never>?
 
   init(
     uuid: UUID, roomId: String, callId: String, callerId: String, incoming: Bool, name: String,
-    isVideo: Bool
+    isVideo: Bool, source: CallSource = .sync, ringSeconds: TimeInterval = 55
   ) {
-    self.key = CallIdentity.key(roomId: roomId, callId: callId)
+    self.key =
+      roomId.isEmpty
+      ? "generic\n\(uuid.uuidString)" : CallIdentity.key(roomId: roomId, callId: callId)
     self.uuid = uuid
     self.roomId = roomId
     self.callId = callId
     self.callerId = callerId
     self.incoming = incoming
+    self.source = source
     self.name = name
     self.isVideo = isVideo
+    self.ringSeconds = ringSeconds
     self.reportCompleted = !incoming
+  }
+
+  var isBound: Bool { !roomId.isEmpty }
+
+  var identity: UUID? {
+    isBound ? CallIdentity.uuid(roomId: roomId, callId: callId) : nil
+  }
+
+  var ledgerSource: Ledger.Source { source == .sync ? .sync : .push }
+
+  func bind(roomId: String, callId: String, callerId: String) {
+    self.roomId = roomId
+    self.callId = callId
+    self.callerId = callerId
+    key = CallIdentity.key(roomId: roomId, callId: callId)
   }
 
   var arguments: [String: Any] {
@@ -80,13 +113,22 @@ private final class TrackedCall {
   }
 
   var ringArguments: [String: Any] {
-    ["roomId": roomId, "callId": callId, "callerId": callerId, "isVideo": isVideo]
+    var arguments: [String: Any] = [
+      "callerId": callerId, "isVideo": isVideo, "video": isVideo, "uuid": uuid.uuidString,
+      "source": source.rawValue,
+    ]
+    if isBound {
+      arguments["roomId"] = roomId
+      arguments["callId"] = callId
+    }
+    return arguments
   }
 
   func cancelTimers() {
     ringTimer?.cancel()
     adoptTimer?.cancel()
     activationTimer?.cancel()
+    heldAnswerTimer?.cancel()
   }
 }
 
@@ -95,29 +137,70 @@ final class CallKitCenter: NSObject {
   static let shared = CallKitCenter()
   nonisolated static let log = Logger(subsystem: "im.zuno.chat", category: "callkit")
 
-  private static let ringLimit: TimeInterval = 55
+  nonisolated private static let syncAdoptLimit: TimeInterval = 30
+  nonisolated private static let pushAdoptLimit: TimeInterval = 45
   nonisolated private static let ignoredRingLimit: TimeInterval = 25
-  private static let adoptLimit: TimeInterval = 30
   private static let activationLimit: TimeInterval = 10
   private static let teardownGrace: TimeInterval = 15
+  private static let declineGrace: TimeInterval = 25
+  private static let ringGrace: TimeInterval = 30
+  private static let heldAnswerMargin: TimeInterval = 2
   private static let unmuteEchoWindow: TimeInterval = 1.5
   private static let tombstoneLimit = 64
   private static let pendingEventLimit = 32
   private static let ringtoneEnabledKey = "flutter.settings.ringtone_enabled"
+  static let placeholderHandle = "zuno"
 
   let audio = CallAudio()
-  private var provider: CXProvider?
-  private lazy var controller = CXCallController(queue: .main)
+  var onLedger: (@MainActor (CallLedgerChange) -> Void)?
+  var roomToken: @MainActor (String) -> String? = { _ in nil }
+  var previewLevel: @MainActor () -> PreviewLevel = { .full }
+  var isResolved: @MainActor (UUID) -> Bool = { _ in false }
+  var ringFlag: @MainActor () -> Bool? = { nil }
+  var onUnboundAnswerExpired: (@MainActor (CallSource) -> Void)?
+
+  private let availableOverride: Bool?
+  private let makeProvider:
+    @MainActor (CXProviderConfiguration, any CXProviderDelegate) -> any CallProviding
+  private let requestTransaction:
+    @MainActor (CXAction, @escaping @MainActor @Sendable (any Error) -> Void) -> Void
+  private var provider: (any CallProviding)?
   private lazy var iconData = UIImage(named: "CallKitIcon")?.pngData()
   private var calls: [String: TrackedCall] = [:]
   private var keysByUUID: [UUID: String] = [:]
-  private var tombstones: [String] = []
+  private var tombstones: [(key: String, identity: UUID)] = []
   private var pendingEvents: [[String: Any]] = []
   private var holds: [UUID: UIBackgroundTaskIdentifier] = [:]
-  private var channel: FlutterMethodChannel?
+  private var declineHolds: [String: UUID] = [:]
+  private var sink: (any CallEventSink)?
   private var dartReady = false
 
+  init(
+    available: Bool? = nil,
+    makeProvider: (
+      @MainActor (CXProviderConfiguration, any CXProviderDelegate) -> any CallProviding
+    )? = nil,
+    requestTransaction: (
+      @MainActor (CXAction, @escaping @MainActor @Sendable (any Error) -> Void) -> Void
+    )? = nil
+  ) {
+    availableOverride = available
+    self.makeProvider =
+      makeProvider ?? { SystemCallProvider(configuration: $0, delegate: $1) }
+    let controller = CXCallController(queue: .main)
+    self.requestTransaction =
+      requestTransaction ?? { action, onFailure in
+        controller.request(CXTransaction(action: action)) { error in
+          guard let error else { return }
+          let box = UncheckedSendable(error)
+          Task { @MainActor in onFailure(box.value) }
+        }
+      }
+    super.init()
+  }
+
   var isAvailable: Bool {
+    if let availableOverride { return availableOverride }
     #if targetEnvironment(simulator)
       return false
     #else
@@ -135,7 +218,12 @@ final class CallKitCenter: NSObject {
   }
 
   nonisolated static func ringtoneSound(_ stored: Any?) -> String? {
-    (stored as? Bool) == false ? "silent_ring.caf" : nil
+    ringtoneSound(stored: stored, flag: nil)
+  }
+
+  nonisolated static func ringtoneSound(stored: Any?, flag: Bool?) -> String? {
+    if let enabled = stored as? Bool { return enabled ? nil : "silent_ring.caf" }
+    return flag == false ? "silent_ring.caf" : nil
   }
 
   nonisolated static func systemEndEvent(ringingFor ringing: TimeInterval?, answerWithdrawn: Bool)
@@ -147,6 +235,19 @@ final class CallKitCenter: NSObject {
     return answerWithdrawn ? "declineCall" : "hangUpCall"
   }
 
+  nonisolated static func adoptLimit(_ source: CallSource) -> TimeInterval {
+    source == .sync ? syncAdoptLimit : pushAdoptLimit
+  }
+
+  nonisolated static func ledgerState(_ reason: CXCallEndedReason) -> Ledger.State {
+    switch reason {
+    case .unanswered: return .missed
+    case .declinedElsewhere: return .declined
+    case .answeredElsewhere: return .answered
+    default: return .ended
+    }
+  }
+
   func setUp() {
     audio.setUp()
     audio.onRouteChange = { [weak self] state in
@@ -154,17 +255,20 @@ final class CallKitCenter: NSObject {
     }
     audio.onMediaServicesReset = { [weak self] in
       guard let self, let provider = self.provider else { return }
-      provider.configuration = self.makeConfiguration()
+      provider.setConfiguration(self.makeConfiguration())
+    }
+    if isAvailable {
+      _ = providerForCall()
     }
   }
 
-  func attach(_ channel: FlutterMethodChannel) {
-    self.channel = channel
+  func attach(_ sink: any CallEventSink) {
+    self.sink = sink
     dartReady = false
   }
 
   func detach() {
-    channel = nil
+    sink = nil
     dartReady = false
     endOrphanedCalls("the flutter engine went away")
     audio.releaseMedia()
@@ -177,15 +281,33 @@ final class CallKitCenter: NSObject {
 
   func takeEvents() -> [[String: Any]] {
     let ringing: [[String: Any]] = calls.values
-      .filter { $0.incoming && !$0.answered && $0.reportCompleted }
+      .filter { $0.incoming && (!$0.answered || !$0.isBound) && $0.reportCompleted }
       .map { ["method": "ringing", "arguments": $0.ringArguments] }
     dartReady = true
     defer { pendingEvents.removeAll() }
     return ringing + pendingEvents
   }
 
+  func snapshot() -> CallsSnapshot {
+    var snapshot = CallsSnapshot()
+    for call in calls.values {
+      if call.incoming && !call.answered {
+        snapshot.ringing = snapshot.ringing ?? call.uuid
+      } else {
+        snapshot.active = snapshot.active ?? call.uuid
+      }
+      if let identity = call.identity {
+        snapshot.identities[identity] = call.uuid
+      }
+    }
+    snapshot.resolved = Set(tombstones.map(\.identity))
+    return snapshot
+  }
+
   private func endOrphanedCalls(_ reason: String) {
-    let orphaned = calls.values.filter { $0.adopted || ($0.answered && !hasQueuedAnswer($0)) }
+    let orphaned = calls.values.filter {
+      $0.adopted || ($0.answered && $0.heldAnswer == nil && !hasQueuedAnswer($0))
+    }
     guard !orphaned.isEmpty else { return }
     Self.log.error(
       "\(reason, privacy: .public) with \(orphaned.count, privacy: .public) call(s) live")
@@ -200,12 +322,12 @@ final class CallKitCenter: NSObject {
     completion: @escaping (String) -> Void
   ) {
     let key = CallIdentity.key(roomId: roomId, callId: callId)
-    if tombstones.contains(key) {
-      completion("filtered")
-      return
-    }
     if calls[key] != nil {
       completion("shown")
+      return
+    }
+    if tombstoned(key) || isResolved(CallIdentity.uuid(roomId: roomId, callId: callId)) {
+      completion("filtered")
       return
     }
     guard isAvailable else {
@@ -214,20 +336,183 @@ final class CallKitCenter: NSObject {
     }
     let call = TrackedCall(
       uuid: CallIdentity.uuid(roomId: roomId, callId: callId), roomId: roomId, callId: callId,
-      callerId: callerId, incoming: true, name: name, isVideo: isVideo)
+      callerId: callerId, incoming: true, name: CallerName.shown(name, level: previewLevel()),
+      isVideo: isVideo)
     track(call)
     let reply = UncheckedSendable(completion)
-    providerForCall().reportNewIncomingCall(with: call.uuid, update: update(for: call)) {
+    providerForCall().reportNewIncomingCall(call.uuid, update: update(for: call)) {
       [weak self] error in
       let refusal = CallKitCenter.refusal(error)
       if let error, let refusal {
-        let detail = error.localizedDescription
         CallKitCenter.log.notice(
-          "incoming call not shown (\(refusal, privacy: .public)): \(detail, privacy: .public)")
+          "incoming call not shown (\(refusal, privacy: .public)): \(error.localizedDescription, privacy: .public)"
+        )
       }
-      Task { @MainActor [weak self] in
-        reply.value(self?.reported(key, refusal: refusal) ?? "filtered")
+      reply.value(self?.reported(key, refusal: refusal) ?? "filtered")
+    }
+  }
+
+  func reportPush(
+    _ action: RingAction, completion: @escaping @MainActor @Sendable (PushReport) -> Void
+  ) {
+    switch action {
+    case .complete:
+      completion(.completed)
+    case .ring(let ring):
+      let call = TrackedCall(
+        uuid: ring.uuid, roomId: ring.roomId, callId: ring.callId, callerId: ring.callerId,
+        incoming: true, name: ring.name, isVideo: ring.video, source: .push,
+        ringSeconds: TimeInterval(ring.ringSeconds))
+      reportTracked(call, completion: completion)
+    case .generic(let ring):
+      let call = TrackedCall(
+        uuid: ring.uuid, roomId: "", callId: "", callerId: "", incoming: true,
+        name: CallerName.generic, isVideo: false,
+        source: ring.beforeFirstUnlock ? .bfu : .generic,
+        ringSeconds: TimeInterval(ring.ringSeconds))
+      reportTracked(call, completion: completion)
+    case .update(let uuid, let name, let video, let reportAgain):
+      guard let call = trackedCall(uuid) else {
+        reportPlaceholder(uuid, endingWith: .remoteEnded, completion: completion)
+        return
       }
+      if reportAgain {
+        let provider = providerForCall()
+        provider.reportNewIncomingCall(uuid, update: update(for: call)) { [weak self] error in
+          if error == nil {
+            if let self, let tracked = self.trackedCall(uuid) {
+              self.reportEnded(tracked.key, .remoteEnded)
+            } else {
+              provider.reportEnded(uuid, reason: .remoteEnded)
+            }
+          }
+          completion(.completed)
+        }
+      } else {
+        completion(.completed)
+      }
+      applyUpdate(to: call, name: name, isVideo: video, authoritative: false)
+    case .duplicate(let uuid):
+      reportPlaceholder(uuid, endingWith: .remoteEnded, completion: completion)
+    case .reportThenEnd(let uuid, let reason):
+      reportPlaceholder(
+        uuid, endingWith: CallIdentity.endedReason(reason), completion: completion)
+    }
+  }
+
+  private func reportTracked(
+    _ call: TrackedCall, completion: @escaping @MainActor @Sendable (PushReport) -> Void
+  ) {
+    guard isAvailable else {
+      completion(.notShown)
+      return
+    }
+    track(call)
+    let key = call.key
+    providerForCall().reportNewIncomingCall(call.uuid, update: update(for: call)) {
+      [weak self] error in
+      let refusal = CallKitCenter.refusal(error)
+      if let error, let refusal {
+        CallKitCenter.log.notice(
+          "pushed call not shown (\(refusal, privacy: .public)): \(error.localizedDescription, privacy: .public)"
+        )
+      }
+      let outcome = self?.reported(key, refusal: refusal) ?? "filtered"
+      completion(outcome == "shown" ? .shown(call.uuid) : .notShown)
+    }
+  }
+
+  private func reportPlaceholder(
+    _ uuid: UUID, endingWith reason: CXCallEndedReason,
+    completion: @escaping @MainActor @Sendable (PushReport) -> Void
+  ) {
+    guard isAvailable else {
+      completion(.completed)
+      return
+    }
+    let update = CXCallUpdate()
+    update.remoteHandle = CXHandle(type: .generic, value: Self.placeholderHandle)
+    update.localizedCallerName = CallerName.generic
+    update.hasVideo = false
+    let provider = providerForCall()
+    provider.reportNewIncomingCall(uuid, update: update) { [weak self] error in
+      if error == nil {
+        if let self, let call = self.trackedCall(uuid) {
+          self.reportEnded(call.key, .remoteEnded)
+        } else {
+          provider.reportEnded(uuid, reason: reason)
+        }
+      }
+      completion(.completed)
+    }
+  }
+
+  func updateIncoming(roomId: String, callId: String, name: String, isVideo: Bool) {
+    guard let call = calls[CallIdentity.key(roomId: roomId, callId: callId)], call.incoming
+    else { return }
+    applyUpdate(to: call, name: name, isVideo: isVideo, authoritative: true)
+  }
+
+  private func applyUpdate(
+    to call: TrackedCall, name: String, isVideo: Bool, authoritative: Bool
+  ) {
+    let shown = CallerName.shown(name, level: previewLevel())
+    var changed = false
+    if shown != call.name && (authoritative || call.name == CallerName.generic) {
+      call.name = shown
+      changed = true
+    }
+    if isVideo && !call.isVideo {
+      call.isVideo = true
+      changed = true
+    }
+    guard changed, call.usesCallKit, call.reportCompleted, let provider else { return }
+    provider.reportUpdate(call.uuid, update(for: call))
+  }
+
+  @discardableResult
+  func bind(
+    uuid: UUID, roomId: String, callId: String, callerId: String, name: String, isVideo: Bool
+  ) -> Bool {
+    guard let call = trackedCall(uuid), call.incoming, !call.isBound else { return false }
+    let key = CallIdentity.key(roomId: roomId, callId: callId)
+    let identity = CallIdentity.uuid(roomId: roomId, callId: callId)
+    if calls[key] != nil || tombstoned(key) || isResolved(identity) {
+      reportEnded(call.key, .remoteEnded)
+      return false
+    }
+    calls.removeValue(forKey: call.key)
+    call.bind(roomId: roomId, callId: callId, callerId: callerId)
+    call.source = .push
+    track(call)
+    applyUpdate(to: call, name: name, isVideo: isVideo, authoritative: true)
+    record(call, call.answered ? .answered : .ringing)
+    if call.answered, call.heldAnswer != nil, !call.adopted {
+      emit("answerCall", call.ringArguments)
+    }
+    return true
+  }
+
+  func treatAsGeneric(uuid: UUID) {
+    guard let call = trackedCall(uuid), !call.isBound, call.source == .bfu else { return }
+    call.source = .generic
+  }
+
+  func endUnbound(uuid: UUID) {
+    guard let call = trackedCall(uuid), !call.isBound else { return }
+    reportEnded(call.key, .failed)
+  }
+
+  func declineSent(roomId: String, callId: String) {
+    guard
+      let token = declineHolds.removeValue(forKey: CallIdentity.key(roomId: roomId, callId: callId))
+    else { return }
+    releaseHold(token)
+  }
+
+  func endAll(reason: CXCallEndedReason) {
+    for call in Array(calls.values) {
+      reportEnded(call.key, reason)
     }
   }
 
@@ -248,7 +533,8 @@ final class CallKitCenter: NSObject {
       return ["muted": call.muted]
     }
     let call = TrackedCall(
-      uuid: UUID(), roomId: roomId, callId: callId, callerId: "", incoming: false, name: title,
+      uuid: CallIdentity.uuid(roomId: roomId, callId: callId), roomId: roomId, callId: callId,
+      callerId: "", incoming: false, name: CallerName.shown(title, level: previewLevel()),
       isVideo: isVideo)
     call.adopted = true
     track(call)
@@ -266,7 +552,7 @@ final class CallKitCenter: NSObject {
     let key = call.key
     let action = CXAnswerCallAction(call: call.uuid)
     call.ownActions.insert(action.uuid)
-    request(action) { [weak self] error in
+    requestTransaction(action) { [weak self] error in
       CallKitCenter.log.error(
         "in-app answer refused: \(error.localizedDescription, privacy: .public)")
       guard let self, let call = self.calls[key] else { return }
@@ -281,15 +567,18 @@ final class CallKitCenter: NSObject {
     let action = CXStartCallAction(call: call.uuid, handle: handle(for: call))
     action.isVideo = call.isVideo
     call.ownActions.insert(action.uuid)
-    request(action) { [weak self] error in
+    requestTransaction(action) { [weak self] error in
       self?.startFailed(key, error, retry: retry)
     }
   }
 
   func connected(roomId: String, callId: String) {
-    guard let call = calls[CallIdentity.key(roomId: roomId, callId: callId)], !call.incoming,
-      call.usesCallKit, call.connectedAt == nil
-    else { return }
+    guard let call = calls[CallIdentity.key(roomId: roomId, callId: callId)] else { return }
+    if call.incoming {
+      fulfillHeldAnswer(call)
+      return
+    }
+    guard call.usesCallKit, call.connectedAt == nil else { return }
     call.connectedAt = Date()
     if call.started {
       reportConnected(call)
@@ -297,7 +586,7 @@ final class CallKitCenter: NSObject {
   }
 
   private func reportConnected(_ call: TrackedCall) {
-    provider?.reportOutgoingCall(with: call.uuid, connectedAt: nil)
+    provider?.reportOutgoingConnected(call.uuid)
     if call.muted {
       requestMute(call, true)
     }
@@ -320,7 +609,7 @@ final class CallKitCenter: NSObject {
     guard call.usesCallKit, call.reportCompleted, let provider else { return }
     let update = CXCallUpdate()
     update.hasVideo = true
-    provider.reportCall(with: call.uuid, updated: update)
+    provider.reportUpdate(call.uuid, update)
   }
 
   func end(roomId: String, callId: String, reason: CXCallEndedReason, byUser: Bool) {
@@ -337,7 +626,7 @@ final class CallKitCenter: NSObject {
     let key = call.key
     let action = CXEndCallAction(call: call.uuid)
     call.ownActions.insert(action.uuid)
-    request(action) { [weak self] error in
+    requestTransaction(action) { [weak self] error in
       CallKitCenter.log.error(
         "end request refused: \(error.localizedDescription, privacy: .public)")
       self?.reportEnded(key, reason)
@@ -353,6 +642,10 @@ final class CallKitCenter: NSObject {
     keysByUUID[uuid].flatMap { calls[$0] }
   }
 
+  private func tombstoned(_ key: String) -> Bool {
+    tombstones.contains { $0.key == key }
+  }
+
   private func reported(_ key: String, refusal: String?) -> String {
     guard let call = calls[key] else { return "filtered" }
     if let refusal {
@@ -365,10 +658,15 @@ final class CallKitCenter: NSObject {
       reportEnded(key, reason)
       return "filtered"
     }
+    record(call, .ringing)
     if call.adopted {
       answerForApp(call)
     } else {
       armRingTimer(call)
+    }
+    if call.source != .sync {
+      call.ringHold = holdBackground(Self.ringGrace)
+      emitLive("ringing", call.ringArguments)
     }
     return "shown"
   }
@@ -379,9 +677,12 @@ final class CallKitCenter: NSObject {
       call.pendingEnd = reason
       return
     }
+    if call.endState == nil {
+      call.endState = call.answered && reason != .failed ? .ended : Self.ledgerState(reason)
+    }
     if call.usesCallKit {
       holdBackground(Self.teardownGrace)
-      provider?.reportCall(with: call.uuid, endedAt: nil, reason: reason)
+      provider?.reportEnded(call.uuid, reason: reason)
     }
     finish(call)
   }
@@ -395,20 +696,38 @@ final class CallKitCenter: NSObject {
   private func finish(_ call: TrackedCall) {
     guard calls[call.key] === call else { return }
     call.cancelTimers()
+    if let held = call.heldAnswer {
+      call.heldAnswer = nil
+      held.fail()
+    }
+    if let hold = call.ringHold {
+      call.ringHold = nil
+      releaseHold(hold)
+    }
     if withdrawAnswer(call) {
       emit("ringEnded", call.ringArguments)
     }
     calls.removeValue(forKey: call.key)
     keysByUUID.removeValue(forKey: call.uuid)
     if call.incoming {
-      tombstones.append(call.key)
-      if tombstones.count > Self.tombstoneLimit {
-        tombstones.removeFirst(tombstones.count - Self.tombstoneLimit)
+      record(call, call.endState ?? (call.answered ? .ended : .missed))
+      if let identity = call.identity {
+        tombstones.append((key: call.key, identity: identity))
+        if tombstones.count > Self.tombstoneLimit {
+          tombstones.removeFirst(tombstones.count - Self.tombstoneLimit)
+        }
       }
     }
     if calls.isEmpty {
       audio.callsEnded()
     }
+  }
+
+  private func record(_ call: TrackedCall, _ state: Ledger.State) {
+    guard call.incoming, let identity = call.identity else { return }
+    onLedger?(
+      CallLedgerChange(
+        identity: identity, roomId: call.roomId, state: state, source: call.ledgerSource))
   }
 
   private func adopt(_ call: TrackedCall) {
@@ -435,7 +754,7 @@ final class CallKitCenter: NSObject {
     let key = call.key
     let action = CXSetMutedCallAction(call: call.uuid, muted: muted)
     call.ownActions.insert(action.uuid)
-    request(action) { [weak self] error in
+    requestTransaction(action) { [weak self] error in
       CallKitCenter.log.notice(
         "mute request refused: \(error.localizedDescription, privacy: .public)")
       guard !muted, let self, let call = self.calls[key], !call.muted else { return }
@@ -446,23 +765,13 @@ final class CallKitCenter: NSObject {
     }
   }
 
-  private func request(
-    _ action: CXAction, onFailure: @escaping @MainActor @Sendable (any Error) -> Void
-  ) {
-    controller.request(CXTransaction(action: action)) { error in
-      guard let error else { return }
-      Task { @MainActor in onFailure(error) }
-    }
-  }
-
-  private func providerForCall() -> CXProvider {
+  private func providerForCall() -> any CallProviding {
     let configuration = makeConfiguration()
     if let provider {
-      provider.configuration = configuration
+      provider.setConfiguration(configuration)
       return provider
     }
-    let provider = CXProvider(configuration: configuration)
-    provider.setDelegate(self, queue: .main)
+    let provider = makeProvider(configuration, self)
     self.provider = provider
     return provider
   }
@@ -476,12 +785,13 @@ final class CallKitCenter: NSObject {
     configuration.includesCallsInRecents = false
     configuration.iconTemplateImageData = iconData
     configuration.ringtoneSound = Self.ringtoneSound(
-      UserDefaults.standard.object(forKey: Self.ringtoneEnabledKey))
+      stored: UserDefaults.standard.object(forKey: Self.ringtoneEnabledKey), flag: ringFlag())
     return configuration
   }
 
   private func handle(for call: TrackedCall) -> CXHandle {
-    CXHandle(type: .generic, value: call.name.isEmpty ? "Zuno" : call.name)
+    let token = call.isBound ? roomToken(call.roomId) : nil
+    return CXHandle(type: .generic, value: token ?? Self.placeholderHandle)
   }
 
   private func update(for call: TrackedCall) -> CXCallUpdate {
@@ -497,29 +807,68 @@ final class CallKitCenter: NSObject {
   }
 
   private func armRingTimer(_ call: TrackedCall) {
-    let key = call.key
+    let uuid = call.uuid
+    let seconds = call.ringSeconds
     call.ringTimer = Task { @MainActor [weak self] in
-      try? await Task.sleep(nanoseconds: UInt64(Self.ringLimit * 1_000_000_000))
-      guard !Task.isCancelled else { return }
-      self?.ringTimedOut(key)
+      try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+      guard !Task.isCancelled, let self, let call = self.trackedCall(uuid) else { return }
+      self.ringTimedOut(call.key)
     }
   }
 
   private func ringTimedOut(_ key: String) {
     guard let call = calls[key], call.incoming, !call.answered, !call.adopted else { return }
-    emit("ringEnded", call.ringArguments)
+    if call.isBound {
+      emit("ringEnded", call.ringArguments)
+    }
+    call.endState = .missed
     reportEnded(key, .unanswered)
   }
 
   private func armAdoptTimer(_ call: TrackedCall) {
-    let key = call.key
+    let uuid = call.uuid
+    let limit = Self.adoptLimit(call.source)
     call.adoptTimer = Task { @MainActor [weak self] in
-      try? await Task.sleep(nanoseconds: UInt64(Self.adoptLimit * 1_000_000_000))
-      guard !Task.isCancelled, let self, let call = self.calls[key], !call.adopted else { return }
+      try? await Task.sleep(nanoseconds: UInt64(limit * 1_000_000_000))
+      guard !Task.isCancelled, let self, let call = self.trackedCall(uuid), !call.adopted else {
+        return
+      }
       Self.log.error("answered call was never taken over by the app")
-      self.emit(self.withdrawAnswer(call) ? "ringEnded" : "hangUpCall", call.ringArguments)
-      self.reportEnded(key, .failed)
+      if call.isBound {
+        self.emit(self.withdrawAnswer(call) ? "ringEnded" : "hangUpCall", call.ringArguments)
+      }
+      self.reportEnded(call.key, .failed)
     }
+  }
+
+  private func holdAnswer(_ action: any AnswerActionHandle, for call: TrackedCall) {
+    call.heldAnswer = action
+    let uuid = call.uuid
+    let wait = max(0, action.timeoutDate.timeIntervalSinceNow - Self.heldAnswerMargin)
+    call.heldAnswerTimer = Task { @MainActor [weak self] in
+      try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+      guard !Task.isCancelled, let self, let call = self.trackedCall(uuid) else { return }
+      self.heldAnswerDeadline(call)
+    }
+  }
+
+  private func heldAnswerDeadline(_ call: TrackedCall) {
+    guard call.heldAnswer != nil else { return }
+    if call.isBound {
+      fulfillHeldAnswer(call)
+      return
+    }
+    Self.log.error("an answered ring never learned its call")
+    onUnboundAnswerExpired?(call.source)
+    reportEnded(call.key, .failed)
+  }
+
+  private func fulfillHeldAnswer(_ call: TrackedCall) {
+    guard let held = call.heldAnswer else { return }
+    call.heldAnswer = nil
+    call.heldAnswerTimer?.cancel()
+    held.fulfill()
+    armActivationWatchdog(call)
   }
 
   private func armActivationWatchdog(_ call: TrackedCall) {
@@ -537,18 +886,20 @@ final class CallKitCenter: NSObject {
     }
   }
 
-  private func holdBackground(_ seconds: TimeInterval) {
+  @discardableResult
+  private func holdBackground(_ seconds: TimeInterval) -> UUID? {
     let token = UUID()
     let task = UIApplication.shared.beginBackgroundTask(withName: "zuno.call.teardown") {
       [weak self] in
       MainActor.assumeIsolated { self?.releaseHold(token) }
     }
-    guard task != .invalid else { return }
+    guard task != .invalid else { return nil }
     holds[token] = task
     Task { @MainActor [weak self] in
       try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
       self?.releaseHold(token)
     }
+    return token
   }
 
   private func releaseHold(_ token: UUID) {
@@ -575,8 +926,8 @@ final class CallKitCenter: NSObject {
   }
 
   private func emit(_ method: String, _ arguments: [String: Any]) {
-    if dartReady, let channel {
-      channel.invokeMethod(method, arguments: arguments)
+    if dartReady, let sink {
+      sink.send(method, arguments)
       return
     }
     pendingEvents.append(["method": method, "arguments": arguments])
@@ -585,9 +936,70 @@ final class CallKitCenter: NSObject {
     }
   }
 
+  private func emitLive(_ method: String, _ arguments: [String: Any]) {
+    guard dartReady, let sink else { return }
+    sink.send(method, arguments)
+  }
+
   private func emitRoute(_ state: CallAudioState) {
-    guard dartReady, let channel else { return }
-    channel.invokeMethod("audioRouteChanged", arguments: state.arguments)
+    emitLive("audioRouteChanged", state.arguments)
+  }
+
+  func answer(_ uuid: UUID, action: any AnswerActionHandle) {
+    guard let call = trackedCall(uuid), call.incoming, !call.answered else {
+      action.fail()
+      return
+    }
+    audio.prepareForCall(isVideo: call.isVideo)
+    call.answered = true
+    call.connectedAt = Date()
+    call.ringTimer?.cancel()
+    if let hold = call.ringHold {
+      call.ringHold = nil
+      releaseHold(hold)
+    }
+    record(call, .answered)
+    let own = call.ownActions.remove(action.actionId) != nil
+    guard !own, !call.adopted else {
+      action.fulfill()
+      armActivationWatchdog(call)
+      return
+    }
+    armAdoptTimer(call)
+    guard call.source != .sync else {
+      emit("answerCall", call.ringArguments)
+      action.fulfill()
+      armActivationWatchdog(call)
+      return
+    }
+    holdAnswer(action, for: call)
+    if call.isBound {
+      emit("answerCall", call.ringArguments)
+    }
+  }
+
+  func systemEnd(_ uuid: UUID, actionId: UUID) {
+    guard let call = trackedCall(uuid) else { return }
+    holdBackground(Self.teardownGrace)
+    if call.ownActions.remove(actionId) == nil {
+      let ringing =
+        call.incoming && !call.answered ? Date().timeIntervalSince(call.reportedAt) : nil
+      if let ringing {
+        Self.log.notice(
+          "unanswered ring ended by the system after \(Int(ringing), privacy: .public) s")
+      }
+      let event = Self.systemEndEvent(ringingFor: ringing, answerWithdrawn: withdrawAnswer(call))
+      if ringing != nil {
+        call.endState = event == "declineCall" ? .declined : .missed
+      }
+      if call.isBound {
+        if event == "declineCall", let hold = holdBackground(Self.declineGrace) {
+          declineHolds[call.key] = hold
+        }
+        emit(event, call.ringArguments)
+      }
+    }
+    finish(call)
   }
 }
 
@@ -598,7 +1010,10 @@ extension CallKitCenter: @preconcurrency CXProviderDelegate {
     holdBackground(Self.teardownGrace)
     for call in Array(calls.values) {
       let ringEnded = (call.incoming && !call.answered) || withdrawAnswer(call)
-      emit(ringEnded ? "ringEnded" : "hangUpCall", call.ringArguments)
+      if call.isBound {
+        emit(ringEnded ? "ringEnded" : "hangUpCall", call.ringArguments)
+      }
+      call.endState = .ended
       finish(call)
     }
   }
@@ -611,51 +1026,22 @@ extension CallKitCenter: @preconcurrency CXProviderDelegate {
     call.ownActions.remove(action.uuid)
     audio.prepareForCall(isVideo: call.isVideo)
     action.fulfill()
-    provider.reportOutgoingCall(with: call.uuid, startedConnectingAt: nil)
+    self.provider?.reportOutgoingStarted(call.uuid)
     call.started = true
     if call.connectedAt != nil {
       call.connectedAt = Date()
       reportConnected(call)
     }
-    provider.reportCall(with: call.uuid, updated: update(for: call))
+    self.provider?.reportUpdate(call.uuid, update(for: call))
     armActivationWatchdog(call)
   }
 
   func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
-    guard let call = trackedCall(action.callUUID), call.incoming, !call.answered else {
-      action.fail()
-      return
-    }
-    audio.prepareForCall(isVideo: call.isVideo)
-    call.answered = true
-    call.connectedAt = Date()
-    call.ringTimer?.cancel()
-    if call.ownActions.remove(action.uuid) == nil, !call.adopted {
-      emit("answerCall", call.ringArguments)
-      armAdoptTimer(call)
-    }
-    action.fulfill()
-    armActivationWatchdog(call)
+    answer(action.callUUID, action: action)
   }
 
   func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
-    guard let call = trackedCall(action.callUUID) else {
-      action.fulfill()
-      return
-    }
-    holdBackground(Self.teardownGrace)
-    if call.ownActions.remove(action.uuid) == nil {
-      let ringing =
-        call.incoming && !call.answered ? Date().timeIntervalSince(call.reportedAt) : nil
-      if let ringing {
-        Self.log.notice(
-          "unanswered ring ended by the system after \(Int(ringing), privacy: .public) s")
-      }
-      emit(
-        Self.systemEndEvent(ringingFor: ringing, answerWithdrawn: withdrawAnswer(call)),
-        call.ringArguments)
-    }
-    finish(call)
+    systemEnd(action.callUUID, actionId: action.uuid)
     action.fulfill()
   }
 

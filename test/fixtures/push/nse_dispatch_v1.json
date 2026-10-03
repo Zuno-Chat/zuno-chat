@@ -1,0 +1,835 @@
+{
+  "version": 1,
+  "me": "@mwong:zuno.im",
+  "me_name": "Mia",
+  "cases": [
+    {
+      "name": "chat text",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.text",
+          "body": "Lunch at noon?"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Lunch at noon?"
+      }
+    },
+    {
+      "name": "room text",
+      "room": {
+        "title": "Design team",
+        "dm": false
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.text",
+          "body": "Lunch at noon?"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Design team",
+        "body": "Alice: Lunch at noon?"
+      }
+    },
+    {
+      "name": "reply fallback",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.text",
+          "body": "> <@bob:zuno.im> earlier\n\nSure"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Sure"
+      }
+    },
+    {
+      "name": "photo with caption",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.image",
+          "body": "Our new desk",
+          "filename": "desk.jpg",
+          "url": "mxc://zuno.im/a"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Our new desk"
+      }
+    },
+    {
+      "name": "photo",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.image",
+          "body": "desk.jpg",
+          "filename": "desk.jpg",
+          "url": "mxc://zuno.im/a"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Photo"
+      }
+    },
+    {
+      "name": "video",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.video",
+          "body": "clip.mp4",
+          "url": "mxc://zuno.im/b"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Video"
+      }
+    },
+    {
+      "name": "voice message",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.audio",
+          "body": "Voice message",
+          "url": "mxc://zuno.im/c",
+          "org.matrix.msc3245.voice": {}
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Voice message"
+      }
+    },
+    {
+      "name": "audio file",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.audio",
+          "body": "song.mp3",
+          "url": "mxc://zuno.im/d"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "song.mp3"
+      }
+    },
+    {
+      "name": "file",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.file",
+          "body": "plan.pdf",
+          "url": "mxc://zuno.im/e"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "plan.pdf"
+      }
+    },
+    {
+      "name": "location",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.location",
+          "body": "Location",
+          "geo_uri": "geo:52.5,13.4"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Location"
+      }
+    },
+    {
+      "name": "notice",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.notice",
+          "body": "Build passed"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Build passed"
+      }
+    },
+    {
+      "name": "redacted",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "redacted": true,
+        "content": {}
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Message deleted"
+      }
+    },
+    {
+      "name": "html formatting",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.text",
+          "body": "**Lunch** at noon",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "<b>Lunch</b> at <i>noon</i>"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "**Lunch** at *noon*"
+      }
+    },
+    {
+      "name": "html spoiler",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.text",
+          "body": "Ending: he lives",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "Ending: <span data-mx-spoiler=\"\">he lives</span>"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Ending: ████████"
+      }
+    },
+    {
+      "name": "html reply",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.text",
+          "body": "> <@bob:zuno.im> old\n\nYes",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "<mx-reply><blockquote>old</blockquote></mx-reply>Yes"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Yes"
+      }
+    },
+    {
+      "name": "missing body",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.text"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Unknown message format of type \"m.room.message\""
+      }
+    },
+    {
+      "name": "missed call",
+      "room": {
+        "title": "Design team",
+        "dm": false
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "im.zuno.call_summary",
+          "body": "Missed Voice call",
+          "call_id": "c1",
+          "kind": "voice",
+          "status": "missed",
+          "duration_ms": 0
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Design team",
+        "body": "Alice: Missed Voice call"
+      }
+    },
+    {
+      "name": "declined call",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "im.zuno.call_summary",
+          "body": "Voice call declined",
+          "call_id": "c1",
+          "kind": "voice",
+          "status": "declined",
+          "duration_ms": 0
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "ended call",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "im.zuno.call_summary",
+          "body": "Video call",
+          "call_id": "c1",
+          "kind": "video",
+          "status": "ended",
+          "duration_ms": 83000
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "call invite",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 3000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "im.zuno.call_invite",
+          "body": "Incoming video call",
+          "call_id": "c2",
+          "kind": "video"
+        }
+      },
+      "expect": {
+        "class": "ring",
+        "call_id": "c2",
+        "video": true
+      }
+    },
+    {
+      "name": "voice call invite",
+      "room": {
+        "title": "Design team",
+        "dm": false
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 3000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "im.zuno.call_invite",
+          "body": "Incoming voice call",
+          "call_id": "c4",
+          "kind": "voice"
+        }
+      },
+      "expect": {
+        "class": "ring",
+        "call_id": "c4",
+        "video": false
+      }
+    },
+    {
+      "name": "stale call invite",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 60000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "im.zuno.call_invite",
+          "body": "Incoming video call",
+          "call_id": "c5",
+          "kind": "video"
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "own call invite",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@mwong:zuno.im",
+      "sender_name": "Mia",
+      "age_ms": 3000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "im.zuno.call_invite",
+          "body": "Incoming voice call",
+          "call_id": "c6",
+          "kind": "voice"
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "call decline",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "im.zuno.call_decline",
+          "body": "Declined",
+          "call_id": "c3"
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "invitation to a named room",
+      "room": {
+        "title": "Book club",
+        "dm": false,
+        "name": "Book club"
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.member",
+        "state_key": "@mwong:zuno.im",
+        "content": {
+          "membership": "invite"
+        }
+      },
+      "expect": {
+        "class": "invitation",
+        "title": "Alice",
+        "body": "Invited you to Book club"
+      }
+    },
+    {
+      "name": "invitation to a chat",
+      "room": {
+        "title": "Alice",
+        "dm": false
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.member",
+        "state_key": "@mwong:zuno.im",
+        "content": {
+          "membership": "invite",
+          "is_direct": true
+        }
+      },
+      "expect": {
+        "class": "invitation",
+        "title": "Alice",
+        "body": "Invited you to chat"
+      }
+    },
+    {
+      "name": "someone else invited",
+      "room": {
+        "title": "Design team",
+        "dm": false
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.member",
+        "state_key": "@bob:zuno.im",
+        "content": {
+          "membership": "invite"
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "verification request",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.key.verification.request",
+          "body": "Alice wants to verify",
+          "to": "@mwong:zuno.im",
+          "from_device": "AAAA",
+          "methods": [
+            "m.sas.v1"
+          ]
+        }
+      },
+      "expect": {
+        "class": "verification",
+        "title": "Alice",
+        "body": "Wants to verify you"
+      }
+    },
+    {
+      "name": "verification for someone else",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.key.verification.request",
+          "body": "x",
+          "to": "@bob:zuno.im",
+          "from_device": "AAAA",
+          "methods": [
+            "m.sas.v1"
+          ]
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "verification step",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.key.verification.ready",
+          "body": "x",
+          "m.relates_to": {
+            "rel_type": "m.reference",
+            "event_id": "$r"
+          }
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "edit",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.text",
+          "body": "* fixed",
+          "m.new_content": {
+            "msgtype": "m.text",
+            "body": "fixed"
+          },
+          "m.relates_to": {
+            "rel_type": "m.replace",
+            "event_id": "$old"
+          }
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "reaction",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.reaction",
+        "content": {
+          "m.relates_to": {
+            "rel_type": "m.annotation",
+            "event_id": "$x",
+            "key": "👍"
+          }
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "sticker",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.sticker",
+        "content": {
+          "body": "cat",
+          "url": "mxc://zuno.im/s",
+          "info": {}
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "own message",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@mwong:zuno.im",
+      "sender_name": "Mia",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.text",
+          "body": "hi"
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "topic change",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.topic",
+        "state_key": "",
+        "content": {
+          "topic": "Plans"
+        }
+      },
+      "expect": {
+        "class": "hidden"
+      }
+    },
+    {
+      "name": "unknown sender name",
+      "room": {
+        "title": "Design team",
+        "dm": false
+      },
+      "sender": "@sam_lee:zuno.im",
+      "sender_name": null,
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "m.text",
+          "body": "Hey"
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Design team",
+        "body": "Sam Lee: Hey"
+      }
+    }
+  ]
+}

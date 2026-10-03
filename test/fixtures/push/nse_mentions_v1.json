@@ -1,0 +1,627 @@
+{
+  "version": 1,
+  "me": "@mwong:zuno.im",
+  "me_name": "Mia",
+  "power_levels": {
+    "users": {
+      "@admin:zuno.im": 100,
+      "@mwong:zuno.im": 0,
+      "@bob:zuno.im": 0
+    },
+    "users_default": 0,
+    "notifications": {
+      "room": 50
+    }
+  },
+  "notifiers": [
+    "@admin:zuno.im"
+  ],
+  "rulesets": {
+    "default": {
+      "override": [
+        {
+          "rule_id": ".m.rule.master",
+          "default": true,
+          "enabled": false,
+          "conditions": [],
+          "actions": []
+        },
+        {
+          "rule_id": ".m.rule.suppress_notices",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "event_match",
+              "key": "content.msgtype",
+              "pattern": "m.notice"
+            }
+          ],
+          "actions": []
+        },
+        {
+          "rule_id": ".m.rule.is_user_mention",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "event_property_contains",
+              "key": "content.m\\.mentions.user_ids",
+              "value": "@mwong:zuno.im"
+            }
+          ],
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "sound",
+              "value": "default"
+            },
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        },
+        {
+          "rule_id": ".m.rule.contains_display_name",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "contains_display_name"
+            }
+          ],
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "sound",
+              "value": "default"
+            },
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        },
+        {
+          "rule_id": ".m.rule.is_room_mention",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "event_property_is",
+              "key": "content.m\\.mentions.room",
+              "value": true
+            },
+            {
+              "kind": "sender_notification_permission",
+              "key": "room"
+            }
+          ],
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        },
+        {
+          "rule_id": ".m.rule.roomnotif",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "sender_notification_permission",
+              "key": "room"
+            },
+            {
+              "kind": "event_match",
+              "key": "content.body",
+              "pattern": "@room"
+            }
+          ],
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        }
+      ],
+      "content": [
+        {
+          "rule_id": "zuno",
+          "default": false,
+          "enabled": true,
+          "pattern": "zuno",
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        },
+        {
+          "rule_id": "lunch",
+          "default": false,
+          "enabled": true,
+          "pattern": "lunch",
+          "actions": [
+            "notify"
+          ]
+        },
+        {
+          "rule_id": ".m.rule.contains_user_name",
+          "default": true,
+          "enabled": true,
+          "pattern": "mwong",
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "sound",
+              "value": "default"
+            },
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        }
+      ],
+      "room": [],
+      "sender": [],
+      "underride": [
+        {
+          "rule_id": ".m.rule.message",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "event_match",
+              "key": "type",
+              "pattern": "m.room.message"
+            }
+          ],
+          "actions": [
+            "notify"
+          ]
+        },
+        {
+          "rule_id": ".m.rule.encrypted",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "event_match",
+              "key": "type",
+              "pattern": "m.room.encrypted"
+            }
+          ],
+          "actions": [
+            "notify"
+          ]
+        }
+      ]
+    },
+    "no_display_name": {
+      "override": [
+        {
+          "rule_id": ".m.rule.master",
+          "default": true,
+          "enabled": false,
+          "conditions": [],
+          "actions": []
+        },
+        {
+          "rule_id": ".m.rule.suppress_notices",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "event_match",
+              "key": "content.msgtype",
+              "pattern": "m.notice"
+            }
+          ],
+          "actions": []
+        },
+        {
+          "rule_id": ".m.rule.is_user_mention",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "event_property_contains",
+              "key": "content.m\\.mentions.user_ids",
+              "value": "@mwong:zuno.im"
+            }
+          ],
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "sound",
+              "value": "default"
+            },
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        },
+        {
+          "rule_id": ".m.rule.contains_display_name",
+          "default": true,
+          "enabled": false,
+          "conditions": [
+            {
+              "kind": "contains_display_name"
+            }
+          ],
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "sound",
+              "value": "default"
+            },
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        },
+        {
+          "rule_id": ".m.rule.is_room_mention",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "event_property_is",
+              "key": "content.m\\.mentions.room",
+              "value": true
+            },
+            {
+              "kind": "sender_notification_permission",
+              "key": "room"
+            }
+          ],
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        },
+        {
+          "rule_id": ".m.rule.roomnotif",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "sender_notification_permission",
+              "key": "room"
+            },
+            {
+              "kind": "event_match",
+              "key": "content.body",
+              "pattern": "@room"
+            }
+          ],
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        }
+      ],
+      "content": [
+        {
+          "rule_id": "zuno",
+          "default": false,
+          "enabled": true,
+          "pattern": "zuno",
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        },
+        {
+          "rule_id": "lunch",
+          "default": false,
+          "enabled": true,
+          "pattern": "lunch",
+          "actions": [
+            "notify"
+          ]
+        },
+        {
+          "rule_id": ".m.rule.contains_user_name",
+          "default": true,
+          "enabled": true,
+          "pattern": "mwong",
+          "actions": [
+            "notify",
+            {
+              "set_tweak": "sound",
+              "value": "default"
+            },
+            {
+              "set_tweak": "highlight"
+            }
+          ]
+        }
+      ],
+      "room": [],
+      "sender": [],
+      "underride": [
+        {
+          "rule_id": ".m.rule.message",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "event_match",
+              "key": "type",
+              "pattern": "m.room.message"
+            }
+          ],
+          "actions": [
+            "notify"
+          ]
+        },
+        {
+          "rule_id": ".m.rule.encrypted",
+          "default": true,
+          "enabled": true,
+          "conditions": [
+            {
+              "kind": "event_match",
+              "key": "type",
+              "pattern": "m.room.encrypted"
+            }
+          ],
+          "actions": [
+            "notify"
+          ]
+        }
+      ]
+    }
+  },
+  "specs": {
+    "default": {
+      "mxid": "@mwong:zuno.im",
+      "display_name": "Mia",
+      "keywords": [
+        {
+          "pattern": "zuno",
+          "highlight": true
+        },
+        {
+          "pattern": "lunch",
+          "highlight": false
+        },
+        {
+          "pattern": "mwong",
+          "highlight": true
+        }
+      ],
+      "rules": {
+        ".m.rule.suppress_notices": true,
+        ".m.rule.is_user_mention": true,
+        ".m.rule.contains_display_name": true,
+        ".m.rule.is_room_mention": true,
+        ".m.rule.roomnotif": true
+      }
+    },
+    "no_display_name": {
+      "mxid": "@mwong:zuno.im",
+      "display_name": "Mia",
+      "keywords": [
+        {
+          "pattern": "zuno",
+          "highlight": true
+        },
+        {
+          "pattern": "lunch",
+          "highlight": false
+        },
+        {
+          "pattern": "mwong",
+          "highlight": true
+        }
+      ],
+      "rules": {
+        ".m.rule.suppress_notices": true,
+        ".m.rule.is_user_mention": true,
+        ".m.rule.contains_display_name": false,
+        ".m.rule.is_room_mention": true,
+        ".m.rule.roomnotif": true
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "user mention",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "hey",
+        "m.mentions": {
+          "user_ids": [
+            "@mwong:zuno.im"
+          ]
+        }
+      },
+      "mention": true
+    },
+    {
+      "name": "someone else mentioned",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "hey",
+        "m.mentions": {
+          "user_ids": [
+            "@bob2:zuno.im"
+          ]
+        }
+      },
+      "mention": false
+    },
+    {
+      "name": "display name",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "Mia are you there"
+      },
+      "mention": true
+    },
+    {
+      "name": "display name in any case",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "thanks mia!"
+      },
+      "mention": true
+    },
+    {
+      "name": "display name inside a word",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "Miami trip"
+      },
+      "mention": false
+    },
+    {
+      "name": "user name",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "ask mwong"
+      },
+      "mention": true
+    },
+    {
+      "name": "user name inside a word",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "mwongs plan"
+      },
+      "mention": false
+    },
+    {
+      "name": "room mention by a moderator",
+      "rules": "default",
+      "sender": "@admin:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "all",
+        "m.mentions": {
+          "room": true
+        }
+      },
+      "mention": true
+    },
+    {
+      "name": "room mention by a member",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "all",
+        "m.mentions": {
+          "room": true
+        }
+      },
+      "mention": false
+    },
+    {
+      "name": "at-room by a moderator",
+      "rules": "default",
+      "sender": "@admin:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "@room standup"
+      },
+      "mention": true
+    },
+    {
+      "name": "at-room by a member",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "@room standup"
+      },
+      "mention": false
+    },
+    {
+      "name": "keyword",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "zuno is live"
+      },
+      "mention": true
+    },
+    {
+      "name": "keyword without highlight",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "lunch soon"
+      },
+      "mention": false
+    },
+    {
+      "name": "keyword without highlight comes first",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "lunch with mwong"
+      },
+      "mention": false
+    },
+    {
+      "name": "notice",
+      "rules": "default",
+      "sender": "@admin:zuno.im",
+      "content": {
+        "msgtype": "m.notice",
+        "body": "@room deploy done"
+      },
+      "mention": false
+    },
+    {
+      "name": "plain message",
+      "rules": "default",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "see you"
+      },
+      "mention": false
+    },
+    {
+      "name": "display name rule off",
+      "rules": "no_display_name",
+      "sender": "@bob:zuno.im",
+      "content": {
+        "msgtype": "m.text",
+        "body": "Mia hi"
+      },
+      "mention": false
+    }
+  ]
+}

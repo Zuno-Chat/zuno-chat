@@ -15,6 +15,8 @@ import 'core/errors/global_error_handler.dart';
 import 'core/matrix/client_startup.dart';
 import 'core/matrix/matrix_client_provider.dart';
 import 'core/network/user_agent.dart';
+import 'core/notifications/native_notification_action_runner.dart';
+import 'core/platform/platform_capabilities.dart';
 import 'core/push/fcm_headless_entry.dart';
 import 'core/push/fcm_startup.dart';
 import 'core/push/unified_push_headless_entry.dart';
@@ -74,6 +76,9 @@ Future<void> _runApp(List<String> args) async {
   await notificationsFuture;
   final (:client, :uploadProgressHttpClient) = await clientFuture;
   attachFcmAppClient(client);
+  if (ambientCapabilities.nativeNotificationActions) {
+    nativeNotificationActionRunner.attach(client);
+  }
   client.shareKeysWith = shareKeysWithFor(
     readEncryptToVerifiedSessionsOnly(preferences),
   );

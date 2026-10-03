@@ -85,6 +85,7 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
   ) -> Bool {
     let roomId = args?["roomId"] as? String
     let callId = args?["callId"] as? String
+    let uuid = (args?["uuid"] as? String).flatMap(UUID.init(uuidString:))
     switch method {
     case "takeCallEvents":
       result(calls.takeEvents())
@@ -120,6 +121,30 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
       ) { outcome in
         result(outcome)
       }
+    case "updateIncoming":
+      guard let roomId, let callId else { return badArguments(result) }
+      calls.updateIncoming(
+        roomId: roomId, callId: callId, name: args?["name"] as? String ?? "",
+        isVideo: args?["video"] as? Bool == true)
+      result(nil)
+    case "bindIncoming":
+      guard let roomId, !roomId.isEmpty, let callId, !callId.isEmpty else {
+        return badArguments(result)
+      }
+      guard let uuid else { return badArguments(result, "uuid is required") }
+      result(
+        calls.bind(
+          uuid: uuid, roomId: roomId, callId: callId,
+          callerId: args?["callerId"] as? String ?? "", name: args?["name"] as? String ?? "",
+          isVideo: args?["video"] as? Bool == true))
+    case "endUnbound":
+      guard let uuid else { return badArguments(result, "uuid is required") }
+      calls.endUnbound(uuid: uuid)
+      result(nil)
+    case "declineSent":
+      guard let roomId, let callId else { return badArguments(result) }
+      calls.declineSent(roomId: roomId, callId: callId)
+      result(nil)
     case "endIncomingCall":
       guard let roomId, let callId else { return badArguments(result) }
       calls.endIncoming(
@@ -157,8 +182,10 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
     return true
   }
 
-  private func badArguments(_ result: FlutterResult) -> Bool {
-    result(FlutterError(code: "bad_args", message: "roomId and callId are required", details: nil))
+  private func badArguments(
+    _ result: FlutterResult, _ message: String = "roomId and callId are required"
+  ) -> Bool {
+    result(FlutterError(code: "bad_args", message: message, details: nil))
     return true
   }
 

@@ -16,12 +16,15 @@ import '../../notifications/message_notification_action.dart';
 import '../../notifications/message_notification_content.dart';
 import '../../notifications/notification_avatar_cache.dart';
 import '../../notifications/notification_ids.dart';
+import '../../notifications/notification_preview.dart';
 import '../../notifications/notification_sound_player.dart';
 import '../../notifications/notification_sound_settings.dart';
 import '../../notifications/notification_thread_store.dart';
 import '../../notifications/notified_events_store.dart';
 import '../../platform/platform_capabilities.dart';
 import '../../push/push_timing.dart';
+import '../../push/read_model/opaque_thread_ids.dart';
+import '../platform/native_ring.dart';
 import '../serial_lock.dart';
 import 'call_decline_action.dart';
 import 'live_isolate_route.dart';
@@ -127,6 +130,15 @@ List<SilencedChannel> silencedMessageChannels(
       (id: channel.id, name: channel.name),
 ];
 
+String? darwinMessageCategory({
+  required bool includeMessageActions,
+  required String? eventId,
+}) => switch ((includeMessageActions, eventId)) {
+  (false, _) => null,
+  (true, null) => CallNotificationService._replyOnlyCategoryId,
+  (true, _) => CallNotificationService._markReadCategoryId,
+};
+
 class HeadlessCallDecline {
   final String roomId;
   final String callId;
@@ -200,14 +212,21 @@ Future<Client> _oneShotClient() async {
 
 class CallNotificationService {
   @visibleForTesting
-  CallNotificationService({PlatformCapabilities? capabilities})
-    : _injectedCapabilities = capabilities;
+  CallNotificationService({
+    PlatformCapabilities? capabilities,
+    OpaqueThreadIds? threadIds,
+  }) : _injectedCapabilities = capabilities,
+       _injectedThreadIds = threadIds;
   static final instance = CallNotificationService();
 
   final PlatformCapabilities? _injectedCapabilities;
+  final OpaqueThreadIds? _injectedThreadIds;
 
   PlatformCapabilities get _capabilities =>
       _injectedCapabilities ?? ambientCapabilities;
+
+  OpaqueThreadIds get _threadIds =>
+      _injectedThreadIds ?? OpaqueThreadIds.instance;
 
   @visibleForTesting
   DateTime Function() now = DateTime.now;
@@ -241,6 +260,7 @@ class CallNotificationService {
   final _systemCallFailedController = StreamController<String>.broadcast();
   final _systemRingingController =
       StreamController<RingingCallInfo>.broadcast();
+  final _nativeRingController = StreamController<NativeRing>.broadcast();
   final _audioRouteController =
       StreamController<Map<Object?, Object?>>.broadcast();
   final inPictureInPicture = ValueNotifier<bool>(false);
@@ -258,6 +278,7 @@ class CallNotificationService {
   Stream<String> get onSystemCallFailed => _systemCallFailedController.stream;
   Stream<RingingCallInfo> get onSystemRinging =>
       _systemRingingController.stream;
+  Stream<NativeRing> get onNativeRing => _nativeRingController.stream;
   Stream<Map<Object?, Object?>> get onAudioRouteChanged =>
       _audioRouteController.stream;
 
@@ -302,7 +323,9 @@ class CallNotificationService {
           requestAlertPermission: false,
           requestSoundPermission: false,
           requestBadgePermission: false,
-          notificationCategories: _messageCategories,
+          notificationCategories: _capabilities.nativeNotificationActions
+              ? const <DarwinNotificationCategory>[]
+              : _messageCategories,
         ),
       ),
       onDidReceiveNotificationResponse: _handleResponse,
@@ -575,6 +598,10 @@ class CallNotificationService {
       case 'ringing':
         final call = _ringingCallFrom(arguments);
         if (call != null) _systemRingingController.add(call);
+        if (_capabilities.voipRing) {
+          final ring = NativeRing.tryParse(arguments);
+          if (ring != null) _nativeRingController.add(ring);
+        }
       case 'audioRouteChanged':
         if (arguments is Map) _audioRouteController.add(arguments);
     }
@@ -590,6 +617,8 @@ class CallNotificationService {
     try {
       queued = await _channel.invokeListMethod<Object?>('takeCallEvents');
     } on MissingPluginException {
+      return;
+    } on PlatformException {
       return;
     }
     for (final event in queued ?? const <Object?>[]) {
@@ -951,10 +980,22 @@ class CallNotificationService {
     final when = latestLine?.timestamp.millisecondsSinceEpoch;
     final interrupts = !quiet && alert != MessageAlert.silentUpdate;
     final playsTone = interrupts && alert == MessageAlert.tone;
+    final preview = _capabilities.nseNotifications
+        ? await currentNotificationPreview(capabilities: _capabilities)
+        : null;
+    final hidden = preview == NotificationPreview.nothing;
+    final messageActionsAllowed =
+        !_capabilities.nativeNotificationActions ||
+        (preview ?? NotificationPreview.full) == NotificationPreview.full;
+    final threadIdentifier = switch (preview) {
+      null => roomId,
+      NotificationPreview.nothing => previewThread,
+      _ => await _threadIds.tokenFor(roomId) ?? previewThread,
+    };
     await _plugin.show(
       id: messageNotificationIdFor(roomId),
-      title: thread.title,
-      body: body,
+      title: hidden ? previewNothingTitle : thread.title,
+      body: hidden ? previewHiddenText : body,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           channelId,
@@ -996,12 +1037,12 @@ class CallNotificationService {
           actions: actions.isEmpty ? null : actions,
         ),
         iOS: DarwinNotificationDetails(
-          threadIdentifier: roomId,
-          categoryIdentifier: switch ((includeMessageActions, eventId)) {
-            (false, _) => null,
-            (true, null) => _replyOnlyCategoryId,
-            (true, _) => _markReadCategoryId,
-          },
+          threadIdentifier: threadIdentifier,
+          categoryIdentifier: darwinMessageCategory(
+            includeMessageActions:
+                includeMessageActions && messageActionsAllowed,
+            eventId: eventId,
+          ),
           presentAlert: interrupts,
           presentBanner: interrupts,
           presentList: true,
@@ -1041,6 +1082,7 @@ class CallNotificationService {
     NotificationThread thread, {
     required Uint8List? avatar,
   }) async {
+    if (!_capabilities.notificationAvatars) return;
     try {
       await _conversationsChannel.invokeMethod<void>(
         'pushConversationShortcut',

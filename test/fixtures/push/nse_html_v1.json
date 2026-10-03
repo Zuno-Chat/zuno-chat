@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "html": "<b>Lunch</b> at <i>noon</i>",
+      "text": "**Lunch** at *noon*"
+    },
+    {
+      "html": "<p>One</p><p>Two</p>",
+      "text": "One\n\nTwo"
+    },
+    {
+      "html": "Ending: <span data-mx-spoiler=\"\">he lives</span>",
+      "text": "Ending: ████████"
+    },
+    {
+      "html": "Ending: <span data-mx-spoiler=\"movie\">he lives</span>",
+      "text": "Ending: (movie) ████████"
+    },
+    {
+      "html": "<mx-reply><blockquote>old</blockquote></mx-reply>Yes",
+      "text": "Yes"
+    },
+    {
+      "html": "<p>See <a href=\"https://zuno.im\">this</a></p><p>Thanks</p>",
+      "text": "See 🔗this\n\nThanks"
+    },
+    {
+      "html": "<ul><li>milk</li><li>eggs</li></ul>",
+      "text": "• milk\n• eggs"
+    },
+    {
+      "html": "<ol start=\"3\"><li>one</li><li>two</li></ol>",
+      "text": "3. one\n4. two"
+    },
+    {
+      "html": "<a href=\"https://matrix.to/#/@bob:zuno.im\">Bob</a> look",
+      "text": "Bob look"
+    },
+    {
+      "html": "one<br>two",
+      "text": "one\ntwo"
+    },
+    {
+      "html": "Tom &amp; Jerry &lt;3 &quot;hi&quot; &#39;x&#39; &#x41;",
+      "text": "Tom & Jerry <3 \"hi\" 'x' A"
+    },
+    {
+      "html": "<code>x = 1</code> done",
+      "text": "`x = 1` done"
+    },
+    {
+      "html": "<pre><code class=\"language-dart\">var a;</code></pre>",
+      "text": "```dart\nvar a;\n```"
+    },
+    {
+      "html": "<h2>Title</h2>text",
+      "text": "## Title\ntext"
+    },
+    {
+      "html": "<blockquote>q</blockquote>a",
+      "text": "> q\na"
+    },
+    {
+      "html": "<del>x</del> <u>y</u> <s>z</s>",
+      "text": "~~x~~ __y__ ~~z~~"
+    },
+    {
+      "html": "a<hr>b",
+      "text": "a\n----------\nb"
+    },
+    {
+      "html": "<img src=\"mxc://x/y\" alt=\"cat\">",
+      "text": "cat"
+    },
+    {
+      "html": "<ul><li>a<ul><li>b</li></ul></li></ul>",
+      "text": "• a\n      ◦ b"
+    },
+    {
+      "html": "<font color=\"red\">red</font> text",
+      "text": "red text"
+    },
+    {
+      "html": "spoiler 😀 <span data-mx-spoiler>😀😀</span>",
+      "text": "spoiler 😀 ████"
+    },
+    {
+      "html": "<p>a<p>b",
+      "text": "a\n\nb"
+    },
+    {
+      "html": "<b>unclosed",
+      "text": "**unclosed**"
+    },
+    {
+      "html": "x <!-- c --> y",
+      "text": "x  y"
+    },
+    {
+      "html": "<br/>lead",
+      "text": "\nlead"
+    },
+    {
+      "html": "<em>e</em><strong>s</strong><ins>i</ins><strike>k</strike>",
+      "text": "*e***s**__i__~~k~~"
+    },
+    {
+      "html": "<a href=\"matrix:u/bob:x\">B</a> and <a>none</a>",
+      "text": "B and 🔗none"
+    },
+    {
+      "html": "<img alt=\"\">x<img title=\"t\"><img src=\"s\">",
+      "text": "xts"
+    },
+    {
+      "html": "<h1>A</h1><h6>F</h6>",
+      "text": "# A\n###### F"
+    },
+    {
+      "html": "<pre>raw &lt;x&gt;</pre>",
+      "text": "```\nraw <x>\n```"
+    },
+    {
+      "html": "<p>x</p>text<p>y</p>",
+      "text": "xtext\n\ny"
+    },
+    {
+      "html": "<p>trailing</p>\n",
+      "text": "trailing"
+    }
+  ]
+}

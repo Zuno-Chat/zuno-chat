@@ -37,6 +37,10 @@ PlatformCapabilities capabilitiesLike(
   bool? clientLease,
   bool? instantPushNotices,
   bool? notificationAvatars,
+  bool? pushDiagnostics,
+  bool? voipRing,
+  bool? nseNotifications,
+  bool? nativeNotificationActions,
   List<NotificationDeliveryMode>? deliveryModes,
   NotificationDeliveryMode? defaultDeliveryMode,
 }) => PlatformCapabilities(
@@ -83,6 +87,12 @@ PlatformCapabilities capabilitiesLike(
   clientLease: clientLease ?? base.clientLease,
   instantPushNotices: instantPushNotices ?? base.instantPushNotices,
   notificationAvatars: notificationAvatars ?? base.notificationAvatars,
+  pushDiagnostics: pushDiagnostics ?? base.pushDiagnostics,
+  voipRing: voipRing ?? base.voipRing,
+  nseNotifications: nseNotifications ?? base.nseNotifications,
+  nativeNotificationActions:
+      nativeNotificationActions ?? base.nativeNotificationActions,
+  videoRendererNeedsDetach: base.videoRendererNeedsDetach,
   deliveryModes: deliveryModes ?? base.deliveryModes,
   defaultDeliveryMode: defaultDeliveryMode ?? base.defaultDeliveryMode,
 );

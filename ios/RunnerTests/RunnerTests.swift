@@ -648,74 +648,27 @@ final class NotificationResponseRouteTests: XCTestCase {
     }
   }
 
-  func testOnlyCustomActionsOnLocalNotificationsHoldTheBridgeTask() {
-    for action in actions {
-      let custom = action != .open && action != .dismiss
-      XCTAssertEqual(route(pushed: false, action).holdsBridgeTask, custom, "\(action)")
-      XCTAssertFalse(route(pushed: true, action).holdsBridgeTask, "\(action)")
-    }
-  }
-
   func testAResponseAPluginHandledNeedsNothingMore() {
-    for pushed in [false, true] {
-      for action in actions {
-        let route = route(pushed: pushed, action, roomId: "!r:x", replyText: "hi")
-        XCTAssertEqual(route.outcome(handledByPlugin: true), .handled, "\(pushed) \(action)")
-        XCTAssertFalse(route.releasesBridgeTask(handledByPlugin: true), "\(pushed) \(action)")
-      }
+    for action in actions {
+      XCTAssertEqual(
+        route(action, roomId: "!r:x").outcome(handledByPlugin: true), .handled, "\(action)")
     }
   }
 
   func testATapWithARoomNoPluginTookOpensTheRoom() {
-    for pushed in [false, true] {
-      XCTAssertEqual(
-        route(pushed: pushed, .open, roomId: "!r:x").outcome(handledByPlugin: false),
-        .openRoom("!r:x"))
-    }
+    XCTAssertEqual(
+      route(.open, roomId: "!r:x").outcome(handledByPlugin: false), .openRoom("!r:x"))
   }
 
   func testATapWithoutARoomNoPluginTookOnlyCompletes() {
-    for pushed in [false, true] {
-      XCTAssertEqual(route(pushed: pushed, .open).outcome(handledByPlugin: false), .complete)
-    }
+    XCTAssertEqual(route(.open).outcome(handledByPlugin: false), .complete)
   }
 
-  func testAReplyNoPluginTookIsReportedAsNotSent() {
-    for pushed in [false, true] {
+  func testEveryOtherResponseNoPluginTookOnlyCompletes() {
+    for action in [NotificationAction.reply, .markRead, .dismiss, .other] {
       XCTAssertEqual(
-        route(pushed: pushed, .reply, roomId: "!r:x", replyText: " See you soon ")
-          .outcome(handledByPlugin: false),
-        .replyNotSent)
+        route(action, roomId: "!r:x").outcome(handledByPlugin: false), .complete, "\(action)")
     }
-    XCTAssertEqual(
-      route(pushed: false, .reply, replyText: "hi").outcome(handledByPlugin: false), .replyNotSent)
-  }
-
-  func testABlankReplyNoPluginTookIsDroppedQuietly() {
-    for text in [nil, "", "   ", " \n\t "] {
-      XCTAssertEqual(
-        route(pushed: false, .reply, roomId: "!r:x", replyText: text)
-          .outcome(handledByPlugin: false),
-        .complete, "\(String(describing: text))")
-    }
-  }
-
-  func testOtherActionsNoPluginTookOnlyComplete() {
-    for action in [NotificationAction.markRead, .dismiss, .other] {
-      for pushed in [false, true] {
-        XCTAssertEqual(
-          route(pushed: pushed, action, roomId: "!r:x", replyText: "hi")
-            .outcome(handledByPlugin: false),
-          .complete, "\(pushed) \(action)")
-      }
-    }
-  }
-
-  func testTheBridgeTaskIsReleasedOnlyWhenHeldAndNoPluginTookTheAction() {
-    XCTAssertTrue(route(pushed: false, .reply).releasesBridgeTask(handledByPlugin: false))
-    XCTAssertTrue(route(pushed: false, .markRead).releasesBridgeTask(handledByPlugin: false))
-    XCTAssertFalse(route(pushed: false, .open).releasesBridgeTask(handledByPlugin: false))
-    XCTAssertFalse(route(pushed: true, .reply).releasesBridgeTask(handledByPlugin: false))
   }
 
   func testAPushedNotificationNoPluginPresentedStaysOutOfTheForeground() {
@@ -757,55 +710,10 @@ final class NotificationResponseRouteTests: XCTestCase {
     XCTAssertNil(NotificationResponseRoute.roomId(in: ["room_id": 7]))
   }
 
-  private func route(
-    pushed: Bool, _ action: NotificationAction, roomId: String? = nil, replyText: String? = nil
-  ) -> NotificationResponseRoute {
-    NotificationResponseRoute(pushed: pushed, action: action, roomId: roomId, replyText: replyText)
-  }
-}
-
-final class ReplyNotSentNoticeTests: XCTestCase {
-  func testTheNoticeKeepsTheConversationTitleAndThread() {
-    let notice = ReplyNotSentNotice.request(
-      title: "Maya", threadIdentifier: "!r:x", roomId: "!r:x")
-    XCTAssertEqual(notice.content.title, "Maya")
-    XCTAssertEqual(notice.content.threadIdentifier, "!r:x")
-  }
-
-  func testTheNoticeSaysWhatHappenedAndWhatToDo() {
-    let notice = ReplyNotSentNotice.request(title: "Maya", threadIdentifier: "", roomId: nil)
-    XCTAssertEqual(notice.content.body, "Message not sent. Open Zuno and send it again.")
-  }
-
-  func testTappingTheNoticeOpensItsRoom() {
-    let notice = ReplyNotSentNotice.request(title: "Maya", threadIdentifier: "", roomId: "!r:x")
-    let roomId = NotificationResponseRoute.roomId(in: notice.content.userInfo)
-    XCTAssertEqual(roomId, "!r:x")
-    let tap = NotificationResponseRoute(
-      pushed: false, action: .open, roomId: roomId, replyText: nil)
-    XCTAssertEqual(tap.outcome(handledByPlugin: false), .openRoom("!r:x"))
-  }
-
-  func testANewNoticeForTheSameRoomReplacesTheLastOne() {
-    let first = ReplyNotSentNotice.request(title: "A", threadIdentifier: "", roomId: "!a:x")
-    let again = ReplyNotSentNotice.request(title: "A", threadIdentifier: "", roomId: "!a:x")
-    let other = ReplyNotSentNotice.request(title: "B", threadIdentifier: "", roomId: "!b:x")
-    XCTAssertEqual(first.identifier, again.identifier)
-    XCTAssertNotEqual(first.identifier, other.identifier)
-  }
-
-  func testANoticeWithoutARoomStandsAloneAndOpensNothing() {
-    let first = ReplyNotSentNotice.request(title: "A", threadIdentifier: "", roomId: nil)
-    let second = ReplyNotSentNotice.request(title: "A", threadIdentifier: "", roomId: nil)
-    XCTAssertNotEqual(first.identifier, second.identifier)
-    XCTAssertTrue(first.content.userInfo.isEmpty)
-  }
-
-  func testTheNoticeArrivesAtOnceWithoutSoundOrActions() {
-    let notice = ReplyNotSentNotice.request(title: "A", threadIdentifier: "", roomId: "!a:x")
-    XCTAssertNil(notice.trigger)
-    XCTAssertNil(notice.content.sound)
-    XCTAssertEqual(notice.content.categoryIdentifier, "")
+  private func route(_ action: NotificationAction, roomId: String? = nil)
+    -> NotificationResponseRoute
+  {
+    NotificationResponseRoute(action: action, roomId: roomId)
   }
 }
 
@@ -872,32 +780,6 @@ final class WakeLockLedgerTests: XCTestCase {
     harness.tasks.expire(1)
     XCTAssertEqual(harness.tasks.running, [2])
     XCTAssertEqual(harness.tasks.events.filter { $0.hasPrefix("end") }, ["end #1"])
-  }
-
-  func testADartLockTakesOverTheResponseHoldWithoutAGap() {
-    let harness = WakeLockHarness()
-    harness.ledger.holdResponse(timeoutMs: 10_000)
-    harness.ledger.acquire("message_action", timeoutMs: 30_000)
-    XCTAssertEqual(
-      harness.tasks.events,
-      ["begin zuno:notification_response #1", "begin zuno:message_action #2", "end #1"])
-    XCTAssertEqual(harness.ledger.heldTags, ["message_action"])
-    XCTAssertEqual(harness.timers.pendingDelays, [30_000])
-  }
-
-  func testAcquiringTheResponseTagKeepsItHeld() {
-    let harness = WakeLockHarness()
-    harness.ledger.acquire(WakeLockLedger.responseTag, timeoutMs: 10_000)
-    XCTAssertEqual(harness.ledger.heldTags, [WakeLockLedger.responseTag])
-    XCTAssertEqual(harness.tasks.running, [1])
-  }
-
-  func testReleasingTheResponseHoldEndsIt() {
-    let harness = WakeLockHarness()
-    harness.ledger.holdResponse(timeoutMs: 10_000)
-    harness.ledger.release(WakeLockLedger.responseTag)
-    XCTAssertEqual(harness.tasks.running, [])
-    XCTAssertTrue(harness.timers.pendingDelays.isEmpty)
   }
 
   func testLocksWithDifferentTagsAreIndependent() {
@@ -1281,66 +1163,6 @@ private final class Recorded<Value: Sendable>: @unchecked Sendable {
     lock.lock()
     recorded.append(value)
     lock.unlock()
-  }
-}
-
-@MainActor
-private final class FakeTimers {
-  private final class Entry {
-    let milliseconds: Int
-    let fire: @MainActor @Sendable () -> Void
-    var done = false
-
-    init(milliseconds: Int, fire: @escaping @MainActor @Sendable () -> Void) {
-      self.milliseconds = milliseconds
-      self.fire = fire
-    }
-  }
-
-  private var entries: [Entry] = []
-
-  var pendingDelays: [Int] { entries.filter { !$0.done }.map(\.milliseconds) }
-
-  func schedule(
-    _ milliseconds: Int, _ fire: @escaping @MainActor @Sendable () -> Void
-  ) -> @MainActor () -> Void {
-    let entry = Entry(milliseconds: milliseconds, fire: fire)
-    entries.append(entry)
-    return { entry.done = true }
-  }
-
-  func fire(_ index: Int, evenIfCancelled: Bool = false) {
-    let entry = entries[index]
-    guard evenIfCancelled || !entry.done else { return }
-    entry.done = true
-    entry.fire()
-  }
-}
-
-@MainActor
-private final class FakeBackgroundTasks {
-  private var expirations: [Int: @MainActor @Sendable () -> Void] = [:]
-  private var next = 0
-  private(set) var events: [String] = []
-  private(set) var running: [Int] = []
-  var refuses = false
-
-  func begin(_ name: String, _ expired: @escaping @MainActor @Sendable () -> Void) -> Int? {
-    guard !refuses else { return nil }
-    next += 1
-    expirations[next] = expired
-    running.append(next)
-    events.append("begin \(name) #\(next)")
-    return next
-  }
-
-  func end(_ task: Int) {
-    running.removeAll { $0 == task }
-    events.append("end #\(task)")
-  }
-
-  func expire(_ task: Int) {
-    expirations[task]?()
   }
 }
 

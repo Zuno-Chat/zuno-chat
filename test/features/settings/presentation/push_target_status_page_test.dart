@@ -188,6 +188,7 @@ void main() {
     tearDown(() async {
       await apnsDeliveryProvider.stop(_NoopPusherClient());
       apnsDeliveryProvider.lastPusherError = null;
+      apnsDeliveryProvider.resetEnvironmentForTesting();
     });
 
     test('this session is identified by its device token, and its pusher is '
@@ -195,7 +196,8 @@ void main() {
       ambientCapabilities = iosCapabilities;
       apnsDeliveryProvider
         ..tokenReader = (() async => _apnsToken)
-        ..notificationsAllowed = (() async => true);
+        ..notificationsAllowed = (() async => true)
+        ..environmentReader = (() async => 'development');
       await apnsDeliveryProvider.registerNow(_NoopPusherClient());
 
       final groups = groupPushers([
@@ -386,6 +388,110 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
+      });
+    });
+
+    group('diagnostics', () {
+      const diagnosticsChannel = MethodChannel('zuno/push_diag');
+      late List<MethodCall> diagnosticCalls;
+      late Future<Object?> Function() diagnosticReply;
+
+      setUp(() {
+        diagnosticCalls = [];
+        diagnosticReply = () async => {
+          'settings': {
+            'authorization': 'provisional',
+            'alert': 'disabled',
+            'showPreviews': 'never',
+          },
+          'environment': 'development',
+          'registeredForRemoteNotifications': false,
+        };
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(diagnosticsChannel, (call) {
+          diagnosticCalls.add(call);
+          return diagnosticReply();
+        });
+        addTearDown(
+          () => messenger.setMockMethodCallHandler(diagnosticsChannel, null),
+        );
+      });
+
+      void useIosDiagnostics() => ambientCapabilities = capabilitiesLike(
+        iosCapabilities,
+        pushDiagnostics: true,
+      );
+
+      testWidgets('on iOS list what the system reports for this device', (
+        tester,
+      ) async {
+        useIosDiagnostics();
+        await pumpPage(tester, NotificationDeliveryMode.apns);
+
+        expect(find.text('Diagnostics'), findsOneWidget);
+        expect(detail(tester, 'Notifications'), 'Delivered quietly');
+        expect(detail(tester, 'Alerts'), 'Off');
+        expect(detail(tester, 'Show previews'), 'Never');
+        expect(detail(tester, 'Push environment'), 'Development');
+        expect(detail(tester, 'App ID for this build'), 'im.zuno.chat.ios.dev');
+        expect(detail(tester, 'Device token'), 'Not received');
+        expect(detail(tester, 'Registration check'), 'Not registered');
+        expect(detail(tester, 'Dropped registrations'), '0');
+      });
+
+      testWidgets('check the pusher this device registered against this '
+          'server', (tester) async {
+        useIosDiagnostics();
+        final tokenReader = apnsDeliveryProvider.tokenReader;
+        final notificationsAllowed = apnsDeliveryProvider.notificationsAllowed;
+        final environmentReader = apnsDeliveryProvider.environmentReader;
+        apnsDeliveryProvider
+          ..tokenReader = (() async => _apnsToken)
+          ..notificationsAllowed = (() async => true)
+          ..environmentReader = (() async => 'development');
+        addTearDown(() async {
+          await apnsDeliveryProvider.stop(_NoopPusherClient());
+          apnsDeliveryProvider
+            ..tokenReader = tokenReader
+            ..notificationsAllowed = notificationsAllowed
+            ..environmentReader = environmentReader;
+        });
+        await apnsDeliveryProvider.registerNow(_NoopPusherClient());
+        client.pushers = [
+          _pusherJson(
+            appId: apnsDevelopmentAppId,
+            pushkey: _apnsPushkey,
+            url: 'https://old.example.org/_matrix/push/v1/notify',
+          ),
+        ];
+
+        await pumpPage(tester, NotificationDeliveryMode.apns);
+
+        expect(
+          detail(tester, 'Registration check'),
+          'Out of date. Zuno registers this device again on the next check.',
+        );
+      });
+
+      testWidgets('a read that fails says so', (tester) async {
+        useIosDiagnostics();
+        diagnosticReply = () async =>
+            throw PlatformException(code: 'unavailable');
+
+        await pumpPage(tester, NotificationDeliveryMode.apns);
+
+        expect(
+          find.text('Could not read. Pull down to try again.'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('Android shows none and asks for none', (tester) async {
+        await pumpPage(tester, NotificationDeliveryMode.fcm);
+
+        expect(find.text('Diagnostics'), findsNothing);
+        expect(diagnosticCalls, isEmpty);
       });
     });
 
@@ -733,21 +839,13 @@ void main() {
         );
       });
 
-      testWidgets('with Apple push the server forgets it', (tester) async {
+      testWidgets('with Apple push there is nothing to remove here', (
+        tester,
+      ) async {
         await pumpPage(tester, NotificationDeliveryMode.apns);
-        expect(
-          find.text('Makes the server forget this device'),
-          findsOneWidget,
-        );
 
-        await startRemoving(tester);
-        expect(
-          find.textContaining('The server forgets this device.'),
-          findsOne,
-        );
-        await confirmRemove(tester);
-
-        expect(find.byType(PushTargetStatusPage), findsNothing);
+        expect(find.text('App ID'), findsOneWidget);
+        expect(find.text('Remove push target'), findsNothing);
       });
 
       testWidgets('with background sync there is nothing to remove', (

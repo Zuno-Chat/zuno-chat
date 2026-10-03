@@ -3,9 +3,9 @@
 ## Overview
 Cross-cutting infrastructure the rest of the app sits on: a single
 app-wide Matrix `Client`, cold start, connectivity awareness, global
-error handling, the android/ios capability layer, the iOS project, and the
-Android launch icon/splash. Not a user-facing feature — every screen
-depends on this layer.
+error handling, the android/ios capability layer, the iOS project and its
+one Flutter engine, and the Android launch icon/splash. Not a user-facing
+feature — every screen depends on this layer.
 
 ## Architecture
 One `Client` instance for the whole app's lifetime, built by
@@ -18,7 +18,8 @@ only, and screens call SDK methods directly (`client.login`,
 and derived streams, not a separate app-level model. While the app runs it
 is also the only Matrix client in the process: push engines and
 notification actions open their own short-lived clients only under the
-client lease (One Matrix client per process, below).
+client lease (One Matrix client per process, below). iOS runs one engine
+for everything (`EngineHost`, below).
 
 Key providers (`matrix_client_provider.dart`):
 - `matrixClientProvider` — the `Client`, overridden in `main.dart` once
@@ -124,8 +125,8 @@ capability/seam rules:
 - Where iOS reimplements rather than skips, the difference is an
   interface: the call seams in `lib/core/calls/platform/`
   (`IncomingCallPresenter`, `OngoingCallPresenter`, `RingbackTonePlayer`,
-  `SystemCall`, `CallAudioOutput`), each built by a `*For(capabilities)`
-  factory. The per-platform table is in `calls.md`.
+  `SystemCall`, `CallAudioOutput`, `PushRingBridge`), each built by a
+  `*For(capabilities)` factory. The per-platform table is in `calls.md`.
 
 Each flag is one of these kinds:
 
@@ -136,25 +137,48 @@ Each flag is one of these kinds:
 | Permanent: Android concept | `batteryExemption`, `backgroundDataRestriction`, `autostartSettings`, `lockScreenCallUi`, `foregroundSyncService`, `vibrationPatterns`, `keyboardLearningOptOut`, `fullScreenIntent`, `homeScreenShortcuts` (pinning; iOS quick actions would be a new flag) | iOS stays `false` |
 | Android-only behavior | `atomicDatabaseBatches` (one database connection shared by every engine), `instantPushNotices` (a native notice posted from the push; on iOS the APNs alert is the system's) | `true` on Android only |
 | Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` (Android); `callKit` (iOS) | `true` on their own platform only; the call factories check `callKit` first (`calls.md`), so the Android three are never flipped |
-| iOS-only behavior | `apnsRegistration`, `playerNeedsMediaType`, `callMuteByInputMixer`, `signOutWipeKeepsProcess` | `true` on iOS only |
+| iOS-only behavior | `apnsRegistration`, `playerNeedsMediaType`, `callMuteByInputMixer`, `signOutWipeKeepsProcess`, `videoRendererNeedsDetach` (`calls.md`) | `true` on iOS only |
+| iOS push stack | `pushDiagnostics`, `voipRing` (the PushKit ring, `calls.md`), `nseNotifications` (the notification service extension, `notifications.md`), `nativeNotificationActions` (Reply and Mark as read queued natively); each gates its `zuno/*` channels (below) | `true` on iOS only |
 | Apple limitation | `recorderWritesOgg` (Apple can't write Ogg), `videoCodecOrder` (`null` on iOS, see `calls.md`), `locationServicesSettings` (no link into Location Services), `filesTypedByExtension` (other apps type a file by its name), `screenshotBlocking` (no app can block a screenshot; picks the screen-privacy copy) | differs on iOS for good |
 
 ### iOS project
 
 | Path | Holds |
 |---|---|
-| `ios/Runner/` | The app target: plugins, `Runner.entitlements`, `PrivacyInfo.xcprivacy`, bundled sounds (`message_tone.caf`, `silent_ring.caf`) |
+| `ios/Runner/` | The app target: plugins, `Runner.entitlements`, `PrivacyInfo.xcprivacy`, bundled sounds (`message_tone.caf`, `silent_ring.caf`, `fallback_ring.caf`) |
 | `ios/ShareExtension/` | The share extension target (`im.zuno.chat.ShareExtension`, `chats-messaging.md`): own Info.plist, entitlements, privacy manifest, and an xcconfig taking its version from Flutter's build name and number, since an extension's version must match its app's |
-| `ios/Shared/` | Swift compiled into both targets (`ShareInbox.swift`) |
-| `ios/RunnerTests/` | XCTests against `@testable import Runner` |
+| `ios/NotificationService/` | The notification service extension (`im.zuno.chat.NotificationService`, `notifications.md`): own Info.plist, entitlements (notify group, Time Sensitive), privacy manifest, the same version xcconfig, and a bridging header for the Megolm ABI |
+| `ios/Shared/` | Swift compiled into the app and the share extension (`ShareInbox.swift`) |
+| `ios/NotifyShared/` | Swift compiled into the app and the notification extension: read model, sealed files, Keychain items, the extension's pipeline, ring decisions, `VoipBlob`, `CallIdentity` |
+| `ios/RunnerTests/` | XCTests against `@testable import Runner`, which compiles both shared folders |
 
 - **App Group** `group.im.zuno.chat.$(DEVELOPMENT_TEAM)`, from the
-  project-level `ZUNO_APP_GROUP`, in both targets' entitlements. It is
-  team-scoped because a group registered on the Personal Team may stay
-  stuck there. Code never spells it: it reads `ZunoAppGroup` from its own
-  Info.plist.
-- **Privacy manifests**: Runner declares UserDefaults (`CA92.1`) and file
-  timestamps (`C617.1`), the extension file timestamps only.
+  project-level `ZUNO_APP_GROUP`, in Runner's and the share extension's
+  entitlements. It is team-scoped because a group registered on the
+  Personal Team may stay stuck there. Code never spells it: it reads
+  `ZunoAppGroup` from its own Info.plist.
+- **Notify App Group** `group.im.zuno.chat.notify.$(DEVELOPMENT_TEAM)`
+  (`ZUNO_NOTIFY_GROUP`, read from `ZunoNotifyGroup`), in Runner and the
+  notification extension only, never the share extension. It holds the read
+  model (`Library/Application Support/zuno-nse/`, protection
+  `completeUntilFirstUserAuthentication`) and doubles as the access group of
+  the notify Keychain item.
+- **Keychain items** besides the database key, all
+  `AfterFirstUnlockThisDeviceOnly` and never synchronized:
+
+  | Service | Access | Holds |
+  |---|---|---|
+  | `im.zuno.chat.notify` | Notify group | `rm_key`, `install_key`, the extension's credential |
+  | `im.zuno.chat.voip` | Runner only | The VoIP key and its predecessor |
+  | `im.zuno.chat.unlock-probe` | Runner only | One byte that reads only after first unlock |
+
+- **A reinstall starts with fresh notify and VoIP items** (`NotifySweep`):
+  Keychain items outlive an uninstall, so the first launch without the
+  `Library/zuno-install-v1` marker deletes both, never the database key.
+- **Privacy manifests**: Runner declares UserDefaults (`CA92.1`, and
+  `1C8F.1` for the notify group's suite) and file timestamps (`C617.1`); the
+  share extension file timestamps only; the notification extension
+  UserDefaults (`1C8F.1`).
 
 Runner's Info.plist keys beyond usage descriptions and background modes:
 
@@ -163,7 +187,47 @@ Runner's Info.plist keys beyond usage descriptions and background modes:
 | `CFBundleURLTypes` | The `im.zuno.chat` scheme, which the share extension opens |
 | `FlutterDeepLinkingEnabled` `false` | Flutter would otherwise turn an opened URL into a route. Plugins claim URLs through `addSceneDelegate` (UIScene delivers them to `scene(_:openURLContexts:)`); an unclaimed one is ignored |
 | `ITSAppUsesNonExemptEncryption` `false` | Skips the export-compliance question per upload; holds only while France is unselected in App Store Connect (`docs/plan-ios-native.md`) |
-| `ZunoAppGroup` | `$(ZUNO_APP_GROUP)`, for code |
+| `SRResearchDataGeneration` `false` | SensorKit research apps may not collect speech metrics during Zuno's CallKit calls |
+| `ZunoAppGroup`, `ZunoNotifyGroup` | `$(ZUNO_APP_GROUP)`, `$(ZUNO_NOTIFY_GROUP)`, for code |
+
+There are no storyboard keys (`UIMainStoryboardFile`,
+`UISceneStoryboardFile`): `Main.storyboard`'s `FlutterViewController` would
+create the implicit engine (below).
+
+### One Flutter engine on iOS (`EngineHost`)
+
+**iOS runs one app-owned engine** (`EngineHost.swift`), not Flutter's
+implicit one. Why: the implicit engine needs a scene, which a ring or a
+notification action in the background lacks, and two engines cannot share
+a `Client` or WebRTC objects.
+- `SceneDelegate` builds its window around it. A VoIP ring
+  (`startForRing`) or a notification action (`start(.action)`) starts it
+  headless, with `--zuno-wake=ring|action` (read back over `zuno/launch`)
+  and the lifecycle set to `paused`; a scene that connects later gets the
+  same engine. The full `main()` runs either way, so a ring or an action
+  uses the app's own client, lease and call stack.
+- **It never starts an engine before first unlock** (`ProtectedData`: the
+  VoIP Keychain item, else `isProtectedDataAvailable`): the database key
+  and the app's files are unreadable until then. A scene shows the launch
+  screen and gets the Flutter view once protected data arrives; a ring
+  stays native (`calls.md`).
+- **Plugins register once, in `EngineHost.registerPlugins`**: the generated
+  registrant, then the Zuno plugins. Never call the AppDelegate's
+  `registrar(forPlugin:)`, `hasPlugin` or `valuePublishedByPlugin`: they
+  silently start Flutter's `LaunchEngine`, a second engine.
+
+**The iOS push channels**, each behind its flag (wrappers no-op while it
+is off and catch `MissingPluginException`, so Android never calls them):
+
+| Channel | Flag | Methods |
+|---|---|---|
+| `zuno/apns` | `apnsRegistration` | `getToken`, `environment`, `removeDelivered` |
+| `zuno/push_diag` | `pushDiagnostics` | `snapshot`: notification settings, environment, ledger, read-model age, extension log, MetricKit summaries |
+| `zuno/voip` | `voipRing` | `status`, `rotateKey`, `ackKey`, `takeEvents`, `setSession`; `devExport` only in the development APNs environment |
+| `zuno/launch` | `voipRing` | `takeWakeReason`, `takeDiagnostics` (MetricKit lines) |
+| `zuno/nse` | `voipRing`; `nseNotifications` for the second half | `threadKey`, `writeMeta`, `writeRoom`, `deleteRoom`, `wipe`; `writeShown`, `takeMarks`, `readOutcomes`, `setCredential`, `syncBadge` |
+| `zuno/notification_actions` | `nativeNotificationActions` | `takeActions`, `finish`; native → Dart `actionsAvailable` |
+| `zuno/wake_lock` | `headlessWakeLocks` | `acquire`, `release` by tag: a background task each on iOS, also held around sends (`notifications.md`) |
 
 ### One Matrix client per process
 
@@ -184,13 +248,13 @@ What each background path does on `ClientLeaseDenied`:
 |---|---|
 | Push | Dropped; the instant notice stays (`notifications.md`) |
 | Push engine's ring hold, sending a decline | Hands it to the app's decline route (`calls.md`) |
-| Notification action or Decline in the action engine | Retries the hand-off to the app's live route for about 6 s |
+| Notification action or Decline in the action engine (Android) | Retries the hand-off to the app's live route for about 6 s |
 | FCM token move in a push engine | Saved as the pending token |
 
 - Native halves: Android `ClientLeases` over the pure, JUnit-tested
   `ClientLeaseBook` in `zuno_notifications`, on every engine that plugin
-  reaches; iOS `ClientLeasePlugin` over `ClientLeaseLedger` (XCTests), on the
-  app engine and the notification-action engine. Without the native half
+  reaches; iOS `ClientLeasePlugin` over `ClientLeaseLedger` (XCTests), on
+  `EngineHost`'s one engine. Without the native half
   (`MissingPluginException`) both kinds go on unleased.
 - **Background clients never clear the store** (`ZunoClient(appClient:
   false)`): the SDK's own `clear()` on a failed init or refresh would
@@ -280,10 +344,10 @@ App data stays out of device backups. Android sets `allowBackup="false"`.
 iOS flags Application Support (database, notification avatars) and
 Documents `isExcludedFromBackup` at every launch in `AppDelegate`; the flag
 on a directory covers files created later. The share inbox in the App Group
-is flagged when it is created. `Library/Preferences` still
-backs up (cfprefsd rewrites the plist, so a flag would not stick): a restore
-brings back the signed-in marker without a database, so the sign-out wipe
-clears it on first launch.
+and the notify group's `zuno-nse` folder are flagged when created.
+`Library/Preferences` still backs up (cfprefsd rewrites the plist, so a
+flag would not stick): a restore brings back the signed-in marker without a
+database, so the sign-out wipe clears it on first launch.
 
 ## Communication
 **Cold start.** `main()`'s independent setup steps (notifications,
@@ -554,7 +618,9 @@ launch value (`LaunchHandoff`), and in Dart for the first listener
   app-switcher snapshots and the prefs domain, skipping iOS's own
   `com.apple.*` items. Dart then reloads
   `SharedPreferences`, whose in-memory cache would otherwise keep the old
-  values.
+  values. The push teardown that runs first empties `zuno-nse` (bar its
+  signed-out marker) and deletes the notify and VoIP Keychain items
+  (`notifications.md`).
 - **`_AuthGate`'s `ref.listenManual` subscriptions must not become
   `build()`-driven.** `_AuthGate` sits at the bottom of the navigation
   stack, and Flutter defers rebuilding a dirty element under a covered
@@ -618,7 +684,8 @@ launch value (`LaunchHandoff`), and in Dart for the first listener
   scheduled) — this is a durable, general risk for anything this
   handler ever reports, not tied to one bug.
 - **`project.pbxproj` changes go through CocoaPods' own xcodeproj gem**
-  (`GEM_HOME=/opt/homebrew/Cellar/cocoapods/1.17.0/libexec`), which keeps
+  (`GEM_HOME=/opt/homebrew/Cellar/cocoapods/1.17.0/libexec`; files go in
+  with `tool/xcode/add_sources.rb <target> <path>…`), which keeps
   `objectVersion` at 60. Xcode 27 writes 110 for new projects, CocoaPods
   cannot read it, and `pod install` then fails. Keep "Embed Foundation
   Extensions" above "Run Script" in Runner, or the build reports a cycle
@@ -700,10 +767,14 @@ launch value (`LaunchHandoff`), and in Dart for the first listener
   `globalNavigatorKey`, both wired on `MaterialApp` in `app.dart`)
   rather than introducing a second mechanism.
 - A new Swift file or target goes in through the xcodeproj gem (Gotchas).
-  Swift both the app and an extension need goes in `ios/Shared/`, compiled
-  into both targets. Not every class has its own file: `WakeLockPlugin` and
-  `ClientLeasePlugin` live in `UploadServicePlugin.swift`,
-  `RoomLaunchPlugin` in `ApnsTokenPlugin.swift`.
+  Swift the app shares with the share extension goes in `ios/Shared/`, with
+  the notification extension in `ios/NotifyShared/`; each file joins both
+  targets, and RunnerTests reach it through Runner. Not every class has its
+  own file: `WakeLockPlugin` and `ClientLeasePlugin` live in
+  `UploadServicePlugin.swift`, `RoomLaunchPlugin` in
+  `ApnsTokenPlugin.swift`.
+- A new iOS plugin registers in `EngineHost.registerPlugins`, and its Dart
+  wrapper no-ops behind a capability flag.
 - The iOS Runner compiles in Swift 6 mode. A new channel handler copies
   the shape of the ones in `ios/Runner/`: a `@MainActor` class,
   `@preconcurrency FlutterPlugin` conformance, and

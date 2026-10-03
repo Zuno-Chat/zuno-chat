@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show DebugPrintCallback, debugPrint;
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -61,13 +63,19 @@ class _RecordingClient extends Client {
   }
 }
 
-Map<String, Object?> _serverPusher(String pushkey, {String? appId}) => {
+Map<String, Object?> _serverPusher(
+  String pushkey, {
+  String? appId,
+  String url = 'https://matrix.example.org/_matrix/push/v1/notify',
+  String format = 'event_id_only',
+}) => {
   'app_id': appId ?? apnsAppId,
   'pushkey': pushkey,
   'app_display_name': 'Zuno',
   'device_display_name': 'Zuno on iOS',
   'kind': 'http',
   'lang': 'en',
+  'data': {'url': url, 'format': format},
 };
 
 void main() {
@@ -76,8 +84,10 @@ void main() {
   late ApnsDeliveryProvider provider;
   late _RecordingClient client;
   late int tokenReads;
+  late int environmentReads;
   late DateTime now;
   String? deviceToken;
+  late Future<String?> Function() readEnvironment;
 
   ApnsDeliveryProvider providerWith({required bool registration}) =>
       ApnsDeliveryProvider(
@@ -89,6 +99,10 @@ void main() {
         ..tokenReader = () async {
           tokenReads++;
           return deviceToken;
+        }
+        ..environmentReader = () {
+          environmentReads++;
+          return readEnvironment();
         }
         ..retryDelay = ((_) => const Duration(days: 1))
         ..now = (() => now);
@@ -102,6 +116,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     client = _RecordingClient();
     tokenReads = 0;
+    environmentReads = 0;
+    readEnvironment = () async => 'development';
     deviceToken = _token;
     now = DateTime(2026, 9, 27, 12);
     provider = providerWith(registration: true);
@@ -241,24 +257,123 @@ void main() {
     expect(relaunched.dropped.value, 0);
   });
 
-  test('a release build replacing a development one moves the pusher to the '
-      'production app id', () async {
-    provider.appId = apnsDevelopmentAppId;
-    await provider.start(client);
-    client.posted.clear();
-    client.pushersOnServer = [
-      _serverPusher(_pushkey, appId: apnsDevelopmentAppId),
-    ];
+  group('the push environment of this build', () {
+    test('production registers under the production app id, whatever the '
+        'build mode', () async {
+      readEnvironment = () async => 'production';
 
-    final relaunched = providerWith(registration: true)
-      ..appId = apnsProductionAppId;
-    await relaunched.start(client);
+      await provider.start(client);
 
-    expect(client.posted.single.appId, apnsProductionAppId);
-    expect(client.posted.single.pushkey, _pushkey);
-    expect(client.deleted.single.appId, apnsDevelopmentAppId);
-    expect(client.deleted.single.pushkey, _pushkey);
-    expect(relaunched.dropped.value, 0);
+      expect(client.posted.single.appId, apnsProductionAppId);
+    });
+
+    test('development registers under the development app id', () async {
+      readEnvironment = () async => 'development';
+
+      await provider.start(client);
+
+      expect(client.posted.single.appId, apnsDevelopmentAppId);
+    });
+
+    test('a relaunch under another environment moves the pusher to its app '
+        'id', () async {
+      await provider.start(client);
+      client.posted.clear();
+      client.pushersOnServer = [
+        _serverPusher(_pushkey, appId: apnsDevelopmentAppId),
+      ];
+      readEnvironment = () async => 'production';
+
+      final relaunched = providerWith(registration: true);
+      await relaunched.start(client);
+
+      expect(client.posted.single.appId, apnsProductionAppId);
+      expect(client.posted.single.pushkey, _pushkey);
+      expect(client.deleted.single.appId, apnsDevelopmentAppId);
+      expect(client.deleted.single.pushkey, _pushkey);
+      expect(relaunched.dropped.value, 0);
+    });
+
+    test('without Apple push registration the environment is never '
+        'asked', () async {
+      final unregistered = providerWith(registration: false);
+
+      expect(await unregistered.currentAppId(), apnsAppId);
+      expect(environmentReads, 0);
+    });
+
+    test('is read once per launch', () async {
+      await provider.start(client);
+      await provider.registerNow(client);
+
+      expect(environmentReads, 1);
+    });
+
+    test('is read again after a reset', () async {
+      await provider.start(client);
+      readEnvironment = () async => 'production';
+
+      provider.resetEnvironmentForTesting();
+
+      expect(await provider.currentAppId(), apnsProductionAppId);
+      expect(environmentReads, 2);
+    });
+
+    group('falling back to the build mode', () {
+      late List<String> lines;
+      late DebugPrintCallback originalDebugPrint;
+
+      setUp(() {
+        lines = [];
+        originalDebugPrint = debugPrint;
+        debugPrint = (String? message, {int? wrapWidth}) {
+          if (message != null) lines.add(message);
+        };
+      });
+
+      tearDown(() => debugPrint = originalDebugPrint);
+
+      test('an unreadable environment falls back to the build mode and is '
+          'asked again next time', () async {
+        readEnvironment = () async => throw MissingPluginException();
+
+        await provider.start(client);
+
+        expect(client.posted.single.appId, apnsAppId);
+        expect(
+          lines.single,
+          allOf(
+            contains('APNs environment unreadable'),
+            contains('MissingPluginException'),
+          ),
+        );
+
+        readEnvironment = () async => 'production';
+        await provider.registerNow(client);
+
+        expect(client.posted.last.appId, apnsProductionAppId);
+        expect(client.deleted.single.appId, apnsAppId);
+      });
+
+      test('an environment name it does not know falls back to the build '
+          'mode, names it in the log and is asked again next time', () async {
+        readEnvironment = () async => 'staging';
+
+        await provider.start(client);
+
+        expect(client.posted.single.appId, apnsAppId);
+        expect(
+          lines.single,
+          allOf(contains('unknown APNs environment'), contains('staging')),
+        );
+
+        readEnvironment = () async => 'production';
+        await provider.registerNow(client);
+
+        expect(client.posted.last.appId, apnsProductionAppId);
+        expect(environmentReads, 2);
+      });
+    });
   });
 
   test('a relaunch whose pusher is gone from the server posts it again and '
@@ -292,6 +407,106 @@ void main() {
     await relaunched.start(client);
 
     expect(relaunched.dropped.value, 2);
+  });
+
+  group('a pusher the homeserver still holds', () {
+    test('exactly as this app posted it is left alone', () async {
+      await provider.start(client);
+      client.pushersOnServer = [client.posted.single.toJson()];
+      client.posted.clear();
+
+      await recheckAfterInterval();
+
+      expect(client.posted, isEmpty);
+      expect(provider.dropped.value, 0);
+      expect(provider.status.value, ApnsStatus.ready);
+    });
+
+    test('pointing at an old address is posted again to this server without '
+        'counting a drop', () async {
+      await provider.start(client);
+      client.posted.clear();
+      client.pushersOnServer = [
+        _serverPusher(
+          _pushkey,
+          url: 'https://old.example.org/_matrix/push/v1/notify',
+        ),
+      ];
+
+      final relaunched = providerWith(registration: true);
+      await relaunched.start(client);
+
+      final pusher = client.posted.single;
+      expect(pusher.appId, apnsAppId);
+      expect(pusher.pushkey, _pushkey);
+      expect(
+        pusher.data.url.toString(),
+        'https://matrix.example.org/_matrix/push/v1/notify',
+      );
+      expect(relaunched.dropped.value, 0);
+      expect(relaunched.status.value, ApnsStatus.ready);
+      expect(client.deleted, isEmpty);
+    });
+
+    test(
+      'asking for full events is posted again with event ids only',
+      () async {
+        await provider.start(client);
+        client.posted.clear();
+        client.pushersOnServer = [_serverPusher(_pushkey, format: 'full')];
+
+        await recheckAfterInterval();
+
+        expect(client.posted.single.data.format, 'event_id_only');
+        expect(provider.dropped.value, 0);
+      },
+    );
+
+    test('at the same address in another spelling is left alone', () async {
+      await provider.start(client);
+      client.posted.clear();
+      client.pushersOnServer = [
+        _serverPusher(
+          _pushkey,
+          url: 'https://Matrix.Example.org:443/_matrix/push/v1/notify',
+        ),
+      ];
+
+      await recheckAfterInterval();
+      final relaunched = providerWith(registration: true);
+      await relaunched.start(client);
+
+      expect(client.posted, isEmpty);
+    });
+
+    test('posted again but refused, reports the failure and retries', () async {
+      await provider.start(client);
+      client.pushersOnServer = [
+        _serverPusher(
+          _pushkey,
+          url: 'https://old.example.org/_matrix/push/v1/notify',
+        ),
+      ];
+      client.postError = Exception('M_UNKNOWN');
+
+      await recheckAfterInterval();
+
+      expect(provider.status.value, ApnsStatus.pusherFailed);
+      expect(provider.retryScheduled, isTrue);
+      expect(provider.dropped.value, 0);
+    });
+
+    test('that cannot be listed changes nothing', () async {
+      await provider.start(client);
+      client.posted.clear();
+      client.pushersOnServer = null;
+
+      await recheckAfterInterval();
+
+      expect(client.posted, isEmpty);
+      expect(provider.dropped.value, 0);
+      expect(provider.status.value, ApnsStatus.ready);
+    });
   });
 
   test('registering from Settings starts the count over', () async {

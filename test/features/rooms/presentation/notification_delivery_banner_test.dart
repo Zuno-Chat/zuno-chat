@@ -18,6 +18,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm_pusher.dart';
+import 'package:zuno/core/push/voip/voip_registration.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/rooms/presentation/notification_delivery_banner.dart';
@@ -25,6 +26,7 @@ import 'package:zuno/features/settings/presentation/notification_delivery_page.d
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_unified_push.dart';
+import '../../../helpers/fake_voip_registration.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 const _apnsToken =
@@ -183,15 +185,19 @@ void main() {
     final client = _PusherClient();
     final tokenReader = apnsDeliveryProvider.tokenReader;
     final notificationsAllowed = apnsDeliveryProvider.notificationsAllowed;
+    final environmentReader = apnsDeliveryProvider.environmentReader;
     apnsDeliveryProvider
       ..tokenReader = (() async => _apnsToken)
       ..notificationsAllowed = (() async => true)
+      ..environmentReader = (() async => 'development')
       ..status.value = ApnsStatus.pusherFailed;
     addTearDown(() async {
       await apnsDeliveryProvider.stop(client);
       apnsDeliveryProvider
         ..tokenReader = tokenReader
-        ..notificationsAllowed = notificationsAllowed;
+        ..notificationsAllowed = notificationsAllowed
+        ..environmentReader = environmentReader
+        ..resetEnvironmentForTesting();
     });
 
     await tester.pumpWidget(
@@ -218,6 +224,30 @@ void main() {
     await tester.pump();
 
     expect(client.posted.map((p) => p.appId), [apnsAppId]);
+  });
+
+  testWidgets('Retry on calls that may not ring registers for calls again', (
+    tester,
+  ) async {
+    final voip = FakeVoipRegistration();
+    final client = buildTestClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          deliveryFailureProvider.overrideWithValue(callsMayNotRing),
+          voipRegistrationProvider.overrideWithValue(voip),
+          matrixClientProvider.overrideWithValue(client),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: NotificationDeliveryBanner()),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+
+    expect(voip.registered, [client]);
   });
 
   group('on a device without Google Play services', () {

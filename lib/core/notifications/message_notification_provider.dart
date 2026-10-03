@@ -11,10 +11,14 @@ import '../matrix/currently_open_room_provider.dart';
 import '../matrix/event_display.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../matrix/room_title.dart';
+import '../platform/platform_capabilities.dart';
+import '../push/read_model/nse_app_channel.dart';
 import '../settings/app_preferences_provider.dart';
+import 'apns_alert_removal.dart';
 import 'message_notification_content.dart';
 import 'message_notification_image.dart';
 import 'message_notification_poster.dart';
+import 'notification_preview.dart';
 import 'notification_room_cache.dart';
 import 'notify_me.dart';
 
@@ -59,6 +63,7 @@ MessageNotificationDecision messageNotificationFor(
   required EvaluatedPushRuleAction pushRuleAction,
   required NotifyMe notifyMe,
   required String? currentlyOpenRoomId,
+  NotificationPreview preview = NotificationPreview.full,
 }) {
   if (event.senderId == client.userID) {
     return const MessageNotificationDecision.refuse(
@@ -99,17 +104,20 @@ MessageNotificationDecision messageNotificationFor(
   final sender = room.unsafeGetUserFromMemoryOrFallback(event.senderId);
   final senderName = sender.calcDisplayname();
   final summary = summarize(event);
+  final text =
+      preview == NotificationPreview.nameOnly &&
+          summary.kind != MessageKind.callSummary
+      ? previewHiddenText
+      : summary.text;
   final title = roomTitle(room);
-  final body = room.isDirectChat
-      ? summary.text
-      : '$senderName: ${summary.text}';
+  final body = room.isDirectChat ? text : '$senderName: $text';
 
   return MessageNotificationDecision.notify(
     MessageNotificationContent(
       roomId: room.id,
       title: title,
       body: body,
-      text: summary.text,
+      text: text,
       eventId: event.eventId,
       isDirectChat: room.isDirectChat,
       senderId: event.senderId,
@@ -158,6 +166,9 @@ class MessageNotificationNotifier extends Notifier<void> {
         if (room.unreadNotifications?.notificationCount == 0) roomId,
     ];
     if (readRooms.isEmpty) return;
+    if (ambientCapabilities.apnsRegistration) {
+      await apnsAlertRemoval.removeForReadRooms(readRooms);
+    }
     await Future.wait([for (final roomId in readRooms) ...?_posting[roomId]]);
     await CallNotificationService.instance.cancelMessageNotificationsIfShowing(
       readRooms,
@@ -177,18 +188,40 @@ class MessageNotificationNotifier extends Notifier<void> {
 
   Future<void> _handleEvent(Client client, Event event) async {
     if (client.prevBatch == null) return;
-    final content = messageNotificationFor(
+    final presentsInFrontOnly = ref
+        .read(platformCapabilitiesProvider)
+        .nseNotifications;
+    final decision = messageNotificationFor(
       client,
       event,
       pushRuleAction: client.pushruleEvaluator.match(event),
       notifyMe: ref.read(notifyMeProvider),
       currentlyOpenRoomId: ref.read(currentlyOpenRoomIdProvider),
-    ).content;
-    if (content == null) return;
-    if (content.quiet &&
-        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      preview: presentsInFrontOnly
+          ? ref.read(notificationPreviewProvider)
+          : NotificationPreview.full,
+    );
+    final content = decision.content;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    final inFront =
+        lifecycle == AppLifecycleState.resumed ||
+        (presentsInFrontOnly && lifecycle == AppLifecycleState.inactive);
+    void markShown() {
+      if (presentsInFrontOnly) {
+        unawaited(ref.read(nseAppChannelProvider).writeShown([event.eventId]));
+      }
+    }
+
+    if (decision.refusal == MessageNotificationRefusal.roomOpen) {
+      markShown();
       return;
     }
+    if (content == null) return;
+    if (content.quiet && inFront) {
+      markShown();
+      return;
+    }
+    if (presentsInFrontOnly && !inFront) return;
     final posted = Completer<void>();
     final inRoom = _posting.putIfAbsent(content.roomId, () => {})
       ..add(posted.future);
@@ -207,6 +240,7 @@ class MessageNotificationNotifier extends Notifier<void> {
         fetchImage: () => fetchMessageNotificationImage(event),
         onPosted: settle,
       );
+      markShown();
     } finally {
       settle();
     }

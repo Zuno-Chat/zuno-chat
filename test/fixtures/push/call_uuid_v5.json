@@ -1,0 +1,26 @@
+{
+  "cases" : [
+    {
+      "call_id" : "c1",
+      "room_id" : "!abc:zuno.im",
+      "uuid" : "76204647-3A1F-568F-8647-458C11FDA59D"
+    },
+    {
+      "call_id" : "call-1",
+      "room_id" : "!room:example.org",
+      "uuid" : "F3584D12-AE55-5FE8-A44D-AC078068BB34"
+    },
+    {
+      "call_id" : "",
+      "room_id" : "!room:example.org",
+      "uuid" : "3949A790-1A82-5211-8869-6F1A41FF786C"
+    },
+    {
+      "call_id" : "",
+      "room_id" : "!caf\u00e9:example.org",
+      "uuid" : "E4F64BDA-083F-5728-84A1-075D710AF361"
+    }
+  ],
+  "namespace" : "5C2B7E0A-3D4F-4B8E-9A61-2F7C8D0E1B34",
+  "separator" : "\n"
+}

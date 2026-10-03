@@ -2,12 +2,12 @@ import 'dart:async';
 
 const registrationRecheckInterval = Duration(hours: 6);
 
-const _maxRetryDelay = Duration(minutes: 30);
+const maxRegistrationRetryDelay = Duration(minutes: 30);
 
 Duration defaultRegistrationRetryDelay(int attempt) {
   final minutes = 1 << attempt.clamp(0, 5);
   final delay = Duration(minutes: minutes);
-  return delay > _maxRetryDelay ? _maxRetryDelay : delay;
+  return delay > maxRegistrationRetryDelay ? maxRegistrationRetryDelay : delay;
 }
 
 class RegistrationRetry {

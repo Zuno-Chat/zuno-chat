@@ -256,6 +256,31 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
+    'pushDiagnostics',
+    read: (c) => c.pushDiagnostics,
+    android: false,
+    ios: true,
+  ),
+  _Capability('voipRing', read: (c) => c.voipRing, android: false, ios: true),
+  _Capability(
+    'nseNotifications',
+    read: (c) => c.nseNotifications,
+    android: false,
+    ios: true,
+  ),
+  _Capability(
+    'nativeNotificationActions',
+    read: (c) => c.nativeNotificationActions,
+    android: false,
+    ios: true,
+  ),
+  _Capability(
+    'videoRendererNeedsDetach',
+    read: (c) => c.videoRendererNeedsDetach,
+    android: false,
+    ios: true,
+  ),
+  _Capability(
     'deliveryModes',
     read: (c) => c.deliveryModes,
     android: [

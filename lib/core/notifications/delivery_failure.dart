@@ -1,4 +1,5 @@
 import '../push/unified_push_distributor_names.dart';
+import '../push/voip/voip_registration.dart';
 import 'apns_delivery_provider.dart';
 import 'fcm_delivery_provider.dart';
 import 'notification_delivery_mode.dart';
@@ -10,6 +11,7 @@ enum DeliveryFailureAction {
   turnOnPlayServices,
   switchToBackgroundService,
   retry,
+  retryCalls,
   openDistributorSettings,
   openSettings,
 }
@@ -32,7 +34,7 @@ String deliveryFailureActionLabel(DeliveryFailureAction action) {
     DeliveryFailureAction.updatePlayServices => 'Update Google Play services',
     DeliveryFailureAction.turnOnPlayServices => 'Turn on Google Play services',
     DeliveryFailureAction.switchToBackgroundService => 'Use background sync',
-    DeliveryFailureAction.retry => 'Retry',
+    DeliveryFailureAction.retry || DeliveryFailureAction.retryCalls => 'Retry',
     DeliveryFailureAction.openDistributorSettings => 'Open settings',
     DeliveryFailureAction.openSettings => 'Open settings',
   };
@@ -101,6 +103,14 @@ DeliveryFailure? _distributorBatteryFailure(
     action: DeliveryFailureAction.openDistributorSettings,
   );
 }
+
+const callsMayNotRing = DeliveryFailure(
+  message: 'Calls may not ring while Zuno is closed',
+  action: DeliveryFailureAction.retryCalls,
+);
+
+DeliveryFailure? callsDeliveryFailure(VoipRegistrationState state) =>
+    state == VoipRegistrationState.failed ? callsMayNotRing : null;
 
 const _notRegistered = DeliveryFailure(
   message: 'This device is not registered for notifications',

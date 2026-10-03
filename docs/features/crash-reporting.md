@@ -38,6 +38,14 @@ session tracking off — a push wake is not a user session, and counting it
 as one would bury the crash-free rate under hundreds of one-second sessions
 a day.
 
+On iOS, MetricKit's crash, exit and memory reports (`MetricsSubscriber.swift`,
+the app's only subscriber) wait natively, 20 at most, until `RingCoordinator`
+takes them over `zuno/launch` (`takeDiagnostics`) at startup. Each goes to
+`captureCrash` as an `IosDiagnostic`, so it leaves the device only under
+the same gate. A kill for an unreported VoIP push (`0xbaadca11`) reads
+`voip_unreported`. The summaries also feed the Diagnostics page
+(`settings.md`).
+
 `sendFeedback` builds its own `SentryClient` over a bare `SentryOptions`,
 sends one feedback event and closes it. It never touches the global hub,
 so it starts no native SDK and installs no error hooks, and it takes the

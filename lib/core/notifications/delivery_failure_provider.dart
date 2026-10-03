@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:unifiedpush/unifiedpush.dart';
 
 import '../platform/platform_capabilities.dart';
+import '../push/voip/voip_registration.dart';
 import '../settings/app_preferences_provider.dart';
 import 'apns_delivery_provider.dart';
 import 'delivery_auto_fallback.dart';
@@ -31,8 +32,18 @@ final unifiedPushDistributorInstalledProvider =
       }
     });
 
+DeliveryFailure? _callsFailure(Ref ref) {
+  if (!ref.watch(platformCapabilitiesProvider).voipRing) return null;
+  final registration = ref.watch(voipRegistrationProvider);
+  void rebuild() => ref.invalidateSelf();
+  registration.state.addListener(rebuild);
+  ref.onDispose(() => registration.state.removeListener(rebuild));
+  return callsDeliveryFailure(registration.state.value);
+}
+
 final deliveryFailureProvider = Provider<DeliveryFailure?>((ref) {
-  if (ref.watch(notificationsAllowedProvider) != true) return null;
+  final calls = _callsFailure(ref);
+  if (ref.watch(notificationsAllowedProvider) != true) return calls;
   final mode = ref.watch(notificationDeliveryModeProvider);
   final autoSelected = ref.watch(autoSelectedDeliveryModeProvider);
   final distributorInstalled = mode == NotificationDeliveryMode.fcm
@@ -53,19 +64,20 @@ final deliveryFailureProvider = Provider<DeliveryFailure?>((ref) {
   ref.onDispose(() => watched.removeListener(rebuild));
 
   return notificationDeliveryFailure(
-    mode: mode,
-    fcm: fcmDeliveryProvider.status.value,
-    unifiedPush: unifiedPushDeliveryProvider.status.value,
-    apns: apnsDeliveryProvider.status.value,
-    apnsDropped: apnsDeliveryProvider.dropped.value,
-    distributorBatteryRestricted:
-        unifiedPushDeliveryProvider.distributorBatteryRestricted.value,
-    distributor: unifiedPushDeliveryProvider.savedDistributor,
-    distributorInstalled: distributorInstalled,
-    autoSelected: autoSelected,
-    fcmRemoved: fcmDeliveryProvider.removed.value,
-    unifiedPushRemoved: unifiedPushDeliveryProvider.removed.value,
-  );
+        mode: mode,
+        fcm: fcmDeliveryProvider.status.value,
+        unifiedPush: unifiedPushDeliveryProvider.status.value,
+        apns: apnsDeliveryProvider.status.value,
+        apnsDropped: apnsDeliveryProvider.dropped.value,
+        distributorBatteryRestricted:
+            unifiedPushDeliveryProvider.distributorBatteryRestricted.value,
+        distributor: unifiedPushDeliveryProvider.savedDistributor,
+        distributorInstalled: distributorInstalled,
+        autoSelected: autoSelected,
+        fcmRemoved: fcmDeliveryProvider.removed.value,
+        unifiedPushRemoved: unifiedPushDeliveryProvider.removed.value,
+      ) ??
+      calls;
 });
 
 final dismissedDeliveryFailureProvider =

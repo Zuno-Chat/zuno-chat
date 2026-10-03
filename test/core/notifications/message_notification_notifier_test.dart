@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,10 +15,12 @@ import 'package:zuno/core/notifications/message_notification_provider.dart';
 import 'package:zuno/core/notifications/notification_avatar_cache.dart';
 import 'package:zuno/core/notifications/notified_events_store.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/platform_capabilities.dart';
 
 class _NotifyingClient extends Client {
   _NotifyingClient() : super('test', database: FakeDatabaseApi());
@@ -131,6 +134,16 @@ void main() {
 
       expect(notifications.single.android['channelId'], 'quiet_messages');
     });
+
+    test('an inactive app is no more in front than a background one', () async {
+      TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+        AppLifecycleState.inactive,
+      );
+
+      await deliver(textEvent());
+
+      expect(notifications.single.android['channelId'], 'quiet_messages');
+    });
   });
 
   test('stays silent for a message you sent yourself', () async {
@@ -214,9 +227,7 @@ void main() {
       await pumpEventQueue();
     }
 
-    test('takes the room notification down once a sync says nothing is '
-        'unread there', () async {
-      await deliver(textEvent(body: 'hi'));
+    void showRoomNotification() {
       notifications.active = [
         {
           'id': roomNotificationId,
@@ -224,6 +235,12 @@ void main() {
           'payload': '',
         },
       ];
+    }
+
+    test('takes the room notification down once a sync says nothing is '
+        'unread there', () async {
+      await deliver(textEvent(body: 'hi'));
+      showRoomNotification();
 
       await syncWithCount(0);
 
@@ -232,13 +249,7 @@ void main() {
 
     test('leaves the room alone while it still has unread messages', () async {
       await deliver(textEvent(body: 'hi'));
-      notifications.active = [
-        {
-          'id': roomNotificationId,
-          'channelId': 'direct_messages',
-          'payload': '',
-        },
-      ];
+      showRoomNotification();
 
       await syncWithCount(2);
 
@@ -265,13 +276,7 @@ void main() {
           room: room,
         ),
       );
-      notifications.active = [
-        {
-          'id': roomNotificationId,
-          'channelId': 'direct_messages',
-          'payload': '',
-        },
-      ];
+      showRoomNotification();
 
       client.onTimelineEvent.add(textEvent(body: 'read on the laptop'));
       await syncWithCount(0);
@@ -284,6 +289,82 @@ void main() {
         methods.lastIndexOf('cancel'),
         greaterThan(methods.lastIndexOf('show')),
       );
+    });
+
+    group('with Apple push', () {
+      const channel = MethodChannel('zuno/apns');
+      TestDefaultBinaryMessenger messenger() =>
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      late List<MethodCall> apnsCalls;
+      late List<int> cancelledWhenAppleWasAsked;
+
+      setUp(() {
+        apnsCalls = [];
+        cancelledWhenAppleWasAsked = [];
+        messenger().setMockMethodCallHandler(channel, (call) async {
+          apnsCalls.add(call);
+          cancelledWhenAppleWasAsked = [...notifications.cancelled];
+          return 1;
+        });
+        addTearDown(() => messenger().setMockMethodCallHandler(channel, null));
+      });
+
+      test(
+        'a read room also loses the alerts Apple delivered for it',
+        () async {
+          ambientCapabilities = iosCapabilities;
+
+          await syncWithCount(0);
+
+          expect(apnsCalls.single.method, 'removeDelivered');
+          expect(apnsCalls.single.arguments, {
+            'roomIds': [room.id],
+          });
+        },
+      );
+
+      test('a room with unread messages keeps its alerts', () async {
+        ambientCapabilities = iosCapabilities;
+
+        await syncWithCount(2);
+
+        expect(apnsCalls, isEmpty);
+      });
+
+      test('Android never asks for Apple alerts to be removed', () async {
+        ambientCapabilities = androidCapabilities;
+
+        await syncWithCount(0);
+
+        expect(apnsCalls, isEmpty);
+      });
+
+      test('the local notification comes down after Apple was asked, never '
+          'before', () async {
+        ambientCapabilities = iosCapabilities;
+        showRoomNotification();
+
+        await syncWithCount(0);
+
+        expect(apnsCalls.single.method, 'removeDelivered');
+        expect(notifications.cancelled, contains(roomNotificationId));
+        expect(cancelledWhenAppleWasAsked, isEmpty);
+      });
+
+      test('the local notification still comes down when Apple cannot remove '
+          'its alerts', () async {
+        ambientCapabilities = iosCapabilities;
+        messenger().setMockMethodCallHandler(channel, (call) async {
+          apnsCalls.add(call);
+          throw PlatformException(code: 'unavailable');
+        });
+        showRoomNotification();
+
+        await syncWithCount(0);
+
+        expect(apnsCalls.single.method, 'removeDelivered');
+        expect(notifications.cancelled, contains(roomNotificationId));
+      });
     });
 
     test('does nothing for a room with no notification showing', () async {

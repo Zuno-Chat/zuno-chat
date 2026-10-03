@@ -1,0 +1,44 @@
+{
+  "cases" : [
+    {
+      "name" : "rooms/2d2de6b6c6565ad95bf365845db19da9",
+      "nonce" : "sLGys7S1tre4ubq7",
+      "plaintext" : "{\"v\":1,\"room\":\"!abc:zuno.im\",\"title\":\"Alice\",\"dm\":true,\"partner\":\"Alice\"}",
+      "sealed" : "AbCxsrO0tba3uLm6uyryd8SWeEd++0FeFEY0kZd1BCIzgDeMjcTUWTUVisFuBXxqoa2wuInGZWXlhxQsjztVsh4rqrSJvya9yA8E+DSDhLyqVPaE6R+H1qVL1BvT61RMXEQ+Zakm"
+    }
+  ],
+  "rm_key" : "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=",
+  "tamper" : [
+    {
+      "expect" : "fail",
+      "file_name" : "rooms/00000000000000000000000000000000",
+      "name" : "wrong_name",
+      "sealed" : "AbCxsrO0tba3uLm6uyryd8SWeEd++0FeFEY0kZd1BCIzgDeMjcTUWTUVisFuBXxqoa2wuInGZWXlhxQsjztVsh4rqrSJvya9yA8E+DSDhLyqVPaE6R+H1qVL1BvT61RMXEQ+Zakm"
+    },
+    {
+      "expect" : "fail",
+      "file_name" : "rooms/2d2de6b6c6565ad95bf365845db19da9",
+      "name" : "flipped_tag",
+      "sealed" : "AbCxsrO0tba3uLm6uyryd8SWeEd++0FeFEY0kZd1BCIzgDeMjcTUWTUVisFuBXxqoa2wuInGZWXlhxQsjztVsh4rqrSJvya9yA8E+DSDhLyqVPaE6R+H1qVL1BvT61RMXEQ+Zakn"
+    },
+    {
+      "expect" : "fail",
+      "file_name" : "rooms/2d2de6b6c6565ad95bf365845db19da9",
+      "name" : "flipped_ciphertext_byte",
+      "sealed" : "AbCxsrO0tba3uLm6uyvyd8SWeEd++0FeFEY0kZd1BCIzgDeMjcTUWTUVisFuBXxqoa2wuInGZWXlhxQsjztVsh4rqrSJvya9yA8E+DSDhLyqVPaE6R+H1qVL1BvT61RMXEQ+Zakm"
+    },
+    {
+      "expect" : "fail",
+      "file_name" : "rooms/2d2de6b6c6565ad95bf365845db19da9",
+      "name" : "unknown_version",
+      "sealed" : "ArCxsrO0tba3uLm6uyryd8SWeEd++0FeFEY0kZd1BCIzgDeMjcTUWTUVisFuBXxqoa2wuInGZWXlhxQsjztVsh4rqrSJvya9yA8E+DSDhLyqVPaE6R+H1qVL1BvT61RMXEQ+Zakm"
+    },
+    {
+      "expect" : "fail",
+      "file_name" : "rooms/2d2de6b6c6565ad95bf365845db19da9",
+      "name" : "truncated",
+      "sealed" : "AbCxsrO0tba3uLm6uyryd8SWeEd++0FeFEY0kQ=="
+    }
+  ],
+  "version" : 1
+}

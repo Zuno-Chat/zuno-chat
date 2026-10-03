@@ -13,6 +13,8 @@ import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 
 import '../calls/matrixrtc/call_member_state.dart' show callMemberEventType;
 import '../platform/platform_capabilities.dart';
+import '../push/read_model/session_exporter.dart';
+import '../push/send_keep_awake.dart';
 import 'atomic_batch_database.dart';
 import 'client_lease.dart';
 import 'client_startup.dart';
@@ -128,10 +130,11 @@ Future<StartedMatrixClient> _startClient(
   );
 
   try {
-    final database = await MatrixSdkDatabase.init(
-      'zuno',
-      database: await _openDatabase(path, createKey: backgroundSync),
-    );
+    final sqlite = await _openDatabase(path, createKey: backgroundSync);
+    final exportsSessions = exportsInboundSessions(appClient: backgroundSync);
+    final database = exportsSessions
+        ? await openSessionExportingDatabase(sqlite)
+        : await MatrixSdkDatabase.init('zuno', database: sqlite);
     final databaseMs = watch.elapsedMilliseconds;
 
     final started = client = ZunoClient(
@@ -157,6 +160,7 @@ Future<StartedMatrixClient> _startClient(
       onSoftLogout: refreshSession,
       appClient: backgroundSync,
       lease: lease,
+      keepAwake: exportsSessions ? sendKeepAwake : null,
     );
     await vodInitFuture;
 
@@ -184,6 +188,11 @@ Future<StartedMatrixClient> _startClient(
     rethrow;
   }
 }
+
+bool exportsInboundSessions({
+  required bool appClient,
+  PlatformCapabilities? capabilities,
+}) => appClient && (capabilities ?? ambientCapabilities).nseNotifications;
 
 Future<void> _abandon(Client? client, UploadProgressHttpClient http) async {
   try {

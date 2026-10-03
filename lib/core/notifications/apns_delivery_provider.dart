@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../matrix/session_display_name.dart';
 import '../platform/platform_capabilities.dart';
 import '../push/apns_pusher.dart';
+import '../push/apns_pusher_check.dart';
 import '../push/fcm_gateway.dart';
 import '../push/pusher_reconciliation.dart';
 import '../push/registration_retry.dart';
@@ -48,12 +49,10 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
 
   String? lastPusherError;
 
-  @visibleForTesting
-  String appId = apnsAppId;
-
   _Registration? _registration;
   String? get token => _registration?.token;
   String? get pushkey => _registration?.pushkey;
+  String? get registeredAppId => _registration?.appId;
 
   ({String? sound})? _postedSound;
   bool _syncingSound = false;
@@ -65,6 +64,38 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
 
   @visibleForTesting
   Future<bool> Function() notificationsAllowed = mayRegisterForNotifications;
+
+  @visibleForTesting
+  Future<String?> Function() environmentReader = () =>
+      _channel.invokeMethod<String>('environment');
+
+  String? _environmentAppId;
+
+  Future<String> currentAppId() async {
+    if (!_capabilities.apnsRegistration) return apnsAppId;
+    final known = _environmentAppId;
+    if (known != null) return known;
+    try {
+      final name = await environmentReader();
+      final environment = apnsEnvironmentNamed(name);
+      if (environment != null) {
+        final appId = apnsAppIdForEnvironment(environment);
+        _environmentAppId = appId;
+        return appId;
+      }
+      debugPrint(
+        'zuno/push: unknown APNs environment, using the build mode ($name)',
+      );
+    } catch (e) {
+      debugPrint(
+        'zuno/push: APNs environment unreadable, using the build mode ($e)',
+      );
+    }
+    return apnsAppId;
+  }
+
+  @visibleForTesting
+  void resetEnvironmentForTesting() => _environmentAppId = null;
 
   final _retry = RegistrationRetry();
 
@@ -92,7 +123,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     lastPusherError = null;
     status.value = ApnsStatus.ready;
     _recheck.markChecked();
-    if (stored.appId != appId) {
+    if (stored.appId != await currentAppId()) {
       await _register(client);
       return;
     }
@@ -140,19 +171,35 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
   }
 
   Future<void> _reconcile(Client client, _Registration registration) async {
-    final registered = await pusherIsRegistered(
-      client,
+    final check = checkApnsPusher(
+      await fetchPushers(client),
       appId: registration.appId,
       pushkey: registration.pushkey,
+      gatewayUrl: fcmGatewayUri(client.homeserver),
     );
-    if (registered != false) return;
-    dropped.value += 1;
-    await _storeDropped(dropped.value);
-    debugPrint(
-      'zuno/push: the homeserver dropped the APNs pusher '
-      '(${dropped.value}x), registering again',
-    );
-    await _register(client);
+    switch (check) {
+      case ApnsPusherCheck.matches || ApnsPusherCheck.unknown:
+        return;
+      case ApnsPusherCheck.outdated:
+        debugPrint(
+          'zuno/push: the APNs pusher has an old address or format, posting '
+          'it again',
+        );
+        await _post(
+          client,
+          appId: registration.appId,
+          pushkey: registration.pushkey,
+          sound: await _alertSound(),
+        );
+      case ApnsPusherCheck.missing:
+        dropped.value += 1;
+        await _storeDropped(dropped.value);
+        debugPrint(
+          'zuno/push: the homeserver dropped the APNs pusher '
+          '(${dropped.value}x), registering again',
+        );
+        await _register(client);
+    }
   }
 
   Future<void> _register(Client client) async {
@@ -180,6 +227,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     }
 
     status.value = ApnsStatus.postingPusher;
+    final appId = await currentAppId();
     final sound = await _alertSound();
     final posted = await _post(
       client,
@@ -337,7 +385,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       final pushkey = apnsPushkeyFromToken(token);
       if (pushkey == null) return null;
       return (
-        appId: prefs.getString(_appIdKey) ?? appId,
+        appId: prefs.getString(_appIdKey) ?? apnsAppId,
         token: token,
         pushkey: pushkey,
       );

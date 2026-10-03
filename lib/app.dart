@@ -11,6 +11,7 @@ import 'core/calls/notifications/call_notification_router.dart';
 import 'core/calls/notifications/call_notification_service.dart';
 import 'core/calls/notifications/ringing_call_provider.dart';
 import 'core/calls/platform/system_ring.dart';
+import 'core/calls/ring_coordinator.dart';
 import 'core/errors/best_effort.dart';
 import 'core/errors/global_error_handler.dart';
 import 'core/matrix/background_sync_lifecycle.dart';
@@ -23,11 +24,14 @@ import 'core/matrix/sign_out_wipe.dart';
 import 'core/navigation/global_navigator.dart';
 import 'core/navigation/launch_route.dart';
 import 'core/navigation/root_route_reset.dart';
+import 'core/notifications/native_notification_action_runner.dart';
 import 'core/notifications/notification_delivery_mode.dart';
 import 'core/notifications/notification_delivery_provider.dart';
 import 'core/notifications/notification_permission_provider.dart';
 import 'core/platform/platform_capabilities.dart';
 import 'core/push/incoming_push_handler.dart';
+import 'core/push/read_model/nse_services.dart';
+import 'core/push/read_model/opaque_thread_ids.dart';
 import 'core/settings/app_preferences_provider.dart';
 import 'core/share/inbound_share.dart';
 import 'core/shortcuts/home_screen_shortcut.dart';
@@ -136,6 +140,8 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ref.listenManual(nseServicesProvider, (_, _) {});
+    ref.listenManual(pushRingServicesProvider, (_, _) {});
     trackPushClientFreshness(_client);
     bindAppStateToPushDelivery(
       currentlyOpenRoomId: () =>
@@ -243,6 +249,9 @@ class _AuthGateState extends ConsumerState<_AuthGate>
 
     if (state != AppLifecycleState.resumed) return;
     CallNotificationService.instance.reclaimLiveRoutes();
+    if (ref.read(platformCapabilitiesProvider).nativeNotificationActions) {
+      unawaited(nativeNotificationActionRunner.drain());
+    }
     if (!_sawFirstResume) {
       _sawFirstResume = true;
       return;
@@ -343,7 +352,28 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   }
 
   void _openRoomById(String roomId, {bool instant = false}) {
-    final room = ref.read(matrixClientProvider).getRoomById(roomId);
+    final client = ref.read(matrixClientProvider);
+    if (ref.read(platformCapabilitiesProvider).nseNotifications &&
+        roomId.startsWith(roomTokenPrefix)) {
+      unawaited(
+        roomIdToOpen(
+              roomId,
+              client.rooms.map((room) => room.id).toList(),
+              opaque: true,
+            )
+            .then((resolved) {
+              if (resolved != null) _openRoomById(resolved, instant: instant);
+            })
+            .catchError(
+              (Object error) => debugPrint(
+                'zuno/push: a tapped notification did not open its room '
+                '(${error.runtimeType})',
+              ),
+            ),
+      );
+      return;
+    }
+    final room = client.getRoomById(roomId);
     if (room == null || !mounted) return;
     Navigator.of(context).push(
       pageRoute(

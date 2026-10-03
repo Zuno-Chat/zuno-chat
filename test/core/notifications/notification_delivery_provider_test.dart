@@ -10,6 +10,9 @@ import 'package:zuno/core/notifications/notification_delivery_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
+import 'package:zuno/core/push/read_model/nse_channel.dart';
+import 'package:zuno/core/push/voip/voip_channel.dart';
+import 'package:zuno/core/push/voip/voip_registration.dart';
 
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
@@ -125,7 +128,9 @@ void main() {
         ambientCapabilities = iosCapabilities;
         client = _PusherClient();
         apnsDeliveryProvider.tokenReader = () async => _apnsToken;
+        apnsDeliveryProvider.environmentReader = () async => 'development';
         addTearDown(() => apnsDeliveryProvider.stop(client));
+        addTearDown(apnsDeliveryProvider.resetEnvironmentForTesting);
       });
 
       test('kick-off registers it', () async {
@@ -158,6 +163,54 @@ void main() {
     await stopAllNotificationDelivery(_PusherClient());
 
     expect(calls, contains('stopBackgroundSyncService'));
+  });
+
+  group('stopping all delivery with VoIP rings', () {
+    final voip = <MethodCall>[];
+
+    setUp(() {
+      voip.clear();
+      messenger.setMockMethodCallHandler(voipChannel, (call) async {
+        voip.add(call);
+        return null;
+      });
+      messenger.setMockMethodCallHandler(nseChannel, (call) async {
+        voip.add(call);
+        return null;
+      });
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(voipChannel, null);
+        messenger.setMockMethodCallHandler(nseChannel, null);
+      });
+    });
+
+    test('also closes the call session and wipes the read model', () async {
+      ambientCapabilities = capabilitiesLike(iosCapabilities, voipRing: true);
+      SharedPreferences.setMockInitialValues({
+        voipSessionKey: '@me:example.org|PHONE',
+      });
+
+      await stopAllNotificationDelivery(_PusherClient());
+
+      expect(voip.map((c) => [c.method, c.arguments]), [
+        ['wipe', null],
+        [
+          'setSession',
+          {'signedIn': false},
+        ],
+      ]);
+    });
+
+    test('never touches calls on Android', () async {
+      ambientCapabilities = androidCapabilities;
+      SharedPreferences.setMockInitialValues({
+        voipSessionKey: '@me:example.org|PHONE',
+      });
+
+      await stopAllNotificationDelivery(_PusherClient());
+
+      expect(voip, isEmpty);
+    });
   });
 
   test('notificationDeliveryProviderFor returns a stable singleton per mode — '

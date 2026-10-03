@@ -1,30 +1,28 @@
 import Flutter
 import UIKit
 import UserNotifications
-import flutter_local_notifications
-import flutter_secure_storage_darwin
-import os
-import package_info_plus
-import shared_preferences_foundation
-import sqflite_sqlcipher
 
 @main
-@objc class AppDelegate: FlutterAppDelegate, @preconcurrency FlutterImplicitEngineDelegate {
-  nonisolated private static let log = Logger(
-    subsystem: "im.zuno.chat", category: "notifications")
-
+@objc class AppDelegate: FlutterAppDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    PushRingHandler.shared.start()
+    NseAppHooks.shared.start()
+    NotifySweep.shared.runWhenProtectedDataAvailable()
     excludeAppDataFromBackup()
+    Self.wireCallKit(CallKitCenter.shared, to: ReadModelCache.shared)
     CallKitCenter.shared.setUp()
-    FlutterLocalNotificationsPlugin.setPluginRegistrantCallback { registry in
-      MainActor.assumeIsolated {
-        AppDelegate.registerActionEnginePlugins(in: registry)
-      }
-    }
+    MetricsSubscriber.shared.start()
     UNUserNotificationCenter.current().delegate = self
+    NotificationCategories.register()
+    NotificationCenter.default.addObserver(
+      forName: UIScene.didActivateNotification, object: nil, queue: .main
+    ) { _ in
+      UNUserNotificationCenter.current().removeDeliveredNotifications(
+        withIdentifiers: [CatchUpComposer.overflowIdentifier])
+    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -34,6 +32,13 @@ import sqflite_sqlcipher
     withCompletionHandler completionHandler:
       @escaping @Sendable (UNNotificationPresentationOptions) -> Void
   ) {
+    if let early = NotificationResponseRoute.earlyPresentation(
+      identifier: notification.request.identifier,
+      userInfo: notification.request.content.userInfo)
+    {
+      completionHandler(early)
+      return
+    }
     let completion = OnceCompletion(completionHandler)
     super.userNotificationCenter(center, willPresent: notification) { completion($0) }
     guard !completion.isDone else { return }
@@ -47,65 +52,48 @@ import sqflite_sqlcipher
     didReceive response: UNNotificationResponse,
     withCompletionHandler completionHandler: @escaping @Sendable () -> Void
   ) {
+    let action = NotificationAction(response.actionIdentifier)
+    if action.isCustom {
+      routeNotificationAction(response, action: action, then: completionHandler)
+      return
+    }
     let completion = OnceCompletion<Void> { _ in completionHandler() }
-    let request = response.notification.request
     let route = NotificationResponseRoute(
-      pushed: request.trigger is UNPushNotificationTrigger,
-      action: NotificationAction(response.actionIdentifier),
-      roomId: NotificationResponseRoute.roomId(in: request.content.userInfo),
-      replyText: (response as? UNTextInputNotificationResponse)?.userText)
-    if route.holdsBridgeTask {
-      WakeLockPlugin.holdForNotificationResponse()
-    }
+      action: action,
+      roomId: NotificationResponseRoute.roomId(
+        in: response.notification.request.content.userInfo))
     super.userNotificationCenter(center, didReceive: response) { completion(()) }
-    let handled = completion.isDone
-    let finish: @MainActor @Sendable () -> Void = {
-      if route.releasesBridgeTask(handledByPlugin: handled) {
-        WakeLockPlugin.releaseNotificationResponse()
-      }
-      completion(())
-    }
-    switch route.outcome(handledByPlugin: handled) {
+    switch route.outcome(handledByPlugin: completion.isDone) {
     case .handled:
       return
     case .complete:
-      finish()
+      completion(())
     case .openRoom(let roomId):
       RoomLaunchPlugin.open(roomId)
-      finish()
-    case .replyNotSent:
-      Self.reportReplyNotSent(after: request.content, roomId: route.roomId, then: finish)
+      completion(())
     }
   }
 
-  private static func reportReplyNotSent(
-    after original: UNNotificationContent, roomId: String?,
-    then finish: @escaping @MainActor @Sendable () -> Void
+  private func routeNotificationAction(
+    _ response: UNNotificationResponse, action: NotificationAction,
+    then completionHandler: @escaping @Sendable () -> Void
   ) {
-    let notice = ReplyNotSentNotice.request(
-      title: original.title, threadIdentifier: original.threadIdentifier, roomId: roomId)
-    UNUserNotificationCenter.current().add(notice) { error in
-      if let error {
-        log.error("reply-not-sent notice failed: \(error.localizedDescription, privacy: .public)")
-      }
-      Task { @MainActor in finish() }
-    }
-  }
-
-  private static func registerActionEnginePlugins(in registry: FlutterPluginRegistry) {
-    let plugins: [(key: String, type: FlutterPlugin.Type)] = [
-      ("FlutterLocalNotificationsPlugin", FlutterLocalNotificationsPlugin.self),
-      ("FlutterSecureStorageDarwinPlugin", FlutterSecureStorageDarwinPlugin.self),
-      ("FPPPackageInfoPlusPlugin", FPPPackageInfoPlusPlugin.self),
-      ("SharedPreferencesPlugin", SharedPreferencesPlugin.self),
-      ("SqfliteSqlCipherPlugin", SqfliteSqlCipherPlugin.self),
-      ("ZunoWakeLockPlugin", WakeLockPlugin.self),
-      ("ZunoClientLeasePlugin", ClientLeasePlugin.self),
-    ]
-    for plugin in plugins {
-      if let registrar = registry.registrar(forPlugin: plugin.key) {
-        plugin.type.register(with: registrar)
-      }
+    let completion = OnceCompletion<Void> { _ in completionHandler() }
+    let request = response.notification.request
+    let decision = NotificationActionPlanner.decide(
+      action: action, notificationId: request.identifier, title: request.content.title,
+      thread: request.content.threadIdentifier, userInfo: request.content.userInfo,
+      replyText: (response as? UNTextInputNotificationResponse)?.userText,
+      unlocked: FirstUnlockProbe.passed() && ProtectedData.isAvailable(),
+      makeId: { UUID().uuidString })
+    switch decision {
+    case .complete:
+      completion(())
+    case .replyNotSent(let notice):
+      NotificationActionEffects.reportNotSent(notice) { completion(()) }
+    case .enqueue(let actionRequest):
+      NotificationActionsPlugin.inbox.accept(actionRequest) { completion(()) }
+      _ = EngineHost.shared.start(.action)
     }
   }
 
@@ -122,42 +110,14 @@ import sqflite_sqlcipher
     }
   }
 
-  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
-    let registry = engineBridge.pluginRegistry
-    GeneratedPluginRegistrant.register(with: registry)
-    CallKitCenter.shared.audio.adoptRegisteredWebRTC()
-    if let registrar = registry.registrar(forPlugin: "ZunoApnsPlugin") {
-      ApnsTokenPlugin.register(with: registrar)
-    }
-    if let registrar = registry.registrar(forPlugin: "ZunoVideoToolsPlugin") {
-      VideoToolsPlugin.register(with: registrar)
-    }
-    if let registrar = registry.registrar(forPlugin: "ZunoImageResizerPlugin") {
-      ImageResizerPlugin.register(with: registrar)
-    }
-    if let registrar = registry.registrar(forPlugin: "ZunoAppDataPlugin") {
-      AppDataPlugin.register(with: registrar)
-    }
-    if let registrar = registry.registrar(forPlugin: "ZunoCallsChannelPlugin") {
-      CallsChannelPlugin.register(with: registrar)
-    }
-    if let registrar = registry.registrar(forPlugin: "ZunoUploadServicePlugin") {
-      UploadServicePlugin.register(with: registrar)
-    }
-    if let registrar = registry.registrar(forPlugin: "ZunoNetworkPlugin") {
-      NetworkPlugin.register(with: registrar)
-    }
-    if let registrar = registry.registrar(forPlugin: "ZunoRoomLaunchPlugin") {
-      RoomLaunchPlugin.register(with: registrar)
-    }
-    if let registrar = registry.registrar(forPlugin: "ZunoShareInboxPlugin") {
-      ShareInboxPlugin.register(with: registrar)
-    }
-    if let registrar = registry.registrar(forPlugin: "ZunoWakeLockPlugin") {
-      WakeLockPlugin.register(with: registrar)
-    }
-    if let registrar = registry.registrar(forPlugin: "ZunoClientLeasePlugin") {
-      ClientLeasePlugin.register(with: registrar)
+  static func wireCallKit(_ calls: CallKitCenter, to cache: ReadModelCache) {
+    calls.onLedger = { cache.record($0) }
+    calls.roomToken = { cache.roomToken($0) }
+    calls.previewLevel = { cache.meta()?.level ?? .full }
+    calls.isResolved = { cache.ledger().isResolved($0) }
+    calls.ringFlag = { cache.ringFlag() }
+    calls.onUnboundAnswerExpired = { source in
+      if source == .bfu { MissedCallNotice.post() }
     }
   }
 }
@@ -209,65 +169,44 @@ enum NotificationResponseOutcome: Equatable, Sendable {
   case handled
   case complete
   case openRoom(String)
-  case replyNotSent
 }
 
 struct NotificationResponseRoute: Equatable, Sendable {
-  let pushed: Bool
   let action: NotificationAction
   let roomId: String?
-  let replyText: String?
-
-  var holdsBridgeTask: Bool { !pushed && action.isCustom }
-
-  func releasesBridgeTask(handledByPlugin: Bool) -> Bool {
-    holdsBridgeTask && !handledByPlugin
-  }
 
   func outcome(handledByPlugin: Bool) -> NotificationResponseOutcome {
     if handledByPlugin { return .handled }
-    switch action {
-    case .open:
-      guard let roomId else { return .complete }
-      return .openRoom(roomId)
-    case .reply:
-      let text = replyText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-      return text.isEmpty ? .complete : .replyNotSent
-    case .dismiss, .markRead, .other:
-      return .complete
-    }
+    guard action == .open, let roomId else { return .complete }
+    return .openRoom(roomId)
   }
 
   static func presentation(pushed: Bool) -> UNNotificationPresentationOptions {
     pushed ? [] : [.banner, .list]
   }
 
-  static func roomId(in userInfo: [AnyHashable: Any]) -> String? {
+  static func earlyPresentation(identifier: String, userInfo: [AnyHashable: Any])
+    -> UNNotificationPresentationOptions?
+  {
+    if CatchUpComposer.isCatchUp(identifier) { return [] }
+    if userInfo["test"] as? String == "1"
+      || (userInfo["event_id"] as? String)?.hasPrefix(NsePush.testPrefix) == true
+    {
+      return [.banner, .list, .sound]
+    }
+    return nil
+  }
+
+  static func roomId(
+    in userInfo: [AnyHashable: Any], resolveToken: (String) -> String? = NseRoomLookup.roomId
+  ) -> String? {
     if let roomId = userInfo["room_id"] as? String { return roomId }
+    if let target = NseRoomLookup.target(in: userInfo, resolve: resolveToken) { return target }
     guard let payload = userInfo["payload"] as? String,
       let decoded = try? JSONSerialization.jsonObject(with: Data(payload.utf8)),
       let message = decoded as? [String: Any],
       message["type"] as? String == "message"
     else { return nil }
     return message["roomId"] as? String
-  }
-}
-
-enum ReplyNotSentNotice {
-  static let body = "Message not sent. Open Zuno and send it again."
-
-  static func request(title: String, threadIdentifier: String, roomId: String?)
-    -> UNNotificationRequest
-  {
-    let content = UNMutableNotificationContent()
-    content.title = title
-    content.body = body
-    content.threadIdentifier = threadIdentifier
-    if let roomId {
-      content.userInfo = ["room_id": roomId]
-    }
-    return UNNotificationRequest(
-      identifier: "zuno.reply_not_sent.\(roomId ?? UUID().uuidString)", content: content,
-      trigger: nil)
   }
 }
