@@ -52,7 +52,7 @@ void main() {
     await tester.runAsync(
       () => Future<void>.delayed(Duration(milliseconds: ms)),
     );
-    await tester.pump();
+    await tester.pump(Duration(milliseconds: ms));
   }
 
   Future<void> drive(WidgetTester tester, {int turns = 20}) async {
@@ -156,9 +156,13 @@ void main() {
     return gesture;
   }
 
-  Future<void> tapMic(WidgetTester tester, {bool settle = true}) async {
+  Future<void> tapMic(
+    WidgetTester tester, {
+    bool settle = true,
+    Duration hold = const Duration(milliseconds: 50),
+  }) async {
     final gesture = await tester.startGesture(tester.getCenter(mic()));
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(hold);
     await gesture.up();
     if (settle) {
       await drive(tester, turns: 3);
@@ -267,8 +271,8 @@ void main() {
   ) async {
     await openRoom(tester);
 
-    await tapMic(tester, settle: false);
-    await tapMic(tester, settle: false);
+    await tapMic(tester, settle: false, hold: const Duration(milliseconds: 20));
+    await tapMic(tester, settle: false, hold: const Duration(milliseconds: 20));
     await drive(tester);
 
     expect(voiceMessages(), isEmpty);

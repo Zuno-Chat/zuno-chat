@@ -607,6 +607,10 @@ hands over through files in the App Group (`app-foundation.md`), managed by
   `oggOpusFromCaf` repackages the packets losslessly (about 20 ms for five
   minutes) before sending (`voice_recording.dart`, `recorderWritesOgg`).
   iOS plays Ogg Opus natively.
+- **Recording length reads `clock.now()`, not `DateTime.now()`.** The
+  under-100 ms drop and the 300 ms hold-to-send rule then run on fake time
+  in widget tests; on wall time a loaded test machine stretched a quick
+  double tap past 100 ms and sent it.
 - **Share and Save hand over named copies**, one folder per attachment
   under `temp/handover/<cached file name>/`, so same-named items (every
   photo Zuno sends is `photo.jpg`) never overwrite each other and sharing

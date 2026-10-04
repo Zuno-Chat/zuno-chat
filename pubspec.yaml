@@ -81,6 +81,7 @@ dependencies:
   flutter_html: ^3.0.0
   url_launcher: ^6.3.2
   record: ^7.1.1
+  clock: ^1.1.2
   audioplayers: ^6.8.1
   shared_preferences: ^2.5.5
   package_info_plus: ^10.2.1

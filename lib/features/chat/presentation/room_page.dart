@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:clock/clock.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -1407,7 +1408,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     final startedAt = _recordingStartedAt;
     return startedAt == null
         ? Duration.zero
-        : DateTime.now().difference(startedAt);
+        : clock.now().difference(startedAt);
   }
 
   Future<void> _startRecording() async {
@@ -1427,7 +1428,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       await _recorder.start(setup.config, path: path);
       if (!mounted) return;
       _waveformSamples.clear();
-      _recordingStartedAt = DateTime.now();
+      _recordingStartedAt = clock.now();
       setState(() {
         _recording = true;
         _recordingPath = path;
