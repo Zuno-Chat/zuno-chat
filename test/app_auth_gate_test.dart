@@ -76,6 +76,18 @@ class _RecordingClient extends Client {
   set backgroundSync(bool enabled) => backgroundSyncChanges.add(enabled);
 }
 
+class _CountedHomeserver extends HomeserverNotifier {
+  _CountedHomeserver(this._onCheck);
+
+  final void Function() _onCheck;
+
+  @override
+  FutureOr<Uri> build() {
+    _onCheck();
+    return officialHomeserver;
+  }
+}
+
 class _NotificationsAllowed extends NotificationsAllowedNotifier {
   _NotificationsAllowed(this._initial);
 
@@ -226,6 +238,7 @@ void main() {
     NotificationDeliveryMode? deliveryMode,
     SignOutWipe Function(SharedPreferences prefs)? signOutWipe,
     RingingCallInfo? pendingRing,
+    HomeserverNotifier Function()? homeserver,
   }) async {
     SharedPreferences.setMockInitialValues({
       if (deliveryMode != null)
@@ -250,7 +263,7 @@ void main() {
         if (signOutWipe != null)
           signOutWipeProvider.overrideWithValue(signOutWipe(prefs)),
         homeserverProvider.overrideWith(
-          () => FixedHomeserver(officialHomeserver),
+          homeserver ?? () => FixedHomeserver(officialHomeserver),
         ),
         registrationSupportProvider.overrideWith(
           (ref) async =>
@@ -461,6 +474,36 @@ void main() {
     });
   });
 
+  group('signing in', () {
+    testWidgets('a sign-in still finishing keeps the sign-in screen', (
+      tester,
+    ) async {
+      final logins = StreamController<bool>();
+      final container = await pumpApp(tester, loginStates: logins.stream);
+      logins.add(false);
+      await settle(tester);
+      final call = Completer<void>();
+      final signIn = container
+          .read(signInInFlightProvider.notifier)
+          .during(() => call.future);
+
+      logins.add(true);
+      await settle(tester);
+      await pumpRoute(tester);
+
+      expect(find.byType(SignedOutEntry), findsOneWidget);
+      expect(find.byType(RoomListPage), findsNothing);
+
+      call.complete();
+      await signIn;
+      await settle(tester);
+      await pumpRoute(tester);
+
+      expect(find.byType(SignedOutEntry), findsNothing);
+      expect(find.byType(RoomListPage), findsOneWidget);
+    });
+  });
+
   group('signing out', () {
     testWidgets('closes open screens and shows sign-in', (tester) async {
       final logins = StreamController<bool>();
@@ -476,6 +519,30 @@ void main() {
       await pumpRoute(tester);
 
       expect(find.byType(ActiveSessionsPage), findsNothing);
+      expect(find.byType(SignedOutEntry), findsOneWidget);
+    });
+
+    testWidgets('checks the server again, which signing out forgets', (
+      tester,
+    ) async {
+      var checks = 0;
+      final logins = StreamController<bool>();
+      await pumpApp(
+        tester,
+        loginStates: logins.stream,
+        homeserver: () => _CountedHomeserver(() => checks++),
+      );
+      logins.add(false);
+      await settle(tester);
+      final beforeSignIn = checks;
+      logins.add(true);
+      await settle(tester);
+
+      logins.add(false);
+      await settle(tester);
+      await pumpRoute(tester);
+
+      expect(checks, beforeSignIn + 1);
       expect(find.byType(SignedOutEntry), findsOneWidget);
     });
 

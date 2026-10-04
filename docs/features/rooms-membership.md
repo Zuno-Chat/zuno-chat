@@ -35,7 +35,10 @@ asymmetric sender/receiver views).
   slot, filled by `LastMessagePreview`); `InvitationGroup` holds incoming
   invitations above the chats. Rows share one height through a prototype
   (`SliverPrototypeExtentList`). The page has Chats and Communities tabs
-  fed by one `arrangeHome` per sync; see `communities.md`.
+  fed by one `arrangeHome` per sync; see `communities.md`. Until a fresh
+  session's first sync (`firstSyncProvider`), a client with no rooms shows
+  a spinner on both tabs instead of the empty state, so a new sign-in never
+  says "No chats yet" about chats still on their way.
 - `room_exit.dart` — the leave/forget rule plus the shared confirm prompt
   and its copy. `room_title.dart` — `roomTitle()`, the one name every
   surface shows for a room.

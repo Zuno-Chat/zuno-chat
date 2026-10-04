@@ -207,4 +207,67 @@ void main() {
     expect(find.byType(LinkedSignInPage), findsOneWidget);
     expect(bodies, isEmpty);
   });
+
+  testWidgets('holds the app on the sign-in screens until the sign-in '
+      'returns', (tester) async {
+    final answer = Completer<http.Response>();
+    await pumpPage(
+      tester,
+      client: buildTestClient(httpClient: MockClient((_) => answer.future))
+        ..homeserver = Uri.parse('https://example.org'),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(LinkedSignInPage)),
+    );
+
+    await tester.enterText(field('Code'), 'syl_abcdefgh');
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Sign in with the code'),
+    );
+    await tester.pump();
+
+    expect(container.read(signInInFlightProvider), isTrue);
+
+    answer.complete(
+      http.Response(
+        jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'Invalid login token'}),
+        403,
+      ),
+    );
+    await settle(tester);
+
+    expect(container.read(signInInFlightProvider), isFalse);
+  });
+
+  testWidgets('back stays put while signing in', (tester) async {
+    final answer = Completer<http.Response>();
+    await pumpPage(
+      tester,
+      client: buildTestClient(httpClient: MockClient((_) => answer.future))
+        ..homeserver = Uri.parse('https://example.org'),
+    );
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+
+    await tester.enterText(field('Code'), 'syl_abcdefgh');
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Sign in with the code'),
+    );
+    await tester.pump();
+    await navigator.maybePop();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LinkedSignInPage), findsOneWidget);
+
+    answer.complete(
+      http.Response(
+        jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'Invalid login token'}),
+        403,
+      ),
+    );
+    await settle(tester);
+    await navigator.maybePop();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LinkedSignInPage), findsNothing);
+  });
 }

@@ -28,10 +28,13 @@ import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/keyboard.dart';
 import '../../../core/ui/step_hero.dart';
 import '../../../core/ui/step_layout.dart';
+import '../../../core/ui/zuno_motion.dart';
 import '../../settings/presentation/secure_backup_page.dart';
 import '../../verification/presentation/approve_this_device_page.dart';
 
 const onboardingDotsKey = ValueKey('onboarding-dots');
+
+const _batteryCheckBudget = Duration(seconds: 3);
 
 class OnboardingFlowPage extends ConsumerStatefulWidget {
   final List<OnboardingStep> steps;
@@ -66,13 +69,13 @@ class _OnboardingFlowPageState extends ConsumerState<OnboardingFlowPage> {
     }
   }
 
-  Future<void> _advance() async {
+  Future<void> _advance(OnboardingStep from) async {
+    if (!mounted || !_isCurrent(from)) return;
     closeKeyboard();
     final index = _index;
-    final step = _steps[index];
-    await _markShown(step);
+    await _markShown(from);
     if (!mounted) return;
-    if (step == OnboardingStep.notifications) {
+    if (from == OnboardingStep.notifications) {
       await _dropDeliveryStepsIfNotificationsOff();
       if (!mounted) return;
     }
@@ -82,7 +85,7 @@ class _OnboardingFlowPageState extends ConsumerState<OnboardingFlowPage> {
     }
     await _pages.animateToPage(
       index + 1,
-      duration: const Duration(milliseconds: 250),
+      duration: ZunoDurations.standard,
       curve: Curves.easeOut,
     );
   }
@@ -107,27 +110,49 @@ class _OnboardingFlowPageState extends ConsumerState<OnboardingFlowPage> {
   void _close() {
     if (_closing) return;
     _closing = true;
-    Navigator.of(context).pop();
+    ForwardExitPageRoute.popForward(context);
+  }
+
+  OnboardingStep? get _currentStep =>
+      _index < _steps.length ? _steps[_index] : null;
+
+  bool _isCurrent(OnboardingStep step) => _currentStep == step;
+
+  void _skip() {
+    final step = _currentStep;
+    if (step != null && offersSkip(step)) unawaited(_advance(step));
+  }
+
+  double _skipOpacity(List<OnboardingStep> steps) {
+    final page = _pages.hasClients ? _pages.page : null;
+    final position = page ?? _index.toDouble();
+    double shown(int index) =>
+        index < steps.length && offersSkip(steps[index]) ? 1 : 0;
+    final from = position.floor();
+    final progress = position - from;
+    return shown(from) * (1 - progress) + shown(from + 1) * progress;
   }
 
   Future<void> _deliveryChosen(NotificationDeliveryMode mode) async {
     final needsBattery = await needsBatteryExemptionFor(
       mode,
       capabilities: ref.read(platformCapabilitiesProvider),
-    );
-    if (!mounted) return;
+    ).timeout(_batteryCheckBudget, onTimeout: () => false);
+    if (!mounted || !_isCurrent(OnboardingStep.deliveryMethod)) return;
     setState(() {
       _steps = stepsAfterDeliveryChoice(
         _steps,
         needsBatteryExemption: needsBattery,
       );
     });
-    await _advance();
+    await _advance(OnboardingStep.deliveryMethod);
   }
 
   @override
   Widget build(BuildContext context) {
     final steps = _steps;
+    final current = _currentStep;
+    final canSkip = current != null && offersSkip(current);
     return PopScope(
       canPop: false,
       child: Scaffold(
@@ -138,9 +163,25 @@ class _OnboardingFlowPageState extends ConsumerState<OnboardingFlowPage> {
                 alignment: Alignment.centerRight,
                 child: Padding(
                   padding: const EdgeInsets.only(top: 4, right: 12),
-                  child: TextButton(
-                    onPressed: _advance,
-                    child: const Text('Skip'),
+                  child: ExcludeSemantics(
+                    excluding: !canSkip,
+                    child: ExcludeFocus(
+                      excluding: !canSkip,
+                      child: IgnorePointer(
+                        ignoring: !canSkip,
+                        child: ListenableBuilder(
+                          listenable: _pages,
+                          builder: (context, child) => Opacity(
+                            opacity: _skipOpacity(steps),
+                            child: child,
+                          ),
+                          child: TextButton(
+                            onPressed: _skip,
+                            child: const Text('Skip'),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -154,7 +195,7 @@ class _OnboardingFlowPageState extends ConsumerState<OnboardingFlowPage> {
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: _StepPage(
                       step: steps[index],
-                      onDone: _advance,
+                      onDone: () => _advance(steps[index]),
                       onDeliveryChosen: _deliveryChosen,
                     ),
                   ),
@@ -346,20 +387,23 @@ class _DeliveryStepState extends ConsumerState<_DeliveryStep> {
 
   Future<void> _confirm() async {
     setState(() => _saving = true);
-    final current = ref.read(notificationDeliveryModeProvider);
-    final selected = _selection(
-      current: current,
-      fcm: ref.read(fcmAvailabilityProvider).value,
-    );
-    final modes = ref.read(notificationDeliveryModeProvider.notifier);
-    final client = ref.read(matrixClientProvider);
-    var chosen = current;
-    if (selected != current && await modes.set(selected)) {
-      chosen = selected;
-      unawaited(kickOffDeliveryMode(client, selected));
+    try {
+      final current = ref.read(notificationDeliveryModeProvider);
+      final selected = _selection(
+        current: current,
+        fcm: ref.read(fcmAvailabilityProvider).value,
+      );
+      final modes = ref.read(notificationDeliveryModeProvider.notifier);
+      final client = ref.read(matrixClientProvider);
+      var chosen = current;
+      if (selected != current && await modes.set(selected)) {
+        chosen = selected;
+        unawaited(kickOffDeliveryMode(client, selected));
+      }
+      await widget.onChosen(chosen);
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    if (mounted) setState(() => _saving = false);
-    await widget.onChosen(chosen);
   }
 
   @override
@@ -383,7 +427,7 @@ class _DeliveryStepState extends ConsumerState<_DeliveryStep> {
         RadioGroup<NotificationDeliveryMode>(
           groupValue: selected,
           onChanged: (mode) {
-            if (mode != null) setState(() => _picked = mode);
+            if (mode != null && !_saving) setState(() => _picked = mode);
           },
           child: Column(
             children: [
@@ -803,13 +847,13 @@ class _SecurityStep extends ConsumerWidget {
       await ref.read(securityPromptStoreProvider).markPrompted();
     }
     if (!context.mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => status == AccountSecurityStatus.deviceLocked
-            ? const ApproveThisDevicePage(showStartOver: true)
-            : const SecureBackupPage(),
-      ),
+    final route = MaterialPageRoute<void>(
+      builder: (_) => status == AccountSecurityStatus.deviceLocked
+          ? const ApproveThisDevicePage(showStartOver: true)
+          : const SecureBackupPage(),
     );
+    await Navigator.of(context).push(route);
+    await route.completed;
     await onDone();
   }
 

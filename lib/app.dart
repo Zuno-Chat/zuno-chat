@@ -18,6 +18,7 @@ import 'core/matrix/background_sync_lifecycle.dart';
 import 'core/matrix/connection_monitor.dart';
 import 'core/matrix/connectivity_provider.dart';
 import 'core/matrix/currently_open_room_provider.dart';
+import 'core/matrix/homeserver.dart';
 import 'core/matrix/matrix_client_provider.dart';
 import 'core/matrix/room_invite.dart';
 import 'core/matrix/sign_out_wipe.dart';
@@ -180,6 +181,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
         next: loginState.value,
       )) {
         _returnToRootRoute();
+        ref.invalidate(homeserverProvider);
       }
       final loggedIn = loginState.value;
       if (loggedIn == null) return;
@@ -464,18 +466,20 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   @override
   Widget build(BuildContext context) {
     final loginState = ref.watch(isLoggedInProvider);
+    final signingIn = ref.watch(signInInFlightProvider);
     final deliveryMode = ref.watch(notificationDeliveryModeProvider);
     final notificationsAllowed = ref.watch(notificationsAllowedProvider);
     return loginState.when(
       data: (loggedIn) {
+        final showHome = loggedIn && !signingIn;
         if (!loggedIn) {
           unawaited(_takeLaunchShareOnce());
-        } else if (!_launchStarted) {
+        } else if (showHome && !_launchStarted) {
           _launchStarted = true;
           unawaited(_handleLaunch());
         }
         _syncNotificationDelivery(loggedIn, deliveryMode, notificationsAllowed);
-        if (!loggedIn) return const SignedOutEntry();
+        if (!showHome) return const SignedOutEntry();
         return _launchHandled ? const RoomListPage() : const ZunoSplash();
       },
       loading: () => const ZunoSplash(),

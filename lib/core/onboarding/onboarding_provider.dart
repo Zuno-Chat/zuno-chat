@@ -50,6 +50,7 @@ class OnboardingStore {
 }
 
 final onboardingStoreProvider = Provider<OnboardingStore>((ref) {
+  ref.watch(isLoggedInProvider);
   return OnboardingStore(ref.watch(sharedPreferencesProvider));
 });
 
@@ -93,6 +94,7 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
   ref,
 ) async {
   final client = ref.watch(matrixClientProvider);
+  await ref.watch(firstSyncProvider.future);
   final userId = client.userID;
   if (userId == null) return const [];
   final facts = await ref.watch(accountSecurityFactsProvider.future);

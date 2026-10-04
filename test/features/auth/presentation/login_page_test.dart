@@ -423,6 +423,32 @@ void main() {
     });
   });
 
+  testWidgets('holds the app on this screen until the sign-in returns', (
+    tester,
+  ) async {
+    final answer = Completer<http.Response>();
+    await pumpLoginPage(
+      tester,
+      client: buildTestClient(httpClient: MockClient((_) => answer.future)),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(LoginPage)),
+    );
+
+    await tester.enterText(field('Username'), 'alice');
+    await tester.enterText(field('Password'), 'correct horse battery staple');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pump();
+
+    expect(container.read(signInInFlightProvider), isTrue);
+
+    answer.complete(http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+
+    expect(container.read(signInInFlightProvider), isFalse);
+  });
+
   testWidgets('a refusal that lands after the page is left is dropped', (
     tester,
   ) async {

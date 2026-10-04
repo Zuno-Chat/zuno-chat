@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +17,19 @@ import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
 
 const _userId = '@alex:example.org';
+
+class _SessionClient extends Client {
+  _SessionClient() : super('test', database: FakeDatabaseApi());
+
+  String? user;
+  String? syncToken;
+
+  @override
+  String? get userID => user;
+
+  @override
+  String? get prevBatch => syncToken;
+}
 
 const _settled = AccountSecurityFacts(
   recoveryExists: true,
@@ -51,6 +66,28 @@ void main() {
     messenger.setMockMethodCallHandler(backgroundSync, null);
   });
 
+  Future<ProviderContainer> containerFor(
+    Client client,
+    PlatformCapabilities capabilities, {
+    Map<String, Object> prefs = const {},
+    AccountSecurityFacts facts = _settled,
+    bool synced = false,
+  }) async {
+    SharedPreferences.setMockInitialValues(prefs);
+    final sharedPrefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(sharedPrefs),
+        matrixClientProvider.overrideWithValue(client),
+        accountSecurityFactsProvider.overrideWith((ref) => Stream.value(facts)),
+        platformCapabilitiesProvider.overrideWithValue(capabilities),
+        if (synced) firstSyncProvider.overrideWith((ref) async {}),
+      ],
+    );
+    addTearDown(container.dispose);
+    return container;
+  }
+
   Future<List<OnboardingStep>> stepsOn(
     PlatformCapabilities capabilities, {
     Map<String, Object> prefs = const {
@@ -61,20 +98,94 @@ void main() {
   }) async {
     final client = buildTestClient(userId: _userId);
     addRooms?.call(client);
-    SharedPreferences.setMockInitialValues(prefs);
-    final sharedPrefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(sharedPrefs),
-        matrixClientProvider.overrideWithValue(client),
-        accountSecurityFactsProvider.overrideWith((ref) => Stream.value(facts)),
-        platformCapabilitiesProvider.overrideWithValue(capabilities),
-      ],
+    final container = await containerFor(
+      client,
+      capabilities,
+      prefs: prefs,
+      facts: facts,
+      synced: true,
     );
-    addTearDown(container.dispose);
     container.listen(onboardingStepsProvider, (_, _) {});
     return container.read(onboardingStepsProvider.future);
   }
+
+  group('on a fresh sign-in', () {
+    Future<(Client, Future<List<OnboardingStep>>)> stepsBeforeAnySync() async {
+      final client = buildTestClient(userId: _userId);
+      final container = await containerFor(client, iosCapabilities);
+      container.listen(onboardingStepsProvider, (_, _) {});
+      return (client, container.read(onboardingStepsProvider.future));
+    }
+
+    test('decides nothing until the first sync has finished', () async {
+      final (client, steps) = await stepsBeforeAnySync();
+      var decided = false;
+      unawaited(steps.then((_) => decided = true));
+      await pumpEventQueue();
+
+      expect(decided, isFalse);
+
+      client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
+
+      expect(await steps, [OnboardingStep.confirmPeople]);
+    });
+
+    test('a sync that failed is not the first sync', () async {
+      final (client, steps) = await stepsBeforeAnySync();
+      var decided = false;
+      unawaited(steps.then((_) => decided = true));
+
+      client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.error));
+      await pumpEventQueue();
+
+      expect(decided, isFalse);
+    });
+
+    test('signing out and in again in one process onboards the next '
+        'account', () async {
+      final client = _SessionClient()
+        ..user = '@first:example.org'
+        ..syncToken = 's1'
+        ..accessToken = 'a1';
+      final container = await containerFor(
+        client,
+        iosCapabilities,
+        prefs: {
+          'onboarding.shown.@first:example.org': ['confirmPeople'],
+        },
+      );
+      final firstRoomList = container.listen(
+        onboardingStepsProvider,
+        (_, _) {},
+      );
+      expect(await container.read(onboardingStepsProvider.future), isEmpty);
+
+      client
+        ..user = null
+        ..syncToken = null
+        ..accessToken = null;
+      client.onLoginStateChanged.add(LoginState.loggedOut);
+      await pumpEventQueue();
+      firstRoomList.close();
+
+      client
+        ..user = '@next:example.org'
+        ..accessToken = 'a2';
+      client.onLoginStateChanged.add(LoginState.loggedIn);
+      await pumpEventQueue();
+      final seen = <List<OnboardingStep>>[];
+      container.listen(onboardingStepsProvider, (_, next) {
+        if (!next.isLoading && next.hasValue) seen.add(next.requireValue);
+      });
+      client.syncToken = 's2';
+      client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
+      await pumpEventQueue();
+
+      expect(seen, [
+        [OnboardingStep.confirmPeople],
+      ]);
+    });
+  });
 
   group('recovery waits for a conversation', () {
     const noRecovery = AccountSecurityFacts(
@@ -122,7 +233,7 @@ void main() {
     });
   });
 
-  test('an account that never saw it learns to confirm people first', () async {
+  test('an account that never saw it learns to confirm people', () async {
     expect(await stepsOn(iosCapabilities, prefs: const {}), [
       OnboardingStep.confirmPeople,
     ]);

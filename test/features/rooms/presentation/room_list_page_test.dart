@@ -21,6 +21,7 @@ import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/security/security_prompt.dart';
 import 'package:zuno/core/security/security_prompt_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/communities/presentation/community_page.dart';
 import 'package:zuno/features/onboarding/presentation/onboarding_flow_page.dart';
@@ -120,8 +121,10 @@ void main() {
   Future<ProviderContainer> pumpRoomList(
     WidgetTester tester, {
     List<OnboardingStep> onboarding = const [],
+    Future<List<OnboardingStep>> Function()? onboardingBuild,
     SecurityPromptDecision prompt = SecurityPromptDecision.none,
     Map<String, Object> stored = const {},
+    bool settle = true,
   }) async {
     SharedPreferences.setMockInitialValues(stored);
     final prefs = await SharedPreferences.getInstance();
@@ -132,7 +135,9 @@ void main() {
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         sharedPreferencesProvider.overrideWithValue(prefs),
-        onboardingStepsProvider.overrideWith((ref) async => onboarding),
+        onboardingStepsProvider.overrideWith(
+          (ref) => onboardingBuild?.call() ?? Future.value(onboarding),
+        ),
         securityPromptProvider.overrideWith((ref) async => prompt),
         incomingKeyVerificationProvider.overrideWith(
           (ref) => verifications.stream,
@@ -151,7 +156,11 @@ void main() {
     );
     await tester.pump();
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
     return container;
   }
 
@@ -519,6 +528,29 @@ void main() {
     });
   });
 
+  testWidgets('before the first sync, an empty list shows progress instead of '
+      '"No chats yet"', (tester) async {
+    client.rooms.clear();
+    await pumpRoomList(tester, settle: false);
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('No chats yet'), findsNothing);
+
+    await tester.tap(find.text('Communities'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('No communities yet'), findsNothing);
+
+    client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('No communities yet'), findsOneWidget);
+  });
+
   group('onboarding', () {
     testWidgets('opens with the steps not yet shown', (tester) async {
       final container = await pumpRoomList(
@@ -530,6 +562,10 @@ void main() {
       );
 
       expect(find.byType(OnboardingFlowPage), findsOneWidget);
+      expect(
+        ModalRoute.of(tester.element(find.byType(OnboardingFlowPage))),
+        isA<ForwardExitPageRoute>(),
+      );
       expect(
         tester
             .widget<OnboardingFlowPage>(find.byType(OnboardingFlowPage))
@@ -543,6 +579,28 @@ void main() {
 
       expect(find.byType(OnboardingFlowPage), findsNothing);
       expect(container.read(onboardingStoreProvider).flowInProgress, isFalse);
+    });
+
+    testWidgets('a reload still under way opens nothing from the last list', (
+      tester,
+    ) async {
+      final reload = Completer<List<OnboardingStep>>();
+      var builds = 0;
+      final container = await pumpRoomList(
+        tester,
+        onboardingBuild: () => builds++ == 0
+            ? Future.value(const [OnboardingStep.confirmPeople])
+            : reload.future,
+      );
+      Navigator.of(tester.element(find.byType(OnboardingFlowPage))).pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(OnboardingFlowPage), findsNothing);
+
+      container.invalidate(onboardingStepsProvider);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(OnboardingFlowPage), findsNothing);
     });
 
     testWidgets('stays closed when every step was shown', (tester) async {

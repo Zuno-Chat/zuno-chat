@@ -45,6 +45,7 @@ import '../../../core/security/new_device_alert_provider.dart';
 import '../../../core/security/security_prompt.dart';
 import '../../../core/security/security_prompt_provider.dart';
 import '../../../core/security/unverified_device_warning_provider.dart';
+import '../../../core/ui/zuno_motion.dart';
 import '../../calls/presentation/incoming_call_page.dart';
 import '../../communities/presentation/community_page.dart';
 import '../../onboarding/presentation/onboarding_flow_page.dart';
@@ -279,14 +280,16 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     final store = ref.read(onboardingStoreProvider);
     if (store.flowInProgress) return;
     final userId = ref.read(matrixClientProvider).userID;
-    final pending = userId == null
-        ? steps
-        : steps.where((s) => !store.shown(userId).contains(s)).toList();
+    if (userId == null) return;
+    final shown = store.shown(userId);
+    final pending = steps.where((s) => !shown.contains(s)).toList();
     if (pending.isEmpty) return;
     store.flowInProgress = true;
     try {
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => OnboardingFlowPage(steps: pending)),
+        ForwardExitPageRoute(
+          builder: (_) => OnboardingFlowPage(steps: pending),
+        ),
       );
     } finally {
       store.flowInProgress = false;
@@ -544,6 +547,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     ref.watch(roomInviteNotificationProvider);
     ref.watch(joinRequestNotificationProvider);
     final pendingJoins = ref.watch(joinRequestsProvider);
+    final firstSyncPending = ref.watch(firstSyncProvider).isLoading;
     ref.watch(pushRuleMaintenanceProvider);
     ref.watch(deliveryAutoFallbackProvider);
     ref.watch(newDeviceAlertProvider);
@@ -556,7 +560,9 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       next,
     ) {
       final steps = next.value;
-      if (steps != null) _maybeStartOnboarding(context, ref, steps);
+      if (steps != null && !next.isLoading) {
+        _maybeStartOnboarding(context, ref, steps);
+      }
     });
     ref.listen<AsyncValue<SecurityPromptDecision>>(securityPromptProvider, (
       _,
@@ -595,6 +601,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
         stream: _updates,
         builder: (context, _) {
           final layout = arrangeHome(client.rooms, pendingJoins: pendingJoins);
+          final loading = firstSyncPending && client.rooms.isEmpty;
           return Scaffold(
             appBar: AppBar(
               toolbarHeight: 72,
@@ -638,6 +645,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
                             onOpen: open,
                             onActions: (room) =>
                                 _showRoomActions(context, room),
+                            loading: loading,
                           )
                         : ChatListView.chats(
                             key: const ValueKey(HomeTab.chats),
@@ -647,6 +655,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
                             onOpen: open,
                             onActions: (room) =>
                                 _showRoomActions(context, room),
+                            loading: loading,
                           ),
                   ),
                 ),

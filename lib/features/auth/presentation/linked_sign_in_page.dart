@@ -99,11 +99,15 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
     });
     final client = ref.read(matrixClientProvider);
     try {
-      await signInWithLinkedCode(
-        client,
-        token: token,
-        deviceDisplayName: sessionDisplayName(Platform.operatingSystem),
-      );
+      await ref
+          .read(signInInFlightProvider.notifier)
+          .during(
+            () => signInWithLinkedCode(
+              client,
+              token: token,
+              deviceDisplayName: sessionDisplayName(Platform.operatingSystem),
+            ),
+          );
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
@@ -118,50 +122,53 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return AuthScaffold(
-      title: 'Sign in with your other device',
-      children: [
-        const Text(
-          'On a device that is already signed in, open Settings, then Your '
-          'devices, then Sign in on another device.',
-        ),
-        const SizedBox(height: 16),
-        FilledButton(
-          onPressed: _busy ? null : _scan,
-          child: const Text('Scan code'),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          'Or type the code it shows',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+    return PopScope(
+      canPop: !_loading,
+      child: AuthScaffold(
+        title: 'Sign in with your other device',
+        children: [
+          const Text(
+            'On a device that is already signed in, open Settings, then Your '
+            'devices, then Sign in on another device.',
           ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _code,
-          enabled: !_loading,
-          autofillHints: null,
-          autocorrect: false,
-          enableSuggestions: false,
-          keyboardType: TextInputType.visiblePassword,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => _submitTyped(),
-          decoration: const InputDecoration(
-            labelText: 'Code',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        if (_error != null) ...[
           const SizedBox(height: 16),
-          Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+          FilledButton(
+            onPressed: _busy ? null : _scan,
+            child: const Text('Scan code'),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Or type the code it shows',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _code,
+            enabled: !_loading,
+            autofillHints: null,
+            autocorrect: false,
+            enableSuggestions: false,
+            keyboardType: TextInputType.visiblePassword,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submitTyped(),
+            decoration: const InputDecoration(
+              labelText: 'Code',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 16),
+            Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+          ],
+          const SizedBox(height: 24),
+          OutlinedButton(
+            onPressed: _busy ? null : _submitTyped,
+            child: Text(_loading ? 'Signing in…' : 'Sign in with the code'),
+          ),
         ],
-        const SizedBox(height: 24),
-        OutlinedButton(
-          onPressed: _busy ? null : _submitTyped,
-          child: Text(_loading ? 'Signing in…' : 'Sign in with the code'),
-        ),
-      ],
+      ),
     );
   }
 }

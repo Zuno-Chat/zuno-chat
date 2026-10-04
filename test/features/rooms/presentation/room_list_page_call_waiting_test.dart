@@ -132,6 +132,7 @@ void main() {
         overrides: [
           matrixClientProvider.overrideWithValue(client),
           sharedPreferencesProvider.overrideWithValue(prefs),
+          firstSyncProvider.overrideWith((ref) async {}),
           ...overrides,
         ],
         child: Builder(

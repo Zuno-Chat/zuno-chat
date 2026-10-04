@@ -3,13 +3,13 @@ import '../security/account_security_status.dart';
 enum OnboardingStep {
   welcome,
   profile,
-  confirmPeople,
   notifications,
   deliveryMethod,
   batteryExemption,
   autostart,
   approveDevice,
   setUpRecovery,
+  confirmPeople,
 }
 
 const _deliverySteps = {
@@ -17,6 +17,14 @@ const _deliverySteps = {
   OnboardingStep.batteryExemption,
   OnboardingStep.autostart,
 };
+
+const _nothingToDecline = {
+  OnboardingStep.welcome,
+  OnboardingStep.deliveryMethod,
+  OnboardingStep.confirmPeople,
+};
+
+bool offersSkip(OnboardingStep step) => !_nothingToDecline.contains(step);
 
 List<OnboardingStep> onboardingSteps({
   required bool justRegistered,
@@ -34,7 +42,6 @@ List<OnboardingStep> onboardingSteps({
   if (justRegistered) {
     steps.addAll([OnboardingStep.welcome, OnboardingStep.profile]);
   }
-  steps.add(OnboardingStep.confirmPeople);
   final askNotifications =
       canAskNotifications &&
       !alreadyShown.contains(OnboardingStep.notifications);
@@ -57,6 +64,7 @@ List<OnboardingStep> onboardingSteps({
   } else if (!securityFacts.thisDeviceHasIdentityKeys) {
     steps.add(OnboardingStep.approveDevice);
   }
+  steps.add(OnboardingStep.confirmPeople);
   return steps.where((step) => !alreadyShown.contains(step)).toList();
 }
 

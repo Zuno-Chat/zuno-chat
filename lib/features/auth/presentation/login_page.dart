@@ -62,17 +62,20 @@ class _LoginPageState extends ConsumerState<LoginPage>
     });
 
     try {
-      await client.login(
-        LoginType.mLoginPassword,
-        identifier: AuthenticationUserIdentifier(user: username),
-        password: _password.text,
-        initialDeviceDisplayName: sessionDisplayName(Platform.operatingSystem),
-        refreshToken: true,
-      );
+      await ref
+          .read(signInInFlightProvider.notifier)
+          .during(
+            () => client.login(
+              LoginType.mLoginPassword,
+              identifier: AuthenticationUserIdentifier(user: username),
+              password: _password.text,
+              initialDeviceDisplayName: sessionDisplayName(
+                Platform.operatingSystem,
+              ),
+              refreshToken: true,
+            ),
+          );
       TextInput.finishAutofillContext();
-      if (!mounted) return;
-
-      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = loginErrorMessage(e));

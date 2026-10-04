@@ -21,6 +21,7 @@ class ChatListView extends StatefulWidget {
   final Map<String, List<Room>> communityRooms;
   final String rowsLabel;
   final EmptyState empty;
+  final bool loading;
   final Map<String, int> unreadCorrections;
   final void Function(Room room) onOpen;
   final void Function(Room room) onActions;
@@ -31,6 +32,7 @@ class ChatListView extends StatefulWidget {
     required this.unreadCorrections,
     required this.onOpen,
     required this.onActions,
+    this.loading = false,
     super.key,
   }) : invitations = layout.chatInvitations,
        rows = layout.chats,
@@ -48,6 +50,7 @@ class ChatListView extends StatefulWidget {
     required this.unreadCorrections,
     required this.onOpen,
     required this.onActions,
+    this.loading = false,
     super.key,
   }) : invitations = layout.communityInvitations,
        rows = layout.communities,
@@ -93,7 +96,12 @@ class _ChatListViewState extends State<ChatListView> {
         key: storage,
         physics: physics,
         slivers: [
-          SliverFillRemaining(hasScrollBody: false, child: widget.empty),
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: widget.loading
+                ? const Center(child: CircularProgressIndicator())
+                : widget.empty,
+          ),
         ],
       );
     }

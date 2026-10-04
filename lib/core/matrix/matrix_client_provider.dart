@@ -50,6 +50,33 @@ final isLoggedInProvider = StreamProvider<bool>((ref) async* {
   );
 });
 
+final signInInFlightProvider = NotifierProvider<SignInInFlight, bool>(
+  SignInInFlight.new,
+);
+
+class SignInInFlight extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  Future<T> during<T>(Future<T> Function() signIn) async {
+    state = true;
+    try {
+      return await signIn();
+    } finally {
+      state = false;
+    }
+  }
+}
+
+final firstSyncProvider = FutureProvider<void>((ref) async {
+  final client = ref.watch(matrixClientProvider);
+  ref.watch(isLoggedInProvider);
+  if (client.prevBatch != null) return;
+  await client.onSyncStatus.stream.firstWhere(
+    (update) => update.status == SyncStatus.finished,
+  );
+});
+
 final incomingKeyVerificationProvider = StreamProvider<KeyVerification>((ref) {
   final client = ref.watch(matrixClientProvider);
   return client.onKeyVerificationRequest.stream;

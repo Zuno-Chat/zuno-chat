@@ -115,7 +115,7 @@ void main() {
       expect(steps(confirmPeopleShown: false), [OnboardingStep.confirmPeople]);
     });
 
-    test('a new account sees it right after choosing a name', () {
+    test('a new account sees it last, after the notifications', () {
       expect(
         steps(
           justRegistered: true,
@@ -127,18 +127,59 @@ void main() {
         [
           OnboardingStep.welcome,
           OnboardingStep.profile,
-          OnboardingStep.confirmPeople,
           OnboardingStep.notifications,
+          OnboardingStep.confirmPeople,
         ],
       );
     });
 
-    test('a device waiting for approval sees it before the approval', () {
+    test('a device waiting for approval sees it after the approval', () {
       expect(steps(securityFacts: lockedDevice, confirmPeopleShown: false), [
-        OnboardingStep.confirmPeople,
         OnboardingStep.approveDevice,
+        OnboardingStep.confirmPeople,
       ]);
     });
+
+    test('comes after every other step', () {
+      expect(
+        steps(
+          justRegistered: true,
+          canAskNotifications: true,
+          needsAutostart: true,
+          securityFacts: noRecovery,
+          alreadyShown: const {},
+          confirmPeopleShown: false,
+        ),
+        [
+          OnboardingStep.welcome,
+          OnboardingStep.profile,
+          OnboardingStep.notifications,
+          OnboardingStep.deliveryMethod,
+          OnboardingStep.autostart,
+          OnboardingStep.setUpRecovery,
+          OnboardingStep.confirmPeople,
+        ],
+      );
+    });
+
+    test(
+      'stays last once the battery step joins after the delivery choice',
+      () {
+        expect(
+          stepsAfterDeliveryChoice(const [
+            OnboardingStep.deliveryMethod,
+            OnboardingStep.approveDevice,
+            OnboardingStep.confirmPeople,
+          ], needsBatteryExemption: true),
+          [
+            OnboardingStep.deliveryMethod,
+            OnboardingStep.batteryExemption,
+            OnboardingStep.approveDevice,
+            OnboardingStep.confirmPeople,
+          ],
+        );
+      },
+    );
 
     test('once shown it is never shown again', () {
       expect(steps(), isEmpty);
@@ -473,6 +514,27 @@ void main() {
     test('never asks about recovery twice in one run', () {
       final result = steps(securityFacts: lockedDevice, hasConversations: true);
       expect(result, isNot(contains(OnboardingStep.setUpRecovery)));
+    });
+  });
+
+  group('Skip', () {
+    test('is left off the steps that ask for nothing to decline', () {
+      expect(offersSkip(OnboardingStep.welcome), isFalse);
+      expect(offersSkip(OnboardingStep.confirmPeople), isFalse);
+      expect(offersSkip(OnboardingStep.deliveryMethod), isFalse);
+    });
+
+    test('stays on every step that asks for something', () {
+      for (final step in [
+        OnboardingStep.profile,
+        OnboardingStep.notifications,
+        OnboardingStep.batteryExemption,
+        OnboardingStep.autostart,
+        OnboardingStep.approveDevice,
+        OnboardingStep.setUpRecovery,
+      ]) {
+        expect(offersSkip(step), isTrue, reason: '$step');
+      }
     });
   });
 }

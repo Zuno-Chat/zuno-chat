@@ -34,6 +34,16 @@ Key providers (`matrix_client_provider.dart`):
   `softLoggedOut` is the SDK's state while a token refresh is in flight,
   and treating it as signed out flashed the sign-in screen, popped open
   screens and tore down notification delivery on every refresh.
+- `signInInFlightProvider` — `true` while a sign-in call runs
+  (`SignInInFlight.during`); `_AuthGate` keeps the signed-out screens up
+  meanwhile, since the SDK emits `loggedIn` before its first sync
+  (`authentication.md`).
+- `firstSyncProvider` — done at once when the client has a sync token (a
+  restored session), otherwise on the first `SyncStatus.finished`. It
+  watches `isLoggedInProvider`, so every sign-in and sign-out re-arms it.
+  Onboarding and the chat list's empty state wait for it, covering what the
+  sign-in hold cannot: `client.login` stops waiting for the first sync
+  after 10 s.
 - `connectionStatusProvider` / `isOfflineProvider` — connectivity
   (`connectivity_provider.dart`), see Communication below.
 - `uploadProgressHttpClientProvider` — the `UploadProgressHttpClient`
@@ -60,7 +70,9 @@ dependency for nothing. Brotli is out for the same reason.
 
 Navigation has exactly one routing decision: `isLoggedInProvider` +
 `_AuthGate` (`lib/app.dart`) switch the root route between the auth
-flow (`SignedOutEntry`) and `RoomListPage`. Everything else in the app
+flow (`SignedOutEntry`) and `RoomListPage`; while a sign-in is in flight
+(`signInInFlightProvider`) the gate keeps `SignedOutEntry`, although the
+SDK already reports logged in. Everything else in the app
 is `Navigator.push`. `_AuthGate` also owns the cold-start launch checks
 (launch shortcut, notification tap, call launch action or ring, pending
 ring, launch share), takes a launch share regardless of login (waiting for
@@ -105,7 +117,16 @@ notification-delivery transports to login state.
 - `zuno_motion.dart` — `ZunoDurations` and `ZunoSlideTransitionsBuilder`,
   registered in the theme for Android only, so every `MaterialPageRoute`
   there slides with no call-site change. Movement only, no fade. iOS keeps
-  the Cupertino transition, and with it the edge swipe back.
+  the Cupertino transition, and with it the edge swipe back, except for
+  `ForwardExitPageRoute`'s exit. That route (the onboarding flow) pushes
+  with the theme's transition; `ForwardExitPageRoute.popForward` sends it
+  out to the leading edge and the route below in from the trailing edge
+  (`delegatedTransition`), 250 ms `easeOut` like a pager step, on both
+  platforms. Only `popForward` on a settled route exits forward: any other
+  pop (sign-out, a call ending), or one while a page above is still
+  leaving, is the normal reverse, and a flow that is not on top is removed
+  without touching the route above. Reduced motion drops the slide; RTL
+  mirrors it.
 
 **Every platform difference is a capability in `lib/core/platform/`.**
 `AppPlatform {android, ios}` comes from `Platform.isIOS`, so `flutter test`
@@ -498,8 +519,9 @@ fetches, room history requests and starting a new call.
 
 ### Launch targets hold the splash, then land without a transition
 
-On the first logged-in build `_AuthGate` keeps the boot splash and runs
-every launch check concurrently once (`_handleLaunch`); the root swaps to
+On the first build that is logged in with no sign-in in flight, `_AuthGate`
+holds the splash and runs every launch check concurrently once
+(`_handleLaunch`); the root swaps to
 `RoomListPage` only after they finish, capped at 2 s. A launch route
 pushed by a check is already on top at the swap, so the room list is
 never painted alone. Launch pushes use `LaunchRoute`
@@ -568,6 +590,10 @@ launch value (`LaunchHandoff`), and in Dart for the first listener
   building the new screen, and what the curve covers in that window is
   never seen. `fastOutSlowIn` covers 46% by then; a decelerate curve covers
   89% and reads as a stutter. `zuno_motion_test.dart` pins it.
+- **A `delegatedTransition` reaches only a route below whose result type it
+  matches** (`nextRoute is ModalRoute<T>` in Flutter's `didPopNext`).
+  `ForwardExitPageRoute` is `<Never>`, which matches every type, so its
+  forward exit also slides over a typed route.
 - **Silent framework errors skip the debug SnackBar**
   (`FlutterErrorDetails.silent`, e.g. an image load that fails after its
   widget is gone); they still reach the previous handler.
@@ -590,7 +616,7 @@ launch value (`LaunchHandoff`), and in Dart for the first listener
   buttons, to cover every way of becoming logged out with one rule. It
   requires a real logged-in → logged-out *transition*, not plain
   `!loggedIn`, since a cold start also emits `false` and the user may be
-  mid-flow on a pushed `LoginPage`.
+  mid-flow on a pushed sign-in screen.
 - **Every sign-out ends in a full app-data wipe** (`sign_out_wipe.dart`).
   A `_AuthGate` listener (`fireImmediately`) hands each login state to
   `SignOutWipe`: signed in sets `session.signed_in`; signed out with that
@@ -621,7 +647,12 @@ launch value (`LaunchHandoff`), and in Dart for the first listener
   `SharedPreferences`, whose in-memory cache would otherwise keep the old
   values. The push teardown that runs first empties `zuno-nse` (bar its
   signed-out marker) and deletes the notify and VoIP Keychain items
-  (`notifications.md`).
+  (`notifications.md`). A same-session sign-in must start clean too:
+  `onboardingStoreProvider` and `securityPromptStoreProvider` watch
+  `isLoggedInProvider`, so their in-memory mirrors last one session, and
+  `_AuthGate` invalidates `homeserverProvider` on sign-out, since `clear()`
+  nulls `client.homeserver` (`authentication.md`). A new provider that
+  keeps session state in memory watches `isLoggedInProvider` the same way.
 - **`_AuthGate`'s `ref.listenManual` subscriptions must not become
   `build()`-driven.** `_AuthGate` sits at the bottom of the navigation
   stack, and Flutter defers rebuilding a dirty element under a covered
@@ -660,14 +691,14 @@ launch value (`LaunchHandoff`), and in Dart for the first listener
   until something calls `room.postLoad()` (never called in this app).
   `m.call.member` is added for this reason; a similarly-omitted type
   would fail the same way, silently.
-- **A screen needing a fully synced `Room`/`Timeline` has no test** —
-  the fake-database trick (`test/helpers/fake_matrix.dart`) doesn't
-  cover sync/pagination, so `RoomPage`, `RoomListPage`, `CallPage` are
-  untested at the widget level. Logic that can be pulled out as a pure
-  function (e.g. `shouldReturnToRootRoute`, `becameOnline`) is tested
-  directly instead — this is *why* several small pure-function modules
-  exist alongside otherwise-untestable screens (`shouldReturnToRootRoute`,
-  `becameOnline`, `shouldPauseBackgroundSync`/`shouldResumeBackgroundSync`).
+- **Nothing in a widget test syncs.** `RoomPage`, `RoomListPage` and
+  `CallPage` render in widget tests from seeded in-memory state
+  (`test/helpers/fake_matrix.dart`, fake call sessions), but sync and
+  pagination against a server stay uncovered. `buildTestClient` has no sync
+  token, so a test reaching `firstSyncProvider` (onboarding steps, an empty
+  `RoomListPage`) overrides it. Logic that can be pulled out as a pure
+  function is tested directly (`shouldReturnToRootRoute`, `becameOnline`,
+  `shouldPauseBackgroundSync`/`shouldResumeBackgroundSync`).
 - **`SnackBar.persist` defaults to `true` whenever an `action` is set**
   — a `persist`-true SnackBar ignores `duration` entirely. The global
   error SnackBar always carries a Copy action, so it needs an explicit

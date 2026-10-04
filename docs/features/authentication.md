@@ -35,7 +35,8 @@ The signed-out screens themselves:
 - `LoginPage` (`lib/features/auth/presentation/login_page.dart`) —
   username/password, "Sign in with your other device" under "Sign in", plus
   a conditional "Create account" button; the footer always names the server
-  with "Change".
+  with "Change". It pops nothing after signing in: as the root's content,
+  the gate swaps it out.
 - `LinkedSignInPage` (`lib/features/auth/presentation/linked_sign_in_page.dart`)
   — scans a sign-in code with the shared `QrScannerPage` or takes the token
   typed, then signs in with `m.login.token`. A code for a server other than
@@ -98,7 +99,9 @@ Settings → Security → Advanced's security phrase.
 
 Routing: `isLoggedInProvider` + `_AuthGate` (`lib/app.dart`) is the only
 top-level routing decision in the app; everything past sign-in is
-`Navigator.push`.
+`Navigator.push`. The gate also reads `signInInFlightProvider`: while a
+sign-in call runs it keeps the signed-out screens up (Key Design
+Decisions).
 
 ## Data & State
 - No local user/session model — the SDK's own `Client`, its logged-in state,
@@ -188,6 +191,19 @@ top-level routing decision in the app; everything past sign-in is
   `checkHomeserver` sets `client.homeserver` to null on failure, which
   would leave the sign-in screen underneath unable to sign in; `use()`
   puts the previous value back before rethrowing.
+- **A sign-in leaves the signed-out screens only once its SDK call
+  returns** (`SignInInFlight.during`, `matrix_client_provider.dart`). The
+  SDK emits `loggedIn` before its first sync, so the gate would otherwise
+  show an empty chat list mid-call and onboarding would decide on pre-sync
+  facts. `LoginPage`, `RegisterPage` (registration and `markRegistered`)
+  and `LinkedSignInPage` wrap their call, so "Signing in…" / "Creating
+  account…" stays up through the first sync. `client.login` stops waiting
+  for that sync after 10 s, so the chat list and onboarding also wait for
+  `firstSyncProvider` (`app-foundation.md`). Back is blocked on the pushed
+  `RegisterPage` and `LinkedSignInPage` while their request runs: the
+  request cannot be cancelled, and backing out left the page's own
+  `popUntil` unmounted, stranding the person on "Get a sign-up code" while
+  signed in.
 - **Sessions use refresh tokens.** `login`/`register` pass
   `refreshToken: true` and the client sets `onSoftLogout: refreshSession`
   (`lib/core/matrix/session_refresh.dart`); the homeserver issues
@@ -418,10 +434,11 @@ top-level routing decision in the app; everything past sign-in is
 
 ## Gotchas & Constraints
 - `homeserverProvider` is kept alive, but `client.clear()` (sign-out) nulls
-  `client.homeserver`. Signing out and back in within one process therefore
-  reaches `client.login` with no homeserver and fails with "No homeserver
-  specified"; re-verifying on each signed-out entry (autoDispose) is the
-  intended fix.
+  `client.homeserver`, so `_AuthGate` invalidates the provider on the
+  signed-in → signed-out transition. Without that, a sign-in in the same
+  process (iOS keeps it, `app-foundation.md`) reaches `client.login` with no
+  homeserver and fails with "No homeserver specified". The re-check reverts
+  a custom server to the default, as a restart would.
 - Any test that renders a signed-out screen must override
   `homeserverProvider` (`FixedHomeserver` in `test/helpers/`), or its
   build calls `checkHomeserver` over the real network.

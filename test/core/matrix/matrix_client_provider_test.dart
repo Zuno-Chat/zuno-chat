@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -20,7 +21,80 @@ import '../../helpers/platform_capabilities.dart';
 
 class _FakeVerification extends Fake implements KeyVerification {}
 
+class _SyncTokenClient extends Client {
+  _SyncTokenClient() : super('test', database: FakeDatabaseApi());
+
+  String? token;
+
+  @override
+  String? get prevBatch => token;
+}
+
 void main() {
+  group('the first sync', () {
+    (_SyncTokenClient, ProviderContainer) start({String? token}) {
+      final client = _SyncTokenClient()..token = token;
+      final container = ProviderContainer(
+        overrides: [matrixClientProvider.overrideWithValue(client)],
+      );
+      addTearDown(container.dispose);
+      container.listen(firstSyncProvider, (_, _) {});
+      return (client, container);
+    }
+
+    Future<bool> settled(ProviderContainer container) async {
+      var done = false;
+      unawaited(
+        container.read(firstSyncProvider.future).then((_) => done = true),
+      );
+      await pumpEventQueue();
+      return done;
+    }
+
+    test('a session that synced before counts at once', () async {
+      final (_, container) = start(token: 's1');
+
+      expect(await settled(container), isTrue);
+    });
+
+    test('a fresh session waits for its first finished sync', () async {
+      final (client, container) = start();
+
+      expect(await settled(container), isFalse);
+
+      client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
+
+      expect(await settled(container), isTrue);
+    });
+
+    test('a failed sync is not a first sync', () async {
+      final (client, container) = start();
+
+      client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.error));
+
+      expect(await settled(container), isFalse);
+    });
+
+    test('signing in again waits for that session\'s own first sync', () async {
+      final (client, container) = start(token: 's1');
+      await settled(container);
+
+      client
+        ..token = null
+        ..accessToken = 'a1';
+      client.onLoginStateChanged
+        ..add(LoginState.loggedOut)
+        ..add(LoginState.loggedIn);
+      await pumpEventQueue();
+
+      expect(await settled(container), isFalse);
+
+      client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
+
+      expect(await settled(container), isTrue);
+    });
+  });
+
   Future<List<bool>> loginStatesAfter(List<LoginState> emitted) async {
     final client = buildTestClient()..accessToken = 'a0';
     final container = ProviderContainer(
@@ -64,6 +138,39 @@ void main() {
     ]);
 
     expect(seen.last, isFalse);
+  });
+
+  group('a sign-in in flight', () {
+    test('holds while the call runs and lets go once it returns', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final call = Completer<void>();
+
+      final signIn = container
+          .read(signInInFlightProvider.notifier)
+          .during(() => call.future);
+
+      expect(container.read(signInInFlightProvider), isTrue);
+
+      call.complete();
+      await signIn;
+
+      expect(container.read(signInInFlightProvider), isFalse);
+    });
+
+    test('lets go when the call fails', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await expectLater(
+        container
+            .read(signInInFlightProvider.notifier)
+            .during<void>(() async => throw Exception('refused')),
+        throwsException,
+      );
+
+      expect(container.read(signInInFlightProvider), isFalse);
+    });
   });
 
   for (final (label, provider) in [

@@ -35,6 +35,7 @@ void main() {
     String homeserver = 'https://example.org',
     String? chosenServerName,
     UrlOpener openUrl = openExternally,
+    bool pushed = false,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer(
@@ -54,18 +55,25 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
+    final page = RegisterPage(
+      requiresCode: requiresCode,
+      email: email,
+      openUrl: openUrl,
+    );
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(
-          home: RegisterPage(
-            requiresCode: requiresCode,
-            email: email,
-            openUrl: openUrl,
-          ),
-        ),
+        child: MaterialApp(home: pushed ? const Scaffold() : page),
       ),
     );
+    if (pushed) {
+      unawaited(
+        tester
+            .state<NavigatorState>(find.byType(Navigator))
+            .push(MaterialPageRoute<void>(builder: (_) => page)),
+      );
+      await tester.pumpAndSettle();
+    }
   }
 
   const termsLine =
@@ -461,6 +469,63 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('holds the app on the sign-up screens until the account is '
+      'made', (tester) async {
+    useTallScreen(tester);
+    final answer = Completer<http.Response>();
+    await pumpRegisterPage(
+      tester,
+      httpClient: MockClient((_) => answer.future),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(RegisterPage)),
+    );
+
+    await fillAndSubmit(tester, turns: 0);
+    await tester.pump();
+
+    expect(container.read(signInInFlightProvider), isTrue);
+
+    answer.complete(http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403));
+    for (var turn = 0; turn < 3; turn++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
+
+    expect(container.read(signInInFlightProvider), isFalse);
+  });
+
+  testWidgets('back stays put while the account is being created', (
+    tester,
+  ) async {
+    useTallScreen(tester);
+    final answer = Completer<http.Response>();
+    await pumpRegisterPage(
+      tester,
+      httpClient: MockClient((_) => answer.future),
+      pushed: true,
+    );
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+
+    await fillAndSubmit(tester, turns: 0);
+    await tester.pump();
+    await navigator.maybePop();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RegisterPage), findsOneWidget);
+
+    answer.complete(http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403));
+    for (var turn = 0; turn < 3; turn++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
+    expect(find.text('Create account'), findsWidgets);
+    await navigator.maybePop();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RegisterPage), findsNothing);
   });
 
   group('an interrupted sign-up', () {

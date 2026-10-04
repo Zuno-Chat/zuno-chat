@@ -46,6 +46,7 @@ class SecurityPromptStore {
 }
 
 final securityPromptStoreProvider = Provider<SecurityPromptStore>((ref) {
+  ref.watch(isLoggedInProvider);
   return SecurityPromptStore(ref.watch(sharedPreferencesProvider));
 });
 

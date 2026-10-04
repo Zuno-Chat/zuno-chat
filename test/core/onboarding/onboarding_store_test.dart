@@ -1,7 +1,12 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -72,5 +77,35 @@ void main() {
     store = OnboardingStore(await SharedPreferences.getInstance());
 
     expect(store.shown('@alex:example.org'), {OnboardingStep.profile});
+  });
+
+  test('a sign-in after a sign-out that wiped the app data starts with '
+      'nothing shown, even without a restart', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final logins = StreamController<bool>();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        isLoggedInProvider.overrideWith((ref) => logins.stream),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(onboardingStoreProvider, (_, _) {});
+    logins.add(true);
+    await pumpEventQueue();
+    await container
+        .read(onboardingStoreProvider)
+        .markShown('@alex:example.org', OnboardingStep.approveDevice);
+
+    await prefs.clear();
+    logins.add(false);
+    await pumpEventQueue();
+    logins.add(true);
+    await pumpEventQueue();
+
+    expect(
+      container.read(onboardingStoreProvider).shown('@alex:example.org'),
+      isEmpty,
+    );
   });
 }

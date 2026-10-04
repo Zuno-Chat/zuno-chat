@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -23,6 +24,8 @@ import 'package:zuno/core/security/security_prompt_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/step_hero.dart';
 import 'package:zuno/core/ui/step_layout.dart';
+import 'package:zuno/core/ui/zuno_motion.dart';
+import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/onboarding/presentation/onboarding_flow_page.dart';
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 import 'package:zuno/features/verification/presentation/approve_this_device_page.dart';
@@ -94,6 +97,7 @@ void main() {
     AsyncValue<FcmAvailability> fcm = const AsyncData(
       FcmAvailability.available,
     ),
+    bool forwardExit = false,
   }) async {
     final container = ProviderContainer(
       overrides: [
@@ -107,16 +111,18 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
+    Widget flow(BuildContext _) => OnboardingFlowPage(steps: steps);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          theme: forwardExit ? zunoLightTheme : null,
           home: Builder(
             builder: (context) => TextButton(
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => OnboardingFlowPage(steps: steps),
-                ),
+                forwardExit
+                    ? ForwardExitPageRoute(builder: flow)
+                    : MaterialPageRoute(builder: flow),
               ),
               child: const Text('open'),
             ),
@@ -127,6 +133,14 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     return container.read(onboardingStoreProvider);
+  }
+
+  Finder skip() => find.text('Skip').hitTestable();
+
+  Future<void> moveOn(WidgetTester tester) async {
+    final offered = skip().evaluate().isNotEmpty;
+    await tester.tap(offered ? skip() : find.byType(FilledButton));
+    await tester.pumpAndSettle();
   }
 
   testWidgets('runs the steps in order and closes after the last', (
@@ -181,12 +195,107 @@ void main() {
     expect(store.shown(_userId), {OnboardingStep.profile});
   });
 
+  testWidgets('a step with nothing to decline shows no Skip; its own button '
+      'moves on', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await pumpFlow(tester, [
+      OnboardingStep.welcome,
+      OnboardingStep.confirmPeople,
+    ]);
+
+    expect(skip(), findsNothing);
+    expect(find.bySemanticsLabel('Skip'), findsNothing);
+    semantics.dispose();
+
+    await tester.tap(find.text('Get started'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Make sure it is really them'), findsOneWidget);
+    expect(skip(), findsNothing);
+
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('open'), findsOneWidget);
+  });
+
+  testWidgets('Skip fades in with the slide instead of popping in halfway', (
+    tester,
+  ) async {
+    await pumpFlow(tester, [OnboardingStep.welcome, OnboardingStep.profile]);
+
+    await tester.tap(find.text('Get started'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final fade = tester
+        .widgetList<Opacity>(
+          find.ancestor(of: find.text('Skip'), matching: find.byType(Opacity)),
+        )
+        .first;
+    expect(fade.opacity, greaterThan(0));
+    expect(fade.opacity, lessThan(1));
+    expect(skip(), findsNothing);
+
+    await tester.pumpAndSettle();
+    expect(skip(), findsOneWidget);
+  });
+
+  testWidgets('Skip comes back on a step that asks for something, with the '
+      'page where it was', (tester) async {
+    await pumpFlow(tester, [OnboardingStep.welcome, OnboardingStep.profile]);
+    final pagesTop = tester.getTopLeft(find.byType(PageView)).dy;
+
+    await tester.tap(find.text('Get started'));
+    await tester.pumpAndSettle();
+
+    expect(skip(), findsOneWidget);
+    expect(tester.getTopLeft(find.byType(PageView)).dy, pagesTop);
+  });
+
+  testWidgets('a step that finishes after it was skipped never moves the '
+      'next one on', (tester) async {
+    final saved = Completer<void>();
+    final client =
+        buildTestClient(
+            userId: _userId,
+            httpClient: MockClient((_) async {
+              await saved.future;
+              return http.Response('{}', 200);
+            }),
+          )
+          ..baseUri = Uri.parse('https://example.org')
+          ..bearerToken = 'token';
+    final store = await pumpFlow(tester, [
+      OnboardingStep.profile,
+      OnboardingStep.setUpRecovery,
+      OnboardingStep.confirmPeople,
+    ], client: client);
+
+    await tester.enterText(find.byType(TextField), 'Alex');
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    await tester.tap(skip());
+    await tester.pumpAndSettle();
+    expect(find.text('Set up recovery'), findsWidgets);
+
+    saved.complete();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Set up recovery'), findsWidgets);
+    expect(store.shown(_userId), {OnboardingStep.profile});
+  });
+
   testWidgets('a single-step flow keeps Skip but shows no progress dots', (
     tester,
   ) async {
     await pumpFlow(tester, [OnboardingStep.profile]);
 
-    expect(find.text('Skip'), findsOneWidget);
+    expect(skip(), findsOneWidget);
     expect(find.byKey(onboardingDotsKey), findsNothing);
   });
 
@@ -223,15 +332,18 @@ void main() {
       OnboardingStep.setUpRecovery,
     ]);
 
-    final skip = tester.getCenter(find.text('Skip'));
+    final skipCentre = tester.getCenter(skip());
     final dots = tester.getCenter(find.byKey(onboardingDotsKey));
     final button = tester.getRect(find.byType(FilledButton));
     final size = tester.getSize(find.byType(Scaffold).last);
-    expect(skip.dx, greaterThan(size.width / 2));
-    expect(skip.dy, lessThan(size.height / 4));
+    expect(skipCentre.dx, greaterThan(size.width / 2));
+    expect(skipCentre.dy, lessThan(size.height / 4));
     expect(dots.dx, closeTo(size.width / 2, 1));
     expect(dots.dy, greaterThan(button.bottom));
-    expect(tester.getTopLeft(find.byType(StepHero)).dy, greaterThan(skip.dy));
+    expect(
+      tester.getTopLeft(find.byType(StepHero)).dy,
+      greaterThan(skipCentre.dy),
+    );
   });
 
   testWidgets('the main button sits at the same height on every step', (
@@ -246,10 +358,7 @@ void main() {
     final bottoms = <double>[];
     for (var i = 0; i < 3; i++) {
       bottoms.add(tester.getRect(find.byType(FilledButton)).bottom);
-      if (i < 2) {
-        await tester.tap(find.text('Skip'));
-        await tester.pumpAndSettle();
-      }
+      if (i < 2) await moveOn(tester);
     }
     expect(bottoms[1], closeTo(bottoms[0], 0.5));
     expect(bottoms[2], closeTo(bottoms[0], 0.5));
@@ -273,10 +382,10 @@ void main() {
     tester,
   ) async {
     stubNotificationPermission(granted: true);
-    await pumpFlow(tester, OnboardingStep.values);
-
-    final width = tester.getSize(find.byType(Scaffold).last).width;
     for (final step in OnboardingStep.values) {
+      await tester.pumpWidget(const SizedBox());
+      await pumpFlow(tester, [step]);
+      final width = tester.getSize(find.byType(Scaffold).last).width;
       expect(
         tester.getCenter(find.byType(StepHero)).dx,
         closeTo(width / 2, 1),
@@ -291,10 +400,6 @@ void main() {
           )
           .where((text) => text.textAlign == TextAlign.center);
       expect(aligned.length, 2, reason: '$step');
-      if (step != OnboardingStep.values.last) {
-        await tester.tap(find.text('Skip'));
-        await tester.pumpAndSettle();
-      }
     }
   });
 
@@ -467,6 +572,17 @@ void main() {
       );
     }
 
+    void stubBatteryCheck(Future<bool> Function() answer) {
+      const channel = MethodChannel('zuno/background_sync');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method != 'isIgnoringBatteryOptimizations') return null;
+        return answer();
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    }
+
     Future<void> pick(WidgetTester tester, String label) async {
       await tester.ensureVisible(find.text(label));
       await tester.tap(find.text(label));
@@ -510,6 +626,86 @@ void main() {
         prefs.getString('settings.notification_delivery_mode'),
         'unifiedPush',
       );
+    });
+
+    testWidgets('a second tap on Continue never skips the step after it', (
+      tester,
+    ) async {
+      stubBatteryCheck(
+        () => Future.delayed(const Duration(milliseconds: 200), () => true),
+      );
+      final store = await pumpFlow(tester, [
+        OnboardingStep.deliveryMethod,
+        OnboardingStep.confirmPeople,
+      ]);
+
+      await tester.tap(find.text('UnifiedPush'));
+      await tester.pump();
+      await tester.tap(find.text('Continue'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+      await tester.tap(find.text('Continue'), warnIfMissed: false);
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pumpAndSettle();
+
+      expect(find.text('Make sure it is really them'), findsOneWidget);
+      expect(store.shown(_userId), {OnboardingStep.deliveryMethod});
+    });
+
+    testWidgets('the methods stay put while the choice is being saved', (
+      tester,
+    ) async {
+      stubBatteryCheck(
+        () => Future.delayed(const Duration(milliseconds: 500), () => true),
+      );
+      await pumpFlow(tester, [
+        OnboardingStep.deliveryMethod,
+        OnboardingStep.confirmPeople,
+      ]);
+
+      await tester.tap(find.text('UnifiedPush'));
+      await tester.pump();
+      await tester.tap(find.text('Continue'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.ensureVisible(find.text('Background sync'));
+      await tester.pump();
+      await tester.tap(find.text('Background sync'), warnIfMissed: false);
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<RadioGroup<NotificationDeliveryMode>>(
+              find.byType(RadioGroup<NotificationDeliveryMode>),
+            )
+            .groupValue,
+        NotificationDeliveryMode.unifiedPush,
+      );
+
+      await tester.pumpAndSettle();
+      expect(
+        prefs.getString('settings.notification_delivery_mode'),
+        'unifiedPush',
+      );
+    });
+
+    testWidgets('a battery check that never answers still moves on', (
+      tester,
+    ) async {
+      stubBatteryCheck(() => Completer<bool>().future);
+      await pumpFlow(tester, [
+        OnboardingStep.deliveryMethod,
+        OnboardingStep.confirmPeople,
+      ]);
+
+      await tester.tap(find.text('UnifiedPush'));
+      await tester.pump();
+      await tester.tap(find.text('Continue'));
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Make sure it is really them'), findsOneWidget);
     });
 
     testWidgets('a method that needs it skips the battery step when Android '
@@ -744,29 +940,6 @@ void main() {
         );
       });
 
-      testWidgets('Skip keeps the switch and records no choice', (
-        tester,
-      ) async {
-        final store = await pumpFlow(tester, [OnboardingStep.deliveryMethod]);
-
-        await deliveryModes(tester)
-            .autoSelect(NotificationDeliveryMode.backgroundService);
-        await tester.pump();
-        await tester.tap(find.text('Skip'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('open'), findsOneWidget);
-        expect(store.shown(_userId), {OnboardingStep.deliveryMethod});
-        expect(
-          prefs.getString('settings.notification_delivery_mode'),
-          'backgroundService',
-        );
-        expect(
-          prefs.getBool('settings.notification_delivery_mode_chosen'),
-          isNull,
-        );
-      });
-
       testWidgets('a pick of Google services that stops working falls back '
           'to the current method', (tester) async {
         stubBatteryExemption(granted: true);
@@ -879,13 +1052,20 @@ void main() {
   testWidgets('every step is one page with one primary button', (tester) async {
     stubNotificationPermission(granted: true);
     for (final step in OnboardingStep.values) {
+      await tester.pumpWidget(const SizedBox());
       await pumpFlow(tester, [step]);
 
       expect(find.byType(FilledButton), findsOneWidget, reason: '$step');
-      expect(find.text('Skip'), findsOneWidget, reason: '$step');
-
-      await tester.tap(find.text('Skip'));
-      await tester.pumpAndSettle();
+      expect(
+        skip(),
+        offersSkip(step) ? findsOneWidget : findsNothing,
+        reason: '$step',
+      );
+      if (offersSkip(step)) {
+        await tester.tap(skip());
+        await tester.pumpAndSettle();
+        expect(find.text('open'), findsOneWidget, reason: '$step');
+      }
     }
   });
 
@@ -1281,6 +1461,36 @@ void main() {
       expect(store.shown(_userId), {OnboardingStep.approveDevice});
       expect(find.text('open'), findsOneWidget);
     });
+
+    testWidgets(
+      'as the last step, its page is fully gone before the flow '
+      'leaves forward',
+      (tester) async {
+        final store = await pumpFlow(tester, [
+          OnboardingStep.approveDevice,
+        ], forwardExit: true);
+        await tester.tap(find.byType(FilledButton));
+        await tester.pumpAndSettle();
+
+        Navigator.of(tester.element(find.byType(ApproveThisDevicePage))).pop();
+        final lefts = <double>[];
+        for (var frame = 0; frame < 60; frame++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          final flow = find.byType(OnboardingFlowPage, skipOffstage: false);
+          if (flow.evaluate().isNotEmpty) lefts.add(tester.getTopLeft(flow).dx);
+        }
+
+        expect(lefts.where((dx) => dx > 1), isEmpty);
+        expect(lefts.last, lessThan(-400));
+        await tester.pumpAndSettle();
+        expect(find.text('open'), findsOneWidget);
+        expect(store.shown(_userId), {OnboardingStep.approveDevice});
+      },
+      variant: TargetPlatformVariant({
+        TargetPlatform.android,
+        TargetPlatform.iOS,
+      }),
+    );
 
     testWidgets('recovery opens its setup and starts the cooldown', (
       tester,
