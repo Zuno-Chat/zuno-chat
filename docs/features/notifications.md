@@ -532,8 +532,7 @@ line.
   channel, a flat map): notification permission, channels, battery
   optimization, standby bucket. Every read is best-effort and a failed one
   is omitted, so the row reads "Unknown", never "Not allowed" or "Blocked".
-  Below API 26 the channel list is empty. With notifications off, category
-  rows are informational.
+  With notifications off, category rows are informational.
 - Delivery, shared: the module's `GET health` (Last delivery falls back to
   the first health pusher) and reachability. `notInstalled` (a route failure
   below 500, as a catch-all page or firewall answers, or no `x-zuno-push`

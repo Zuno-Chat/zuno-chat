@@ -4,7 +4,6 @@ import android.app.NotificationChannel
 import android.app.NotificationChannelGroup
 import android.app.NotificationManager
 import android.content.Context
-import android.os.Build
 
 enum class NotificationGroup(val id: String, val title: String) {
     CALLS("calls_group", "Calls"),
@@ -20,7 +19,6 @@ object NotificationChannels {
         description: String,
         importance: Int,
     ) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannelGroup(NotificationChannelGroup(group.id, group.title))
         manager.createNotificationChannel(

@@ -461,6 +461,15 @@ fetches, room history requests and starting a new call.
 - **Single `Client`, no repository layer** — SDK types are the app
   state; screens call SDK methods directly. Keeps one source of truth
   and avoids a parallel app-level model drifting from the SDK's own.
+- **Minimum OS: Android 8.0 (API 26), iOS 18.0.** Neither floor buys
+  speed: newer APIs were already taken at runtime where present. They
+  remove the older-OS fallbacks (pre-channel notifications, no PiP,
+  legacy vibration, PNG launcher icons) and drop OS versions without
+  security patches, for about 0.5% of Android devices; iOS 18 runs on the
+  same iPhones as 17 (XS/XR on). `minSdk = 26` is pinned in `android/app`
+  and in each `packages/*` plugin, not taken from `flutter.minSdkVersion`;
+  iOS sets it on every Xcode target and in the Podfile's `platform`. Raise
+  them together.
 - **A failed start asks before deleting anything.** The SDK clears the
   whole store on an unexpected `Client.init` error; `ZunoClient` skips that
   clear during session restore (sign-in and registration still clear).

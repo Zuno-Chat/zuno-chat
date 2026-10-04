@@ -175,17 +175,13 @@ object IncomingRing {
     @Suppress("DEPRECATION")
     private fun startVibration(app: Context, pattern: LongArray): Vibrator? = try {
         systemVibrator(app)?.takeIf { it.hasVibrator() }?.also {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                it.vibrate(
-                    VibrationEffect.createWaveform(pattern, RingDecisions.amplitudes(pattern), 0),
-                    AudioAttributes.Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                        .build(),
-                )
-            } else {
-                it.vibrate(pattern, 0)
-            }
+            it.vibrate(
+                VibrationEffect.createWaveform(pattern, RingDecisions.amplitudes(pattern), 0),
+                AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .build(),
+            )
         }
     } catch (e: Exception) {
         Log.w(TAG, "Could not vibrate for the ring", e)

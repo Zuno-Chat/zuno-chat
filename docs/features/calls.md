@@ -680,7 +680,7 @@ instead, so a stale notification can't outlive its call.
   call and every later recording in the app captures silence until
   relaunch. `inputMixer` mode is call-local and also skips iOS's mute
   sound. CallKit's own mute is system-wide and can linger the same way,
-  so `CallAudio` clears it after the last call on iOS 17+.
+  so `CallAudio` clears it after the last call.
 - **CallKit**, the why behind the iOS shape:
 
   | Decision | Why |
@@ -748,7 +748,7 @@ instead, so a stale notification can't outlive its call.
   | The notification's delete intent | A swipe, and its own 60 s `setTimeoutAfter`; the system delivers it even while the app is frozen or in Doze |
   | The Answer intent | Silences at once when Answer launches the activity |
   | An `AlarmManager` window at 60 s | Backstop for a frozen process |
-  | An in-process 60 s timer | A live process, including API 24–25, which have no notification timeout |
+  | An in-process 60 s timer | A live process |
 
 - **Ringback is a native `ToneGenerator` on `STREAM_VOICE_CALL`**
   (`AndroidRingbackTonePlayer` → `MainActivity.kt`), not a bundled asset —
@@ -888,8 +888,8 @@ instead, so a stale notification can't outlive its call.
   it.
 - **The ring's `AlarmManager` backstop fires 60–105 s after the ring**:
   Android 12+ stretches short windows. The delete intent is the precise
-  60 s stop on API 26+, so only a ring whose notification is blocked can
-  sound that long.
+  60 s stop, so only a ring whose notification is blocked can sound that
+  long.
 - **`AssetManager.openFd` refuses a compressed asset**, so `IncomingRing`
   falls back to a copy of the ringtone in `cacheDir` (`zuno_ringtone`).
 - **The ring cancels the vibrator only if it started a vibration itself**,

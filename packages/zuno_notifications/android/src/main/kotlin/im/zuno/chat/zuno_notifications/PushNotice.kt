@@ -70,9 +70,7 @@ object PushNotice {
                 prefs.getString(ROOM_CACHE_KEY, null),
             )[roomId]
             val channel = PushNoticeDecision.channelFor(cached)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-                manager.getNotificationChannel(channel) == null
-            ) {
+            if (manager.getNotificationChannel(channel) == null) {
                 Log.d(TAG, "No $channel channel yet, no instant notice")
                 return false
             }
@@ -131,8 +129,7 @@ object PushNotice {
             val manager = context.getSystemService(
                 Context.NOTIFICATION_SERVICE,
             ) as NotificationManager
-            val channelExists = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
-                manager.getNotificationChannel(MISSED_CHANNEL) != null
+            val channelExists = manager.getNotificationChannel(MISSED_CHANNEL) != null
             val enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
             if (!PushNoticeDecision.shouldPostMissed(enabled, channelExists)) return
             val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
@@ -164,7 +161,7 @@ object PushNotice {
             val manager = context.getSystemService(
                 Context.NOTIFICATION_SERVICE,
             ) as NotificationManager
-            val channelExists = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            val channelExists =
                 manager.getNotificationChannel(PushNoticeDecision.DIRECT_CHANNEL) != null
             val enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
             if (!PushNoticeDecision.shouldPostMissed(enabled, channelExists)) return false
@@ -177,7 +174,10 @@ object PushNotice {
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 )
             }
-            val notification = NotificationCompat.Builder(context, PushNoticeDecision.DIRECT_CHANNEL)
+            val notification = NotificationCompat.Builder(
+                context,
+                PushNoticeDecision.DIRECT_CHANNEL,
+            )
                 .setSmallIcon(smallIcon(context))
                 .setContentTitle(TEST_TITLE)
                 .setContentText(TEST_TEXT)
@@ -224,7 +224,7 @@ object PushNotice {
                     effect,
                     VibrationAttributes.createForUsage(VibrationAttributes.USAGE_NOTIFICATION),
                 )
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            } else {
                 @Suppress("DEPRECATION")
                 vibrator.vibrate(
                     effect,
@@ -233,9 +233,6 @@ object PushNotice {
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build(),
                 )
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(vibrationPattern, -1)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not vibrate for the instant notice", e)

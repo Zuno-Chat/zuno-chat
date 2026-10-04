@@ -69,13 +69,7 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
   }
 
   private func openNotificationSettings() {
-    let address: String
-    if #available(iOS 16.0, *) {
-      address = UIApplication.openNotificationSettingsURLString
-    } else {
-      address = UIApplication.openSettingsURLString
-    }
-    if let url = URL(string: address) {
+    if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
       UIApplication.shared.open(url)
     }
   }

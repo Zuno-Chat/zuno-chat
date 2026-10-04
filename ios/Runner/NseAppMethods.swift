@@ -1,5 +1,4 @@
 @preconcurrency import Flutter
-import UIKit
 import UserNotifications
 
 enum NseAppRequest: Sendable {
@@ -42,7 +41,7 @@ enum NseAppRequest: Sendable {
       return UncheckedSendable(stored)
     case .syncBadge(let unread):
       let count = NseAppLogic.badge(unread: unread, delivered: await LiveNseCenter().delivered())
-      await NseBadge.apply(count)
+      NseBadge.apply(count)
       return UncheckedSendable(count)
     }
   }
@@ -63,14 +62,9 @@ enum NseAppMethods {
   }
 }
 
-@MainActor
 enum NseBadge {
   static func apply(_ count: Int) {
-    if #available(iOS 16.0, *) {
-      UNUserNotificationCenter.current().setBadgeCount(count)
-    } else {
-      UIApplication.shared.applicationIconBadgeNumber = count
-    }
+    UNUserNotificationCenter.current().setBadgeCount(count)
   }
 }
 

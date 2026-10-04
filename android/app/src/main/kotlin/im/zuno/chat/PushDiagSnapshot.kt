@@ -54,8 +54,7 @@ object PushDiagSnapshot {
         return snapshot
     }
 
-    private fun channels(manager: NotificationManager): List<Map<String, Any>>? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return emptyList()
+    private fun channels(manager: NotificationManager): List<Map<String, Any>> {
         val blockedGroups = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             manager.notificationChannelGroups.filter { it.isBlocked }.map { it.id }.toSet()
         } else {

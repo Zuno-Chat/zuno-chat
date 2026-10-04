@@ -27,7 +27,6 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.util.Rational
 import android.view.WindowManager
-import androidx.annotation.RequiresApi
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
@@ -203,24 +202,17 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "openNotificationSettings" -> {
-                    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startActivity(
                         Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
                             putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
-                        }
-                    } else {
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.parse("package:$packageName")
-                        }
-                    }
-                    startActivity(intent)
+                        },
+                    )
                     result.success(null)
                 }
 
                 "openChannelSettings" -> {
                     val channelId = call.argument<String>("channelId")
-                    val intent = if (channelId != null &&
-                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                    ) {
+                    val intent = if (channelId != null) {
                         Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
                             putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
                             putExtra(Settings.EXTRA_CHANNEL_ID, channelId)
@@ -537,7 +529,6 @@ class MainActivity : FlutterActivity() {
     private var hangUpPendingBeforeDestroy = false
 
     private fun applyPictureInPictureParams() {
-        if (pipEntryMode == PipEntryMode.Unsupported) return
         try {
             setPictureInPictureParams(buildPictureInPictureParams())
         } catch (error: IllegalArgumentException) {
@@ -545,7 +536,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun buildPictureInPictureParams(): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder()
             .setAspectRatio(pipAspect)
@@ -557,7 +547,6 @@ class MainActivity : FlutterActivity() {
         return builder.build()
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun hangUpRemoteAction(): RemoteAction {
         val hangUpIntent = PendingIntent.getBroadcast(
             this,

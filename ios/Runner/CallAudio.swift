@@ -356,7 +356,7 @@ final class CallAudio {
     reported = nil
     ringback.setWanted(false)
     inCall = false
-    if #available(iOS 17.0, *), AVAudioApplication.shared.isInputMuted {
+    if AVAudioApplication.shared.isInputMuted {
       try? AVAudioApplication.shared.setInputMuted(false)
     }
     if selfManaged {

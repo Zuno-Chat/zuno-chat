@@ -134,16 +134,8 @@ final class VideoToolsPlugin: NSObject, @preconcurrency FlutterPlugin {
       try? FileManager.default.removeItem(at: url)
       session.metadata = []
       session.metadataItemFilter = .forSharing()
-      if #available(iOS 18.0, *) {
-        try await session.export(to: url, as: .mp4)
-        return true
-      }
-      session.outputURL = url
-      session.outputFileType = .mp4
-      await withCheckedContinuation { continuation in
-        session.exportAsynchronously { continuation.resume() }
-      }
-      return session.status == .completed
+      try await session.export(to: url, as: .mp4)
+      return true
     } catch {
       try? FileManager.default.removeItem(atPath: output)
       return false

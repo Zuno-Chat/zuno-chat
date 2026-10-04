@@ -1,7 +1,6 @@
 package im.zuno.chat
 
 import android.app.NotificationManager
-import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -72,14 +71,7 @@ class FcmService : FirebaseMessagingService() {
         try {
             val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             val shown = manager.activeNotifications.map {
-                ShownNotification(
-                    it.id,
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        it.notification.channelId
-                    } else {
-                        null
-                    },
-                )
+                ShownNotification(it.id, it.notification.channelId)
             }
             FcmBadgeDecision.messageNotificationIds(shown).forEach { manager.cancel(it) }
         } catch (e: Exception) {

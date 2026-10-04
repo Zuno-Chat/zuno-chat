@@ -7,11 +7,6 @@ import org.junit.Test
 
 class PictureInPictureDecisionTest {
     @Test
-    fun `no picture-in-picture at all before Android 8`() {
-        assertEquals(PipEntryMode.Unsupported, PictureInPictureDecision.entryMode(sdkInt = 25))
-    }
-
-    @Test
     fun `enters from the user-leave hint on Android 8 through 11`() {
         assertEquals(PipEntryMode.EnterOnLeave, PictureInPictureDecision.entryMode(sdkInt = 26))
         assertEquals(PipEntryMode.EnterOnLeave, PictureInPictureDecision.entryMode(sdkInt = 30))

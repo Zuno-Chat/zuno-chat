@@ -111,6 +111,7 @@ void main() {
 
     expect(await Future.wait(all), everyElement(bytes));
     expect(fetches, 1);
+    await until(() => dir.listSync().isNotEmpty);
   });
 
   test('ten concurrent avatar fetches download once', () async {

@@ -64,21 +64,17 @@ class ZunoVibrationPlugin :
     private fun vibrate(vibrator: Vibrator?, pattern: List<Int>, repeat: Int) {
         if (vibrator == null || !vibrator.hasVibrator()) return
         val patternLong = LongArray(pattern.size) { pattern[it].toLong() }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val attributes = AudioAttributes.Builder()
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                .build()
-            vibrator.vibrate(
-                VibrationEffect.createWaveform(
-                    patternLong,
-                    VibrationAmplitudes.forPattern(patternLong),
-                    repeat,
-                ),
-                attributes,
-            )
-        } else {
-            vibrator.vibrate(patternLong, repeat)
-        }
+        val attributes = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .build()
+        vibrator.vibrate(
+            VibrationEffect.createWaveform(
+                patternLong,
+                VibrationAmplitudes.forPattern(patternLong),
+                repeat,
+            ),
+            attributes,
+        )
     }
 }

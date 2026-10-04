@@ -9,7 +9,7 @@
 | `ic_launcher_foreground.svg` | foreground — ink mark, Z knocked out |
 | `ic_launcher_monochrome.svg` | themed-icon layer (Android 13+), solid black on transparent |
 | `ic_launcher_foreground_small.svg` | foreground without the Z, for notification/status densities |
-| `ic_launcher.xml` / `colors.xml` | drop into `res/mipmap-anydpi-v26/` and `res/values/` |
+| `ic_launcher.xml` / `colors.xml` | drop into `res/mipmap-anydpi/` and `res/values/` |
 
 Convert the SVGs to vector drawables with Android Studio's *Vector Asset* import (or `svg2vectordrawable`), then place in `res/drawable/`.
 

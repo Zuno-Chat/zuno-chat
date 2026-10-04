@@ -44,16 +44,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
         // flutter_local_notifications (Calls: the ongoing-call/incoming-call
-        // notifications) requires this — it ships Java 8+ APIs (java.time
-        // etc.) that need desugaring support on minSdk below API 26.
+        // notifications) requires this — it builds with desugaring on, and
+        // AGP rejects an app that doesn't match, whatever the minSdk.
         isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
         applicationId = "im.zuno.chat"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
