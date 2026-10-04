@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
 
 import '../platform/platform_capabilities.dart';
+import '../push/fcm_gateway.dart';
 import '../push/fcm_startup.dart';
 import '../push/push_wake_lock.dart';
 import '../push/voip/voip_registration.dart';
@@ -22,6 +23,44 @@ abstract class NotificationDeliveryProvider {
 final _backgroundSync = BackgroundSyncDeliveryProvider();
 
 final unifiedPushDeliveryProvider = UnifiedPushDeliveryProvider();
+
+String? currentPushkeyFor(NotificationDeliveryMode mode) {
+  switch (mode) {
+    case NotificationDeliveryMode.unifiedPush:
+      return unifiedPushDeliveryProvider.endpointUrl?.toString();
+    case NotificationDeliveryMode.fcm:
+      return fcmDeliveryProvider.token;
+    case NotificationDeliveryMode.apns:
+      return apnsDeliveryProvider.pushkey;
+    case NotificationDeliveryMode.backgroundService:
+      return null;
+  }
+}
+
+String? lastPusherErrorFor(NotificationDeliveryMode mode) {
+  switch (mode) {
+    case NotificationDeliveryMode.unifiedPush:
+      return unifiedPushDeliveryProvider.lastPusherError;
+    case NotificationDeliveryMode.fcm:
+      return fcmDeliveryProvider.lastPusherError;
+    case NotificationDeliveryMode.apns:
+      return apnsDeliveryProvider.lastPusherError;
+    case NotificationDeliveryMode.backgroundService:
+      return null;
+  }
+}
+
+Uri? gatewayUrlFor(NotificationDeliveryMode mode, Client client) {
+  switch (mode) {
+    case NotificationDeliveryMode.unifiedPush:
+      return unifiedPushDeliveryProvider.gatewayUrl;
+    case NotificationDeliveryMode.fcm:
+    case NotificationDeliveryMode.apns:
+      return fcmGatewayUri(client.homeserver);
+    case NotificationDeliveryMode.backgroundService:
+      return null;
+  }
+}
 
 void bindAppStateToPushDelivery({
   required String? Function() currentlyOpenRoomId,

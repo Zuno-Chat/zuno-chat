@@ -53,9 +53,9 @@ offers apns only.
   `production`).
 - **The iOS pusher's `default_payload`** is an alert "New message" with
   `mutable-content: 1`: the flag runs the NSE, and the static text is what
-  shows when the extension cannot. Only FCM keeps a recent-pushes log
+  shows when the extension cannot. On Android only FCM keeps a recent-pushes log
   (`deliveryLogsEachPush`): it is the one method where app code handles every
-  push.
+  push. iOS builds its list from the extension logs.
 - **The APNs pusher follows Message tone**: `default_payload` carries
   `aps.sound: message_tone.caf` (`darwinMessageToneSound`, bundled in
   Runner) only while it is on, and no sound while it is off. Toggling it
@@ -170,7 +170,7 @@ problem row. Both run `runDeliveryFailureAction`
 - A banner dismissal holds until a push transport is `ready` again (APNs:
   with no drops) or the user acts on a failure, so the same failure coming
   back later shows again. The problem row ignores dismissals.
-- **A push target the user removed** (Push target → Remove, Android only)
+- **A push target the user removed** (Push target → Remove, FCM and UnifiedPush only)
   is remembered in memory only. `remove(client)` on FCM or UnifiedPush
   deregisters and sets `removed`, which reads "This device is not registered
   for notifications" with Retry. `registerNow`, a successful registration
@@ -519,14 +519,56 @@ delivered message or invitation line. The app sets it (`syncBadge`) when a
 sync changes the unread set, at pause and at resume; the extension with each
 line.
 
-**Push diagnostics** (`pushDiagnostics`, `push_diagnostics_report.dart`)
-check each link: iOS notification settings (`zuno/push_diag` `snapshot`),
-the environment and pusher (app id, push key, registration, gateway,
-format), the VoIP key and rings (`zuno/voip` `status`, the ledger, the
-module's `GET health`), the extension (last run, its version against the
-app's, read-model age, recent results), delivery as the module sees it, and
-MetricKit reports. The test notification goes through the module's `POST
-test` and Synapse's own pusher. The page is in `settings.md`.
+**Push diagnostics** (`pushDiagnostics`, both platforms,
+`push_diagnostics_report.dart`) check each link, and the page is in
+`settings.md`:
+
+- iOS: notification settings (`zuno/push_diag` `snapshot`), the environment
+  and pusher (app id, push key, registration, gateway, format), the VoIP key
+  and rings (`zuno/voip` `status`, the ledger), the extension (last run, its
+  version against the app's, read-model age, recent results) and MetricKit
+  reports.
+- Android: a native snapshot (`PushDiagSnapshot.kt`, through the same
+  channel, a flat map): notification permission, channels, battery
+  optimization, standby bucket. Every read is best-effort and a failed one
+  is omitted, so the row reads "Unknown", never "Not allowed" or "Blocked".
+  Below API 26 the channel list is empty. With notifications off, category
+  rows are informational.
+- Delivery, shared: the module's `GET health` (Last delivery falls back to
+  the first health pusher) and reachability. `notInstalled` (a route failure
+  below 500, as a catch-all page or firewall answers, or no `x-zuno-push`
+  header) and `turnedOff` are informational where the device does not need
+  `zuno_push` (no `voipRing`, no `nseNotifications`: Android) and a problem
+  where it does (iOS). 5xx and network errors stay unreachable.
+- App standby comes from the newest FCM delivery record: the live reading
+  inside the app is always Active. A live-only reading is informational.
+
+**The test notification** goes through the module's `POST test` and
+Synapse's own pusher, and is unavailable on a server without the module and
+with background sync (no pusher). On Android `$zuno_test_` is handled
+natively: `PushNoticeDecision.isTestPush`, then `PushNotice.postTest`
+("Notifications work", shown even in front), from `PushNoticeReceiver` (FCM)
+and `ZunoPushService` (UnifiedPush). `FcmBadgeDecision` routes it to
+NOTHING, so Dart never fetches its fake event. It ignores Message tone and
+vibration. iOS shows it through `willPresent`.
+
+**Recent pushes** (`recent_pushes.dart`) merge sources into one list, newest
+first, ten shown:
+
+| Source | Rows |
+|---|---|
+| Android FCM delivery log | One per push, with its delay |
+| iOS extension log (`nse_*`, not `nse_catchup`) | Message outcome and `lag` |
+| iOS `log.app` (exported by `PushDiagExtras` as `app.log`) | Ring outcomes: `PushRingHandler` writes them there, not to the extension log |
+| iOS ledger, source `push` | Call state ("Missed call"), one per call at its latest state |
+
+- Outcome codes map to copy in `recent_pushes.dart`; an unknown code reads
+  "Handled", and `metrickit` and malformed lines are skipped.
+- `lag` is `now` minus `origin_server_ts` (extension, `NsePipeline`). It
+  includes federation delay and server clock skew, so a fast push can read
+  late. A negative lag reads as 0 and is not late.
+- The log window holds the last 10 lines, so older ledger rows can show
+  below a full window without the lines between.
 
 ### iOS responses, actions and room opens
 
@@ -634,7 +676,7 @@ client: 18 s per action, one retry after 2 s.
   | 7–8 | Time spent in the receiver (ms), notice posted |
   | 9–11 | Service start (ms after receipt), handling (`dart`, `clear`, `none`), Dart's ack (ms after receipt) |
 
-  Push target → Recent pushes reads the first six and accepts any longer
+  Recent pushes reads the first six and accepts any longer
   line; the timing columns exist to measure release builds. A downgrade
   reads as `high` sent, `normal` delivered.
 
@@ -940,6 +982,7 @@ client: 18 s per action, one retry after 2 s.
   problem row; `notification_delivery_page.dart`, only where there is a
   delivery choice, for mode choice and the transport rows, including the
   battery row (every Android mode) and Autostart;
-  `push_target_status_page.dart` (from the Delivery page, on iOS its own
-  row) for pusher management and Recent pushes; on iOS the preview level and
-  `push_diagnostics_page.dart` (`settings.md`).
+  `push_diagnostics_page.dart` (the hub, both platforms) for the checks,
+  the test and Recent pushes; `push_target_status_page.dart`, reached only
+  from the hub, for pusher management; on iOS the preview level
+  (`settings.md`).

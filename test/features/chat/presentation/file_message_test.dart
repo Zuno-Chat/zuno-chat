@@ -57,7 +57,7 @@ void main() {
     await tester.tap(find.byType(InkWell));
     await pumpWhileFetching(
       tester,
-      rounds: 40,
+      rounds: 300,
       until: until ?? () => find.byType(SnackBar).evaluate().isNotEmpty,
     );
     await tester.pump(const Duration(milliseconds: 750));

@@ -27,6 +27,57 @@ class MetricReport {
 }
 
 @immutable
+class AndroidChannelState {
+  const AndroidChannelState({
+    required this.id,
+    required this.name,
+    required this.importance,
+  });
+
+  final String id;
+  final String name;
+  final String importance;
+}
+
+@immutable
+class AndroidPushSnapshot {
+  const AndroidPushSnapshot({
+    this.notificationsEnabled,
+    this.channels,
+    this.fullScreenIntent,
+    this.batteryOptimizationIgnored,
+    this.backgroundData,
+    this.standbyBucket,
+  });
+
+  static const empty = AndroidPushSnapshot();
+
+  factory AndroidPushSnapshot.fromChannel(Map<Object?, Object?> raw) {
+    final channels = raw['channels'];
+    return AndroidPushSnapshot(
+      notificationsEnabled: _flag(raw['notificationsEnabled']),
+      channels: channels is List
+          ? [for (final entry in channels) ?_channel(entry)]
+          : null,
+      fullScreenIntent: _flag(raw['fullScreenIntent']),
+      batteryOptimizationIgnored: _flag(raw['batteryOptimizationIgnored']),
+      backgroundData: _text(raw['backgroundData']),
+      standbyBucket: switch (raw['standbyBucket']) {
+        final int bucket => bucket,
+        _ => null,
+      },
+    );
+  }
+
+  final bool? notificationsEnabled;
+  final List<AndroidChannelState>? channels;
+  final bool? fullScreenIntent;
+  final bool? batteryOptimizationIgnored;
+  final String? backgroundData;
+  final int? standbyBucket;
+}
+
+@immutable
 class PushDiagnosticsSnapshot {
   const PushDiagnosticsSnapshot({
     this.settings = const {},
@@ -37,6 +88,9 @@ class PushDiagnosticsSnapshot {
     this.extensionVersion,
     this.extensionLog = const [],
     this.metrics = const [],
+    this.appLog = const [],
+    this.android = AndroidPushSnapshot.empty,
+    this.registeredForRemoteNotifications,
   });
 
   static const empty = PushDiagnosticsSnapshot();
@@ -47,6 +101,7 @@ class PushDiagnosticsSnapshot {
     final ledger = raw['ledger'];
     final nse = raw['nse'];
     final readModel = raw['read_model'];
+    final app = raw['app'];
     return PushDiagnosticsSnapshot(
       settings: {
         if (settings is Map)
@@ -70,6 +125,15 @@ class PushDiagnosticsSnapshot {
             if (line is String) line,
       ],
       metrics: [for (final entry in _list(raw['metrics'])) ?_metric(entry)],
+      appLog: [
+        if (app is Map)
+          for (final line in _list(app['log']))
+            if (line is String) line,
+      ],
+      android: AndroidPushSnapshot.fromChannel(raw),
+      registeredForRemoteNotifications: _flag(
+        raw['registeredForRemoteNotifications'],
+      ),
     );
   }
 
@@ -81,6 +145,9 @@ class PushDiagnosticsSnapshot {
   final String? extensionVersion;
   final List<String> extensionLog;
   final List<MetricReport> metrics;
+  final List<String> appLog;
+  final AndroidPushSnapshot android;
+  final bool? registeredForRemoteNotifications;
 }
 
 @immutable
@@ -98,7 +165,7 @@ class VoipDeviceStatus {
   final int? kid;
 }
 
-enum ServerReach { reachable, starting, unreachable, turnedOff }
+enum ServerReach { reachable, starting, unreachable, turnedOff, notInstalled }
 
 @immutable
 class PusherHealth {
@@ -171,3 +238,14 @@ String? _text(Object? value) =>
 DateTime? _time(Object? milliseconds) => milliseconds is int && milliseconds > 0
     ? DateTime.fromMillisecondsSinceEpoch(milliseconds)
     : null;
+
+bool? _flag(Object? value) => value is bool ? value : null;
+
+AndroidChannelState? _channel(Object? entry) {
+  if (entry is! Map) return null;
+  final id = entry['id'];
+  final name = entry['name'];
+  final importance = entry['importance'];
+  if (id is! String || name is! String || importance is! String) return null;
+  return AndroidChannelState(id: id, name: name, importance: importance);
+}

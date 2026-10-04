@@ -22,13 +22,14 @@ enum PushDiagExtras {
     if let updated = newest([directory.appendingPathComponent("meta")] + children(of: rooms)) {
       extras["read_model"] = ["updated_ms": millis(updated)]
     }
-    let log = directory.appendingPathComponent("log.nse")
+    let log = directory.appendingPathComponent(NotifyFile.nseLog)
     var nse: [String: Any] = ["log": tail(of: log)]
     if let ran = modified(log) { nse["last_run_ms"] = millis(ran) }
     if case .found(let state) = readSealed("nse.state"), let version = state["version"] as? String {
       nse["version"] = version
     }
     extras["nse"] = nse
+    extras["app"] = ["log": tail(of: directory.appendingPathComponent(NotifyFile.appLog))]
     return extras
   }
 

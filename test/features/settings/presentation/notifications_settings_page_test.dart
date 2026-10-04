@@ -21,12 +21,12 @@ import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/push_diagnostics_report.dart';
 import 'package:zuno/core/push/push_diagnostics_source.dart';
+import 'package:zuno/core/push/recent_pushes.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/card_group.dart';
 import 'package:zuno/features/settings/presentation/notification_delivery_page.dart';
 import 'package:zuno/features/settings/presentation/notifications_settings_page.dart';
 import 'package:zuno/features/settings/presentation/push_diagnostics_page.dart';
-import 'package:zuno/features/settings/presentation/push_target_status_page.dart';
 
 import '../../../helpers/card_layout.dart';
 import '../../../helpers/fake_local_notifications.dart';
@@ -107,12 +107,20 @@ Future<ProviderContainer> _pumpPage(
 
 class _DiagnosticsSource implements PushDiagnosticsSource {
   @override
-  Future<PushDiagnosticsInputs> load(PlatformCapabilities capabilities) async =>
-      PushDiagnosticsInputs(
-        capabilities: capabilities,
-        now: DateTime(2026, 10, 2),
-        appVersion: '1.2.0 (build 2)',
-      );
+  Future<PushDiagnosticsInputs> load(
+    PlatformCapabilities capabilities,
+    NotificationDeliveryMode mode,
+  ) async => PushDiagnosticsInputs(
+    capabilities: capabilities,
+    now: DateTime(2026, 10, 2),
+    appVersion: '1.2.0 (build 2)',
+  );
+
+  @override
+  Future<List<RecentPush>> recentPushes(
+    PlatformCapabilities capabilities,
+    NotificationDeliveryMode mode,
+  ) async => const [];
 
   @override
   Future<PushTestOutcome> sendTest() async => PushTestOutcome.sent;
@@ -248,14 +256,19 @@ void main() {
     expect(find.byType(PushDiagnosticsPage), findsOneWidget);
   });
 
-  testWidgets('Android has no Diagnostics row', (tester) async {
+  testWidgets('Android has the Diagnostics row too', (tester) async {
     await _pumpPage(
       tester,
       NotificationDeliveryMode.fcm,
       capabilities: androidCapabilities,
     );
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ListTile, 'Diagnostics'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
 
-    expect(find.text('Diagnostics'), findsNothing);
+    expect(find.widgetWithText(ListTile, 'Diagnostics'), findsOneWidget);
   });
 
   group('on Android, Enable notifications', () {
@@ -391,13 +404,7 @@ void main() {
       expect(find.byIcon(Icons.cloud_sync_outlined), findsNothing);
     });
 
-    testWidgets('with diagnostics on, Push target opens the page that shows '
-        'them', (tester) async {
-      const channel = MethodChannel('zuno/push_diag');
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      messenger.setMockMethodCallHandler(channel, (call) async => null);
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    testWidgets('Diagnostics is the only way to Push target', (tester) async {
       _stubNotificationPermission(granted: true);
       await _pumpPage(
         tester,
@@ -406,47 +413,8 @@ void main() {
         client: client,
       );
 
-      final row = find.widgetWithText(ListTile, 'Push target');
-      expect(
-        find.descendant(
-          of: row,
-          matching: find.text('How notifications reach this device'),
-        ),
-        findsOneWidget,
-      );
-      await tester.tap(row);
-      await tester.pumpAndSettle();
-
-      expect(find.byType(PushTargetStatusPage), findsOneWidget);
-      expect(find.text('Diagnostics'), findsOneWidget);
-    });
-
-    testWidgets('with diagnostics off there is no Push target row', (
-      tester,
-    ) async {
-      _stubNotificationPermission(granted: true);
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: capabilitiesLike(iosCapabilities, pushDiagnostics: false),
-        client: client,
-      );
-
       expect(find.widgetWithText(ListTile, 'Push target'), findsNothing);
-    });
-
-    testWidgets('with notifications off there is no Push target row', (
-      tester,
-    ) async {
-      _stubNotificationPermission(granted: false);
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: capabilitiesLike(iosCapabilities, pushDiagnostics: true),
-        client: client,
-      );
-
-      expect(find.widgetWithText(ListTile, 'Push target'), findsNothing);
+      expect(find.widgetWithText(ListTile, 'Diagnostics'), findsOneWidget);
     });
 
     testWidgets('Enable notifications says what it does on this device', (

@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/platform/platform_capabilities.dart';
+import '../../../core/push/push_diagnostics_data.dart' show ServerReach;
 import '../../../core/push/push_diagnostics_report.dart';
 import '../../../core/push/push_diagnostics_source.dart';
+import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import 'push_target_status_page.dart';
+import 'recent_pushes_page.dart';
 
 class PushDiagnosticsPage extends ConsumerStatefulWidget {
   const PushDiagnosticsPage({super.key, this.share});
@@ -34,7 +39,10 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
     try {
       inputs = await ref
           .read(pushDiagnosticsSourceProvider)
-          .load(ref.read(platformCapabilitiesProvider));
+          .load(
+            ref.read(platformCapabilitiesProvider),
+            ref.read(notificationDeliveryModeProvider),
+          );
     } catch (e) {
       debugPrint('zuno/push: diagnostics could not be read ($e)');
     }
@@ -60,6 +68,8 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
                 'notifications are not reaching this device.',
           PushTestOutcome.rateLimited =>
             'Too many tests in the last hour. Try again later.',
+          PushTestOutcome.notAvailable =>
+            'Test notifications are not available on this server.',
           PushTestOutcome.failed =>
             'Test not sent. Check your connection and try again.',
         }),
@@ -82,6 +92,22 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
   @override
   Widget build(BuildContext context) {
     final sections = _sections;
+    final mode = ref.watch(notificationDeliveryModeProvider);
+    final backgroundSync = mode == NotificationDeliveryMode.backgroundService;
+    final testAvailable =
+        !backgroundSync &&
+        switch (_inputs?.reach) {
+          ServerReach.notInstalled || ServerReach.turnedOff => false,
+          _ => true,
+        };
+    final String testSubtitle;
+    if (testAvailable) {
+      testSubtitle = 'It shows even while Zuno is open';
+    } else if (backgroundSync) {
+      testSubtitle = 'Not available with background sync';
+    } else {
+      testSubtitle = 'Not available on this server';
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('Diagnostics')),
       body: RefreshIndicator(
@@ -104,8 +130,8 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
                 ListTile(
                   leading: const Icon(Icons.notifications_active_outlined),
                   title: const Text('Send a test notification'),
-                  subtitle: const Text('It shows even while Zuno is open'),
-                  enabled: !_testing,
+                  subtitle: Text(testSubtitle),
+                  enabled: testAvailable && !_testing,
                   onTap: _sendTest,
                 ),
                 ListTile(
@@ -116,6 +142,38 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
                   ),
                   enabled: _inputs != null,
                   onTap: _share,
+                ),
+              ],
+            ),
+            CardGroup(
+              children: [
+                if (deliveryLogsEachPush(mode))
+                  ListTile(
+                    leading: const Icon(Icons.history_outlined),
+                    title: const Text('Recent pushes'),
+                    subtitle: const Text(
+                      'When notifications arrived and what happened',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const RecentPushesPage(),
+                      ),
+                    ),
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.troubleshoot_outlined),
+                  title: const Text('Push target'),
+                  subtitle: const Text('How notifications reach this device'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PushTargetStatusPage(),
+                      ),
+                    );
+                    if (mounted) await _load();
+                  },
                 ),
               ],
             ),

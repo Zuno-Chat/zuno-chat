@@ -1,7 +1,7 @@
 import '../../../core/notifications/delivery_failure.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 
-enum PushStatusAction { none, register, retry, fix, open }
+enum PushStatusAction { none, register, retry, fix }
 
 PushStatusAction fcmStatusAction(FcmStatus status) {
   switch (status) {
@@ -10,6 +10,7 @@ PushStatusAction fcmStatusAction(FcmStatus status) {
     case FcmStatus.postingPusher:
     case FcmStatus.playServicesUnavailable:
     case FcmStatus.notConfigured:
+    case FcmStatus.ready:
       return PushStatusAction.none;
     case FcmStatus.idle:
       return PushStatusAction.register;
@@ -19,8 +20,6 @@ PushStatusAction fcmStatusAction(FcmStatus status) {
     case FcmStatus.playServicesUpdateRequired:
     case FcmStatus.playServicesDisabled:
       return PushStatusAction.fix;
-    case FcmStatus.ready:
-      return PushStatusAction.open;
   }
 }
 

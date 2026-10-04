@@ -87,8 +87,17 @@ final class PushDiagExtrasTests: XCTestCase {
     XCTAssertNil(nse["last_run_ms"])
     XCTAssertNil(nse["version"])
     XCTAssertEqual(nse["log"] as? [String], [])
+    XCTAssertEqual((extras["app"] as? [String: Any])?["log"] as? [String], [])
     XCTAssertNil(extras["read_model"])
     XCTAssertEqual((extras["ledger"] as? [[String: Any]])?.count, 0)
+  }
+
+  func testTheAppsRingLogTailIsReportedBesideTheExtensionsLog() throws {
+    let lines = (1...12).map { "ring \($0)" }.joined(separator: "\n") + "\n"
+    try write("log.app", lines, modified: Date(timeIntervalSince1970: 1_790_000_300))
+    let extras = PushDiagExtras.collect(directory: directory, readSealed: { _ in .missing })
+    let app = try XCTUnwrap(extras["app"] as? [String: Any])
+    XCTAssertEqual(app["log"] as? [String], (3...12).map { "ring \($0)" })
   }
 
   func testWithoutTheSharedDirectoryOnlyTheLedgerIsReported() {

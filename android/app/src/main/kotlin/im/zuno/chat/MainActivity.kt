@@ -480,6 +480,15 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PUSH_DIAG_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "snapshot") {
+                    result.success(PushDiagSnapshot.read(this))
+                } else {
+                    result.notImplemented()
+                }
+            }
+
         val deviceSafetyChannel =
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_SAFETY_CHANNEL)
         deviceSafetyChannel.setMethodCallHandler { call, result ->
@@ -773,6 +782,7 @@ class MainActivity : FlutterActivity() {
         private const val VIDEO_CHANNEL = "zuno/video"
         private const val DEVICE_SAFETY_CHANNEL = "zuno/device_safety"
         private const val APP_DATA_CHANNEL = "zuno/app_data"
+        private const val PUSH_DIAG_CHANNEL = "zuno/push_diag"
         private const val EXTRA_ROOM_ID = "room_id"
         private const val PIP_HANG_UP_REQUEST_CODE = 4102
         private const val HANG_UP_GRACE_MS = 5_000L

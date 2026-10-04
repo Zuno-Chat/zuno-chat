@@ -43,7 +43,7 @@ the app's only subscriber) wait natively, 20 at most, until `RingCoordinator`
 takes them over `zuno/launch` (`takeDiagnostics`) at startup. Each goes to
 `captureCrash` as an `IosDiagnostic`, so it leaves the device only under
 the same gate. A kill for an unreported VoIP push (`0xbaadca11`) reads
-`voip_unreported`. The summaries also feed the Diagnostics page
+`voip_unreported`. The summaries also feed the Diagnostics hub
 (`settings.md`).
 
 `sendFeedback` builds its own `SentryClient` over a bare `SentryOptions`,

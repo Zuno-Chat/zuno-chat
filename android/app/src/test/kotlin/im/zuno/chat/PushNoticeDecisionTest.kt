@@ -111,4 +111,16 @@ class PushNoticeDecisionTest {
             PushNoticeDecision.shouldPostMissed(notificationsEnabled = true, channelExists = false),
         )
     }
+
+    @Test
+    fun `a zuno test event id is a test push`() {
+        assertTrue(PushNoticeDecision.isTestPush("\$zuno_test_1"))
+    }
+
+    @Test
+    fun `normal, missing and empty event ids are not test pushes`() {
+        assertFalse(PushNoticeDecision.isTestPush("\$abc"))
+        assertFalse(PushNoticeDecision.isTestPush(null))
+        assertFalse(PushNoticeDecision.isTestPush(""))
+    }
 }

@@ -10,6 +10,9 @@ object PushNoticeDecision {
     const val DIRECT_CHANNEL = "direct_messages"
     const val GROUP_CHANNEL = "group_messages"
     const val MENTIONS_ONLY = "mentionsOnly"
+    const val TEST_EVENT_PREFIX = "\$zuno_test_"
+
+    fun isTestPush(eventId: String?): Boolean = eventId?.startsWith(TEST_EVENT_PREFIX) == true
 
     fun shouldPost(
         roomId: String?,

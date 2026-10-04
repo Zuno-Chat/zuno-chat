@@ -1041,7 +1041,7 @@ instead, so a stale notification can't outlive its call.
   Swift, and the `zuno_push` module must pass the same files: change them
   on both sides together. On a device, `tool/push_test/apns_send.swift`
   sends a sealed VoIP push or an alert straight to APNs, with the values
-  from Push target's development card.
+  from Push target's development card (reached from Diagnostics).
 
 ## Dependencies / Integration
 

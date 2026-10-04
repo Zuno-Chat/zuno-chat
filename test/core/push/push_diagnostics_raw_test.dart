@@ -12,7 +12,7 @@ void main() {
 
   tearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
-  test('the raw snapshot keeps the keys the typed snapshot drops', () async {
+  test('the raw snapshot keeps every key', () async {
     messenger.setMockMethodCallHandler(
       channel,
       (call) async => {
@@ -38,9 +38,43 @@ void main() {
     });
 
     expect(
-      await PushDiagnostics(capabilities: androidCapabilities).rawSnapshot(),
+      await PushDiagnostics(
+        capabilities: capabilitiesLike(
+          androidCapabilities,
+          pushDiagnostics: false,
+        ),
+      ).rawSnapshot(),
       isNull,
     );
     expect(asked, isFalse);
+  });
+
+  test(
+    'without the native handler there is no snapshot and nothing throws',
+    () async {
+      expect(
+        await PushDiagnostics(
+          capabilities: capabilitiesLike(
+            iosCapabilities,
+            pushDiagnostics: true,
+          ),
+        ).rawSnapshot(),
+        isNull,
+      );
+    },
+  );
+
+  test('a native failure is no snapshot', () async {
+    messenger.setMockMethodCallHandler(
+      channel,
+      (call) async => throw PlatformException(code: 'unavailable'),
+    );
+
+    expect(
+      await PushDiagnostics(
+        capabilities: capabilitiesLike(iosCapabilities, pushDiagnostics: true),
+      ).rawSnapshot(),
+      isNull,
+    );
   });
 }

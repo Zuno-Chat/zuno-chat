@@ -258,7 +258,7 @@ final _capabilities = <_Capability>[
   _Capability(
     'pushDiagnostics',
     read: (c) => c.pushDiagnostics,
-    android: false,
+    android: true,
     ios: true,
   ),
   _Capability('voipRing', read: (c) => c.voipRing, android: false, ios: true),

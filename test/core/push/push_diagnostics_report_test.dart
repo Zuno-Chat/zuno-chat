@@ -1,6 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/notifications/fcm_delivery_provider.dart'
+    show FcmStatus;
+import 'package:zuno/core/notifications/notification_delivery_mode.dart';
+import 'package:zuno/core/notifications/unified_push_delivery_provider.dart'
+    show UnifiedPushStatus;
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/fcm_bridge.dart' show FcmAvailability;
+import 'package:zuno/core/push/push_delivery_log.dart';
 import 'package:zuno/core/push/push_diagnostics_data.dart';
 import 'package:zuno/core/push/push_diagnostics_report.dart';
 import 'package:zuno/core/push/pusher_info.dart';
@@ -49,6 +56,12 @@ void main() {
     List<PusherInfo>? pushers,
     bool pushersUnavailable = false,
     String? currentPushkey = pushkey,
+    NotificationDeliveryMode deliveryMode = NotificationDeliveryMode.apns,
+    FcmStatus? fcmStatus,
+    UnifiedPushStatus? unifiedPushStatus,
+    FcmAvailability? playServices,
+    List<PushDeliveryRecord>? deliveries,
+    int? droppedRegistrations,
   }) => PushDiagnosticsInputs(
     capabilities: capabilities ?? ios,
     now: now,
@@ -60,6 +73,12 @@ void main() {
     pushers: pushersUnavailable ? null : pushers ?? [pusher()],
     currentPushkey: currentPushkey,
     expectedGateway: gateway,
+    deliveryMode: deliveryMode,
+    fcmStatus: fcmStatus,
+    unifiedPushStatus: unifiedPushStatus,
+    playServices: playServices,
+    deliveries: deliveries,
+    droppedRegistrations: droppedRegistrations,
   );
 
   DiagnosticSection section(PushDiagnosticsInputs from, String title) =>
@@ -518,4 +537,398 @@ void main() {
       expect(text, isNot(contains(secret)), reason: secret);
     }
   });
+
+  group('Android', () {
+    final android = capabilitiesLike(
+      androidCapabilities,
+      pushDiagnostics: true,
+    );
+
+    DiagnosticSection section(String title, PushDiagnosticsInputs inputs) =>
+        buildPushDiagnostics(inputs).firstWhere((s) => s.title == title);
+
+    test('permission reads notifications, each category, full-screen alerts, '
+        'battery, background data and standby', () {
+      final rows = section(
+        'Permission',
+        inputs(
+          capabilities: android,
+          deliveryMode: NotificationDeliveryMode.unifiedPush,
+          snapshot: const PushDiagnosticsSnapshot(
+            android: AndroidPushSnapshot(
+              notificationsEnabled: true,
+              channels: [
+                AndroidChannelState(
+                  id: 'direct_messages',
+                  name: 'Chat messages',
+                  importance: 'high',
+                ),
+                AndroidChannelState(
+                  id: 'calls_ringing',
+                  name: 'Incoming calls',
+                  importance: 'default',
+                ),
+                AndroidChannelState(
+                  id: 'uploads',
+                  name: 'Uploads',
+                  importance: 'none',
+                ),
+              ],
+              fullScreenIntent: false,
+              batteryOptimizationIgnored: false,
+              backgroundData: 'restricted',
+              standbyBucket: 45,
+            ),
+          ),
+        ),
+      ).rows;
+
+      expect(rows, const [
+        DiagnosticRow('Notifications', 'Allowed', DiagnosticStatus.ok),
+        DiagnosticRow('Chat messages', 'Sound and pop-up', DiagnosticStatus.ok),
+        DiagnosticRow('Incoming calls', 'Sound', DiagnosticStatus.warning),
+        DiagnosticRow('Uploads', 'Blocked', DiagnosticStatus.info),
+        DiagnosticRow(
+          'Full-screen call alerts',
+          'Not allowed',
+          DiagnosticStatus.warning,
+        ),
+        DiagnosticRow('Battery use', 'Optimized', DiagnosticStatus.warning),
+        DiagnosticRow(
+          'Background data',
+          'Restricted by Data Saver',
+          DiagnosticStatus.warning,
+        ),
+        DiagnosticRow('App standby', 'Restricted', DiagnosticStatus.info),
+      ]);
+    });
+
+    test('a snapshot that could not be read gives Unknown rows, never '
+        'Not allowed', () {
+      final rows = section(
+        'Permission',
+        inputs(capabilities: android, snapshot: PushDiagnosticsSnapshot.empty),
+      ).rows;
+
+      expect(rows.map((row) => row.value).toSet(), {'Unknown'});
+      expect(rows.map((row) => row.label), [
+        'Notifications',
+        'Notification categories',
+        'Full-screen call alerts',
+        'Battery use',
+        'Background data',
+        'App standby',
+      ]);
+    });
+
+    test('a blocked chat category is a problem; optimized battery is fine '
+        'with Google services', () {
+      final rows = section(
+        'Permission',
+        inputs(
+          capabilities: android,
+          deliveryMode: NotificationDeliveryMode.fcm,
+          snapshot: const PushDiagnosticsSnapshot(
+            android: AndroidPushSnapshot(
+              channels: [
+                AndroidChannelState(
+                  id: 'group_messages',
+                  name: 'Room messages',
+                  importance: 'none',
+                ),
+              ],
+              batteryOptimizationIgnored: false,
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        rows.row('Room messages'),
+        const DiagnosticRow(
+          'Room messages',
+          'Blocked',
+          DiagnosticStatus.problem,
+        ),
+      );
+      expect(rows.row('Battery use')?.status, DiagnosticStatus.info);
+    });
+
+    PushDeliveryRecord recordWithBucket(int? bucket) {
+      final received = now.subtract(const Duration(minutes: 1));
+      return PushDeliveryRecord(
+        receivedAt: received,
+        sentAt: received,
+        originalPriority: 'high',
+        deliveredPriority: 'high',
+        deviceIdle: false,
+        standbyBucket: bucket,
+      );
+    }
+
+    DiagnosticRow? standbyRow({int? live, int? recorded}) => section(
+      'Permission',
+      inputs(
+        capabilities: android,
+        deliveryMode: NotificationDeliveryMode.fcm,
+        deliveries: recorded == null ? null : [recordWithBucket(recorded)],
+        snapshot: PushDiagnosticsSnapshot(
+          android: AndroidPushSnapshot(standbyBucket: live),
+        ),
+      ),
+    ).row('App standby');
+
+    test('a bucket recorded when a push arrived beats the live one', () {
+      expect(
+        standbyRow(live: 10, recorded: 45),
+        const DiagnosticRow(
+          'App standby',
+          'Restricted',
+          DiagnosticStatus.problem,
+        ),
+      );
+    });
+
+    test('a live bucket alone is information, and none reads Unknown', () {
+      expect(
+        standbyRow(live: 45),
+        const DiagnosticRow('App standby', 'Restricted', DiagnosticStatus.info),
+      );
+      expect(
+        standbyRow(),
+        const DiagnosticRow('App standby', 'Unknown', DiagnosticStatus.info),
+      );
+    });
+
+    test('with notifications off, a blocked category is information', () {
+      final rows = section(
+        'Permission',
+        inputs(
+          capabilities: android,
+          snapshot: const PushDiagnosticsSnapshot(
+            android: AndroidPushSnapshot(
+              notificationsEnabled: false,
+              channels: [
+                AndroidChannelState(
+                  id: 'direct_messages',
+                  name: 'Chat messages',
+                  importance: 'none',
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        rows.row('Chat messages'),
+        const DiagnosticRow('Chat messages', 'Blocked', DiagnosticStatus.info),
+      );
+    });
+
+    test(
+      'push turned off on the server is fine on Android, a problem on iOS',
+      () {
+        final onAndroid = section(
+          'Delivery',
+          inputs(capabilities: android, reach: ServerReach.turnedOff),
+        );
+        final onIos = section('Delivery', inputs(reach: ServerReach.turnedOff));
+
+        expect(
+          onAndroid.row('Reachable'),
+          const DiagnosticRow('Reachable', 'Turned off'),
+        );
+        expect(onIos.row('Reachable')?.status, DiagnosticStatus.problem);
+      },
+    );
+
+    test('a health entry still gives the last delivery with no current '
+        'pusher', () {
+      final delivery = section(
+        'Delivery',
+        inputs(
+          capabilities: android,
+          deliveryMode: NotificationDeliveryMode.fcm,
+          currentPushkey: null,
+          health: ServerHealth(
+            voipRegistered: false,
+            pushers: [
+              PusherHealth(
+                appId: 'im.zuno.chat.android',
+                lastSuccess: now.subtract(const Duration(minutes: 3)),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(delivery.row('Last delivery')?.value, '3 min ago');
+    });
+
+    test('this device with Google services: method, status, Google Play '
+        'services and registration', () {
+      final rows = section(
+        'This device',
+        inputs(
+          capabilities: android,
+          deliveryMode: NotificationDeliveryMode.fcm,
+          fcmStatus: FcmStatus.ready,
+          playServices: FcmAvailability.available,
+          pushers: [pusher(appId: 'im.zuno.chat.android')],
+        ),
+      ).rows;
+
+      expect(rows, const [
+        DiagnosticRow('Delivery', 'Google services'),
+        DiagnosticRow(
+          'Status',
+          'Active. Receiving notifications.',
+          DiagnosticStatus.ok,
+        ),
+        DiagnosticRow('Google Play services', 'Available', DiagnosticStatus.ok),
+        DiagnosticRow('Push key', 'Present', DiagnosticStatus.ok),
+        DiagnosticRow('Registration', 'Registered', DiagnosticStatus.ok),
+        DiagnosticRow('Gateway', 'Correct', DiagnosticStatus.ok),
+        DiagnosticRow('Format', 'Correct', DiagnosticStatus.ok),
+        DiagnosticRow('Zuno version', '1.2.0 (build 2)'),
+      ]);
+    });
+
+    test('UnifiedPush without Google Play services is fine, and a failed '
+        'status is a problem', () {
+      final rows = section(
+        'This device',
+        inputs(
+          capabilities: android,
+          deliveryMode: NotificationDeliveryMode.unifiedPush,
+          unifiedPushStatus: UnifiedPushStatus.pusherFailed,
+          playServices: FcmAvailability.unavailable,
+          pushers: [pusher(appId: 'im.zuno.chat.unifiedpush')],
+        ),
+      );
+
+      expect(rows.row('Status')?.status, DiagnosticStatus.problem);
+      expect(
+        rows.row('Google Play services'),
+        const DiagnosticRow('Google Play services', 'Not on this device'),
+      );
+    });
+
+    test('background sync has nothing registered to check', () {
+      final rows = section(
+        'This device',
+        inputs(
+          capabilities: android,
+          deliveryMode: NotificationDeliveryMode.backgroundService,
+          currentPushkey: null,
+        ),
+      );
+
+      expect(rows.row('Delivery')?.value, 'Background sync');
+      expect(rows.row('Push key'), isNull);
+      expect(rows.row('Registration'), isNull);
+    });
+
+    test('the last push comes from the delivery log, a late one flagged', () {
+      final received = now.subtract(const Duration(minutes: 1));
+      final late = section(
+        'Delivery',
+        inputs(
+          capabilities: android,
+          deliveryMode: NotificationDeliveryMode.fcm,
+          deliveries: [
+            PushDeliveryRecord(
+              receivedAt: received,
+              sentAt: received.subtract(const Duration(minutes: 5)),
+              originalPriority: 'high',
+              deliveredPriority: 'high',
+              deviceIdle: true,
+              standbyBucket: null,
+            ),
+          ],
+        ),
+      );
+      final none = section(
+        'Delivery',
+        inputs(capabilities: android, deliveries: const []),
+      );
+
+      expect(
+        late.row('Last push'),
+        const DiagnosticRow(
+          'Last push',
+          'Arrived after 5 min, high priority, device asleep (1 min ago)',
+          DiagnosticStatus.warning,
+        ),
+      );
+      expect(none.row('Last push')?.value, 'None yet');
+    });
+
+    test('a server without the push module is fine on Android and a '
+        'problem on iOS', () {
+      final onAndroid = section(
+        'Delivery',
+        inputs(capabilities: android, reach: ServerReach.notInstalled),
+      );
+      final onIos = section(
+        'Delivery',
+        inputs(reach: ServerReach.notInstalled),
+      );
+
+      expect(
+        onAndroid.row('Reachable'),
+        const DiagnosticRow('Reachable', 'Not available on this server'),
+      );
+      expect(onIos.row('Reachable')?.status, DiagnosticStatus.problem);
+    });
+  });
+
+  test('iOS shows the device token row only when the system reported it', () {
+    DiagnosticSection device(bool? registered) => buildPushDiagnostics(
+      inputs(
+        snapshot: PushDiagnosticsSnapshot(
+          environment: 'production',
+          registeredForRemoteNotifications: registered,
+        ),
+      ),
+    ).firstWhere((s) => s.title == 'This device');
+
+    expect(
+      device(true).row('Device token'),
+      const DiagnosticRow('Device token', 'Received', DiagnosticStatus.ok),
+    );
+    expect(
+      device(false).row('Device token'),
+      const DiagnosticRow(
+        'Device token',
+        'Not received',
+        DiagnosticStatus.problem,
+      ),
+    );
+    expect(device(null).row('Device token'), isNull);
+  });
+
+  test(
+    'iOS shows how often the server dropped this device, only when known',
+    () {
+      DiagnosticSection device(int? dropped) =>
+          buildPushDiagnostics(inputs(droppedRegistrations: dropped))
+              .firstWhere((s) => s.title == 'This device');
+
+      expect(
+        device(2).row('Dropped registrations'),
+        const DiagnosticRow(
+          'Dropped registrations',
+          '2',
+          DiagnosticStatus.warning,
+        ),
+      );
+      expect(
+        device(0).row('Dropped registrations')?.status,
+        DiagnosticStatus.info,
+      );
+      expect(device(null).row('Dropped registrations'), isNull);
+    },
+  );
 }

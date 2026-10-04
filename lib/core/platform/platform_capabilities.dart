@@ -145,7 +145,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         clientLease: true,
         instantPushNotices: true,
         notificationAvatars: true,
-        pushDiagnostics: false,
+        pushDiagnostics: true,
         voipRing: false,
         nseNotifications: false,
         nativeNotificationActions: false,

@@ -10,10 +10,9 @@ bool deliveryDependsOnBatteryExemption(NotificationDeliveryMode mode) {
 
 bool deliveryLogsEachPush(NotificationDeliveryMode mode) {
   return switch (mode) {
-    NotificationDeliveryMode.fcm => true,
+    NotificationDeliveryMode.fcm || NotificationDeliveryMode.apns => true,
     NotificationDeliveryMode.unifiedPush ||
-    NotificationDeliveryMode.backgroundService ||
-    NotificationDeliveryMode.apns => false,
+    NotificationDeliveryMode.backgroundService => false,
   };
 }
 

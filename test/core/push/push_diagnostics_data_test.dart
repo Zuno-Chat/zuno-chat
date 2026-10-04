@@ -119,4 +119,52 @@ void main() {
       DateTime(2026, 10, 2, 12),
     );
   });
+
+  test('reads the app log and the Android part, leaving out what failed', () {
+    final snapshot = PushDiagnosticsSnapshot.fromChannel({
+      'app': {
+        'log': ['ring', 3],
+      },
+      'notificationsEnabled': true,
+      'channels': [
+        {
+          'id': 'direct_messages',
+          'name': 'Chat messages',
+          'importance': 'high',
+        },
+        {'id': 'broken'},
+      ],
+      'fullScreenIntent': false,
+      'backgroundData': 'restricted',
+      'standbyBucket': 45,
+    });
+
+    expect(snapshot.appLog, ['ring']);
+    final android = snapshot.android;
+    expect(android.notificationsEnabled, isTrue);
+    expect(android.channels?.single.name, 'Chat messages');
+    expect(android.fullScreenIntent, isFalse);
+    expect(android.batteryOptimizationIgnored, isNull);
+    expect(android.backgroundData, 'restricted');
+    expect(android.standbyBucket, 45);
+  });
+
+  test('an Apple snapshot has an empty Android part', () {
+    final android = PushDiagnosticsSnapshot.fromChannel({
+      'settings': <String, Object?>{},
+    }).android;
+
+    expect(android.notificationsEnabled, isNull);
+    expect(android.channels, isNull);
+  });
+
+  test('reads whether the system gave the device a token', () {
+    bool? registered(Map<String, Object?> raw) =>
+        PushDiagnosticsSnapshot.fromChannel(raw)
+            .registeredForRemoteNotifications;
+
+    expect(registered({'registeredForRemoteNotifications': true}), isTrue);
+    expect(registered({'registeredForRemoteNotifications': false}), isFalse);
+    expect(registered({}), isNull);
+  });
 }

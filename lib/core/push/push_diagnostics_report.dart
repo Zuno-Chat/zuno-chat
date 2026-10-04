@@ -1,8 +1,20 @@
 import 'package:flutter/foundation.dart' show immutable, listEquals;
 
+import '../../features/settings/presentation/fcm_status_display.dart'
+    show fcmStatusLabel;
+import '../../features/settings/presentation/unified_push_status_display.dart'
+    show unifiedPushStatusLabel;
+import '../calls/notifications/call_notification_service.dart'
+    show alertingMessageChannelIds, ringChannelIds;
 import '../errors/crash_scrubber.dart';
+import '../notifications/fcm_delivery_provider.dart' show FcmStatus;
+import '../notifications/notification_delivery_mode.dart';
+import '../notifications/unified_push_delivery_provider.dart'
+    show UnifiedPushStatus;
 import '../platform/platform_capabilities.dart';
 import 'apns_pusher.dart';
+import 'fcm_bridge.dart' show FcmAvailability;
+import 'push_delivery_log.dart';
 import 'push_diagnostics_data.dart';
 import 'pusher_info.dart';
 import 'ring_mismatch.dart';
@@ -59,6 +71,12 @@ class PushDiagnosticsInputs {
     this.pushers,
     this.currentPushkey,
     this.expectedGateway,
+    this.deliveryMode = NotificationDeliveryMode.apns,
+    this.fcmStatus,
+    this.unifiedPushStatus,
+    this.playServices,
+    this.deliveries,
+    this.droppedRegistrations,
   });
 
   final PlatformCapabilities capabilities;
@@ -71,11 +89,22 @@ class PushDiagnosticsInputs {
   final List<PusherInfo>? pushers;
   final String? currentPushkey;
   final Uri? expectedGateway;
+  final NotificationDeliveryMode deliveryMode;
+  final FcmStatus? fcmStatus;
+  final UnifiedPushStatus? unifiedPushStatus;
+  final FcmAvailability? playServices;
+  final List<PushDeliveryRecord>? deliveries;
+  final int? droppedRegistrations;
 }
 
 List<DiagnosticSection> buildPushDiagnostics(PushDiagnosticsInputs inputs) => [
-  _permission(inputs.snapshot.settings),
-  _device(inputs),
+  if (inputs.capabilities.apnsRegistration) ...[
+    _permission(inputs.snapshot.settings),
+    _device(inputs),
+  ] else ...[
+    _androidPermission(inputs),
+    _androidDevice(inputs),
+  ],
   if (inputs.capabilities.voipRing) _calls(inputs),
   if (inputs.capabilities.nseNotifications) _extension(inputs),
   _delivery(inputs),
@@ -240,11 +269,7 @@ DiagnosticSection _device(PushDiagnosticsInputs inputs) {
     'development' => apnsDevelopmentAppId,
     _ => null,
   };
-  final pushkey = inputs.currentPushkey;
-  final pushers = inputs.pushers;
-  final current = pushkey == null || pushers == null
-      ? null
-      : pushers.where((pusher) => pusher.pushkey == pushkey).firstOrNull;
+  final current = _currentPusher(inputs);
   final registeredAppId = current?.appId;
   return DiagnosticSection('This device', [
     DiagnosticRow('Environment', switch (environment) {
@@ -260,29 +285,286 @@ DiagnosticSection _device(PushDiagnosticsInputs inputs) {
               '$registeredAppId, expected $expectedAppId',
               DiagnosticStatus.problem,
             ),
-    pushkey == null
-        ? const DiagnosticRow('Push key', 'Missing', DiagnosticStatus.problem)
-        : const DiagnosticRow('Push key', 'Present', DiagnosticStatus.ok),
-    _registration(pushkey, pushers, current),
-    if (current != null)
-      inputs.expectedGateway == null ||
-              Uri.tryParse(current.url ?? '') == inputs.expectedGateway
-          ? const DiagnosticRow('Gateway', 'Correct', DiagnosticStatus.ok)
+    ..._registrationRows(inputs, current),
+    if (inputs.snapshot.registeredForRemoteNotifications case final token?)
+      token
+          ? const DiagnosticRow('Device token', 'Received', DiagnosticStatus.ok)
           : const DiagnosticRow(
-              'Gateway',
-              'Different',
+              'Device token',
+              'Not received',
               DiagnosticStatus.problem,
             ),
-    if (current != null)
-      current.format == apnsPusherFormat
-          ? const DiagnosticRow('Format', 'Correct', DiagnosticStatus.ok)
-          : const DiagnosticRow(
-              'Format',
-              'Different',
-              DiagnosticStatus.problem,
-            ),
+    if (inputs.droppedRegistrations case final dropped?)
+      DiagnosticRow(
+        'Dropped registrations',
+        '$dropped',
+        dropped > 0 ? DiagnosticStatus.warning : DiagnosticStatus.info,
+      ),
     DiagnosticRow('Zuno version', inputs.appVersion),
   ]);
+}
+
+PusherInfo? _currentPusher(PushDiagnosticsInputs inputs) {
+  final pushkey = inputs.currentPushkey;
+  final pushers = inputs.pushers;
+  if (pushkey == null || pushers == null) return null;
+  return pushers.where((pusher) => pusher.pushkey == pushkey).firstOrNull;
+}
+
+List<DiagnosticRow> _registrationRows(
+  PushDiagnosticsInputs inputs,
+  PusherInfo? current,
+) => [
+  inputs.currentPushkey == null
+      ? const DiagnosticRow('Push key', 'Missing', DiagnosticStatus.problem)
+      : const DiagnosticRow('Push key', 'Present', DiagnosticStatus.ok),
+  _registration(inputs.currentPushkey, inputs.pushers, current),
+  if (current != null)
+    inputs.expectedGateway == null ||
+            Uri.tryParse(current.url ?? '') == inputs.expectedGateway
+        ? const DiagnosticRow('Gateway', 'Correct', DiagnosticStatus.ok)
+        : const DiagnosticRow('Gateway', 'Different', DiagnosticStatus.problem),
+  if (current != null)
+    current.format == apnsPusherFormat
+        ? const DiagnosticRow('Format', 'Correct', DiagnosticStatus.ok)
+        : const DiagnosticRow('Format', 'Different', DiagnosticStatus.problem),
+];
+
+DiagnosticRow _unknown(String label) =>
+    DiagnosticRow(label, 'Unknown', DiagnosticStatus.warning);
+
+DiagnosticSection _androidPermission(PushDiagnosticsInputs inputs) {
+  final android = inputs.snapshot.android;
+  final capabilities = inputs.capabilities;
+  final channels = android.channels;
+  return DiagnosticSection('Permission', [
+    switch (android.notificationsEnabled) {
+      true => const DiagnosticRow(
+        'Notifications',
+        'Allowed',
+        DiagnosticStatus.ok,
+      ),
+      false => const DiagnosticRow(
+        'Notifications',
+        'Not allowed',
+        DiagnosticStatus.problem,
+      ),
+      null => _unknown('Notifications'),
+    },
+    if (channels == null)
+      _unknown('Notification categories')
+    else
+      for (final channel in channels)
+        _channelRow(channel, quiet: android.notificationsEnabled == false),
+    if (capabilities.fullScreenIntent)
+      switch (android.fullScreenIntent) {
+        true => const DiagnosticRow(
+          'Full-screen call alerts',
+          'Allowed',
+          DiagnosticStatus.ok,
+        ),
+        false => const DiagnosticRow(
+          'Full-screen call alerts',
+          'Not allowed',
+          DiagnosticStatus.warning,
+        ),
+        null => _unknown('Full-screen call alerts'),
+      },
+    if (capabilities.batteryExemption)
+      switch (android.batteryOptimizationIgnored) {
+        true => const DiagnosticRow(
+          'Battery use',
+          'Unrestricted',
+          DiagnosticStatus.ok,
+        ),
+        false => DiagnosticRow(
+          'Battery use',
+          'Optimized',
+          deliveryDependsOnBatteryExemption(inputs.deliveryMode)
+              ? DiagnosticStatus.warning
+              : DiagnosticStatus.info,
+        ),
+        null => _unknown('Battery use'),
+      },
+    if (capabilities.backgroundDataRestriction)
+      switch (android.backgroundData) {
+        'allowed' => const DiagnosticRow(
+          'Background data',
+          'Allowed',
+          DiagnosticStatus.ok,
+        ),
+        'exempt' => const DiagnosticRow(
+          'Background data',
+          'Allowed while Data Saver is on',
+          DiagnosticStatus.ok,
+        ),
+        'restricted' => const DiagnosticRow(
+          'Background data',
+          'Restricted by Data Saver',
+          DiagnosticStatus.warning,
+        ),
+        _ => _unknown('Background data'),
+      },
+    _standby(
+      inputs.deliveries?.firstOrNull?.standbyBucket,
+      android.standbyBucket,
+    ),
+  ]);
+}
+
+DiagnosticRow _channelRow(AndroidChannelState channel, {required bool quiet}) {
+  final rings = ringChannelIds.contains(channel.id);
+  final alerting = rings || alertingMessageChannelIds.contains(channel.id);
+  final value = switch (channel.importance) {
+    'none' => 'Blocked',
+    'min' => 'Silent and minimized',
+    'low' => 'Silent',
+    'default' => 'Sound',
+    'high' || 'max' => 'Sound and pop-up',
+    _ => 'Unknown',
+  };
+  final status = quiet || !alerting
+      ? DiagnosticStatus.info
+      : switch (channel.importance) {
+          'none' => DiagnosticStatus.problem,
+          'default' when rings => DiagnosticStatus.warning,
+          'default' || 'high' || 'max' => DiagnosticStatus.ok,
+          _ => DiagnosticStatus.warning,
+        };
+  return DiagnosticRow(channel.name, value, status);
+}
+
+DiagnosticRow _standby(int? recorded, int? live) {
+  final bucket = recorded ?? live;
+  final measured = recorded != null;
+  DiagnosticStatus level(DiagnosticStatus status) =>
+      measured ? status : DiagnosticStatus.info;
+  return switch (bucket) {
+    5 => DiagnosticRow('App standby', 'Exempt', level(DiagnosticStatus.ok)),
+    10 => DiagnosticRow('App standby', 'Active', level(DiagnosticStatus.ok)),
+    20 => DiagnosticRow(
+      'App standby',
+      'Used often',
+      level(DiagnosticStatus.ok),
+    ),
+    30 => const DiagnosticRow('App standby', 'Used regularly'),
+    40 => DiagnosticRow(
+      'App standby',
+      'Used rarely',
+      level(DiagnosticStatus.warning),
+    ),
+    45 => DiagnosticRow(
+      'App standby',
+      'Restricted',
+      level(DiagnosticStatus.problem),
+    ),
+    50 => DiagnosticRow(
+      'App standby',
+      'Never used',
+      level(DiagnosticStatus.problem),
+    ),
+    _ => const DiagnosticRow('App standby', 'Unknown'),
+  };
+}
+
+DiagnosticSection _androidDevice(PushDiagnosticsInputs inputs) {
+  final mode = inputs.deliveryMode;
+  return DiagnosticSection('This device', [
+    DiagnosticRow('Delivery', mode.label),
+    ?_deliveryStatus(inputs),
+    if (inputs.capabilities.deliveryModes.contains(
+      NotificationDeliveryMode.fcm,
+    ))
+      _playServices(
+        inputs.playServices,
+        needed: mode == NotificationDeliveryMode.fcm,
+      ),
+    if (mode != NotificationDeliveryMode.backgroundService)
+      ..._registrationRows(inputs, _currentPusher(inputs)),
+    DiagnosticRow('Zuno version', inputs.appVersion),
+  ]);
+}
+
+DiagnosticRow? _deliveryStatus(PushDiagnosticsInputs inputs) => switch ((
+  inputs.deliveryMode,
+  inputs.fcmStatus,
+  inputs.unifiedPushStatus,
+)) {
+  (NotificationDeliveryMode.fcm, final FcmStatus status, _) => DiagnosticRow(
+    'Status',
+    fcmStatusLabel(status),
+    _fcmStatusLevel(status),
+  ),
+  (NotificationDeliveryMode.unifiedPush, _, final UnifiedPushStatus status) =>
+    DiagnosticRow(
+      'Status',
+      unifiedPushStatusLabel(status),
+      _unifiedPushStatusLevel(status),
+    ),
+  _ => null,
+};
+
+DiagnosticStatus _fcmStatusLevel(FcmStatus status) => switch (status) {
+  FcmStatus.ready => DiagnosticStatus.ok,
+  FcmStatus.idle => DiagnosticStatus.warning,
+  FcmStatus.checkingPlayServices ||
+  FcmStatus.registering ||
+  FcmStatus.postingPusher => DiagnosticStatus.info,
+  FcmStatus.playServicesUnavailable ||
+  FcmStatus.playServicesUpdateRequired ||
+  FcmStatus.playServicesDisabled ||
+  FcmStatus.notConfigured ||
+  FcmStatus.tokenFailed ||
+  FcmStatus.pusherFailed => DiagnosticStatus.problem,
+};
+
+DiagnosticStatus _unifiedPushStatusLevel(UnifiedPushStatus status) =>
+    switch (status) {
+      UnifiedPushStatus.ready => DiagnosticStatus.ok,
+      UnifiedPushStatus.idle ||
+      UnifiedPushStatus.distributorSelected => DiagnosticStatus.warning,
+      UnifiedPushStatus.findingDistributor ||
+      UnifiedPushStatus.registering ||
+      UnifiedPushStatus.postingPusher => DiagnosticStatus.info,
+      UnifiedPushStatus.noDistributorFound ||
+      UnifiedPushStatus.registrationFailed ||
+      UnifiedPushStatus.pusherFailed => DiagnosticStatus.problem,
+    };
+
+DiagnosticRow _playServices(
+  FcmAvailability? availability, {
+  required bool needed,
+}) {
+  const label = 'Google Play services';
+  final missing = needed ? DiagnosticStatus.problem : DiagnosticStatus.info;
+  return switch (availability) {
+    FcmAvailability.available => const DiagnosticRow(
+      label,
+      'Available',
+      DiagnosticStatus.ok,
+    ),
+    FcmAvailability.updateRequired => const DiagnosticRow(
+      label,
+      'Needs an update',
+      DiagnosticStatus.warning,
+    ),
+    FcmAvailability.disabled => DiagnosticRow(label, 'Turned off', missing),
+    FcmAvailability.unavailable => DiagnosticRow(
+      label,
+      'Not on this device',
+      missing,
+    ),
+    FcmAvailability.notConfigured => DiagnosticRow(
+      label,
+      'Not included in this version of Zuno',
+      missing,
+    ),
+    FcmAvailability.unknown || null => const DiagnosticRow(
+      label,
+      'Could not check',
+      DiagnosticStatus.warning,
+    ),
+  };
 }
 
 DiagnosticRow _registration(
@@ -490,18 +772,31 @@ DiagnosticSection _delivery(PushDiagnosticsInputs inputs) {
         'No',
         DiagnosticStatus.problem,
       ),
-      ServerReach.turnedOff => const DiagnosticRow(
+      ServerReach.turnedOff => DiagnosticRow(
         'Reachable',
         'Turned off',
-        DiagnosticStatus.problem,
+        inputs.capabilities.voipRing || inputs.capabilities.nseNotifications
+            ? DiagnosticStatus.problem
+            : DiagnosticStatus.info,
+      ),
+      ServerReach.notInstalled => DiagnosticRow(
+        'Reachable',
+        'Not available on this server',
+        inputs.capabilities.voipRing || inputs.capabilities.nseNotifications
+            ? DiagnosticStatus.problem
+            : DiagnosticStatus.info,
       ),
     },
   ];
   if (health != null) {
+    final appId = _currentPusher(inputs)?.appId;
     final pusher =
-        health.pushers
-            .where((p) => p.appId.startsWith('im.zuno.chat.ios'))
-            .firstOrNull ??
+        health.pushers.where((p) => p.appId == appId).firstOrNull ??
+        (inputs.capabilities.apnsRegistration
+            ? health.pushers
+                  .where((p) => p.appId.startsWith('im.zuno.chat.ios'))
+                  .firstOrNull
+            : null) ??
         health.pushers.firstOrNull;
     final lastSuccess = pusher?.lastSuccess;
     rows.add(
@@ -552,6 +847,18 @@ DiagnosticSection _delivery(PushDiagnosticsInputs inputs) {
         ),
       );
     }
+  }
+  if (inputs.deliveries case final deliveries?) {
+    final last = deliveries.firstOrNull;
+    rows.add(
+      last == null
+          ? const DiagnosticRow('Last push', 'None yet')
+          : DiagnosticRow(
+              'Last push',
+              '${pushDeliverySummary(last)} (${ageLabel(last.receivedAt, inputs.now)})',
+              last.late ? DiagnosticStatus.warning : DiagnosticStatus.info,
+            ),
+    );
   }
   return DiagnosticSection('Delivery', rows);
 }

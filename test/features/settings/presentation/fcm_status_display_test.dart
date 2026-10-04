@@ -87,8 +87,8 @@ void main() {
     }
   });
 
-  test('a working registration opens the details page', () {
-    expect(fcmStatusAction(FcmStatus.ready), PushStatusAction.open);
+  test('a working registration offers no action', () {
+    expect(fcmStatusAction(FcmStatus.ready), PushStatusAction.none);
     expect(fcmStatusIsBusy(FcmStatus.ready), isFalse);
   });
 

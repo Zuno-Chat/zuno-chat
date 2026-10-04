@@ -10,7 +10,7 @@ three now live in or under Settings.
 | Category | Holds |
 |---|---|
 | Account | Profile picture, display name, username, change password |
-| Notifications | Enable, a row per silenced chat channel, full-screen call alerts, notify-for, sounds & vibration, and a **Delivery** row opening its own page where there is a delivery choice, else a problem row while push fails; full-screen alerts, Delivery and the problem row only while notifications are allowed. iOS adds a Push target row (also only while allowed), Notification content and Diagnostics |
+| Notifications | Enable, a row per silenced chat channel, full-screen call alerts, notify-for, sounds & vibration, and a **Delivery** row opening its own page where there is a delivery choice, else a problem row while push fails; full-screen alerts, Delivery and the problem row only while notifications are allowed. a **Diagnostics** row on both platforms (the hub, reached from nowhere else). iOS adds Notification content |
 | Chats & calls | Theme, typing indicator, prevent accidental calls |
 | Data & storage | Reduce media size, use less data for calls, clear cache, clear media cache |
 | Security | Status card, recovery, devices, blocked people, incognito keyboard, prevent screenshots, Advanced (disabled placeholder) |
@@ -46,8 +46,9 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   `security_privacy_settings_page.dart`, `about_page.dart`.
   `delivery_failure_action.dart` runs a delivery failure's action for both
   the home banner and the Notifications problem row.
-  `push_target_status_page.dart` and `push_diagnostics_page.dart` (iOS,
-  report built by `push_diagnostics_report.dart`) sit under Notifications.
+  `push_diagnostics_page.dart` (report built by
+  `push_diagnostics_report.dart`) sits under Notifications, and
+  `push_target_status_page.dart` and `recent_pushes_page.dart` open from it.
 - `settings_widgets.dart` — shared row widgets, including
   `ComingSoonTile`/`ComingSoonSwitchTile`: disabled placeholder rows used
   for features not yet built, so the eventual location is visible without
@@ -133,7 +134,7 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   status, battery, background data, Autostart on phones that need it) are
   set once and troubleshooting-shaped, so they stay off the everyday
   page. With one delivery mode (iOS) there is no Delivery row or page:
-  Push target opens from its own row, and a push failure shows as a problem
+  a push failure shows as a problem
   row with its action on the Notifications page, beside the home banner,
   and stays there after the banner is dismissed. The delivery banner's
   "Open settings" opens `NotificationDeliveryPage` directly. When Play
@@ -152,21 +153,27 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
   confirmation says the device stops receiving notifications "until you
   register again or Zuno restarts". After a removal UnifiedPush's Status row
   offers Register (an idle row otherwise offers nothing); FCM's idle row
-  always does. The Remove row is Android-only: Apple push shows none.
-- **Push target on iOS is a diagnostics view**: the pusher details and
-  other registrations as on Android, a Diagnostics card (iOS notification
-  settings, the push environment and this build's app id, whether a device
-  token arrived, whether the server's pusher still matches
-  (`checkApnsPusher`), the drop count) and, in the development APNs
-  environment, the VoIP test values for `tool/push_test`, copied through the
-  sensitive clipboard.
-- **Diagnostics is one page for the whole push and ring chain**
-  (`PushDiagnosticsPage`, `notifications.md`): Permission, This device,
-  Calls, Notification extension, Delivery and Device reports, each row with
-  a status icon. "Send a test notification" goes through the server (shown
-  even with Zuno open; "Too many tests in the last hour" past its limit).
-  "Share diagnostics" shares the report as text with Matrix ids, URLs and
-  long tokens redacted (`redactDiagnostics`).
+  always does. The Remove row shows only for Google services and
+  UnifiedPush: background sync and Apple push have nothing to remove.
+- **Push target is reached only from the Diagnostics hub**, on both
+  platforms, and the hub reloads when it closes (Remove changes the
+  registration). It holds pusher details and other registrations; it has no
+  Diagnostics or Recent pushes card. On iOS in the development APNs
+  environment it keeps the VoIP test values for `tool/push_test`, copied
+  through the sensitive clipboard. The Delivery page's Status row opens
+  nothing.
+- **Diagnostics is one hub for the whole push and ring chain**
+  (`PushDiagnosticsPage`, `notifications.md`): sections from the report,
+  each row with a status icon (iOS: Permission, This device, Calls,
+  Notification extension, Delivery, Device reports; Android: Permission,
+  This device, Delivery), then "Send a test notification" and "Share
+  diagnostics", then Recent pushes and Push target. The test goes through
+  the server (shown even with Zuno open; "Too many tests in the last hour"
+  past its limit) and is unavailable, with the reason as subtitle, on a
+  server without the module or with background sync. Recent pushes shows
+  where `deliveryLogsEachPush` (Android FCM) or on iOS. "Share diagnostics"
+  shares the report as text with Matrix ids, URLs and long tokens redacted
+  (`redactDiagnostics`).
 - **Notification content is the preview level** (`NotificationPreview`,
   `notifications.md`): Name and message, Name only or Nothing, under a note
   that the device keeps a copy of what notifications show and that calls
@@ -183,8 +190,7 @@ Account, Chats & calls, Data & storage, About, and log-out placement.
     refuses a disabled mode, and the page starts a mode only once it saved.
   - Problem row (`deliveryFailureProvider`): only with a single delivery
     mode.
-  - Push target row (while notifications are allowed), the Diagnostics row
-    and the Push target page's Diagnostics card: `pushDiagnostics`. The
+  - The Diagnostics row: `pushDiagnostics` (both platforms). The
     VoIP test card: `voipRing`. Notification content: `nseNotifications`.
   - Settings root: the Notifications subtitle reads "Sounds, delivery" with
     a delivery choice, else "Sounds, mentions".

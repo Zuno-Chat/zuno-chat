@@ -138,7 +138,8 @@ Each flag is one of these kinds:
 | Android-only behavior | `atomicDatabaseBatches` (one database connection shared by every engine), `instantPushNotices` (a native notice posted from the push; on iOS the APNs alert is the system's) | `true` on Android only |
 | Permanent: seam selector | `nativeIncomingRingUi`, `callForegroundService`, `nativeRingbackTone` (Android); `callKit` (iOS) | `true` on their own platform only; the call factories check `callKit` first (`calls.md`), so the Android three are never flipped |
 | iOS-only behavior | `apnsRegistration`, `playerNeedsMediaType`, `callMuteByInputMixer`, `signOutWipeKeepsProcess`, `videoRendererNeedsDetach` (`calls.md`) | `true` on iOS only |
-| iOS push stack | `pushDiagnostics`, `voipRing` (the PushKit ring, `calls.md`), `nseNotifications` (the notification service extension, `notifications.md`), `nativeNotificationActions` (Reply and Mark as read queued natively); each gates its `zuno/*` channels (below) | `true` on iOS only |
+| iOS push stack | `voipRing` (the PushKit ring, `calls.md`), `nseNotifications` (the notification service extension, `notifications.md`), `nativeNotificationActions` (Reply and Mark as read queued natively); each gates its `zuno/*` channels (below) | `true` on iOS only |
+| Both platforms | `pushDiagnostics` (the Diagnostics hub, `settings.md`) | `true` on both |
 | Apple limitation | `recorderWritesOgg` (Apple can't write Ogg), `videoCodecOrder` (`null` on iOS, see `calls.md`), `locationServicesSettings` (no link into Location Services), `filesTypedByExtension` (other apps type a file by its name), `screenshotBlocking` (no app can block a screenshot; picks the screen-privacy copy) | differs on iOS for good |
 
 ### iOS project
@@ -222,7 +223,7 @@ is off and catch `MissingPluginException`, so Android never calls them):
 | Channel | Flag | Methods |
 |---|---|---|
 | `zuno/apns` | `apnsRegistration` | `getToken`, `environment`, `removeDelivered` |
-| `zuno/push_diag` | `pushDiagnostics` | `snapshot`: notification settings, environment, ledger, read-model age, extension log, MetricKit summaries |
+| `zuno/push_diag` | `pushDiagnostics` | `snapshot`. iOS: notification settings, environment, ledger, read-model age, extension log, `app.log` (ring outcomes), MetricKit summaries. Android: a flat map (permission, channels, battery, standby), failed reads omitted |
 | `zuno/voip` | `voipRing` | `status`, `rotateKey`, `ackKey`, `takeEvents`, `setSession`; `devExport` only in the development APNs environment |
 | `zuno/launch` | `voipRing` | `takeWakeReason`, `takeDiagnostics` (MetricKit lines) |
 | `zuno/nse` | `voipRing`; `nseNotifications` for the second half | `threadKey`, `writeMeta`, `writeRoom`, `deleteRoom`, `wipe`; `writeShown`, `takeMarks`, `readOutcomes`, `setCredential`, `syncBadge` |

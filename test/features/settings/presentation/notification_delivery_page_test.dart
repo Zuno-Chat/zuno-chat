@@ -801,16 +801,23 @@ void main() {
         expect(registrations, ['unifiedPush']);
       });
 
-      testWidgets('a working registration leads to its details', (
+      testWidgets('a working registration says so and opens nothing', (
         tester,
       ) async {
         unifiedPushDeliveryProvider.status.value = UnifiedPushStatus.ready;
         await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
 
+        expect(
+          find.descendant(
+            of: statusRow(),
+            matching: find.byIcon(Icons.chevron_right),
+          ),
+          findsNothing,
+        );
         await tester.tap(statusRow());
         await tester.pumpAndSettle();
 
-        expect(find.byType(PushTargetStatusPage), findsOneWidget);
+        expect(find.byType(PushTargetStatusPage), findsNothing);
       });
 
       testWidgets('refresh looks for a distributor and says when there is '
@@ -948,16 +955,23 @@ void main() {
         expect(inStatusRow(find.byType(TextButton)), findsNothing);
       });
 
-      testWidgets('a working registration leads to its details', (
+      testWidgets('a working registration says so and opens nothing', (
         tester,
       ) async {
         fcmDeliveryProvider.status.value = FcmStatus.ready;
         await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
+        expect(
+          find.descendant(
+            of: statusRow(),
+            matching: find.byIcon(Icons.chevron_right),
+          ),
+          findsNothing,
+        );
         await tester.tap(statusRow());
         await tester.pumpAndSettle();
 
-        expect(find.byType(PushTargetStatusPage), findsOneWidget);
+        expect(find.byType(PushTargetStatusPage), findsNothing);
       });
     });
   });

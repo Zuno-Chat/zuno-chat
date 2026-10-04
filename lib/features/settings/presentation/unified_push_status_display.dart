@@ -2,7 +2,7 @@ import '../../../core/notifications/unified_push_delivery_provider.dart'
     show UnifiedPushStatus;
 import '../../../core/push/unified_push_distributor_names.dart';
 
-enum UnifiedPushStatusAction { none, register, retry, open }
+enum UnifiedPushStatusAction { none, register, retry }
 
 UnifiedPushStatusAction unifiedPushStatusAction(
   UnifiedPushStatus status, {
@@ -24,7 +24,7 @@ UnifiedPushStatusAction unifiedPushStatusAction(
     case UnifiedPushStatus.pusherFailed:
       return UnifiedPushStatusAction.retry;
     case UnifiedPushStatus.ready:
-      return UnifiedPushStatusAction.open;
+      return UnifiedPushStatusAction.none;
   }
 }
 

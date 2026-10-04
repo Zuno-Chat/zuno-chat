@@ -90,4 +90,14 @@ class FcmBadgeDecisionTest {
     fun `the clear forgets the chat threads Dart keeps in its shared preferences`() {
         assertEquals("flutter.notifications.threads", FcmBadgeDecision.THREADS_KEY)
     }
+
+    @Test
+    fun `a test push does nothing for Dart, with or without a room`() {
+        val bare = mapOf("event_id" to "\$zuno_test_1")
+        val withRoom = mapOf("event_id" to "\$zuno_test_1", "room_id" to "!r:x")
+        for (data in listOf(bare, withRoom)) {
+            assertEquals(FcmPushHandling.NOTHING, FcmBadgeDecision.handlingFor(data, false))
+            assertEquals(FcmPushHandling.NOTHING, FcmBadgeDecision.handlingFor(data, true))
+        }
+    }
 }

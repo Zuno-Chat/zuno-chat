@@ -2,6 +2,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const pushDeliveryLogKey = 'push.recent_deliveries';
 
+const lateArrival = Duration(minutes: 1);
+
 class PushDeliveryRecord {
   final DateTime receivedAt;
   final DateTime? sentAt;
@@ -28,6 +30,8 @@ class PushDeliveryRecord {
 
   bool get downgraded =>
       originalPriority == 'high' && deliveredPriority == 'normal';
+
+  bool get late => downgraded || (delay ?? Duration.zero) > lateArrival;
 }
 
 List<PushDeliveryRecord> parsePushDeliveryLog(String? text) => [

@@ -54,6 +54,7 @@ struct NseContext: Sendable {
   let start: Int64
   var room: NseRoomFile?
   var catchUpBody: Data? = nil
+  var originMs: Int64? = nil
 
   func tokens(o: Int64? = nil) -> NseTokens {
     NseTokens(t: t, e: e, o: o ?? push.receivedMs / 1000)
@@ -91,12 +92,14 @@ final class NsePipeline: Sendable {
     NseCounters(defaults: env.defaults).record(
       result.outcome, nowMs: now, durationMs: now - start, footprintBytes: env.footprint(),
       readModelAgeMs: context?.meta.heartbeatMs.map { now - $0 })
-    env.signals.log(
-      "nse_\(result.outcome.rawValue)",
-      [
-        ("t", context.map { String($0.t.prefix(8)) } ?? "-"), ("ms", String(now - start)),
-        ("safe", safeMode ? "1" : "0"),
-      ])
+    var fields: [(String, String)] = [
+      ("t", context.map { String($0.t.prefix(8)) } ?? "-"), ("ms", String(now - start)),
+    ]
+    if let context, let origin = context.originMs {
+      fields.append(("lag", String(context.push.receivedMs - origin)))
+    }
+    fields.append(("safe", safeMode ? "1" : "0"))
+    env.signals.log("nse_\(result.outcome.rawValue)", fields)
   }
 
   private func test() -> NseResult {
@@ -176,6 +179,7 @@ final class NsePipeline: Sendable {
     _ fetched: NseFetched, _ context: inout NseContext, safeMode: Bool, credential: String,
     baseUrl: String, best: @Sendable (NseDelivery) -> Void
   ) async -> NseResult {
+    context.originMs = fetched.event.originServerTs
     let o = fetched.event.originServerTs / 1000
     var event = fetched.event
     let encrypted = event.type == "m.room.encrypted"

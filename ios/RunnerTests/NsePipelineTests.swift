@@ -138,7 +138,17 @@ final class NsePipelineTests: XCTestCase {
     XCTAssertEqual(result.delivery.badge, 3)
     XCTAssertEqual(harness.files.json(NotifyFile.shownNse)?["e"], .array([.string(eventToken)]))
     XCTAssertEqual(harness.defaults.integer("nse.c.20260921.o.shown"), 1)
-    XCTAssertEqual(harness.signals.logged, ["nse_shown t=t!abc:zu ms=0 safe=0"])
+    XCTAssertEqual(harness.signals.logged, ["nse_shown t=t!abc:zu ms=0 lag=5000 safe=0"])
+  }
+
+  func testAnEventThatWasNeverFetchedLogsNoLag() async {
+    let harness = harness()
+    harness.transport.reply("nse/fetch", .offline)
+
+    _ = await harness.run()
+
+    XCTAssertEqual(harness.signals.logged.count, 1)
+    XCTAssertFalse(harness.signals.logged[0].contains("lag="))
   }
 
   func testARoomWithoutAReadModelFileIsNamedByTheServer() async {

@@ -1,55 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/errors/best_effort.dart';
-import '../../../core/format/chat_list_time.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/notifications/apns_delivery_provider.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
 import '../../../core/platform/platform_capabilities.dart';
-import '../../../core/push/apns_pusher_check.dart';
-import '../../../core/push/fcm_gateway.dart';
 import '../../../core/push/matrix_unified_push_gateway.dart';
-import '../../../core/push/push_delivery_log.dart';
-import '../../../core/push/push_diagnostics.dart';
 import '../../../core/push/pusher_info.dart';
 import '../../../core/push/pusher_reconciliation.dart';
 import '../../../core/push/unified_push_distributor_names.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
-import 'push_diagnostics_display.dart';
 import 'voip_dev_export_card.dart';
-
-String? currentPushkeyFor(NotificationDeliveryMode mode) {
-  switch (mode) {
-    case NotificationDeliveryMode.unifiedPush:
-      return unifiedPushDeliveryProvider.endpointUrl?.toString();
-    case NotificationDeliveryMode.fcm:
-      return fcmDeliveryProvider.token;
-    case NotificationDeliveryMode.apns:
-      return apnsDeliveryProvider.pushkey;
-    case NotificationDeliveryMode.backgroundService:
-      return null;
-  }
-}
-
-String? lastPusherErrorFor(NotificationDeliveryMode mode) {
-  switch (mode) {
-    case NotificationDeliveryMode.unifiedPush:
-      return unifiedPushDeliveryProvider.lastPusherError;
-    case NotificationDeliveryMode.fcm:
-      return fcmDeliveryProvider.lastPusherError;
-    case NotificationDeliveryMode.apns:
-      return apnsDeliveryProvider.lastPusherError;
-    case NotificationDeliveryMode.backgroundService:
-      return null;
-  }
-}
 
 class PushTargetStatusPage extends ConsumerStatefulWidget {
   const PushTargetStatusPage({super.key});
@@ -66,12 +32,6 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
 
   bool _pushersFailed = false;
 
-  List<PushDeliveryRecord>? _deliveries;
-
-  PushDiagnosticsSnapshot? _diagnostics;
-
-  bool _diagnosticsRead = false;
-
   bool _removing = false;
 
   @override
@@ -86,25 +46,15 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
   Future<void> _refresh() async {
     final mode = _mode;
     final client = ref.read(matrixClientProvider);
-    final capabilities = ref.read(platformCapabilitiesProvider);
     final distributor = mode == NotificationDeliveryMode.unifiedPush
         ? await unifiedPushDeliveryProvider.knownDistributor()
         : null;
     final pushers = await fetchPushers(client);
-    final deliveries = deliveryLogsEachPush(mode)
-        ? await readPushDeliveryLog(await SharedPreferences.getInstance())
-        : const <PushDeliveryRecord>[];
-    final snapshot = capabilities.pushDiagnostics
-        ? await PushDiagnostics(capabilities: capabilities).snapshot()
-        : null;
     if (!mounted) return;
     setState(() {
       _distributor = distributor ?? '';
       _pushers = pushers ?? const [];
       _pushersFailed = pushers == null;
-      _deliveries = deliveries;
-      _diagnostics = snapshot;
-      _diagnosticsRead = true;
     });
   }
 
@@ -126,14 +76,10 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     final client = ref.read(matrixClientProvider);
     var failed = false;
     try {
-      switch (mode) {
-        case NotificationDeliveryMode.unifiedPush:
-          await unifiedPushDeliveryProvider.remove(client);
-        case NotificationDeliveryMode.fcm:
-          await fcmDeliveryProvider.remove(client);
-        case NotificationDeliveryMode.backgroundService:
-        case NotificationDeliveryMode.apns:
-          break;
+      if (mode == NotificationDeliveryMode.unifiedPush) {
+        await unifiedPushDeliveryProvider.remove(client);
+      } else {
+        await fcmDeliveryProvider.remove(client);
       }
     } catch (e) {
       logCaught('remove push target', e);
@@ -149,17 +95,11 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
   }
 
   String _removalDetail(NotificationDeliveryMode mode) {
-    switch (mode) {
-      case NotificationDeliveryMode.unifiedPush:
-        return 'The server forgets this device, and the distributor '
-            'registration is dropped.';
-      case NotificationDeliveryMode.fcm:
-        return "The server forgets this device, and this device's registration "
-            'token is dropped.';
-      case NotificationDeliveryMode.backgroundService:
-      case NotificationDeliveryMode.apns:
-        return 'Background sync has nothing registered to remove.';
-    }
+    return mode == NotificationDeliveryMode.unifiedPush
+        ? 'The server forgets this device, and the distributor '
+              'registration is dropped.'
+        : "The server forgets this device, and this device's registration "
+              'token is dropped.';
   }
 
   Future<void> _removeOtherPusher(PusherInfo pusher) async {
@@ -236,7 +176,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     final mode = ref.watch(notificationDeliveryModeProvider);
     final client = ref.watch(matrixClientProvider);
     final currentPushkey = currentPushkeyFor(mode);
-    final gatewayUrl = _gatewayUrl(mode, client);
+    final gatewayUrl = gatewayUrlFor(mode, client);
     final lastPusherError = lastPusherErrorFor(mode);
     final distributor = _distributor;
     final pushers = _pushers;
@@ -301,7 +241,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
                     title: const Text('Last error'),
                     subtitle: Text(lastPusherError),
                   ),
-                if (mode != NotificationDeliveryMode.apns)
+                if (mode == NotificationDeliveryMode.fcm ||
+                    mode == NotificationDeliveryMode.unifiedPush)
                   ListTile(
                     leading: _removing
                         ? const SizedBox(
@@ -322,16 +263,6 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
                   ),
               ],
             ),
-            if (capabilities.pushDiagnostics)
-              CardGroup(
-                title: 'Diagnostics',
-                children: _diagnosticRows(client),
-              ),
-            if (deliveryLogsEachPush(mode))
-              CardGroup(
-                title: 'Recent pushes',
-                children: _deliveryRows(_deliveries),
-              ),
             CardGroup(
               children: [
                 _SectionHeaderWithAction(
@@ -350,73 +281,12 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     );
   }
 
-  Uri? _gatewayUrl(NotificationDeliveryMode mode, Client client) {
-    switch (mode) {
-      case NotificationDeliveryMode.unifiedPush:
-        return unifiedPushDeliveryProvider.gatewayUrl;
-      case NotificationDeliveryMode.fcm:
-      case NotificationDeliveryMode.apns:
-        return fcmGatewayUri(client.homeserver);
-      case NotificationDeliveryMode.backgroundService:
-        return null;
-    }
-  }
-
   String _removalSubtitle(NotificationDeliveryMode mode) {
-    switch (mode) {
-      case NotificationDeliveryMode.unifiedPush:
-        return 'Makes the server forget this device and unregisters from the '
-            'distributor';
-      case NotificationDeliveryMode.fcm:
-        return "Makes the server forget this device and drops this device's "
-            'registration token';
-      case NotificationDeliveryMode.backgroundService:
-      case NotificationDeliveryMode.apns:
-        return 'Nothing is registered for background sync';
-    }
-  }
-
-  List<Widget> _diagnosticRows(Client client) {
-    if (!_diagnosticsRead) return const [_EmptyNote('Loading…')];
-    final snapshot = _diagnostics;
-    if (snapshot == null) {
-      return const [_EmptyNote('Could not read. Pull down to try again.')];
-    }
-    final appId = apnsDeliveryProvider.registeredAppId;
-    final pushkey = apnsDeliveryProvider.pushkey;
-    final check = appId == null || pushkey == null
-        ? null
-        : checkApnsPusher(
-            _pushersFailed ? null : _pushers,
-            appId: appId,
-            pushkey: pushkey,
-            gatewayUrl: fcmGatewayUri(client.homeserver),
-          );
-    return [
-      for (final row in pushDiagnosticRows(
-        snapshot,
-        pusherCheck: check,
-        dropped: apnsDeliveryProvider.dropped.value,
-      ))
-        _DetailRow(label: row.label, value: row.value),
-    ];
-  }
-
-  List<Widget> _deliveryRows(List<PushDeliveryRecord>? deliveries) {
-    if (deliveries == null) return const [_EmptyNote('Loading…')];
-    if (deliveries.isEmpty) return const [_EmptyNote('None yet')];
-    final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
-    final colors = Theme.of(context).colorScheme;
-    return [
-      for (final delivery in deliveries.take(_shownDeliveries))
-        ListTile(
-          leading: _deliveryLate(delivery)
-              ? Icon(Icons.schedule_outlined, color: colors.error)
-              : const Icon(Icons.check_circle_outline),
-          title: Text(_receivedLabel(delivery.receivedAt, use24Hour)),
-          subtitle: Text(pushDeliverySummary(delivery)),
-        ),
-    ];
+    return mode == NotificationDeliveryMode.unifiedPush
+        ? 'Makes the server forget this device and unregisters from the '
+              'distributor'
+        : "Makes the server forget this device and drops this device's "
+              'registration token';
   }
 
   List<Widget> _pusherRows(List<PusherInfo> pushers, bool loading) {
@@ -472,18 +342,6 @@ String _pusherName(PusherInfo pusher) {
   if (pusher.deviceDisplayName.isNotEmpty) return pusher.deviceDisplayName;
   if (pusher.appDisplayName.isNotEmpty) return pusher.appDisplayName;
   return pusher.appId;
-}
-
-const _shownDeliveries = 10;
-
-bool _deliveryLate(PushDeliveryRecord delivery) =>
-    delivery.downgraded ||
-    (delivery.delay ?? Duration.zero) > const Duration(minutes: 1);
-
-String _receivedLabel(DateTime at, bool use24Hour) {
-  final day = chatListTimeLabel(at, now: DateTime.now(), use24Hour: use24Hour);
-  final clock = clockLabel(at.toLocal(), use24Hour);
-  return day == clock ? clock : '$day, $clock';
 }
 
 bool _usesPublicGateway(String? url) {

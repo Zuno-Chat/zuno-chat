@@ -17,7 +17,6 @@ import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import 'fcm_status_display.dart';
-import 'push_target_status_page.dart';
 import 'unified_push_status_display.dart';
 
 const _statusSpinner = SizedBox(
@@ -135,11 +134,6 @@ class _NotificationDeliveryPageState
     unawaited(fcmDeliveryProvider.fixPlayServices(client));
   }
 
-  void _openPushTargetStatus() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const PushTargetStatusPage()));
-  }
-
   Future<void> _chooseDeliveryMode(NotificationDeliveryMode current) async {
     final chosen = await showModalBottomSheet<NotificationDeliveryMode>(
       context: context,
@@ -233,9 +227,6 @@ class _NotificationDeliveryPageState
                 : Icon(_unifiedPushStatusIcon(upStatus)),
             title: const Text('Status'),
             subtitle: Text(unifiedPushStatusLabel(upStatus)),
-            onTap: action == UnifiedPushStatusAction.open
-                ? _openPushTargetStatus
-                : null,
             trailing: switch (action) {
               UnifiedPushStatusAction.none => null,
               UnifiedPushStatusAction.register => TextButton(
@@ -246,7 +237,6 @@ class _NotificationDeliveryPageState
                 onPressed: busy ? null : _registerUnifiedPush,
                 child: const Text('Retry'),
               ),
-              UnifiedPushStatusAction.open => const Icon(Icons.chevron_right),
             },
           ),
           ..._batteryExemptionRows(mode, capabilities),
@@ -316,7 +306,6 @@ class _NotificationDeliveryPageState
       leading: busy ? _statusSpinner : Icon(_fcmStatusIcon(status)),
       title: const Text('Status'),
       subtitle: Text(fcmStatusLabel(status)),
-      onTap: action == PushStatusAction.open ? _openPushTargetStatus : null,
       trailing: switch (action) {
         PushStatusAction.none || PushStatusAction.fix => null,
         PushStatusAction.register => TextButton(
@@ -327,7 +316,6 @@ class _NotificationDeliveryPageState
           onPressed: busy ? null : _registerFcm,
           child: const Text('Retry'),
         ),
-        PushStatusAction.open => const Icon(Icons.chevron_right),
       },
     );
   }

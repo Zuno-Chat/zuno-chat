@@ -23,10 +23,10 @@ void main() {
       );
     });
 
-    test('opens the details page only once actually registered', () {
+    test('offers nothing once registered', () {
       expect(
         unifiedPushStatusAction(UnifiedPushStatus.ready),
-        UnifiedPushStatusAction.open,
+        UnifiedPushStatusAction.none,
       );
     });
 
@@ -37,7 +37,7 @@ void main() {
       );
       expect(
         unifiedPushStatusAction(UnifiedPushStatus.ready, removed: true),
-        UnifiedPushStatusAction.open,
+        UnifiedPushStatusAction.none,
       );
     });
 

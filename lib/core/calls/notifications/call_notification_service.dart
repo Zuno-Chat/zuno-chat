@@ -119,13 +119,14 @@ CallNotificationResponse? callNotificationResponseFrom({
 
 typedef SilencedChannel = ({String id, String name});
 
-const _alertingMessageChannelIds = {messagesChannelId, _groupMessagesChannelId};
+const alertingMessageChannelIds = {messagesChannelId, _groupMessagesChannelId};
+const ringChannelIds = {ringChannelId, groupRingChannelId};
 
 List<SilencedChannel> silencedMessageChannels(
   Iterable<AndroidNotificationChannel> channels,
 ) => [
   for (final channel in channels)
-    if (_alertingMessageChannelIds.contains(channel.id) &&
+    if (alertingMessageChannelIds.contains(channel.id) &&
         channel.importance.value < Importance.defaultImportance.value)
       (id: channel.id, name: channel.name),
 ];

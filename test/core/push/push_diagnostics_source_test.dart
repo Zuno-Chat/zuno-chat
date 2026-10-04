@@ -7,6 +7,11 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
+import 'package:zuno/core/notifications/notification_delivery_mode.dart';
+import 'package:zuno/core/push/fcm_bridge.dart';
+import 'package:zuno/core/push/push_delivery_log.dart';
 import 'package:zuno/core/push/push_diagnostics_data.dart';
 import 'package:zuno/core/push/push_diagnostics_source.dart';
 
@@ -112,7 +117,7 @@ void main() {
       return http.Response('{}', 404);
     };
 
-    final inputs = await source().load(ios);
+    final inputs = await source().load(ios, NotificationDeliveryMode.apns);
 
     expect(inputs.reach, ServerReach.reachable);
     expect(inputs.health?.serverOffset, const Duration(minutes: 2));
@@ -143,14 +148,18 @@ void main() {
       answer = (request) async =>
           _module({'errcode': errcode, 'error': 'not now'}, status: 503);
 
-      expect((await source().load(ios)).reach, reach, reason: errcode);
+      expect(
+        (await source().load(ios, NotificationDeliveryMode.apns)).reach,
+        reach,
+        reason: errcode,
+      );
     }
   });
 
   test('a server that cannot be reached reads as unreachable', () async {
     answer = (request) async => throw const SocketException('offline');
 
-    final inputs = await source().load(ios);
+    final inputs = await source().load(ios, NotificationDeliveryMode.apns);
 
     expect(inputs.reach, ServerReach.unreachable);
     expect(inputs.health, isNull);
@@ -174,6 +183,118 @@ void main() {
       'error': 'elsewhere',
     }, status: 503);
     expect(await source().sendTest(), PushTestOutcome.failed);
+  });
+
+  test('a server without the push module reads as not installed', () async {
+    answer = (request) async => http.Response('{}', 404);
+
+    final inputs = await source().load(ios, NotificationDeliveryMode.apns);
+
+    expect(inputs.reach, ServerReach.notInstalled);
+  });
+
+  test('a plain page of any status below 500 reads as not installed, a 502 '
+      'as unreachable', () async {
+    for (final status in [200, 403]) {
+      answer = (request) async => http.Response('<html></html>', status);
+      final inputs = await source().load(ios, NotificationDeliveryMode.apns);
+      expect(inputs.reach, ServerReach.notInstalled, reason: '$status');
+      expect(await source().sendTest(), PushTestOutcome.notAvailable);
+    }
+
+    answer = (request) async => http.Response('bad gateway', 502);
+    final inputs = await source().load(ios, NotificationDeliveryMode.apns);
+    expect(inputs.reach, ServerReach.unreachable);
+    expect(await source().sendTest(), PushTestOutcome.failed);
+  });
+
+  test('a test on a server without the push module, or with push turned off, '
+      'is not available; a broken route is a failure', () async {
+    answer = (request) async => http.Response('{}', 404);
+    expect(await source().sendTest(), PushTestOutcome.notAvailable);
+
+    answer = (request) async => _module({
+      'errcode': 'IM.ZUNO.PUSH_DISABLED',
+      'error': 'off',
+    }, status: 503);
+    expect(await source().sendTest(), PushTestOutcome.notAvailable);
+
+    answer = (request) async => http.Response('bad gateway', 502);
+    expect(await source().sendTest(), PushTestOutcome.failed);
+  });
+
+  test('Apple push carries the dropped count and no Android status', () async {
+    final inputs = await source().load(ios, NotificationDeliveryMode.apns);
+
+    expect(inputs.deliveryMode, NotificationDeliveryMode.apns);
+    expect(inputs.droppedRegistrations, 0);
+    expect(inputs.fcmStatus, isNull);
+    expect(inputs.playServices, isNull);
+    expect(inputs.deliveries, isNull);
+  });
+
+  test('Google services carries its status, Google Play services and the '
+      'delivery log', () async {
+    const fcm = MethodChannel('zuno/fcm');
+    messenger.setMockMethodCallHandler(fcm, (call) async => 'available');
+    addTearDown(() => messenger.setMockMethodCallHandler(fcm, null));
+    final received = DateTime.fromMillisecondsSinceEpoch(1789999990000);
+    SharedPreferences.setMockInitialValues({
+      pushDeliveryLogKey: [
+        received.millisecondsSinceEpoch,
+        '',
+        'high',
+        'high',
+        '0',
+        '',
+      ].join('\t'),
+    });
+    fcmDeliveryProvider.status.value = FcmStatus.ready;
+    addTearDown(() => fcmDeliveryProvider.status.value = FcmStatus.idle);
+    final android = capabilitiesLike(
+      androidCapabilities,
+      pushDiagnostics: true,
+    );
+
+    final inputs = await source().load(android, NotificationDeliveryMode.fcm);
+
+    expect(inputs.fcmStatus, FcmStatus.ready);
+    expect(inputs.playServices, FcmAvailability.available);
+    expect(inputs.deliveries?.single.receivedAt, received);
+    expect(inputs.droppedRegistrations, isNull);
+  });
+
+  test('recent pushes come from the Apple logs, the delivery log, or '
+      'nowhere', () async {
+    messenger.setMockMethodCallHandler(
+      pushDiag,
+      (call) async => {
+        'nse': {
+          'log': ['2026-10-03T21:00:00.000Z nse_shown t=- ms=1 safe=0'],
+        },
+        'app': {
+          'log': ['2026-10-03T21:01:00.000Z ring ms=4'],
+        },
+      },
+    );
+    SharedPreferences.setMockInitialValues({});
+
+    final apple = await source().recentPushes(
+      ios,
+      NotificationDeliveryMode.apns,
+    );
+    final unified = await source().recentPushes(
+      capabilitiesLike(androidCapabilities, pushDiagnostics: true),
+      NotificationDeliveryMode.unifiedPush,
+    );
+    final fcmPushes = await source().recentPushes(
+      capabilitiesLike(androidCapabilities, pushDiagnostics: true),
+      NotificationDeliveryMode.fcm,
+    );
+
+    expect([for (final push in apple) push.summary], ['Call rang', 'Shown']);
+    expect(unified, isEmpty);
+    expect(fcmPushes, isEmpty);
   });
 
   test('without a homeserver the test is not sent', () async {

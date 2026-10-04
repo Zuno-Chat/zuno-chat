@@ -23,7 +23,6 @@ import '../../../core/ui/card_list_view.dart';
 import 'delivery_failure_action.dart';
 import 'notification_delivery_page.dart';
 import 'push_diagnostics_page.dart';
-import 'push_target_status_page.dart';
 
 class NotificationsSettingsPage extends ConsumerStatefulWidget {
   const NotificationsSettingsPage({super.key, this.osVersion});
@@ -255,18 +254,6 @@ class _NotificationsSettingsPageState
                       ),
                       child: Text(
                         deliveryFailureActionLabel(deliveryFailure.action),
-                      ),
-                    ),
-                  ),
-                if (capabilities.pushDiagnostics)
-                  ListTile(
-                    leading: const Icon(Icons.troubleshoot_outlined),
-                    title: const Text('Push target'),
-                    subtitle: const Text('How notifications reach this device'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const PushTargetStatusPage(),
                       ),
                     ),
                   ),

@@ -31,6 +31,9 @@ object PushNotice {
     private const val MISSED_TEXT =
         "Some notifications could not be delivered. Open Zuno to see new messages."
 
+    private const val TEST_TITLE = "Zuno"
+    private const val TEST_TEXT = "Notifications work"
+
     private val posted = HashMap<String, String>()
 
     fun appInFront(context: Context): Boolean {
@@ -153,6 +156,41 @@ object PushNotice {
             manager.notify(MISSED_NOTIFICATION_ID, notification)
         } catch (e: Exception) {
             Log.w(TAG, "Could not post the missed-notifications notice", e)
+        }
+    }
+
+    fun postTest(context: Context): Boolean {
+        try {
+            val manager = context.getSystemService(
+                Context.NOTIFICATION_SERVICE,
+            ) as NotificationManager
+            val channelExists = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+                manager.getNotificationChannel(PushNoticeDecision.DIRECT_CHANNEL) != null
+            val enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+            if (!PushNoticeDecision.shouldPostMissed(enabled, channelExists)) return false
+            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            val tap = launch?.let {
+                PendingIntent.getActivity(
+                    context,
+                    NotificationIds.TEST_NOTIFICATION_ID,
+                    it,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                )
+            }
+            val notification = NotificationCompat.Builder(context, PushNoticeDecision.DIRECT_CHANNEL)
+                .setSmallIcon(smallIcon(context))
+                .setContentTitle(TEST_TITLE)
+                .setContentText(TEST_TEXT)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setContentIntent(tap)
+                .build()
+            manager.notify(NotificationIds.TEST_NOTIFICATION_ID, notification)
+            return true
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not post the test notice", e)
+            return false
         }
     }
 

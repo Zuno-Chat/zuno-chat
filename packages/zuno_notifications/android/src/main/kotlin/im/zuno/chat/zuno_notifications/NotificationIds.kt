@@ -1,6 +1,8 @@
 package im.zuno.chat.zuno_notifications
 
 object NotificationIds {
+    const val TEST_NOTIFICATION_ID = 4106
+
     fun messageNotificationIdFor(roomId: String): Int {
         var hash = 0x811c9dc5.toInt()
         for (byte in roomId.toByteArray(Charsets.UTF_8)) {

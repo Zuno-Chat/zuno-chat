@@ -16,7 +16,6 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm_pusher.dart';
-import 'package:zuno/core/push/push_delivery_log.dart';
 import 'package:zuno/core/push/pusher_info.dart';
 import 'package:zuno/core/push/unified_push_pusher.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -391,189 +390,19 @@ void main() {
       });
     });
 
-    group('diagnostics', () {
-      const diagnosticsChannel = MethodChannel('zuno/push_diag');
-      late List<MethodCall> diagnosticCalls;
-      late Future<Object?> Function() diagnosticReply;
-
-      setUp(() {
-        diagnosticCalls = [];
-        diagnosticReply = () async => {
-          'settings': {
-            'authorization': 'provisional',
-            'alert': 'disabled',
-            'showPreviews': 'never',
-          },
-          'environment': 'development',
-          'registeredForRemoteNotifications': false,
-        };
-        final messenger =
-            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-        messenger.setMockMethodCallHandler(diagnosticsChannel, (call) {
-          diagnosticCalls.add(call);
-          return diagnosticReply();
-        });
-        addTearDown(
-          () => messenger.setMockMethodCallHandler(diagnosticsChannel, null),
-        );
-      });
-
-      void useIosDiagnostics() => ambientCapabilities = capabilitiesLike(
-        iosCapabilities,
-        pushDiagnostics: true,
-      );
-
-      testWidgets('on iOS list what the system reports for this device', (
-        tester,
-      ) async {
-        useIosDiagnostics();
-        await pumpPage(tester, NotificationDeliveryMode.apns);
-
-        expect(find.text('Diagnostics'), findsOneWidget);
-        expect(detail(tester, 'Notifications'), 'Delivered quietly');
-        expect(detail(tester, 'Alerts'), 'Off');
-        expect(detail(tester, 'Show previews'), 'Never');
-        expect(detail(tester, 'Push environment'), 'Development');
-        expect(detail(tester, 'App ID for this build'), 'im.zuno.chat.ios.dev');
-        expect(detail(tester, 'Device token'), 'Not received');
-        expect(detail(tester, 'Registration check'), 'Not registered');
-        expect(detail(tester, 'Dropped registrations'), '0');
-      });
-
-      testWidgets('check the pusher this device registered against this '
-          'server', (tester) async {
-        useIosDiagnostics();
-        final tokenReader = apnsDeliveryProvider.tokenReader;
-        final notificationsAllowed = apnsDeliveryProvider.notificationsAllowed;
-        final environmentReader = apnsDeliveryProvider.environmentReader;
-        apnsDeliveryProvider
-          ..tokenReader = (() async => _apnsToken)
-          ..notificationsAllowed = (() async => true)
-          ..environmentReader = (() async => 'development');
-        addTearDown(() async {
-          await apnsDeliveryProvider.stop(_NoopPusherClient());
-          apnsDeliveryProvider
-            ..tokenReader = tokenReader
-            ..notificationsAllowed = notificationsAllowed
-            ..environmentReader = environmentReader;
-        });
-        await apnsDeliveryProvider.registerNow(_NoopPusherClient());
-        client.pushers = [
-          _pusherJson(
-            appId: apnsDevelopmentAppId,
-            pushkey: _apnsPushkey,
-            url: 'https://old.example.org/_matrix/push/v1/notify',
-          ),
-        ];
-
-        await pumpPage(tester, NotificationDeliveryMode.apns);
-
-        expect(
-          detail(tester, 'Registration check'),
-          'Out of date. Zuno registers this device again on the next check.',
-        );
-      });
-
-      testWidgets('a read that fails says so', (tester) async {
-        useIosDiagnostics();
-        diagnosticReply = () async =>
-            throw PlatformException(code: 'unavailable');
-
-        await pumpPage(tester, NotificationDeliveryMode.apns);
-
-        expect(
-          find.text('Could not read. Pull down to try again.'),
-          findsOneWidget,
-        );
-      });
-
-      testWidgets('Android shows none and asks for none', (tester) async {
-        await pumpPage(tester, NotificationDeliveryMode.fcm);
+    for (final mode in [
+      NotificationDeliveryMode.fcm,
+      NotificationDeliveryMode.apns,
+    ]) {
+      testWidgets('with ${mode.name}, diagnostics and recent pushes live in '
+          'the hub, not here', (tester) async {
+        await pumpPage(tester, mode);
 
         expect(find.text('Diagnostics'), findsNothing);
-        expect(diagnosticCalls, isEmpty);
+        expect(find.text('Recent pushes'), findsNothing);
+        expect(find.text('Other push registrations'), findsOneWidget);
       });
-    });
-
-    group('recent pushes', () {
-      String line({
-        required DateTime received,
-        DateTime? sent,
-        String original = 'high',
-        String delivered = 'high',
-        bool idle = false,
-        int? bucket,
-      }) => [
-        received.millisecondsSinceEpoch,
-        sent?.millisecondsSinceEpoch ?? '',
-        original,
-        delivered,
-        idle ? '1' : '0',
-        bucket ?? '',
-      ].join('\t');
-
-      testWidgets('says None yet before any arrive', (tester) async {
-        await pumpPage(tester, NotificationDeliveryMode.fcm);
-
-        expect(
-          find.descendant(
-            of: find.ancestor(
-              of: find.text('Recent pushes'),
-              matching: find.byType(Column),
-            ),
-            matching: find.text('None yet'),
-          ),
-          findsWidgets,
-        );
-      });
-
-      testWidgets('lists the last ten, marking the late ones', (tester) async {
-        final now = DateTime.now();
-        final received = now.subtract(const Duration(minutes: 1));
-        SharedPreferences.setMockInitialValues({
-          pushDeliveryLogKey: [
-            line(
-              received: received,
-              sent: received.subtract(const Duration(seconds: 2)),
-            ),
-            line(
-              received: received,
-              sent: received.subtract(const Duration(minutes: 5)),
-              idle: true,
-              bucket: 45,
-            ),
-            line(received: received, delivered: 'normal'),
-            for (var i = 0; i < 9; i++) line(received: received),
-          ].join('\n'),
-        });
-        await pumpPage(tester, NotificationDeliveryMode.fcm);
-
-        expect(find.text('Arrived after 2 s, high priority'), findsOneWidget);
-        expect(
-          find.text(
-            'Arrived after 5 min, high priority, device asleep, standby '
-            'bucket restricted',
-          ),
-          findsOneWidget,
-        );
-        expect(
-          find.text('Arrived, lowered to normal priority'),
-          findsOneWidget,
-        );
-        expect(find.byIcon(Icons.schedule_outlined), findsNWidgets(2));
-        expect(find.byIcon(Icons.check_circle_outline), findsNWidgets(8));
-      });
-
-      testWidgets('an older push is labeled with its day', (tester) async {
-        final received = DateTime.now().subtract(const Duration(days: 1));
-        SharedPreferences.setMockInitialValues({
-          pushDeliveryLogKey: line(received: received),
-        });
-        await pumpPage(tester, NotificationDeliveryMode.fcm);
-
-        expect(find.textContaining('Yesterday, '), findsOneWidget);
-      });
-    });
+    }
 
     group('other registrations', () {
       void twoOthers() => client.pushers = [
@@ -852,21 +681,10 @@ void main() {
         tester,
       ) async {
         await pumpPage(tester, NotificationDeliveryMode.backgroundService);
-        expect(
-          find.text('Nothing is registered for background sync'),
-          findsOneWidget,
-        );
+
         expect(find.text('Push gateway URL'), findsOneWidget);
         expect(detail(tester, 'Push gateway URL'), '—');
-
-        await startRemoving(tester);
-        expect(
-          find.textContaining('Background sync has nothing registered'),
-          findsOneWidget,
-        );
-        await confirmRemove(tester);
-
-        expect(find.byType(PushTargetStatusPage), findsNothing);
+        expect(find.text('Remove push target'), findsNothing);
       });
     });
   });

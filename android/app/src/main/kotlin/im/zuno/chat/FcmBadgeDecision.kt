@@ -1,5 +1,7 @@
 package im.zuno.chat
 
+import im.zuno.chat.zuno_notifications.PushNoticeDecision
+
 enum class FcmPushHandling(val wire: String) {
     DART("dart"),
     CLEAR_MESSAGES("clear"),
@@ -16,6 +18,7 @@ object FcmBadgeDecision {
         !eventId.isNullOrEmpty() && !roomId.isNullOrEmpty()
 
     fun handlingFor(data: Map<String, String?>, appInFront: Boolean): FcmPushHandling = when {
+        PushNoticeDecision.isTestPush(data["event_id"]) -> FcmPushHandling.NOTHING
         isEventPush(data["event_id"], data["room_id"]) -> FcmPushHandling.DART
         appInFront -> FcmPushHandling.NOTHING
         data["unread"]?.trim()?.toLongOrNull() == 0L -> FcmPushHandling.CLEAR_MESSAGES

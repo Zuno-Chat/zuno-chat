@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
 import im.zuno.chat.zuno_notifications.PushNotice
+import im.zuno.chat.zuno_notifications.PushNoticeDecision
 import im.zuno.chat.zuno_notifications.PushWakeLock
 import io.flutter.FlutterInjector
 
@@ -18,6 +19,18 @@ class PushNoticeReceiver : BroadcastReceiver() {
         val messageId = FcmPushKeys.messageId(intent.getStringExtra(MESSAGE_ID))
         val roomId = intent.getStringExtra(ROOM_ID)
         val eventId = intent.getStringExtra(EVENT_ID)
+        if (PushNoticeDecision.isTestPush(eventId)) {
+            val posted = PushNotice.postTest(app)
+            PushDeliveryLog.received(
+                app,
+                messageId,
+                intent.extras,
+                receivedAtMs,
+                receivedAtElapsedMs,
+                noticePosted = posted,
+            )
+            return
+        }
         val plan = filter.planFor(
             intent.getStringExtra(MESSAGE_TYPE),
             messageId,

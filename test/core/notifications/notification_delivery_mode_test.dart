@@ -84,8 +84,7 @@ void main() {
     });
   });
 
-  test('only Google services keeps a log of recent pushes: it is the one '
-      'method where app code handles every push', () {
+  test('Google services and Apple push keep a log of recent pushes', () {
     expect(
       {
         for (final mode in NotificationDeliveryMode.values)
@@ -95,7 +94,7 @@ void main() {
         NotificationDeliveryMode.fcm: true,
         NotificationDeliveryMode.unifiedPush: false,
         NotificationDeliveryMode.backgroundService: false,
-        NotificationDeliveryMode.apns: false,
+        NotificationDeliveryMode.apns: true,
       },
     );
   });
