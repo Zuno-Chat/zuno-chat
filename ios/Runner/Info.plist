@@ -45,6 +45,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Zuno uses the camera for video calls, photos and videos you take, and scanning sign-in and verification codes.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Zuno uses your location only when you send it in a chat or room.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Zuno uses your location only when you send it in a chat or room.</string>
 	<key>NSMicrophoneUsageDescription</key>

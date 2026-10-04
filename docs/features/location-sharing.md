@@ -94,6 +94,10 @@ lives in `zuno_web/src/.well-known/matrix/client` (MapTiler).
   stop caching until restart, so every call resolves the current one.
 - **`geo:` intents need a `<queries>` entry** (Android 11+) or `launchUrl`
   reports no handler.
+- **iOS needs `NSLocationAlwaysAndWhenInUseUsageDescription`** though Zuno
+  never asks for Always: `geolocator_apple` links the Always API, so App
+  Store upload rejects the build without the key (ITMS-90683). It reuses
+  the When In Use string and is never shown.
 - **The preview map sits inside an `IgnorePointer`**, so the bubble's
   `GestureDetector` must be `HitTestBehavior.opaque`; a deferring detector
   never sees the tap once tiles render (the grid fallback only worked
