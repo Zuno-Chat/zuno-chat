@@ -75,9 +75,8 @@ class DataStorageSettingsPage extends ConsumerWidget {
                 secondary: const Icon(Icons.photo_size_select_large_outlined),
                 title: const Text('Reduce media size'),
                 subtitle: const Text(
-                  'Compresses photos and videos more before sending. Smaller '
-                  'and faster, with a bigger loss in quality. Off still '
-                  'compresses, just less.',
+                  'Photos and videos send faster and use less data, but look '
+                  'less sharp.',
                 ),
                 value: reduceMediaSize,
                 onChanged: (value) =>
@@ -86,11 +85,8 @@ class DataStorageSettingsPage extends ConsumerWidget {
               SwitchListTile(
                 secondary: const Icon(Icons.data_saver_on_outlined),
                 title: const Text('Use less data for calls'),
-                subtitle: Text(
-                  lowDataCalls
-                      ? 'Video is capped at 360p and 24 fps'
-                      : 'Video is capped at 480p and 30 fps. Turn on to drop '
-                            'to 360p and 24 fps.',
+                subtitle: const Text(
+                  'Video calls use less data, but the picture is less sharp.',
                 ),
                 value: lowDataCalls,
                 onChanged: (value) =>

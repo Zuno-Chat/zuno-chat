@@ -93,7 +93,26 @@ void main() {
           .value,
       isTrue,
     );
-    expect(find.text('Video is capped at 360p and 24 fps'), findsOneWidget);
+  });
+
+  testWidgets('each data toggle says what it does in plain words, whether '
+      'on or off', (tester) async {
+    const media =
+        'Photos and videos send faster and use less data, but look less '
+        'sharp.';
+    const calls = 'Video calls use less data, but the picture is less sharp.';
+    await pumpPage(tester);
+
+    expect(find.text(media), findsOneWidget);
+    expect(find.text(calls), findsOneWidget);
+    expect(find.textContaining(RegExp(r'\d+p|fps|[Cc]ompress')), findsNothing);
+
+    await tester.tap(switchTile('Reduce media size'));
+    await tester.tap(switchTile('Use less data for calls'));
+    await tester.pump();
+
+    expect(find.text(media), findsOneWidget);
+    expect(find.text(calls), findsOneWidget);
   });
 
   testWidgets('Reduce media size turns off and persists', (tester) async {
@@ -111,16 +130,19 @@ void main() {
     );
   });
 
-  testWidgets('Use less data for calls turns off and says what it now caps', (
-    tester,
-  ) async {
+  testWidgets('Use less data for calls turns off and persists', (tester) async {
     final container = await pumpPage(tester);
 
     await tester.tap(switchTile('Use less data for calls'));
     await tester.pump();
 
     expect(container.read(lowDataCallsProvider), isFalse);
-    expect(find.textContaining('480p'), findsOneWidget);
+    expect(
+      container
+          .read(sharedPreferencesProvider)
+          .getBool('settings.low_data_calls'),
+      isFalse,
+    );
   });
 
   testWidgets('stored off values are read back', (tester) async {
