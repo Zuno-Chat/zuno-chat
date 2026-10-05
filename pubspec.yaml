@@ -77,7 +77,7 @@ dependencies:
   # class) — listed directly for the same reason as image_picker_android
   # above, ImagePickerPlatform.instance specifically.
   image_picker_platform_interface: ^2.11.1
-  file_picker: ^12.1.2
+  file_picker: ^13.1.0
   flutter_html: ^3.0.0
   url_launcher: ^6.3.2
   record: ^7.1.1
