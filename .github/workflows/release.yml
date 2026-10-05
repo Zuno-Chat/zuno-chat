@@ -192,7 +192,9 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-        run: bundle exec fastlane ios signing
+        run: |
+          printf '%s' "$MATCH_GIT_BASIC_AUTHORIZATION" | base64 --decode 2>/dev/null | grep -Eq '^[^:]+:.+' || { echo "MATCH_GIT_BASIC_AUTHORIZATION must be base64 of username:token, with no 'Basic ' prefix." >&2; exit 1; }
+          bundle exec fastlane ios signing
       - run: flutter build ipa --release --dart-define-from-file=.env --export-options-plist=ios/ExportOptions.plist
       - uses: actions/upload-artifact@v7
         with:
