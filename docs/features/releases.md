@@ -47,6 +47,10 @@ uploads.
 - **Play's staged rollout** climbs Apple's phased ladder, one step a day:
   1, 2, 5, 10, 20, 50, 100%. It's stateless and leaves halted releases
   alone.
+- **Runners are pinned, never `-latest`:** `ubuntu-24.04` and `macos-26`.
+  A label migration then can't change the release toolchain without
+  warning. Moving to a new image is a deliberate change, made after a
+  green dry run.
 
 ## Gotchas
 - **`feat` must mean user-facing.** Tooling uses `chore`, or it forces a

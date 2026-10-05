@@ -17,14 +17,14 @@ permissions:
 
 jobs:
   prepare:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       version: ${{ steps.guard.outputs.version }}
       build_number: ${{ steps.guard.outputs.build_number }}
       sha: ${{ steps.guard.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: subosito/flutter-action@v2
@@ -51,10 +51,10 @@ jobs:
 
   analyze-test:
     needs: prepare
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
       - uses: subosito/flutter-action@v2
@@ -68,13 +68,13 @@ jobs:
 
   kotlin-test:
     needs: prepare
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -93,7 +93,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
       - uses: maxim-lobanov/setup-xcode@v1
@@ -116,14 +116,14 @@ jobs:
 
   build-android:
     needs: [prepare, analyze-test, kotlin-test, swift-test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -151,7 +151,7 @@ jobs:
             "$RUNNER_TEMP/upload.jks" "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" >android/key.properties
           dart tool/release/cli.dart bump "$VERSION"
       - run: flutter build appbundle --release --dart-define-from-file=.env
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android
           path: build/app/outputs/bundle/release/app-release.aab
@@ -164,7 +164,7 @@ jobs:
     timeout-minutes: 60
     environment: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
       - uses: maxim-lobanov/setup-xcode@v1
@@ -194,7 +194,7 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
         run: bundle exec fastlane ios signing
       - run: flutter build ipa --release --dart-define-from-file=.env --export-options-plist=ios/ExportOptions.plist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ios
           path: build/ios/ipa/*.ipa
@@ -207,7 +207,7 @@ jobs:
     timeout-minutes: 120
     environment: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
       - uses: maxim-lobanov/setup-xcode@v1
@@ -216,7 +216,7 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ios
           path: ${{ runner.temp }}/ios
@@ -234,17 +234,17 @@ jobs:
 
   upload-android:
     needs: [prepare, upload-ios]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: android
           path: ${{ runner.temp }}/android
@@ -260,12 +260,12 @@ jobs:
   tag:
     if: ${{ !inputs.dry_run }}
     needs: [prepare, upload-ios, upload-android]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
       - env:
@@ -280,7 +280,7 @@ jobs:
   report-failure:
     if: ${{ failure() }}
     needs: [prepare, analyze-test, kotlin-test, swift-test, build-android, build-ios, upload-ios, upload-android, tag]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       issues: write
