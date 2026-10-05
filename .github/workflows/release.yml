@@ -276,20 +276,3 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git tag --annotate "v$VERSION" --message "Zuno $VERSION" "$SHA"
           git push origin "v$VERSION"
-
-  report-failure:
-    if: ${{ failure() }}
-    needs: [prepare, analyze-test, kotlin-test, swift-test, build-android, build-ios, upload-ios, upload-android, tag]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      issues: write
-    steps:
-      - env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.ref_name }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          gh issue create --repo "$GITHUB_REPOSITORY" \
-            --title "Release $BRANCH stopped" \
-            --body "The release run for $BRANCH failed and nothing after the failed job ran: $RUN_URL. Fix the cause, then use Re-run failed jobs. A re-run is safe after a partial upload."

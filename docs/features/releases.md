@@ -24,8 +24,9 @@ store notes.
 4. iOS upload, then Android upload.
 5. Tag.
 
-A failure opens an issue: a dispatched run's actor is the bot, so
-GitHub emails nobody. The tag `vX.Y.Z` is pushed only after both
+Failures never open issues. A dry run's failure emails the person who
+dispatched it. A real release is dispatched by the bot, so its failure
+emails nobody: check Actions after the 1st and after a hotfix. The tag `vX.Y.Z` is pushed only after both
 uploads.
 
 ## Decisions
