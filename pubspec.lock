@@ -362,10 +362,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_local_notifications
-      sha256: "1447ba911c60f2ba3f25dae1af151ec187162566b0f57e37771bf0b400f013ad"
+      sha256: "357be7ff996dc272e2037c69c1bdd5d1bd21172219d55f8bd2e11aeea602e6d3"
       url: "https://pub.dev"
     source: hosted
-    version: "22.3.0"
+    version: "22.3.1"
   flutter_local_notifications_linux:
     dependency: transitive
     description:
@@ -434,10 +434,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_secure_storage
-      sha256: "4540927d8b37e6cc47aaa2d17b6035a2d49049e2797cb19d2bdd299bff602c67"
+      sha256: d4e1fb6b2cb524868929e78dc0282fa000554b22060fb53789dc481c9fc95bb8
       url: "https://pub.dev"
     source: hosted
-    version: "11.1.0"
+    version: "11.2.0"
   flutter_secure_storage_darwin:
     dependency: transitive
     description:
@@ -532,18 +532,18 @@ packages:
     dependency: "direct main"
     description:
       name: geolocator
-      sha256: e146a6d63776582651e97a79cbe459f8e1211b100101fadcd84db83361fa599f
+      sha256: "4e41ad6bc072364ff01822531dac47936c065e5bf8f928f240a25bb51256ada0"
       url: "https://pub.dev"
     source: hosted
-    version: "14.0.3"
+    version: "14.1.1"
   geolocator_android:
     dependency: transitive
     description:
       name: geolocator_android
-      sha256: "86ea1654e4f61ff51466848e91c116b422d6010ea269fda0fbe1af7e9e742ce1"
+      sha256: "1be90ea8aaaf9db8e7816b4fe0387f082ee8b5cf03355912dad90fb0a75717fa"
       url: "https://pub.dev"
     source: hosted
-    version: "5.0.3"
+    version: "5.1.1+1"
   geolocator_apple:
     dependency: transitive
     description:
@@ -564,10 +564,10 @@ packages:
     dependency: transitive
     description:
       name: geolocator_platform_interface
-      sha256: "94db8255dc183d268765df682580440617ca35877fc82cacb5420ad03b86198d"
+      sha256: b640b6b687b14c66f51fe1130b1c2e8babbd408e0158052b92006b6675ca77fc
       url: "https://pub.dev"
     source: hosted
-    version: "4.3.0"
+    version: "4.4.0"
   geolocator_web:
     dependency: transitive
     description:
@@ -644,10 +644,10 @@ packages:
     dependency: "direct main"
     description:
       name: image
-      sha256: "1976370a4df3091bb0f72409c187ad1f9132a818bc6b95ca59c0bae1c75c688e"
+      sha256: a1e7f4951e538a568e14b856702afc9ae1d2f4b202daced8d22c1b9cd211ce89
       url: "https://pub.dev"
     source: hosted
-    version: "4.9.2"
+    version: "4.10.1"
   image_picker:
     dependency: "direct main"
     description:
@@ -876,10 +876,10 @@ packages:
     dependency: "direct main"
     description:
       name: mobile_scanner
-      sha256: "6b943ee30e7d9fa6bcab4238b6428e8df223be3731b9b75446fe8781dbd2286f"
+      sha256: "5a51ea79f0cf8293f616a5d08baae185b59b5e6bb24df01f2a63037ade0bade0"
       url: "https://pub.dev"
     source: hosted
-    version: "7.4.1"
+    version: "7.4.2"
   native_toolchain_c:
     dependency: transitive
     description:
@@ -908,10 +908,10 @@ packages:
     dependency: "direct main"
     description:
       name: package_info_plus
-      sha256: "127e1751e37ffb2ff4658beeaca77bad0c27bf5f932bd3a501c2296926d4b481"
+      sha256: "73ef2cd5c11a7548f9b7f6fc2a4f6113de2e64aa2a70de63feede95548822908"
       url: "https://pub.dev"
     source: hosted
-    version: "10.2.1"
+    version: "10.2.2"
   package_info_plus_platform_interface:
     dependency: transitive
     description:
@@ -1236,26 +1236,26 @@ packages:
     dependency: transitive
     description:
       name: sentry
-      sha256: bf80a571e370aad3f68b5c26d43f31cc230a084c250fb3138a83da6032ba0c01
+      sha256: "40a247686af64e497df29ab0de1303a20ca55a2e3c7c7e39b989fac47dcadf84"
       url: "https://pub.dev"
     source: hosted
-    version: "9.30.0"
+    version: "9.30.1"
   sentry_flutter:
     dependency: "direct main"
     description:
       name: sentry_flutter
-      sha256: da36fbb1581c0f66a0c8fc76f8aadb62d9ea567ba950c97eb326e959482c342a
+      sha256: bdd8897b38ce31185c42ed910628059c4eccbc0b0641213e8d1c63e2fda3f5a3
       url: "https://pub.dev"
     source: hosted
-    version: "9.30.0"
+    version: "9.30.1"
   share_plus:
     dependency: "direct main"
     description:
       name: share_plus
-      sha256: "34f00f9becd2743c1fb05363d624f9f70d37f7ccdcdda47450bc0b8c9d327b8c"
+      sha256: db40767f130189d53f3ae8a6393c217ff4a492da1baff718a9873679c0c00224
       url: "https://pub.dev"
     source: hosted
-    version: "13.3.0"
+    version: "13.3.1"
   share_plus_platform_interface:
     dependency: transitive
     description:
