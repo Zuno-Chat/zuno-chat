@@ -65,7 +65,9 @@ uploads.
   the iOS lane submits it without re-uploading.
 - **Swift XCTests run serially** (`-parallel-testing-enabled NO`).
   Parallel clone simulators cold-start the notification daemon past the
-  tests' 60 s.
+  tests' 60 s. CI also passes `-collect-test-diagnostics never`.
+  Otherwise, after the tests finish, xcodebuild waits 10 minutes on a
+  simulator diagnostics collection that times out anyway.
 - **CI writes the gitignored inputs from secrets** (`DOTENV`,
   `GOOGLE_SERVICES_JSON`, the keystore) and fails if they're missing.
   Without `google-services.json`, the AAB builds green and ships

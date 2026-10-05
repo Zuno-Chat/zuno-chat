@@ -112,7 +112,8 @@ jobs:
           udid=$(xcrun simctl list devices available --json | jq -r '[.devices | to_entries | map(select(.key | test("iOS"))) | sort_by(.key | [scan("[0-9]+") | tonumber]) | .[].value[] | select(.name | startswith("iPhone"))] | last | .udid')
           xcrun simctl bootstatus "$udid" -b
           xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner \
-            -only-testing:RunnerTests -destination "id=$udid" -parallel-testing-enabled NO test
+            -only-testing:RunnerTests -destination "id=$udid" -parallel-testing-enabled NO \
+            -collect-test-diagnostics never test
 
   build-android:
     needs: [prepare, analyze-test, kotlin-test, swift-test]
