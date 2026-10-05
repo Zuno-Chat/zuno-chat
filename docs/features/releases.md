@@ -47,8 +47,9 @@ uploads.
 - **Play's staged rollout** climbs Apple's phased ladder, one step a day:
   1, 2, 5, 10, 20, 50, 100%. It's stateless and leaves halted releases
   alone.
-- **Runners are pinned, never `-latest`:** `ubuntu-24.04` and `macos-26`.
-  A label migration then can't change the release toolchain without
+- **Runners are pinned, never `-latest`:** `ubuntu-24.04`, plus the
+  `xcode-27` image with Xcode `27.0`, the same build used locally. A
+  label migration then can't change the release toolchain without
   warning. Moving to a new image is a deliberate change, made after a
   green dry run.
 
@@ -68,6 +69,11 @@ uploads.
   `GOOGLE_SERVICES_JSON`, the keystore) and fails if they're missing.
   Without `google-services.json`, the AAB builds green and ships
   without FCM.
+- **The iOS jobs need the Xcode 27 SDK.** `MetricsSubscriber` uses
+  `MetricManager`, which is behind `#available(iOS 27.0, *)`, but the
+  type still has to exist at compile time. The `macos-26` image tops
+  out at Xcode 26.6 and fails to compile it. `xcode-27` is a GitHub
+  preview image, so expect occasional queueing.
 - **GITHUB_TOKEN can't push changes to `.github/workflows/`,** so a
   hotfix touching a workflow fails at the push.
 - **A public repo disables scheduled workflows after 60 days** with no

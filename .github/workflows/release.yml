@@ -90,7 +90,7 @@ jobs:
 
   swift-test:
     needs: prepare
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -98,7 +98,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.sha }}
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '27.0'
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -160,7 +160,7 @@ jobs:
 
   build-ios:
     needs: [prepare, analyze-test, kotlin-test, swift-test]
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
     environment: release
     steps:
@@ -169,7 +169,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.sha }}
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '27.0'
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -203,7 +203,7 @@ jobs:
 
   upload-ios:
     needs: [prepare, build-android, build-ios]
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 120
     environment: release
     steps:
@@ -212,7 +212,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.sha }}
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '27.0'
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
