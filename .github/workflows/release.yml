@@ -1,0 +1,295 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and validate without shipping (rc/dry-run only)
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.guard.outputs.version }}
+      build_number: ${{ steps.guard.outputs.build_number }}
+      sha: ${{ steps.guard.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+      - id: guard
+        env:
+          BRANCH: ${{ github.ref_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then
+            version=$(dart tool/release/cli.dart guard --dry-run "$BRANCH")
+          else
+            version=$(dart tool/release/cli.dart guard "$BRANCH")
+          fi
+          build_number=$(dart tool/release/cli.dart build-number "$version")
+          {
+            echo "version=$version"
+            echo "build_number=$build_number"
+            echo "sha=$(git rev-parse HEAD)"
+          } >>"$GITHUB_OUTPUT"
+
+  analyze-test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  kotlin-test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --config-only
+      - working-directory: android
+        run: ./gradlew :app:testDebugUnitTest
+
+  swift-test:
+    needs: prepare
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+      - run: flutter pub get
+      - run: flutter build ios --config-only --no-codesign
+      - working-directory: ios
+        run: pod install
+      - run: |
+          udid=$(xcrun simctl list devices available --json | jq -r '[.devices | to_entries | map(select(.key | test("iOS"))) | sort_by(.key | [scan("[0-9]+") | tonumber]) | .[].value[] | select(.name | startswith("iPhone"))] | last | .udid')
+          xcrun simctl bootstatus "$udid" -b
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner \
+            -only-testing:RunnerTests -destination "id=$udid" -parallel-testing-enabled NO test
+
+  build-android:
+    needs: [prepare, analyze-test, kotlin-test, swift-test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+      - env:
+          DOTENV: ${{ secrets.DOTENV }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          printf '%s\n' "$DOTENV" >.env
+          grep -Eq '^SENTRY_DSN="?https://' .env || { echo "DOTENV has no SENTRY_DSN; the release would ship without crash reporting." >&2; exit 1; }
+          printf '%s' "$GOOGLE_SERVICES_JSON" >android/app/google-services.json
+          jq -e '.project_info.project_id' android/app/google-services.json >/dev/null || { echo "GOOGLE_SERVICES_JSON is missing or invalid; the release would ship without FCM push." >&2; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode >"$RUNNER_TEMP/upload.jks"
+          test -s "$RUNNER_TEMP/upload.jks" || { echo "ANDROID_KEYSTORE_BASE64 is empty." >&2; exit 1; }
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$RUNNER_TEMP/upload.jks" "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" >android/key.properties
+          dart tool/release/cli.dart bump "$VERSION"
+      - run: flutter build appbundle --release --dart-define-from-file=.env
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 7
+          if-no-files-found: error
+
+  build-ios:
+    needs: [prepare, analyze-test, kotlin-test, swift-test]
+    runs-on: macos-26
+    timeout-minutes: 60
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - env:
+          DOTENV: ${{ secrets.DOTENV }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          printf '%s\n' "$DOTENV" >.env
+          grep -Eq '^SENTRY_DSN="?https://' .env || { echo "DOTENV has no SENTRY_DSN; the release would ship without crash reporting." >&2; exit 1; }
+          dart tool/release/cli.dart bump "$VERSION"
+      - env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: bundle exec fastlane ios signing
+      - run: flutter build ipa --release --dart-define-from-file=.env --export-options-plist=ios/ExportOptions.plist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: build/ios/ipa/*.ipa
+          retention-days: 7
+          if-no-files-found: error
+
+  upload-ios:
+    needs: [prepare, build-android, build-ios]
+    runs-on: macos-26
+    timeout-minutes: 120
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: ios
+          path: ${{ runner.temp }}/ios
+      - env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          ipa=$(ls "$RUNNER_TEMP"/ios/*.ipa)
+          bundle exec fastlane ios upload ipa:"$ipa" version:"$VERSION" \
+            build_number:"$BUILD_NUMBER" dry_run:"$DRY_RUN"
+
+  upload-android:
+    needs: [prepare, upload-ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: android
+          path: ${{ runner.temp }}/android
+      - env:
+          PLAY_JSON: ${{ secrets.PLAY_JSON }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          bundle exec fastlane android upload aab:"$RUNNER_TEMP/android/app-release.aab" \
+            version:"$VERSION" build_number:"$BUILD_NUMBER" dry_run:"$DRY_RUN"
+
+  tag:
+    if: ${{ !inputs.dry_run }}
+    needs: [prepare, upload-ios, upload-android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag --annotate "v$VERSION" --message "Zuno $VERSION" "$SHA"
+          git push origin "v$VERSION"
+
+  report-failure:
+    if: ${{ failure() }}
+    needs: [prepare, analyze-test, kotlin-test, swift-test, build-android, build-ios, upload-ios, upload-android, tag]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Release $BRANCH stopped" \
+            --body "The release run for $BRANCH failed and nothing after the failed job ran: $RUN_URL. Fix the cause, then use Re-run failed jobs. A re-run is safe after a partial upload."

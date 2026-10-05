@@ -1,0 +1,44 @@
+name: start-hotfix
+
+on:
+  workflow_dispatch:
+    inputs:
+      commits:
+        description: Fix commit SHAs on master, oldest first, space-separated
+        required: true
+        type: string
+      notes:
+        description: Store release notes, plain text, 500 characters max
+        required: true
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          COMMITS: ${{ inputs.commits }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          bash tool/release/hotfix.sh

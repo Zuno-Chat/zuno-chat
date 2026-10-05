@@ -1,0 +1,46 @@
+name: advance-rollout
+
+on:
+  schedule:
+    - cron: '43 4 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: rollout
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  advance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: rollout
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - id: play
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_JSON }}
+        run: bundle exec fastlane android rollout_status
+      - id: next
+        env:
+          STATUS: ${{ steps.play.outputs.status }}
+          FRACTION: ${{ steps.play.outputs.fraction }}
+        run: |
+          fraction=$(dart tool/release/cli.dart rollout "$STATUS" "$FRACTION")
+          echo "fraction=$fraction" >>"$GITHUB_OUTPUT"
+      - if: steps.next.outputs.fraction != 'none'
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_JSON }}
+          FRACTION: ${{ steps.next.outputs.fraction }}
+          VERSION_CODE: ${{ steps.play.outputs.version_code }}
+        run: bundle exec fastlane android rollout fraction:"$FRACTION" version_code:"$VERSION_CODE"

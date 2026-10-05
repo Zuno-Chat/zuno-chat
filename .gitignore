@@ -83,11 +83,13 @@ graphify-out/
 .claude/
 
 # Internal docs and the AI working notes stay local; the brand voice
-# guide, the feature docs and the decision records are public.
+# guide, the feature docs, the decision records and the release notes are
+# public.
 docs/*
 !docs/brand-voice.md
 !docs/features/
 !docs/decisions/
+!docs/release-notes/
 /CLAUDE.md
 
 # Brainstorm mockups from the visual companion
@@ -99,3 +101,10 @@ docs/*
 *.apk
 *.aab
 *.sha256
+
+# fastlane and bundler output
+fastlane/report.xml
+fastlane/README.md
+fastlane/Preview.html
+fastlane/test_output/
+vendor/bundle/

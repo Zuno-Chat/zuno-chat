@@ -201,6 +201,6 @@ final class NsePluginTests: XCTestCase {
   func testAnUnknownMethodIsNotImplemented() throws {
     let (plugin, _) = try plugin()
 
-    XCTAssertTrue((call(plugin, "writeShown") as AnyObject) === FlutterMethodNotImplemented)
+    XCTAssertTrue((call(plugin, "unknown") as AnyObject) === FlutterMethodNotImplemented)
   }
 }
