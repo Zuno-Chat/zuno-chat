@@ -2,7 +2,7 @@ group = "im.zuno.chat.zuno_notifications"
 version = "1.0-SNAPSHOT"
 
 buildscript {
-    val kotlinVersion = "2.4.0"
+    val kotlinVersion = "2.4.20"
     repositories {
         google()
         mavenCentral()
@@ -56,5 +56,5 @@ dependencies {
     // ShortcutManagerCompat / Person / IconCompat. Declared
     // explicitly rather than relying on the Flutter embedding pulling it
     // in transitively — this module is the only place they're compiled.
-    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.core:core-ktx:1.19.1")
 }
