@@ -51,7 +51,7 @@ dependencies:
     path: packages/zuno_notifications
 
   flutter_riverpod: ^3.4.2
-  matrix: ^12.0.1
+  matrix: ^13.0.0
   mime: ^2.1.0
   flutter_secure_storage: ^11.0.0
   # SQLCipher-backed drop-in for sqflite — the Matrix SDK's local database
