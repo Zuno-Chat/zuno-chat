@@ -12,7 +12,4 @@ object CallHangUpDecision {
         appEngineAlive -> CallHangUpAction.DeliverToDart
         else -> CallHangUpAction.StopService
     }
-
-    fun onHostDestroyed(callActive: Boolean, hangUpRequested: Boolean): Boolean =
-        callActive && !hangUpRequested
 }

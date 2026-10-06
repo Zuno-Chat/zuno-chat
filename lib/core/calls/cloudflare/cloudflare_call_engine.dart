@@ -576,8 +576,7 @@ class CloudflareCallEngine implements CallEngine {
 
     _localVideoTransceiver = null;
     final camera = _cameraTrack;
-    final videoTrack =
-        camera != null && _cameraEnabled && !_cameraPausedByBackground
+    final videoTrack = camera != null && _cameraEnabled && !_inBackground
         ? camera
         : await _placeholderTrack() ?? camera;
     if (!_isLiveConnection(pc)) return;
@@ -977,7 +976,6 @@ class CloudflareCallEngine implements CallEngine {
   Future<void> setAppInBackground(bool inBackground) async {
     if (_inBackground == inBackground) return;
     _inBackground = inBackground;
-    if (!_capabilities.cameraStopsInBackground) return;
     await _serialCameraWork(_applyCameraState);
   }
 
@@ -1017,9 +1015,6 @@ class CloudflareCallEngine implements CallEngine {
     return run;
   }
 
-  bool get _cameraPausedByBackground =>
-      _inBackground && _capabilities.cameraStopsInBackground;
-
   MediaStreamTrack? get _cameraTrack =>
       _localVideoStream?.getVideoTracks().firstOrNull;
 
@@ -1034,7 +1029,7 @@ class CloudflareCallEngine implements CallEngine {
     final sender = _localVideoTransceiver?.sender;
     if (pc == null || sender == null || !_isLiveConnection(pc)) return;
     if (!_cameraEnabled) return _cameraOff(pc, sender);
-    if (_cameraPausedByBackground) return _pauseCamera(pc, sender);
+    if (_inBackground) return _pauseCamera(pc, sender);
     return _cameraOn(pc, sender);
   }
 
@@ -1060,7 +1055,11 @@ class CloudflareCallEngine implements CallEngine {
     _setSendingCamera(false);
     if (sender.track?.id != placeholder.id) {
       await sender.replaceTrack(placeholder);
+      if (!_isLiveConnection(pc)) return;
     }
+    if (_capabilities.cameraStopsInBackground || _cameraTrack == null) return;
+    await _stopCamera();
+    _notifyParticipants();
   }
 
   Future<void> _cameraOn(RTCPeerConnection pc, RTCRtpSender sender) async {

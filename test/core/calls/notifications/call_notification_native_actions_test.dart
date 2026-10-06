@@ -297,11 +297,42 @@ void main() {
       ]);
     });
 
-    test('on iOS nothing is sent', () async {
+    test('on iOS the video to show reaches the platform', () async {
+      final toNative = installFakeCallsChannel();
+
+      await CallNotificationService(capabilities: iosCapabilities)
+          .setPictureInPicture(
+            eligible: true,
+            aspectWidth: 640,
+            aspectHeight: 480,
+            streamId: 'ann-video',
+            ownerTag: 'local',
+          );
+
+      expect(toNative.calls.map((c) => [c.method, c.arguments]), [
+        [
+          'setPictureInPicture',
+          {
+            'eligible': true,
+            'aspectWidth': 640,
+            'aspectHeight': 480,
+            'streamId': 'ann-video',
+            'ownerTag': 'local',
+          },
+        ],
+      ]);
+    });
+
+    test('nothing is sent without picture-in-picture', () async {
       final toNative = installFakeCallsChannel();
 
       await offerPictureInPicture(
-        CallNotificationService(capabilities: iosCapabilities),
+        CallNotificationService(
+          capabilities: capabilitiesLike(
+            iosCapabilities,
+            pictureInPicture: false,
+          ),
+        ),
       );
 
       expect(toNative.calls, isEmpty);

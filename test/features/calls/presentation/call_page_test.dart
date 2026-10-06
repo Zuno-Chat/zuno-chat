@@ -395,6 +395,51 @@ void main() {
       await harness.close();
     });
 
+    testWidgets('picture-in-picture names the video of the person it shows, '
+        'never your own', (tester) async {
+      final harness = CallPageHarness(tester);
+      final session = await talking(harness, CallKind.video);
+
+      session.engine.setParticipants([
+        localParticipant(camera: true),
+        remoteParticipant(),
+        remoteParticipant(userId: '@bob:example.org', camera: true),
+      ]);
+      await harness.settle();
+      expect(harness.pictureInPictureVideo, (
+        streamId: '@bob:example.org-video',
+        ownerTag: 'local',
+      ));
+
+      session.engine.setParticipants([
+        localParticipant(camera: true),
+        remoteParticipant(),
+      ]);
+      await harness.settle();
+      expect(harness.pictureInPictureEligible, isFalse);
+      expect(harness.pictureInPictureVideo, (streamId: null, ownerTag: null));
+      await harness.close();
+    });
+
+    testWidgets('an ended call takes back the video it offered', (
+      tester,
+    ) async {
+      final harness = CallPageHarness(tester);
+      final session = await talking(harness, CallKind.video);
+      session.engine.setParticipants([
+        localParticipant(),
+        remoteParticipant(camera: true),
+      ]);
+      await harness.settle();
+      expect(harness.pictureInPictureVideo?.streamId, '@ann:example.org-video');
+
+      session.end();
+      await harness.settle();
+
+      expect(harness.pictureInPictureEligible, isFalse);
+      expect(harness.pictureInPictureVideo, (streamId: null, ownerTag: null));
+    });
+
     testWidgets('someone leaving releases their video renderer', (
       tester,
     ) async {

@@ -1,0 +1,119 @@
+package im.zuno.chat
+
+import android.content.Context
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
+import android.util.Rational
+import io.flutter.embedding.engine.FlutterEngine
+
+class HostState(context: Context) {
+    private val powerManager = context.applicationContext.getSystemService(
+        Context.POWER_SERVICE,
+    ) as PowerManager
+    var preventScreenshots = false
+    var showOverLockscreen = false
+    var pipEligible = false
+    var pipAspect = Rational(3, 4)
+    var pipCamera = false
+    private var proximityWakeLock: PowerManager.WakeLock? = null
+    private var ringbackTone: ToneGenerator? = null
+
+    fun setProximityScreenOff(enabled: Boolean) {
+        if (!enabled) {
+            proximityWakeLock?.let { if (it.isHeld) it.release() }
+            proximityWakeLock = null
+            return
+        }
+        if (proximityWakeLock?.isHeld == true) return
+        val level = PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK
+        if (!powerManager.isWakeLockLevelSupported(level)) return
+        proximityWakeLock = powerManager
+            .newWakeLock(level, PROXIMITY_WAKE_LOCK_TAG)
+            .apply { acquire() }
+    }
+
+    fun startRingbackTone() {
+        stopRingbackTone()
+        try {
+            val generator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 80)
+            generator.startTone(ToneGenerator.TONE_SUP_RINGTONE)
+            ringbackTone = generator
+        } catch (error: RuntimeException) {
+            ringbackTone = null
+        }
+    }
+
+    fun stopRingbackTone() {
+        ringbackTone?.let {
+            it.stopTone()
+            it.release()
+        }
+        ringbackTone = null
+    }
+
+    fun release() {
+        setProximityScreenOff(false)
+        stopRingbackTone()
+    }
+
+    private companion object {
+        const val PROXIMITY_WAKE_LOCK_TAG = "zuno:call_proximity"
+    }
+}
+
+object KeptEngine {
+    class Kept(
+        val engine: FlutterEngine,
+        val fcmEngineId: Int?,
+        val network: NetworkAvailabilityStreamHandler?,
+        val host: HostState,
+    ) {
+        fun releaseHost() {
+            ZunoPushService.appEngineAlive = false
+            fcmEngineId?.let { FcmRouter.detachApp(it) }
+            MainActivity.callsChannel = null
+            network?.stop()
+            host.release()
+        }
+    }
+
+    private const val RELEASE_GRACE_MS = 5_000L
+    private val main = Handler(Looper.getMainLooper())
+    private val releaseLater = Runnable { release() }
+    private var kept: Kept? = null
+
+    var callActive = false
+        private set
+
+    fun callStarted() {
+        callActive = true
+        main.removeCallbacks(releaseLater)
+    }
+
+    fun callEnded() {
+        callActive = false
+        if (kept == null) return
+        main.removeCallbacks(releaseLater)
+        main.postDelayed(releaseLater, RELEASE_GRACE_MS)
+    }
+
+    fun keep(engine: Kept) {
+        kept = engine
+    }
+
+    fun adopt(): Kept? {
+        main.removeCallbacks(releaseLater)
+        return kept.also { kept = null }
+    }
+
+    private fun release() {
+        val released = kept ?: return
+        kept = null
+        released.releaseHost()
+        PlaceholderVideo.releaseAll()
+        released.engine.destroy()
+    }
+}

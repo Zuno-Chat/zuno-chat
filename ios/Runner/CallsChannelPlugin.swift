@@ -13,11 +13,20 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
   private var inactive = Set<ObjectIdentifier>()
   private var covers: [ObjectIdentifier: (window: UIWindow, notice: UILabel)] = [:]
   private let proximity = ProximityScreen()
+  private let pictureInPicture: CallPictureInPicture
   private var calls: CallKitCenter { CallKitCenter.shared }
+
+  private init(registrar: FlutterPluginRegistrar) {
+    pictureInPicture = CallPictureInPicture { [weak registrar] in registrar?.viewController?.view }
+    super.init()
+  }
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(name: "zuno/calls", binaryMessenger: registrar.messenger())
-    let plugin = CallsChannelPlugin()
+    let plugin = CallsChannelPlugin(registrar: registrar)
+    plugin.pictureInPicture.onCameraLive = { [weak channel] live in
+      channel?.invokeMethod("pictureInPictureCameraChanged", arguments: live)
+    }
     registrar.addMethodCallDelegate(plugin, channel: channel)
     registrar.publish(plugin)
     plugin.observeScenes()
@@ -26,6 +35,7 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
 
   func detachFromEngine(for registrar: FlutterPluginRegistrar) {
     proximity.release()
+    pictureInPicture.end()
     calls.detach()
   }
 
@@ -62,6 +72,9 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
     case "setProximityScreenOff":
       proximity.set(args?["enabled"] as? Bool == true)
       result(nil)
+    case "setPictureInPicture":
+      pictureInPicture.update(PictureInPictureRequest(arguments: args))
+      result(nil)
     case "openNotificationSettings":
       openNotificationSettings()
       result(nil)
@@ -87,6 +100,7 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
       result(calls.takeEvents())
     case "resetSystemCalls":
       proximity.set(false)
+      pictureInPicture.end()
       calls.resetForNewDart()
       result(nil)
     case "armCallAudio":
@@ -231,9 +245,12 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
   }
 
   private func updateAllScenes() {
+    var captured = false
     for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
       update(scene)
+      captured = captured || scene.screen.isCaptured
     }
+    pictureInPicture.setConcealed(hidesContent && captured)
   }
 
   private func update(_ scene: UIWindowScene) {

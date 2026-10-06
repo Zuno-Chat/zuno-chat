@@ -77,7 +77,8 @@ class _CallPageState extends ConsumerState<CallPage> {
   DateTime? _talkingSince;
   Timer? _confirmPromptTimer;
   bool _talkedLongEnough = false;
-  ({bool eligible, int width, int height})? _sentPictureInPicture;
+  ({bool eligible, int width, int height, String? streamId, String? ownerTag})?
+  _sentPictureInPicture;
   bool? _sentProximityScreenOff;
 
   @override
@@ -109,10 +110,14 @@ class _CallPageState extends ConsumerState<CallPage> {
       renderer?.videoWidth ?? 0,
       renderer?.videoHeight ?? 0,
     );
+    final eligible = remote != null && !_finished;
+    final video = eligible ? remote.videoStream : null;
     final next = (
-      eligible: remote != null && !_finished,
+      eligible: eligible,
       width: aspect.width,
       height: aspect.height,
+      streamId: video?.id,
+      ownerTag: video?.ownerTag,
     );
     if (next == _sentPictureInPicture) return;
     _sentPictureInPicture = next;
@@ -121,6 +126,8 @@ class _CallPageState extends ConsumerState<CallPage> {
         eligible: next.eligible,
         aspectWidth: next.width,
         aspectHeight: next.height,
+        streamId: next.streamId,
+        ownerTag: next.ownerTag,
       ),
     );
   }

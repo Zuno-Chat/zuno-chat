@@ -187,7 +187,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         apnsRegistration: true,
         nativeIncomingRingUi: false,
         callKit: true,
-        pictureInPicture: false,
+        pictureInPicture: true,
         playerNeedsMediaType: true,
         videoCodecOrder: null,
         recorderWritesOgg: false,

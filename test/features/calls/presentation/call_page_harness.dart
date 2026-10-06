@@ -187,6 +187,15 @@ class CallPageHarness {
   bool? get pictureInPictureEligible =>
       (argsOf('setPictureInPicture').lastOrNull as Map?)?['eligible'] as bool?;
 
+  ({String? streamId, String? ownerTag})? get pictureInPictureVideo {
+    final args = argsOf('setPictureInPicture').lastOrNull as Map?;
+    if (args == null) return null;
+    return (
+      streamId: args['streamId'] as String?,
+      ownerTag: args['ownerTag'] as String?,
+    );
+  }
+
   String? get audioRoute {
     for (final call in webrtc.reversed) {
       final args = call.arguments as Map?;

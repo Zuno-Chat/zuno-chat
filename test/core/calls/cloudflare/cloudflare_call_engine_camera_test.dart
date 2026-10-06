@@ -198,16 +198,68 @@ void main() {
       }, capabilities: iosCapabilities);
     });
 
-    test('where the camera keeps running in the background, nothing '
-        'changes', () {
+    test('where the camera would keep running in the background, the '
+        'placeholder covers it, the camera stops and comes back with the '
+        'app', () {
       inCall((call) {
         call.joinEncrypted();
+        final cameraStream = call.local.videoStream! as FakeMediaStream;
+        final changes = call.localStateChanges;
 
         call.wait(call.engine.setAppInBackground(true));
 
+        expect(call.videoSlot.sender.track, placeholderOf(call));
+        expect(cameraStream.disposed, isTrue);
+        expect(call.local.videoEnabled, isTrue);
+        expect(call.local.videoStream, isNull);
+        expect(call.engine.localFociInfo?['videoEnabled'], isFalse);
+        expect(call.localStateChanges, greaterThan(changes));
+
+        call.wait(call.engine.setAppInBackground(false));
+
         expect(call.videoSlot.sender.track, same(call.camera));
-        expect(call.backend.placeholders, isEmpty);
+        expect(call.backend.captures, hasLength(2));
+        expect(call.backend.releasedPlaceholders, call.backend.placeholders);
         expect(call.engine.localFociInfo?['videoEnabled'], isTrue);
+      }, capabilities: androidCapabilities);
+    });
+
+    test('a video call joined in the background where the camera would keep '
+        'running never leaves it on', () {
+      inCall((call) {
+        call.wait(call.engine.setAppInBackground(true));
+        call.joinEncrypted();
+
+        expect(call.videoSlot.sender.track, placeholderOf(call));
+        expect(call.local.videoStream, isNull);
+        expect(
+          call.backend.streams.where((s) => s.id == 'local_video'),
+          everyElement(
+            isA<FakeMediaStream>().having((s) => s.disposed, 'disposed', true),
+          ),
+        );
+        expect(call.engine.localFociInfo?['videoEnabled'], isFalse);
+
+        call.wait(call.engine.setAppInBackground(false));
+
+        expect(call.videoSlot.sender.track, same(call.camera));
+        expect(call.engine.localFociInfo?['videoEnabled'], isTrue);
+      }, capabilities: androidCapabilities);
+    });
+
+    test('where the camera would keep running, a camera that was off stays '
+        'off when the app returns', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.wait(call.engine.setCameraEnabled(false));
+
+        call.wait(call.engine.setAppInBackground(true));
+        call.wait(call.engine.setAppInBackground(false));
+
+        expect(call.videoSlot.sender.track, placeholderOf(call));
+        expect(call.backend.captures, hasLength(1));
+        expect(call.local.videoEnabled, isFalse);
+        expect(call.engine.localFociInfo?['videoEnabled'], isFalse);
       }, capabilities: androidCapabilities);
     });
 

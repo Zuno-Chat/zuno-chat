@@ -265,6 +265,7 @@ class CallNotificationService {
   final _audioRouteController =
       StreamController<Map<Object?, Object?>>.broadcast();
   final inPictureInPicture = ValueNotifier<bool>(false);
+  final pictureInPictureCamera = ValueNotifier<bool>(false);
 
   Stream<CallNotificationResponse> get onAction => _actionController.stream;
   Stream<String> get onMessageTap => _messageTapController.stream;
@@ -580,6 +581,8 @@ class CallNotificationService {
         _hangUpController.add(_callIdFrom(arguments));
       case 'pictureInPictureChanged':
         inPictureInPicture.value = arguments == true;
+      case 'pictureInPictureCameraChanged':
+        pictureInPictureCamera.value = arguments == true;
       case 'answerCall':
         _deliverNativeCallAction(CallNotificationAction.accept, arguments);
       case 'declineCall':
@@ -1221,11 +1224,15 @@ class CallNotificationService {
     required bool eligible,
     required int aspectWidth,
     required int aspectHeight,
+    String? streamId,
+    String? ownerTag,
   }) => _capabilities.pictureInPicture
       ? _invoke('setPictureInPicture', {
           'eligible': eligible,
           'aspectWidth': aspectWidth,
           'aspectHeight': aspectHeight,
+          'streamId': ?streamId,
+          'ownerTag': ?ownerTag,
         })
       : Future.value();
 

@@ -1,8 +1,6 @@
 package im.zuno.chat
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CallHangUpDecisionTest {
@@ -45,20 +43,5 @@ class CallHangUpDecisionTest {
             CallHangUpAction.Ignore,
             CallHangUpDecision.decide(action = null, appEngineAlive = true),
         )
-    }
-
-    @Test
-    fun `hangs up when the host is destroyed mid-call`() {
-        assertTrue(CallHangUpDecision.onHostDestroyed(callActive = true, hangUpRequested = false))
-    }
-
-    @Test
-    fun `does not hang up twice when picture-in-picture close already asked`() {
-        assertFalse(CallHangUpDecision.onHostDestroyed(callActive = true, hangUpRequested = true))
-    }
-
-    @Test
-    fun `does nothing when no call is active`() {
-        assertFalse(CallHangUpDecision.onHostDestroyed(callActive = false, hangUpRequested = false))
     }
 }

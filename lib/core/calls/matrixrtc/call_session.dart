@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show ValueListenable, debugPrint, visibleForTesting;
 import 'package:flutter/widgets.dart'
     show AppLifecycleListener, AppLifecycleState, WidgetsBinding;
 import 'package:http/http.dart' as http;
@@ -20,6 +21,7 @@ import '../cloudflare/cloudflare_call_engine.dart';
 import '../models/call_engine_status.dart';
 import '../models/call_kind.dart';
 import '../models/voip_participant_id.dart';
+import '../notifications/call_notification_service.dart';
 import 'active_room_call.dart';
 import 'call_decline.dart';
 import 'call_encryption_key_event.dart';
@@ -109,6 +111,7 @@ class CallSession {
   final Duration ringTimeout;
   final Duration membershipRefreshInterval;
   final http.Client? callsHttpClient;
+  final ValueListenable<bool> _pictureInPictureCamera;
 
   CallSession._({
     required this.room,
@@ -124,7 +127,10 @@ class CallSession {
     this.ringTimeout = _ringTimeout,
     this.membershipRefreshInterval = _membershipRefreshInterval,
     this.callsHttpClient,
-  });
+    ValueListenable<bool>? pictureInPictureCamera,
+  }) : _pictureInPictureCamera =
+           pictureInPictureCamera ??
+           CallNotificationService.instance.pictureInPictureCamera;
 
   void _setPhase(CallSessionPhase phase) {
     _phase = phase;
@@ -154,6 +160,7 @@ class CallSession {
     @visibleForTesting Duration? ringTimeout,
     @visibleForTesting Duration? membershipRefreshInterval,
     @visibleForTesting http.Client? callsHttpClient,
+    @visibleForTesting ValueListenable<bool>? pictureInPictureCamera,
   }) {
     final session = CallSession._(
       room: room,
@@ -170,6 +177,7 @@ class CallSession {
       membershipRefreshInterval:
           membershipRefreshInterval ?? _membershipRefreshInterval,
       callsHttpClient: callsHttpClient,
+      pictureInPictureCamera: pictureInPictureCamera,
     );
     session._encryptionKey = _generateCallKey();
     session._listenForDecline();
@@ -237,6 +245,7 @@ class CallSession {
     @visibleForTesting Duration? remoteLeftConfirmDelay,
     @visibleForTesting Duration? membershipRefreshInterval,
     @visibleForTesting http.Client? callsHttpClient,
+    @visibleForTesting ValueListenable<bool>? pictureInPictureCamera,
   }) {
     return CallSession._(
       room: room,
@@ -252,6 +261,7 @@ class CallSession {
       membershipRefreshInterval:
           membershipRefreshInterval ?? _membershipRefreshInterval,
       callsHttpClient: callsHttpClient,
+      pictureInPictureCamera: pictureInPictureCamera,
     ).._encryptionKey = initialEncryptionKeyForTesting;
   }
 
@@ -403,6 +413,7 @@ class CallSession {
   bool _engineTornDown = false;
 
   AppLifecycleListener? _lifecycleListener;
+  void Function()? _pictureInPictureListener;
   bool? _engineInBackground;
 
   Future<void> _followAppLifecycle(CallEngine engine) async {
@@ -422,19 +433,29 @@ class CallSession {
       );
     }
 
+    var appHidden = hidden(WidgetsBinding.instance.lifecycleState);
+    bool inBackground() => appHidden && !_pictureInPictureCamera.value;
+
     _stopFollowingAppLifecycle();
     _lifecycleListener = AppLifecycleListener(
       onStateChange: (state) {
         if (state == AppLifecycleState.inactive) return;
-        unawaited(tell(hidden(state)));
+        appHidden = hidden(state);
+        unawaited(tell(inBackground()));
       },
     );
-    await tell(hidden(WidgetsBinding.instance.lifecycleState));
+    void onPictureInPicture() => unawaited(tell(inBackground()));
+    _pictureInPictureListener = onPictureInPicture;
+    _pictureInPictureCamera.addListener(onPictureInPicture);
+    await tell(inBackground());
   }
 
   void _stopFollowingAppLifecycle() {
     _lifecycleListener?.dispose();
     _lifecycleListener = null;
+    final listener = _pictureInPictureListener;
+    if (listener != null) _pictureInPictureCamera.removeListener(listener);
+    _pictureInPictureListener = null;
   }
 
   Future<bool> _abandonEngineIfEnded(CallEngine engine) async {

@@ -581,15 +581,20 @@ instead, so a stale notification can't outlive its call.
   - a voice call;
   - camera off, where the camera itself stops, light included, and
     restarts on the last-used side when turned back on;
-  - on iOS, the app in the background (`cameraStopsInBackground`). iOS
-    stops the camera there; the camera track is kept, `videoEnabled`
-    reads false meanwhile, and the camera returns with the app.
-    `CallSession` reports the app state through `setAppInBackground`
-    for the life of the call: hidden, paused or detached means
-    background, resumed means foreground, and `inactive` is ignored. It
-    starts from the state at join, so a call answered from the lock
-    screen starts on the placeholder. Android ignores it, so
-    picture-in-picture keeps sending the camera.
+  - the app in the background, on both platforms. `videoEnabled` reads
+    false meanwhile, and the camera returns with the app on the side it
+    was on. Where the OS stops the camera itself
+    (`cameraStopsInBackground`, iOS), the engine keeps the track. Where
+    it does not (Android), `_pauseCamera` also releases the camera, so
+    its indicator goes off, and `_cameraOn` restarts it.
+    `CallSession` reports the app state through `setAppInBackground` for
+    the life of the call. Background means the lifecycle is hidden,
+    paused or detached *and* no picture-in-picture window keeps the
+    camera (`pictureInPictureCamera`, picture-in-picture below);
+    `inactive` is ignored. It starts from the state at join. A call
+    answered on the iPhone's lock screen starts on the placeholder, since
+    CallKit shows there, not the app. A call showing over Android's lock
+    screen has its activity resumed, so its camera runs.
 
   Every swap is `sender.replaceTrack`, so the client never sends a second
   offer during a call. That is deliberate. A local re-offer while a
@@ -638,13 +643,13 @@ instead, so a stale notification can't outlive its call.
   pauses `/sync`).
 - **Voice calls turn the screen off at the ear** with the system dialer's
   own mechanism, no sensor plumbing in Dart: Android's
-  `PROXIMITY_SCREEN_OFF_WAKE_LOCK` (`MainActivity.setProximityScreenOff`),
+  `PROXIMITY_SCREEN_OFF_WAKE_LOCK` (`HostState.setProximityScreenOff`),
   iOS proximity monitoring (`ProximityScreen`, off only once the sensor
   clears). `call_proximity.dart` decides: wanted only for a voice call on
   the earpiece (not speaker or a headset, as the dialer does) and not
   finished (ringing counts). `CallPage` syncs it on init, every route
-  change, voice→video and finish; native also releases it with the engine
-  and the Android activity.
+  change, voice→video and finish; native also releases it with the
+  engine.
 - **The audio route is earpiece, speaker, wired headset or Bluetooth**
   (`call_audio_route.dart`, pure). A call starts on a connected headset
   (Bluetooth first), else the earpiece for voice and the speaker for
@@ -666,22 +671,65 @@ instead, so a stale notification can't outlive its call.
   (`audioRouteChanged`), so the in-app button follows CallKit's own
   speaker button. Native picks the starting route; Dart applies only taps
   and headset changes (CallKit decisions below).
-- **Picture-in-picture follows the other side's camera only.** Android
-  system PiP (`MainActivity.kt`, `supportsPictureInPicture` in the
-  manifest) is eligible while any *remote* participant has video on; the
-  local camera never matters, since the window exists to keep watching
-  them. `CallPage` pushes eligibility plus the remote frame's aspect
-  ratio (`call_picture_in_picture.dart`: 3:4 until the first frame,
-  clamped to Android's 2.39:1 limit) over `zuno/calls` on every
-  participant or frame-size change; native keeps `PictureInPictureParams`
-  current so Android 12+ auto-enters on leave and Android 8–11 enter from
-  `onUserLeaveHint` (`PictureInPictureDecision.entryMode`). In PiP the
-  page renders one full-bleed remote tile, no controls. When the last
-  remote camera goes off, or the call ends, native hides the window with
-  `moveTaskToBack(false)` and the call carries on behind the ongoing
-  notification. The window's Hang up action reuses the notification's
-  `CallActionReceiver` broadcast. iOS has no PiP: `pictureInPicture` is
-  off there, so `setPictureInPicture` is never sent.
+- **Picture-in-picture follows the other side's camera only**, on both
+  platforms. It is eligible while any *remote* participant has video on;
+  the local camera never matters, since the window exists to keep
+  watching them. Dart picks the person (`pictureInPictureRemote`,
+  `call_picture_in_picture.dart`). `CallPage` sends `setPictureInPicture`
+  over `zuno/calls` on every participant or frame-size change: the
+  eligibility, the remote frame's aspect ratio (3:4 until the first
+  frame, clamped to Android's 2.39:1 limit) and, only while eligible, the
+  `streamId`/`ownerTag` of that person's video stream. Android ignores
+  the two stream keys; iOS ignores the aspect and sizes the window from
+  the frames.
+  - **Android** (`MainActivity.kt`, `supportsPictureInPicture` in the
+    manifest): native keeps `PictureInPictureParams` current so Android
+    12+ auto-enters on leave and Android 8–11 enter from
+    `onUserLeaveHint` (`PictureInPictureDecision.entryMode`). Native
+    reports the mode as `pictureInPictureChanged`, and in PiP the page
+    renders one full-bleed remote tile, no controls. When the last
+    remote camera goes off, or the call ends, native hides the window
+    with `moveTaskToBack(false)` and the call carries on behind the
+    ongoing notification. The window's Hang up action reuses the
+    notification's `CallActionReceiver` broadcast. Closing the window
+    leaves the call running (the engine outlives the activity, Gotchas).
+  - **iOS** (`CallPictureInPicture.swift`, owned by
+    `CallsChannelPlugin`): AVKit's video-call PiP
+    (`AVPictureInPictureVideoCallViewController`, the Flutter view as
+    `activeVideoCallSourceView`) starts on its own when the app leaves.
+    Native resolves the stream to its `RTCVideoTrack` the way
+    flutter_webrtc's `videoRendererSetSrcObject` does, and renders it
+    through `AVSampleBufferDisplayLayer.sampleBufferRenderer`. Why: the
+    system draws that layer, so it keeps playing in the background, where
+    the app cannot use the GPU. iOS never sends `pictureInPictureChanged`,
+    so the Flutter PiP layout stays Android-only.
+    - Frames pass at 2 per second before the window opens (a warm frame
+      for the start animation) and all pass while it is open.
+      Decoder-format frames go through uncopied; I420 is converted to
+      NV12 from a pixel-buffer pool.
+    - The window's size follows the video's rotated shape (long side
+      640), not its resolution.
+    - An eligible call whose stream is briefly missing (a reconnect
+      resets streams) holds the window instead of closing it: auto-start
+      can reopen it only on the next trip to the background.
+    - With "Hide screen content" on (`setPreventScreenshots`), a recorded
+      or mirrored screen hides the window's video.
+- **A visible picture-in-picture window keeps the camera sending.**
+  Native reports it as `pictureInPictureCameraChanged` on `zuno/calls`
+  (`CallNotificationService.pictureInPictureCamera`), which keeps
+  `CallSession` from counting the app as in the background (black
+  placeholder above):
+  - iOS: the window is showing and the capture session is not
+    interrupted. Native turns on `isMultitaskingCameraAccessEnabled`
+    (allowed without an entitlement for `voip` apps linked on iOS 18+)
+    through KVO on `FlutterWebRTCPlugin.videoCapturer`, before the
+    session starts running. It follows `AVCaptureSession` interruptions:
+    a stashed window or a locked device interrupts the camera, so the
+    placeholder returns.
+  - Android: in PiP mode and the activity started
+    (`PictureInPictureDecision.keepsCamera`). Flutter sends no lifecycle
+    state on `onStart`, so without it a window back after unlock would
+    stay on the placeholder.
 - **Adaptive call quality** (`CloudflareCallEngine`, `getStats()` every
   3s) classifies this device's own connection with separate enter/exit
   thresholds and streak counts, so one bad sample can't flap the tier
@@ -818,7 +866,8 @@ instead, so a stale notification can't outlive its call.
   | An in-process 60 s timer | A live process |
 
 - **Ringback is a native `ToneGenerator` on `STREAM_VOICE_CALL`**
-  (`AndroidRingbackTonePlayer` → `MainActivity.kt`), not a bundled asset —
+  (`AndroidRingbackTonePlayer` → `HostState` in `KeptEngine.kt`), not a
+  bundled asset —
   it needs to ride the call's own audio
   stream so it follows earpiece/speaker routing and in-call volume for
   free, without touching global audio state or requiring audio focus.
@@ -940,19 +989,36 @@ instead, so a stale notification can't outlive its call.
   the "diff before/after" approach for detecting new transceivers misses
   it permanently. Requires explicitly adopting whatever's already on
   `receiver.track` rather than waiting for a callback that already fired.
-- **Any activity destroy mid-call — the PiP window's X, swiping the
-  task away, a system kill — would take the Flutter engine, and the
-  call, with it.** `MainActivity.onDestroy` sends `hangUpCall` to Dart
-  while a call is active (`CallHangUpDecision.onHostDestroyed`; "active"
-  is tracked from the foreground-service start/stop channel calls), as
-  does `onPictureInPictureModeChanged(false)` while only `CREATED` when
-  the app did not hide the window itself (`PictureInPictureDecision.onLeft`,
-  the user closing it). `shouldDestroyEngineWithHost` then defers
-  `engine.destroy()` by 5 s so membership clear, `leave()` and the summary
-  get out first, and stops `CallForegroundService` natively when that
-  grace ends so its notification can't outlive the engine. Keeping the
-  call alive across a destroy would need engine caching across activity
-  restarts, which is not built.
+- **During a call the Android engine outlives its activity.** The PiP
+  window's X or swiping the task away destroys the activity, which would
+  take the engine, and the call, with it. `MainActivity` hands the engine
+  to `KeptEngine` instead of destroying it (`HostEngineDecision.onHostDetached`:
+  keep during a call, destroy an adopted engine with no call, default
+  otherwise; "during a call" follows the foreground-service start/stop
+  channel calls). The call carries on behind `CallForegroundService`. A
+  system kill still ends it.
+  - `appEngineAlive`, the `FcmRouter` slot, the static `zuno/calls`
+    channel and the network stream handler stay with the engine, so
+    pushes and the ongoing notification's Hang up reach the live call and
+    no headless second client starts.
+  - The next `MainActivity` adopts it through `provideFlutterEngine`
+    (`FcmRouter.rebindApp`, the same network handler), re-applies the
+    engine's `HostState` (FLAG_SECURE, show over lock screen, PiP params)
+    and delivers its launch intent the way `onNewIntent` does.
+  - Call state Dart sets once lives in `HostState`, per engine, not per
+    activity: proximity wake lock, ringback, PiP eligibility and aspect,
+    prevent screenshots, show over lock screen. Why: Dart never re-sends
+    it, and a destroyed activity must not be what holds the wake lock or
+    the tone.
+  - A kept engine whose call ends is destroyed 5 s later, so the summary
+    gets out; adopting it cancels that.
+  - `shouldDestroyEngineWithHost` must stay side-effect free: Flutter
+    calls it more than once and asserts when another activity attaches.
+- **iOS closes the picture-in-picture window by setting the
+  controller's `contentSource` to nil.** `stopPictureInPicture()` is
+  ignored while the app is in the background, so after camera-off or
+  hang-up the window would stay up, black or frozen (device-checked).
+  `stopPictureInPicture()` runs only once the scene is active again.
 - **"Everyone left" needs two consecutive empty membership passes, the
   second on a 2 s timer** (`remoteLeftConfirmDelay`). A remote's republish
   once read back as empty for a single sync tick and hung up a live call,
@@ -1123,10 +1189,14 @@ instead, so a stale notification can't outlive its call.
   `flutter_test_config.dart` resets `SystemRing`, the presenter's ring
   memory and every `KeyedSerialLock` after each test. Native decisions have
   XCTests (`ios/RunnerTests/`: `RingDecisionTests`, `PushRingHandlerTests`,
-  `CallKitCenterPushTests` among them) and JUnit tests
-  (`IncomingRingDecisionsTest`, over `RingDecisions`). The VoIP blob,
-  CallKit UUID and opaque-id vectors (`test/fixtures/push/`) run in Dart and
-  Swift, and the `zuno_push` module must pass the same files: change them
+  `CallKitCenterPushTests`, `CallPictureInPictureTests` among them) and
+  JUnit tests (`IncomingRingDecisionsTest`, over `RingDecisions`;
+  `PictureInPictureDecisionTest`; `HostEngineDecisionTest`, the kept
+  engine). `CallSession` takes an injectable `pictureInPictureCamera`, so
+  a test drives the picture-in-picture camera without the channel. The
+  VoIP blob, CallKit UUID and opaque-id vectors (`test/fixtures/push/`)
+  run in Dart and Swift, and the `zuno_push` module must pass the same
+  files: change them
   on both sides together. On a device, `tool/push_test/apns_send.swift`
   sends a sealed VoIP push or an alert straight to APNs, with the values
   from Push target's development card (reached from Diagnostics).

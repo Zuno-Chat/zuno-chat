@@ -23,6 +23,13 @@ void main() {
     ),
   );
 
+  Future<void> pumpUntilShown(WidgetTester tester) => pumpWhileFetching(
+    tester,
+    rounds: 500,
+    until: () =>
+        find.text('${server.served.length} bytes').evaluate().isNotEmpty,
+  );
+
   testWidgets('an image already in memory shows at once', (tester) async {
     final event = server.attachment();
     AttachmentCache.instance.put(
@@ -44,7 +51,7 @@ void main() {
     await pumpImage(tester, event);
     expect(find.text('loading'), findsOneWidget);
 
-    await pumpWhileFetching(tester);
+    await pumpUntilShown(tester);
     await tester.pump();
 
     expect(find.text('${server.served.length} bytes'), findsOneWidget);
@@ -112,7 +119,7 @@ void main() {
       tester,
     ) async {
       await pumpThumbnail(tester, video(thumbnailId: 'clip-thumb'));
-      await pumpWhileFetching(tester);
+      await pumpUntilShown(tester);
       await tester.pump();
 
       expect(find.text('${server.served.length} bytes'), findsOneWidget);
@@ -123,7 +130,7 @@ void main() {
       tester,
     ) async {
       await pumpThumbnail(tester, server.attachment());
-      await pumpWhileFetching(tester);
+      await pumpUntilShown(tester);
       await tester.pump();
 
       expect(find.text('${server.served.length} bytes'), findsOneWidget);

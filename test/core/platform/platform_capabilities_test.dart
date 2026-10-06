@@ -253,7 +253,7 @@ final _capabilities = <_Capability>[
     'pictureInPicture',
     read: (c) => c.pictureInPicture,
     android: true,
-    ios: false,
+    ios: true,
   ),
   _Capability(
     'pushDiagnostics',

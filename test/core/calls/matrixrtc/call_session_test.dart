@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
@@ -848,13 +849,18 @@ void main() {
     setUp(() => moveLifecycleTo(binding, AppLifecycleState.resumed));
     tearDown(() => moveLifecycleTo(binding, AppLifecycleState.resumed));
 
-    CallSession answering(String callId, FakeCallEngine engine) {
+    CallSession answering(
+      String callId,
+      FakeCallEngine engine, {
+      ValueListenable<bool>? pictureInPictureCamera,
+    }) {
       final session = CallSession.forIncoming(
         room: room,
         callId: callId,
         kind: CallKind.video,
         engineBuilder: () async => engine,
         initialEncryptionKeyForTesting: testKey(),
+        pictureInPictureCamera: pictureInPictureCamera,
       );
       addTearDown(session.dispose);
       return session;
@@ -873,16 +879,19 @@ void main() {
       expect(engine.appInBackgroundRequests, [false, true, false]);
     });
 
-    test('a call answered in the background starts in the background', () async {
-      moveLifecycleTo(binding, AppLifecycleState.paused);
-      final engine = FakeCallEngine();
-      final session = answering('call-hidden-at-join', engine);
+    test(
+      'a call answered in the background starts in the background',
+      () async {
+        moveLifecycleTo(binding, AppLifecycleState.paused);
+        final engine = FakeCallEngine();
+        final session = answering('call-hidden-at-join', engine);
 
-      await session.accept();
-      await pumpEventQueue();
+        await session.accept();
+        await pumpEventQueue();
 
-      expect(engine.appInBackgroundRequests, [true]);
-    });
+        expect(engine.appInBackgroundRequests, [true]);
+      },
+    );
 
     test('once the call ends, the engine hears nothing more', () async {
       final engine = FakeCallEngine();
@@ -892,6 +901,68 @@ void main() {
 
       await session.hangUp(summarized: true);
       moveLifecycleTo(binding, AppLifecycleState.paused);
+
+      expect(engine.appInBackgroundRequests, [false]);
+    });
+
+    test(
+      'a picture-in-picture window that can use the camera keeps it while '
+      'the app is hidden, and losing it brings the placeholder back',
+      () async {
+        final pictureInPicture = ValueNotifier(false);
+        final engine = FakeCallEngine();
+        final session = answering(
+          'call-pip-camera',
+          engine,
+          pictureInPictureCamera: pictureInPicture,
+        );
+        await session.accept();
+        await pumpEventQueue();
+
+        pictureInPicture.value = true;
+        moveLifecycleTo(binding, AppLifecycleState.paused);
+        pictureInPicture.value = false;
+        pictureInPicture.value = true;
+        moveLifecycleTo(binding, AppLifecycleState.resumed);
+        pictureInPicture.value = false;
+
+        expect(engine.appInBackgroundRequests, [false, true, false]);
+      },
+    );
+
+    test('a call answered in the background follows the window from the '
+        'start', () async {
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      final pictureInPicture = ValueNotifier(false);
+      final engine = FakeCallEngine();
+      final session = answering(
+        'call-pip-none',
+        engine,
+        pictureInPictureCamera: pictureInPicture,
+      );
+
+      await session.accept();
+      await pumpEventQueue();
+      pictureInPicture.value = true;
+      pictureInPicture.value = false;
+
+      expect(engine.appInBackgroundRequests, [true, false, true]);
+    });
+
+    test('once the call ends, the window changes nothing', () async {
+      final pictureInPicture = ValueNotifier(false);
+      final engine = FakeCallEngine();
+      final session = answering(
+        'call-pip-ended',
+        engine,
+        pictureInPictureCamera: pictureInPicture,
+      );
+      await session.accept();
+      await pumpEventQueue();
+
+      await session.hangUp(summarized: true);
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      pictureInPicture.value = true;
 
       expect(engine.appInBackgroundRequests, [false]);
     });
