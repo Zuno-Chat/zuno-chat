@@ -739,7 +739,11 @@ instead, so a stale notification can't outlive its call.
   packet isn't "weak". Each incoming stream counts from its second sample
   (`StatsCounters.streams`). Before that, a freshly pulled stream's whole
   start-up landed in one window, and calls opened with a false "Weak
-  connection":
+  connection". RTT comes only from the transport's selected candidate
+  pair (`selectedCandidatePairId`, else the nominated succeeded pair).
+  For about 30 s after connecting, unused TURN relay pairs keep stale
+  RTTs (up to 420 ms) until pruned. Reading any succeeded pair also
+  opened calls "weak", and the other side then cut its video to match:
 
   | Tier | Enter (loss or RTT) | Exit (loss and RTT) |
   |---|---|---|

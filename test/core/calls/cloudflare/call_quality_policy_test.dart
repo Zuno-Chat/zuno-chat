@@ -276,6 +276,46 @@ void main() {
       },
     );
 
+    StatsReport succeededPair(
+      String id,
+      double rttSeconds, {
+      bool nominated = true,
+    }) => StatsReport(id, 'candidate-pair', 0, {
+      'state': 'succeeded',
+      'nominated': nominated,
+      'currentRoundTripTime': rttSeconds,
+    });
+    StatsReport transport(String selectedPairId) => StatsReport(
+      'transport',
+      'transport',
+      0,
+      {'selectedCandidatePairId': selectedPairId},
+    );
+
+    test('reads RTT from the selected pair, not a stale relay after it', () {
+      final counters = StatsCounters.fromReports([
+        transport('wifi'),
+        succeededPair('wifi', 0.016),
+        succeededPair('relay', 0.420, nominated: false),
+      ]);
+      expect(counters.rttMs, 16);
+    });
+
+    test('without a transport report, reads the nominated pair', () {
+      final counters = StatsCounters.fromReports([
+        succeededPair('wifi', 0.020),
+        succeededPair('relay', 0.420, nominated: false),
+      ]);
+      expect(counters.rttMs, 20);
+    });
+
+    test('a succeeded pair nobody selected or nominated gives no RTT', () {
+      final counters = StatsCounters.fromReports([
+        succeededPair('relay', 0.420, nominated: false),
+      ]);
+      expect(counters.rttMs, isNull);
+    });
+
     StatsCounters counters(int lost, int received, {double? rttMs}) =>
         StatsCounters(
           streams: {'in': (lost: lost, received: received)},

@@ -31,24 +31,39 @@ class StatsCounters {
 
   factory StatsCounters.fromReports(Iterable<StatsReport> reports) {
     final streams = <String, StreamCounters>{};
-    double? rttMs;
+    final pairs = <String, StatsReport>{};
+    String? selectedPairId;
     for (final report in reports) {
-      if (report.type == 'inbound-rtp') {
-        final lost = report.values['packetsLost'];
-        final received = report.values['packetsReceived'];
-        streams[report.id] = (
-          lost: lost is num ? lost.toInt() : 0,
-          received: received is num ? received.toInt() : 0,
-        );
-      } else if (report.type == 'candidate-pair' &&
-          (report.values['state'] == 'succeeded' ||
-              report.values['nominated'] == true)) {
-        if (report.values['currentRoundTripTime'] case final num seconds) {
-          rttMs = seconds * 1000;
-        }
+      switch (report.type) {
+        case 'inbound-rtp':
+          final lost = report.values['packetsLost'];
+          final received = report.values['packetsReceived'];
+          streams[report.id] = (
+            lost: lost is num ? lost.toInt() : 0,
+            received: received is num ? received.toInt() : 0,
+          );
+        case 'candidate-pair':
+          pairs[report.id] = report;
+        case 'transport':
+          if (report.values['selectedCandidatePairId'] case final String id) {
+            selectedPairId = id;
+          }
       }
     }
-    return StatsCounters(streams: streams, rttMs: rttMs);
+    final livePair =
+        pairs[selectedPairId] ??
+        pairs.values
+            .where(
+              (pair) =>
+                  pair.values['nominated'] == true &&
+                  pair.values['state'] == 'succeeded',
+            )
+            .firstOrNull;
+    final rttSeconds = livePair?.values['currentRoundTripTime'];
+    return StatsCounters(
+      streams: streams,
+      rttMs: rttSeconds is num ? rttSeconds * 1000.0 : null,
+    );
   }
 
   static const minPacketsToJudgeLoss = 60;
