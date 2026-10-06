@@ -18,12 +18,19 @@ import '../models/voip_participant_id.dart';
 import 'call_quality_policy.dart';
 import 'cloudflare_api_client.dart';
 import 'negotiation_lock.dart';
+import 'opus_send_params.dart';
 import 'remote_track_plan.dart';
 import 'video_codec_preference.dart';
 import 'webrtc_backend.dart';
 
 CfSessionDescription _cfDescription(RTCSessionDescription description) =>
     CfSessionDescription(sdp: description.sdp!, type: description.type!);
+
+RTCSessionDescription _remoteDescription(CfSessionDescription description) =>
+    RTCSessionDescription(
+      withOpusSendParams(description.sdp),
+      description.type,
+    );
 
 Future<void> _quietly(Future<void> Function()? action) async {
   if (action == null) return;
@@ -46,6 +53,12 @@ class CloudflareCallEngine implements CallEngine {
   RTCRtpTransceiver? _localVideoTransceiver;
   bool _micMuted = false;
   bool _cameraEnabled;
+  bool _sendingCamera = false;
+  bool _inBackground = false;
+  MediaStream? _restartedCapture;
+  Future<void> _cameraWork = Future<void>.value();
+  final Set<String> _sendingTrackNames = {};
+  Timer? _firstMediaTimer;
 
   CallEngineStatus _status = CallEngineStatus.connecting;
   final _statusController = StreamController<CallEngineStatus>.broadcast();
@@ -96,12 +109,15 @@ class CloudflareCallEngine implements CallEngine {
   PlatformCapabilities get _capabilities =>
       _injectedCapabilities ?? ambientCapabilities;
 
-  Map<String, Object?> get _videoConstraints => {
-    'facingMode': 'user',
-    'width': lowDataMode ? 640 : 854,
-    'height': lowDataMode ? 360 : 480,
-    'frameRate': lowDataMode ? 24 : 30,
-  };
+  Map<String, Object?> get _videoConstraints {
+    final size = captureSizeFor(lowDataMode: lowDataMode);
+    return {
+      'facingMode': _frontCamera ? 'user' : 'environment',
+      'width': size.width,
+      'height': size.height,
+      'frameRate': 30,
+    };
+  }
 
   @override
   Future<void> setEncryptionKey(Uint8List key) async {
@@ -348,9 +364,7 @@ class CloudflareCallEngine implements CallEngine {
     if (!_isLiveConnection(pc)) return;
     final offered = result.sessionDescription;
     if (!result.requiresImmediateRenegotiation || offered == null) return;
-    await pc.setRemoteDescription(
-      RTCSessionDescription(offered.sdp, offered.type),
-    );
+    await pc.setRemoteDescription(_remoteDescription(offered));
     if (!_isLiveConnection(pc)) return;
     final localDescription = await _liveLocalAnswer(pc);
     if (localDescription == null) return;
@@ -397,7 +411,7 @@ class CloudflareCallEngine implements CallEngine {
   }
 
   Future<RTCSessionDescription?> _liveLocalOffer(RTCPeerConnection pc) async {
-    final offer = await pc.createOffer();
+    final offer = await pc.createOffer(const <String, dynamic>{});
     if (!_isLiveConnection(pc)) return null;
     return _liveLocalDescription(pc, offer);
   }
@@ -457,9 +471,10 @@ class CloudflareCallEngine implements CallEngine {
       for (final track in stream.getAudioTracks()) {
         await _localAudioStream!.addTrack(track);
       }
-      if (_kind == CallKind.video) {
+      final videoTracks = stream.getVideoTracks();
+      if (videoTracks.isNotEmpty) {
         _localVideoStream = await _webRtc.createLocalMediaStream('local_video');
-        for (final track in stream.getVideoTracks()) {
+        for (final track in videoTracks) {
           await _localVideoStream!.addTrack(track);
         }
         _frontCamera = true;
@@ -470,7 +485,7 @@ class CloudflareCallEngine implements CallEngine {
         return;
       }
 
-      await _attachLocalMediaAndPublish();
+      await _serialCameraWork(_publishLocalMedia);
       if (_left) return;
       _setStatus(CallEngineStatus.connected);
       _notifyParticipants();
@@ -533,6 +548,14 @@ class CloudflareCallEngine implements CallEngine {
     await _quietly(captured?.dispose);
   }
 
+  Future<void> _publishLocalMedia() async {
+    await _attachLocalMediaAndPublish();
+    await runBestEffort(
+      _applyCameraState,
+      label: 'apply camera state after publishing',
+    );
+  }
+
   Future<void> _attachLocalMediaAndPublish() async {
     final pc = _pc;
     if (pc == null || !_isLiveConnection(pc)) return;
@@ -552,7 +575,12 @@ class CloudflareCallEngine implements CallEngine {
     if (!_isLiveConnection(pc)) return;
 
     _localVideoTransceiver = null;
-    final videoTrack = _localVideoStream?.getVideoTracks().firstOrNull;
+    final camera = _cameraTrack;
+    final videoTrack =
+        camera != null && _cameraEnabled && !_cameraPausedByBackground
+        ? camera
+        : await _placeholderTrack() ?? camera;
+    if (!_isLiveConnection(pc)) return;
     final sendOnly = RTCRtpTransceiverInit(
       direction: TransceiverDirection.SendOnly,
     );
@@ -571,10 +599,14 @@ class CloudflareCallEngine implements CallEngine {
     }
     if (!_isLiveConnection(pc)) return;
     _applyLocalTrackState();
+    _setSendingCamera(
+      videoTrack != null && identical(videoTrack, camera) && _cameraEnabled,
+    );
 
     if (!_isLiveConnection(pc)) return;
     await _negotiationLock.run(_publishPendingTransceivers);
     if (!_isLiveConnection(pc)) return;
+    _watchFirstMedia(pc);
     await _reapplyVideoEncoding();
   }
 
@@ -663,6 +695,8 @@ class CloudflareCallEngine implements CallEngine {
     _detachConnectionCallbacks(oldPc);
     _sessionId = null;
     _lastCounters = null;
+    _firstMediaTimer?.cancel();
+    _sendingTrackNames.clear();
     await _resetRemotesForRejoin();
     for (final label in const ['local-audio', 'local-video']) {
       await _frameCryptors.remove(label)?.dispose();
@@ -677,7 +711,7 @@ class CloudflareCallEngine implements CallEngine {
       if (orphanedPc != null) await _disposePeerConnection(orphanedPc);
       return;
     }
-    await _attachLocalMediaAndPublish();
+    await _serialCameraWork(_publishLocalMedia);
     for (final remote in _remote.values.toList()) {
       unawaited(
         runBestEffort(
@@ -734,11 +768,12 @@ class CloudflareCallEngine implements CallEngine {
       offer: _cfDescription(offer),
       tracks: tracks,
     );
+    for (final track in result.tracks.where((t) => t.hasError)) {
+      logCaught('publish ${track.trackName}', '${track.errorCode}');
+    }
     if (!_isLiveConnection(pc)) return;
     if (result.sessionDescription case final answer?) {
-      await pc.setRemoteDescription(
-        RTCSessionDescription(answer.sdp, answer.type),
-      );
+      await pc.setRemoteDescription(_remoteDescription(answer));
     }
   }
 
@@ -748,8 +783,10 @@ class CloudflareCallEngine implements CallEngine {
     final pc = _pc;
     if (pc == null || _left) return;
     try {
-      final counters = StatsCounters.fromReports(await pc.getStats());
+      final reports = await pc.getStats();
+      final counters = StatsCounters.fromReports(reports);
       if (!_isLiveConnection(pc)) return;
+      _noteSendingTracks(reports);
       final previous = _lastCounters;
       _lastCounters = counters;
       if (previous == null) return;
@@ -761,9 +798,64 @@ class CloudflareCallEngine implements CallEngine {
     } catch (_) {}
   }
 
+  static const _firstMediaPollStart = Duration(milliseconds: 250);
+  static const _firstMediaPollMax = Duration(seconds: 2);
+  static const _firstMediaDeadline = Duration(seconds: 20);
+  static const _publishedTrackNames = ['audio', 'video'];
+
+  void _watchFirstMedia(RTCPeerConnection pc) {
+    _firstMediaTimer?.cancel();
+    var delay = _firstMediaPollStart;
+    var waited = Duration.zero;
+    void schedule() {
+      _firstMediaTimer = Timer(delay, () async {
+        if (!_isLiveConnection(pc)) return;
+        waited += delay;
+        try {
+          final reports = await pc.getStats();
+          if (!_isLiveConnection(pc)) return;
+          _noteSendingTracks(reports);
+        } catch (_) {}
+        final silent = [
+          for (final name in _publishedTrackNames)
+            if (!_sendingTrackNames.contains(name)) name,
+        ];
+        if (silent.isEmpty || !_isLiveConnection(pc)) return;
+        if (waited >= _firstMediaDeadline) {
+          for (final name in silent) {
+            logCaught(
+              'publish $name',
+              'no media sent ${_firstMediaDeadline.inSeconds} s after '
+                  'publishing, so the SFU will drop it',
+            );
+          }
+          return;
+        }
+        delay = delay * 2 > _firstMediaPollMax ? _firstMediaPollMax : delay * 2;
+        schedule();
+      });
+    }
+
+    schedule();
+  }
+
+  void _noteSendingTracks(List<StatsReport> reports) {
+    var changed = false;
+    for (final report in reports) {
+      if (report.type != 'outbound-rtp') continue;
+      final kind = report.values['kind'];
+      final bytesSent = report.values['bytesSent'];
+      if (kind is! String || bytesSent is! num || bytesSent <= 0) continue;
+      if (_publishedTrackNames.contains(kind) && _sendingTrackNames.add(kind)) {
+        changed = true;
+      }
+    }
+    if (changed) _notifyLocalStateChanged();
+  }
+
   Future<void> _reapplyVideoEncoding() async {
     final sender = _localVideoTransceiver?.sender;
-    if (sender == null || _localVideoStream == null) return;
+    if (sender == null || !_sendingCamera) return;
     final limits = videoEncodingFor(_combinedQuality, lowDataMode: lowDataMode);
     final params = applyVideoEncodingLimits(sender.parameters, limits);
     await runBestEffort(
@@ -774,6 +866,39 @@ class CloudflareCallEngine implements CallEngine {
 
   bool _left = false;
 
+  PlaceholderVideo? _placeholderVideo;
+  bool _placeholderUnavailable = false;
+
+  Future<MediaStreamTrack?> _placeholderTrack() async {
+    if (_placeholderVideo case final placeholder?) return placeholder.track;
+    if (_placeholderUnavailable) return null;
+    try {
+      _placeholderVideo = await _webRtc.createPlaceholderVideo();
+    } catch (e) {
+      logCaught('create placeholder video', e);
+    }
+    if (_left) {
+      await _releasePlaceholderVideo();
+    } else if (_placeholderVideo == null) {
+      _placeholderUnavailable = true;
+      logCaught(
+        'placeholder video unavailable',
+        'a video slot with no camera behind it expires on the SFU after 30 s',
+      );
+    }
+    return _placeholderVideo?.track;
+  }
+
+  Future<void> _releasePlaceholderVideo() async {
+    final placeholder = _placeholderVideo;
+    _placeholderVideo = null;
+    if (placeholder == null) return;
+    await runBestEffort(
+      () => _webRtc.releasePlaceholderVideo(placeholder),
+      label: 'release placeholder video',
+    );
+  }
+
   @override
   Future<void> leave() async {
     if (_left) return;
@@ -781,6 +906,8 @@ class CloudflareCallEngine implements CallEngine {
     _cancelDisconnectTimer();
     _statsTimer?.cancel();
     _statsTimer = null;
+    _firstMediaTimer?.cancel();
+    _firstMediaTimer = null;
     _lastCounters = null;
     _setStatus(CallEngineStatus.disconnected);
     for (final remote in _remote.values) {
@@ -807,12 +934,15 @@ class CloudflareCallEngine implements CallEngine {
 
     await _quietly(_localAudioStream?.dispose);
     await _quietly(_localVideoStream?.dispose);
+    await _quietly(_restartedCapture?.dispose);
     _localAudioStream = null;
     _localVideoStream = null;
+    _restartedCapture = null;
     _localAudioTransceiver = null;
     _localVideoTransceiver = null;
 
     if (_pc case final pc?) await _disposePeerConnection(pc);
+    await _releasePlaceholderVideo();
     _pc = null;
     _sessionId = null;
     _api.close();
@@ -827,19 +957,28 @@ class CloudflareCallEngine implements CallEngine {
 
   @override
   Future<void> setCameraEnabled(bool enabled) async {
+    if (enabled && _kind == CallKind.voice) return switchToVideo();
     _cameraEnabled = enabled;
-    _applyLocalTrackState();
     _notifyParticipants();
+    await _serialCameraWork(_applyCameraState);
   }
 
   bool _frontCamera = true;
 
   @override
   Future<void> switchCamera() async {
-    final track = _localVideoStream?.getVideoTracks().firstOrNull;
+    final track = _cameraTrack;
     if (track == null) return;
     _frontCamera = await _webRtc.switchCamera(track);
     _notifyParticipants();
+  }
+
+  @override
+  Future<void> setAppInBackground(bool inBackground) async {
+    if (_inBackground == inBackground) return;
+    _inBackground = inBackground;
+    if (!_capabilities.cameraStopsInBackground) return;
+    await _serialCameraWork(_applyCameraState);
   }
 
   bool _switchingToVideo = false;
@@ -849,51 +988,143 @@ class CloudflareCallEngine implements CallEngine {
     if (_kind == CallKind.video || _switchingToVideo) return;
     _switchingToVideo = true;
     try {
-      await _switchToVideoOnce();
+      await _serialCameraWork(_switchToVideoOnce);
     } finally {
       _switchingToVideo = false;
     }
   }
 
   Future<void> _switchToVideoOnce() async {
+    if (_left) return;
+    _cameraEnabled = true;
+    try {
+      await _applyCameraState();
+    } catch (_) {
+      _cameraEnabled = false;
+      _setSendingCamera(false);
+      await _stopCamera();
+      _notifyParticipants();
+      rethrow;
+    }
+    if (_left) return;
+    _kind = CallKind.video;
+    _notifyParticipants();
+  }
+
+  Future<void> _serialCameraWork(Future<void> Function() work) {
+    final run = _cameraWork.then((_) => work());
+    _cameraWork = run.then((_) {}, onError: (Object _) {});
+    return run;
+  }
+
+  bool get _cameraPausedByBackground =>
+      _inBackground && _capabilities.cameraStopsInBackground;
+
+  MediaStreamTrack? get _cameraTrack =>
+      _localVideoStream?.getVideoTracks().firstOrNull;
+
+  void _setSendingCamera(bool sending) {
+    if (_sendingCamera == sending) return;
+    _sendingCamera = sending;
+    _notifyLocalStateChanged();
+  }
+
+  Future<void> _applyCameraState() async {
+    final pc = _pc;
+    final sender = _localVideoTransceiver?.sender;
+    if (pc == null || sender == null || !_isLiveConnection(pc)) return;
+    if (!_cameraEnabled) return _cameraOff(pc, sender);
+    if (_cameraPausedByBackground) return _pauseCamera(pc, sender);
+    return _cameraOn(pc, sender);
+  }
+
+  Future<void> _cameraOff(RTCPeerConnection pc, RTCRtpSender sender) async {
+    _setSendingCamera(false);
+    final placeholder = await _placeholderTrack();
+    if (!_isLiveConnection(pc)) return;
+    if (placeholder == null) {
+      _applyLocalTrackState();
+      return;
+    }
+    if (sender.track?.id != placeholder.id) {
+      await sender.replaceTrack(placeholder);
+      if (!_isLiveConnection(pc)) return;
+    }
+    await _stopCamera();
+    _notifyParticipants();
+  }
+
+  Future<void> _pauseCamera(RTCPeerConnection pc, RTCRtpSender sender) async {
+    final placeholder = await _placeholderTrack();
+    if (placeholder == null || !_isLiveConnection(pc)) return;
+    _setSendingCamera(false);
+    if (sender.track?.id != placeholder.id) {
+      await sender.replaceTrack(placeholder);
+    }
+  }
+
+  Future<void> _cameraOn(RTCPeerConnection pc, RTCRtpSender sender) async {
+    if (_cameraTrack == null) {
+      try {
+        await _stopCamera();
+        await _startCamera(pc);
+      } catch (_) {
+        _cameraEnabled = false;
+        _notifyParticipants();
+        rethrow;
+      }
+    }
+    final camera = _cameraTrack;
+    if (camera == null || !_isLiveConnection(pc)) return;
+    if (sender.track?.id != camera.id) {
+      await sender.replaceTrack(camera);
+      if (!_isLiveConnection(pc)) return;
+    }
+    final keyProvider = _keyProvider;
+    if (keyProvider != null) {
+      await _wrapSender('local-video', sender, keyProvider);
+      if (!_isLiveConnection(pc)) return;
+    }
+    _applyLocalTrackState();
+    _setSendingCamera(true);
+    await _releasePlaceholderVideo();
+    await _reapplyVideoEncoding();
+    _notifyParticipants();
+  }
+
+  Future<void> _startCamera(RTCPeerConnection pc) async {
     final captured = await _webRtc.getUserMedia({
       'audio': false,
       'video': _videoConstraints,
     });
-    final wrapper = await _webRtc.createLocalMediaStream('local_video');
-    final capturedTracks = captured.getVideoTracks();
-    final wasCameraEnabled = _cameraEnabled;
-    var attached = false;
+    MediaStream? wrapper;
     try {
-      for (final track in capturedTracks) {
+      wrapper = await _webRtc.createLocalMediaStream('local_video');
+      for (final track in captured.getVideoTracks()) {
         await wrapper.addTrack(track);
       }
-      final pc = _pc;
-      final sender = _localVideoTransceiver?.sender;
-      if (pc == null || sender == null || !_isLiveConnection(pc)) return;
-      _localVideoStream = wrapper;
-      _cameraEnabled = true;
-      _frontCamera = true;
-      _applyLocalTrackState();
-      await sender.replaceTrack(capturedTracks.first);
-      final keyProvider = _keyProvider;
-      if (_isLiveConnection(pc) && keyProvider != null) {
-        await _wrapSender('local-video', sender, keyProvider);
-      }
-      attached = _isLiveConnection(pc);
-      if (attached) _applyLocalTrackState();
-    } finally {
-      if (!attached) {
-        if (identical(_localVideoStream, wrapper)) _localVideoStream = null;
-        _cameraEnabled = wasCameraEnabled;
-        await _quietly(wrapper.dispose);
-        await _quietly(captured.dispose);
-      }
+    } catch (_) {
+      await _quietly(wrapper?.dispose);
+      await _quietly(captured.dispose);
+      rethrow;
     }
-    if (!attached) return;
-    _kind = CallKind.video;
-    _notifyParticipants();
-    await _reapplyVideoEncoding();
+    if (!_isLiveConnection(pc)) {
+      await _quietly(wrapper.dispose);
+      await _quietly(captured.dispose);
+      return;
+    }
+    _localVideoStream = wrapper;
+    _restartedCapture = captured;
+    _applyLocalTrackState();
+  }
+
+  Future<void> _stopCamera() async {
+    final camera = _localVideoStream;
+    final restarted = _restartedCapture;
+    _localVideoStream = null;
+    _restartedCapture = null;
+    await _quietly(camera?.dispose);
+    await _quietly(restarted?.dispose);
   }
 
   @override
@@ -903,11 +1134,11 @@ class CloudflareCallEngine implements CallEngine {
     return {
       'sessionId': sessionId,
       'tracks': {
-        'audio': 'audio',
-        if (_localVideoTransceiver != null) 'video': 'video',
+        for (final name in _publishedTrackNames)
+          if (_sendingTrackNames.contains(name)) name: name,
       },
       'audioMuted': _micMuted,
-      'videoEnabled': _cameraEnabled,
+      'videoEnabled': _sendingCamera,
       'encrypted': _keyProvider != null,
       'lowBandwidth': _classifier.current != CallQuality.good,
     };
@@ -1047,6 +1278,7 @@ class CloudflareCallEngine implements CallEngine {
     for (final track in result.tracks) {
       final name = track.trackName;
       final mid = track.mid;
+      if (name != null) _notePullError(remote, name, track.errorCode);
       if (name == null || track.hasError || mid == null || mid.isEmpty) {
         continue;
       }
@@ -1068,9 +1300,7 @@ class CloudflareCallEngine implements CallEngine {
     }
 
     try {
-      await pc.setRemoteDescription(
-        RTCSessionDescription(offered.sdp, offered.type),
-      );
+      await pc.setRemoteDescription(_remoteDescription(offered));
       if (!_isLiveConnection(pc)) return;
       await _adoptRemoteTransceivers(remote, pc);
       if (!_isLiveConnection(pc)) return;
@@ -1087,6 +1317,20 @@ class CloudflareCallEngine implements CallEngine {
       }
       rethrow;
     }
+  }
+
+  void _notePullError(
+    _RemoteParticipant remote,
+    String trackName,
+    String? errorCode,
+  ) {
+    if (errorCode == null) {
+      remote.pullErrors.remove(trackName);
+      return;
+    }
+    if (remote.pullErrors[trackName] == errorCode) return;
+    remote.pullErrors[trackName] = errorCode;
+    logCaught('pull $trackName from ${remote.id}', errorCode);
   }
 
   Future<void> _forgetUnansweredPull(
@@ -1220,6 +1464,7 @@ class _RemoteParticipant {
   final Set<String> pulledTrackNames = {};
   final Map<String, RTCRtpTransceiver> recvTransceivers = {};
   final Map<String, MediaStream> adoptedStreams = {};
+  final Map<String, String> pullErrors = {};
   MediaStream? audioStream;
   MediaStream? videoStream;
   bool audioMuted = false;
@@ -1250,6 +1495,7 @@ class _RemoteParticipant {
     adoptedStreams.clear();
     recvTransceivers.clear();
     pulledTrackNames.clear();
+    pullErrors.clear();
     audioStream = null;
     videoStream = null;
     resyncPending = false;

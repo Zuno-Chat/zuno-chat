@@ -50,6 +50,7 @@ class PlatformCapabilities {
   final bool nseNotifications;
   final bool nativeNotificationActions;
   final bool videoRendererNeedsDetach;
+  final bool cameraStopsInBackground;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
 
@@ -98,6 +99,7 @@ class PlatformCapabilities {
     required this.nseNotifications,
     required this.nativeNotificationActions,
     required this.videoRendererNeedsDetach,
+    required this.cameraStopsInBackground,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
   });
@@ -150,6 +152,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nseNotifications: false,
         nativeNotificationActions: false,
         videoRendererNeedsDetach: false,
+        cameraStopsInBackground: false,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
           NotificationDeliveryMode.unifiedPush,
@@ -202,6 +205,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nseNotifications: true,
         nativeNotificationActions: true,
         videoRendererNeedsDetach: true,
+        cameraStopsInBackground: true,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,
       ),

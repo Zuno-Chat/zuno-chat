@@ -37,10 +37,13 @@ class FakeSfu {
   final FakeWebRtcBackend backend;
   final requests = <SfuRequest>[];
   final pulledTracks = <Map<String, dynamic>>[];
+  final missingTracks = <String>{};
   int? sessionStatus;
   int? renegotiateStatus;
   bool reuseMids = false;
   bool closeRenegotiates = false;
+  String? answerSdp;
+  String? offerSdp;
   Completer<void>? sessionGate;
   Completer<void>? pullGate;
   var _sessions = 0;
@@ -89,7 +92,7 @@ class FakeSfu {
           'requiresImmediateRenegotiation': false,
           'sessionDescription': {
             'type': 'answer',
-            'sdp': 'sfu answer ${++_answers}',
+            'sdp': answerSdp ?? 'sfu answer ${++_answers}',
           },
           'tracks': recorded.tracks,
         });
@@ -97,10 +100,11 @@ class FakeSfu {
       await pullGate?.future;
       final pulled = [
         for (final track in recorded.tracks)
-          {
-            ...track,
-            'mid': _midFor('${track['sessionId']}/${track['trackName']}'),
-          },
+          if (!missingTracks.contains(track['trackName']))
+            {
+              ...track,
+              'mid': _midFor('${track['sessionId']}/${track['trackName']}'),
+            },
       ];
       pulledTracks.addAll(pulled);
       for (final track in pulled) {
@@ -111,9 +115,18 @@ class FakeSfu {
         'requiresImmediateRenegotiation': true,
         'sessionDescription': {
           'type': 'offer',
-          'sdp': 'sfu offer ${++_offers}',
+          'sdp': offerSdp ?? 'sfu offer ${++_offers}',
         },
-        'tracks': pulled,
+        'tracks': [
+          ...pulled,
+          for (final track in recorded.tracks)
+            if (missingTracks.contains(track['trackName']))
+              {
+                ...track,
+                'errorCode': 'not_found_track_error',
+                'errorDescription': 'Track not found',
+              },
+        ],
       });
     }
     if (path.endsWith('/renegotiate')) {
@@ -146,6 +159,18 @@ const ann = VoipParticipantId(userId: '@ann:example.org', deviceId: 'ANN');
 
 String receiverLabel(VoipParticipantId id, String trackName) =>
     '$id-$trackName';
+
+String opusSdp(String fmtp) => [
+  'v=0',
+  'o=- 1 2 IN IP4 127.0.0.1',
+  's=-',
+  't=0 0',
+  'm=audio 9 UDP/TLS/RTP/SAVPF 111',
+  'a=mid:0',
+  'a=rtpmap:111 opus/48000/2',
+  'a=fmtp:111 $fmtp',
+  '',
+].join('\r\n');
 
 Uint8List callKey() => Uint8List.fromList(List<int>.generate(32, (i) => i));
 
@@ -245,6 +270,19 @@ class EngineHarness {
   }
 
   void leave() => wait(engine.leave());
+
+  static StatsReport outbound(String kind, int bytesSent) => StatsReport(
+    'out-$kind',
+    'outbound-rtp',
+    0,
+    {'kind': kind, 'bytesSent': bytesSent},
+  );
+
+  void mediaFlows({Set<String> kinds = const {'audio', 'video'}}) {
+    pc.stats = [for (final kind in kinds) outbound(kind, 1200)];
+    async.elapse(const Duration(seconds: 2));
+    flush();
+  }
 
   FakePeerConnection get pc => backend.pc;
 

@@ -281,6 +281,12 @@ final _capabilities = <_Capability>[
     ios: true,
   ),
   _Capability(
+    'cameraStopsInBackground',
+    read: (c) => c.cameraStopsInBackground,
+    android: false,
+    ios: true,
+  ),
+  _Capability(
     'deliveryModes',
     read: (c) => c.deliveryModes,
     android: [

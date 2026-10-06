@@ -351,6 +351,7 @@ class CallSession {
         await built.setMicrophoneMuted(muted);
       }
       if (_encryptionKey case final key?) await built.setEncryptionKey(key);
+      await _followAppLifecycle(built);
       await built.join();
       if (await _abandonEngineIfEnded(built)) return;
 
@@ -401,6 +402,41 @@ class CallSession {
 
   bool _engineTornDown = false;
 
+  AppLifecycleListener? _lifecycleListener;
+  bool? _engineInBackground;
+
+  Future<void> _followAppLifecycle(CallEngine engine) async {
+    bool hidden(AppLifecycleState? state) => switch (state) {
+      AppLifecycleState.hidden ||
+      AppLifecycleState.paused ||
+      AppLifecycleState.detached => true,
+      _ => false,
+    };
+
+    Future<void> tell(bool inBackground) async {
+      if (_engineInBackground == inBackground) return;
+      _engineInBackground = inBackground;
+      await runBestEffort(
+        () => engine.setAppInBackground(inBackground),
+        label: 'tell the engine the app is in the background: $inBackground',
+      );
+    }
+
+    _stopFollowingAppLifecycle();
+    _lifecycleListener = AppLifecycleListener(
+      onStateChange: (state) {
+        if (state == AppLifecycleState.inactive) return;
+        unawaited(tell(hidden(state)));
+      },
+    );
+    await tell(hidden(WidgetsBinding.instance.lifecycleState));
+  }
+
+  void _stopFollowingAppLifecycle() {
+    _lifecycleListener?.dispose();
+    _lifecycleListener = null;
+  }
+
   Future<bool> _abandonEngineIfEnded(CallEngine engine) async {
     if (_hangUp == null && _phase != CallSessionPhase.ended) return false;
     await _tearDownEngine(engine, 'a hangup during connect');
@@ -410,6 +446,7 @@ class CallSession {
   Future<void> _tearDownEngine(CallEngine engine, String why) async {
     if (_engineTornDown) return;
     _engineTornDown = true;
+    _stopFollowingAppLifecycle();
     await runBestEffort(engine.leave, label: 'leave engine after $why');
     await runBestEffort(engine.dispose, label: 'dispose engine after $why');
   }
@@ -672,6 +709,7 @@ class CallSession {
     final othersStillPresent = _knownRemote.isNotEmpty;
 
     _cancelTimers();
+    _stopFollowingAppLifecycle();
     _pendingKeys.clear();
     for (final subscription in _subscriptions) {
       await subscription?.cancel();
@@ -711,6 +749,7 @@ class CallSession {
 
   void dispose() {
     _cancelTimers();
+    _stopFollowingAppLifecycle();
     _pendingKeys.clear();
     for (final subscription in _subscriptions) {
       unawaited(subscription?.cancel());

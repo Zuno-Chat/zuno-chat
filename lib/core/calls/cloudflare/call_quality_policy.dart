@@ -1,7 +1,11 @@
 import 'dart:math' show max;
 
 import 'package:flutter_webrtc/flutter_webrtc.dart'
-    show RTCRtpParameters, RTCRtpEncoding, StatsReport;
+    show
+        RTCDegradationPreference,
+        RTCRtpParameters,
+        RTCRtpEncoding,
+        StatsReport;
 
 import '../models/call_quality.dart';
 
@@ -12,27 +16,30 @@ class QualitySample {
   const QualitySample({required this.lossFraction, this.rttMs});
 }
 
+typedef StreamCounters = ({int lost, int received});
+
 class StatsCounters {
-  final int packetsLost;
-  final int packetsReceived;
+  final Map<String, StreamCounters> streams;
   final double? rttMs;
 
-  const StatsCounters({
-    required this.packetsLost,
-    required this.packetsReceived,
-    this.rttMs,
-  });
+  const StatsCounters({this.streams = const {}, this.rttMs});
+
+  int get packetsLost => streams.values.fold(0, (sum, s) => sum + s.lost);
+
+  int get packetsReceived =>
+      streams.values.fold(0, (sum, s) => sum + s.received);
 
   factory StatsCounters.fromReports(Iterable<StatsReport> reports) {
-    var lost = 0;
-    var received = 0;
+    final streams = <String, StreamCounters>{};
     double? rttMs;
     for (final report in reports) {
       if (report.type == 'inbound-rtp') {
-        if (report.values['packetsLost'] case final num n) lost += n.toInt();
-        if (report.values['packetsReceived'] case final num n) {
-          received += n.toInt();
-        }
+        final lost = report.values['packetsLost'];
+        final received = report.values['packetsReceived'];
+        streams[report.id] = (
+          lost: lost is num ? lost.toInt() : 0,
+          received: received is num ? received.toInt() : 0,
+        );
       } else if (report.type == 'candidate-pair' &&
           (report.values['state'] == 'succeeded' ||
               report.values['nominated'] == true)) {
@@ -41,19 +48,23 @@ class StatsCounters {
         }
       }
     }
-    return StatsCounters(
-      packetsLost: lost,
-      packetsReceived: received,
-      rttMs: rttMs,
-    );
+    return StatsCounters(streams: streams, rttMs: rttMs);
   }
 
+  static const minPacketsToJudgeLoss = 60;
+
   QualitySample sampleSince(StatsCounters previous) {
-    final deltaLost = max(0, packetsLost - previous.packetsLost);
-    final deltaReceived = max(0, packetsReceived - previous.packetsReceived);
+    var deltaLost = 0;
+    var deltaReceived = 0;
+    for (final MapEntry(key: id, value: now) in streams.entries) {
+      final before = previous.streams[id];
+      if (before == null) continue;
+      deltaLost += max(0, now.lost - before.lost);
+      deltaReceived += max(0, now.received - before.received);
+    }
     final total = deltaLost + deltaReceived;
     return QualitySample(
-      lossFraction: total == 0 ? 0 : deltaLost / total,
+      lossFraction: total < minPacketsToJudgeLoss ? 0 : deltaLost / total,
       rttMs: rttMs,
     );
   }
@@ -131,26 +142,32 @@ typedef VideoEncodingLimits = ({
   int maxBitrate,
 });
 
+({int width, int height}) captureSizeFor({required bool lowDataMode}) =>
+    lowDataMode ? (width: 640, height: 360) : (width: 854, height: 480);
+
 VideoEncodingLimits videoEncodingFor(
   CallQuality quality, {
   required bool lowDataMode,
-}) => switch (quality) {
-  CallQuality.good => (
-    scaleResolutionDownBy: 1.0,
-    maxFramerate: lowDataMode ? 24 : 30,
-    maxBitrate: lowDataMode ? 500000 : 800000,
-  ),
-  CallQuality.degraded => (
-    scaleResolutionDownBy: 2.0,
-    maxFramerate: 15,
-    maxBitrate: 300000,
-  ),
-  CallQuality.poor => (
-    scaleResolutionDownBy: 2.0,
-    maxFramerate: 10,
-    maxBitrate: 150000,
-  ),
-};
+}) {
+  final capturedHeight = captureSizeFor(lowDataMode: lowDataMode).height;
+  return switch (quality) {
+    CallQuality.good => (
+      scaleResolutionDownBy: 1.0,
+      maxFramerate: 30,
+      maxBitrate: lowDataMode ? 500000 : 950000,
+    ),
+    CallQuality.degraded => (
+      scaleResolutionDownBy: capturedHeight / 240,
+      maxFramerate: 30,
+      maxBitrate: 300000,
+    ),
+    CallQuality.poor => (
+      scaleResolutionDownBy: capturedHeight / 180,
+      maxFramerate: 24,
+      maxBitrate: 150000,
+    ),
+  };
+}
 
 CallQuality combineQuality({
   required CallQuality local,
@@ -169,6 +186,8 @@ RTCRtpParameters applyVideoEncodingLimits(
     ..scaleResolutionDownBy = limits.scaleResolutionDownBy
     ..maxFramerate = limits.maxFramerate
     ..maxBitrate = limits.maxBitrate;
-  params.encodings = [first, ...encodings.skip(1)];
+  params
+    ..encodings = [first, ...encodings.skip(1)]
+    ..degradationPreference = RTCDegradationPreference.MAINTAIN_FRAMERATE;
   return params;
 }

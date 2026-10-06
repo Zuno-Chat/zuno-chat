@@ -318,6 +318,56 @@ void main() {
       await harness.close();
     });
 
+    testWidgets('a camera that will not turn on says so', (tester) async {
+      final harness = CallPageHarness(tester);
+      final session = await talking(harness, CallKind.video);
+      session.engine.cameraError = StateError('camera in use');
+
+      await tester.tap(find.byTooltip('Turn camera on'));
+      await harness.settle();
+
+      expect(session.engine.cameraEnabledRequests, [true]);
+      expect(find.text(cameraDidNotTurnOnMessage), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await harness.close();
+    });
+
+    testWidgets('a camera that fails to turn off does not claim it failed to '
+        'turn on', (tester) async {
+      final harness = CallPageHarness(tester);
+      final session = await talking(harness, CallKind.video);
+      session.engine.setParticipants([
+        localParticipant(camera: true),
+        remoteParticipant(),
+      ]);
+      await harness.settle();
+      session.engine.cameraError = StateError('camera stuck');
+
+      await tester.tap(find.byTooltip('Turn camera off'));
+      await harness.settle();
+
+      expect(session.engine.cameraEnabledRequests, [false]);
+      expect(find.text(cameraDidNotTurnOnMessage), findsNothing);
+      expect(tester.takeException(), isNull);
+      await harness.close();
+    });
+
+    testWidgets('a voice call whose camera will not turn on stays a voice '
+        'call and says so', (tester) async {
+      final harness = CallPageHarness(tester);
+      final session = await talking(harness, CallKind.voice);
+      session.engine.cameraError = StateError('camera refused');
+
+      await tester.tap(find.byTooltip('Switch to video call'));
+      await harness.settle();
+
+      expect(find.text(cameraDidNotTurnOnMessage), findsOneWidget);
+      expect(session.kind, CallKind.voice);
+      expect(harness.wakelockToggles, isEmpty);
+      expect(tester.takeException(), isNull);
+      await harness.close();
+    });
+
     testWidgets('the other side\'s camera makes the call eligible for '
         'picture-in-picture, and turning it off ends that', (tester) async {
       final harness = CallPageHarness(tester);

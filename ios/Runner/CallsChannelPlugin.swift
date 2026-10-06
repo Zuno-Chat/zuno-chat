@@ -1,6 +1,8 @@
 @preconcurrency import Flutter
 import UIKit
 import UniformTypeIdentifiers
+@preconcurrency import WebRTC
+@preconcurrency import flutter_webrtc
 
 @MainActor
 final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
@@ -89,6 +91,13 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
       result(nil)
     case "armCallAudio":
       calls.audio.armEngine()
+      result(nil)
+    case "attachPlaceholderVideo":
+      result((args?["streamId"] as? String).flatMap(PlaceholderVideo.attach(streamId:)))
+    case "releasePlaceholderVideo":
+      if let trackId = args?["trackId"] as? String {
+        PlaceholderVideo.release(trackId: trackId)
+      }
       result(nil)
     case "audioRoute":
       var state = calls.audio.currentState().arguments
@@ -312,5 +321,83 @@ final class ProximityScreen {
   private func proximityChanged() {
     guard !wanted, !UIDevice.current.proximityState else { return }
     turnOff()
+  }
+}
+
+@MainActor
+private final class PlaceholderVideo {
+  private static let width = 160
+  private static let height = 120
+  private static var active: [String: PlaceholderVideo] = [:]
+
+  private let source: RTCVideoSource
+  private let capturer: RTCVideoCapturer
+  private let frame: RTCCVPixelBuffer
+  private var timer: Timer?
+
+  static func attach(streamId: String) -> String? {
+    guard let plugin = FlutterWebRTCPlugin.sharedSingleton(),
+      let factory = plugin.peerConnectionFactory,
+      let stream = plugin.localStreams?[streamId] as? RTCMediaStream,
+      let frame = blackFrame()
+    else { return nil }
+    let source = factory.videoSource()
+    let track = factory.videoTrack(with: source, trackId: UUID().uuidString)
+    plugin.localTracks?.setObject(LocalVideoTrack(track: track), forKey: track.trackId as NSString)
+    stream.addVideoTrack(track)
+    let placeholder = PlaceholderVideo(source: source, frame: frame)
+    active[track.trackId] = placeholder
+    placeholder.start()
+    return track.trackId
+  }
+
+  static func release(trackId: String) {
+    active.removeValue(forKey: trackId)?.stop()
+  }
+
+  private init(source: RTCVideoSource, frame: RTCCVPixelBuffer) {
+    self.source = source
+    self.frame = frame
+    capturer = RTCVideoCapturer(delegate: source)
+  }
+
+  private func start() {
+    deliver()
+    timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated { self?.deliver() }
+    }
+  }
+
+  private func deliver() {
+    let videoFrame = RTCVideoFrame(
+      buffer: frame, rotation: ._0, timeStampNs: Int64(DispatchTime.now().uptimeNanoseconds))
+    source.capturer(capturer, didCapture: videoFrame)
+  }
+
+  private func stop() {
+    timer?.invalidate()
+    timer = nil
+  }
+
+  private static func blackFrame() -> RTCCVPixelBuffer? {
+    var pixelBuffer: CVPixelBuffer?
+    let attributes =
+      [kCVPixelBufferIOSurfacePropertiesKey as String: [String: Any]()] as CFDictionary
+    guard
+      CVPixelBufferCreate(
+        kCFAllocatorDefault, width, height, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+        attributes, &pixelBuffer) == kCVReturnSuccess,
+      let pixelBuffer
+    else { return nil }
+    CVPixelBufferLockBaseAddress(pixelBuffer, [])
+    defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+    for (plane, value) in [(0, Int32(0)), (1, Int32(128))] {
+      guard let base = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, plane) else { return nil }
+      memset(
+        base, value,
+        CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, plane)
+          * CVPixelBufferGetHeightOfPlane(pixelBuffer, plane))
+    }
+    return RTCCVPixelBuffer(pixelBuffer: pixelBuffer)
   }
 }

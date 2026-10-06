@@ -844,6 +844,59 @@ void main() {
     });
   });
 
+  group('the app going to the background', () {
+    setUp(() => moveLifecycleTo(binding, AppLifecycleState.resumed));
+    tearDown(() => moveLifecycleTo(binding, AppLifecycleState.resumed));
+
+    CallSession answering(String callId, FakeCallEngine engine) {
+      final session = CallSession.forIncoming(
+        room: room,
+        callId: callId,
+        kind: CallKind.video,
+        engineBuilder: () async => engine,
+        initialEncryptionKeyForTesting: testKey(),
+      );
+      addTearDown(session.dispose);
+      return session;
+    }
+
+    test('tells the engine where the app is at join, then each time it '
+        'hides or comes back', () async {
+      final engine = FakeCallEngine();
+      final session = answering('call-hidden', engine);
+
+      await session.accept();
+      await pumpEventQueue();
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      moveLifecycleTo(binding, AppLifecycleState.resumed);
+
+      expect(engine.appInBackgroundRequests, [false, true, false]);
+    });
+
+    test('a call answered in the background starts in the background', () async {
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      final engine = FakeCallEngine();
+      final session = answering('call-hidden-at-join', engine);
+
+      await session.accept();
+      await pumpEventQueue();
+
+      expect(engine.appInBackgroundRequests, [true]);
+    });
+
+    test('once the call ends, the engine hears nothing more', () async {
+      final engine = FakeCallEngine();
+      final session = answering('call-hidden-ended', engine);
+      await session.accept();
+      await pumpEventQueue();
+
+      await session.hangUp(summarized: true);
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+
+      expect(engine.appInBackgroundRequests, [false]);
+    });
+  });
+
   group('_generateCallKey (via startOutgoing)', () {
     test(
       'produces a 32-byte key, and two calls never produce the same one',
@@ -2855,6 +2908,8 @@ class _OrderTrackingCallEngine implements CallEngine {
   Future<void> switchCamera() async {}
   @override
   Future<void> switchToVideo() async {}
+  @override
+  Future<void> setAppInBackground(bool inBackground) async {}
 
   @override
   Map<String, Object?>? get localFociInfo => const {

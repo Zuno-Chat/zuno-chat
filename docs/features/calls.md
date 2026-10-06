@@ -434,10 +434,12 @@ and camera tracks are kept `enabled = false` until their own sender's
 frame cryptor exists (`_applyLocalTrackState`, the single writer of
 `track.enabled`), so a callee never pushes plaintext to the SFU during
 the 0.5-2 s the key is in flight. The cryptor, not the key, is the gate
-because the video sender has no track until the camera comes on and the
-native factory dereferences `sender->track()`: a track-less sender is
-never wrapped (`_wrapSender` returns), the wrap happens right after
-`replaceTrack`, and the track only enables once it has landed. A peer that never reports `encrypted`
+because the native factory dereferences `sender->track()`: a track-less
+video sender (only when no black placeholder could be made) is never
+wrapped (`_wrapSender` returns), the wrap happens right after
+`replaceTrack`, and the track only enables once it has landed. The
+placeholder is never disabled: its frames carry nothing, and no one pulls
+a video whose `videoEnabled` is false. A peer that never reports `encrypted`
 gets no media and shows "Encrypting…"; the local side shows the same
 state until its own key lands. In a one-to-one call that is the call's
 status line (either side unkeyed counts, and a view with no local
@@ -472,7 +474,20 @@ for a pull carries an *offer*, so the correct sequence is
 can't be completed (offer not applied, no answer, `/renegotiate` refused)
 is forgotten locally and its mids force-closed on the SFU (`tracks/close`,
 `force: true`), so the next membership sync pulls it again. Left marked as
-pulled, that person stayed silent and invisible until they rejoined.
+pulled, that person stayed silent and invisible until they rejoined. A
+track the SFU rejects (`not_found_track_error` and the like) is logged
+once per error per remote track, then retried on later syncs.
+
+**Cloudflare garbage-collects a published track that receives no media
+packets for 30 s**, mid-call included, with no keepalive setting; its
+subscriptions die with it, and pulling it fails with
+`not_found_track_error`. Hence every published track always carries
+media (the black placeholder, below), and a track is offered in
+`fociInfo['tracks']` only once its sender's `outbound-rtp` reports
+`bytesSent > 0`, so no one pulls it before the SFU has it (partytracks'
+rule). `_watchFirstMedia` polls from 250 ms, backing off to 2 s, and logs
+a track still silent 20 s after publishing; `_pollStats` keeps noting
+after that, and a rejoin starts over.
 
 **ICE gathering is not trickle** on Cloudflare's REST signaling — there's
 no endpoint to send candidates as they arrive, so an offer must already
@@ -557,17 +572,52 @@ instead, so a stale notification can't outlive its call.
   media peer-to-peer even for 2 participants — both always terminate each
   client's connection at the provider's server — so there's no "P2P via
   the SFU" shortcut either.
-- **The video transceiver is published at join, camera or not.** A voice
-  call publishes a track-less `sendonly` video transceiver; voice→video
-  is `sender.replaceTrack`, and camera-off is `track.enabled = false`.
-  The client therefore never sends a second offer during a call. That is
-  deliberate: a local re-offer while a remote's video is flowing makes
-  libwebrtc recreate that receive stream, and a packet landing in the gap
-  trips its unsignalled-SSRC handler, which nulls the stream's sink for
-  good (frames keep decoding, nothing renders: the "frozen remote, fine
-  audio" symptom). The receiving side never closes a pull for a
-  camera-off either: `planRemoteTracks` only decides what to pull, and
-  the tile is hidden from `videoEnabled`.
+- **The video transceiver is published at join, and a black placeholder
+  stands in whenever the camera isn't sending.** Under the 30 s rule an
+  empty slot would be gone by the time the camera came on. The
+  placeholder is native, 160×120 black at 2 fps (`PlaceholderVideo.kt`,
+  `PlaceholderVideo` in `CallsChannelPlugin.swift`, made over `zuno/calls`
+  `attachPlaceholderVideo`). It covers three cases:
+  - a voice call;
+  - camera off, where the camera itself stops, light included, and
+    restarts on the last-used side when turned back on;
+  - on iOS, the app in the background (`cameraStopsInBackground`). iOS
+    stops the camera there; the camera track is kept, `videoEnabled`
+    reads false meanwhile, and the camera returns with the app.
+    `CallSession` reports the app state through `setAppInBackground`
+    for the life of the call: hidden, paused or detached means
+    background, resumed means foreground, and `inactive` is ignored. It
+    starts from the state at join, so a call answered from the lock
+    screen starts on the placeholder. Android ignores it, so
+    picture-in-picture keeps sending the camera.
+
+  Every swap is `sender.replaceTrack`, so the client never sends a second
+  offer during a call. That is deliberate. A local re-offer while a
+  remote's video is flowing makes libwebrtc recreate that receive stream
+  (a fresh offer adds every supported codec back). A packet landing in the
+  gap then trips the unsignalled-SSRC handler, and on Android
+  flutter_webrtc drops the renderer's sink (flutter-webrtc#2124): frames
+  keep decoding and nothing renders.
+
+  The placeholder is Cloudflare's own pattern: partytracks sends a 1 fps
+  black video and a near-silent audio for a device that is off. Considered
+  and declined:
+  - separate publish and receive connections. They avoid fake media, but
+    every camera toggle or background becomes close, re-publish and a
+    re-pull by every viewer, still under the 30 s rule.
+  - an SFU-generated publish offer: no client found uses one.
+
+  Publishing and every camera change share one queue
+  (`_serialCameraWork`), and publishing ends by applying the wanted camera
+  state, so a switch that overlaps a join or a rejoin still lands. A
+  camera that won't restart stays off with the placeholder in place and
+  shows `cameraDidNotTurnOnMessage`.
+
+  Without a placeholder (native side unavailable, logged as `placeholder
+  video unavailable`), the old behavior remains. The video slot is
+  track-less, and camera-off only disables the camera track. The
+  receiving side never closes a pull for a camera-off: `planRemoteTracks`
+  only decides what to pull, and the tile is hidden from `videoEnabled`.
 - **No mid-call auto-downgrade to voice when every camera is off.**
   Considered and declined: needs distributed coordination with no single
   authority (each device only knows its own camera state plus what others
@@ -636,7 +686,12 @@ instead, so a stale notification can't outlive its call.
   3s) classifies this device's own connection with separate enter/exit
   thresholds and streak counts, so one bad sample can't flap the tier
   (`CallQualityClassifier`: down after 2 consecutive bad samples, up
-  after 4 consecutive clean ones):
+  after 4 consecutive clean ones). Loss is the incoming loss fraction,
+  judged only on 60+ packets per sample, so a quiet stretch's one lost
+  packet isn't "weak". Each incoming stream counts from its second sample
+  (`StatsCounters.streams`). Before that, a freshly pulled stream's whole
+  start-up landed in one window, and calls opened with a false "Weak
+  connection":
 
   | Tier | Enter (loss or RTT) | Exit (loss and RTT) |
   |---|---|---|
@@ -647,14 +702,17 @@ instead, so a stale notification can't outlive its call.
   local video sender's `RTCRtpParameters` via `applyVideoEncodingLimits`
   (a pure function setting `scaleResolutionDownBy`/`maxFramerate`/
   `maxBitrate`, tested without WebRTC) and `setParameters`, no
-  renegotiation — applied at sender creation too, so the good tier's cap
-  is the default from frame one, not just a ceiling reached after a drop:
+  renegotiation. It is applied whenever the camera goes on the sender, so
+  the good tier's cap holds from the first frame. Weak links lose
+  resolution, not smoothness: the scale targets 240 and 180 lines of the
+  requested capture height (`captureSizeFor`), and the degradation
+  preference is `maintain-framerate`:
 
-  | Tier | Scale | fps | kbps |
+  | Tier | Lines | fps | kbps |
   |---|---|---|---|
-  | good | 1.0 | 30 (24 low-data) | 800 (500 low-data) |
-  | degraded | 2.0 | 15 | 300 |
-  | poor | 2.0 | 10 | 150 |
+  | good | full (480, 360 low-data) | 30 | 950 (500 low-data) |
+  | degraded | 240 | 30 | 300 |
+  | poor | 180 | 24 | 150 |
 
   What actually gates outgoing video quality is the *worse* of this
   device's own reading and the other participant's last-reported quality
@@ -663,10 +721,19 @@ instead, so a stale notification can't outlive its call.
   Audio is never scaled. **Gotcha**: `RTCRtpEncoding.toMap()` omits null
   fields and Android only updates present keys, so every tier must write
   explicit `maxBitrate`/`maxFramerate` — a null never lifts a cap.
-- **Bandwidth ceiling**: capture is capped at 480p30 regardless of
-  setting; "Use less data for calls" (on by default) drops it to 360p24. Read
-  once per call (not watched live) — switching mid-call would mean
-  re-capturing the camera.
+- **Bandwidth ceiling**: capture is capped at 854×480 at 30 fps
+  regardless of setting. "Use less data for calls" is on by default, by
+  design: it drops capture to 640×360 and the good tier to 500 kbps. It is
+  read once per call (not watched live), because switching mid-call would
+  mean re-capturing the camera. These phones' cameras deliver 4:3
+  (480×640) for both requests, so the tiers spread their bitrate over
+  more pixels than the requested size suggests.
+- **Opus goes out with in-band FEC and without DTX.** `withOpusSendParams`
+  rewrites every remote SDP's Opus `fmtp` to `useinbandfec=1;usedtx=0`;
+  the remote description is what configures our encoder. A muted
+  microphone with DTX sent no packets at all (a muted Android: zero in
+  108 s), which the 30 s rule turns into a lost audio track after a long
+  mute. partytracks dropped DTX over the same inactivity drops.
 - **Video codec order is per platform** (`videoCodecOrder`). Android pins
   VP8, then H264, via `setCodecPreferences`: VP8 has a software fallback
   in this build, H264 does not. iOS sets none: flutter_webrtc's iOS side
@@ -834,6 +901,27 @@ instead, so a stale notification can't outlive its call.
   app-side race always loses one side). This is what `NegotiationLock`
   exists to prevent; without it, symptoms range from a rejected HTTP call
   to a real native libwebrtc abort from repeated transceiver add/remove.
+- **`createOffer` takes explicit empty constraints** (`_liveLocalOffer`).
+  Called bare, flutter_webrtc adds `OfferToReceiveAudio/Video: true`.
+  That pre-creates receive-only slots, and the first pull then lands on
+  one of them instead of its own.
+- **The Android placeholder reaches flutter_webrtc internals by
+  reflection.** It reads the private `methodCallHandler` field so it can
+  call `putLocalTrack`, because `replaceTrack` only resolves registered
+  tracks and there is no public way to register one.
+  - A flutter_webrtc bump (Dependabot groups pub minors) can break it.
+    It fails quietly: Kotlin logs why, Dart logs `placeholder video
+    unavailable`, and the call falls back to the old behavior. Check the
+    placeholder on a device after a bump.
+  - `PlaceholderVideo.kt` compiles against `io.github.webrtc-sdk:android`
+    `compileOnly`, at the same version flutter_webrtc ships.
+  - iOS uses the plugin's exported header (`localTracks`,
+    `peerConnectionFactory`), so a rename there breaks the build instead.
+  - Senders are matched to tracks by id, since flutter_webrtc builds a new
+    Dart track object for a native sender.
+- **The iPhone's hardware H264 encoder keeps encoding in the
+  background** during a call (device-checked). That is what lets the
+  placeholder keep a backgrounded iPhone's video alive.
 - **A transceiver's cached `.mid` never updates after construction** in
   `flutter_webrtc` — always re-fetch via `pc.getTransceivers()` after
   negotiation and match by stable key (`sender.senderId` for publish,

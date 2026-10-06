@@ -35,6 +35,9 @@ import 'participant_tile.dart';
 
 const _videoDrainDelay = Duration(milliseconds: 500);
 
+const cameraDidNotTurnOnMessage =
+    'Camera did not turn on. Check that Zuno can use the camera and try again.';
+
 Future<void> _releaseAfterDetach(RTCVideoRenderer renderer) async {
   await runBestEffort(renderer.setSrcObject, label: 'detach call video');
   await Future<void>.delayed(_videoDrainDelay);
@@ -361,6 +364,21 @@ class _CallPageState extends ConsumerState<CallPage> {
   }
 
   Future<void> _toggleCamera() async {
+    final turningOn =
+        session.kind == CallKind.voice ||
+        !(_localParticipant?.videoEnabled ?? false);
+    try {
+      await _toggleCameraOrThrow();
+    } catch (e) {
+      logCaught('toggle camera', e);
+      if (!mounted || !turningOn) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(cameraDidNotTurnOnMessage)));
+    }
+  }
+
+  Future<void> _toggleCameraOrThrow() async {
     if (session.kind == CallKind.voice) {
       await session.engine.switchToVideo();
       if (!mounted || _finished) return;

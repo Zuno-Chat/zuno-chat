@@ -243,6 +243,16 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
 
+                "attachPlaceholderVideo" -> {
+                    val streamId = call.argument<String>("streamId")
+                    result.success(streamId?.let { PlaceholderVideo.attach(it) })
+                }
+
+                "releasePlaceholderVideo" -> {
+                    call.argument<String>("trackId")?.let { PlaceholderVideo.release(it) }
+                    result.success(null)
+                }
+
                 "setPreventScreenshots" -> {
                     if (call.argument<Boolean>("enabled") == true) {
                         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -609,6 +619,7 @@ class MainActivity : FlutterActivity() {
         val engine = flutterEngine ?: return true
         val context = applicationContext
         Handler(Looper.getMainLooper()).postDelayed({
+            PlaceholderVideo.releaseAll()
             engine.destroy()
             CallForegroundService.stop(context)
         }, HANG_UP_GRACE_MS)

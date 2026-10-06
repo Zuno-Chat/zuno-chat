@@ -93,6 +93,7 @@ PlatformCapabilities capabilitiesLike(
   nativeNotificationActions:
       nativeNotificationActions ?? base.nativeNotificationActions,
   videoRendererNeedsDetach: base.videoRendererNeedsDetach,
+  cameraStopsInBackground: base.cameraStopsInBackground,
   deliveryModes: deliveryModes ?? base.deliveryModes,
   defaultDeliveryMode: defaultDeliveryMode ?? base.defaultDeliveryMode,
 );

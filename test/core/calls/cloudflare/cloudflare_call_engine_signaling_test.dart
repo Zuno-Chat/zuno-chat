@@ -37,8 +37,8 @@ void main() {
       sender.appliedParameters.last.encodings!.first;
 
   group('joining', () {
-    test('a voice call captures the microphone only, publishes audio plus an '
-        'empty video slot, and applies the SFU answer', () {
+    test('a voice call captures the microphone only, publishes audio plus a '
+        'black placeholder video, and applies the SFU answer', () {
       inCall((call) {
         call.join();
 
@@ -52,7 +52,7 @@ void main() {
         final [audio, video] = call.pc.rtpTransceivers;
         expect(audio.sender.track, call.microphone);
         expect(audio.direction, TransceiverDirection.SendOnly);
-        expect(video.sender.track, isNull);
+        expect(video.sender.track, call.backend.placeholders.single.track);
         expect(video.direction, TransceiverDirection.SendOnly);
 
         final push = call.sfu.pushes.single;
@@ -67,6 +67,7 @@ void main() {
         ]);
         expect(call.pc.remoteDescriptions.single.sdp, 'sfu answer 1');
         expect(call.engine.status, CallEngineStatus.connected);
+        call.mediaFlows();
         expect(call.engine.localFociInfo, {
           'sessionId': 's1',
           'tracks': {'audio': 'audio', 'video': 'video'},
@@ -90,8 +91,11 @@ void main() {
         expect(call.backend.cryptors.keyProviders.single.sharedKeys, [
           callKey(),
         ]);
-        expect(call.backend.cryptors.liveLabels, {'local-audio'});
-        expect(call.backend.cryptors.live.single.isEnabled, isTrue);
+        expect(call.backend.cryptors.liveLabels, {
+          'local-audio',
+          'local-video',
+        });
+        expect(call.backend.cryptors.live.every((c) => c.isEnabled), isTrue);
         expect(call.microphone.enabled, isTrue);
         expect(call.local.encrypted, isTrue);
         expect(call.engine.localFociInfo?['encrypted'], isTrue);
@@ -132,8 +136,8 @@ void main() {
     );
 
     for (final (lowData, width, height, fps, bitrate) in [
-      (false, 854, 480, 30, 800000),
-      (true, 640, 360, 24, 500000),
+      (false, 854, 480, 30, 950000),
+      (true, 640, 360, 30, 500000),
     ]) {
       test('a video call${lowData ? ' in low data mode' : ''} captures the '
           'camera at ${width}x$height, $fps fps, prefers VP8 then H264, and '
@@ -165,6 +169,81 @@ void main() {
         );
       });
     }
+
+    test(
+      'without a placeholder, a voice call publishes an empty video slot',
+      () {
+        inCall((call) {
+          call.backend.placeholderAvailable = false;
+
+          call.join();
+
+          expect(call.videoSlot.sender.track, isNull);
+          expect(call.sfu.pushes.single.tracks, [
+            {'location': 'local', 'mid': '0', 'trackName': 'audio'},
+            {'location': 'local', 'mid': '1', 'trackName': 'video'},
+          ]);
+        });
+      },
+    );
+
+    test('a video call publishes camera and microphone together', () {
+      inCall((call) {
+        call.join();
+        call.mediaFlows();
+
+        expect(call.sfu.pushes.single.tracks, [
+          {'location': 'local', 'mid': '0', 'trackName': 'audio'},
+          {'location': 'local', 'mid': '1', 'trackName': 'video'},
+        ]);
+        expect(call.engine.localFociInfo?['tracks'], {
+          'audio': 'audio',
+          'video': 'video',
+        });
+      }, kind: CallKind.video);
+    });
+
+    test('a track is offered to others only once it has sent media, so no '
+        'one pulls it before the SFU has it', () {
+      inCall((call) {
+        call.join();
+        final changes = call.localStateChanges;
+
+        expect(call.engine.localFociInfo?['tracks'], isEmpty);
+
+        call.mediaFlows(kinds: {'audio'});
+
+        expect(call.engine.localFociInfo?['tracks'], {'audio': 'audio'});
+        expect(call.localStateChanges, greaterThan(changes));
+
+        call.mediaFlows();
+
+        expect(call.engine.localFociInfo?['tracks'], {
+          'audio': 'audio',
+          'video': 'video',
+        });
+      });
+    });
+
+    test('publishing asks for no receive-only slots, so each pull brings its '
+        'own', () {
+      inCall((call) {
+        call.join();
+
+        expect(call.pc.offerConstraints, [<String, dynamic>{}]);
+      });
+    });
+
+    test('a video call has the encoder keep its frame rate when it adapts', () {
+      inCall((call) {
+        call.join();
+
+        expect(
+          call.videoSlot.sender.parameters.degradationPreference,
+          RTCDegradationPreference.MAINTAIN_FRAMERATE,
+        );
+      }, kind: CallKind.video);
+    });
   });
 
   group('video codec order', () {
@@ -237,6 +316,36 @@ void main() {
 
         expect(call.backend.audioArms, isEmpty);
       }, capabilities: androidCapabilities);
+    });
+  });
+
+  group('our voice', () {
+    test('goes out with in-band FEC and no silence suppression, so a muted '
+        'microphone keeps its track alive on the SFU', () {
+      inCall((call) {
+        call.sfu.answerSdp = opusSdp('minptime=10;useinbandfec=1');
+
+        call.join();
+
+        expect(
+          call.pc.remoteDescriptions.single.sdp,
+          contains('a=fmtp:111 minptime=10;useinbandfec=1;usedtx=0\r\n'),
+        );
+      });
+    });
+
+    test('keeps those settings when someone is pulled in', () {
+      inCall((call) {
+        call.sfu.offerSdp = opusSdp('minptime=10');
+        call.joinEncrypted();
+
+        call.remoteJoins();
+
+        expect(
+          call.pc.remoteDescriptions.last.sdp,
+          contains('a=fmtp:111 minptime=10;useinbandfec=1;usedtx=0\r\n'),
+        );
+      });
     });
   });
 
@@ -556,23 +665,15 @@ void main() {
       });
     });
 
-    test('turning the camera off stops sending frames and says so', () {
-      inCall((call) {
-        call.joinEncrypted();
-
-        call.wait(call.engine.setCameraEnabled(false));
-
-        expect(call.camera.enabled, isFalse);
-        expect(call.engine.localFociInfo?['videoEnabled'], isFalse);
-      }, kind: CallKind.video);
-    });
-
-    test('a voice call turned into video fills the empty video slot, '
-        'encrypted, without renegotiating', () {
+    test('a voice call turned into video swaps the black placeholder for the '
+        'camera, encrypted, without renegotiating, and releases it', () {
       inCall((call) {
         call.joinEncrypted();
 
         call.wait(call.engine.switchToVideo());
+
+        expect(call.backend.placeholders, hasLength(1));
+        expect(call.backend.releasedPlaceholders, call.backend.placeholders);
 
         expect(call.backend.captureConstraints.last, {
           'audio': false,
@@ -596,9 +697,10 @@ void main() {
       });
     });
 
-    test('a video switch whose encryption fails leaves the call a voice call '
-        'and releases the camera', () {
+    test('without a placeholder, a video switch whose encryption fails leaves '
+        'the call a voice call and releases the camera', () {
       inCall((call) {
+        call.backend.placeholderAvailable = false;
         call.joinEncrypted();
         call.backend.cryptors.failEnableFor.add('local-video');
 
@@ -658,6 +760,49 @@ void main() {
         expect(call.statuses, contains(CallEngineStatus.reconnecting));
       });
     });
+
+    test('after a rejoin, tracks are offered again only once the new '
+        'connection sends media', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.mediaFlows();
+
+        call.engine.handleConnectionStateForTest(
+          RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+        );
+        call.async.elapse(const Duration(seconds: 2));
+        call.flush();
+
+        expect(call.engine.localFociInfo?['sessionId'], 's2');
+        expect(call.engine.localFociInfo?['tracks'], isEmpty);
+
+        call.mediaFlows();
+
+        expect(call.engine.localFociInfo?['tracks'], {
+          'audio': 'audio',
+          'video': 'video',
+        });
+      });
+    });
+
+    test('a rejoin puts the same black placeholder on the new connection', () {
+      inCall((call) {
+        call.joinEncrypted();
+
+        call.engine.handleConnectionStateForTest(
+          RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+        );
+        call.async.elapse(const Duration(seconds: 2));
+        call.flush();
+
+        expect(call.backend.peerConnections, hasLength(2));
+        expect(
+          call.videoSlot.sender.track,
+          call.backend.placeholders.single.track,
+        );
+        expect(call.backend.releasedPlaceholders, isEmpty);
+      });
+    });
   });
 
   group('leaving mid-rejoin', () {
@@ -714,6 +859,7 @@ void main() {
 
           expect(encoding(sender).maxBitrate, 300000);
           expect(encoding(sender).scaleResolutionDownBy, 2.0);
+          expect(encoding(sender).maxFramerate, 30);
           expect(call.local.lowBandwidth, isTrue);
           expect(call.engine.localFociInfo?['lowBandwidth'], isTrue);
           expect(call.localStateChanges, greaterThan(changesBefore));
@@ -737,6 +883,33 @@ void main() {
       }, kind: CallKind.video);
     });
 
+    test('loss while a newly pulled stream starts up does not mark the '
+        'connection weak', () {
+      inCall((call) {
+        call.joinEncrypted();
+        StatsReport pulled(int lost, int received) => StatsReport(
+          'pulled',
+          'inbound-rtp',
+          0,
+          {'packetsLost': lost, 'packetsReceived': received},
+        );
+
+        for (final stats in [
+          [inbound(0, 1000)],
+          [inbound(0, 1100), pulled(10, 90)],
+          [inbound(0, 1200), pulled(20, 180)],
+          [inbound(0, 1300), pulled(20, 280)],
+        ]) {
+          call.pc.stats = stats;
+          call.async.elapse(const Duration(seconds: 3));
+          call.flush();
+        }
+
+        expect(call.local.lowBandwidth, isFalse);
+        expect(call.engine.localFociInfo?['lowBandwidth'], isFalse);
+      }, kind: CallKind.video);
+    });
+
     test('someone on a weak link lowers our video too', () {
       inCall((call) {
         call.joinEncrypted();
@@ -744,6 +917,7 @@ void main() {
         call.remoteJoins(lowBandwidth: true);
 
         expect(encoding(call.videoSlot.sender).maxBitrate, 300000);
+        expect(encoding(call.videoSlot.sender).maxFramerate, 30);
       }, kind: CallKind.video);
     });
   });
@@ -769,6 +943,18 @@ void main() {
         expect(call.engine.participants.where((p) => !p.isLocal), isEmpty);
         expect(call.engine.localFociInfo, isNull);
       }, kind: CallKind.video);
+    });
+
+    test('leaving a voice call releases the black placeholder', () {
+      inCall((call) {
+        call.joinEncrypted();
+
+        call.leave();
+
+        expect(call.backend.placeholders, hasLength(1));
+        expect(call.backend.releasedPlaceholders, call.backend.placeholders);
+        expect(call.pc.disposed, isTrue);
+      });
     });
   });
 }
