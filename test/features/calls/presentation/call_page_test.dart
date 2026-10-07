@@ -440,6 +440,19 @@ void main() {
       expect(harness.pictureInPictureVideo, (streamId: null, ownerTag: null));
     });
 
+    testWidgets('you appear as yourself, so your own picture shows', (
+      tester,
+    ) async {
+      final harness = CallPageHarness(tester);
+      await talking(harness, CallKind.video);
+
+      final view = tester.widget<CallView>(find.byType(CallView));
+      expect(view.local?.user?.id, '@me:example.org');
+      expect(view.local?.user?.calcDisplayname(), 'Me');
+      expect(view.remote.single.user?.id, '@ann:example.org');
+      await harness.close();
+    });
+
     testWidgets('someone leaving releases their video renderer', (
       tester,
     ) async {

@@ -127,6 +127,7 @@ class _RoomInvitePageState extends State<RoomInvitePage> {
                   client: client,
                   avatarUrl: isGroup ? room.avatar : inviterUser?.avatarUrl,
                   fallbackText: isGroup ? room.name : inviterName,
+                  toneSeed: roomToneSeed(room),
                   radius: 40,
                   shape: AvatarShape.forRoom(room),
                 ),

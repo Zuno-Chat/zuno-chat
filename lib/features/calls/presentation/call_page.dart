@@ -312,9 +312,13 @@ class _CallPageState extends ConsumerState<CallPage> {
   CallEngineParticipant? get _localParticipant =>
       _participants.where((p) => p.isLocal).firstOrNull;
 
-  User? _userFor(VoipParticipantId id) {
-    if (id.userId == 'local') return null;
-    return session.room.unsafeGetUserFromMemoryOrFallback(id.userId);
+  User? _userFor(CallEngineParticipant participant) {
+    final room = session.room;
+    final userId = participant.isLocal
+        ? room.client.userID
+        : participant.id.userId;
+    if (userId == null) return null;
+    return room.unsafeGetUserFromMemoryOrFallback(userId);
   }
 
   bool _encrypting(CallEngineParticipant participant) {
@@ -408,7 +412,7 @@ class _CallPageState extends ConsumerState<CallPage> {
       CallViewParticipant(
         participant: participant,
         renderer: _renderers[participant.id],
-        user: _userFor(participant.id),
+        user: _userFor(participant),
         encrypting: _encrypting(participant),
       );
 
@@ -444,7 +448,7 @@ class _CallPageState extends ConsumerState<CallPage> {
     return ParticipantTile(
       participant: remote,
       renderer: _renderers[remote.id],
-      user: _userFor(remote.id),
+      user: _userFor(remote),
       encrypting: _encrypting(remote),
       borderRadius: 0,
     );

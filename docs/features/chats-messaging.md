@@ -180,8 +180,12 @@ or an unrecognized key, renders as an ordinary item.
 - **One request per person per size bucket.** With two buckets, one
   person costs at most two requests however many sizes show them, and the
   notification poster reuses the small one.
-- **Initials** sit on a tone hashed from a stable Matrix ID, so a rename
-  keeps the color. Changing the hash recolors everyone.
+- **Initials** sit on a tone hashed from a stable Matrix ID, never the
+  display name, so a rename keeps the color and nobody changes color
+  between screens. Changing the hash recolors everyone.
+- **A room's tone follows whoever it shows:** an unnamed invite takes the
+  inviter's ID, a direct chat its partner's, any other room its own, so a
+  direct chat matches its partner everywhere, the call screen included.
 - **A failed load is evicted and its bytes deleted**, or one bad
   response would break a never-expiring entry for good.
 

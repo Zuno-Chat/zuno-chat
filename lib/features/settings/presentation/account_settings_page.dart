@@ -217,6 +217,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
                   client: client,
                   avatarUrl: _profile?.avatarUrl,
                   fallbackText: displayName ?? userId ?? '?',
+                  toneSeed: userId ?? '',
                   radius: 20,
                 ),
                 title: const Text('Profile picture'),

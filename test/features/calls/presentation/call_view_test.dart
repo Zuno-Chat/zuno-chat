@@ -6,6 +6,7 @@ import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
+import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_audio_route.dart';
 import 'package:zuno/features/calls/presentation/call_controls.dart';
@@ -64,7 +65,7 @@ void main() {
         videoEnabled: camera,
       ),
       renderer: null,
-      user: local ? null : room.unsafeGetUserFromMemoryOrFallback(userId),
+      user: room.unsafeGetUserFromMemoryOrFallback(userId),
       encrypting: encrypting,
     );
   }
@@ -157,6 +158,33 @@ void main() {
 
       expect(shownStatus(tester), CallStatus.connecting);
       expect(find.text('Ann'), findsNothing);
+    });
+
+    testWidgets('a direct call keeps their colour while connecting, talking '
+        'and leaving', (tester) async {
+      room.client.accountData['m.direct'] = BasicEvent(
+        type: 'm.direct',
+        content: {
+          '@ann:example.org': [room.id],
+        },
+      );
+      String? shownTone() => tester
+          .widget<MxcAvatar>(
+            find.descendant(
+              of: find.byType(VoiceCallStage),
+              matching: find.byType(MxcAvatar),
+            ),
+          )
+          .toneSeed;
+
+      await pump(tester, connecting: true, remote: [person('Ann')]);
+      expect(shownTone(), '@ann:example.org');
+
+      await pump(tester, remote: [person('Ann')]);
+      expect(shownTone(), '@ann:example.org');
+
+      await pump(tester);
+      expect(shownTone(), '@ann:example.org');
     });
 
     testWidgets('connected with nobody there yet says it is waiting', (
@@ -301,6 +329,22 @@ void main() {
       expect(self, findsOneWidget);
       expect(tester.getSize(self), const Size(100, 140));
       expect(tester.getRect(self).right, closeTo(360 - 12, 0.5));
+    });
+
+    testWidgets('with your camera off it shows your own picture', (
+      tester,
+    ) async {
+      await pump(tester, kind: CallKind.video, calling: true);
+
+      final self = tester.widget<ParticipantTile>(find.byType(ParticipantTile));
+      expect(self.user?.id, '@me:example.org');
+      expect(
+        find.descendant(
+          of: find.byType(ParticipantTile),
+          matching: find.byType(MxcAvatar),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a voice call has no such view', (tester) async {

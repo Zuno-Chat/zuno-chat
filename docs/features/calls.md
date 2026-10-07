@@ -342,6 +342,9 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   call.
 - `session.engine` is null until the call connects, so the build guards
   it on `connecting`.
+- The engine's local participant carries a placeholder ID, not your Matrix
+  ID, so the call screen resolves you from the signed-in account, or your
+  own tile shows no avatar.
 - `hangUp()` is memoized rather than phase-guarded, because several
   callers race it and the phase changes only at the end of teardown.
 - Every negotiation round goes through `NegotiationLock`, but teardown

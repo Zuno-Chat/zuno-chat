@@ -396,6 +396,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                     client: room.client,
                     avatarUrl: room.avatar,
                     fallbackText: roomTitle(room),
+                    toneSeed: roomToneSeed(room),
                     radius: 20,
                     shape: AvatarShape.forRoom(room),
                   ),

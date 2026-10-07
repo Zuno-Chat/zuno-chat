@@ -107,6 +107,7 @@ void main() {
         client: client,
         avatarUrl: avatarUrl,
         fallbackText: 'maya',
+        toneSeed: '@maya:zuno.chat',
       ),
     ),
   );
@@ -205,7 +206,7 @@ void main() {
 
     expect(find.text('M'), findsOneWidget);
     final avatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar));
-    expect(avatar.backgroundColor, avatarToneFor('maya'));
+    expect(avatar.backgroundColor, avatarToneFor('@maya:zuno.chat'));
     expect(avatar.foregroundColor, zunoInk);
     expect(avatar.foregroundImage, isNull);
     expect(mediaRequests, isEmpty);
@@ -219,6 +220,7 @@ void main() {
             client: client,
             avatarUrl: null,
             fallbackText: 'maya',
+            toneSeed: '@maya:zuno.chat',
             radius: radius,
           ),
         ),
@@ -291,6 +293,7 @@ void main() {
             client: client,
             avatarUrl: uniqueMxc(),
             fallbackText: 'Climbing club',
+            toneSeed: '!climbing:zuno.chat',
             shape: AvatarShape.roundedSquare,
           ),
         ),
@@ -305,7 +308,12 @@ void main() {
   testWidgets('blank text falls back to a question mark', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: MxcAvatar(client: client, avatarUrl: null, fallbackText: '  '),
+        home: MxcAvatar(
+          client: client,
+          avatarUrl: null,
+          fallbackText: '  ',
+          toneSeed: '@maya:zuno.chat',
+        ),
       ),
     );
 
@@ -327,6 +335,7 @@ void main() {
                   client: client,
                   avatarUrl: address,
                   fallbackText: 'maya',
+                  toneSeed: '@maya:zuno.chat',
                 ),
                 const CircularProgressIndicator(),
               ],
@@ -356,5 +365,62 @@ void main() {
 
     expect(find.text('M'), findsNothing);
     expect(find.byType(Image), findsOneWidget);
+  });
+
+  group('a room keeps one colour wherever it shows', () {
+    late Room room;
+
+    setUp(() => room = buildTestRoom(client));
+
+    void invitedBy(String inviter, {bool direct = false}) {
+      room.membership = Membership.invite;
+      room.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomMember,
+          senderId: inviter,
+          stateKey: client.userID!,
+          content: {'membership': 'invite', 'is_direct': direct},
+        ),
+      );
+    }
+
+    void named(String name) => room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomName,
+        senderId: '@bob:example.org',
+        stateKey: '',
+        content: {'name': name},
+      ),
+    );
+
+    test('a direct chat takes the colour of the person in it', () {
+      client.accountData['m.direct'] = BasicEvent(
+        type: 'm.direct',
+        content: {
+          '@bob:example.org': [room.id],
+        },
+      );
+
+      expect(roomToneSeed(room), '@bob:example.org');
+    });
+
+    test('a group takes its own', () {
+      named('Weekend hike');
+
+      expect(roomToneSeed(room), room.id);
+    });
+
+    test('an invite to a direct chat takes the colour of who sent it', () {
+      invitedBy('@bob:example.org', direct: true);
+
+      expect(roomToneSeed(room), '@bob:example.org');
+    });
+
+    test('an invite to a named group takes the group colour', () {
+      named('Weekend hike');
+      invitedBy('@bob:example.org');
+
+      expect(roomToneSeed(room), room.id);
+    });
   });
 }

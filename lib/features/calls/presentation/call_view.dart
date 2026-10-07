@@ -199,7 +199,7 @@ class _CallViewState extends State<CallView> {
                       child: ParticipantTile(
                         participant: self.participant,
                         renderer: self.renderer,
-                        user: null,
+                        user: self.user,
                         showStatus: false,
                       ),
                     ),
@@ -267,7 +267,7 @@ class _CallViewState extends State<CallView> {
         client: room.client,
         avatarUrl: user?.avatarUrl ?? room.avatar,
         fallbackText: name,
-        toneSeed: user?.id ?? room.id,
+        toneSeed: user?.id ?? roomToneSeed(room),
         radius: radius,
       ),
       name: name,

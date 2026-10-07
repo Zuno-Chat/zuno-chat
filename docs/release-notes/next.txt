@@ -3,12 +3,14 @@ New
 • Restore from a recovery code file.
 
 Fixed
-• Choppy video calls on weak connections.
-• Video missing after switching a voice call to video.
-• Camera not fully off when turned off.
+• Choppy video on weak connections.
+• No video after switching a call to video.
+• Camera not fully turning off.
 • Closing picture-in-picture ending the call.
-• Camera staying on while Zuno is out of sight.
-• False weak-connection warning at call start.
-• Portrait screen recordings losing their shape.
+• Camera staying on while Zuno is hidden.
+• False weak-connection warnings.
+• Squashed portrait screen recordings.
 • Unclear error messages.
 • Test notifications ignoring sound settings.
+• Your picture missing on calls.
+• Shifting avatar colors.

@@ -101,7 +101,7 @@ class _InvitationState extends State<_Invitation> {
                   avatarUrl: isGroup ? room.avatar : inviterUser?.avatarUrl,
                   fallbackText: name,
                   radius: 26,
-                  toneSeed: isGroup ? room.id : inviter,
+                  toneSeed: roomToneSeed(room),
                   shape: AvatarShape.forRoom(room),
                 ),
                 const SizedBox(width: 12),
