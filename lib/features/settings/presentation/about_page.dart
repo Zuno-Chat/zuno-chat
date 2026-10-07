@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/navigation/zuno_links.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
@@ -27,6 +28,9 @@ class AboutPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final crashReporting = ref.watch(crashReportingProvider);
     final showHiddenMessages = ref.watch(showHiddenMessagesProvider);
+    final paymentLinks = ref
+        .watch(platformCapabilitiesProvider)
+        .externalPaymentLinks;
 
     return Scaffold(
       appBar: AppBar(title: const Text('About')),
@@ -77,15 +81,16 @@ class AboutPage extends ConsumerWidget {
               ),
               CardGroup(
                 children: [
-                  ListTile(
-                    leading: const Icon(Icons.volunteer_activism_outlined),
-                    title: const Text('Donate'),
-                    subtitle: const Text(
-                      'Donations help pay for running Zuno.',
+                  if (paymentLinks)
+                    ListTile(
+                      leading: const Icon(Icons.volunteer_activism_outlined),
+                      title: const Text('Donate'),
+                      subtitle: const Text(
+                        'Donations help pay for running Zuno.',
+                      ),
+                      trailing: const Icon(Icons.open_in_new),
+                      onTap: () => _open(context, donateUri),
                     ),
-                    trailing: const Icon(Icons.open_in_new),
-                    onTap: () => _open(context, donateUri),
-                  ),
                   ListTile(
                     leading: const Icon(Icons.privacy_tip_outlined),
                     title: const Text('Privacy policy'),

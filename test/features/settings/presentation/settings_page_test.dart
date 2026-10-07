@@ -111,6 +111,23 @@ void main() {
     expect(find.textContaining('delivery'), findsNothing);
   });
 
+  testWidgets('About names donate where payment links are allowed', (
+    tester,
+  ) async {
+    await _pumpSettingsPage(tester, capabilities: androidCapabilities);
+
+    expect(find.text('Version, donate, diagnostics'), findsOneWidget);
+  });
+
+  testWidgets('About leaves donate out where payment links are forbidden', (
+    tester,
+  ) async {
+    await _pumpSettingsPage(tester, capabilities: iosCapabilities);
+
+    expect(find.text('Version, terms, diagnostics'), findsOneWidget);
+    expect(find.textContaining('donate'), findsNothing);
+  });
+
   testWidgets('you are on top: name, username, and a way into Account', (
     tester,
   ) async {

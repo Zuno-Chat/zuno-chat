@@ -38,6 +38,7 @@ class SettingsPage extends ConsumerWidget {
     final capabilities = ref.watch(platformCapabilitiesProvider);
     final screenshotBlocking = capabilities.screenshotBlocking;
     final canChooseDelivery = capabilities.deliveryModes.length > 1;
+    final paymentLinks = capabilities.externalPaymentLinks;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: CardListView(
@@ -77,11 +78,13 @@ class SettingsPage extends ConsumerWidget {
                     : 'Recovery, devices, screen content',
                 page: const SecurityPrivacySettingsPage(),
               ),
-              const _CategoryTile(
+              _CategoryTile(
                 icon: Icons.info_outline,
                 title: 'About',
-                subtitle: 'Version, donate, diagnostics',
-                page: AboutPage(),
+                subtitle: paymentLinks
+                    ? 'Version, donate, diagnostics'
+                    : 'Version, terms, diagnostics',
+                page: const AboutPage(),
               ),
               if (showFeedback)
                 ListTile(

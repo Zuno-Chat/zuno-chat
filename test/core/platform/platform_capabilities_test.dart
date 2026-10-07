@@ -287,6 +287,12 @@ final _capabilities = <_Capability>[
     ios: true,
   ),
   _Capability(
+    'externalPaymentLinks',
+    read: (c) => c.externalPaymentLinks,
+    android: true,
+    ios: false,
+  ),
+  _Capability(
     'deliveryModes',
     read: (c) => c.deliveryModes,
     android: [

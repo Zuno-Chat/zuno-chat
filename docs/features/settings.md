@@ -12,7 +12,7 @@ are documented with that feature.
 | Chats & calls | Theme, typing indicator, prevent accidental calls | here; accidental calls in `calls.md` |
 | Data & storage | Reduce media size, less data for calls, clear cache, clear media cache | here; `chats-messaging.md`, `calls.md` |
 | Security | Status, recovery, devices, blocked people, on-device protections, Advanced | `security-verification.md`; blocked people in `rooms-membership.md`; on-device protections here |
-| About | Versions, donate, privacy policy, terms, source, licenses, crash reports, hidden messages | here; `crash-reporting.md`, `chats-messaging.md` |
+| About | Versions, donate (Android), privacy policy, terms, source, licenses, crash reports, hidden messages | here; `crash-reporting.md`, `chats-messaging.md` |
 
 The root opens with the profile card, which leads to Account. Below the
 categories sit Send feedback (`crash-reporting.md`), then Sign out and
@@ -57,6 +57,9 @@ Delete account (`authentication.md`).
 - **Donation is one static About row** that opens the site in the browser.
   It is never a prompt, badge or popup (`../brand-voice.md`), and there is
   no in-app payment.
+- **iOS has no Donate row**, because the App Store forbids linking out to
+  pay the developer. The rule is one capability for the whole platform, not
+  per storefront, so the iOS app is the same in every region.
 - **Unbuilt settings ship as `ComingSoonTile` or `ComingSoonSwitchTile`
   rows in their final place**, so future scope stays visible and every
   placeholder looks the same.

@@ -41,6 +41,7 @@ PlatformCapabilities capabilitiesLike(
   bool? voipRing,
   bool? nseNotifications,
   bool? nativeNotificationActions,
+  bool? externalPaymentLinks,
   List<NotificationDeliveryMode>? deliveryModes,
   NotificationDeliveryMode? defaultDeliveryMode,
 }) => PlatformCapabilities(
@@ -94,6 +95,7 @@ PlatformCapabilities capabilitiesLike(
       nativeNotificationActions ?? base.nativeNotificationActions,
   videoRendererNeedsDetach: base.videoRendererNeedsDetach,
   cameraStopsInBackground: base.cameraStopsInBackground,
+  externalPaymentLinks: externalPaymentLinks ?? base.externalPaymentLinks,
   deliveryModes: deliveryModes ?? base.deliveryModes,
   defaultDeliveryMode: defaultDeliveryMode ?? base.defaultDeliveryMode,
 );
