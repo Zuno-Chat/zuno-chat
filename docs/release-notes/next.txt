@@ -4,13 +4,14 @@ New
 
 Fixed
 • Choppy video on weak connections.
-• No video after switching a call to video.
+• No video after switching to video.
 • Camera not fully turning off.
-• Closing picture-in-picture ending the call.
-• Camera staying on while Zuno is hidden.
+• Closing picture-in-picture ending calls.
+• Camera on while Zuno is hidden.
 • False weak-connection warnings.
-• Squashed portrait screen recordings.
+• Squashed portrait recordings.
 • Unclear error messages.
-• Test notifications ignoring sound settings.
+• Test alerts ignoring sound settings.
 • Your picture missing on calls.
 • Shifting avatar colors.
+• Dead-end call confirm prompts.

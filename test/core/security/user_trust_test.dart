@@ -1,8 +1,30 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
 import 'package:zuno/core/security/user_trust.dart';
 
 import '../../helpers/fake_device_keys.dart';
 import '../../helpers/fake_encryption.dart';
+
+class _OwnerSignedKeys extends DeviceKeys {
+  _OwnerSignedKeys(Client client, {required this.signedByOwner})
+    : super.fromJson({
+        'user_id': '@alice:example.org',
+        'device_id': 'A1',
+        'algorithms': <String>[],
+        'keys': {'curve25519:A1': 'curve-A1', 'ed25519:A1': 'ed-A1'},
+        'signatures': <String, Object?>{},
+      }, client);
+
+  final bool signedByOwner;
+
+  @override
+  bool hasValidSignatureChain({
+    bool verifiedOnly = true,
+    Set<String>? visited,
+    Set<String>? onlyValidateUserIds,
+    bool verifiedByTheirMasterKey = false,
+  }) => verifiedByTheirMasterKey && signedByOwner;
+}
 
 UserTrustState _state({
   String? currentIdentityKey = 'KEY_A',
@@ -108,6 +130,31 @@ void main() {
 
       expect(facts.identityDirectlyVerified, isTrue);
       expect(facts.hasUnsignedDevices, isFalse);
+    });
+  });
+
+  group('deviceApprovedByOwner', () {
+    late EncryptedTestClient client;
+
+    setUp(() => client = EncryptedTestClient(userId: '@me:example.org'));
+
+    test('a device its owner approved counts, though I never confirmed '
+        'them', () {
+      expect(
+        deviceApprovedByOwner(_OwnerSignedKeys(client, signedByOwner: true)),
+        isTrue,
+      );
+    });
+
+    test('a device its owner never approved does not', () {
+      expect(
+        deviceApprovedByOwner(_OwnerSignedKeys(client, signedByOwner: false)),
+        isFalse,
+      );
+    });
+
+    test('a device whose keys are unknown does not', () {
+      expect(deviceApprovedByOwner(null), isFalse);
     });
   });
 }

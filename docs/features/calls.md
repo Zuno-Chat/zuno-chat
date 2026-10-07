@@ -181,7 +181,8 @@ tier.
 
   A new call state extends `CallStatus` and `CallView`, never a new screen.
 - **Confirming the other person**: in a one-to-one call, a pill offers to
-  confirm someone unconfirmed or changed (`security-verification.md`).
+  confirm someone unconfirmed or changed, once both ends can finish it
+  (`security-verification.md`).
 - **Audio route**: a call starts on a connected headset, else the earpiece
   for voice and the speaker for video, and a newly connected headset takes
   the sound. Android selects headsets explicitly, because AudioSwitch

@@ -147,6 +147,10 @@ it, their devices' signatures and the key we stored:
 | `confirmedWithPendingDevice` | Confirmed, but one of their devices is not approved by them | The check plus a passive line in room info |
 | `identityChanged` | Their master key differs from the one we confirmed | A banner in the chat, the call pill |
 
+The call pill (`calls.md`) shows only when both ends can finish a
+confirmation: this device has recovery and the identity keys, and the other
+person calls from a device they approved.
+
 ### Device watch
 
 `KnownDevicesStore` remembers device IDs per user and backs two warnings: a
@@ -281,6 +285,10 @@ the commonest words of ordinary prose break any run.
 - **The SDK marks this device's own keys `directVerified`**, which says
   nothing about whether the account vouched for it, so `sessionApproval`
   ignores it.
+- **The SDK's `signed` follows signature chains only through our own
+  trust**, so it is false for every device of a contact we have not
+  confirmed, and whether a contact approved a device is read as
+  `hasValidSignatureChain(verifiedByTheirMasterKey: true)`.
 - **Device checks run only on finished syncs and only add**, because the SDK
   empties and refills a device list across awaits, and saving a half-filled
   list would later report the missing devices as new sign-ins.

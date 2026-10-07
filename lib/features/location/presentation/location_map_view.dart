@@ -10,8 +10,8 @@ import '../../../core/location/map_tiles_provider.dart';
 
 const _pinSize = 40.0;
 const _maxTileZoom = 19.0;
-const _minFullMapZoom = 12.0;
-const _panRadiusMeters = 10000.0;
+const _minFullMapZoom = 14.0;
+const _panRadiusMeters = 5000.0;
 const _metersPerDegreeLatitude = 111320.0;
 const _maxMercatorLatitude = 85.0;
 

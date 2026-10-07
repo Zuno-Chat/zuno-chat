@@ -604,6 +604,7 @@ void main() {
       WidgetTester tester, {
       UserTrustState trust = UserTrustState.unconfirmed,
       AccountSecurityFacts facts = ready,
+      bool theirDeviceApproved = true,
       bool directChat = true,
     }) async {
       SharedPreferences.setMockInitialValues({});
@@ -613,6 +614,11 @@ void main() {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           userTrustProvider.overrideWith((ref, _) => trust),
+          deviceApprovedByOwnerProvider.overrideWith(
+            (ref, device) =>
+                device == (userId: '@ann:example.org', deviceId: 'ANN') &&
+                theirDeviceApproved,
+          ),
           accountSecurityFactsProvider.overrideWith(
             (ref) => Stream.value(facts),
           ),
@@ -671,6 +677,15 @@ void main() {
           unapprovedOtherDevices: 0,
         ),
       );
+      await halfAMinute(tester);
+
+      expect(find.text(confirmAnn), findsNothing);
+      await call.harness.close();
+    });
+
+    testWidgets('someone calling from a device they have not approved is not '
+        'offered', (tester) async {
+      final call = await talkingTo(tester, theirDeviceApproved: false);
       await halfAMinute(tester);
 
       expect(find.text(confirmAnn), findsNothing);

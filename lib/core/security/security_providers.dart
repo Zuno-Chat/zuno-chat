@@ -55,6 +55,15 @@ final userTrustProvider = Provider.family<UserTrustState, String>((
   );
 });
 
+final deviceApprovedByOwnerProvider =
+    Provider.family<bool, ({String userId, String deviceId})>((ref, device) {
+      final client = ref.watch(matrixClientProvider);
+      ref.watch(accountSecurityFactsProvider);
+      return deviceApprovedByOwner(
+        client.userDeviceKeys[device.userId]?.deviceKeys[device.deviceId],
+      );
+    });
+
 Future<void> rememberConfirmedIdentity(
   ConfirmedIdentityStore store,
   Client client,

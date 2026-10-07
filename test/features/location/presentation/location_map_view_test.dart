@@ -102,14 +102,14 @@ void main() {
     MapOptions optionsOf(WidgetTester tester) =>
         tester.widget<FlutterMap>(find.byType(FlutterMap)).options;
 
-    testWidgets('stops zooming out at city level', (tester) async {
+    testWidgets('stops zooming out at neighbourhood level', (tester) async {
       await tester.pumpWidget(_host(interactive: true));
       await tester.pump();
 
-      expect(optionsOf(tester).minZoom, 12);
+      expect(optionsOf(tester).minZoom, 14);
     });
 
-    testWidgets('pans no further than 10 km from the pin', (tester) async {
+    testWidgets('pans no further than 5 km from the pin', (tester) async {
       await tester.pumpWidget(_host(interactive: true));
       await tester.pump();
 
@@ -125,7 +125,7 @@ void main() {
           LatLng(bounds.south, pin.longitude),
           LatLng(bounds.north, pin.longitude),
         ),
-        closeTo(20, 0.5),
+        closeTo(10, 0.5),
       );
       expect(
         distance.as(
@@ -133,7 +133,7 @@ void main() {
           LatLng(pin.latitude, bounds.west),
           LatLng(pin.latitude, bounds.east),
         ),
-        closeTo(20, 0.5),
+        closeTo(10, 0.5),
       );
     });
 

@@ -458,16 +458,19 @@ class _CallPageState extends ConsumerState<CallPage> {
     if (!session.room.isDirectChat) return null;
     final remotes = _participants.where((p) => !p.isLocal).toList();
     if (remotes.length != 1) return null;
-    final userId = remotes.single.id.userId;
+    final VoipParticipantId(:userId, :deviceId) = remotes.single.id;
     final wanted = callConfirmPromptWanted(
       trust: ref.watch(userTrustProvider(userId)),
-      deviceReady: ref.watch(
+      thisDeviceReady: ref.watch(
         accountSecurityFactsProvider.select((facts) {
           final value = facts.value;
           return value != null &&
               value.recoveryExists &&
               value.thisDeviceHasIdentityKeys;
         }),
+      ),
+      theirDeviceApproved: ref.watch(
+        deviceApprovedByOwnerProvider((userId: userId, deviceId: deviceId)),
       ),
       declined: ref.watch(callConfirmPromptStoreProvider).declined(userId),
       talkedLongEnough: _talkedLongEnough,

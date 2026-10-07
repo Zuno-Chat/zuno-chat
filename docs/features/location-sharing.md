@@ -63,8 +63,9 @@ adds its own.
   image that gets cached, saved and forwarded.
 - **Approximate grants still send**, labelled approximate.
 - **Tile spend is bounded**, since every cache miss is a billed request:
-  the full map stays within a city-sized box around the pin, previews are
-  static, and only visible tiles are fetched.
+  the full map pans only within a neighbourhood-sized box around the pin and
+  zooms out no further than that box, previews are static, and only visible
+  tiles are fetched.
 - **Out of scope**: place search, "someone viewed your location" receipts,
   and geofences.
 
@@ -79,6 +80,9 @@ adds its own.
 - **iOS needs `NSLocationAlwaysAndWhenInUseUsageDescription`** though Zuno
   never asks for Always, because App Store upload rejects the build without
   it.
+- **The pan box, not the minimum zoom, caps zoom-out**, because flutter_map's
+  contain constraint refuses any zoom whose viewport overflows the box, so
+  the two are sized together.
 - **The bubble's tap detector must be `HitTestBehavior.opaque`**, because
   the preview map sits inside an `IgnorePointer`.
 - **The probe result lasts the whole process**, so a revoked key shows grey
