@@ -9,13 +9,11 @@ Formatters own the layout of every source file; nothing is formatted by hand.
 | Swift | swift-format (ships with Xcode) | swift-format defaults: 2-space indent, 100 columns | `.swift-format` |
 
 - **Why these styles**: each is its ecosystem's default and was the closest match to the existing code, so adopting it caused the least churn. `ktlint_official` doubled the Kotlin diff. `android_studio` strips trailing commas unless the `ij_kotlin_allow_trailing_comma*` flags are set, and the code relies on them.
-- **Dart lints for what the formatter skips**: `prefer_single_quotes`, `directives_ordering`, `prefer_relative_imports`.
-- **Rejected**:
-  - Dart `trailing_commas: preserve`: it still left files drifting, and it departs from the default.
-  - The `require_trailing_commas` lint: it is incompatible with tall style.
-- **`package-name` is off for `packages/**` Kotlin**: a plugin's underscored package name is fixed by its Flutter plugin identity.
+- **Dart lints cover what the formatter skips**: `prefer_single_quotes`, `directives_ordering`, `prefer_relative_imports`.
+- **Rejected**: Dart's `trailing_commas: preserve`, which still left files drifting, and the `require_trailing_commas` lint, which is incompatible with tall style.
+- **`package-name` is off for `packages/**` Kotlin**, because a plugin's underscored package name is fixed by its Flutter plugin identity.
 - **Checking the tree**:
-  - Dart: `dart format --output=none --set-exit-if-changed lib test packages`. Never run `dart format .` from the root, because it reaches into `build/` caches.
+  - Dart: `dart format --output=none --set-exit-if-changed lib test packages`. Never `dart format .` from the root, which reaches into `build/` caches.
   - Kotlin: `ktlint` on the tracked `*.kt` and `*.kts` files.
   - Swift: `xcrun swift-format lint -r ios/Runner`.
 - **No gate yet**: neither CI nor the commit routine checks formatting.
