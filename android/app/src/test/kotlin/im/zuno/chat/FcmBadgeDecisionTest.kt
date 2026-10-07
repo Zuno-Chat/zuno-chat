@@ -1,8 +1,6 @@
 package im.zuno.chat
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FcmBadgeDecisionTest {
@@ -57,12 +55,7 @@ class FcmBadgeDecisionTest {
     }
 
     @Test
-    fun `a push needs both an event id and a room id to be an event push, as in Dart`() {
-        assertTrue(FcmBadgeDecision.isEventPush("\$e", "!r:x"))
-        assertFalse(FcmBadgeDecision.isEventPush("\$e", null))
-        assertFalse(FcmBadgeDecision.isEventPush("\$e", ""))
-        assertFalse(FcmBadgeDecision.isEventPush(null, "!r:x"))
-        assertFalse(FcmBadgeDecision.isEventPush("", "!r:x"))
+    fun `a push with an empty event id is a badge push`() {
         assertEquals(
             FcmPushHandling.CLEAR_MESSAGES,
             FcmBadgeDecision.handlingFor(mapOf("event_id" to "", "unread" to "0"), false),

@@ -311,8 +311,8 @@ stateDiagram-v2
 ### Errors
 
 - `main()` runs in `runZonedGuarded`, and `installGlobalErrorHandlers` chains onto `FlutterError.onError` and `PlatformDispatcher.onError`. Unhandled errors go to crash reporting (`crash-reporting.md`) and, in debug builds only, to an error SnackBar with a Copy action. Silent framework errors (`FlutterErrorDetails.silent`, such as an image load that fails after its widget is gone) skip the SnackBar but still reach the previous handler.
-- A caught error the user sees usually gets a fixed sentence, and the exception goes to `logCaught(label, e)` (`core/errors/best_effort.dart`) so the log keeps it. `runBestEffort` covers failures the user never sees.
-- `isConnectionError` is the one test for a network failure. `failureMessage(e, failed:)` turns a connection error into the `failed` sentence plus a check-your-connection hint, but shows any other error's own text (`toString()`).
+- A caught error the user sees always gets a plain sentence, never the exception's text, and the exception goes to `logCaught(label, e)` (`core/errors/best_effort.dart`) so the log keeps it. `runBestEffort` covers failures the user never sees. The one deliberate exception is the Push target diagnostics page, which shows the last pusher error as is (`notifications.md`).
+- `isConnectionError` is the one test for a network failure. `failureMessage(e, failed:)` gives the `failed` sentence, plus a check-your-connection hint for a connection error.
 
 ### Key dependencies
 
@@ -365,7 +365,7 @@ stateDiagram-v2
 - **A SnackBar with an `action` defaults to `persist: true`**, which ignores `duration`. The global error SnackBar always carries a Copy action, so it sets `persist: false`.
 - **A SnackBar or provider change made from `FlutterError.onError` or `dispose()` defers with `scheduleMicrotask`.** Both can run while the build pipeline finalizes (a `dispose()` during a navigator transition), where Riverpod's and Flutter's assertions fire on any state change. `addPostFrameCallback` is no substitute: it fires only if another frame comes.
 - **The User-Agent is per isolate.** `installUserAgent()` sets `HttpOverrides.global`, so every `dart:io` client created afterwards (the SDK, modules, images, map tiles) sends a `Zuno/<version>` agent naming the platform and app. Map tiles depend on it. It runs first in `_runApp` and in the notification-action isolate. Sentry sends its own agent.
-- **The `sqlite3` package (pulled in by the SDK) bundles a plain SQLite.** Never open `zuno.db` through it: two SQLite copies on one file in one process break each other's locks.
+- **The `sqlite3` package (pulled in by the SDK) is not bundled.** Nothing imports it, so `pubspec.yaml` points its build hook at the system library (`hooks: user_defines: sqlite3: source: system`), which drops an unused SQLite from both apps. iOS has a system copy to load; Android has none an app can load. The day anything imports `package:sqlite3`, remove that user define first: `sqlite3_unbundled_test.dart` fails until then. Never open `zuno.db` through it either: two SQLite copies on one file in one process break each other's locks.
 - **Live state streams are distinct.** `onSync`, `onRoomState` and `onSyncStatus` fire for different things; check which one carries an update before assuming `onSync` covers it.
 
 **Storage and iOS**

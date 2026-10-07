@@ -517,11 +517,13 @@ flowchart TD
   image. `CachedAttachmentImage` shows its `noThumbnail` stand-in.
 - **The encoder takes raw sensor orientation.** A portrait phone video is
   usually a landscape sensor frame plus a rotation flag, and
-  `light_compressor` applies its target to the raw frame. `encoderTarget`
-  swaps the size when the probe says `rotated` (iOS); without that flag
-  (Android) a portrait size is assumed stored sideways. Convert only at
-  the compressor call; attachment sizes and the UI stay in display
-  orientation.
+  `light_compressor` applies its target to the raw frame. Both platforms'
+  probes report `rotated` (Android through `VideoProbeDecision`), and
+  `encoderTarget` swaps the size only when it is set, so an upright
+  portrait file such as a screen recording keeps its shape. A probe
+  without the flag falls back to assuming a portrait size is stored
+  sideways. Convert only at the compressor call; attachment sizes and the
+  UI stay in display orientation.
 - **`light_compressor`** refuses sources under 2 Mbps (most screen
   recordings and forwarded clips) unless `isMinBitrateCheckEnabled` is
   off, and takes whole megabits only. It builds from JitPack, with Gradle

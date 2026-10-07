@@ -276,6 +276,7 @@ class _JoinRequestRowState extends State<JoinRequestRow> {
       await action(widget.room, widget.user.id);
       widget.onAnswered?.call();
     } catch (e) {
+      logCaught('answer join request', e);
       messenger.showSnackBar(
         SnackBar(content: Text(failureMessage(e, failed: failed))),
       );

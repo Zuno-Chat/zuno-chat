@@ -55,10 +55,6 @@
 	<string>Zuno saves photos and videos to your library only when you tap Save.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Zuno uses only the photos and videos you choose, to send them or to set a profile or room photo.</string>
-	<key>NSUserActivityTypes</key>
-	<array>
-		<string>INSendMessageIntent</string>
-	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

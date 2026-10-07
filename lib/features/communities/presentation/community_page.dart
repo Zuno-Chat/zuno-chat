@@ -163,6 +163,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
       final room = await joinAndAwaitRoom(_client, id, via: _viaFor(id));
       if (room != null && mounted) widget.openRoom(context, room);
     } catch (e) {
+      logCaught('join community room', e);
       messenger.showSnackBar(
         SnackBar(
           content: Text(failureMessage(e, failed: 'Could not join the room.')),
@@ -237,6 +238,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     try {
       await action();
     } catch (e) {
+      logCaught('join request', e);
       messenger.showSnackBar(
         SnackBar(content: Text(failureMessage(e, failed: failed))),
       );
@@ -283,6 +285,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
       );
       roomId = e.roomId;
     } catch (e) {
+      logCaught('create community room', e);
       messenger.showSnackBar(
         SnackBar(
           content: Text(

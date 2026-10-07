@@ -106,6 +106,8 @@ class _FixedDeliveryModeNotifier extends NotificationDeliveryModeNotifier {
 
   @override
   NotificationDeliveryMode build() => _mode;
+
+  void switchTo(NotificationDeliveryMode mode) => state = mode;
 }
 
 class _DistributorUnifiedPush extends FakeUnifiedPush {
@@ -235,7 +237,7 @@ void main() {
         ..removed.value = false;
     });
 
-    Future<void> pumpPage(
+    Future<ProviderContainer> pumpPage(
       WidgetTester tester,
       NotificationDeliveryMode mode, {
       bool settle = true,
@@ -276,7 +278,15 @@ void main() {
       } else {
         await tester.pump();
       }
+      return container;
     }
+
+    void switchMode(
+      ProviderContainer container,
+      NotificationDeliveryMode mode,
+    ) => (container.read(
+      notificationDeliveryModeProvider.notifier,
+    ) as _FixedDeliveryModeNotifier).switchTo(mode);
 
     String detail(WidgetTester tester, String label) {
       final row = find.widgetWithText(ListTile, label);
@@ -667,6 +677,59 @@ void main() {
           isNotNull,
         );
       });
+
+      void expectNothingRemoved() {
+        expect(client.deleted, isEmpty);
+        expect(fcmDeliveryProvider.token, 'fcm-token-abc');
+        expect(fcmDeliveryProvider.removed.value, isFalse);
+        expect(unifiedPushDeliveryProvider.removed.value, isFalse);
+      }
+
+      for (final mode in [
+        NotificationDeliveryMode.backgroundService,
+        NotificationDeliveryMode.apns,
+      ]) {
+        testWidgets(
+          'a tap that lands after ${mode.name} took over asks nothing '
+          'and never removes the Google services target',
+          (tester) async {
+            final container = await pumpPage(
+              tester,
+              NotificationDeliveryMode.fcm,
+            );
+
+            switchMode(container, mode);
+            await tester.tap(find.text('Remove push target'));
+            await tester.pumpAndSettle();
+
+            expect(find.text('Remove push target?'), findsNothing);
+            expectNothingRemoved();
+            expect(find.byType(PushTargetStatusPage), findsOneWidget);
+          },
+        );
+      }
+
+      for (final mode in [
+        NotificationDeliveryMode.backgroundService,
+        NotificationDeliveryMode.unifiedPush,
+      ]) {
+        testWidgets('a switch to ${mode.name} while asking removes nothing', (
+          tester,
+        ) async {
+          final container = await pumpPage(
+            tester,
+            NotificationDeliveryMode.fcm,
+          );
+          await startRemoving(tester);
+
+          switchMode(container, mode);
+          await tester.pump();
+          await confirmRemove(tester);
+
+          expectNothingRemoved();
+          expect(find.byType(PushTargetStatusPage), findsOneWidget);
+        });
+      }
 
       testWidgets('with Apple push there is nothing to remove here', (
         tester,

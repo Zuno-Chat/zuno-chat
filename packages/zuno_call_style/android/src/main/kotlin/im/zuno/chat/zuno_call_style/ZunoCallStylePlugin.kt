@@ -18,43 +18,6 @@ import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import org.json.JSONObject
 
-// Builds and posts the incoming-call ring notification using Android's
-// NotificationCompat.CallStyle — unavailable through
-// flutter_local_notifications (this app's pinned 22.3.0 has no CallStyle
-// API), so this posts directly via NotificationManagerCompat instead of
-// going through the plugin's own Notification.Builder.
-//
-// The channel (already registered by CallNotificationService.initialize())
-// and notification id (4002, matching _ringNotificationId in
-// lib/core/calls/platform/incoming_call_presenter.dart) are unchanged —
-// only how the Notification object for that id gets built.
-//
-// The channel name is `zuno/call_style`, deliberately not the app's
-// existing `zuno/calls`: MethodChannel.setMethodCallHandler replaces any
-// previous handler for a name outright, so sharing one would make this
-// plugin and MainActivity's own manual handler race to clobber each
-// other on the Activity's engine.
-//
-// Accept and Decline PendingIntents are built to exactly match the
-// Intent shape flutter_local_notifications' own action-building code
-// produces (FlutterLocalNotificationsPlugin.java, verified against the
-// pinned 22.3.0 source) so its existing dispatch keeps working
-// unmodified:
-//  - Accept mirrors a `showsUserInterface: true` action: PendingIntent
-//    .getActivity into this app's own launch intent, action
-//    "SELECT_FOREGROUND_NOTIFICATION" — the plugin's own activity-aware
-//    listener picks this up exactly as it does for a plugin-built action.
-//  - Decline mirrors a `showsUserInterface: false` action: PendingIntent
-//    .getBroadcast targeting the plugin's own ActionBroadcastReceiver
-//    (already declared in AndroidManifest.xml) with action
-//    "com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver
-//    .ACTION_TAPPED" — that receiver boots the headless engine and
-//    dispatches to onDidReceiveBackgroundNotificationResponse
-//    (_handleBackgroundCallResponse in call_notification_service.dart),
-//    unchanged.
-// This is an undocumented contract of the plugin, not a public API — a
-// flutter_local_notifications major-version bump needs re-verifying it
-// still holds.
 class ZunoCallStylePlugin :
     FlutterPlugin,
     MethodCallHandler,
@@ -145,8 +108,6 @@ class ZunoCallStylePlugin :
     private fun show(context: Context, args: Map<String, Any?>) {
         val channelId = args["channelId"] as? String ?: return
         val title = args["title"] as? String ?: ""
-        // CallStyle throws IllegalArgumentException on a Person with a
-        // blank name, so this fallback is load-bearing, not cosmetic.
         val callerName =
             (args["callerName"] as? String)?.ifBlank { FALLBACK_CALLER_NAME }
                 ?: FALLBACK_CALLER_NAME
@@ -216,11 +177,6 @@ class ZunoCallStylePlugin :
         val notification: Notification = NotificationCompat.Builder(context, channelId)
             .setContentTitle(title)
             .setContentText(callerName)
-            // Not applicationInfo.icon: a small icon renders as an alpha-mask
-            // silhouette, which the launcher icon was never drawn for.
-            // Resolved by name because this module can't see the app
-            // module's generated R class — the app depends on this plugin,
-            // not the other way round.
             .setSmallIcon(smallIconResId(context))
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)

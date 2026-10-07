@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../errors/best_effort.dart';
 import '../errors/connection_error.dart';
 import 'communities.dart';
 import 'room_title.dart';
@@ -67,6 +68,7 @@ Future<bool> confirmAndExitRoom(BuildContext context, Room room) async {
     await exitRoom(room, isDirect: isDirect);
     return true;
   } catch (e) {
+    logCaught('exit room', e);
     final String failed;
     if (isDirect) {
       failed = 'Could not delete the chat.';

@@ -77,11 +77,12 @@ object VideoTools {
                     MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION,
                 )?.toIntOrNull()
                     ?: 0
-            val rotated = rotation % 180 != 0
+            val shown = VideoProbeDecision.shownSize(width, height, rotation)
             val (videoCodec, audioCodec) = trackCodecs(path)
             return mapOf(
-                "width" to if (rotated) height else width,
-                "height" to if (rotated) width else height,
+                "width" to shown.width,
+                "height" to shown.height,
+                "rotated" to shown.rotated,
                 "bitrate" to
                     retriever.extractMetadata(
                         MediaMetadataRetriever.METADATA_KEY_BITRATE,

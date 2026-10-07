@@ -349,6 +349,13 @@ During a call `MainActivity` hands the engine to `KeptEngine` instead
   plugin's own intent shape, so its existing dispatch (including the
   headless Decline) handles them unchanged. The ring shows the caller's
   avatar when it can be fetched in time.
+- **The ring has its own channel, `zuno/call_style`,** not `zuno/calls`:
+  a channel's handler replaces any earlier one with the same name, so
+  sharing it would make the plugin and the activity's own handler
+  overwrite each other.
+- **The ring's small icon is looked up by name** (`ic_stat_zuno_mark`),
+  because the plugin cannot see the app module's generated resource ids:
+  the app depends on the plugin, not the other way round.
 - **A running app also opens `IncomingCallPage`**, which runs the answer or
   decline itself and cancels the presenter as it closes, so two ring UIs
   never both stay up. A locked phone reaches the ring page through the

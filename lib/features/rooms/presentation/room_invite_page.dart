@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/connection_error.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
@@ -51,8 +53,12 @@ class _RoomInvitePageState extends State<RoomInvitePage> {
         );
       }
     } catch (e) {
+      logCaught('answer invitation', e);
       if (mounted) setState(() => _busy = false);
-      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+      final failed = join ? 'Could not join.' : 'Could not decline.';
+      messenger.showSnackBar(
+        SnackBar(content: Text(failureMessage(e, failed: failed))),
+      );
     }
   }
 

@@ -65,22 +65,20 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
 
   Future<void> _removeTarget() async {
     final mode = _mode;
+    final removal = _removalFor(mode);
+    if (removal == null) return;
     final confirmed = await _confirm(
       title: 'Remove push target?',
       message:
           'This device stops receiving notifications until you register again '
-          'or Zuno restarts. ${_removalDetail(mode)}',
+          'or Zuno restarts. ${removal.detail}',
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted || _mode != mode) return;
     setState(() => _removing = true);
     final client = ref.read(matrixClientProvider);
     var failed = false;
     try {
-      if (mode == NotificationDeliveryMode.unifiedPush) {
-        await unifiedPushDeliveryProvider.remove(client);
-      } else {
-        await fcmDeliveryProvider.remove(client);
-      }
+      await removal.remove(client);
     } catch (e) {
       logCaught('remove push target', e);
       failed = true;
@@ -92,14 +90,6 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     } else {
       Navigator.of(context).pop();
     }
-  }
-
-  String _removalDetail(NotificationDeliveryMode mode) {
-    return mode == NotificationDeliveryMode.unifiedPush
-        ? 'The server forgets this device, and the distributor '
-              'registration is dropped.'
-        : "The server forgets this device, and this device's registration "
-              'token is dropped.';
   }
 
   Future<void> _removeOtherPusher(PusherInfo pusher) async {
@@ -182,6 +172,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     final pushers = _pushers;
     final groups = groupPushers(pushers ?? const [], currentPushkey);
     final current = groups.currentSession;
+    final removal = _removalFor(mode);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Push target')),
@@ -241,8 +232,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
                     title: const Text('Last error'),
                     subtitle: Text(lastPusherError),
                   ),
-                if (mode == NotificationDeliveryMode.fcm ||
-                    mode == NotificationDeliveryMode.unifiedPush)
+                if (removal != null)
                   ListTile(
                     leading: _removing
                         ? const SizedBox(
@@ -258,7 +248,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
                       'Remove push target',
                       style: TextStyle(color: colors.error),
                     ),
-                    subtitle: Text(_removalSubtitle(mode)),
+                    subtitle: Text(removal.subtitle),
                     onTap: _removing ? null : _removeTarget,
                   ),
               ],
@@ -279,14 +269,6 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
         ),
       ),
     );
-  }
-
-  String _removalSubtitle(NotificationDeliveryMode mode) {
-    return mode == NotificationDeliveryMode.unifiedPush
-        ? 'Makes the server forget this device and unregisters from the '
-              'distributor'
-        : "Makes the server forget this device and drops this device's "
-              'registration token';
   }
 
   List<Widget> _pusherRows(List<PusherInfo> pushers, bool loading) {
@@ -311,6 +293,35 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     ];
   }
 }
+
+typedef _Removal = ({
+  String subtitle,
+  String detail,
+  Future<void> Function(Client client) remove,
+});
+
+_Removal? _removalFor(NotificationDeliveryMode mode) => switch (mode) {
+  NotificationDeliveryMode.fcm => (
+    subtitle:
+        "Makes the server forget this device and drops this device's "
+        'registration token',
+    detail:
+        "The server forgets this device, and this device's registration "
+        'token is dropped.',
+    remove: fcmDeliveryProvider.remove,
+  ),
+  NotificationDeliveryMode.unifiedPush => (
+    subtitle:
+        'Makes the server forget this device and unregisters from the '
+        'distributor',
+    detail:
+        'The server forgets this device, and the distributor '
+        'registration is dropped.',
+    remove: unifiedPushDeliveryProvider.remove,
+  ),
+  NotificationDeliveryMode.backgroundService ||
+  NotificationDeliveryMode.apns => null,
+};
 
 class _SectionHeaderWithAction extends StatelessWidget {
   final String title;

@@ -250,6 +250,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
             .push(MaterialPageRoute(builder: (_) => pageForRoom(room)));
       }
     } catch (e) {
+      logCaught('create or join room', e);
       messenger.showSnackBar(
         SnackBar(content: Text(failureMessage(e, failed: failed))),
       );
@@ -444,6 +445,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       try {
         await write();
       } catch (e) {
+        logCaught('room action ${action.name}', e);
         messenger.showSnackBar(
           SnackBar(content: Text(failureMessage(e, failed: failed))),
         );

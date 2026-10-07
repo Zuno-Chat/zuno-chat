@@ -17,12 +17,22 @@ class _ForgettableDatabase extends FakeDatabaseApi {
 void main() {
   late List<String> requests;
 
-  Client exitClient({int forgetStatus = 200, bool offline = false}) {
+  Client exitClient({
+    int forgetStatus = 200,
+    bool refuseLeave = false,
+    bool offline = false,
+  }) {
     requests = [];
     final httpClient = MockClient((request) async {
       requests.add('${request.method} ${request.url.path}');
       if (offline) {
         throw http.ClientException('Failed host lookup', request.url);
+      }
+      if (refuseLeave && request.url.path.endsWith('/leave')) {
+        return http.Response(
+          jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'Not allowed'}),
+          403,
+        );
       }
       if (request.url.path.endsWith('/forget')) {
         return http.Response(
@@ -159,6 +169,34 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Exception'), findsNothing);
+    });
+
+    testWidgets('a refused leave says only that the room was not left, and '
+        'logs why', (tester) async {
+      final logged = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logged.add(message);
+      };
+      try {
+        await tapExit(tester, joinedRoom(exitClient(refuseLeave: true)));
+
+        await tester.tap(find.widgetWithText(TextButton, 'Leave'));
+        for (var i = 0; i < 3; i++) {
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+          await tester.pumpAndSettle();
+        }
+      } finally {
+        debugPrint = originalDebugPrint;
+      }
+
+      expect(find.text('Could not leave the room.'), findsOneWidget);
+      expect(find.textContaining('M_FORBIDDEN'), findsNothing);
+      expect(find.textContaining('Not allowed'), findsNothing);
+      expect(
+        logged,
+        contains(allOf(startsWith('zuno/caught:'), contains('M_FORBIDDEN'))),
+      );
     });
 
     testWidgets('deleting a chat while offline says it was not deleted', (

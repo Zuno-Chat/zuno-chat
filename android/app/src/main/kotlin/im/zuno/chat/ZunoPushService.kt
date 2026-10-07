@@ -6,8 +6,8 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
+import im.zuno.chat.zuno_notifications.PushKind
 import im.zuno.chat.zuno_notifications.PushNotice
-import im.zuno.chat.zuno_notifications.PushNoticeDecision
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodChannel
@@ -68,7 +68,19 @@ class ZunoPushService : UnifiedPushService() {
     }
 
     override fun onMessage(message: PushMessage, instance: String) {
-        val eventId = postInstantNotice(message)
+        val notification = notificationOf(message)
+        val eventId = notification?.optString("event_id")?.ifEmpty { null }
+        val roomId = notification?.optString("room_id")?.ifEmpty { null }
+        when (PushKind.of(eventId, roomId)) {
+            PushKind.TEST -> {
+                PushNotice.postTest(applicationContext)
+                return
+            }
+
+            PushKind.MESSAGE -> PushNotice.post(applicationContext, roomId, eventId)
+
+            PushKind.BADGE -> Unit
+        }
         val hold = PushEngineDecision.shouldHoldWakeLock(
             appEngineAlive = appEngineAlive,
             hasHeadlessEngine = headlessEngine != null,
@@ -77,20 +89,9 @@ class ZunoPushService : UnifiedPushService() {
         super.onMessage(message, instance)
     }
 
-    private fun postInstantNotice(message: PushMessage): String? = try {
+    private fun notificationOf(message: PushMessage): JSONObject? = try {
         val json = JSONObject(String(message.content, Charsets.UTF_8))
-        val notification = json.optJSONObject("notification") ?: json
-        val eventId = notification.optString("event_id").ifEmpty { null }
-        if (PushNoticeDecision.isTestPush(eventId)) {
-            PushNotice.postTest(applicationContext)
-        } else {
-            PushNotice.post(
-                applicationContext,
-                notification.optString("room_id").ifEmpty { null },
-                eventId,
-            )
-        }
-        eventId
+        json.optJSONObject("notification") ?: json
     } catch (e: Exception) {
         Log.d(TAG, "No instant notice for this push: ${e.message}")
         null

@@ -12,4 +12,4 @@ bool isConnectionError(Object error) =>
 String failureMessage(Object error, {required String failed}) =>
     isConnectionError(error)
     ? '$failed Check your connection and try again.'
-    : error.toString();
+    : failed;
