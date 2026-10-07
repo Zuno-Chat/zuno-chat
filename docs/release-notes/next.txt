@@ -1,11 +1,14 @@
-Video calls run smoother on a weak connection.
-Turning on your camera in a voice call shows your video.
-Camera off means fully off.
-iPhone video calls continue in picture-in-picture.
-Closing picture-in-picture no longer ends the call.
-Your camera pauses while Zuno is out of sight.
-Calls start sharp, with no false weak-connection warning.
-Portrait screen recordings keep their shape.
-Clearer error messages.
-Test notifications follow your sound settings.
-Restore from a saved recovery code file.
+New
+• Picture-in-picture for iPhone video calls.
+• Restore from a recovery code file.
+
+Fixed
+• Choppy video calls on weak connections.
+• Video missing after switching a voice call to video.
+• Camera not fully off when turned off.
+• Closing picture-in-picture ending the call.
+• Camera staying on while Zuno is out of sight.
+• False weak-connection warning at call start.
+• Portrait screen recordings losing their shape.
+• Unclear error messages.
+• Test notifications ignoring sound settings.

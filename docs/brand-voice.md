@@ -83,7 +83,7 @@ Matrix never appears in the app.
 | App | Plainest. No dry edge. Avoid the server; never Matrix. Sign-up never suggests a phone number is needed; an email address appears only at the sign-up code step, with its one purpose stated. |
 | Notifications | Shortest. Messages, calls and invites only; never to pull people back in. |
 | Site and store listing | Lead with the problem, matter-of-fact. A dry line allowed, sparingly. Independence, the single server and username-only accounts are the story. |
-| Support and social | Same rules. Answer in the first sentence. Release notes say what changed for the reader, not how. |
+| Support and social | Same rules. Answer in the first sentence. |
 
 ## By moment
 
@@ -115,3 +115,18 @@ that nobody can undo it. The button repeats the action.
 **Donation** (app). One static line in Settings. Never a prompt, badge or popup.
 - Write: "Donations help pay for running Zuno."
 - Not: "Enjoying Zuno? Support us today."
+
+**Release notes** (store "What's new"). Features under "New", fixes under
+"Fixed", in that order; leave out an empty section. One bullet per change, in
+the fewest words that still make sense: what changed for the reader, never
+how. A feature says what the reader can now do; a fix names the problem that
+is gone.
+- Write:
+  ```
+  New
+  • Picture-in-picture for iPhone video calls.
+
+  Fixed
+  • Closing picture-in-picture ending the call.
+  ```
+- Not: "Bug fixes and performance improvements." / "Calls no longer misread stale relay round-trip times as a weak connection."
