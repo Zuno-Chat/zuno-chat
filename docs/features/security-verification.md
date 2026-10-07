@@ -1,635 +1,457 @@
 # Security & Verification
 
-## Overview
+Recovery, device approval and confirming people, told as one story instead of
+Matrix's four mechanisms (device keys, verification, cross-signing, and secret
+storage with key backup). Each mechanism is sound, but a user has to learn all
+four and assemble the story alone. Almost nobody does, so people end up with
+encryption on, no recovery, nobody confirmed, and a settings page of marks
+they cannot read. The `matrix` SDK does all the cryptography; the app changes
+only what things are called, when the user is asked, and how it looks. Logic
+lives in `lib/core/security/`, screens in `features/settings/` and
+`features/verification/`.
 
-Covers E2EE, cross-signing, device verification (QR/emoji), recovery code
-(secure backup / SSSS / key backup), and the account-security status UX
-that ties them together. Entry point: `lib/core/security/` —
-`account_security_status.dart`, `recovery_code.dart`, `user_trust.dart`,
-`confirmed_identity_store.dart`, `call_confirm_prompt_store.dart`,
-`known_devices_store.dart`,
-`security_prompt.dart` + `security_prompt_provider.dart`,
-`security_providers.dart`, `new_device_alert.dart` +
-`new_device_alert_provider.dart`, `unverified_device_warning.dart` +
-`_provider.dart`, `password_strength.dart`, `prepared_uia_password.dart`,
-`reset_confirmations.dart`, `restore_key_backup.dart`,
-`screen_security_service.dart`, `security_emphasis.dart`,
-`sensitive_clipboard.dart`, `verification_cancel_message.dart`,
-`verification_signaling.dart`. UI lives in
-`lib/features/settings/presentation/` (`advanced_security_page`,
-`security_status_card`, `recovery_code_screens`, `why_security_page`,
-`active_sessions_page`, `key_backup_management_page`,
-`secure_backup_page`) and `lib/features/verification/presentation/`
-(`verification_page`, `qr_scanner_page`, `approve_this_device_page`,
-`confirm_person`, `why_confirm_sheet`).
+Three rules govern every surface:
 
-Matrix's underlying security model (device keys, verification,
-cross-signing, secret storage/key backup) is sound but is four mechanisms
-a user has to learn and assemble into a story themselves. This app's
-design keeps all of the underlying cryptography exactly as the `matrix`
-SDK implements it and changes only what's named, when the user is asked,
-and what it looks like.
+- **One story, not four features.** Keys live on devices, so you need to know
+  which devices are really yours and a way to survive losing them all. The app
+  teaches this through three moments (set up recovery, approve a new device,
+  confirm a person) and never names a mechanism.
+- **Every warning has exactly one button that resolves it.** A warning nobody
+  can act on teaches people to dismiss warnings, including the ones that
+  matter.
+- **Absence is the default.** No badge, mark or color appears unless something
+  is wrong and the user can act on it now.
 
 ## Architecture
 
-`recovery_code_leak.dart` decides whether an outgoing message contains the
-recovery code: ten or more consecutive words from the recovery wordlist, or
-a base58 run shaped like a security key. `RoomPage`'s composer asks for
-confirmation before sending one (`chats-messaging.md`). The threshold sits
-under the code's own twelve words so a partly mistyped paste still trips it,
-and the wordlist holds no short function words, so ordinary prose cannot
-reach a run that long.
+| Area | Main files |
+|---|---|
+| Status | `account_security_status.dart`, `security_providers.dart`, `security_status_card.dart` |
+| Recovery | `recovery_code.dart`, `secure_backup_page.dart`, `recovery_code_screens.dart`, `restore_key_backup.dart` |
+| Devices | `verification_page.dart`, `approve_this_device_page.dart`, `qr_scanner_page.dart`, `active_sessions_page.dart`, `session_info.dart` |
+| People | `user_trust.dart`, `confirmed_identity_store.dart`, `confirm_person.dart`, `why_confirm_sheet.dart`, `reset_confirmations.dart` |
+| Device watch | `known_devices_store.dart`, `new_device_alert*.dart`, `unverified_device_warning*.dart` |
+| Messages | `undecryptable_reason.dart`, `retry_decrypt_last_event.dart` (both `lib/core/matrix/`), `recovery_code_leak.dart`, `verification_signaling.dart` |
+| Shared | `security_emphasis.dart`, `sensitive_clipboard.dart`, `prepared_uia_password.dart`, `verification_cancel_message.dart` |
 
-- **Every recovery, backup and approve-this-device screen is a
-  `StepLayout`** (`app-foundation.md`); steps with fields or dense content
-  use the compact circle. Two deliberate placements: on the screen that
-  reveals the twelve words, Continue is the last item of the content, not
-  a pinned action, so nobody continues without passing the words and the
-  ways to save them; an error or checkbox that gates a pinned button is
-  itself an action (the wrong-word message, "I've saved my recovery key"),
-  so it shows above the keyboard next to the button it explains.
-- **`SecureBackupPage.createBootstrap` is the test seam.** The default
-  builds the SDK `Bootstrap` from `client.encryption`; a widget test has no
-  encryption, so `secure_backup_page_test.dart` passes a fake and drives
-  every state. A test that reaches `done` must start there: arriving via
-  `onUpdate` starts the key restore and a sync.
-- **`SecureBackupPage` drives the SDK's own `Bootstrap` state machine**
-  (`package:matrix/encryption.dart` — the same one FluffyChat's Secure
-  Backup setup uses) rather than reimplementing Secret Storage
-  (SSSS)/cross-signing/key-backup logic. The app's UI only answers
-  `Bootstrap`'s checkpoints (`askWipeSsss`, `askNewSsss`,
-  `askUnlockSsss`, `askSetupCrossSigning`, `openExistingSsss`, `done`,
-  …) — `BootstrapState` is matched exhaustively (no `default` case).
-  A single recovery key is what cross-signing's private keys *and* the
-  room-key backup both end up encrypted with — Secure Backup, cross-
-  signing and key backup are one SDK flow, not three independent
-  features, even though Settings still surfaces three focused entry
-  points onto it.
-- **One up-front choice reused for every later checkpoint.** "Restore
-  with my recovery code" vs. "Replace with a new one" (the latter only
-  shown when the account already has a key, e.g. set up earlier from
-  Element) is asked once and auto-answers every subsequent "wipe this
-  too?" checkpoint `Bootstrap` raises (cross-signing, key backup) —
-  otherwise the user would face the same keep-or-replace question three
-  times for what is really one decision.
-- **`accountSecurityStatus(Client)`** (`account_security_status.dart`) is
-  a pure, unit-tested function collapsing cross-signing state, key-backup
-  state and pending-device state into one of five values, rendered as a
-  single card with at most one button (see Data & State). Same shape as
-  `mergeSessionInfo`/`session_info.dart`'s `sessionApproval` and
-  `messageNotificationFor` — pure functions over SDK state, unit-tested
-  without a live `Client`.
-- **Verification** reuses one `KeyVerification` state machine and one
-  screen (`verification_page.dart`) for three cases the SDK itself
-  distinguishes and picks between: self-trusted, self-untrusted, and
-  other-user (cross-user, reached from a contact sheet, over an in-room
-  DM `m.key.verification.*` exchange). QR and emoji/SAS are two methods
-  on the same flow, not separate features.
-- **The QR choice reads two methods, not three.** The own code shows only
-  with `QRShow` in `possibleMethods` and a `qrCode`; the scan button only
-  with `QRScan`. `Reciprocate` is there whenever QR works in either
-  direction, so it says nothing about which. `qrCode` is final once the
-  state is `askChoice`: a missing one never arrives later. With neither,
-  the picture check starts by itself, and a start that fails cancels the
-  check instead of leaving a spinner.
-- **Every SDK call behind a button goes through `_send`**
-  (`verification_page.dart`): taps during a send are dropped, a failure
-  shows one line and leaves the screen retryable. Leaving the page cancels
-  with `m.user`; the SDK default `m.unknown` reads as a fault on the other
-  side.
-- **`ApproveThisDevicePage` closes itself only once the device is
-  approved**: verification state `done`, or `thisDeviceHasIdentityKeys`
-  after recovery returns. A stopped check or Back from recovery keeps the
-  other ways open. Recovery is injectable (`openRecovery`) for tests.
-- **`QrScannerPage` asks for the camera itself** and, while refused, checks
-  again on resume, so allowing it in Settings works on the way back. The
-  caller words the way around a refusal (`withoutCamera`): the sign-in
-  scanner has no pictures to compare.
-- **`UserTrust`** (`user_trust.dart`) computes a per-contact trust state
-  (`noIdentity` / `unconfirmed` / `confirmed` / `confirmedWithPendingDevice`
-  / `identityChanged`) from `DeviceKeys.verified`,
-  `SignableKey.hasValidSignatureChain`, and this app's own
-  `ConfirmedIdentityStore`. It is the source both the confirmed-person
-  check mark and the identity-change banner read from.
-- **`SignInAnotherDevicePage`** (`features/settings/presentation/`), from a
-  row on Your devices: mints an MSC3882 login token
-  (`issueLinkedSignInCode`, `core/matrix/linked_sign_in.dart`) behind the
-  UIA password prompt, shows it as a QR and as grouped text with a
-  countdown, blocks screenshots while open, and offers a new code once the
-  five minutes are up. The countdown is its own widget so the QR is not
-  repainted every second.
-- **`KnownDevicesStore`**, keyed by user ID, is the shared seeding
-  mechanism behind both the own-account "new device signed in" alert
-  (`new_device_alert.dart`) and the per-contact "unvouched device"
-  warning (`unverified_device_warning.dart`) — same write-before-show
-  ordering, same in-memory-only dismissal model for both. The per-contact
-  warning watches only people you share a *private* room with
-  (`peopleWhoseDevicesWeWatch`) and its banner stays silent in public
-  rooms: strangers' devices are noise, and tracking them costs a store
-  entry per stranger.
-- **Device checks run on `SyncStatus.finished`, skip `outdated` lists, and
-  only ever add to the known set.** The SDK refreshes a device list after
-  `onSync`, emptying it and refilling it across awaits; a check that saved
-  a half-filled list would later report the missing devices as new sign-ins.
-  `remember` writes only when a device is new.
-- **`confirmPerson`** re-reads `accountSecurityFactsOf` after the forced
-  recovery setup returns and stops quietly if recovery or identity keys are
-  still missing — Back from `SecureBackupPage` pops exactly like finishing
-  does, and continuing would start a verification this device cannot sign.
-  The setup step is injectable (`setUpRecovery`) for tests. A check that
-  starts after the caller is gone is canceled (`m.user`), here and in
-  `ApproveThisDevicePage`; otherwise the other device rings for nobody.
-  It reads the confirmed-identity store before its first await: callers
-  unmount mid-check (the empty-room notice when a first message lands, a
-  call that ends), and the confirmation must still be recorded.
-  `picturesFirst` (from a call) skips the QR screen for emoji.
+`device_safety.dart` and `password_strength.dart` belong to
+`authentication.md`, `secret_store.dart` to `app-foundation.md`, and
+`screen_security_service.dart` to `settings.md`.
 
-## Data & State
+### Status
 
-**`AccountSecurityStatus`** (five values, strict precedence order,
-highest wins, card never shows two):
+`accountSecurityFactsOf` reads five facts on every sync, and the pure function
+`accountSecurityStatus` turns them into one status. Settings → Security shows
+it as one card with at most one button. Each account-wide fact has a
+this-device twin, and those pairs are what separate `noRecovery` from
+`deviceLocked` and `recoveryStale` from `protected`.
 
-| Value | Meaning | Action |
+| Fact | SDK source |
+|---|---|
+| `recoveryExists` / `thisDeviceHasIdentityKeys` | `crossSigning.enabled` / `crossSigning.isCached()` |
+| `keyBackupExists` / `keyBackupUsableHere` | `keyManager.enabled` / `keyManager.isCached()` |
+| `unapprovedOtherDevices` | own devices other than this one that are not `verified` |
+
+The first matching row wins:
+
+| Status | When | The one button opens |
 |---|---|---|
-| `deviceWaiting` | another of your devices is logged in but not approved | Review |
-| `deviceLocked` | recovery exists, this device can't read history | Unlock them |
-| `recoveryStale` | recovery code replaced; a device is now out of date | Fix |
-| `noRecovery` | no recovery set up at all | Set up recovery |
-| `protected` | recovery set up, this device holds the identity keys, nothing pending | *(no button)* |
+| `noRecovery` | The account has no recovery | `SecureBackupPage` (set up) |
+| `deviceLocked` | Recovery exists, but this device lacks the identity keys | `ApproveThisDevicePage` |
+| `deviceWaiting` | Another own device is not approved | Your devices |
+| `recoveryStale` | A key backup exists that this device cannot open, usually because the code was replaced elsewhere | `SecureBackupPage`, restoring with the current code |
+| `protected` | None of the above | No button |
 
-The table is the card's urgency order. `accountSecurityStatus` branches
-cheapest-discriminator-first instead — no recovery, then this device's
-keys, then pending devices, then a stale backup — so each fact is read
-once. The two orders agree: every pair the table ranks is mutually
-exclusive on `recoveryExists` or `thisDeviceHasIdentityKeys` except
-`deviceWaiting` vs `recoveryStale`, which both resolve to `deviceWaiting`.
-Don't align one to the other without re-deriving the truth table.
+`deviceLocked` must come before `deviceWaiting`. A device that never unlocked
+recovery has directly trusted nothing, so every other device looks unapproved
+to it, even correctly cross-signed ones: their signature chain ends at a
+master key this device would have to trust directly. Without that order, a
+freshly signed-in phone would accuse every other device instead of asking to
+be approved itself.
 
-Also requires `thisDeviceHasIdentityKeys` (`AccountSecurityFacts`) for the
-symmetric case gate: a device that has never unlocked recovery has
-`directVerified` nothing, so *every other device* reads as unapproved to
-it, including correctly cross-signed ones (`SignableKey
-.hasValidSignatureChain`'s final condition requires the master key itself
-be `directVerified`). Without this gate, a freshly signed-in phone's
-status card falsely accused every other device instead of asking to be
-approved itself.
+### Recovery
 
-**`DeviceKeys.verified`** is `(directVerified || crossVerified) &&
-!blocked`. The SDK always marks the *current* device's own keys
-`directVerified` (it always trusts keys it holds) — that answers "do I
-trust the keys I'm holding" (always yes), not "has the account vouched
-for this device" (the question the devices screen asks). So the current
-device's row must never read `DeviceKeys.verified`; `sessionApproval`
-(`session_info.dart`) is the single verdict used for every row:
+`SecureBackupPage` answers the checkpoints of the SDK's own `Bootstrap` state
+machine and never reimplements secret storage. One key encrypts both the
+cross-signing keys and the key backup, so recovery, cross-signing and key
+backup are one flow, even though Settings offers several entry points onto it.
 
-- current row → `thisDeviceHasIdentityKeys`, never `verified`, never
-  `unknown`;
-- another row, this device can judge (`canJudge` /
-  `thisDeviceHasIdentityKeys`) → its own `verified`;
-- another row, this device cannot judge → `unknown` ("Cannot check from
-  this device") rather than a false "Not approved yet" on every row.
+```mermaid
+flowchart TD
+    start{"Account already has recovery?"}
+    start -->|no| create["Create a code: reveal, save, type back two words"]
+    start -->|yes| choice["Restore or replace? Asked once"]
+    choice -->|restore| enter["Enter the code, a security key or another app's phrase"]
+    choice -->|replace| password["Ask for the password first"] --> create
+    create -->|"Bootstrap.newSsss(phrase)"| fresh["New identity keys and key backup; confirmations forgotten"]
+    enter --> keep["Keep identity keys and key backup"]
+    fresh --> after["Download the key backup, then forceSyncNow"]
+    keep --> after
+```
 
-**Cross-signing status is two independent facts**, not one: whether the
-*account* has cross-signing set up at all
-(`encryption.crossSigning.enabled`) and whether *this device* holds the
-private keys (`crossSigning.isCached()`). Key backup has the same
-account-wide-vs-this-device split (`keyManager.isCached()`). Collapsing
-either pair into one line loses the distinction the Advanced page exists
-to show.
+- **One choice answers every later checkpoint.** Restore or replace is asked
+  once, and the answer auto-answers each "wipe this too?" checkpoint
+  `Bootstrap` raises afterwards (cross-signing, key backup). Otherwise the
+  user would face the same keep-or-replace question three times for one
+  decision. A caller that already knows the answer skips the question.
+- **Creating a code** goes reveal → save → type back → only then
+  `Bootstrap.newSsss(phrase)`. The reveal offers ways to save the code and
+  invites writing the words down; Continue comes after them, so nobody moves
+  on without passing the words. The type-back asks for two words at random
+  positions from the saved copy. It is the only step that separates "saved
+  it" from "saw it", and the one place where added friction is right. Asking
+  for the whole phrase would test stamina, not saving. A wrong answer offers
+  the code again instead of failing the flow. Quitting before the type-back
+  leaves nothing on the server.
+- **Entering a code** accepts the twelve words, a base58 security key or a
+  phrase set up in another client. `recoveryUnlockInput` normalizes the input
+  only when it is a valid twelve-word code, so a chosen phrase is never
+  altered. Text correction is off in the field, because autocorrect mangling
+  a word is the likeliest real-world failure of the whole design. Unknown
+  words get near-match suggestions, which the edit-distance property makes
+  safe. Validation is only a hint and never blocks submission, so a valid
+  code still works if the validator has a bug.
+- **Rarer checkpoints** (unreadable recovery data, older secret-storage keys
+  to migrate) are answered too.
+- **Modes.** The generated code is the default `SecureBackupMode`. A raw
+  security key or a self-chosen phrase is reachable only from Advanced, a
+  disabled placeholder for now (`settings.md`).
 
-**Confirmation state (`UserTrust`)** depends on two pieces that must
-both hold or neither works: `ConfirmedIdentityStore`'s own record (this
-app's `confirmedIdentityKey`) *and* the SDK's own persisted
-`identityDirectlyVerified` flag. `ConfirmedIdentityStore` also stores a
-confirmation timestamp (entries from before it existed have none — never
-backfilled, since that would misstate something the user may remember
-doing differently).
+### Device approval and verification
 
-**Recovery code (current design — see Key Design Decisions for how this
-differs from the raw SSSS key):**
+One `KeyVerification` state machine and one screen (`verification_page.dart`)
+serve both own devices (over to-device events) and people (over in-room
+events in a DM). QR comes first, and comparing emoji ("pictures" in the UI)
+is the fallback.
 
-- Twelve lowercase words, space-separated, drawn from a fixed,
-  checked-in 1296-word list (`assets/wordlist/recovery_words.txt`,
-  generated by `tool/generate_wordlist.py`), ~124 bits, generated with
-  `Random.secure`.
-- Three properties enforced by generation and re-asserted by test
-  against the *shipped* file: unique 3-character prefixes (autocomplete),
-  minimum edit distance ≥ 2 between any two words (a typo can never
-  silently become a different valid word), 4–8 lowercase-ASCII
-  characters per word.
-- Feeds the **existing** `Bootstrap.newSsss(phrase)` passphrase path — no
-  protocol or server change. PBKDF2-HMAC-SHA512 derives the 32-byte
-  secret-storage key; salt/iteration count live in server account data.
-  The iteration count is hardcoded in `Ssss.createKey` — word count is
-  the only strength lever this app controls.
-- The base58 raw key (`OpenSSSS.recoveryKey`) still exists underneath
-  either path (word phrase or raw key) and unlocks the same vault; it
-  remains visible on Advanced.
-- `normalizeRecoveryPhrase(String)` is the single frozen transform
-  generation and entry must agree on forever: lowercase, map anything
-  outside `a-z` to a separator, collapse runs, trim. Changing it silently
-  invalidates every existing code (different derived key, vault refuses
-  to open, no error, no recovery) — treat it as a one-way door, not an
-  editable function.
+| `KeyVerificationState` | Screen |
+|---|---|
+| `askChoice` | Show our code, scan theirs, or compare pictures instead |
+| `askSas` | Compare the pictures |
+| `showQRSuccess` | Scanner side: wait for the other side to confirm |
+| `confirmQRScan` | Showing side: confirm the other device scanned (`acceptQRScanConfirmation`) |
+| `askSSSS` | This device must unlock recovery first |
+| `done` | Approved or confirmed |
+| canceled, `error` | A mapped stop message (`verification_cancel_message.dart`) |
 
-## Communication
+- **The QR choice follows the methods both sides support.** Our code shows
+  only with `QRShow`, the scan button only with `QRScan`. With neither, the
+  picture check starts by itself, and a start that fails cancels the check
+  instead of leaving a spinner.
+- **Each button sends once.** Taps during a send are dropped, and a failure
+  shows one line and leaves the screen retryable.
+- **Leaving a check cancels it with `m.user`**, because the SDK default
+  `m.unknown` reads as a fault on the other side. A check that starts after
+  its caller is gone is canceled the same way, or the other device would ring
+  for nobody.
+- **`ApproveThisDevicePage`** offers another device before the recovery code,
+  since most people still have the old phone. It closes only once the device
+  is approved (the check reaches `done`, or recovery returns with identity
+  keys); a stopped check or Back from recovery keeps the other ways open.
+  From onboarding it also offers starting over when the old code is gone.
+- **`QrScannerPage` asks for the camera itself** and picks up a permission
+  granted later in system settings. The caller words the way around a
+  refusal, because the sign-in scanner (`authentication.md`) has no pictures
+  to compare.
 
-- **User-Interactive Auth (UIA)** (`client.onUiaRequest` /
-  `Client.uiaRequestBackground`) gates every sensitive account action
-  through this feature area: uploading new cross-signing keys during
-  fresh Secure Backup setup, signing out other sessions, deleting the
-  account, and minting a sign-in code for another device, which Synapse
-  always re-prompts for (`login_via_existing_session.require_ui_auth`).
-  All of them answer through `answerUiaWithPassword`
-  (`uia_password_prompt.dart`). Current session's own sign-out skips UIA —
-  the already-valid token is enough for `Client.logout()`.
-- **Verification travels two ways**: to-device events
-  (`m.key.verification.*`) for own-device flows, and in-room
-  `m.room.message` events for cross-user (in-DM) flows — the latter means
-  the timeline literally receives verification-protocol messages, which
-  must be filtered out (see Gotchas).
-- **`Client.verificationMethods`** must be non-empty
-  (`{emoji, qrShow, qrScan}`) or the whole mechanism is inert in both
-  directions: `KeyVerificationManager.handleToDeviceEvent` /
-  `.handleEventUpdate` return early on `verificationMethods.isEmpty`
-  (incoming requests never reach `onKeyVerificationRequest`), and
-  `knownVerificationMethods` returns `[]` for outgoing requests, which
-  the other side then cancels.
-- **QR payload is binary**: `qrDataRawBytes` carries a `MATRIX` magic
-  prefix and is not valid UTF-8. Scanning must read `mobile_scanner`'s
-  `Barcode.rawDecodedBytes` (never `rawValue`); rendering must use
-  `qr_flutter`'s `QrCode.fromUint8List` (never
-  `QrImageView(data: String)`). Both string-based paths produce a code that
-  scans cleanly and then fails verification. On Apple only the decoded
-  `bytes` count: Vision's `rawBytes` keep the QR header and padding, fail
-  the same way, and the SDK answers a failed scan by canceling the check.
-  A frame without decoded bytes is skipped.
-- **Key backup is not auto-downloaded on unlock.** Unlocking Secret
-  Storage grants *access* to the online key backup; it does not read it.
-  Nothing in the SDK or this app calls `KeyManager.loadAllKeys()` other
-  than `restore_key_backup.dart`'s explicit
-  `restoreKeyBackupFromRecovery(client)`, which must run **before** the
-  post-restore `oneShotSync` (not after) — syncing first just rebuilds
-  room-list previews from the same still-undecryptable state. Absent
-  that call, keys arrive lazily, one megolm session at a time, only when
-  something tries to decrypt — and the triggering decrypt itself can't
-  report success synchronously (`Encryption.decryptRoomEvent` kicks off
-  `KeyManager.maybeAutoRequest` via `runInRoot` without awaiting it), so
-  a naive retry-once approach always reports "still locked" on the first
-  try.
-- **`Room.onSessionKeyReceived` is per-room, not global.** A newly
-  arrived key is announced there, not on `client.onSync`. An open
-  `Timeline` recovers automatically because it subscribes to that stream;
-  anything showing a room preview without an open `Timeline` (the room
-  list) must subscribe itself to heal — one bulk restore is not the only
-  source of a late-arriving key (a slow backup fetch or another device
-  sharing a session both land the same way).
-- **`oneShotSync` needs an explicit zero timeout** after a restore.
-  `Client._innerSync` defaults a `null` timeout to a 30-second long-poll
-  once already synced once — applying a recovery key doesn't itself
-  produce a new server-side event, so the call would otherwise hang ~10s
-  for nothing. Pass `timeout: Duration.zero` explicitly.
+**Your devices** (`ActiveSessionsPage`) lists the union of `/devices` and
+`client.userDeviceKeys`, so a device known to only one source still gets a
+row. From it the user approves another device, signs out one or all other
+devices behind a password prompt, or opens sign-in on another device
+(`authentication.md`). `sessionApproval` is the single verdict for every row:
 
-## Key Design Decisions
+| Row | Verdict |
+|---|---|
+| This device | `thisDeviceHasIdentityKeys`, never its `verified` flag |
+| Another device, and this device holds the identity keys | That device's `verified` |
+| Another device, and this device lacks the identity keys | Unknown ("cannot check"), not a false "not approved" on every row |
 
-- **One status, one action.** `accountSecurityStatus` replaces "four
-  sections of independent status" with a single five-value enum and a
-  card with at most one button — the governing rule across this whole
-  feature area: *never show a warning without exactly one button that
-  resolves it*. Everything the old three-tile Security & Privacy page
-  showed (session ID/key, cross-signing lines, key-backup
-  version/algorithm/count) survives verbatim behind an **Advanced** row
-  rather than being deleted — still useful for debugging, just no longer
-  the first thing anyone sees.
-- **Vocabulary is a deliverable, not polish.** One name for the whole
-  mechanism (**recovery**), one for its secret (**recovery code** —
-  collapsing the previously separate "security key" and "security
-  phrase" into one generated word phrase), **device** never "session",
-  **approve** for your own devices, **confirm it's really them** for
-  people. `cross-signing`, `secret storage`, `megolm`, `fingerprint`,
-  `bootstrap`, bare `verify` and persistent `unverified` are banned from
-  every primary surface and survive only on Advanced.
-- **Recovery code is a generated 12-word passphrase, not a raw key or a
-  user-chosen phrase.** All three decode to the same 32-byte secret;
-  the choice is only about what material feeds key-derivation. A raw
-  base58 key can't realistically be transcribed or recalled without a
-  password manager. A user-*chosen* phrase is typed zero times between
-  setup and disaster and, unlike Signal's PIN or WhatsApp's backup
-  password, has no server-side rate limiting to lean on — the vault is a
-  file an attacker can grind offline, unlimited, against a permanent
-  archive, so a chosen phrase's real strength is whatever the user
-  picked. Twelve *generated* words (~124 bits) are uniform-strength and
-  still paper/voice/typeable with no password manager. Raised from seven
-  words (~72 bits) once it was clear the words are a *passphrase* that
-  coexists with (and thus caps the effective strength of) the base58 key
-  underneath, not an encoding of it — 72 bits is "beyond realistic," not
-  beyond possible, against dedicated offline hardware. Twelve matches
-  BIP39's own floor for something guarding irreversible loss.
-- **No protocol/server change.** The generated phrase rides the
-  existing `Bootstrap.newSsss(phrase)` path — this is a client-side
-  decision about input material only, which is why it carries near-zero
-  protocol risk despite being fully user-visible.
-- **No forced migration, ever.** Rotating a recovery code is genuinely
-  destructive (invalidates the old one, forces every other device to
-  re-establish), so an account already holding a raw key or a
-  user-chosen phrase keeps working unchanged; replacement stays an
-  explicit Advanced action, never a side effect of an app update.
-- **QR is the default, emoji the fallback**, one screen for both own-
-  device and cross-user cases, never labeled "QR verification" in UI —
-  "Scan to confirm."
-- **Confirm people, not devices** — an unapproved-but-not-yet-vouched-for
-  device belonging to an already-confirmed contact gets a passive
-  line (it self-resolves in minutes, since the default sharing policy
-  already withholds keys from it); an identity *change* gets a real
-  in-timeline alert, since it silently voids a confirmation only the
-  user can re-make.
-- **Security copy earns its place only at a moment of consequence about
-  someone specific**, never as ambient reassurance or a permanent
-  score. Concretely: a confirmed-person check mark (receipt, not
-  warning — shown once per screen, absence means nothing), one
-  reassurance line in *empty* rooms only (never anchored into history,
-  never on the room list; it says "only you and X" only once X is
-  confirmed, since before that it is a promise the design does not
-  keep), "Sent from a device X hasn't approved yet"
-  only in the per-message long-press sheet (not a per-message timeline
-  mark — tested and rejected in both polarities: an always-on mark
-  becomes wallpaper and miscommunicates absence-means-unsafe; marking
-  every unsigned-device message floods, since most contacts are never
-  confirmed at all). No permanent device-count/fraction on a contact's
-  trust row — reads as a permanently-failing score with no clean end
-  state.
-- **Confirming is taught at three moments, all opening one sheet**
-  (`why_confirm_sheet.dart`): the empty 1:1 line ("Why confirm"), a pill
-  in 1:1 calls (`calls.md`), and one onboarding card. The story is "make
-  sure it is really them": a device someone else added could read along
-  and write as them, drawn as you / their device / "Someone else?". The
-  onboarding card is the one deliberate exception to the rule above,
-  because nobody looks for a protection they do not know exists.
-- **No shields, three visual states only**: neutral (nothing), confirmed
-  (small muted check — reassurance, not achievement), attention (warning
-  triangle, error colour, reserved for states that carry an action).
-  Devices screen is the deliberate, sole exception: approved is
-  green/not-approved is red using fixed colour values (not Material 3's
-  brand-following `primary`/`tertiary` roles, which read as arbitrary
-  hue on a non-standard seed) — justified because that screen's whole
-  purpose is sorting into pass/fail, and nothing on it is pushed at
-  anyone who didn't open the page.
-- **"Encrypt to verified sessions only" is disabled, not removed**,
-  until at least one device is verified — with verification broken
-  (Phase 0 bug) or with zero verified devices, this toggle
-  (`ShareKeysWith.directlyVerifiedOnly`) shares room keys with zero
-  devices including the sender's own, silently making every outgoing
-  message undecryptable for everyone.
-- **Recovery key clipboard is sensitive.** `SensitiveClipboard`
-  (`sensitive_clipboard.dart`) sets `ClipDescription.EXTRA_IS_SENSITIVE`
-  (API 33+) and overwrites the clip after 90s, but only while it still
-  holds the app's own text — there's no delete-the-clip API, so blindly
-  clearing risks eating whatever the user copied since. iOS
-  (`CallsChannelPlugin.swift`) writes a `.localOnly` item (no Universal
-  Clipboard) that expires after 90 s on its own, since the Dart timer does
-  not run while the app is suspended; its clear compares `changeCount`
-  rather than reading the pasteboard, which would raise the paste prompt.
-  Without `sensitiveClipboard` the Copy message says the code stays on the
-  clipboard.
-- **Local database is SQLCipher-encrypted** (`sqflite_sqlcipher`), key
-  in `flutter_secure_storage`: Keystore on Android, Keychain
-  `first_unlock_this_device` on iOS, so a push or notification action
-  handled while locked (on iOS a VoIP ring or an action, never before
-  first unlock) can still open the database and the key never leaves the
-  phone in a backup. Directly relevant here: the access token, Olm account
-  pickle, and every inbound Megolm session live in that one file — this
-  feature's cryptographic state has no protection independent of that
-  encryption-at-rest layer. On iOS, trimmed copies of recent inbound Megolm
-  sessions also sit in the notification extension's read model, sealed
-  under its own Keychain key (`notifications.md`). So the store is guarded
-  against losing it (`app-foundation.md`): an Android Keystore read error
-  never discards the key (`resetOnError: false`), only the app mints a key,
-  background clients never clear the store, and a failed start asks before
-  anything is deleted. A cached derived key (`matrix_database_raw_key`)
-  sits beside the passphrase in the same storage.
-- **One Matrix client per process** (`app-foundation.md`): the SDK writes
-  the Olm account and each identity key's Olm sessions as whole values from
-  its own cache, so a second live client on the store would silently undo
-  this device's one-time-key and session writes.
-- **Media/account recovery are two different things, both required.**
-  The recovery code recovers *message history*; it does not recover
-  *account access* (login). A forgotten password with no 3PID on file
-  permanently and silently loses the account regardless of a saved
-  recovery code. Needs verification: optional-email-as-3PID password
-  reset is a scoped launch blocker but not yet built.
-- **Colour is a budget, not a decoration — one shared attention system.**
-  `security_emphasis.dart` (`attentionIcon`/`notEncryptedIcon`/
-  `settledIcon`/`AttentionStripe`) replaced four surfaces that had each
-  invented their own idea of "urgent." "Louder" is conveyed by the glyph
-  being **filled** where every other icon in the app is outlined — so it
-  reads as different in *kind* before it reads as different in colour,
-  which also keeps it legible at small sizes and to someone who can't
-  distinguish the colour — plus a 4px solid `error` stripe on the
-  leading edge (full `error` fill reads as a crash screen;
-  `errorContainer` alone is gentle enough to scroll past) and a filled,
-  not text, resolving button. Deliberately no `settledColor`: giving the
-  reassurance state its own colour would make the two ends read as one
-  scale, so a room with no mark would look unsafe by contrast. This
-  system is only safe to use because attention marks no longer compete
-  with a permanent per-room lock badge (removed — see
-  `rooms-membership.md`); with that noise gone, a mark this loud appears
-  close to never for most accounts.
+**Password prompts (UIA).** Uploading new cross-signing keys, signing out
+other devices, deleting the account and minting a sign-in code all go through
+`answerUiaWithPassword`. Signing out this device needs no prompt, since its
+valid token is enough for `logout()`.
 
-## Gotchas & Constraints
+### People
 
-- `Client.uiaRequestBackground<T>` completes with `uia.result` before
-  `UiaRequest._run` assigns it, so any non-void `T` throws "Null is not a
-  subtype". Capture the response inside the request closure and call it as
-  `<void>` (`issueLinkedSignInCode`).
-- The SDK re-asks a rejected password on the same `UiaRequest` and keeps
-  no error on it. `answerUiaWithPassword` remembers which requests already
-  got a password (an `Expando`) to say "Wrong password.", and cancels a
-  next stage that is not a password rather than calling it wrong. It also
-  skips a `waitForUser` while it is already asking: when the password needs
-  no dialog (a prepared one), the `loading` event can arrive after the
-  retry and would open a second dialog.
-- Two `onUiaRequest` listeners each open a password dialog. A page that
-  listens (`ActiveSessionsPage`) cancels its subscription before pushing one
-  that also listens (`SignInAnotherDevicePage`) and re-subscribes on return.
-- `Room.lastEvent` is decrypted once, on first arrival over sync, then
-  cached — it does not retry on its own. Retrying normally happens only
-  inside an open `Timeline` via `room.onSessionKeyReceived`; nothing
-  subscribes to that for a room that's never been opened, which is why a
-  restore or a late key needs an explicit retry path in the room-list
-  preview widget (`retryDecryptIfUndecryptable`,
-  `core/matrix/retry_decrypt_last_event.dart`).
-- `KeyVerification.canceledReason` is free text set by the *other*
-  side and in practice mirrors the machine code — never render it raw.
-  Read the **code**, not the reason, under one rule: never show a string
-  starting with `m.`. An ordinary cancel and a genuine mismatch
-  (`m.key_mismatch`/`m.mismatched_sas`/`m.mismatched_commitment`) need
-  different copy — only a mismatch means the check ran and disagreed.
-  Prose the far side actually wrote (not a bare code) is still passed
-  through, since that's the one case this app can't say better itself.
-- Room-based (cross-user) verification requests arrive as ordinary
-  `m.room.message` events with sending-client fallback body text like
-  *"...Apparently your client doesn't support this"* — which renders as
-  a false failure message in the timeline even though verification is
-  succeeding. `isVerificationSignalingMessage`
-  (`verification_signaling.dart`) hides the whole `m.key.verification.*`
-  family from the timeline and from `messageNotificationFor`, and is
-  deliberately **not** gated behind the "show hidden messages" toggle
-  (that toggle reveals things tidied away for noise; this event's body
-  is actively wrong, not merely noisy).
-- `ShareKeysWith.crossVerifiedIfEnabled` withholds keys from an unsigned
-  device only when its *owner* has a master key at all — a contact who
-  never set up recovery has every device (including a brand-new one)
-  sent a full set of room keys, with no signal anywhere by default. This
-  is the one real leak case `userTrustState` used to miss entirely
-  (`noIdentity` returned before ever inspecting unsigned devices) — now
-  covered by `unverified_device_warning.dart`, fired only on a device
-  *appearing* (event, not persistent state — "this person has no
-  identity" is true of most contacts most of the time and would be
-  wallpaper as a permanent badge). The flip side: once the owner has a
-  master key, a device they have not approved gets no keys at all, so
-  messages to it stay undecryptable until they approve it. That is the
-  policy working, not a bug (it was reported as one).
-- Starting over on recovery (`wipeCrossSigning(true)` →
-  `askSetupCrossSigning` with all three keys) generates a whole new
-  cross-signing identity, not a re-wrap of the old vault under a new
-  passphrase. Every confirmation the user made (a signature over the
-  other person's master key from the user's *user-signing* key) is
-  orphaned — still published, vouched for by nothing. Clearing local
-  state on this path requires **both** halves or neither works:
-  `ConfirmedIdentityStore.forgetAll()` and
-  `CrossSigningKey.setVerified(false, false)` for every *other* user's
-  master key (`forgetConfirmationsAfterIdentityReset`,
-  `reset_confirmations.dart`) — clearing only the store leaves the SDK's
-  own `identityDirectlyVerified` flag true; clearing only the flag
-  leaves a stored key that later reads as a false `identityChanged`.
-  Runs only on the wipe path, never on restore (which keeps the same
-  identity, so clearing there would discard real, still-valid work).
-- Nothing above `MobileScanner` may listen to its controller: `start()`
-  notifies synchronously inside the widget's `initState`, which marks the
-  listening ancestor dirty mid-build. The caption and the failure view go
-  through `overlayBuilder` and `errorBuilder`.
-- The verification screens run against `verification_harness.dart`: a fake
-  `KeyVerification`, `FakeDeviceKeysList` for `startVerification`, a fake
-  `MobileScannerPlatform` and the camera permission channel.
-  `MobileScanner` needs a few bounded pumps to reach running.
-  `EncryptedTestClient.unlockRecovery()` makes this device hold its
-  identity keys.
-- Testing gotcha (also in `CLAUDE.md`): do not stand up a real `Client`
-  on `sqflite`/`sqflite_common_ffi` in widget tests (native FFI init
-  hangs). Use `test/helpers/fake_matrix.dart`'s in-memory
-  `FakeDatabaseApi`. Screens needing a fully synced `Room`/`Timeline`
-  have no test coverage this way — most of this feature's logic is kept
-  in pure, `Client`-state-in/value-out functions specifically so it can
-  be unit-tested without that limitation
-  (`accountSecurityStatus`, `sessionApproval`, `userTrustState`,
-  `recovery_code.dart`'s normalisation/validation, `verification_cancel_message`,
-  `verification_signaling`, `undecryptable_reason.dart`).
-- `undecryptableReason` classifies by whether an *action* exists, not by
-  a message's actual cause or timestamp — the SDK exposes no device
-  creation time (`DeviceKeys.lastActive` moves, it isn't a creation
-  stamp) and the underlying decryption-exception text isn't a reliable
-  cause signal. A key backup that exists and this device hasn't opened
-  is recoverable; anything else isn't — same signal `deviceLocked` uses.
-- `Node.attributes` on sanitized HTML (`sanitize_message_html.dart`, used
-  for `formatted_body` rendering, adjacent to this feature's trust model
-  but not itself part of it) is a `LinkedHashMap<Object, String>` —
-  namespaced attributes need `key.toString().toLowerCase()`, not a raw
-  key comparison, or allowlist checks silently pass things like
-  `xlink:href`. Documented here only as a nearby gotcha in the same
-  security-hardening pass; the feature itself is content rendering, not
-  verification/recovery.
-- **A just-deleted device can still show up in the devices list.**
-  `mergeSessionInfo` unions two sources (`/devices` and
-  `client.userDeviceKeys`); a deleted device vanishes from `/devices`
-  immediately but `userDeviceKeys` is only refreshed by
-  `updateUserDeviceKeys()`, which itself is a no-op unless
-  `DeviceKeysList.outdated` is set — and the only thing that sets it is
-  a sync carrying `device_lists.changed`, which hasn't landed yet a
-  moment after the deletion. `markOwnDeviceKeysOutdated`
-  (`device_keys_refresh.dart`) forces the flag ahead of a refresh
-  triggered right after a mutation, rather than waiting on that sync.
-  The union itself is intentional — a device known to only one source
-  still gets a row.
-- **Ask for the UIA password before starting the destructive part of a
-  recovery-code replace, not after.** `Bootstrap`'s `newSsss` only
-  reaches the UIA checkpoint at the very end of the flow, so a naive
-  screen order asks "are you really you?" only once the old code is
-  already invalidated. `PreparedUiaPassword` (`prepared_uia_password.dart`)
-  lets `_replaceExistingRecovery` collect the password up front and park
-  it for `_handleUia` to consume later — the UIA protocol step itself is
-  unmoved, only when the user is asked. Its `take()` is consume-once by
-  design: handing a rejected password to a retry as well would silently
-  resend the same wrong answer. Applies only to the replace path (both
-  entry points); first-time setup has no existing code to invalidate and
-  no destructive step to gate.
+`confirmPerson` is the one entry point for confirming a contact:
 
-## Extension Guidance
+1. Without recovery or identity keys here, it offers to set recovery up
+   inline rather than failing with a cross-signing error, then stops quietly
+   if they are still missing: Back from `SecureBackupPage` looks like
+   finishing, and continuing would start a check this device cannot sign.
+2. A contact with no master key has nothing to confirm.
+3. Otherwise it runs the in-room check (pictures first from a call) and, once
+   the contact's master key is directly verified, records that key in
+   `ConfirmedIdentityStore`.
 
-- New account-security signals belong in `accountSecurityStatus` as
-  another enum value with an explicit position in the precedence order
-  — never as a second badge/line bolted onto an existing card. Keep it a
-  pure function of `Client` state so it stays unit-testable without a
-  live `Client`.
-- New verification affordances (another QR/SAS entry point, another
-  contact-sheet action) should route through the existing
-  `verification_page.dart` / `KeyVerification` state machine rather than
-  building a parallel flow — it already handles self-trusted,
-  self-untrusted, and other-user cases uniformly.
-- Any new secret-storage-derived material (a second passphrase-style
-  credential, say) should reuse `Bootstrap.newSsss(phrase)` and the
-  existing normalisation discipline rather than inventing a new
-  derivation path — the whole reason the recovery-code work carries near-
-  zero protocol risk is that it never touches the SDK's own crypto, only
-  the input material.
-- Never touch `normalizeRecoveryPhrase` after ship without a real
-  migration path — treat it as append-only infrastructure, not editable
-  logic.
-- New "is this safe" UI should default to the three-state model (neutral
-  / confirmed / attention) and the one-button-per-warning rule before
-  reaching for a new visual language; the devices-screen green/red
-  exception is deliberately singular and should not be treated as
-  precedent elsewhere.
-- Raw/advanced Matrix vocabulary and debug-shaped state (session key,
-  cross-signing internals, key-backup version/algorithm) belongs on the
-  Advanced page, not surfaced on a primary screen — extend Advanced
-  rather than re-introducing that detail elsewhere.
-- Full export/import of E2E room keys (standard encrypted megolm-export
-  file format) is explicitly not built — neither the SDK nor
-  `vodozemac`'s Dart bindings expose the encrypted file format, only the
-  unencrypted per-session export string (`InboundGroupSession
-  .exportAt`/`.import`). Building it means implementing PBKDF2 + AES-256-
-  CTR + HMAC compatible with Element's own export format from scratch —
-  scope it as its own security-sensitive pass, not a quick addition.
+The two offered paths depend on the situation: in person, scan their code;
+apart, compare the pictures while on a call in the app.
 
-## Dependencies / Integration
+`userTrustState` reads the contact's master key, the SDK's `directVerified`
+flag on it, whether any of their devices is unsigned, and the key saved in
+`ConfirmedIdentityStore`:
 
-- **`matrix` SDK** (`package:matrix`) owns all actual cryptography:
-  `Bootstrap`/SSSS, cross-signing, `KeyVerification`, `KeyManager` (key
-  backup), Olm/Megolm via `vodozemac`. This app never reimplements
-  crypto — it only drives SDK state machines and reflects SDK-computed
-  trust facts.
-- **UIA** (`client.onUiaRequest`, `answerUiaWithPassword`) is shared
-  infrastructure this feature uses for cross-signing key upload and
-  session sign-out, and that other sensitive-action flows elsewhere in
-  the app reuse the same way.
-- **Room list / timeline (`event_display.dart`, room preview widgets)**
-  depend on this feature's decrypt-retry and undecryptable-reason logic
-  to show correct previews and cause-specific "can't be decrypted"
-  copy.
-- **Calls** (`CallSession`) independently reuses the same underlying
-  device-trust primitives (`Client.getUserDeviceKeysByCurve25519Key`,
-  `DeviceKeys.blocked`) to authenticate call-encryption-key senders —
-  a parallel consumer of this feature's trust model, not part of it.
-- **Notifications** — device sign-in alerts
-  (`new_device_alert_provider.dart`) surface both as an in-app room-list
-  banner and (via the notification-delivery path) a push notification;
-  the two exist for different app states (foreground vs. backgrounded)
-  and share one dismiss model.
-- **`flutter_secure_storage`** backs the SQLCipher database key, and its
-  cached derived key, that protect this feature's persisted crypto state at
-  rest; not part of this feature's own code but a hard dependency of its
-  security properties.
-- **Account recovery (password reset / 3PID)** is a *different*,
-  currently unbuilt mechanism — see Key Design Decisions. Do not conflate
-  the recovery code (message-history recovery) with account-access
-  recovery when extending either.
+| State | Meaning | Shown as |
+|---|---|---|
+| `noIdentity` | They never set up recovery | Nothing to confirm; the unvouched-device banner can fire |
+| `unconfirmed` | Not confirmed by us | A confirm row in room info, "Why confirm" in an empty one-to-one chat, the call pill |
+| `confirmed` | Confirmed, every device signed | A muted check in the chat header |
+| `confirmedWithPendingDevice` | Confirmed, but one of their devices is not approved by them | The check, a passive line in room info, a row in the message's long-press sheet |
+| `identityChanged` | Their master key differs from the one we confirmed | A banner in the chat, attention in room info, the call pill |
+
+`ConfirmedIdentityStore` also keeps when each confirmation happened. Entries
+from before the timestamp existed have none and are never backfilled, since a
+made-up date could misstate something the user remembers doing differently.
+
+### Device watch
+
+`KnownDevicesStore` remembers device IDs per user. It backs two warnings:
+
+- **Own new sign-in**: a banner on the chat list and a notification
+  (delivery: `notifications.md`).
+- **Unvouched contact device**: when a contact without a master key adds a
+  device, a banner in the chat. The default key policy sends that device room
+  keys, so this is the one case where a new device can read along unnoticed.
+
+Both follow the same rules. The first check for a user seeds the store
+silently, IDs are saved before anything shows, and dismissal lives in memory
+only. Only contacts sharing a non-public room are watched, and the banner
+stays silent in public rooms: strangers' devices are noise, and tracking them
+costs a store entry per stranger. The warning fires on a device appearing,
+not as a standing state, because "has no identity" is true of most contacts
+and would become wallpaper.
+
+### Undecryptable messages
+
+`undecryptableReason` keys on whether an action exists, not on the cause:
+
+| Reason | When | Action |
+|---|---|---|
+| `recoverable` | A key backup exists that this device has not opened | Inline unlock |
+| `keyNeverShared` | Anything else | None; a button that cannot work is worse than no button |
+
+The cause is not knowable. The SDK has no device creation time
+(`DeviceKeys.lastActive` moves), and decryption error text varies and covers
+both causes. `undecryptableReason` reads the same facts as the status card,
+so a message and the card never contradict each other. Display:
+`chats-messaging.md`.
+
+### Leak check
+
+`recovery_code_leak.dart` flags outgoing text that contains ten consecutive
+wordlist words or a run shaped like a base58 security key. The composer warns
+before sending it (`chats-messaging.md`). Ten sits under the code's twelve so
+that a partly mistyped paste still trips it, and the list has no word under
+four letters, so the commonest words of ordinary prose break any run.
+
+### Integration
+
+- `CallSession` checks call-key senders against the same device keys and
+  ignores blocked devices (`calls.md`).
+- Onboarding asks for approval and recovery from the raw facts, not the
+  status (`onboarding.md`).
+
+## Decisions
+
+- **The recovery code is twelve generated words fed to the existing
+  passphrase path** (`Bootstrap.newSsss(phrase)`). Every option unlocks the
+  same 32-byte vault key; the choice is only what the user keeps.
+
+| Option | Verdict |
+|---|---|
+| Base58 key (`OpenSSSS.recoveryKey`) | Strongest (256 bits, no passphrase to grind), but cannot be written down, read aloud or recalled, so recovery hinges on a password manager. Kept on Advanced. |
+| A phrase the user chooses | Typed zero times between setup and disaster, then forgotten. Its strength is whatever the user picked, and the vault can be ground offline. Kept on Advanced. |
+| Words encoding the 32 bytes (BIP39-style) | 256 bits, but about 25 words, a Zuno-only format, and two forms of one secret |
+| **Twelve generated words** | Uniform strength, writable on paper, sayable on a call, typeable without a password manager. Also works in other clients' phrase fields. |
+
+- **No protocol or server change.** The code is a client-side choice of what
+  feeds key derivation, which is why a change this visible carries near-zero
+  protocol risk. New secret-derived material should reuse `newSsss(phrase)`
+  and the same normalization rather than add a derivation path.
+- **Why twelve.** The words are a passphrase, not an encoding of the key:
+  PBKDF2-HMAC-SHA512 at 500,000 iterations turns them into the same vault key
+  the base58 key opens. An attacker takes the cheaper door, so the account is
+  only as strong as the words, and the vault can be ground offline with no
+  rate limit. Apps that accept short PINs rely on server hardware that limits
+  guesses; Matrix has nothing like it, and the prize is a permanent archive on
+  a server the app treats as hostile. Seven words (~72 bits) is beyond GPUs
+  but within reach of a Bitcoin-scale ASIC farm in months; twelve (~124 bits)
+  is not, and matches BIP39's floor. The SDK hardcodes the iteration count
+  (`Ssss.createKey`), so word count is the only lever.
+- **The wordlist** (`assets/wordlist/recovery_words.txt`, built by
+  `tool/generate_wordlist.py`) is the system dictionary intersected with
+  `cracklib-small`, which stands in for frequency data. Inflected forms are
+  removed, slurs and crude or easily misheard words are blocked, and words are
+  picked greedily, shortest first. Tests check the shipped file, not the
+  generator, since checking the generator only proves it agrees with itself:
+
+| Property | Why |
+|---|---|
+| 1296 words (6⁴, ~10.3 bits each), 4–8 lowercase ASCII letters | Nothing to transliterate, render oddly or mishear |
+| Unique three-letter prefixes | Autocomplete takes about three keystrokes a word |
+| Edit distance at least 2, checked by deletion neighborhoods, which can only over-reject | A single typo never makes another valid word, and entry offers near matches. Distance 3 would make every typo uniquely correctable, but forces words like "akimbo", which are worse to read off paper. |
+
+- **Duplicate words are allowed** in a generated code. Rejecting them looks
+  tidier and lowers entropy.
+- **Normalization**: a code is words made of `a–z`, and every other character
+  separates them. Lowercase, turn anything else into a separator, collapse
+  runs and trim. It is the simplest rule that can be restated exactly years
+  later. Separating rather than stripping survives pastes whose spaces became
+  non-breaking or zero-width; stripping would glue two words into one.
+  Generated codes are already normalized, so setup and entry hash the same
+  string.
+- **No forced migration.** Replacing a code makes every other device
+  re-approve, so existing keys and chosen phrases keep working and replacing
+  is always an explicit choice, never a side effect of an update.
+- **Vocabulary is a deliverable, not polish.** Matrix's security key and
+  security phrase were never two things, so they merge into one secret, the
+  recovery code, under one mechanism, recovery. Own devices are approved;
+  people are confirmed. Protocol words (cross-signing, secret storage,
+  megolm, fingerprint, bootstrap, session) appear only on Advanced, where
+  they help debugging and anyone who already knows Matrix. Word table:
+  `../brand-voice.md`.
+- **Confirm people, not devices.** A contact's unapproved device gets no room
+  keys and clears itself once they approve it; only they can act, so it earns
+  a passive line. An identity change voids a confirmation only the user can
+  remake, so it gets a banner. In short, a new device is their problem and a
+  new identity is ours. Their devices are never listed, and one confirmation
+  covers every future device. `why_confirm_sheet.dart` tells the story
+  ("a device someone else added could read along and write as them") from the
+  empty one-to-one notice and the call pill (`calls.md`). The onboarding card
+  (`onboarding.md`) is the one ambient exception.
+- **Security copy appears only about someone specific, at a moment of
+  consequence.** Persistent reassurance decays like persistent warnings, and
+  an app that keeps saying it is safe reads as worried:
+
+| Surface | Rule |
+|---|---|
+| Confirmed person | A muted check, once per screen. It is a receipt, so confirming leaves a trace; absence means nothing. |
+| Empty room | One line that clears itself. Only once the person is confirmed does it say that only the two of you can read the chat; before that, the design cannot keep that promise. |
+| Room list | Nothing: the same words about nobody read as marketing |
+| Message from a confirmed person's unapproved device | Long-press sheet only. A per-message mark becomes wallpaper and makes its absence look unsafe, or floods, since most contacts are never confirmed. |
+| Contact's row | No device count, which reads as a score that never passes |
+
+- **Three visual states, no shields** (shields mean nothing outside Matrix):
+  nothing, a muted check, and attention (`security_emphasis.dart`). Attention
+  is a filled glyph among outlined icons, so it differs in kind before color,
+  which also keeps it legible at small sizes and to people who cannot tell the
+  colors apart. It adds a thin error stripe (a full error fill reads as a
+  crash) and a filled button. There is no "settled" color: two colored ends
+  would read as a scale, making an unmarked room look unsafe. A mark this loud
+  works only because nothing marks every encrypted room
+  (`rooms-membership.md`). The devices screen alone uses green and red,
+  because sorting pass from fail is its whole job; it is not a precedent.
+- **Ask about recovery at a moment of consequence** (`security_prompt.dart`):
+  only in `noRecovery` with a conversation, after a few days of use or once a
+  second own device appears, with a cooldown between asks, never at
+  registration (nothing to lose yet, least patience). It shows from the chat
+  list, never from a settings visit, and defers to onboarding.
+- **Logic stays in pure functions** over SDK state (`accountSecurityStatus`,
+  `sessionApproval`, `userTrustState`, `undecryptableReason`, normalization,
+  cancel messages), so it is unit-tested without a live `Client`. A new
+  account-wide signal becomes another status with a place in the order, never
+  a second line on the card.
+- **Not built: room-key export and import** (placeholders on Advanced).
+  Neither the SDK nor vodozemac exposes the standard encrypted export format,
+  only unencrypted per-session export. Building it means PBKDF2, AES-256-CTR
+  and HMAC compatible with the standard file, a security pass of its own.
+- **The recovery code restores message history, not account access.** There
+  is no email reset (`authentication.md`), so a forgotten password loses the
+  account whatever code is saved; keep the two apart when extending either.
+  Crypto state is only as safe as the encrypted database (`app-foundation.md`).
+
+## Gotchas
+
+- **`Client.verificationMethods` must be non-empty** (`createMatrixClient`).
+  With none, incoming requests are dropped before `onKeyVerificationRequest`,
+  and outgoing ones advertise no methods, so the other side cancels.
+- **The QR payload is binary, not text.** Scan `rawDecodedBytes` (on iOS,
+  `rawBytes` still carries the QR framing) and render with
+  `QrCode.fromUint8List`. The string paths produce a code that scans cleanly
+  and then fails verification, and the SDK answers a failed scan by canceling
+  the check.
+- **The enum's declaration order is not the precedence.** Only the branch
+  order in `accountSecurityStatus` decides which status wins.
+- **Nothing above `MobileScanner` may listen to its controller.** `start()`
+  notifies inside its `initState`, marking the listening ancestor dirty
+  mid-build; the caption and failure view go through `overlayBuilder` and
+  `errorBuilder`.
+- **In-room verification events carry a fallback body that reads as a
+  failure.** `isVerificationSignalingMessage` hides the whole
+  `m.key.verification.*` family from the timeline and notifications,
+  whatever the show-hidden toggle says: the body is wrong, not just noisy.
+- **Never render `canceledReason` raw.** It is free text from the other side.
+  Map the code, never show a string starting with `m.`, and give a real
+  mismatch its own alarming copy, since only a mismatch means the check ran
+  and disagreed. Prose the other side actually wrote is passed through.
+- **The SDK marks this device's own keys `directVerified`.** That answers "do
+  I trust the keys I hold" (always yes), not "has the account vouched for this
+  device", which is why `sessionApproval` ignores it for this device's row.
+- **Device checks run on `SyncStatus.finished`, skip `outdated` lists and
+  only add.** The SDK empties and refills a device list across awaits, so
+  saving a half-filled list would later report the missing devices as new
+  sign-ins.
+- **A just-deleted device lingers on Your devices.** It leaves `/devices` at
+  once, but `userDeviceKeys` refreshes only when the list is marked outdated,
+  which normally takes a sync. `markOwnDeviceKeysOutdated` forces that before
+  the refresh that follows a change.
+- **Unlocking recovery does not download the backup.** It grants access, and
+  keys otherwise arrive lazily, one session at a time, when something tries
+  to decrypt. `restoreKeyBackupFromRecovery` must run before the post-restore
+  sync, or that sync rebuilds previews from the same locked state.
+- **Late keys arrive per room** (`Room.onSessionKeyReceived`), not on
+  `onSync`. An open `Timeline` heals itself, but `Room.lastEvent` is
+  decrypted once and cached, so the room list preview subscribes and retries
+  itself (`retryDecryptIfUndecryptable`).
+- **`confirmPerson` reads the confirmed-identity store before its first
+  await.** Callers unmount mid-check (the empty-room notice when a first
+  message lands, a call that ends), and the confirmation must still be
+  recorded.
+- **Starting over mints a new identity, orphaning every confirmation.**
+  `forgetConfirmationsAfterIdentityReset` clears both the store and the SDK's
+  `directVerified` flag on other people's master keys. Clearing only the store
+  leaves a stale confirmation; clearing only the flag leaves a stored key that
+  later reads as a false `identityChanged`. Restoring keeps the same identity,
+  so it clears nothing.
+- **The default key policy guards only contacts with a master key.** Without
+  one, their new devices get keys, hence the unvouched-device warning. With
+  one, an unapproved device gets nothing until approved, so messages to it
+  stay undecryptable until then; that is the policy working, not a bug.
+  Encrypt-to-verified stays disabled until another own device is directly
+  verified, because with none it shares keys with nobody, including the
+  sender.
+- **UIA.**
+  - Replacing a code asks for the password first, because `Bootstrap`
+    reaches the password checkpoint only after the old code is gone.
+    `PreparedUiaPassword.take()` is consume-once, so a rejected password is
+    never resent.
+  - The SDK re-asks a rejected password with no error, so
+    `answerUiaWithPassword` tracks which requests got one to say it was
+    wrong. A next stage that is not a password is canceled.
+  - Two `onUiaRequest` listeners open two dialogs, so a listening page
+    unsubscribes before pushing another listener and resubscribes on return.
+  - `uiaRequestBackground<T>` completes before it sets its result, so call
+    it as `<void>` and capture the response inside the request.
+- **Sensitive clipboard.** No API deletes a clip, so Android marks it
+  sensitive and overwrites it shortly after, only if it still holds our text.
+  iOS writes a local-only item that expires on its own (Dart timers stop
+  while suspended) and compares `changeCount`, since reading the pasteboard
+  raises the paste prompt.
+- **Never edit `normalizeRecoveryPhrase` or the shipped wordlist.** A
+  normalization change silently gives every existing code a different key,
+  with no error and no way back. A new list leaves existing codes working
+  (the phrase string is what gets hashed) but breaks validation and
+  autocomplete for them. Either needs a migration.
+
+## Testing
+
+- `SecureBackupPage.createBootstrap` takes a fake `Bootstrap`, since a widget
+  test has no encryption. A test reaching `done` must start there: arriving
+  via `onUpdate` starts a restore and a sync.
+- `verification_harness.dart` fakes `KeyVerification`, device lists,
+  `MobileScannerPlatform` and camera permission; `MobileScanner` needs a few
+  bounded pumps to reach running. `EncryptedTestClient.unlockRecovery()`
+  gives this device its identity keys.
+- The status copy is pinned by tests: every status except `protected` offers
+  exactly one action, and no status uses protocol vocabulary.
+- The QR byte round trip and full verification flows need two real devices.

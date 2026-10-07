@@ -1,734 +1,587 @@
 # Chats & Messaging
 
-## Overview
+The chat room: its timeline, how each message is rendered, the composer,
+attachments, voice messages, galleries, avatars and inbound share from
+other apps. There is no message model or service layer. `RoomPage` reads
+and changes the SDK's `Room`, `Timeline` and `Event` objects directly, and
+holds only state and logic; every widget it draws lives in its own file.
 
-The chat timeline is the core surface of the app: message bubbles, sending
-(text/media/voice), event rendering, media galleries, and the room-page
-scroll/pagination behavior. It has no repository layer — `RoomPage` reads
-and mutates the `matrix` SDK's `Room`/`Timeline`/`Event` objects directly
-(see CLAUDE.md's architecture map). This doc covers everything that decides
-what a message looks like, how it's sent, and how the timeline behaves.
+## Components
 
-## Architecture
+Paths are under `lib/`. Files without a folder sit beside `room_page.dart`
+in `features/chat/presentation/`.
 
-- **`RoomPage`** (`lib/features/chat/presentation/room_page.dart`) holds
-  state and logic only: the live `Timeline`, read markers, pagination,
-  sending, recording, typing notices, menus. Every widget lives beside it:
-  `message_list_view.dart` (list, memo, day labels, end rows),
-  `message_tile.dart` (one row), `message_bubble.dart` (shape, colors),
-  `message_meta.dart` (time row), `message_contents/` (text, media, voice,
-  file, call, quote, reactions, upload tile), `room_app_bar.dart`,
-  `message_composer.dart`, `message_actions_sheet.dart`. Pure helpers and
-  shared types are in `lib/features/chat/data/`.
-- **A message rebuilds only when it changes.** `messageRowDataFor` builds a
-  value-equal `MessageRowData` per visible message and `RowMemo`
-  (`core/ui/row_memo.dart`, capped at 160) returns the identical row widget
-  when the record is equal, so Flutter skips that subtree. The record holds
-  everything the look depends on, including what a row merely points at
-  (the quoted message's type and sender name). A stale record means a stale
-  message: anything new that changes how a message looks joins the record,
-  with a test. The memo is cleared when the `Timeline` instance changes.
-- **The page is quiet.** It rebuilds for room-state bursts (coalesced per
-  microtask), timeline updates and syncs that mention this room
-  (`syncTouchesRoom`); any sync also counts while the active-call banner
-  shows, because that banner expires by time. Recording seconds, upload
-  progress and the scroll-to-latest toggle are `ValueNotifier`s read by
-  their own small widgets.
-- **Opening**: the first frame is header, wallpaper and composer. The
-  timeline loads at once from the local database but is applied when the
-  route animation completes; the first read marker and history request
-  follow the apply. The spinner shows only if the slide has finished and the
-  timeline has not.
-- **Reply targets**: a quote whose original is not in the timeline asks
-  `ReplyTargetCache` once per event ID per page, from `initState`, never
-  from `build`; "not available" is remembered and "Reload messages" renews
-  the cache.
-- **`event_display.dart`** is the single source of truth for "what is this
-  event, and should it be shown at all" — see Key Design Decisions below.
-  Every other surface that used to independently guess at this (room list
-  preview, notification body, reply quote snippet, timeline visibility
-  filter, sender-grouping, read-marker logic) now calls into it.
-- **Mentions** are four small units: `mention_query.dart` (pure: is a
-  mention being typed at the cursor, matching, insert text),
-  `mention_suggestions.dart` (the picker under the compose bar),
-  `core/matrix/mention_fragments.dart` (which `@fragments` an event's
-  `m.mentions` declares) and `core/matrix/mention_only_html.dart` (does a
-  formatted body carry anything beyond text and mention pills). See Key
-  Design Decisions.
-- **`message_html_style.dart`** is the one style map for `flutter_html`
-  bubbles (links: `linkColor`, no underline); `widget_memo.dart` is the
-  LRU identity cache that keeps `flutter_html` from re-running its styling
-  pass on every sync tick.
-- Tapping the app bar title (name + access line) opens `RoomInfoPage`; the
-  overflow menu entry stays.
-- **`media_gallery_group.dart`** groups multiple media events sent together
-  into one timeline tile; `gallery_viewer_page.dart` is the full-screen
-  pager for it.
-- **Attachment caching**: `AttachmentCache` (in-memory) plus
-  `DiskAttachmentCache` (disk-backed) form a two-tier cache for
-  message attachments, via a shared `fetchCachedAttachment`
-  helper (memory → disk → network, populating both tiers on the way back).
-  Concurrent fetches of one key share a single pending future, so N
-  widgets missing the cache together make one request.
-- **Avatars**: `MxcAvatar` renders `MxcAvatarImage`, an `ImageProvider`
-  equal on (`mxc`, bucket), through the `Image` widget. Two buckets only:
-  `small` (96 crop) up to 56 px across, `large` (320 scale) above, so a
-  person costs one request per bucket however many sizes show them.
-  Flutter's image cache holds the decoded picture (no flicker on rebuild);
-  bytes go through `fetchCachedAvatar`: disk only, never expiring, write
-  awaited. The disk key (`avatarCacheKey`) is shared with the notification
-  poster, which shows the small-bucket entry on a sender's first post
-  instead of fetching it. The initial shows until the first frame or on error, sized to
-  the avatar, on one of eight tones picked by a folded FNV-1a hash of
-  `toneSeed` (pinned by tests: changing it recolors everyone). Seed with a
-  stable Matrix ID where one exists, so a rename keeps the color.
-  Videos and files use `fetchCachedAttachmentFile` instead: disk tier
-  only, returning the cached file itself, so share, save and the video
-  viewer never re-download or hold a large file in memory; tapping a file
-  bubble is the same `saveAttachmentWithFeedback` path as the viewers'
-  Save. One key per event (`attachmentCacheKey`) across every consumer. The SDK's own file
-  store is off (`maxFileSize` 0), so this is the only cache there is.
-- **Media send pipeline is app-side and native**; the SDK's image shrink
-  is bypassed. `image_send_preparation.dart` / `video_send_preparation.dart`
-  build the final `MatrixImageFile`/`MatrixVideoFile`, thumbnail and
-  blurhash, then call `sendFileEvent` with `thumbnail:` set and no
-  `shrinkImageMaxDimension`. Native side: `ImageResizer.kt` (channel
-  `zuno/image`) and `VideoTools.kt` (`zuno/video`: probe, remux,
-  thumbnail), each on its own background thread. iOS answers the same
-  channels with the same replies: `ImageResizerPlugin.swift` (ImageIO
-  thumbnailing decodes straight at the target size and bakes in the
-  orientation; HEIC arrives as JPEG) and `VideoToolsPlugin.swift`
-  (AVFoundation; codecs named `video/avc` / `audio/mp4a-latm` like
-  Android's). An animated GIF becomes a still JPEG on both, since only PNG
-  keeps its type.
-- **Attachment send flow**: one progress bar per attachment covers
-  compression (first half) and upload (second half) via
-  `combinedSendProgress` (`send_progress.dart`). A synthetic pending tile
-  (`_PendingAttachmentTile`) stands in before the real timeline row exists
-  (matched later by `txid`); once it lands, the real row keeps drawing the
-  preview bytes until the upload finishes. The whole send, batch loops
-  included, holds `UploadForegroundService` (a dataSync foreground service
-  with a progress notification) so backgrounding can't freeze or kill it.
-  On iOS the hold is a background task, about 30 s, with no progress
-  surface (`update` is a no-op).
-- **Inbound share** (`zuno/share`, `lib/core/share/inbound_share.dart`,
-  both platforms): native hands Dart text plus file URIs, as a stream while
-  running and a one-shot `takeLaunchShare` on cold start. The stream is a
-  `HeldBroadcast` (`core/navigation/held_broadcast.dart`, also behind room
-  opens): the latest event that arrived before anyone listened goes to the
-  first listener. `_AuthGate` pushes `SharePickerPage` (joined chats you can
-  post in, `canPostInRoom`; search), waiting for the sign-in state if it is
-  still loading, and the picker replaces itself with
-  `RoomPage(pendingShare:)`. `RoomPage` prefills text into the composer,
-  has native copy the files (`copyToCache`) only now, and sends them
-  through `_sendPickedMedia` (the gallery picker's dispatch) or `_sendFile`.
-  Files that could not be copied are counted in one SnackBar ("… could not
-  be opened. Share … again."); the rest still go.
-  - Android: `ShareActivity.kt` (no UI, owns the `SEND`/`SEND_MULTIPLE`
-    filters) reads every extra defensively, joins several or rich
-    (`CharSequence`) texts line by line, and forwards to `MainActivity` with
-    a read grant. `MainActivity` copies into
-    `cacheDir/shared/<uuid>/<i>/<name>` on one background thread, which also
-    prunes batches older than 24 h at engine start, never at a copy, so a
-    copy still kept for a retry survives the next share. A relaunch from
-    Recents or a restored activity never repeats the share
-    (`app-foundation.md`).
-  - iOS: the `ShareExtension` target files the share into an App Group
-    inbox, and `ShareInboxPlugin` takes it from there (Key Design
-    Decisions).
+| File | Role |
+|---|---|
+| `room_page.dart` | The live `Timeline`, read markers, pagination, sending, recording, typing notices and menus |
+| `message_list_view.dart` | The reversed list with its row memo, day labels, end-of-history row, upload tile and failed-send tiles |
+| `message_tile.dart`, `message_bubble.dart` | One row (avatar gutter, reactions, swipe-to-reply); the bubble's shape, colors and sender name |
+| `message_meta.dart` | The time row and its invisible twin |
+| `message_contents/` | Text, media and galleries, voice, file, call summary, reply quote, reactions, the pending upload tile |
+| `message_composer.dart`, `mention_suggestions.dart` | The message box, recording row and reply or edit bar; the mention picker |
+| `message_actions_sheet.dart` | The long-press sheet: reactions, then actions, then message facts |
+| `features/chat/data/` | Pure helpers and shared types, including `MessageRowData` |
+| `core/matrix/event_display.dart` | What an event is, for every surface |
+| `core/matrix/attachment_cache.dart` | The only attachment cache |
+| `core/matrix/image_send_preparation.dart`, `video_send_preparation.dart`, `video_send_plan.dart` | App-side media preparation before `sendFileEvent` |
+| `core/matrix/mxc_avatar.dart`, `mxc_avatar_image.dart` | Avatars |
+| `core/matrix/media_gallery_group.dart`, `gallery_viewer_page.dart` | Gallery grouping and the full-screen pager |
+| `core/matrix/sanitize_message_html.dart` | The sanitizer for formatted (HTML) messages |
+| `core/share/inbound_share.dart`, `features/share/presentation/share_picker_page.dart` | Inbound share: the `zuno/share` channel and the chat picker |
 
-## Data & State
+## Timeline
 
-- **No separate message/timeline model** — SDK `Event`/`Timeline`/`Room`
-  objects are the state; `RoomPage` derives UI state (grouping, date
-  dividers, gallery membership) from a plain pass over the newest-first
-  event list on each build.
-- **`MessageKind`** (`event_display.dart`) is the exhaustive, no-`default`
-  enum every consumer switches on: text, photo, video, voice, file,
-  location, callSummary, deleted, undecryptable, nonMessage,
-  hiddenSignaling. Adding a
-  new kind is a compile error everywhere it isn't handled, not a bug
-  reported later.
-- **Gallery wire format**: each item stays a normal `m.image`/`m.video`
-  event, with `im.zuno.gallery: {id, index, count}` added to its content —
-  not one fat multi-file event. This means every other Matrix client still
-  sees N normal messages (forward/redact/download all keep working with no
-  new code), and an unrecognized shape (`galleryGroupOf` returns null)
-  degrades to an ordinary single-photo render rather than breaking the tile.
-  Grouping itself (`groupGalleries`) happens client-side, one pass over the
-  timeline list: the anchor is always the group's newest surviving member,
-  so every existing per-index pass (read ticks, date dividers, sender
-  grouping) keeps working unmodified on plain indices.
-- **Reactions**: `m.reaction`/`m.annotation`, aggregated per emoji key. This
-  app enforces one reaction per user per message (client-side convention,
-  not a Matrix constraint) — picking a new emoji replaces the old one.
-- **Read receipts / unread count**: `canCarryReadMarker` is simply
-  `event.status.isSent` — see Key Design Decisions for why no
-  content-based filter works here.
-- **Persistent media cache**: disk tier keeps bytes in the app's cache
-  directory. Message attachments expire after a day (sliding), so
-  decrypted media does not linger. Avatar entries never expire: an `mxc`
-  address is immutable and a new avatar is a new address; the 256 MB
-  oldest-first sweep bounds them. Because of that, avatar bytes that fail
-  to decode are deleted, or one bad response would break that avatar for
-  good; failed loads are also evicted from the image cache so they retry.
-  "Clear media cache" in Settings clears both tiers, Flutter's image cache
-  and the map tile cache (`location-sharing.md`). Expiry
-  deletes are fire-and-forget and ignore their own failure: two readers can
-  meet the same stale entry and both try to delete it, and the loser would
-  otherwise raise `PathNotFoundException` from an unawaited future, where
-  nothing can catch it.
-- **Chat wallpaper** is one fixed image, the same in every conversation,
-  with nothing for the person to choose (`chat_wallpaper.dart`).
-  `assets/wallpaper/chat_tile.png` is a 480 px doodle tile, white on
-  transparent, shipped at 1x, 2x and 3x. It is drawn once behind the
-  messages: repeated at its own size (`BoxFit.none`, top left), tinted
-  with `onSurface` at 5% through `BlendMode.srcIn` so one file serves both
-  themes, `FilterQuality.low`, inside its own `RepaintBoundary`. A few
-  textured rectangles per frame, where a painted pattern cost one draw
-  call per dot. The decoded 3x tile is about 8 MB, held once in the image
-  cache. `ChatListView` preloads it after its first frame
-  (`precacheChatWallpaper`), so it neither pops in nor decodes during the
-  slide into a chat.
+- **SDK events are the state.** Each build derives runs, day labels and
+  gallery membership from one pass over the newest-first event list.
+- **A message rebuilds only when its record changes.**
+  `messageRowDataFor` builds a value-equal `MessageRowData` for each row
+  the list asks for. `RowMemo` (pattern in `app-foundation.md`) hands back
+  the identical widget for an equal record, so Flutter skips that
+  subtree. The record holds everything a message's look depends on,
+  including what it only points at, such as the quoted message's type and
+  sender name. The memo is cleared when the `Timeline` instance changes,
+  because cached rows hold the old one.
+- **The page is quiet.** It rebuilds for timeline updates, for coalesced
+  room-state bursts and for syncs that touch this room
+  (`syncTouchesRoom`). While the active-call banner shows, any sync
+  counts, because that banner expires by time rather than by an event.
+  Values that change often (recording time, upload progress, the
+  scroll-to-latest button) are `ValueNotifier`s read by their own small
+  widgets.
+- **Opening.** The first frame shows the header, wallpaper and composer.
+  The timeline starts loading from the local database at once, but is
+  applied only once the slide has finished (`onRouteSettled`,
+  `app-foundation.md`). The first read marker and history request follow
+  the apply, so neither runs during the slide. A spinner shows only if
+  the slide has finished and the timeline has not.
+- **Pagination** uses the `Timeline`'s own history requests. They fire on
+  scroll-up, on load and after every timeline update, because a room
+  whose synced window filters down to less than a screen has nothing to
+  scroll. An end-of-history row replaces the loader once
+  `canRequestHistory` turns false.
+- **Reply quotes** whose original is not loaded ask `ReplyTargetCache`,
+  once per event ID per page and never from `build`. An original that
+  cannot be fetched is remembered as unavailable.
+- **"Reload messages"** (room menu) wipes this room's locally cached
+  timeline with the same calls the SDK's gap handling makes, renews the
+  reply cache and rebuilds the `Timeline` from the server. Nothing changes
+  on the server. A failed wipe still reloads, so the chat never stays on
+  the spinner.
+- **Reactions** are aggregated per emoji key. Zuno allows one reaction
+  per person per message, a client convention rather than a Matrix rule:
+  picking another emoji redacts the old one first, and picking the same
+  one again removes it.
+- **The wallpaper** is one doodle tile for every chat, tinted from the
+  theme so one file serves light and dark. It sits in its own
+  `RepaintBoundary`, and the chat list precaches it, so it neither pops
+  in nor decodes during the slide.
 
-## Communication
+## Event display
 
-- Sending goes straight through SDK methods (`room.sendTextEvent`,
-  `room.sendFileEvent`, ...) — no wrapping service layer.
-- **Text goes out as typed.** Every `sendTextEvent` call (composer,
-  notification reply) passes `parseMarkdown: false, parseCommands: false`;
-  the SDK has no client-wide switch, so a new call site must pass both.
-  Commands off is a safety rule, not just a side effect: the SDK's set
-  includes `/leave`, `/logout`, `/ban`, `/clearcache`, which a message
-  starting with that word would otherwise run.
-- **Upload progress**: `matrix_api_lite`'s `uploadContent` has no
-  progress hook and sends the whole body as one `http.Request`; this app's
-  `UploadProgressHttpClient` wraps the client and slices the body into fixed
-  64KB pieces itself to get real intermediate progress values (a naive
-  stream transform over the SDK's own request only ever reports one chunk —
-  the whole file).
-- **Media processing never falls back to the original bytes**: an
-  undecodable photo or a failed video encode throws
-  `MediaProcessingException` and the send is refused with a short message,
-  since sending the untouched file would leak metadata. A server-side
-  `FileTooBigMatrixException` is terminal too (no retry record). Every
-  failed media send discards the SDK's own error placeholder
-  (`discardSendPlaceholder`), because the app tracks failures itself.
-- **Failed media sends** (`_failedSends`, `FailedMediaSend`) keep a
-  tap-to-retry tile (`FailedMediaTile`). A single photo or video gets its
-  own, newest at the bottom; a gallery item shows inline in its gallery, or
-  with the gallery's other failures in one tile while the gallery is out of
-  view. The reconnect pass resends them all. "Not sent. Try again." shows
-  only when the chat is gone by the time a send fails, and for a plain
-  file, which has no tile.
-- **Shared copies** are reference-counted per path while a batch or a retry
-  uses them, kept while a failed video send still points at one (a failed
-  photo keeps its bytes), and deleted once unused or when the chat closes.
-- **Pickers can throw.** image_picker reports a refused permission as
-  `camera_access_denied` / `photo_access_denied`; `_showAttachmentMenu`
-  catches every picker failure and names the permission to allow.
-  `FilePicker.pickFiles` is multi-select since file_picker 12, so each
-  picked file is sent.
-- **Caption screens share one video preview** (`ComposerVideoPreview` and
-  `composeVideo` in `video_caption_composer_page.dart`). A video that has
-  not loaded reports no size or length (never 0 ms); one the player cannot
-  open says so and can still be sent. Off-screen videos in the mixed
-  composer load with `ignore()` on their future, so a failure there is not
-  an uncaught error.
-- **A refused text send shows "Not sent · Tap to retry"** (`not_sent.dart`).
-  `isNotSent` is an own event in `EventStatus.error` — what the SDK leaves
-  behind both when `sendTextEvent` throws (`M_FORBIDDEN`, too large) and
-  when it gives up silently: a 429 that outlasts the one-minute
-  `retry_after_ms` loop returns `null` with no exception. The bubble tap and
-  the offline→online pass (`_retryAfterReconnect`) both call
-  `Event.sendAgain()`; the reconnect pass scans the timeline for
-  `notSentOwnEvents` instead of remembering transaction ids, which is what
-  catches the silent case. A bubble dims only while `isSending`; an error
-  bubble stays opaque with the red row. Media upload failures are tracked
-  separately (`_failedSends`, above); a media *event* left in error status
+`core/matrix/event_display.dart` is the single source of truth for what
+an event is. The chat list preview, notification body, reply quote,
+timeline filter, sender runs and read marker all call it, so no surface
+guesses on its own.
+
+| Function | Answers |
+|---|---|
+| `isDisplayableTimelineEvent(event, showHiddenMessages:)` | Is it drawn in the timeline? |
+| `summarize(event)` | Its `MessageKind` and one line of text, for previews, quotes and notifications |
+| `isPreviewableLastEvent(event)` | Can the chat list show it as the last message? An edit is resolved through its `m.new_content` first |
+| `canCarryReadMarker(event)` | Can a read receipt point at it? Yes once `status.isSent` |
+
+- **Visibility.** An edit is never drawn on its own; the `Timeline` folds
+  it into the original (`getDisplayEvent`). In-room verification
+  signaling is never drawn. Call signaling (ring, decline) and state
+  events show only with About's show-hidden-messages toggle. Every other
+  message, sticker or still-encrypted event is drawn.
+- **`MessageKind` switches have no `default`**, so a new kind fails to
+  compile wherever it is not handled yet.
+- **Call summaries** are ordinary `m.room.message` events with Zuno
+  msgtypes, classified here like everything else. Only a missed one
+  notifies (`isMissedCallSummary`, `notifications.md`).
+
+## Rendering
+
+- **Bubble widths.** Media, voice, file and location bubbles have one
+  fixed width; everything else shrinks to its content under a ceiling.
+  Media height follows the reported aspect ratio, clamped and
+  cover-cropped, so a long screenshot cannot make a screen-tall bubble.
+- **Runs.** Messages form a run when they share a sender and a day, are
+  sent close together and have no hidden event between them. In a room,
+  the sender's name and avatar show on the first message of a run.
+- **The time row tucks into the last text line.** The paragraph ends with
+  a `WidgetSpan` holding an invisible twin of the row (`TuckedMeta`), and
+  the visible row sits bottom-right over it. If the twin does not fit on
+  the last line, the paragraph wraps it and the row lands below the text
+  with no extra code. Bubbles with no last text line (voice, file, call,
+  location, uncaptioned media, a collapsed long message) place the row in
+  their own layout.
+- **Formatted (HTML) messages** cannot reserve room on their last line,
+  so their time row stays below. Their width comes from an estimate of
+  the plain-text body (text scale applied) with a minimum, because lists
+  and headings render wider than their plain text.
+- **The HTML path.** A formatted body loses its reply fallback, goes
+  through `sanitizeMessageHtml`, and has its mentions highlighted before
+  `flutter_html` draws it. The sanitizer keeps an allowlist of formatting
+  tags with a few attributes each, drops scripts, styles, forms, images
+  and embedded media together with their contents, and keeps an `href`
+  only for a safe external URL. A body that holds nothing but text and
+  mention pills (`isMentionOnlyHtml`) skips `flutter_html` and renders
+  through the plain `LinkifiedText` path. Link taps to `matrix.to` are
+  refused.
+- **Long messages collapse** behind an expand toggle. Plain text uses a
+  real `maxLines`; HTML clips to a fixed height, since `flutter_html` has
+  no line limit.
+- **File names keep their extension visible.** `FileNameText` ellipsizes
+  only the base name; a name with no plausible extension stays whole.
+- **Mention highlights come from the event's `m.mentions` only**
+  (`mentionFragmentsOf`), and are bold and never tappable. `@room` is
+  always highlighted. A rendered mention never shows a server name: the
+  plain path draws only the part `m.mentions` vouches for, and a pill's
+  text goes through `withoutServer`, which strips only a domain-like
+  server part, so ordinary text after a colon survives. In real HTML,
+  `matrix.to` user anchors are rewritten into highlighted spans.
+
+## Composer and sending
+
+- **The composer** grows a few lines, then scrolls. Enter inserts a new
+  line, and only the button sends. Text goes out as typed (Decisions).
+- **Mentions.** The picker inserts the SDK's own mention fragment
+  (`User.mentionFragments.first`): `@Name`, or `@[Full Name]` when the
+  name has spaces. That is the only shape `sendTextEvent` resolves into
+  `m.mentions`, which earns the recipient a highlight push. Candidates
+  are the members sync already delivered. The full member list (joined
+  members only) is fetched at most once per room per session, and only
+  when the list is incomplete and a couple of characters follow the `@`;
+  opening or reading a room loads no members. Mention detection
+  (`mentionQueryAt`) needs the `@` at the start or after whitespace and
+  accepts the full Matrix localpart character set, so a hyphenated member
+  can be picked.
+- **Recovery code check.** Sending what looks like the recovery code opens
+  a confirmation first (`recovery_code_warning.dart`; detection in
+  `security-verification.md`), and the composer clears only once the
+  send goes ahead.
+- **Voice recording.** Holding the mic records and releasing sends. A
+  short press locks recording on instead, and sliding up cancels. A
+  recording too short to be deliberate is dropped. The message is an
+  audio file marked as voice (MSC3245) with its duration and waveform;
+  the format is under Decisions.
+- **Failed text sends.** A refused text stays an own event in
+  `EventStatus.error` (`isNotSent`) and shows a retry row. The SDK leaves
+  that state both when `sendTextEvent` throws (`M_FORBIDDEN`, too large)
+  and when it gives up silently: a 429 that outlasts its retry loop
+  returns `null` with no exception. A tap on the bubble and the
+  reconnect pass both call `Event.sendAgain()`. The reconnect pass scans
+  the timeline for `notSentOwnEvents` rather than remembering transaction
+  IDs, which is what catches the silent case. A media event left in error
   after its upload is resent the same way.
-- **Photo send**: native resize to the long-edge cap (1080, or 720 with
-  "Reduce media size", on by default) at JPEG quality 85 / 75, PNG stays
-  PNG, orientation baked into pixels; an 800px thumbnail only when the main image is larger
-  and the thumbnail actually smaller; blurhash from a 32px sample in an
-  isolate. The picker is called with `imageQuality` unset, so on Android
-  the resizer is the single lossy step. image_picker_ios re-encodes every
-  non-GIF pick regardless: JPEG, HEIC and WebP come back as JPEG at quality
-  1.0, PNG stays PNG.
-- **Video send plan** (`video_send_plan.dart`, pure): a native probe
-  (dimensions, bitrate, codecs) picks remux vs re-encode. H.264 with AAC or
-  no audio, within the cap and at or under the target bitrate plus 25%, is
-  remuxed losslessly (`MediaMuxer`; on iOS a passthrough export of the
-  audio and video tracks only); anything else is re-encoded at a
-  fixed bitrate by output size (2 Mbps for the 720 tier, 1 Mbps for 480),
-  never above the source's own bitrate, never below 1 Mbps. The old
-  source-fraction mode turned a 4K recording into a 14 Mbps file the server
-  rejected. The thumbnail is taken from the source on a separate native
-  thread while encoding runs and doubles as the pending tile's placeholder.
-- **Privacy**: sent photos and videos carry no location and generic names
-  (`photo.jpg`/`.png`/`.gif`/`.webp`, `video.mp4`), since original names
-  carry timestamps. Files sent through the file picker stay byte-for-byte
-  original by design.
-  - Native path: `Bitmap.compress` writes no EXIF; ImageIO writes only
-    pixel dimensions (verified on a sent iPhone photo); the remuxer and
-    encoder write no location atom. The iOS remux copies only the audio and video
-    tracks and exports with `metadata = []` plus the `forSharing()` filter:
-    iPhone clips carry GPS, and a passthrough export copies it by default.
-  - Without `nativeImageResize` (no platform today) image_picker shrinks photos to
-    the send size and quality as it picks them (`pickerImageLimits`), and
-    after that they go untouched except for
-    `withoutLocation` (`photo_location.dart`): it drops the EXIF GPS
-    directory and re-injects the rest, with no re-encode and orientation
-    kept. If that fails the photo is refused, never sent with its location.
-    XMP is not touched.
-  - Avatars (account, onboarding, room photo) go through it too, in
-    `prepareAvatarPhoto`: image pickers copy GPS on both platforms, and the
-    SDK's `MatrixImageFile.shrink` keeps EXIF through its re-encode.
-- **Pagination**: `Timeline`'s own history-request mechanism, triggered on
-  scroll-up, on initial load, and after every timeline update (not
-  scroll-only — a room whose synced window filters down to fewer visible
-  events than fill the screen has nothing to scroll, so a scroll-only
-  trigger never fires). A "Start of conversation" marker replaces the
-  loading spinner once `Timeline.canRequestHistory` goes false.
-- **`roomPreviewLastEvents`** is narrowed at the client level
-  (`createMatrixClient()`) to `{m.room.message, m.room.encrypted,
-  m.sticker}` — the SDK's default set includes call-signaling event types
-  this app never sends/renders, which could otherwise become a room's
-  preview with no bubble behind them.
-- **Reload messages** (room menu): wipes locally cached timeline
-  (`client.database.deleteTimelineForRoom` + `room.lastEvent = null`, same
-  calls the SDK's own gap-handling logic makes) and rebuilds `RoomPage`'s
-  `Timeline`, forcing a re-paginate from the server. Purely local-cache
-  reset, nothing server-side. A failed wipe still reloads the timeline and
-  says so, so the chat never stays on the spinner.
-- **Durations**: `formatDuration` (call summaries, video length, voice
-  messages, the recording timer) is `mm:ss`, and `h:mm:ss` from an hour.
+- **Failed media sends** are tracked by the page (`FailedMediaSend`) and
+  shown as tap-to-retry tiles; the SDK's own error placeholder is
+  discarded (`discardSendPlaceholder`). A single photo or video gets its
+  own tile. A gallery item shows inline in its gallery, or with the
+  gallery's other failures in one tile while the gallery is out of view.
+  The reconnect pass resends them all. A file from the file picker has no
+  tile, so its failure only shows a message. A server
+  `FileTooBigMatrixException` is terminal and keeps no retry record.
 
-## Key Design Decisions
+## Attachments
 
-### The composer stops a recovery code leaving the device
+### Preparation
 
-Sending what looks like the recovery code opens a confirmation first
-(`recovery_code_warning.dart`, detection in `security-verification.md`).
-It warns rather than refuses: blocking outright would also block sending
-the code to one's own notes, and people would retype it in pieces. The
-check runs in `_confirmThenSend`, which is why the composer clears after
-the await rather than in `_send`.
+Media send is app-side: the SDK's image shrink is bypassed, and the
+prepared file, thumbnail and blurhash go to `sendFileEvent`.
 
-### One rule for what an event is (`event_display.dart`)
+- **Photos** are resized natively to a long-edge cap, smaller and at
+  lower quality with "Reduce media size" (on by default). PNG stays PNG,
+  and anything else, an animated GIF included, becomes a still JPEG.
+  Orientation is baked into the pixels. A thumbnail is added only when
+  the main image is larger and the thumbnail comes out smaller. The
+  blurhash comes from a small sample, computed in an isolate.
+- **Videos** get a native probe (size, bitrate, codecs, rotation), and
+  `video_send_plan.dart` picks remux or re-encode against a long-edge
+  cap, again smaller when reduced. H.264 with AAC or no audio, within the
+  cap and close to the target bitrate, is remuxed losslessly; a failed
+  remux falls back to re-encoding. Anything else is re-encoded by
+  `light_compressor` at its size tier's bitrate, never above the source's
+  own. The thumbnail is taken from the source on a separate native thread
+  while encoding runs, and doubles as the pending tile's preview.
+- **Files** from the file picker go byte-for-byte with their own names.
 
-Event classification used to be duplicated across six call sites (room-list
-preview, notification body, bubble rendering, timeline visibility filter,
-sender-grouping, unread-correction), each hand-maintained — adding a new
-msgtype (this app adds several: call summary, call ring/decline, voice
-messages, galleries) was a fresh chance for one site to drift from the
-others. Concretely this produced: call signaling leaking into room-list
-previews, in-room verification strings leaking the same way, edits showing
-their raw `* ` prefix in the room list while the timeline showed folded
-text, and stickers (a distinct event *type*, not a msgtype) being excluded
-from the timeline while still counted as previewable.
+| Step | Android | iOS |
+|---|---|---|
+| Photo resize (`zuno/image`) | `ImageResizer.kt`, sampled decode | `ImageResizerPlugin.swift`, ImageIO decoding straight at the target size |
+| Probe, remux, thumbnail (`zuno/video`) | `VideoTools.kt`, `MediaMuxer` | `VideoToolsPlugin.swift`, AVFoundation; the remux exports only the audio and video tracks |
+| Re-encode | `light_compressor` | `light_compressor` |
+| Voice recording | Ogg Opus directly | CAF, repackaged by `oggOpusFromCaf` |
+| Keeping a send alive | `UploadForegroundService`: a dataSync foreground service with a progress notification | A background task of about 30 s, with no progress surface |
+| Playback of cached files | As they are | Needs a type: video through a `.<ext>` symlink, voice with its MIME type |
 
-Fixed by collapsing all six into two pure, unit-tested functions:
-`isDisplayableTimelineEvent(event, showHiddenMessages:)` (visibility) and
-`summarize(event) → MessageSummary(kind, text, call)` (description). Every
-consumer now calls one of these, notifications included.
-`event_display_test.dart` is a table of ~22 event shapes with expected
-visibility/kind/text for each — adding a new message shape means adding a
-row, and the table is the enforcement mechanism, not just documentation.
+Both native sides answer each channel with the same replies, codecs named
+the Android way (`video/avc`, `audio/mp4a-latm`), each on its own
+background thread.
 
-Two related classification problems turned out **not** to be answerable by
-the same rule:
+### Pickers and caption screens
 
-- **Room-list preview of an edited last-event**: the SDK replaces
-  `room.lastEvent` with the raw edit event, which the room list has no
-  `Timeline` to fold via `getDisplayEvent` (unlike the in-room timeline).
-  `isPreviewableLastEvent` asks what the event *resolves to* — rebuilding
-  an `Event` from `m.new_content` so `plaintextBody`/`imageCaption`/
-  `isVoiceMessage` keep working, not just reading fields out of the raw map.
-- **Read-marker / unread count**: every room here is encrypted, so
-  everything goes over the wire as `m.room.encrypted`, and the server's
-  `.m.rule.encrypted` underride counts unread *before decryption*, from an
-  envelope with no readable type. No filter over decrypted events can ever
-  match what the server already decided — two prior attempts (mirroring
-  `isDisplayableTimelineEvent`, then hand-adding exceptions) each just moved
-  which hidden-but-server-counted event leaked through as a stuck badge.
-  The fix: stop trying to guess content-based eligibility at all —
-  `canCarryReadMarker` is `event.status.isSent`, full stop (excluding only a
-  still-sending local echo, whose event ID can still change). Receipts are
-  cumulative, so over-including is free; under-including leaves a badge
-  that never clears.
+- **Which screen opens.** Photos alone go to the image caption screen,
+  and one video alone to the video caption screen. Several videos, or
+  photos and videos together, go to the mixed composer. More than one
+  item after captioning becomes a gallery. The camera, the gallery picker
+  and inbound share all use this dispatch (`_sendPickedMedia`).
+- **The caption screens share one video preview**
+  (`ComposerVideoPreview`). A video the player cannot open says so and
+  can still be sent.
+- **Pickers can throw**, a refused permission included; the attachment
+  menu catches every picker failure and names the permission to allow.
+  The file picker is multi-select, and each picked file is sent.
+- **Picker re-encoding.** With native resizing, photos are picked with no
+  size or quality limit, so on Android the resizer is the only lossy
+  step. `image_picker_ios` re-encodes every pick but a GIF anyway, to
+  full-quality JPEG (PNG stays PNG). The non-native path, used by no
+  platform today, has the picker shrink photos instead
+  (`pickerImageLimits`).
 
-**Takeaway for extension**: "what do we draw", "what can the room list
-preview", and "what did the server count toward unread" are three distinct
-questions in an encrypted room; a fix to one must not assume it also
-answers the others.
+### Send flow
 
-### Bubble layout model
+- **Progress.** One bar per attachment, filled first by compression and
+  then by upload (`combinedSendProgress`). The SDK's upload sends the
+  body as one request and reports no progress, so
+  `UploadProgressHttpClient` slices the body itself; a stream transform
+  over the SDK's own request sees only one chunk.
+- **The pending tile.** A synthetic tile stands in until the real
+  timeline row exists, matched later by `txid`. The SDK returns no
+  thumbnail for a still-pending event, so the tile and the landed row
+  both draw the pending send's preview bytes from memory until the
+  upload finishes, or the preview vanishes the moment the row lands.
+- **Keeping it alive.** The whole send, batch loops included, holds
+  `UploadForegroundService`, so backgrounding cannot freeze or kill it
+  (platform table above).
 
-- Media, voice, file and location bubbles are a fixed 2/3 of the screen;
-  everything else shrinks to its content under a 3/4 ceiling, with no
-  floor. Media height follows the reported aspect ratio clamped to
-  9:16–16:9 (`mediaAspectRatio`, cover-cropped), so a long screenshot
-  cannot make a screen-tall bubble. Corners are 20 px, tightened to 6 px where messages of one run
-  meet on the sender's side (`bubbleRadius`); a run is one sender, no
-  hidden event or day change between, at most five minutes apart.
-- The time row (`MessageMeta`: "edited", time, clock/tick) is tucked into
-  the last text line: the paragraph ends with a `WidgetSpan` holding an
-  invisible twin of the row (`TuckedMeta`), and the visible row is
-  `Positioned` bottom-right over it. If the twin does not fit, the paragraph
-  wraps it and the row lands below the text. Voice, file, call and location
-  draw the row in their own bottom line; captionless media overlays it on a
-  dark chip; a collapsed long message shows it beside "Read more".
-- `IntrinsicWidth` is used only when a bubble has a reply quote (the quote
-  must stretch to the bubble). `flutter_html` bubbles never get it: they sit
-  in a `SizedBox` as wide as the plain-text body (`estimateTextWidth()`,
-  text scale applied), floored at a third of the screen because lists and
-  headings render wider than their plain text; their time row stays below.
-- File names keep their extension visible: `FileNameText`
-  (`file_name_text.dart`) splits at the last dot and gives only the base an
-  ellipsis. Dotfiles, names without a dot, and suffixes over ten characters
-  are left whole.
-- Long messages (>12 lines or >600 chars) collapse behind a "Read more"
-  toggle — plain-text branch uses a real `maxLines`, HTML branch clips to a
-  fixed height since `flutter_html` has no line-limit concept.
+### Attachment cache
 
-### Mentions ride on the event, never on a member list
+The SDK's own file store is off (its database keeps `maxFileSize` at 0),
+so `attachment_cache.dart` is the only cache. Every consumer uses one key
+per event (`attachmentCacheKey`, full or thumbnail).
 
-- **Sending.** The picker inserts the SDK's own mention fragment
-  (`User.mentionFragments.first`: `@Name`, or `@[Full Name]` when the
-  name has spaces; `@username` only when no display name exists). Only
-  that shape lets `sendTextEvent` resolve it and attach `m.mentions` —
-  which is what earns the recipient a highlight push
-  (`.m.rule.is_user_mention`). No `matrix.to` pill is written (markdown
-  is off), so other clients show the fragment as plain text. Synapse sets
-  new accounts' display name to the username, so this reads as
-  `@username` on this server.
-- **Picker cost model.** Candidates are the members sync already delivered
-  (`getParticipants`). The full `/members` list is fetched at most once per
-  room per session, joined members only, and only when at least two
-  characters follow the `@` and `participantListComplete` is false. The
-  fetch runs inside one `database.transaction` so thousands of member rows
-  are one commit; the wrapped action never throws, because the SDK's
-  transaction doesn't reset its batch on error. 30 rows, lazily built.
-  Opening or reading a room loads nothing (`room_page_members_test.dart`).
-- **Rendering.** Highlight comes from the event's `m.mentions` only
-  (`mentionFragmentsOf`), bold in the primary colour, never tappable. A
-  rendered mention never shows a server name: the plain path matches an
-  optional `:domain` after the mention and draws only the part `m.mentions`
-  vouches for, and a pill's text goes through `withoutServer`. The domain
-  must look like one (a dot, optional port) so `@[Alice Smith]:hello` keeps
-  its words, and an unvouched `@nobody:server` stays whole rather than being
-  silently shortened. A
-  formatted body that is nothing but text and pills is rendered through the
-  plain `LinkifiedText` path (`isMentionOnlyHtml`), skipping `flutter_html`
-  entirely; real HTML has its `matrix.to` user anchors rewritten to spans
-  (`highlightUserMentionsInHtml`) and `onLinkTap` refuses `matrix.to`.
-- **Mention detection** (`mentionQueryAt`): `@` at the start or after
-  whitespace, followed by localpart characters (`matrixLocalpartChars` —
-  the full Matrix set, not the narrower sign-up one, or a hyphenated member
-  could never be picked), text before the cursor only. `foo@bar`, `@ `,
-  `@bob!`, `@bob:server` never trigger.
+| Helper | Tiers | Used for |
+|---|---|---|
+| `fetchCachedAttachment` | Memory, then disk, then network; a hit fills the tiers above it | Images and thumbnails drawn in bubbles |
+| `fetchCachedAttachmentFile` | Disk only, returning the cached file itself | Videos and files: share, save and the video viewer never re-download or hold a large file in memory |
+| `fetchCachedAvatar` | Disk only, never expiring, write awaited | Avatars |
 
-### Gallery grouping over a single fat event
+- **Concurrent misses share a request**: widgets missing one key together
+  make one fetch.
+- **Attachments expire a day after last use** (sliding), so decrypted
+  media does not linger. Avatar entries never expire, because an `mxc`
+  address is immutable and a new avatar is a new address. An
+  oldest-first size sweep bounds the whole disk tier.
+- Tapping a file bubble saves it through the same path as the viewers'
+  Save (`saveAttachmentWithFeedback`). Clearing the cache is a Settings
+  action (`settings.md`).
 
-Explicitly rejected: a single multi-item event (invisible/unrenderable to
-any other Matrix client, needs new send and render paths) and a
-client-side-only "same sender within N seconds" heuristic (no wire change,
-but grouping would differ per device and shift as history paginates). The
-custom-content-key-on-ordinary-events approach was chosen specifically for
-cross-client compatibility and graceful degradation.
+### Galleries
 
-### Inbound share: a trampoline on Android, an inbox on iOS
+- **Sending.** A batch of more than one item gets a gallery ID, and each
+  item goes out as a normal `m.image` or `m.video` with
+  `im.zuno.gallery: {id, index, count}` in its content.
+- **Display.** `groupGalleries` folds each group onto its newest
+  surviving member in one pass, so the per-index passes (read ticks, day
+  labels, runs) keep working on plain indices. A group with one surviving
+  member renders as an ordinary photo unless one of its items failed to
+  send. An unrecognized gallery key (`galleryGroupOf` returns null) also
+  degrades to an ordinary single item. The tile shows the first few items
+  with an overflow count; `gallery_viewer_page.dart` pages through all.
 
-`MainActivity` keeps the template's empty `taskAffinity`, so a `SEND` from
-another app would start a second `MainActivity` and a second Flutter
-engine inside the sender's task. `ShareActivity` forwards with
-`NEW_TASK | SINGLE_TOP`, the path shortcuts and notification taps already
-use, so the running engine gets `onNewIntent`. Plugins
-(`receive_sharing_intent`, `share_handler`) were rejected: they put the
-filters on `MainActivity` and want `singleTask`, which calls,
-picture-in-picture and the lockscreen ring screen were tuned against.
-Content is copied only after a chat is picked: no blank trampoline while
-a large video copies, no I/O when the picker is cancelled. Shared text is
-prefilled, never auto-sent. Not built: Direct Share targets in the system
-sheet (additive, would reuse the pinned-shortcut code).
+### Avatars
 
-On iOS a share extension is its own process with no Flutter engine, so it
-hands over through files in the App Group (`app-foundation.md`), managed by
-`ShareInbox` in `ios/Shared/`, compiled into both targets:
-- **Extension** (`ShareViewController`): copies each attachment into a
-  per-share folder, `ShareInbox/<id>/<i>/<name>`, and writes
-  `manifest.json` last; a folder without one is still being written. It
-  then opens `im.zuno.chat://share` through the responder chain (an
-  extension has no `UIApplication.shared`). If iOS refuses, it says "Open
-  Zuno in the next few minutes to finish sharing."
-- **What an attachment is** (`ShareItemKind`, by type identifier): a file
-  URL's content type, else the file at that URL; then an image, video or
-  audio (a Live Photo shares its still); then a link, sent as text; then
-  plain text; then any other data. Live Photo bundles and web archives are
-  never taken. The extension is offered for any item with text or an
-  attachment conforming to `public.data` or `public.url`.
-- **Freshness**: a share is offered for 10 minutes. After that it is swept,
-  never offered, so an abandoned share cannot pop up later.
-- **Host** (`ShareInboxPlugin`): collects the newest fresh share, dropping
-  older ones, on app activation, on `takeLaunchShare` and on the share URL
-  (`scene(_:openURLContexts:)` through `addSceneDelegate`), and moves it
-  into `Caches/Share/Imports` (pruned after 24 h). The URL carries nothing:
-  every trigger reads the inbox, so a cold start needs no URL handling, and
-  with `FlutterDeepLinkingEnabled` off Flutter never turns it into a route.
-  `LaunchHandoff` holds the share until Dart listens, as `RoomLaunchPlugin`
-  does for room opens. `copyToCache` moves the files on into
-  `Caches/Share/Copies` and refuses any other source. `Caches/Share` is
-  cleared once per process, at the first registration, so a second engine
-  never deletes the first one's files.
-- The inbox is kept out of backups and emptied by the sign-out wipe.
+- **One request per person per bucket.** `MxcAvatar` renders
+  `MxcAvatarImage`, an `ImageProvider` equal on (`mxc`, bucket). There
+  are two size buckets, a small crop for list-size avatars and a larger
+  scale above that, so one person costs one request per bucket however
+  many sizes show them. Flutter's image cache holds the decoded picture,
+  so a rebuild never flickers.
+- **The notification poster shares the disk key** (`avatarCacheKey`) and
+  reuses the small-bucket entry instead of fetching (`notifications.md`).
+- **Initials.** Until the first frame, or on error, the initial shows on
+  a tone picked by a hash of `toneSeed`. Seed it with a stable Matrix ID
+  (for a room, `directChatMatrixID ?? room.id`), so a rename keeps the
+  color and a person matches everywhere. Tests pin the hash, since
+  changing it recolors everyone.
+- **A failed load retries.** It is evicted from Flutter's image cache,
+  and bytes that fail to decode are deleted from disk, or one bad
+  response would break a never-expiring entry for good.
 
-## Gotchas & Constraints
+## Inbound share
 
-- **Never reload members from `client.onRoomState`.** `requestParticipants`
-  emits one member-state event per member it caches, so such a listener
-  re-enters itself in an unbroken microtask chain and starves the main
-  isolate (ANR on device, hung test). Members are loaded on demand by the
-  picker only.
+Both platforms hand Dart the same payload over `zuno/share`: optional text
+plus file URIs with names and MIME types. Dart asks native to copy the
+files (`copyToCache`) only after a chat is picked.
+
+```mermaid
+flowchart TD
+  A["Another app's share sheet"] --> B["Android: ShareActivity (no UI)"]
+  A --> C["iOS: ShareExtension (own process, no engine)"]
+  B -- "forwarding intent with a read grant" --> D["MainActivity"]
+  C -- "App Group inbox, then im.zuno.chat://share" --> E["ShareInboxPlugin"]
+  D -- "zuno/share" --> F["inbound_share.dart"]
+  E -- "zuno/share" --> F
+  F --> G["_AuthGate pushes SharePickerPage"]
+  G -- "chat picked" --> H["RoomPage(pendingShare:) prefills text, copies and sends files"]
+```
+
+| Step | Android | iOS |
+|---|---|---|
+| Entry | `ShareActivity` owns the `SEND` and `SEND_MULTIPLE` filters | `ShareViewController` in the `ShareExtension` target |
+| Hand-off | Forwards to `MainActivity` with `NEW_TASK` and `SINGLE_TOP` and a read grant on the URIs | `ShareInbox` (`ios/Shared/`) copies each attachment into a per-share folder in the App Group, writes `manifest.json` last, then opens the share URL |
+| Reaching Dart | `onNewIntent` while running; held for `takeLaunchShare` on a cold start | Collected on app activation, on `takeLaunchShare` and on the share URL; `LaunchHandoff` holds it until Dart listens |
+| `copyToCache` | Reads each content URI into `cacheDir/shared/<batch>/<i>/<name>` on one background thread | Moves the files from `Caches/Share/Imports` into `Caches/Share/Copies` and refuses any other source |
+| Cleanup | Day-old batches are pruned at engine start, never at a copy, so a copy kept for a retry survives | An unopened inbox share expires within minutes and stale imports are pruned; `Caches/Share` is cleared at the first plugin registration of each process, so a second engine never deletes the first one's files |
+
+- **The Dart side.** `_AuthGate` pushes `SharePickerPage`, which lists
+  joined chats (no spaces) the person can post in, with search. It waits
+  for the sign-in state if that is still loading; a share that arrives
+  signed out is taken and dropped. Picking a chat replaces the picker
+  with `RoomPage(pendingShare:)`. Text is prefilled into the composer and
+  never sent automatically. Only then are the files copied and sent:
+  images and videos through the caption-screen dispatch, everything else
+  as files.
+  Files that could not be copied are counted in one message, and the rest
+  still go. One share goes to one chat.
+- **Shared copies are reference-counted** per path while a batch or a
+  retry uses them. A copy stays while a failed video send still points at
+  it (a failed photo keeps its own bytes), and is deleted once unused or
+  when the chat closes.
+- **Android payload** (`InboundShareDecision`, JUnit-tested).
+  `ShareActivity` reads every extra defensively, and joins several or
+  rich-text (`CharSequence`) texts line by line, dropping duplicates. A
+  file's MIME type and name fall back through the intent extras, the
+  content resolver and the URI itself, skipping wildcard types. A
+  relaunch from Recents never repeats the share (`app-foundation.md`).
+- **iOS item kinds** (`ShareItemKind`, by type identifier), first match
+  wins:
+  1. A file URL.
+  2. An image, video or audio item (a Live Photo shares its still).
+  3. A link, sent as text.
+  4. Plain text.
+  5. Any other data.
+
+  Live Photo bundles and web archives are never taken. The extension is
+  offered for any share with text or an attachment conforming to
+  `public.data` or `public.url`. Texts are deduplicated and joined line
+  by line, as on Android.
+- **The iOS share URL carries nothing.** Every trigger reads the inbox, so
+  a cold start needs no URL handling, and with `FlutterDeepLinkingEnabled`
+  off Flutter never turns the URL into a route (`app-foundation.md`). The
+  extension opens it through the responder chain, since an extension has
+  no `UIApplication.shared`; if iOS refuses, it asks the person to open
+  Zuno within a few minutes. A share left unopened expires, so it can
+  never pop up later.
+- **Not built**: Direct Share targets in the Android share sheet. They
+  would be additive and could reuse the pinned-shortcut code.
+
+## Decisions
+
+- **Text goes out as typed.** Every `sendTextEvent` call, composer and
+  notification reply alike, passes `parseMarkdown: false,
+  parseCommands: false`. The SDK has no client-wide switch, so a new call
+  site must pass both. Commands off is a safety rule: the SDK's commands
+  include `/leave`, `/logout` and `/ban`, which a message starting with
+  that word would otherwise run.
+- **Drawn, previewed and counted are three questions** in an encrypted
+  room, and a fix to one does not answer the others. `room.lastEvent` can
+  be a raw edit, which the chat list has no `Timeline` to fold, so
+  previews resolve `m.new_content`. The server counts unread from the
+  encrypted envelope before decryption, so no filter over decrypted
+  content can match its count. Hence `canCarryReadMarker` is just
+  `status.isSent`, excluding only a local echo whose ID can still change.
+  Receipts are cumulative, so over-including is free, while
+  under-including leaves a badge that never clears.
+- **Galleries are a content key on ordinary events**, so other clients
+  see N normal messages, and forward, redact and download keep working
+  with no new code. Rejected: one multi-item event (invisible to other
+  clients, with new send and render paths) and grouping by time window
+  (it differs per device and shifts as history loads).
+- **Media never falls back to the original bytes.** An undecodable photo
+  or a failed video encode throws `MediaProcessingException` and the
+  send is refused, because the untouched file leaks metadata. The SDK's
+  `customImageResizer` sends the original when it throws, which is why
+  preparation is app-side.
+- **No location leaves with media.** Sent photos and videos get generic
+  names (`photo.<ext>`, `video.mp4`), since original names carry
+  timestamps. The native resizers and encoders write no location. The
+  iOS remux copies only the audio and video tracks and exports with
+  `metadata = []` and the `forSharing()` filter, because iPhone clips
+  carry GPS and a passthrough export copies it. Avatars
+  (`prepareAvatarPhoto`, `settings.md`) and the non-native path use
+  `withoutLocation`, which drops the EXIF GPS directory without
+  re-encoding and refuses the photo if that fails. Files from the file
+  picker stay byte-for-byte by design.
+- **Video bitrate is fixed by output size**, never a fraction of the
+  source's, because a fraction of a 4K clip's bitrate still makes a file
+  too large for the server. The cap applies to the long edge; change
+  `videoLongEdge` and its tier's bitrate together.
+- **Voice is Ogg Opus on every platform**: mono, 48 kHz, at a speech
+  bitrate (the recorder's default stereo music setting makes files about
+  four times larger). Apple cannot write Ogg and its Opus encoder refuses
+  44.1 kHz, so iOS records CAF and `oggOpusFromCaf` repackages the
+  packets losslessly before sending. iOS plays Ogg Opus natively.
+- **Mentions ride on the event, never on a member list.** Only
+  `m.mentions` earns a highlight push, and only it decides what is
+  highlighted. No `matrix.to` pill is written (Markdown is off), so other
+  clients show the fragment as plain text.
+- **A recovery code is warned about, not blocked**: blocking would also
+  stop someone saving it to their own notes, and people would retype it
+  in pieces.
+- **Inbound share is a trampoline on Android and an inbox on iOS.**
+  `MainActivity` keeps the template's empty `taskAffinity`, so a `SEND`
+  delivered to it directly would start a second `MainActivity`, and a
+  second Flutter engine, in the sender's task. `ShareActivity` forwards
+  with `NEW_TASK | SINGLE_TOP`, the path shortcuts and notification taps
+  already use, so the running engine gets `onNewIntent`. Share plugins
+  (`receive_sharing_intent`, `share_handler`) were rejected: they put the
+  filters on `MainActivity` and want `singleTask`, which calls,
+  picture-in-picture and the lock-screen ring were tuned against. Copying
+  only after a chat is picked means no blank trampoline while a large
+  video copies and no I/O when the picker is cancelled. On iOS the
+  extension is its own process with no engine, so it must copy before it
+  closes, and the app only moves the files.
+
+## Gotchas
+
+- **The HTML sanitizer lowercases attribute keys with
+  `key.toString().toLowerCase()`.** Keys can be namespaced objects, and
+  matching them any other way lets `xlink:href` past the allowlist.
+- **A stale record is a stale message.** Anything that changes a
+  message's look joins `MessageRowData`, with a test. That includes the
+  quote target's type, because a target decrypted late keeps its ID.
+- **The keyed list needs `findChildIndexCallback`.** Without it a new
+  message shifts every index and remounts every visible row, memo or
+  not: a playing voice message stops and an expanded message collapses.
+  Rows also keep one shape (a `Column` keyed `row-<id>` with an optional
+  day label), so a row never changes depth.
+- **`Text.rich` already scales its `WidgetSpan` children**, so the
+  invisible time twin sits in `MediaQuery.withNoTextScaling`, or it is
+  scaled twice.
+- **`IntrinsicWidth` wraps only bubbles with a reply quote**, so the quote
+  can stretch to the bubble's width. That needs `stretch` on the content
+  column. Nothing under it may be `double.infinity` wide: the intrinsic
+  pass resolves to infinity and throws, which shows as a blank grey box.
+- **A rounded `BoxDecoration` with a non-uniform `Border` throws at
+  paint time.** Draw an accent edge (reply quote, reply bar) as a
+  separate `Positioned` strip in a `Stack`.
+- **`SwipeToReply` is `HitTestBehavior.translucent`**, so a swipe can
+  start in the empty space beside a short bubble. A `GestureDetector`
+  hit-tests only its child by default.
+- **The send/mic swap is keyed on the button, not the icon.** The mic
+  keeps its key for the whole recording, even when tap-to-record shows
+  the send glyph, because a key change mid-gesture kills the
+  hold-to-record pointer stream.
+- **`onRoomState` storms.** Pagination fires it once per unresolved
+  sender, dozens of times a round in a busy backlog, so rebuilds from it
+  are coalesced. Never load members from it: `requestParticipants` emits
+  one member event per member, the listener re-enters itself in an
+  unbroken microtask chain, and the main isolate starves (an ANR on
+  device, a hung test).
+- **The member fetch is one `database.transaction`** whose action never
+  throws, because the SDK does not reset its batch on error.
 - **The SDK resolves mentions by display name, not username.** A member
-  with no display name has empty `mentionFragments`; mentioning them sends
-  plain text with no `m.mentions` and no notification. Usernames with dots
+  without a display name has no mention fragment, so mentioning them
+  sends plain text with no `m.mentions` and no push. Usernames with dots
   need the bracketed form, which `mentionInsertText` produces.
-- **`flutter_html` re-runs its styling/tree pass on every build** even when
-  the input string is unchanged (only the parse is skipped). Hence the
-  per-event widget memo; theme changes still rebuild via the inherited
-  dependency.
-- **Shared file names are attacker-controlled**: `DISPLAY_NAME` comes from
-  the sending app's provider, and an iOS attachment names itself.
-  `InboundShareDecision.safeFileName` (Kotlin) and `ShareFileName.safe`
-  (Swift) strip separators and reject `.`/`..`; keep the two in step. The
-  Android copy also refuses a target outside its per-file directory, and
-  iOS's `copyToCache` a source outside `Caches/Share/Imports`. Keep these
-  checks if the copy ever moves.
-- **A debug build cannot be cold-launched by the share extension**: iOS
-  runs a Flutter debug build only when the tooling or Xcode launches it.
-  Test sharing into a closed app with profile or release.
-- **`Event.body`/`Event.plaintextBody`**: `Event.body` is the literal
-  `body` field and can be empty or the SDK's raw `"Unknown message format of
-  type ..."` fallback for any client-native-formatted (HTML) message
-  without a plain fallback — never render `Event.body` directly in
-  user-facing text (reply previews, room-list preview, compose reply/edit
-  banner). Use `Event.plaintextBody`, which converts `formatted_body` when
-  present and strips the raw `<mx-reply>` block.
-- **Undecryptable events**: only `messageType == BadEncrypted` is a
-  reliable in-timeline signal; an event that is still literally type
-  `m.room.encrypted` with no such tag can be silently absent from the
-  timeline while still eligible to become `room.lastEvent`. `
-  isUndecryptableEvent` is the shared, broadened check — treat "can't
-  decrypt" as "any still-`m.room.encrypted` event", not just the
-  SDK-tagged case.
-- **Decrypt-failure message text**: show one fixed, friendly string
-  ("Message cannot be read on this device") rather than the SDK's raw exception
-  text — the SDK's own `event_localizations.dart` only special-cases a
-  handful of `DecryptException`s and falls back to the raw (sometimes
-  cryptography-internal, e.g. vodozemac ratchet errors) message otherwise.
-- **`room.lastEvent` changes identity, not just ID**: the SDK assigns a new
-  `Event` instance for the sent echo and again for the synced copy, all
-  with one event ID, and a redaction mutates only the current instance in
-  place. Anything caching the last event (the chat list's
-  `LastMessagePreview` keeps a decrypted copy) must follow the instance
-  (`identical`), not the event ID, or a deleted message keeps its text.
-- **Edits replace, not append**: the SDK replaces `room.lastEvent` with the
-  edit event itself; anything reading "the newest message" outside the
-  in-room `Timeline` (which folds edits via `getDisplayEvent`) must resolve
-  the edit's `m.new_content` explicitly or it will show stale/raw text.
-- **Pagination must not be scroll-only**: a room whose initial synced
-  window filters down to fewer visible events than fill the screen has
-  nothing to scroll, so a scroll-triggered-only pagination listener never
-  fires. Trigger on load and on every timeline update too.
-- **A failed history request re-triggers itself**: `requestHistory` fires
-  `onUpdate` in a `finally`, success or not, and the update trigger above
-  asks again — offline, a tight loop and a flickering spinner. A failure
-  latches history off (`_historyStalled`) until reconnect
-  (`_retryAfterReconnect`) or the next successful sync, and none is asked
-  while `isOfflineProvider` reads offline.
-- **Rebuild storms from `onRoomState`**: the SDK's pagination pass touches
-  `room.setState(dbUser)` once per not-yet-resolved sender, which can be
-  dozens of events per pagination round in a multi-sender backlog room.
-  Anything subscribed to `onRoomState` for rebuild purposes must coalesce
-  bursts within a microtask into one rebuild, not one `setState` per event.
-- **`IntrinsicWidth` + `stretch`**: a reply-quote/call-summary box that
-  needs to fill the bubble's width needs `crossAxisAlignment: stretch` on
-  the bubble's content column (plain `start` gives children loose,
-  content-sized width regardless of the column's own resolved width).
-  Never set an explicit `width: double.infinity` on a descendant of an
-  `IntrinsicWidth` ancestor — its own intrinsic-width computation resolves
-  to infinity and throws a layout assertion (rendered as a blank grey box
-  with no visible error).
-- **Rounded decoration + non-uniform border**: a `BoxDecoration` with
-  `borderRadius` and a **non-uniform** `Border` (e.g. one accent-colored
-  side) throws at paint time. Paint an accent edge as a separate
-  `Positioned` strip in a `Stack` instead of a border side.
-- **Legacy msgtype constants**: this app has renamed its custom msgtype
-  namespace before (`im.luma.*` → `im.zuno.*`); any such rename needs every
-  comparison site updated together or older events matching the old
-  constant silently stop being recognized (lost icon/summary, or a
-  previously-hidden signaling event starts rendering as an ordinary
-  bubble). Compatibility shims for a retired namespace should eventually be
-  removed once no such events remain relevant to support.
-- **Non-message call event types**: the SDK's default
-  `roomPreviewLastEvents` includes `m.call.*`/`com.famedly.call.member`
-  types this app doesn't use (calls run on their own MatrixRTC-inspired
-  layer) — leave `roomPreviewLastEvents` narrowed rather than widening it
-  back to defaults.
-- **Video encoder orientation**: a target width/height computed from the
-  probe's rotation-corrected display size (or `video_player`'s, as the
-  fallback) must be swapped back to
-  raw sensor orientation before being handed to `light_compressor` (which
-  applies its target to the pre-rotation raw frame buffer) — a portrait
-  phone video is almost always a landscape sensor frame plus a rotation
-  flag, not a native-portrait encode. Screen recordings are the exception:
-  stored upright with no flag. The iOS probe reports `rotated`, and
-  `encoderTarget` swaps only when it is `true`; without it (Android) a
-  portrait size is assumed stored sideways. Convert only at the compressor
-  call site; everything else (attachment `w`/`h`, UI) stays in display
+- **A failed history request re-fires itself**: `requestHistory` fires
+  `onUpdate` in a `finally`, and the update trigger asks again. A failure
+  therefore latches history off until reconnect or the next successful
+  sync, and no request is made while offline.
+- **Never render `Event.body`.** It can be empty or the SDK's raw
+  "Unknown message format" fallback for an HTML-only message. Use
+  `plaintextBody`, which converts `formatted_body` and strips the reply
+  fallback. Once `filename` is set (MSC2530), a file's `body` is its
+  caption; `imageCaption` decides.
+- **Undecryptable means still `m.room.encrypted`**, not only the SDK's
+  `BadEncrypted` tag: an untagged one can be missing from the timeline
+  yet become `room.lastEvent`. `isUndecryptableEvent` is the shared
+  check. Never show the SDK's decrypt error text, which can be raw
+  cryptography internals; the bubble's copy comes from
+  `undecryptableReason` (`security-verification.md`).
+- **`room.lastEvent` changes identity, not ID.** The sent echo and the
+  synced copy are new instances with one event ID, and a redaction
+  mutates only the current instance. Anything caching the last event
+  must compare instances (`identical`), or a deleted message keeps its
+  text.
+- **Keep `roomPreviewLastEvents` narrowed** (`createMatrixClient()`) to
+  messages, encrypted events and stickers. The SDK default includes call
+  signaling types Zuno never draws, which would become a preview with no
+  bubble behind it.
+- **A video without a thumbnail never falls back to `getThumbnail`**,
+  which silently downloads the whole file and then fails to draw it as an
+  image. `CachedAttachmentImage` shows its `noThumbnail` stand-in.
+- **The encoder takes raw sensor orientation.** A portrait phone video is
+  usually a landscape sensor frame plus a rotation flag, and
+  `light_compressor` applies its target to the raw frame. `encoderTarget`
+  swaps the size when the probe says `rotated` (iOS); without that flag
+  (Android) a portrait size is assumed stored sideways. Convert only at
+  the compressor call; attachment sizes and the UI stay in display
   orientation.
-- **A video without a thumbnail never falls back to the video itself.**
-  The SDK's `getThumbnail` silently downloads the whole file when an event
-  has no thumbnail, which the tile then fails to draw as an image.
-  `CachedAttachmentImage` shows its `noThumbnail` stand-in instead (a play
-  button over an empty frame); other clients and iOS sends before its
-  native thumbnailer existed both produce such events.
-- **iOS players need the media type spelled out** (`playerNeedsMediaType`).
-  AVFoundation types a local file by its extension, and cached attachments
-  have none. `playableVideoFile` plays video through a
-  `<cached file>.<ext>` symlink (no copy); voice plays via audioplayers,
-  which passes the event's MIME type, sniffed from the bytes
-  (`sniffAudioMimeType`) when the event names none.
-- **Voice messages are Ogg Opus on the wire, on every platform**, mono
-  48 kHz at 32 kbps (Opus's fullband-speech range; the recorder's default
-  128 kbps stereo is a music setting, about 4× larger). Apple can't write
-  Ogg, and its Opus encoder refuses 44.1 kHz, so iOS records into CAF and
-  `oggOpusFromCaf` repackages the packets losslessly (about 20 ms for five
-  minutes) before sending (`voice_recording.dart`, `recorderWritesOgg`).
-  iOS plays Ogg Opus natively.
-- **Recording length reads `clock.now()`, not `DateTime.now()`.** The
-  under-100 ms drop and the 300 ms hold-to-send rule then run on fake time
-  in widget tests; on wall time a loaded test machine stretched a quick
-  double tap past 100 ms and sent it.
-- **Share and Save hand over named copies**, one folder per attachment
-  under `temp/handover/<cached file name>/`, so same-named items (every
-  photo Zuno sends is `photo.jpg`) never overwrite each other and sharing
-  one twice reuses its copy. Where other apps type a file by its name
-  (`filesTypedByExtension`, iOS), a name with no known extension gets one
-  from the MIME type (`application/octet-stream` excepted).
-- **Pending-attachment thumbnails**: `Event._getCachedFile` returns null
-  outright for a still-pending event's thumbnail (no fallback to the full
-  file) — a still-sending image or video renders from the pending send's
-  in-memory preview bytes (`Image.memory`), not a cache fetch; both the
-  synthetic tile and the real sending row must honour those bytes, or the
-  preview vanishes the moment the row lands. Without a frame, a video
-  falls back to an aspect-ratio-correct box, not a spinner.
-- **Foreground service starts are refused from the background on
-  Android 12+**: `UploadForegroundService` is acquired once per send or
-  batch (refcounted) while the app is visible and never stopped and
-  restarted between items or between a file and its thumbnail. Android 15
-  caps dataSync services at six hours a day, so the service honours
-  `onTimeout`.
-- **The wait for the slide is the shared `RouteSettled` mixin**
-  (`app-foundation.md`); `RoomPage` applies the pending timeline in
-  `onRouteSettled`.
-- **A file's `body` is its caption once `filename` is set** (MSC2530): the
-  file bubble shows `filename`, then the caption; `imageCaption` decides.
-- **Voice playback: `AudioPlayer.play` always reloads from 0.** Pause
-  resumes with `resume()`; only a stopped or finished message calls
-  `play`. After completion audioplayers releases the source and emits one
-  last position, which is ignored so the bar resets.
-- **A source the player cannot open throws from `play()`** and also lands
-  as an error on every `eventStream`-derived stream (`onDurationChanged`,
-  `onPlayerComplete`). `play()` is caught ("Voice message did not load");
-  those subscriptions carry an empty `onError`, or the same error escapes
-  uncaught.
-- **A keyed lazy list needs `findChildIndexCallback`.** Without it a new
-  message shifts every index and remounts every visible row, memo or not: a
-  playing voice message stops and "Read more" collapses. Rows also keep one
-  shape (`Column` keyed `row-<id>`, day label optional) so a row never
-  changes depth.
-- **`Text.rich` already scales its `WidgetSpan` children.** Text inside a
-  span is scaled twice unless wrapped in `MediaQuery.withNoTextScaling`
-  (the invisible time twin is).
-- **`GestureDetector` hit-tests only its child by default.** `SwipeToReply`
-  is `translucent`, so a swipe can start in the empty space beside a short
-  bubble, as it could with `Dismissible`.
-- **Links use `ZunoColors.link`**, in `LinkifiedText` and the HTML style
-  map. A fixed light blue was unreadable on the light theme's bubbles.
-- **The composer's send/mic swap is keyed on the button, not the icon.**
-  `MessageComposer`'s `AnimatedSwitcher` only switches between
-  `ValueKey('send')` and `ValueKey('mic')`. The mic `Listener` keeps its
-  key for the whole recording (even when tap-to-record shows the send
-  glyph): a key change mid-gesture tears down the hold-to-record pointer
-  stream. Both sit in the same 48px slot so the text field does not reflow
-  on the first character. Every send button uses `SendIcon`
-  (`send_icon.dart`), which carries the plane's optical-centering nudge.
-- **`customImageResizer` can't enforce a refusal**: the SDK swallows a
-  throwing resizer and sends the original bytes, which is why image
-  preparation happens app-side before `sendFileEvent`.
-- **`light_compressor` rejects sources under 2 Mbps by default**
-  (`isMinBitrateCheckEnabled`), which covers most screen recordings and
-  forwarded clips; it is disabled. Its bitrate option is whole megabits.
-- **The video cap is on the long edge**: a landscape 1080p clip lands at
-  720×404, not 1280×720. Deliberate so far; bump `videoLongEdge` and the
-  720-tier bitrate together if that changes.
-- **A 4K clip encodes at about 1.3× real time** through the hardware
-  decoder and encoder; the bar's 50/50 split makes that read slower than
-  the old full-bar compression, but the encode itself is unchanged.
+- **`light_compressor`** refuses sources under 2 Mbps (most screen
+  recordings and forwarded clips) unless `isMinBitrateCheckEnabled` is
+  off, and takes whole megabits only. It builds from JitPack, with Gradle
+  patches in `android/build.gradle.kts`.
+- **Android 12+ refuses foreground-service starts from the background.**
+  The upload service is acquired once per send or batch while the app is
+  visible, refcounted, and never restarted between items. Android 15 caps
+  dataSync services at six hours a day, so it honors `onTimeout`.
+- **Players.** iOS types a local file by its extension, which cached
+  files lack, so playback there needs the symlink or MIME type from the
+  platform table; a voice event that names no type is sniffed from its
+  bytes. `AudioPlayer.play` always restarts at 0, so a paused message
+  resumes with `resume()`. A source the player cannot open throws from
+  `play()` and also errors every event stream, so those subscriptions
+  carry an `onError`, or the error escapes uncaught.
+- **Recording length reads `clock.now()`**, not `DateTime.now()`, so the
+  short-press and too-short rules run on fake time in widget tests.
+- **Share and Save hand over one folder per attachment** under
+  `temp/handover/`, because names repeat (every photo Zuno sends is
+  `photo.jpg`). On iOS, where other apps type a file by its name, a name
+  with no known extension gets one from the MIME type.
+- **Cache expiry deletes are fire-and-forget.** Two readers can meet the
+  same stale entry, and the loser's unawaited delete would throw where
+  nothing can catch it.
+- **Shared file names are attacker-controlled**: `DISPLAY_NAME` comes from
+  the sending app, and an iOS attachment names itself.
+  `InboundShareDecision.safeFileName` (Kotlin) and `ShareFileName.safe`
+  (Swift) strip separators and reject `.` and `..`; keep the two in step.
+  Android also refuses a target outside its per-file folder, and iOS a
+  `copyToCache` source outside `Caches/Share/Imports`. Keep these checks
+  if the copy ever moves.
 
-## Extension Guidance
+## Extending
 
-- **Adding a new message/event shape** (new msgtype, new content key):
-  1. Add handling to `isDisplayableTimelineEvent` and `summarize` in
-     `event_display.dart` — this is the only place classification belongs.
-  2. Add a `MessageKind` case if it needs its own rendering — every switch
-     site will fail to compile until handled, by design.
-  3. Add a row to `event_display_test.dart`'s table (visibility, hidden-mode
-     visibility, previewability, kind, text).
-  4. Never special-case a new type directly in `RoomPage`'s preview/filter
-     logic, the room-list tile, or the notification body — route through
-     `event_display.dart` instead, even if it feels like a one-off.
-  5. Teach the iOS extension's Swift twin (`NseClassifier`) to show or hide
-     it, and add a case to `test/fixtures/push/nse_dispatch_v1.json`, which
-     runs on both sides (`notifications.md`).
-- **Adding a new attachment kind**: follow the two-tier cache
-  (`fetchCachedAttachment` for small media, `fetchCachedAttachmentFile` for
-  anything large) for fetch/display, and the pending-send pattern
-  (synthetic tile keyed by `txid` until the real event lands) for the send
-  UX, rather than inventing a new loading state.
-- **Anything that needs "the newest real message"** (room list preview,
-  read-marker, notification): don't assume `room.lastEvent` is already the
-  right answer — it can be an edit, a hidden signaling event, or an
-  encrypted envelope. Resolve through `event_display.dart`'s helpers
-  (`isPreviewableLastEvent`, `summarize`), not a fresh ad hoc check.
+- **A new message shape** (msgtype or content key):
+  1. Classify it in `isDisplayableTimelineEvent` and `summarize`, the only
+     place classification belongs.
+  2. Add a `MessageKind` if it needs its own rendering; every switch
+     fails to compile until it handles it.
+  3. Add a row to `event_display_test.dart`'s table.
+  4. Teach the iOS extension's twin (`NseClassifier`) and add a case to
+     `test/fixtures/push/nse_dispatch_v1.json` (`notifications.md`).
 
-## Dependencies / Integration
+  Never special-case it in `RoomPage`, the chat list or the notification
+  body.
+- **A new attachment kind** uses `fetchCachedAttachment` for small media
+  or `fetchCachedAttachmentFile` for anything large, and the pending-tile
+  pattern (a synthetic tile keyed by `txid`) for its send, rather than a
+  new loading state.
+- **Anything that needs "the newest real message"** must not trust
+  `room.lastEvent`, which can be an edit, hidden signaling or an
+  encrypted envelope. Resolve it through `isPreviewableLastEvent` and
+  `summarize`.
 
-- **`matrix` SDK**: `Client`/`Room`/`Timeline`/`Event` are the app's state;
-  no repository layer sits between them and the UI.
-- **Calls**: call summary/invite/decline are ordinary `m.room.message`
-  events with app-specific msgtypes, classified through the same
-  `event_display.dart` path as everything else; call UI itself is a
-  separate feature (`CallSession`/`CallEngine`, see CLAUDE.md).
-  `isMissedCallSummary` is the single rule ("ended"/"declined" describe
-  something the recipient took part in, so only a missed call is
-  notification-worthy) shared between the live-sync and push notification
-  paths.
-- **Notifications**: the notification body is `summarize(event).text`, the
-  same call the room-list preview makes, so the two never disagree.
-- **Security/verification**: in-room verification signaling
-  (`verification_signaling.dart`) is filtered out of previews/timeline the
-  same way call signaling is, via `event_display.dart`.
-- **`light_compressor`**: video re-encoding only (remux, probe and
-  thumbnails are this app's own Kotlin and Swift); required several native Android
-  Gradle patches to build at all (missing `namespace`, mismatched
-  Java/Kotlin JVM targets, an outdated `compileSdkVersion` in its own
-  module) and pulls from JitPack, not Maven Central — durable build
-  requirement, not a one-off fix.
-- **`blurhash_dart` + `image`**: blurhash for sent media, computed by this
-  app from a 32px sample; the `image` package is never used to decode a
-  full-size photo any more.
-- **`androidx.exifinterface`**: orientation read in `ImageResizer.kt`
-  (the only EXIF field that survives, as pixels).
+## Testing
+
+- `RoomPage` runs on `room_page_harness.dart` (seeded events, bounded
+  pumps, never `pumpAndSettle`).
+- Inbound share has Dart tests for payload parsing and the picker filter,
+  JUnit tests for `InboundShareDecision` and XCTests for `ShareInbox`.
+- The share extension cannot cold-launch a debug build, because iOS runs
+  one only when Flutter tooling or Xcode launches it: test sharing into a
+  closed app with profile or release.

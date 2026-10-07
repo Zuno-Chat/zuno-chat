@@ -1,1 +1,7 @@
-Smoother video calls: the picture holds up on a weak connection, and voices on a patchy network. Turning on your camera in a voice call shows your video to everyone. On iPhone, video calls continue in picture-in-picture. Closing picture-in-picture no longer ends the call. Your camera pauses while your device is locked or Zuno is out of sight, and comes back when you return. Turning your camera off switches it off completely. Calls no longer start with a false weak-connection warning.
+Video calls run smoother on a weak connection.
+Turning on your camera in a voice call shows your video to everyone.
+Turning your camera off switches it off completely.
+On iPhone, video calls continue in picture-in-picture.
+Closing picture-in-picture no longer ends the call.
+Your camera pauses while your device is locked or Zuno is out of sight.
+Calls start sharp, with no false weak-connection warning.
