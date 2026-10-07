@@ -104,13 +104,13 @@ DeliveryFailure? _distributorBatteryFailure(
   );
 }
 
-const callsMayNotRing = DeliveryFailure(
-  message: 'Calls may not ring while Zuno is closed',
+const callsSetupFailed = DeliveryFailure(
+  message: 'Could not set up calls to ring while Zuno is closed',
   action: DeliveryFailureAction.retryCalls,
 );
 
 DeliveryFailure? callsDeliveryFailure(VoipRegistrationState state) =>
-    state == VoipRegistrationState.failed ? callsMayNotRing : null;
+    state == VoipRegistrationState.failed ? callsSetupFailed : null;
 
 const _notRegistered = DeliveryFailure(
   message: 'This device is not registered for notifications',

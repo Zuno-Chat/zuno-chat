@@ -18,6 +18,7 @@ import 'push_delivery_log.dart';
 import 'push_diagnostics_data.dart';
 import 'pusher_info.dart';
 import 'ring_mismatch.dart';
+import 'voip/voip_registration.dart';
 
 enum DiagnosticStatus { ok, warning, problem, info }
 
@@ -77,6 +78,7 @@ class PushDiagnosticsInputs {
     this.playServices,
     this.deliveries,
     this.droppedRegistrations,
+    this.voipRefusal,
   });
 
   final PlatformCapabilities capabilities;
@@ -95,6 +97,7 @@ class PushDiagnosticsInputs {
   final FcmAvailability? playServices;
   final List<PushDeliveryRecord>? deliveries;
   final int? droppedRegistrations;
+  final VoipRefusal? voipRefusal;
 }
 
 List<DiagnosticSection> buildPushDiagnostics(PushDiagnosticsInputs inputs) => [
@@ -111,9 +114,11 @@ List<DiagnosticSection> buildPushDiagnostics(PushDiagnosticsInputs inputs) => [
   if (inputs.snapshot.metrics.isNotEmpty) _reports(inputs),
 ];
 
-String ageLabel(DateTime at, DateTime now) {
+String ageLabel(DateTime at, DateTime now, {bool midSentence = false}) {
   final age = now.difference(at);
-  if (age < const Duration(minutes: 1)) return 'Just now';
+  if (age < const Duration(minutes: 1)) {
+    return midSentence ? 'just now' : 'Just now';
+  }
   if (age < const Duration(hours: 1)) return '${age.inMinutes} min ago';
   if (age < const Duration(days: 1)) return '${age.inHours} h ago';
   final days = age.inDays;
@@ -685,7 +690,19 @@ DiagnosticSection _calls(PushDiagnosticsInputs inputs) {
         'Sent but not received on this device',
         DiagnosticStatus.problem,
       ),
+    if (inputs.voipRefusal case final refusal?) _callSetup(refusal, inputs.now),
   ]);
+}
+
+DiagnosticRow _callSetup(VoipRefusal refusal, DateTime now) {
+  final refused = 'Refused ${ageLabel(refusal.at, now, midSentence: true)}';
+  return DiagnosticRow('Call setup', switch (refusal) {
+    VoipRefusedByServer(:final reply) => [
+      '$refused (${reply.status} ${reply.errcode})',
+      ?reply.error,
+    ].join('\n'),
+    VoipKeyNotKept() => '$refused (server kept another key)',
+  }, DiagnosticStatus.problem);
 }
 
 DiagnosticRow _lastRingSent(ServerHealth? health, DateTime now) {
@@ -700,7 +717,8 @@ DiagnosticRow _lastRingSent(ServerHealth? health, DateTime now) {
   if (at == null) {
     return const DiagnosticRow('Last ring sent', 'None yet');
   }
-  final age = ageLabel(health.toDevice(at), now);
+  final sentAt = health.toDevice(at);
+  final age = ageLabel(sentAt, now, midSentence: true);
   return switch (health.voipLastResult) {
     'sent' => DiagnosticRow('Last ring sent', 'Sent $age', DiagnosticStatus.ok),
     'failed' => DiagnosticRow(
@@ -713,7 +731,7 @@ DiagnosticRow _lastRingSent(ServerHealth? health, DateTime now) {
       'Refused $age',
       DiagnosticStatus.problem,
     ),
-    _ => DiagnosticRow('Last ring sent', age),
+    _ => DiagnosticRow('Last ring sent', ageLabel(sentAt, now)),
   };
 }
 

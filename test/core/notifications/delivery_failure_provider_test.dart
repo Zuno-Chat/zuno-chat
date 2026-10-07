@@ -99,13 +99,13 @@ void main() {
       voip: voip,
     );
 
-    test('a refused registration says calls may not ring, even with '
+    test('a refused call registration shows the calls failure, even with '
         'notifications off', () async {
       final container = await start(allowed: false);
 
       voip.stateValue.value = VoipRegistrationState.failed;
 
-      expect(container.read(deliveryFailureProvider), callsMayNotRing);
+      expect(container.read(deliveryFailureProvider), callsSetupFailed);
     });
 
     test('a server that is not there yet stays quiet', () async {
@@ -143,7 +143,7 @@ void main() {
 
       voip.stateValue.value = VoipRegistrationState.failed;
 
-      expect(container.read(deliveryFailureProvider), isNot(callsMayNotRing));
+      expect(container.read(deliveryFailureProvider), isNot(callsSetupFailed));
     });
   });
 

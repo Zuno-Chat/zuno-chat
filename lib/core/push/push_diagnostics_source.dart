@@ -18,6 +18,7 @@ import 'push_diagnostics_report.dart';
 import 'pusher_reconciliation.dart';
 import 'recent_pushes.dart';
 import 'voip/voip_channel.dart';
+import 'voip/voip_registration.dart';
 import 'zuno_push_api.dart' hide PusherHealth;
 
 enum PushTestOutcome { sent, rateLimited, notAvailable, failed }
@@ -37,7 +38,10 @@ abstract interface class PushDiagnosticsSource {
 }
 
 final pushDiagnosticsSourceProvider = Provider<PushDiagnosticsSource>(
-  (ref) => LivePushDiagnosticsSource(ref.watch(matrixClientProvider)),
+  (ref) => LivePushDiagnosticsSource(
+    ref.watch(matrixClientProvider),
+    voip: ref.watch(voipRegistrationProvider),
+  ),
 );
 
 class LivePushDiagnosticsSource implements PushDiagnosticsSource {
@@ -45,12 +49,15 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
     this.client, {
     http.Client? httpClient,
     DateTime Function()? now,
+    VoipRegistration? voip,
   }) : _injectedHttpClient = httpClient,
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now,
+       _voip = voip ?? voipRegistration;
 
   final Client client;
   final http.Client? _injectedHttpClient;
   final DateTime Function() _now;
+  final VoipRegistration _voip;
 
   @override
   Future<PushDiagnosticsInputs> load(
@@ -93,6 +100,7 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
       droppedRegistrations: mode == NotificationDeliveryMode.apns
           ? apnsDeliveryProvider.dropped.value
           : null,
+      voipRefusal: capabilities.voipRing ? _voip.lastRefusal.value : null,
     );
   }
 

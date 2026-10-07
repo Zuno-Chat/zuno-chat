@@ -11,6 +11,8 @@ import 'package:zuno/core/push/push_delivery_log.dart';
 import 'package:zuno/core/push/push_diagnostics_data.dart';
 import 'package:zuno/core/push/push_diagnostics_report.dart';
 import 'package:zuno/core/push/pusher_info.dart';
+import 'package:zuno/core/push/voip/voip_registration.dart';
+import 'package:zuno/core/push/voip/voip_server.dart';
 
 import '../../helpers/platform_capabilities.dart';
 
@@ -62,6 +64,7 @@ void main() {
     FcmAvailability? playServices,
     List<PushDeliveryRecord>? deliveries,
     int? droppedRegistrations,
+    VoipRefusal? voipRefusal,
   }) => PushDiagnosticsInputs(
     capabilities: capabilities ?? ios,
     now: now,
@@ -79,6 +82,7 @@ void main() {
     playServices: playServices,
     deliveries: deliveries,
     droppedRegistrations: droppedRegistrations,
+    voipRefusal: voipRefusal,
   );
 
   DiagnosticSection section(PushDiagnosticsInputs from, String title) =>
@@ -369,6 +373,69 @@ void main() {
           DiagnosticStatus.problem,
         ),
       );
+    });
+
+    test('a ring sent moments ago reads mid-sentence', () {
+      final justSent = ServerHealth(
+        voipRegistered: true,
+        voipKid: 7,
+        voipLastResult: 'sent',
+        voipLastAt: now,
+      );
+      expect(
+        section(inputs(health: justSent), 'Calls').row('Last ring sent'),
+        const DiagnosticRow(
+          'Last ring sent',
+          'Sent just now',
+          DiagnosticStatus.ok,
+        ),
+      );
+    });
+
+    test('a refused call setup shows the server answer, or the key it kept, '
+        'and nothing once none is held', () {
+      final at = now.subtract(const Duration(minutes: 2));
+      DiagnosticRow? setup(VoipRefusal? refusal) =>
+          section(inputs(voipRefusal: refusal), 'Calls').row('Call setup');
+
+      expect(
+        setup(
+          VoipRefusedByServer(
+            at: at,
+            reply: const VoipServerRefused(
+              status: 400,
+              errcode: 'M_INVALID_PARAM',
+              error: 'unknown app_id',
+            ),
+          ),
+        ),
+        const DiagnosticRow(
+          'Call setup',
+          'Refused 2 min ago (400 M_INVALID_PARAM)\nunknown app_id',
+          DiagnosticStatus.problem,
+        ),
+      );
+      expect(
+        setup(
+          VoipRefusedByServer(
+            at: at,
+            reply: const VoipServerRefused(
+              status: 503,
+              errcode: 'IM.ZUNO.PUSH_DISABLED',
+            ),
+          ),
+        )?.value,
+        'Refused 2 min ago (503 IM.ZUNO.PUSH_DISABLED)',
+      );
+      expect(
+        setup(VoipKeyNotKept(at: at)),
+        const DiagnosticRow(
+          'Call setup',
+          'Refused 2 min ago (server kept another key)',
+          DiagnosticStatus.problem,
+        ),
+      );
+      expect(setup(null), isNull);
     });
 
     test('a ledger that was not read is unknown, not a lost ring', () {

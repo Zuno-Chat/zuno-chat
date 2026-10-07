@@ -190,6 +190,7 @@ Both platforms show the permission, this device's registration and the module's 
 
 - **Every native read is best-effort.** A failed read shows as unknown, never as a denial.
 - **A missing or disabled module** is informational on Android, which does not need it, and a problem on iOS.
+- **A refused VoIP registration** shows the module's answer under Calls until a registration goes through or the user signs out, since the home banner cannot say why calls will not ring.
 - **Send a test notification** goes through the module and Synapse's pusher, so it is unavailable without the module or under background sync. It shows even in front. On Android a test push never reaches Dart (`PushKind.TEST`), so Dart never fetches its fake event.
 - **Recent pushes** merges the FCM delivery log, the extension and app logs and the call ledger into one list, never with text or names. Android shows it only under FCM, the one mode where app code sees every push.
 - **Push target** shows this device's pusher details and last error, and lets the user remove other registrations.
