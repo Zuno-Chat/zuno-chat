@@ -22,6 +22,7 @@ import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/errors/best_effort.dart';
+import '../../../core/files/picked_file.dart';
 import '../../../core/location/location_message.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/attachment_action_buttons.dart';
@@ -1110,10 +1111,14 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   Future<void> _pickAndSendFile() async {
     final files = await FilePicker.pickFiles();
-    for (final file in files) {
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-      await _sendFile(bytes, name: file.name);
+    try {
+      for (final file in files) {
+        final bytes = await file.readAsBytes();
+        if (!mounted) return;
+        await _sendFile(bytes, name: file.name);
+      }
+    } finally {
+      await Future.wait(files.map(discardPickedCopy));
     }
   }
 

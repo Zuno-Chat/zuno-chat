@@ -305,6 +305,10 @@ flowchart TD
   repeat: every photo Zuno sends is `photo.jpg`.
 - **Cache expiry deletes are fire-and-forget**, because two readers can
   meet the same stale entry and the loser's delete would throw.
+- **The file picker leaves a copy of each picked file in the app's
+  temporary storage**, so the copy is deleted after reading, or sent files
+  pile up; only a copy inside that storage is ever deleted, never an
+  original.
 - **Shared file names are attacker-controlled**, so both native sides
   strip separators, reject `.` and `..`, and refuse paths outside their
   share folder; keep the Kotlin and Swift checks in step.

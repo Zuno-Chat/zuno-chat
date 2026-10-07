@@ -28,7 +28,7 @@ Logic lives in `lib/core/security/`, screens in `features/settings/` and
 | Area | Main pieces |
 |---|---|
 | Status | `account_security_status.dart`, shown by `security_status_card.dart` |
-| Recovery | `recovery_code.dart` (generation, normalization), `secure_backup_page.dart` |
+| Recovery | `recovery_code.dart` (generation, normalization), `recovery_code_file.dart` (the saved file), `secure_backup_page.dart` |
 | Devices | `verification_page.dart`, `approve_this_device_page.dart`, `active_sessions_page.dart` |
 | People | `user_trust.dart`, `confirmed_identity_store.dart`, `confirm_person.dart` |
 | Device watch | `known_devices_store.dart` and the new-device banners |
@@ -94,9 +94,12 @@ flowchart TD
   one step that separates "saved it" from "saw it", and quitting before it
   leaves nothing on the server.
 - **Entering a code** accepts the twelve words, a base58 security key or a
-  phrase set up in another client. Text correction is off in the field,
-  because autocorrect mangling a word is the likeliest real-world failure of
-  the design. Validation only hints and never blocks submission.
+  phrase set up in another client, typed or opened from a saved file.
+  Opening a file only fills the field, and any short plain-text file opens,
+  so another client's exported key works as well as Zuno's own saved code.
+  Text correction is off in the field, because autocorrect mangling a word
+  is the likeliest real-world failure of the design. Validation only hints
+  and never blocks submission.
 
 ### Device approval and verification
 
@@ -293,6 +296,10 @@ the commonest words of ordinary prose break any run.
 - **A contact with a master key gets no room keys on an unapproved device**,
   so messages stay undecryptable there until they approve it, which is the
   default key policy working, not a bug.
+- **The file picker leaves a copy of an opened file in the app's temporary
+  storage**, so the copy is deleted after reading, or the code lingers there
+  in plaintext; only a copy inside that storage is ever deleted, never the
+  user's original.
 - **Replacing a code asks for the password first**, because `Bootstrap`
   reaches the password checkpoint only after the old code is gone.
 - **Two `onUiaRequest` listeners open two dialogs**, so a listening page

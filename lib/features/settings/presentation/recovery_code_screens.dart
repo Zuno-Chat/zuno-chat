@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/recovery_code.dart';
+import '../../../core/security/recovery_code_file.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/sensitive_clipboard.dart';
 import '../../../core/ui/step_hero.dart';
@@ -100,7 +99,7 @@ class _RevealScreen extends StatelessWidget {
       children: [
         _WordGrid(words: words),
         const SizedBox(height: 24),
-        _SaveButton(
+        _WideButton(
           icon: Icons.password_outlined,
           label: 'Save to password manager',
           onPressed: () => showDialog<void>(
@@ -109,13 +108,13 @@ class _RevealScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        _SaveButton(
+        _WideButton(
           icon: Icons.save_outlined,
           label: 'Save as a file',
           onPressed: () => _saveAsFile(context, code),
         ),
         const SizedBox(height: 8),
-        _SaveButton(
+        _WideButton(
           icon: Icons.copy_outlined,
           label: 'Copy',
           onPressed: () {
@@ -204,9 +203,9 @@ Future<void> _saveAsFile(BuildContext context, String code) async {
   try {
     final uri = await FilePicker.saveFile(
       dialogTitle: 'Save your recovery code',
-      fileName: 'zuno-recovery-code.txt',
+      fileName: recoveryCodeFileName,
       mimeType: 'text/plain',
-      bytes: Uint8List.fromList(utf8.encode('$code\n')),
+      bytes: encodeRecoveryCodeFile(code),
     );
     if (uri == null) return;
     messenger.showSnackBar(const SnackBar(content: Text('Saved')));
@@ -218,12 +217,12 @@ Future<void> _saveAsFile(BuildContext context, String code) async {
   }
 }
 
-class _SaveButton extends StatelessWidget {
+class _WideButton extends StatelessWidget {
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
-  const _SaveButton({
+  const _WideButton({
     required this.icon,
     required this.label,
     required this.onPressed,
@@ -450,6 +449,40 @@ class RecoveryCodeEntryField extends ConsumerStatefulWidget {
 
 class _RecoveryCodeEntryFieldState
     extends ConsumerState<RecoveryCodeEntryField> {
+  bool _opening = false;
+
+  Future<void> _openSavedFile() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _opening = true);
+    try {
+      final file = await FilePicker.pickFile(
+        dialogTitle: 'Open your recovery code',
+      );
+      if (file == null) return;
+      final code = await readPickedRecoveryCodeFile(file);
+      if (!mounted) return;
+      if (code == null) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('That file does not hold a recovery code.'),
+          ),
+        );
+        return;
+      }
+      widget.controller.value = TextEditingValue(
+        text: code,
+        selection: TextSelection.collapsed(offset: code.length),
+      );
+    } catch (e) {
+      logCaught('open recovery code file', e);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not open that file. Try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final wordlist = maybeWordlist(ref);
@@ -479,6 +512,12 @@ class _RecoveryCodeEntryFieldState
           ),
         ),
         if (wordlist != null) _hint(context, wordlist),
+        const SizedBox(height: 16),
+        _WideButton(
+          icon: Icons.file_open_outlined,
+          label: 'Open a saved file',
+          onPressed: widget.busy || _opening ? null : _openSavedFile,
+        ),
       ],
     );
   }

@@ -23,6 +23,7 @@ import 'package:zuno/features/chat/presentation/message_contents/media_message.d
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
 
+import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_video_player.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -56,32 +57,6 @@ class _FakeImagePicker extends ImagePickerPlatform {
     CameraDevice preferredCameraDevice = CameraDevice.rear,
     Duration? maxDuration,
   }) => _answer('video:${source.name}', answer.firstOrNull);
-}
-
-final class _PickedFile extends PlatformFile {
-  _PickedFile(this.name, this.bytes);
-
-  @override
-  final String name;
-  final Uint8List bytes;
-
-  @override
-  Uri get uri => Uri.file('/picked/$name');
-
-  @override
-  XFile get xFile => XFile.fromData(bytes, path: '/picked/$name');
-
-  @override
-  int? lengthSync() => bytes.length;
-
-  @override
-  Future<int> length() async => bytes.length;
-
-  @override
-  Future<Uint8List> readAsBytes() async => bytes;
-
-  @override
-  Stream<Uint8List> readAsByteStream() => Stream.value(bytes);
 }
 
 class _FakeFilePicker extends FilePickerPlatform {
@@ -620,7 +595,7 @@ void main() {
   group('files', () {
     testWidgets('a file is sent under its name', (tester) async {
       files.answer = [
-        _PickedFile('notes.pdf', Uint8List.fromList([1, 2])),
+        FakePickedFile('notes.pdf', Uint8List.fromList([1, 2])),
       ];
       await openRoom(tester);
 
@@ -633,8 +608,8 @@ void main() {
 
     testWidgets('every picked file is sent, not just one', (tester) async {
       files.answer = [
-        _PickedFile('a.pdf', Uint8List.fromList([1])),
-        _PickedFile('b.txt', Uint8List.fromList([2])),
+        FakePickedFile('a.pdf', Uint8List.fromList([1])),
+        FakePickedFile('b.txt', Uint8List.fromList([2])),
       ];
       await openRoom(tester);
 
@@ -642,6 +617,24 @@ void main() {
       await harness.drive(tester);
 
       expect([for (final s in harness.sent) s['body']], ['a.pdf', 'b.txt']);
+    });
+
+    testWidgets('a sent file leaves no picker copy behind', (tester) async {
+      final copy = File('${temp.path}/notes.pdf')..writeAsBytesSync([1, 2]);
+      files.answer = [
+        FakePickedFile(
+          'notes.pdf',
+          Uint8List.fromList([1, 2]),
+          path: copy.path,
+        ),
+      ];
+      await openRoom(tester);
+
+      await choose(tester, 'Choose file');
+      await harness.drive(tester);
+
+      expect(harness.sent.single['body'], 'notes.pdf');
+      expect(copy.existsSync(), isFalse);
     });
 
     testWidgets('nothing picked sends nothing', (tester) async {
@@ -656,7 +649,7 @@ void main() {
     testWidgets('a failed upload says so', (tester) async {
       uploadsFail = true;
       files.answer = [
-        _PickedFile('a.pdf', Uint8List.fromList([1])),
+        FakePickedFile('a.pdf', Uint8List.fromList([1])),
       ];
       await openRoom(tester);
 
