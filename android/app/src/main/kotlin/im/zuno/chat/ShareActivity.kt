@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.core.content.IntentCompat
 import im.zuno.chat.InboundShareDecision.SharedFile
+import im.zuno.chat.zuno_notifications.AppLaunchIntent
 
 class ShareActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,13 +74,8 @@ class ShareActivity : Activity() {
     }.getOrNull()
 
     private fun forwardIntent(text: String?, files: List<SharedFile>): Intent =
-        Intent(this, MainActivity::class.java).apply {
-            action = ACTION_INBOUND_SHARE
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
+        AppLaunchIntent.of(this, ACTION_INBOUND_SHARE).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             putExtra(EXTRA_SHARE_TEXT, text)
             putStringArrayListExtra(EXTRA_SHARE_URIS, ArrayList(files.map { it.uri }))
             putStringArrayListExtra(EXTRA_SHARE_NAMES, ArrayList(files.map { it.name }))

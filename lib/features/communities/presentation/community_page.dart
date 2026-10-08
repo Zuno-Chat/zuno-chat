@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/calls/end_call.dart';
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/connection_error.dart';
@@ -23,6 +24,7 @@ import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../../core/ui/row_memo.dart';
 import '../../../core/ui/section_label.dart';
+import '../../../core/ui/sheet.dart';
 import '../../chat/presentation/room_page.dart';
 import '../../room_info/presentation/members_sheet.dart';
 import '../../room_info/presentation/remove_member_dialog.dart';
@@ -163,6 +165,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
       final room = await joinAndAwaitRoom(_client, id, via: _viaFor(id));
       if (room != null && mounted) widget.openRoom(context, room);
     } catch (e) {
+      logCaught('join community room', e);
       messenger.showSnackBar(
         SnackBar(
           content: Text(failureMessage(e, failed: 'Could not join the room.')),
@@ -237,6 +240,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     try {
       await action();
     } catch (e) {
+      logCaught('join request', e);
       messenger.showSnackBar(
         SnackBar(content: Text(failureMessage(e, failed: failed))),
       );
@@ -283,6 +287,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
       );
       roomId = e.roomId;
     } catch (e) {
+      logCaught('create community room', e);
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -308,7 +313,11 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
       case _Menu.permissions:
         await _openAndRefresh(RoomPermissionsPage(room: _community));
       case _Menu.leave:
-        final left = await confirmAndExitRoom(context, _community);
+        final left = await confirmAndExitRoom(
+          context,
+          _community,
+          endCallsIn: ref.read(endCallsInProvider),
+        );
         if (left && mounted) _close();
     }
   }
@@ -377,7 +386,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
 
   Future<void> _manageMember(User user) async {
     final actions = _memberActions(user);
-    final action = await showModalBottomSheet<_MemberAction>(
+    final action = await showSheet<_MemberAction>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(

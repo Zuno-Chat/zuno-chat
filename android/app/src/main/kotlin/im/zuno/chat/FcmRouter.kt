@@ -69,6 +69,10 @@ object FcmRouter {
         perform(routing.gone(engineId, now()))
     }
 
+    fun rebindApp(engineId: Int, activity: Activity) {
+        engines[engineId]?.channel?.setMethodCallHandler(FcmChannel(activity, engineId, activity))
+    }
+
     fun ready(engineId: Int): Boolean {
         if (engineId !in engines) return false
         perform(routing.ready(engineId, now()))

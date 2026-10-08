@@ -719,11 +719,14 @@ void main() {
     for (final state in VoipRegistrationState.values) {
       expect(
         callsDeliveryFailure(state),
-        state == VoipRegistrationState.failed ? callsMayNotRing : isNull,
+        state == VoipRegistrationState.failed ? callsSetupFailed : isNull,
         reason: state.name,
       );
     }
-    expect(callsMayNotRing.message, 'Calls may not ring while Zuno is closed');
-    expect(deliveryFailureActionLabel(callsMayNotRing.action), 'Retry');
+    expect(
+      callsSetupFailed.message,
+      'Could not set up calls to ring while Zuno is closed',
+    );
+    expect(deliveryFailureActionLabel(callsSetupFailed.action), 'Retry');
   });
 }

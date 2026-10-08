@@ -5,11 +5,11 @@ import '../notifications/notification_delivery_mode.dart';
 bool shouldPauseBackgroundSync(
   AppLifecycleState state,
   NotificationDeliveryMode mode, {
-  required bool inCall,
+  required bool keepSyncAlive,
 }) =>
     state == AppLifecycleState.paused &&
     mode != NotificationDeliveryMode.backgroundService &&
-    !inCall;
+    !keepSyncAlive;
 
 bool shouldResumeBackgroundSync(
   AppLifecycleState state,
@@ -17,3 +17,14 @@ bool shouldResumeBackgroundSync(
 ) =>
     state == AppLifecycleState.resumed &&
     mode != NotificationDeliveryMode.backgroundService;
+
+bool shouldLongPollInBackground(
+  AppLifecycleState state,
+  NotificationDeliveryMode mode, {
+  required bool forCall,
+  required bool forLiveShare,
+}) =>
+    state == AppLifecycleState.paused &&
+    mode != NotificationDeliveryMode.backgroundService &&
+    !forCall &&
+    forLiveShare;

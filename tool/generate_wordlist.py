@@ -7,7 +7,7 @@ Three properties are required, and the test suite re-asserts all three
 against the shipped file:
 
   1. exactly 1296 words (6^4, so a word carries log2(1296) ~= 10.34 bits;
-     seven words ~= 72.4 bits)
+     twelve words ~= 124 bits)
   2. every word is uniquely identified by its first three characters, so
      entry-time autocomplete needs ~3 keystrokes per word
   3. minimum Levenshtein distance 2 between any two words, so a single
@@ -29,7 +29,7 @@ Distance 2 rather than 3 is a deliberate trade. Distance 3 would make
 every single-character typo correctable to exactly one candidate, but
 1296 words that far apart cannot be drawn from common English — the
 selection is forced out into words like "akimbo", "kaolin" and "umlaut",
-which is worse for the person reading seven of them off a piece of paper
+which is worse for the person reading twelve of them off a piece of paper
 than an occasional ambiguous correction. Distance 2 still guarantees the
 property that actually matters: a single typo can never silently produce
 a different valid word.

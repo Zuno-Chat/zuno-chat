@@ -19,11 +19,15 @@ class _ClearableDatabase extends FakeDatabaseApi {
 
 void main() {
   late List<http.Request> requests;
+  final ended = <String>[];
+  Future<void> endCallsIn(Iterable<String> roomIds) async =>
+      ended.addAll(roomIds);
   late _ClearableDatabase database;
   late Client client;
   var refuseAccountData = false;
 
   setUp(() {
+    ended.clear();
     requests = [];
     refuseAccountData = false;
     database = _ClearableDatabase();
@@ -69,7 +73,7 @@ void main() {
       .map((r) => Uri.decodeComponent(r.url.pathSegments[4]));
 
   test('stores the person in the blocked list on the server', () async {
-    await blockOnServer(client, '@ann:example.org');
+    await blockOnServer(client, '@ann:example.org', endCallsIn: endCallsIn);
 
     final stored = requests.singleWhere(
       (r) => r.url.path.endsWith('/account_data/m.ignored_user_list'),
@@ -88,7 +92,7 @@ void main() {
       },
     );
 
-    await blockOnServer(client, '@ann:example.org');
+    await blockOnServer(client, '@ann:example.org', endCallsIn: endCallsIn);
 
     final stored = requests.singleWhere(
       (r) => r.url.path.endsWith('/account_data/m.ignored_user_list'),
@@ -118,7 +122,7 @@ void main() {
     );
     addRoom('!shared:example.org', Membership.join);
 
-    await blockOnServer(client, '@ann:example.org');
+    await blockOnServer(client, '@ann:example.org', endCallsIn: endCallsIn);
 
     expect(
       leftRooms(),
@@ -126,8 +130,32 @@ void main() {
     );
   });
 
+  test('ends a call in the chat with them before leaving it', () async {
+    addRoom('!chat:example.org', Membership.join);
+    addRoom('!shared:example.org', Membership.join);
+    client.accountData['m.direct'] = BasicEvent(
+      type: 'm.direct',
+      content: {
+        '@ann:example.org': ['!chat:example.org'],
+      },
+    );
+    final leftWhenEnding = <String>[];
+
+    await blockOnServer(
+      client,
+      '@ann:example.org',
+      endCallsIn: (roomIds) async {
+        ended.addAll(roomIds);
+        leftWhenEnding.addAll(leftRooms());
+      },
+    );
+
+    expect(ended, ['!chat:example.org']);
+    expect(leftWhenEnding, isEmpty);
+  });
+
   test('clears the saved messages so their old ones go too', () async {
-    await blockOnServer(client, '@ann:example.org');
+    await blockOnServer(client, '@ann:example.org', endCallsIn: endCallsIn);
 
     expect(database.cacheClears, 1);
   });
@@ -136,14 +164,17 @@ void main() {
     refuseAccountData = true;
 
     await expectLater(
-      blockOnServer(client, '@ann:example.org'),
+      blockOnServer(client, '@ann:example.org', endCallsIn: endCallsIn),
       throwsA(isA<MatrixException>()),
     );
     expect(database.cacheClears, 0);
   });
 
   test('refuses something that is not a username', () async {
-    await expectLater(blockOnServer(client, 'ann'), throwsException);
+    await expectLater(
+      blockOnServer(client, 'ann', endCallsIn: endCallsIn),
+      throwsException,
+    );
     expect(requests, isEmpty);
   });
 }

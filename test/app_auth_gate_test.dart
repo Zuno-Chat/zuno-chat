@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
 import 'package:zuno/app.dart';
+import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
@@ -27,6 +28,7 @@ import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
 import 'package:zuno/core/matrix/sign_out_wipe.dart';
+import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
@@ -41,6 +43,7 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/share/inbound_share.dart';
 import 'package:zuno/core/ui/zuno_splash.dart';
 import 'package:zuno/features/auth/presentation/signed_out_entry.dart';
+import 'package:zuno/features/calls/presentation/call_page.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/communities/presentation/community_page.dart';
@@ -49,8 +52,9 @@ import 'package:zuno/features/rooms/presentation/room_list_page.dart';
 import 'package:zuno/features/settings/presentation/active_sessions_page.dart';
 import 'package:zuno/features/share/presentation/share_picker_page.dart';
 
-import 'features/calls/presentation/call_page_harness.dart';
 import 'helpers/app_lifecycle.dart';
+import 'helpers/call_channel_mocks.dart';
+import 'helpers/fake_call_session.dart';
 import 'helpers/fake_call_style_channel.dart';
 import 'helpers/fake_local_notifications.dart';
 import 'helpers/fake_matrix.dart';
@@ -420,6 +424,30 @@ void main() {
       await pumpRoute(tester);
 
       expect(tester.widget<RoomPage>(find.byType(RoomPage)).room, same(room));
+    });
+
+    testWidgets('a message notification during an open call takes the call '
+        'screen\'s place and minimizes the call to the bar', (tester) async {
+      CallChannelMocks();
+      final container = await pumpApp(tester);
+      await settle(tester);
+      container
+          .read(activeCallProvider.notifier)
+          .set(FakeCallSession(room: room, kind: CallKind.voice));
+      showCallScreen(
+        globalNavigatorKey.currentState!,
+        container.read(activeCallControllerProvider)!,
+      );
+      await settle(tester);
+      expect(find.byType(CallPage), findsOneWidget);
+
+      CallNotificationService.instance.onMessageTapForTest(room.id);
+      await pumpRoute(tester);
+      await settle(tester);
+
+      expect(find.byType(RoomPage), findsOneWidget);
+      expect(find.byType(CallPage, skipOffstage: false), findsNothing);
+      expect(find.text('Return to call'), findsOneWidget);
     });
 
     testWidgets('a notification for a community opens the community', (

@@ -6,6 +6,7 @@ import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/active_call_provider.dart';
+import '../../../core/calls/end_call.dart';
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/calls/matrixrtc/call_waiting.dart';
 import '../../../core/calls/matrixrtc/incoming_call.dart';
@@ -45,9 +46,11 @@ import '../../../core/security/new_device_alert_provider.dart';
 import '../../../core/security/security_prompt.dart';
 import '../../../core/security/security_prompt_provider.dart';
 import '../../../core/security/unverified_device_warning_provider.dart';
+import '../../../core/ui/sheet.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../calls/presentation/incoming_call_page.dart';
 import '../../communities/presentation/community_page.dart';
+import '../../location/presentation/own_live_location_banner.dart';
 import '../../onboarding/presentation/onboarding_flow_page.dart';
 import '../../settings/presentation/secure_backup_page.dart';
 import '../../settings/presentation/settings_page.dart';
@@ -130,7 +133,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
 
   Future<void> _newChat(BuildContext context, Client client) async {
     final options = _tab == HomeTab.chats ? _chatsMenu : _communitiesMenu;
-    final type = await showModalBottomSheet<_NewChatType>(
+    final type = await showSheet<_NewChatType>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
@@ -250,6 +253,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
             .push(MaterialPageRoute(builder: (_) => pageForRoom(room)));
       }
     } catch (e) {
+      logCaught('create or join room', e);
       messenger.showSnackBar(
         SnackBar(content: Text(failureMessage(e, failed: failed))),
       );
@@ -396,7 +400,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     final isMuted = room.pushRuleState == PushRuleState.dontNotify;
     final hasUnread = !isCommunity && room.notificationCount > 0;
 
-    final action = await showModalBottomSheet<_RoomAction>(
+    final action = await showSheet<_RoomAction>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
@@ -444,6 +448,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       try {
         await write();
       } catch (e) {
+        logCaught('room action ${action.name}', e);
         messenger.showSnackBar(
           SnackBar(content: Text(failureMessage(e, failed: failed))),
         );
@@ -468,7 +473,11 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
           failed: 'Not unmuted.',
         );
       case _RoomAction.exit:
-        await confirmAndExitRoom(context, room);
+        await confirmAndExitRoom(
+          context,
+          room,
+          endCallsIn: ref.read(endCallsInProvider),
+        );
     }
   }
 
@@ -633,6 +642,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
               children: [
                 const NewDeviceAlertBanner(),
                 const NotificationDeliveryBanner(),
+                OwnLiveLocationBanner(onOpen: open),
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: () => _refresh(context, client),

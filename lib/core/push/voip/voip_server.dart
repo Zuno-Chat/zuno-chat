@@ -20,10 +20,15 @@ final class VoipServerUnreachable extends VoipServerReply {
 }
 
 final class VoipServerRefused extends VoipServerReply {
-  const VoipServerRefused({required this.status, required this.errcode});
+  const VoipServerRefused({
+    required this.status,
+    required this.errcode,
+    this.error,
+  });
 
   final int status;
   final String errcode;
+  final String? error;
 }
 
 abstract interface class VoipServer {
@@ -60,8 +65,12 @@ VoipServerReply voipServerReply<T>(
   ZunoPushFailure(kind: ZunoPushFailureKind.unexpected, :final status?)
       when status >= 500 =>
     const VoipServerUnreachable(),
-  ZunoPushFailure(:final kind, :final status, :final errcode) =>
-    VoipServerRefused(status: status ?? 0, errcode: errcode ?? kind.name),
+  ZunoPushFailure(:final kind, :final status, :final errcode, :final error) =>
+    VoipServerRefused(
+      status: status ?? 0,
+      errcode: errcode ?? kind.name,
+      error: error,
+    ),
 };
 
 class ZunoPushVoipServer implements VoipServer {

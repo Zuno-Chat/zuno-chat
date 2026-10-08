@@ -6,12 +6,14 @@ import 'package:zuno/features/calls/presentation/call_confirm_prompt.dart';
 void main() {
   bool wanted({
     UserTrustState trust = UserTrustState.unconfirmed,
-    bool deviceReady = true,
+    bool thisDeviceReady = true,
+    bool theirDeviceApproved = true,
     bool declined = false,
     bool talkedLongEnough = true,
   }) => callConfirmPromptWanted(
     trust: trust,
-    deviceReady: deviceReady,
+    thisDeviceReady: thisDeviceReady,
+    theirDeviceApproved: theirDeviceApproved,
     declined: declined,
     talkedLongEnough: talkedLongEnough,
   );
@@ -39,7 +41,18 @@ void main() {
   });
 
   test('not while this device cannot confirm anyone', () {
-    expect(wanted(deviceReady: false), isFalse);
+    expect(wanted(thisDeviceReady: false), isFalse);
+  });
+
+  test('not while they call from a device they have not approved', () {
+    expect(wanted(theirDeviceApproved: false), isFalse);
+  });
+
+  test('not for a changed identity on a device they have not approved', () {
+    expect(
+      wanted(trust: UserTrustState.identityChanged, theirDeviceApproved: false),
+      isFalse,
+    );
   });
 
   test('not after Not now for that person', () {

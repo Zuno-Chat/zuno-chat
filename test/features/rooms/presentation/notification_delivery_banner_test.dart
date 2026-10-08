@@ -226,7 +226,7 @@ void main() {
     expect(client.posted.map((p) => p.appId), [apnsAppId]);
   });
 
-  testWidgets('Retry on calls that may not ring registers for calls again', (
+  testWidgets('Retry on a failed call setup registers for calls again', (
     tester,
   ) async {
     final voip = FakeVoipRegistration();
@@ -235,7 +235,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          deliveryFailureProvider.overrideWithValue(callsMayNotRing),
+          deliveryFailureProvider.overrideWithValue(callsSetupFailed),
           voipRegistrationProvider.overrideWithValue(voip),
           matrixClientProvider.overrideWithValue(client),
         ],

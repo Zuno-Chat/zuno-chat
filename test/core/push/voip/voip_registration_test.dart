@@ -251,15 +251,24 @@ void main() {
     });
   });
 
-  test('a refusal from the server is a failure worth showing', () async {
-    server.reply = (_) =>
-        const VoipServerRefused(status: 503, errcode: 'IM.ZUNO.PUSH_DISABLED');
+  test('a refusal from the server is a failure worth showing, kept with '
+      'its answer until sign-out', () async {
+    const refused = VoipServerRefused(
+      status: 400,
+      errcode: 'M_INVALID_PARAM',
+      error: 'unknown app_id',
+    );
+    server.reply = (_) => refused;
 
     await registration.start(client);
 
     expect(registration.state.value, VoipRegistrationState.failed);
+    final refusal = registration.lastRefusal.value as VoipRefusedByServer;
+    expect(refusal.reply, refused);
+    expect(refusal.at, DateTime.fromMillisecondsSinceEpoch(1789999999000));
     registration.retryDelay = (_) => const Duration(hours: 1);
     await registration.stop(client);
+    expect(registration.lastRefusal.value, isNull);
   });
 
   test('an acknowledgement for another key is a failure', () async {
@@ -269,6 +278,35 @@ void main() {
 
     expect(registration.state.value, VoipRegistrationState.failed);
     expect(native.acked, isEmpty);
+    expect(registration.lastRefusal.value, isA<VoipKeyNotKept>());
+    await registration.stop(client);
+  });
+
+  test('a registration that goes through clears the last refusal', () async {
+    server.reply = (_) =>
+        const VoipServerRefused(status: 503, errcode: 'IM.ZUNO.PUSH_DISABLED');
+    registration.retryDelay = (_) => const Duration(hours: 1);
+    await registration.start(client);
+    server.reply = (kid) => VoipServerAccepted(serverTs: 1, kid: kid);
+
+    await registration.registerNow(client);
+
+    expect(registration.state.value, VoipRegistrationState.registered);
+    expect(registration.lastRefusal.value, isNull);
+    await registration.stop(client);
+  });
+
+  test('a server that cannot be reached keeps the last refusal', () async {
+    server.reply = (_) =>
+        const VoipServerRefused(status: 503, errcode: 'IM.ZUNO.PUSH_DISABLED');
+    registration.retryDelay = (_) => const Duration(hours: 1);
+    await registration.start(client);
+    server.reply = (_) => const VoipServerUnreachable();
+
+    await registration.registerNow(client);
+
+    expect(registration.state.value, VoipRegistrationState.unreachable);
+    expect(registration.lastRefusal.value, isA<VoipRefusedByServer>());
     await registration.stop(client);
   });
 

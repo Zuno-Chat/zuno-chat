@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'active_call_marker.dart';
@@ -15,12 +16,23 @@ class ActiveCallNotifier extends Notifier<CallSession?> {
     return null;
   }
 
-  void set(CallSession? session) {
-    state = session;
-    markCallActiveInProcess(session != null);
+  CallSession? start(CallSession Function() create) {
+    final live = state;
+    if (live != null && live.phase != CallSessionPhase.ended) return null;
+    final session = create();
+    _hold(session);
+    return session;
   }
 
+  @visibleForTesting
+  void set(CallSession? session) => _hold(session);
+
   void clear(CallSession session) {
-    if (identical(state, session)) set(null);
+    if (identical(state, session)) _hold(null);
+  }
+
+  void _hold(CallSession? session) {
+    state = session;
+    markCallActiveInProcess(session != null);
   }
 }

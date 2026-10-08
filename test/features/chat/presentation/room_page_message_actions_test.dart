@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
@@ -52,6 +53,9 @@ void main() {
     harness = RoomPageHarness(db: SendingFakeDatabaseApi());
     harness.respond = (request) {
       final path = request.url.path;
+      if (path.contains('/state/$liveLocationStateType/')) {
+        return http.Response(jsonEncode({'event_id': r'$cleared'}), 200);
+      }
       if (path.contains('/redact/') || path.contains('/send/m.reaction/')) {
         return refuse
             ? http.Response(
@@ -188,6 +192,58 @@ void main() {
       );
     });
 
+    testWidgets('a live location ends its share before it is deleted', (
+      tester,
+    ) async {
+      const me = '@me:example.org';
+      final now = DateTime.now();
+      await openRoom(
+        tester,
+        () => [
+          buildTestEvent(
+            harness.room,
+            eventId: r'$live',
+            senderId: me,
+            originServerTs: now,
+            status: EventStatus.synced,
+            content: liveLocationStartContent(
+              shareId: 'share1',
+              endsAt: now.add(const Duration(hours: 1)),
+              duration: LiveLocationDuration.hour,
+            ),
+          ),
+        ],
+      );
+      harness.room.setState(
+        buildTestEvent(
+          harness.room,
+          eventId: r'$state',
+          senderId: me,
+          type: liveLocationStateType,
+          stateKey: me,
+          originServerTs: now,
+          content: LiveShareState(
+            shareId: 'share1',
+            deviceId: 'LAPTOP',
+            endsAt: now.add(const Duration(hours: 1)),
+          ).toContent(),
+        ),
+      );
+
+      await openActions(tester, 'Live location ended');
+      await tapAction(tester, 'Delete');
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await harness.settle(tester);
+
+      final paths = [for (final r in harness.httpRequests) r.url.path];
+      final cleared = paths.indexWhere(
+        (path) => path.contains('/state/$liveLocationStateType/'),
+      );
+      final deleted = paths.indexWhere((path) => path.contains('/redact/'));
+      expect(cleared, isNonNegative);
+      expect(deleted, greaterThan(cleared));
+    });
+
     testWidgets('Cancel keeps it', (tester) async {
       await openRoom(tester, () => [own(r'$mine', 'oops')]);
 
@@ -228,6 +284,32 @@ void main() {
 
     expect(copied, ['the answer']);
     expect(find.text('Copied'), findsOneWidget);
+  });
+
+  testWidgets('a live location offers no Copy', (tester) async {
+    final now = DateTime.now();
+    await openRoom(
+      tester,
+      () => [
+        buildTestEvent(
+          harness.room,
+          eventId: r'$live',
+          senderId: '@bob:example.org',
+          originServerTs: now,
+          status: EventStatus.synced,
+          content: liveLocationStartContent(
+            shareId: 'share1',
+            endsAt: now.add(const Duration(hours: 1)),
+            duration: LiveLocationDuration.hour,
+          ),
+        ),
+      ],
+    );
+
+    await openActions(tester, 'Live location ended');
+
+    expect(find.widgetWithText(ListTile, 'Reply'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Copy'), findsNothing);
   });
 
   group('reactions', () {

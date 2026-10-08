@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/calls/active_call_provider.dart';
 import '../../../core/errors/best_effort.dart';
+import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/sign_out.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
 import '../../../core/ui/circle_icon.dart';
 import 'uia_password_prompt.dart';
@@ -82,16 +85,35 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
     uia,
     userId: ref.read(matrixClientProvider).userID!,
     title: 'Confirm your password to delete your account',
+    message: _windDownNotice(),
   );
+
+  String? _windDownNotice() {
+    final inCall = ref.read(activeCallProvider) != null;
+    final sharing = ref.read(liveLocationSharingProvider).shares.value;
+    return switch ((inCall, sharing.isNotEmpty)) {
+      (true, true) =>
+        'Confirming ends your call and stops sharing your location, even if '
+            'the password is wrong.',
+      (true, false) =>
+        'Confirming ends your call, even if the password is wrong.',
+      (false, true) =>
+        'Confirming stops sharing your location, even if the password is '
+            'wrong.',
+      (false, false) => null,
+    };
+  }
 
   Future<void> _deactivate() async {
     final client = ref.read(matrixClientProvider);
+    final windDown = ref.read(signOutWindDownProvider);
     final messenger = ScaffoldMessenger.of(context);
     final uiaSub = client.onUiaRequest.stream.listen(_handleUia);
     try {
-      await client.uiaRequestBackground<void>(
-        (auth) => client.deactivateAccount(auth: auth, erase: true),
-      );
+      await client.uiaRequestBackground<void>((auth) async {
+        if (auth != null) await windDown();
+        await client.deactivateAccount(auth: auth, erase: true);
+      });
     } catch (e) {
       if (e.toString().contains('canceled')) return;
       if (!mounted) return;

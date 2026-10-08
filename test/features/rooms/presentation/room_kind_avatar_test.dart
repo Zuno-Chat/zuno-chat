@@ -16,6 +16,7 @@ void main() {
             avatarUrl: null,
             fallbackText: 'Bob',
             isDirect: isDirect,
+            toneSeed: '@bob:example.org',
           ),
         ),
       ),

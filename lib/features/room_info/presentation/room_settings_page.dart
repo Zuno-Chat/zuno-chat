@@ -13,6 +13,7 @@ import '../../../core/matrix/room_name_check.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import '../../../core/ui/sheet.dart';
 
 enum _AvatarAction { camera, gallery, remove }
 
@@ -179,7 +180,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
   Future<void> _changeHistoryVisibility() async {
     final room = widget.room;
     final current = _historyVisibilityOf(room);
-    final chosen = await showModalBottomSheet<HistoryVisibility>(
+    final chosen = await showSheet<HistoryVisibility>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
@@ -213,7 +214,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
   Future<void> _changeAvatar() async {
     final room = widget.room;
-    final action = await showModalBottomSheet<_AvatarAction>(
+    final action = await showSheet<_AvatarAction>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
@@ -287,7 +288,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
       if (inCommunity) RoomAccess.askToJoin,
       RoomAccess.private,
     ];
-    final chosen = await showModalBottomSheet<RoomAccess>(
+    final chosen = await showSheet<RoomAccess>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
@@ -396,6 +397,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                     client: room.client,
                     avatarUrl: room.avatar,
                     fallbackText: roomTitle(room),
+                    toneSeed: roomToneSeed(room),
                     radius: 20,
                     shape: AvatarShape.forRoom(room),
                   ),

@@ -154,6 +154,16 @@ void main() {
         Icons.location_on_outlined,
         'Location',
       ),
+      (
+        {
+          'msgtype': 'im.zuno.live_location',
+          'body': 'Live location for 1 hour',
+          'share_id': 'share1',
+          'ends_ts': 1700003600000,
+        },
+        Icons.share_location_outlined,
+        'Live location',
+      ),
     ]) {
       await pump(tester, message(content));
 

@@ -79,6 +79,7 @@ class _ReplyQuoteState extends State<ReplyQuote> {
         AttachmentKind.image => Icons.photo_outlined,
         AttachmentKind.video => Icons.videocam_outlined,
         AttachmentKind.location => Icons.location_on_outlined,
+        AttachmentKind.liveLocation => Icons.share_location_outlined,
         _ => null,
       },
       thumbnail: switch (kind) {

@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/calls/end_call.dart';
+import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/connection_error.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
@@ -12,17 +16,17 @@ import '../../blocking/presentation/block_person.dart';
 import '../../communities/presentation/community_page.dart';
 import '../../reports/presentation/report_sheet.dart';
 
-class RoomInvitePage extends StatefulWidget {
+class RoomInvitePage extends ConsumerStatefulWidget {
   final Room room;
   final BlockPerson? blockPerson;
 
   const RoomInvitePage({required this.room, this.blockPerson, super.key});
 
   @override
-  State<RoomInvitePage> createState() => _RoomInvitePageState();
+  ConsumerState<RoomInvitePage> createState() => _RoomInvitePageState();
 }
 
-class _RoomInvitePageState extends State<RoomInvitePage> {
+class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
   bool _busy = false;
 
   @override
@@ -51,8 +55,12 @@ class _RoomInvitePageState extends State<RoomInvitePage> {
         );
       }
     } catch (e) {
+      logCaught('answer invitation', e);
       if (mounted) setState(() => _busy = false);
-      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+      final failed = join ? 'Could not join.' : 'Could not decline.';
+      messenger.showSnackBar(
+        SnackBar(content: Text(failureMessage(e, failed: failed))),
+      );
     }
   }
 
@@ -86,6 +94,7 @@ class _RoomInvitePageState extends State<RoomInvitePage> {
       client: widget.room.client,
       userId: inviter,
       name: name,
+      endCallsIn: ref.read(endCallsInProvider),
       block: widget.blockPerson,
     );
     if (!blocked) return;
@@ -121,6 +130,7 @@ class _RoomInvitePageState extends State<RoomInvitePage> {
                   client: client,
                   avatarUrl: isGroup ? room.avatar : inviterUser?.avatarUrl,
                   fallbackText: isGroup ? room.name : inviterName,
+                  toneSeed: roomToneSeed(room),
                   radius: 40,
                   shape: AvatarShape.forRoom(room),
                 ),

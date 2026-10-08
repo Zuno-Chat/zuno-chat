@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/matrix/abuse_report.dart';
+import '../../../core/ui/sheet.dart';
 
 typedef SendReport = Future<void> Function(ReportReason reason, String note);
 
@@ -11,7 +12,7 @@ Future<bool> showReportSheet(
   required SendReport onSend,
   String sendLabel = 'Send report',
 }) async {
-  final sent = await showModalBottomSheet<bool>(
+  final sent = await showSheet<bool>(
     context: context,
     isScrollControlled: true,
     builder: (_) => _ReportSheet(

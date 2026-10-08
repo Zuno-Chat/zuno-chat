@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/errors/feedback.dart';
+import '../../../core/ui/sheet.dart';
 
 typedef SendFeedback = Future<void> Function(String message);
 
@@ -9,7 +10,7 @@ Future<void> showFeedbackSheet(
   SendFeedback onSend = sendFeedback,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
-  final sent = await showModalBottomSheet<bool>(
+  final sent = await showSheet<bool>(
     context: context,
     isScrollControlled: true,
     builder: (_) => _FeedbackSheet(onSend: onSend),

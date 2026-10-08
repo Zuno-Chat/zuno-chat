@@ -35,26 +35,54 @@ class PictureInPictureDecisionTest {
     }
 
     @Test
-    fun `leaving the window while resumed means the user expanded it`() {
-        assertEquals(
-            PipExit.Expanded,
-            PictureInPictureDecision.onLeft(lifecycleCreated = false, selfHidden = false),
+    fun `a visible window keeps the camera`() {
+        assertTrue(PictureInPictureDecision.keepsCamera(inPictureInPicture = true, started = true))
+    }
+
+    @Test
+    fun `a window hidden by a locked screen does not`() {
+        assertFalse(
+            PictureInPictureDecision.keepsCamera(inPictureInPicture = true, started = false),
         )
     }
 
     @Test
-    fun `leaving the window while stopped means the user closed it`() {
-        assertEquals(
-            PipExit.ClosedByUser,
-            PictureInPictureDecision.onLeft(lifecycleCreated = true, selfHidden = false),
+    fun `the full screen leaves the camera to the app state`() {
+        assertFalse(
+            PictureInPictureDecision.keepsCamera(inPictureInPicture = false, started = true),
         )
     }
 
     @Test
-    fun `leaving the window because the app hid it is not a user close`() {
+    fun `Back from the first screen opens the window while it can show the other camera`() {
         assertEquals(
-            PipExit.Hidden,
-            PictureInPictureDecision.onLeft(lifecycleCreated = true, selfHidden = true),
+            RootBack.EnterPictureInPicture,
+            PictureInPictureDecision.onRootBack(eligible = true, callHeld = true),
         )
+    }
+
+    @Test
+    fun `Back from the first screen sends any other call to the background, never closing it`() {
+        assertEquals(
+            RootBack.MoveToBack,
+            PictureInPictureDecision.onRootBack(eligible = false, callHeld = true),
+        )
+    }
+
+    @Test
+    fun `without a call Back from the first screen keeps the platform default`() {
+        assertEquals(
+            RootBack.Default,
+            PictureInPictureDecision.onRootBack(eligible = false, callHeld = false),
+        )
+    }
+
+    @Test
+    fun `Back is kept from the system only while the window can open`() {
+        assertTrue(PictureInPictureDecision.claimsBack(frameworkHandlesBack = false, eligible = true))
+        assertFalse(
+            PictureInPictureDecision.claimsBack(frameworkHandlesBack = false, eligible = false),
+        )
+        assertTrue(PictureInPictureDecision.claimsBack(frameworkHandlesBack = true, eligible = false))
     }
 }

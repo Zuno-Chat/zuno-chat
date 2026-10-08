@@ -25,6 +25,7 @@ class MemberTile extends StatelessWidget {
         client: room.client,
         avatarUrl: user.avatarUrl,
         fallbackText: user.calcDisplayname(),
+        toneSeed: user.id,
         radius: 18,
       ),
       title: Text(user.calcDisplayname()),

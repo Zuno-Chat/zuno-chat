@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../core/calls/matrixrtc/call_summary_message.dart';
+import '../../../core/location/live_location_viewing.dart';
 import '../../../core/location/location_message.dart';
 import '../../../core/matrix/image_caption.dart';
 import '../../../core/matrix/link_preview_card.dart';
@@ -11,6 +13,8 @@ import '../../../core/matrix/state_event_description.dart';
 import '../../../core/matrix/undecryptable_event.dart';
 import '../../../core/matrix/urls.dart';
 import '../../../core/settings/app_preferences_provider.dart';
+import '../../location/presentation/live_location_map_page.dart';
+import '../../location/presentation/live_location_tile.dart';
 import '../../location/presentation/location_bubble.dart';
 import '../../location/presentation/location_map_page.dart';
 import '../data/message_kinds.dart';
@@ -63,6 +67,28 @@ class MessageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayEvent = event.getDisplayEvent(timeline);
+    if (data.redacted ||
+        isUndecryptableEvent(displayEvent) ||
+        classifyAttachment(displayEvent) != AttachmentKind.liveLocation) {
+      return _tile(context, displayEvent, liveShare: null);
+    }
+    return Consumer(
+      builder: (context, ref, _) => _tile(
+        context,
+        displayEvent,
+        liveShare: ref.watch(
+          liveSharesProvider(event.room.id)
+              .select((shares) => liveShareStartedBy(shares, displayEvent)),
+        ),
+      ),
+    );
+  }
+
+  Widget _tile(
+    BuildContext context,
+    Event displayEvent, {
+    required LiveShareView? liveShare,
+  }) {
     final isHiddenState = displayEvent.stateKey != null;
     if (isHiddenState || isCallSignalingMessage(displayEvent.messageType)) {
       return _HiddenEventRow(
@@ -82,9 +108,11 @@ class MessageTile extends StatelessWidget {
     final isVideo = !isGallery && kind == AttachmentKind.video;
     final isMedia = !unreadable && (isGallery || isImage || isVideo);
     final isLocation = !unreadable && kind == AttachmentKind.location;
+    final isLiveLocation = !unreadable && kind == AttachmentKind.liveLocation;
+    final isLiveMap = liveShare != null;
     final isFile = !unreadable && kind == AttachmentKind.file;
     final isVoice = !unreadable && kind == AttachmentKind.voice;
-    final tightWidth = isMedia || isLocation || isFile || isVoice;
+    final tightWidth = isMedia || isLocation || isLiveMap || isFile || isVoice;
     final callSummary = unreadable ? null : CallSummary.fromEvent(displayEvent);
     final notSent = isNotSent(event);
     final caption = isMedia && !isGallery ? imageCaption(displayEvent) : null;
@@ -179,6 +207,27 @@ class MessageTile extends StatelessWidget {
           ),
         ),
       );
+    } else if (liveShare != null) {
+      content = LiveLocationTile(
+        room: event.room,
+        share: liveShare,
+        radius: mediaRadius,
+        muted: bubbleMuted(Theme.of(context), own: own),
+        trailing: meta,
+        onOpen: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                LiveLocationMapPage(room: event.room, focus: event.senderId),
+          ),
+        ),
+      );
+    } else if (isLiveLocation) {
+      content = _NoticeContent(
+        icon: Icons.share_location_outlined,
+        text: 'Live location ended',
+        own: own,
+        meta: meta,
+      );
     } else if (callSummary != null) {
       content = CallSummaryTile(summary: callSummary, own: own, meta: meta);
     } else {
@@ -199,7 +248,7 @@ class MessageTile extends StatelessWidget {
 
     final replyToId = data.replyToId;
     final EdgeInsets bubblePadding;
-    if (isMedia || isLocation) {
+    if (isMedia || isLocation || isLiveMap) {
       bubblePadding = const EdgeInsets.all(mediaInset);
     } else if (tightWidth) {
       bubblePadding = const EdgeInsets.fromLTRB(8, 8, 12, 7);

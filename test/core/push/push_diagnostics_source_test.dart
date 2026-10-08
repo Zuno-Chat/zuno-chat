@@ -14,8 +14,11 @@ import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/push_delivery_log.dart';
 import 'package:zuno/core/push/push_diagnostics_data.dart';
 import 'package:zuno/core/push/push_diagnostics_source.dart';
+import 'package:zuno/core/push/voip/voip_registration.dart';
+import 'package:zuno/core/push/voip/voip_server.dart';
 
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/fake_voip_registration.dart';
 import '../../helpers/platform_capabilities.dart';
 
 http.Response _module(Object? body, {int status = 200}) => http.Response(
@@ -56,6 +59,7 @@ void main() {
   );
   final askedAt = DateTime.fromMillisecondsSinceEpoch(1790000000000);
   late Future<http.Response> Function(http.Request request) answer;
+  late FakeVoipRegistration registration;
 
   setUp(() {
     PackageInfo.setMockInitialValues(
@@ -86,6 +90,7 @@ void main() {
       },
     );
     answer = (request) async => http.Response('{}', 404);
+    registration = FakeVoipRegistration();
   });
 
   tearDown(() {
@@ -102,6 +107,7 @@ void main() {
       client,
       httpClient: mock,
       now: () => askedAt,
+      voip: registration,
     );
   }
 
@@ -231,6 +237,24 @@ void main() {
     expect(inputs.fcmStatus, isNull);
     expect(inputs.playServices, isNull);
     expect(inputs.deliveries, isNull);
+  });
+
+  test('the call registration hands over its last refusal, only where calls '
+      'ring through it', () async {
+    final refusal = VoipRefusedByServer(
+      at: askedAt,
+      reply: const VoipServerRefused(status: 400, errcode: 'M_INVALID_PARAM'),
+    );
+    registration.refusalValue.value = refusal;
+
+    final ring = await source().load(ios, NotificationDeliveryMode.apns);
+    final noRing = await source().load(
+      capabilitiesLike(iosCapabilities, pushDiagnostics: true, voipRing: false),
+      NotificationDeliveryMode.apns,
+    );
+
+    expect(ring.voipRefusal, refusal);
+    expect(noRing.voipRefusal, isNull);
   });
 
   test('Google services carries its status, Google Play services and the '

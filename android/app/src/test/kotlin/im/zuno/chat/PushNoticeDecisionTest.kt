@@ -1,6 +1,7 @@
 package im.zuno.chat
 
 import im.zuno.chat.zuno_notifications.CachedRoom
+import im.zuno.chat.zuno_notifications.NoticeAlert
 import im.zuno.chat.zuno_notifications.NoticeConversation
 import im.zuno.chat.zuno_notifications.NoticeCopy
 import im.zuno.chat.zuno_notifications.PushNoticeDecision
@@ -113,14 +114,30 @@ class PushNoticeDecisionTest {
     }
 
     @Test
-    fun `a zuno test event id is a test push`() {
-        assertTrue(PushNoticeDecision.isTestPush("\$zuno_test_1"))
+    fun `with message tone and vibration on, a notice sounds and vibrates`() {
+        assertEquals(
+            NoticeAlert(silent = false, vibrate = true),
+            PushNoticeDecision.alertFor(messageTone = true, messageVibration = true),
+        )
     }
 
     @Test
-    fun `normal, missing and empty event ids are not test pushes`() {
-        assertFalse(PushNoticeDecision.isTestPush("\$abc"))
-        assertFalse(PushNoticeDecision.isTestPush(null))
-        assertFalse(PushNoticeDecision.isTestPush(""))
+    fun `message tone off makes a notice silent, and vibration follows its own setting`() {
+        assertEquals(
+            NoticeAlert(silent = true, vibrate = true),
+            PushNoticeDecision.alertFor(messageTone = false, messageVibration = true),
+        )
+    }
+
+    @Test
+    fun `message vibration off never vibrates, whatever the tone`() {
+        assertEquals(
+            NoticeAlert(silent = false, vibrate = false),
+            PushNoticeDecision.alertFor(messageTone = true, messageVibration = false),
+        )
+        assertEquals(
+            NoticeAlert(silent = true, vibrate = false),
+            PushNoticeDecision.alertFor(messageTone = false, messageVibration = false),
+        )
     }
 }

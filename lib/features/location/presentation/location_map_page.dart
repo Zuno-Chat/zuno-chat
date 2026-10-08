@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/location/geo_uri.dart';
+import '../../../core/location/maps_link.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import 'location_map_view.dart';
 
 String? accuracyLabel(double? meters) {
@@ -11,12 +14,12 @@ String? accuracyLabel(double? meters) {
   return 'about ${(meters / 1000).toStringAsFixed(1)} km';
 }
 
-Future<void> openInMaps(BuildContext context, GeoUri geo) async {
+Future<void> openInMaps(BuildContext context, GeoUri geo, MapsApp app) async {
   final messenger = ScaffoldMessenger.of(context);
   var opened = false;
   try {
     opened = await launchUrl(
-      geo.externalMapsUri,
+      mapsLink(geo, app),
       mode: LaunchMode.externalApplication,
     );
   } catch (_) {}
@@ -25,7 +28,7 @@ Future<void> openInMaps(BuildContext context, GeoUri geo) async {
   }
 }
 
-class LocationMapPage extends StatelessWidget {
+class LocationMapPage extends ConsumerWidget {
   final GeoUri geo;
   final String senderName;
   final DateTime sentAt;
@@ -38,9 +41,14 @@ class LocationMapPage extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final accuracy = accuracyLabel(geo.uncertaintyMeters);
+    void open() => openInMaps(
+      context,
+      geo,
+      ref.read(platformCapabilitiesProvider).mapsApp,
+    );
     final sent = MaterialLocalizations.of(context).formatMediumDate(sentAt);
     final time = TimeOfDay.fromDateTime(sentAt).format(context);
     return Scaffold(
@@ -50,7 +58,7 @@ class LocationMapPage extends StatelessWidget {
           IconButton(
             tooltip: 'Open in maps app',
             icon: const Icon(Icons.map_outlined),
-            onPressed: () => openInMaps(context, geo),
+            onPressed: open,
           ),
         ],
       ),
@@ -85,7 +93,7 @@ class LocationMapPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       FilledButton.icon(
-                        onPressed: () => openInMaps(context, geo),
+                        onPressed: open,
                         icon: const Icon(Icons.map_outlined),
                         label: const Text('Open in maps app'),
                       ),

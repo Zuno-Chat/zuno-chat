@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
+import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/features/calls/presentation/participant_tile.dart';
+
+import '../../../helpers/fake_matrix.dart';
 
 void main() {
   const id = VoipParticipantId(userId: '@bob:example.org', deviceId: 'B');
@@ -296,5 +300,31 @@ void main() {
       tester.widget<ClipRRect>(find.byType(ClipRRect)).borderRadius,
       BorderRadius.circular(16),
     );
+  });
+
+  testWidgets('a picture-less person keeps the colour they have everywhere '
+      'else', (tester) async {
+    final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@bob:example.org',
+        stateKey: '@bob:example.org',
+        content: {'membership': 'join', 'displayname': 'Bob'},
+      ),
+    );
+    await tester.pumpWidget(
+      wrap(
+        ParticipantTile(
+          participant: const CallEngineParticipant(id: id, isLocal: false),
+          renderer: null,
+          user: room.unsafeGetUserFromMemoryOrFallback('@bob:example.org'),
+        ),
+      ),
+    );
+
+    final avatar = tester.widget<MxcAvatar>(find.byType(MxcAvatar));
+    expect(avatar.toneSeed, '@bob:example.org');
+    expect(avatar.fallbackText, 'Bob');
   });
 }

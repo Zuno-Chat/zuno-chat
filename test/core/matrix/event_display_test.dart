@@ -251,6 +251,19 @@ final _cases = <_Case>[
     text: 'Location',
   ),
   _Case(
+    'live location start',
+    build: (room) => _msg(room, {
+      'msgtype': 'im.zuno.live_location',
+      'body': 'Live location for 1 hour',
+      'share_id': 'share1',
+      'ends_ts': 1700003600000,
+    }),
+    visible: true,
+    visibleWhenShowingHidden: true,
+    kind: MessageKind.liveLocation,
+    text: 'Live location',
+  ),
+  _Case(
     'missed call summary',
     build: (room) => _msg(
       room,

@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 
 import '../ui/zuno_colors.dart';
 import 'mxc_avatar_image.dart';
+import 'room_invite.dart';
 
 enum AvatarShape {
   circle,
@@ -12,20 +13,28 @@ enum AvatarShape {
       room.isSpace ? roundedSquare : circle;
 }
 
+String roomToneSeed(Room room) {
+  if (isIncomingInvite(room)) {
+    if (room.name.isNotEmpty) return room.id;
+    return inviterId(room) ?? room.id;
+  }
+  return room.directChatMatrixID ?? room.id;
+}
+
 class MxcAvatar extends StatelessWidget {
   final Client client;
   final Uri? avatarUrl;
   final String fallbackText;
   final double radius;
-  final String? toneSeed;
+  final String toneSeed;
   final AvatarShape shape;
 
   const MxcAvatar({
     required this.client,
     required this.avatarUrl,
     required this.fallbackText,
+    required this.toneSeed,
     this.radius = 20,
-    this.toneSeed,
     this.shape = AvatarShape.circle,
     super.key,
   });
@@ -34,7 +43,7 @@ class MxcAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final diameter = radius * 2;
     final corners = BorderRadius.circular(radius * 0.6);
-    final tone = avatarToneFor(toneSeed ?? fallbackText);
+    final tone = avatarToneFor(toneSeed);
     final letter = Text(
       _initial(fallbackText),
       style: TextStyle(

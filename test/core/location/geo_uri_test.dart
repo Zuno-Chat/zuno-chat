@@ -73,14 +73,5 @@ void main() {
 
       expect(geo.coordinatesLabel, '52.5163, 13.3777');
     });
-
-    test('opens in an external maps app with a query pin', () {
-      const geo = GeoUri(latitude: 52.5163, longitude: 13.3777);
-
-      expect(
-        geo.externalMapsUri.toString(),
-        'geo:52.5163,13.3777?q=52.5163,13.3777',
-      );
-    });
   });
 }

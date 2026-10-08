@@ -51,29 +51,14 @@ class _SlowPermissionSession extends FakeCallSession {
 
 class _NativeAudio {
   _NativeAudio(this.harness, {required this.route, this.headsets = const []}) {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('zuno/calls'), (
-          call,
-        ) async {
-          harness.calls.add(call);
-          return switch (call.method) {
-            'audioRoute' => {'route': route, 'headsets': headsets},
-            'takeCallEvents' => _takeEvents(),
-            _ => null,
-          };
-        });
+    harness.callsReply = (call) => call.method == 'audioRoute'
+        ? {'route': route, 'headsets': headsets}
+        : null;
   }
 
   final CallPageHarness harness;
   String route;
   List<String> headsets;
-  final _events = <Map<String, Object?>>[];
-
-  List<Map<String, Object?>> _takeEvents() {
-    final taken = [..._events];
-    _events.clear();
-    return taken;
-  }
 
   Future<void> changes({
     required String route,
@@ -81,7 +66,7 @@ class _NativeAudio {
   }) async {
     this.route = route;
     this.headsets = headsets;
-    _events.add({
+    harness.nativeEvents.add({
       'method': 'audioRouteChanged',
       'arguments': {'route': route, 'headsets': headsets},
     });
@@ -542,7 +527,7 @@ void main() {
       expect(harness.container.read(activeCallProvider), same(accepted));
       expect(find.byType(CallPage), findsOneWidget);
       expect(
-        tester.widget<CallPage>(find.byType(CallPage)).session,
+        tester.widget<CallPage>(find.byType(CallPage)).call.session,
         same(accepted),
       );
       expect(roomsOfEndedSystemCalls(harness), [ended.room.id]);
@@ -567,7 +552,7 @@ void main() {
       expect(harness.container.read(activeCallProvider), same(accepted));
       expect(find.byType(CallPage), findsOneWidget);
       expect(
-        tester.widget<CallPage>(find.byType(CallPage)).session,
+        tester.widget<CallPage>(find.byType(CallPage)).call.session,
         same(accepted),
       );
       expect(roomsOfEndedSystemCalls(harness), [ended.room.id]);
@@ -589,7 +574,7 @@ void main() {
       await harness.settle();
 
       expect(harness.container.read(activeCallProvider), same(accepted));
-      expect(harness.wakelockToggles, [true]);
+      expect(harness.wakelockToggles, [false, true]);
       await harness.close();
     });
   });
@@ -668,16 +653,30 @@ void main() {
     });
 
     testWidgets('ios takes the video off every renderer before releasing it '
-        'when the call screen closes', (tester) async {
+        'when the call ends', (tester) async {
       final harness = CallPageHarness(tester, capabilities: iosCapabilities);
       _NativeAudio(harness, route: 'earpiece');
-      final (_, texture) = await remoteOnCamera(harness);
+      final (session, texture) = await remoteOnCamera(harness);
+      session.engine.setParticipants([
+        localParticipant(camera: true),
+        remoteParticipant(camera: true),
+      ]);
+      await harness.settle();
+      final local =
+          harness.webrtc
+                  .lastWhere((c) => c.method == 'videoRendererSetSrcObject')
+                  .arguments
+              as Map;
+      harness.webrtc.clear();
 
-      await harness.close();
+      session.end();
+      await harness.settle();
       await harness.settle();
 
       expect(rendererCalls(harness, texture), ['detach', 'dispose']);
-      expect(rendererCalls(harness, 1), ['detach', 'dispose']);
+      expect(rendererCalls(harness, local['textureId']), ['detach', 'dispose']);
+      expect(local['textureId'], isNot(texture));
+      await harness.close();
     });
 
     testWidgets('android releases the renderer of someone who left straight '

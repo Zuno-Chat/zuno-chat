@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/ui/sheet.dart';
+
 enum MessageAction { reply, edit, delete, share, save, copy, report }
 
 const _quickEmoji = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
@@ -18,7 +20,7 @@ Future<MessageAction?> showMessageActionsSheet(
   required VoidCallback onMoreReactions,
 }) {
   final isGallery = galleryCount > 1;
-  return showModalBottomSheet<MessageAction>(
+  return showSheet<MessageAction>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,

@@ -1,6 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../calls/matrixrtc/call_summary_message.dart';
+import '../location/live_location_protocol.dart';
 import '../security/verification_signaling.dart';
 import 'attachment_message_type.dart';
 import 'image_caption.dart';
@@ -16,6 +17,7 @@ enum MessageKind {
   voice,
   file,
   location,
+  liveLocation,
   callSummary,
   deleted,
   undecryptable,
@@ -115,6 +117,12 @@ MessageSummary summarize(Event event) {
   }
   if (msgtype == MessageTypes.Location) {
     return const MessageSummary(kind: MessageKind.location, text: 'Location');
+  }
+  if (msgtype == liveLocationMsgtype) {
+    return const MessageSummary(
+      kind: MessageKind.liveLocation,
+      text: 'Live location',
+    );
   }
 
   return MessageSummary(

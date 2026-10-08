@@ -10,16 +10,16 @@ class RoomKindAvatar extends StatelessWidget {
   final bool isDirect;
   final bool community;
   final double radius;
-  final String? toneSeed;
+  final String toneSeed;
 
   const RoomKindAvatar({
     required this.client,
     required this.avatarUrl,
     required this.fallbackText,
     required this.isDirect,
+    required this.toneSeed,
     this.community = false,
     this.radius = 20,
-    this.toneSeed,
     super.key,
   });
 

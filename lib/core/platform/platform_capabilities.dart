@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../location/maps_link.dart';
 import '../notifications/notification_delivery_mode.dart';
 import 'app_platform.dart';
 
@@ -50,6 +51,10 @@ class PlatformCapabilities {
   final bool nseNotifications;
   final bool nativeNotificationActions;
   final bool videoRendererNeedsDetach;
+  final bool cameraStopsInBackground;
+  final bool externalPaymentLinks;
+  final bool liveLocation;
+  final MapsApp mapsApp;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
 
@@ -98,6 +103,10 @@ class PlatformCapabilities {
     required this.nseNotifications,
     required this.nativeNotificationActions,
     required this.videoRendererNeedsDetach,
+    required this.cameraStopsInBackground,
+    required this.externalPaymentLinks,
+    required this.liveLocation,
+    required this.mapsApp,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
   });
@@ -150,6 +159,10 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nseNotifications: false,
         nativeNotificationActions: false,
         videoRendererNeedsDetach: false,
+        cameraStopsInBackground: false,
+        externalPaymentLinks: true,
+        liveLocation: true,
+        mapsApp: MapsApp.geoIntent,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
           NotificationDeliveryMode.unifiedPush,
@@ -184,7 +197,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         apnsRegistration: true,
         nativeIncomingRingUi: false,
         callKit: true,
-        pictureInPicture: false,
+        pictureInPicture: true,
         playerNeedsMediaType: true,
         videoCodecOrder: null,
         recorderWritesOgg: false,
@@ -202,6 +215,10 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nseNotifications: true,
         nativeNotificationActions: true,
         videoRendererNeedsDetach: true,
+        cameraStopsInBackground: true,
+        externalPaymentLinks: false,
+        liveLocation: true,
+        mapsApp: MapsApp.appleMaps,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,
       ),

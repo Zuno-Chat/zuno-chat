@@ -1,0 +1,17 @@
+name: pull-request
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, closed]
+
+concurrency:
+  group: pull-request-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    if: ${{ github.event.pull_request.state == 'open' && !github.event.pull_request.draft }}
+    uses: ./.github/workflows/checks.yml

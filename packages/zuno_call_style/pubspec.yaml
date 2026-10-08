@@ -17,6 +17,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  zuno_notifications:
+    path: ../zuno_notifications
 
 dev_dependencies:
   flutter_test:

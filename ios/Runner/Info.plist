@@ -46,19 +46,15 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Zuno uses the camera for video calls, photos and videos you take, and scanning sign-in and verification codes.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Zuno uses your location only when you send it in a chat or room.</string>
+	<string>Zuno uses your location only when you send it or share it live in a chat or room.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Zuno uses your location only when you send it in a chat or room.</string>
+	<string>Zuno uses your location only when you send it or share it live in a chat or room.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Zuno uses the microphone for calls, voice messages and videos you record.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Zuno saves photos and videos to your library only when you tap Save.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Zuno uses only the photos and videos you choose, to send them or to set a profile or room photo.</string>
-	<key>NSUserActivityTypes</key>
-	<array>
-		<string>INSendMessageIntent</string>
-	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -84,6 +80,7 @@
 	<array>
 		<string>voip</string>
 		<string>audio</string>
+		<string>location</string>
 		<string>remote-notification</string>
 	</array>
 	<key>UILaunchStoryboardName</key>

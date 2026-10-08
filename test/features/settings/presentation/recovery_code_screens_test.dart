@@ -337,12 +337,7 @@ void main() {
     group('Save as a file', () {
       late FakeFilePicker picker;
 
-      setUp(() {
-        picker = FakeFilePicker();
-        final original = FilePickerPlatform.instance;
-        FilePickerPlatform.instance = picker;
-        addTearDown(() => FilePickerPlatform.instance = original);
-      });
+      setUp(() => picker = installFakeFilePicker());
 
       testWidgets('writes the code to a text file', (tester) async {
         await pumpFlow(tester);
@@ -554,6 +549,80 @@ void main() {
       await tester.pump();
 
       expect(submits, 0);
+    });
+
+    group('Open a saved file', () {
+      late FakeFilePicker picker;
+
+      setUp(() => picker = installFakeFilePicker());
+
+      String fieldText(WidgetTester tester) =>
+          tester.widget<TextField>(find.byType(TextField)).controller!.text;
+
+      testWidgets('fills in the code from the saved file', (tester) async {
+        final code = validWords(12).join(' ');
+        picker.picked = FakePickedFile(
+          'zuno-recovery-code.txt',
+          Uint8List.fromList(utf8.encode('$code\n')),
+        );
+        await pumpField(tester);
+
+        await tester.tap(find.text('Open a saved file'));
+        await tester.pumpAndSettle();
+
+        expect(fieldText(tester), code);
+        expect(find.text('Looks right.'), findsOneWidget);
+        expect(submits, 0);
+      });
+
+      testWidgets('a cancelled pick changes nothing', (tester) async {
+        await pumpField(tester);
+
+        await tester.tap(find.text('Open a saved file'));
+        await tester.pumpAndSettle();
+
+        expect(fieldText(tester), isEmpty);
+        expect(find.byType(SnackBar), findsNothing);
+      });
+
+      testWidgets('a file without a code says so', (tester) async {
+        picker.picked = FakePickedFile(
+          'photo.jpg',
+          Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0]),
+        );
+        await pumpField(tester);
+
+        await tester.tap(find.text('Open a saved file'));
+        await tester.pumpAndSettle();
+
+        expect(fieldText(tester), isEmpty);
+        expect(
+          find.text('That file does not hold a recovery code.'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('a picker failure says so', (tester) async {
+        picker.pickError = PlatformException(code: 'unknown_path');
+        await pumpField(tester);
+
+        await tester.tap(find.text('Open a saved file'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Could not open that file. Try again.'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('waits while busy', (tester) async {
+        await pumpField(tester, busy: true);
+
+        await tester.tap(find.text('Open a saved file'));
+        await tester.pumpAndSettle();
+
+        expect(picker.picks, 0);
+      });
     });
   });
 }
