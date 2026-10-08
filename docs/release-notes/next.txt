@@ -2,5 +2,6 @@ New
 • Share your live location in chats and rooms.
 • Picture-in-picture for iPhone video calls.
 • Restore from a saved recovery code file.
+• Minimize a call and keep using Zuno.
 
-Fixed 12 bugs.
+Fixed 16 bugs.

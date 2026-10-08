@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_player/video_player.dart';
+import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
 
 import '../../../helpers/fake_video_player.dart';
@@ -297,5 +298,35 @@ void main() {
       expect(result, hasLength(2));
       expect(result!.whereType<ComposedVideoResult>(), isEmpty);
     });
+  });
+
+  testWidgets('the floating call window keeps clear of the caption bar', (
+    tester,
+  ) async {
+    final items = [PickedImage(name: 'a.jpg', bytes: _onePixelPng)];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => Navigator.of(context).push<List<ComposedMedia>>(
+              MaterialPageRoute(
+                builder: (_) => MediaCaptionComposerPage(items: items),
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.ancestor(
+        of: find.byIcon(Icons.send_rounded),
+        matching: find.byType(KeepClearArea),
+      ),
+      findsOneWidget,
+    );
   });
 }

@@ -7,9 +7,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/calls/active_call_provider.dart';
+import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/location/geo_uri.dart';
+import 'package:zuno/core/location/live_location_protocol.dart';
+import 'package:zuno/core/location/live_location_sharing.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/settings/presentation/delete_account_tile.dart';
 
+import '../../../helpers/fake_call_session.dart';
+import '../../../helpers/fake_live_location.dart';
 import '../../../helpers/fake_matrix.dart';
 
 MatrixException _passwordChallenge({String? errcode}) =>
@@ -25,7 +32,8 @@ MatrixException _passwordChallenge({String? errcode}) =>
     });
 
 class _DeactivatingClient extends Client {
-  _DeactivatingClient() : super('test', database: FakeDatabaseApi()) {
+  _DeactivatingClient(this.journal)
+    : super('test', database: FakeDatabaseApi()) {
     setUserId('@alice:example.org');
   }
 
@@ -33,6 +41,7 @@ class _DeactivatingClient extends Client {
   final erasures = <bool?>[];
   final clears = <SessionClearReason>[];
   final refusals = <Object>[];
+  final List<String> journal;
 
   @override
   Future<IdServerUnbindResult> deactivateAccount({
@@ -43,6 +52,7 @@ class _DeactivatingClient extends Client {
     if (auth == null) throw _passwordChallenge();
     passwords.add((auth as AuthenticationPassword).password);
     if (refusals.isNotEmpty) throw refusals.removeAt(0);
+    journal.add('deactivated');
     erasures.add(erase);
     return IdServerUnbindResult.success;
   }
@@ -53,18 +63,39 @@ class _DeactivatingClient extends Client {
   }) async => clears.add(reason);
 }
 
+LiveLocationSharing _sharing(Client client) => LiveLocationSharing(
+  client: client,
+  capture: FakeLiveLocationCapture(),
+  isOffline: () => false,
+  recipients: (_) async => const <DeviceKeys>[],
+);
+
+void answer(WidgetTester tester, FakeCallSession call) =>
+    ProviderScope.containerOf(tester.element(find.byType(DeleteAccountTile)))
+        .read(activeCallProvider.notifier)
+        .set(call);
+
 void main() {
-  Future<void> pump(WidgetTester tester, {Client? client}) {
-    return tester.pumpWidget(
+  Future<void> pump(
+    WidgetTester tester, {
+    Client? client,
+    FakeCallSession? activeCall,
+    LiveLocationSharing? sharing,
+  }) async {
+    final liveLocation = sharing ?? _sharing(LiveLocationTestClient());
+    addTearDown(liveLocation.dispose);
+    await tester.pumpWidget(
       ProviderScope(
         overrides: [
           if (client != null) matrixClientProvider.overrideWithValue(client),
+          liveLocationSharingProvider.overrideWithValue(liveLocation),
         ],
         child: MaterialApp(
           home: Scaffold(body: ListView(children: const [DeleteAccountTile()])),
         ),
       ),
     );
+    if (activeCall != null) answer(tester, activeCall);
   }
 
   testWidgets('offers Delete account', (tester) async {
@@ -183,11 +214,18 @@ void main() {
   });
 
   group('after the username matches', () {
+    late LiveLocationTestClient sharingClient;
+    late LiveLocationSharing sharing;
     late _DeactivatingClient client;
 
     setUp(() {
       SharedPreferences.setMockInitialValues({});
-      client = _DeactivatingClient();
+      sharingClient = LiveLocationTestClient();
+      sharingClient.rooms.add(
+        LiveLocationTestRoom(id: '!family:x', client: sharingClient),
+      );
+      sharing = _sharing(sharingClient);
+      client = _DeactivatingClient(sharingClient.journal);
       const backgroundSync = MethodChannel('zuno/background_sync');
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -197,8 +235,31 @@ void main() {
       );
     });
 
-    Future<void> reachPassword(WidgetTester tester) async {
-      await pump(tester, client: client);
+    FakeCallSession call() => FakeCallSession(
+      room: buildCallRoom(),
+      kind: CallKind.voice,
+      journal: client.journal,
+    );
+
+    Future<void> share() => sharing.start(
+      sharingClient.getRoomById('!family:x')!,
+      LiveLocationDuration.hour,
+      LivePosition(
+        geo: const GeoUri(latitude: 1, longitude: 2),
+        at: DateTime.now(),
+      ),
+    );
+
+    Future<void> reachPassword(
+      WidgetTester tester, {
+      FakeCallSession? activeCall,
+    }) async {
+      await pump(
+        tester,
+        client: client,
+        activeCall: activeCall,
+        sharing: sharing,
+      );
       await tester.tap(find.text('Delete account'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Continue'));
@@ -237,6 +298,119 @@ void main() {
       expect(client.passwords, ['hunter2']);
       expect(client.erasures, [true]);
       expect(client.clears, [SessionClearReason.logout]);
+    });
+
+    testWidgets('a call in progress ends once the password is in, before '
+        'the account goes', (tester) async {
+      await reachPassword(tester, activeCall: call());
+      expect(client.journal, isEmpty);
+
+      await enterPassword(tester, 'hunter2');
+      await finish(tester);
+
+      expect(client.journal, ['call ended', 'deactivated']);
+    });
+
+    testWidgets('a call answered while the password prompt is open still '
+        'ends before the account goes', (tester) async {
+      await reachPassword(tester);
+      answer(tester, call());
+
+      await enterPassword(tester, 'hunter2');
+      await finish(tester);
+
+      expect(client.journal, ['call ended', 'deactivated']);
+    });
+
+    testWidgets('a live share stops once the password is in, before the '
+        'account goes', (tester) async {
+      await tester.runAsync(share);
+      await reachPassword(tester);
+
+      await enterPassword(tester, 'hunter2');
+      await finish(tester);
+
+      expect(client.journal, [
+        'share published',
+        'share cleared',
+        'deactivated',
+      ]);
+    });
+
+    testWidgets('cancelling the password leaves the call and the share alone', (
+      tester,
+    ) async {
+      await tester.runAsync(share);
+      await reachPassword(tester, activeCall: call());
+
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await finish(tester);
+
+      expect(client.journal, ['share published']);
+      expect(sharing.shares.value, isNotEmpty);
+    });
+
+    testWidgets('the password prompt says what confirming ends, and only '
+        'while something is live', (tester) async {
+      await tester.runAsync(share);
+      await reachPassword(tester, activeCall: call());
+
+      expect(
+        find.text(
+          'Confirming ends your call and stops sharing your location, even '
+          'if the password is wrong.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('with only a call, the prompt names only the call', (
+      tester,
+    ) async {
+      await reachPassword(tester, activeCall: call());
+
+      expect(
+        find.text('Confirming ends your call, even if the password is wrong.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('with only a share, the prompt names only the share', (
+      tester,
+    ) async {
+      await tester.runAsync(share);
+      await reachPassword(tester);
+
+      expect(
+        find.text(
+          'Confirming stops sharing your location, even if the password is '
+          'wrong.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('with nothing live, the prompt asks only for the password', (
+      tester,
+    ) async {
+      await reachPassword(tester);
+
+      expect(find.textContaining('Confirming'), findsNothing);
+    });
+
+    testWidgets('a wrong password has already ended the call, but Cancel then '
+        'keeps the account', (tester) async {
+      client.refusals.add(_passwordChallenge(errcode: 'M_FORBIDDEN'));
+      await reachPassword(tester, activeCall: call());
+
+      await enterPassword(tester, 'wrong');
+      expect(find.text('Wrong password.'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await finish(tester);
+
+      expect(client.journal, ['call ended']);
+      expect(client.clears, isEmpty);
+      expect(find.byType(SnackBar), findsNothing);
     });
 
     testWidgets('cancelling the password deletes nothing, quietly', (

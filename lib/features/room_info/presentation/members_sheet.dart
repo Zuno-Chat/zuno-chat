@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/matrix/matrix_ids.dart';
+import '../../../core/ui/sheet.dart';
 import 'member_tile.dart';
 
 Future<User?> showMembersSheet(
@@ -9,7 +10,7 @@ Future<User?> showMembersSheet(
   required Room room,
   required List<User> members,
   required bool Function(User user) canManage,
-}) => showModalBottomSheet<User>(
+}) => showSheet<User>(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/calls/active_call_provider.dart';
+import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/account_security_status.dart';
@@ -11,6 +15,7 @@ import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/ui/card_group.dart';
 import 'package:zuno/features/settings/presentation/settings_page.dart';
 
+import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
 
@@ -22,8 +27,19 @@ class _OwnMemberDb extends FakeDatabaseApi {
       ownMember?.id == userId ? ownMember : null;
 }
 
-Client _client() {
-  final client = buildTestClient(userId: '@alex:example.org');
+class _SigningOutClient extends Client {
+  _SigningOutClient() : super('test', database: FakeDatabaseApi()) {
+    setUserId('@alex:example.org');
+  }
+
+  final journal = <String>[];
+
+  @override
+  Future<void> logout() async => journal.add('logged out');
+}
+
+Client _client([Client? base]) {
+  final client = base ?? buildTestClient(userId: '@alex:example.org');
   final room = buildTestRoom(client)..partial = false;
   room.setState(
     User(
@@ -42,11 +58,12 @@ Future<void> _pumpSettingsPage(
   AccountSecurityStatus? status,
   bool? showFeedback,
   PlatformCapabilities? capabilities,
+  Client? client,
 }) {
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
-        matrixClientProvider.overrideWithValue(_client()),
+        matrixClientProvider.overrideWithValue(client ?? _client()),
         if (capabilities != null)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
         if (status != null)
@@ -298,6 +315,42 @@ void main() {
     final cancel = tester.getCenter(find.text('Cancel')).dy;
     expect(anyway, lessThan(recovery));
     expect(recovery, lessThan(cancel));
+  });
+
+  testWidgets('signing out mid-call ends the call before the token goes', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    const backgroundSync = MethodChannel('zuno/background_sync');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(backgroundSync, (_) async => null);
+    addTearDown(() => messenger.setMockMethodCallHandler(backgroundSync, null));
+    final client = _SigningOutClient();
+    await _pumpSettingsPage(
+      tester,
+      status: AccountSecurityStatus.protected,
+      client: _client(client),
+    );
+    ProviderScope.containerOf(tester.element(find.byType(SettingsPage)))
+        .read(activeCallProvider.notifier)
+        .set(
+          FakeCallSession(
+            room: buildCallRoom(),
+            kind: CallKind.voice,
+            journal: client.journal,
+          ),
+        );
+
+    await tester.tap(find.text('Sign out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Sign out').last);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(client.journal, ['call ended', 'logged out']);
   });
 
   testWidgets('cancelling leaves the account alone', (tester) async {

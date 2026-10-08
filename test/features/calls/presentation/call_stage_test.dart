@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/calls/models/call_status.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_stage.dart';
-import 'package:zuno/features/calls/presentation/call_status_line.dart';
 import 'package:zuno/features/calls/presentation/call_status_widgets.dart';
 
 import '../../../helpers/real_fonts.dart';

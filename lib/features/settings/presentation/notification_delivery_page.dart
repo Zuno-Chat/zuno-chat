@@ -16,6 +16,7 @@ import '../../../core/push/unified_push_distributor_names.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import '../../../core/ui/sheet.dart';
 import 'fcm_status_display.dart';
 import 'unified_push_status_display.dart';
 
@@ -135,7 +136,7 @@ class _NotificationDeliveryPageState
   }
 
   Future<void> _chooseDeliveryMode(NotificationDeliveryMode current) async {
-    final chosen = await showModalBottomSheet<NotificationDeliveryMode>(
+    final chosen = await showSheet<NotificationDeliveryMode>(
       context: context,
       builder: (context) => SafeArea(
         child: Consumer(

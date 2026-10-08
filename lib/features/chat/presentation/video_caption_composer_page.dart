@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../data/composed_video.dart';
-import 'send_icon.dart';
+import 'caption_bar.dart';
 
 export '../data/composed_video.dart';
 
@@ -146,30 +146,7 @@ class _VideoCaptionComposerPageState extends State<VideoCaptionComposerPage> {
                 loading: _initializeFuture,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      autofillHints: null,
-                      controller: _captionController,
-                      decoration: const InputDecoration(
-                        hintText: 'Add a caption…',
-                      ),
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _send(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    icon: const SendIcon(),
-                    tooltip: 'Send',
-                    onPressed: _send,
-                  ),
-                ],
-              ),
-            ),
+            CaptionBar(controller: _captionController, onSend: _send),
           ],
         ),
       ),

@@ -198,8 +198,13 @@ class FakePeerConnection extends RTCPeerConnection {
     if (description.type != 'rollback') _local = description;
   }
 
+  Completer<void>? localDescriptionGate;
+
   @override
-  Future<RTCSessionDescription?> getLocalDescription() async => _local;
+  Future<RTCSessionDescription?> getLocalDescription() async {
+    await localDescriptionGate?.future;
+    return _local;
+  }
 
   @override
   Future<void> setRemoteDescription(RTCSessionDescription description) async {

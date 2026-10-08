@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/feedback.dart';
-import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
@@ -163,7 +162,7 @@ class SettingsPage extends ConsumerWidget {
       case _LogOutChoice.logOut:
         await signOutThisDevice(
           ref.read(matrixClientProvider),
-          liveLocation: ref.read(liveLocationSharingProvider),
+          windDown: ref.read(signOutWindDownProvider),
         );
     }
   }

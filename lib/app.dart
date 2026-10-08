@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart' show Client;
 
+import 'core/calls/active_call_controller.dart';
 import 'core/calls/active_call_provider.dart';
 import 'core/calls/matrixrtc/incoming_call.dart';
 import 'core/calls/models/call_kind.dart';
@@ -43,6 +44,8 @@ import 'core/shortcuts/home_screen_shortcut.dart';
 import 'core/ui/zuno_splash.dart';
 import 'core/ui/zuno_theme.dart';
 import 'features/auth/presentation/signed_out_entry.dart';
+import 'features/calls/presentation/call_layer.dart';
+import 'features/calls/presentation/call_page.dart';
 import 'features/calls/presentation/incoming_call_page.dart';
 import 'features/chat/presentation/room_page.dart';
 import 'features/communities/presentation/community_page.dart';
@@ -67,19 +70,17 @@ class ZunoApp extends ConsumerWidget {
       theme: zunoLightTheme,
       darkTheme: zunoDarkTheme,
       themeMode: ref.watch(themeModeProvider),
-      builder: (context, child) => Column(
-        children: [
-          const _ConnectivityBanner(),
-          Expanded(child: child ?? const SizedBox.shrink()),
-        ],
-      ),
+      builder: (context, child) =>
+          _AppFrame(child: child ?? const SizedBox.shrink()),
       home: _AuthGate(pendingRing: pendingRing),
     );
   }
 }
 
-class _ConnectivityBanner extends ConsumerWidget {
-  const _ConnectivityBanner();
+class _AppFrame extends ConsumerWidget {
+  final Widget child;
+
+  const _AppFrame({required this.child});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -88,8 +89,20 @@ class _ConnectivityBanner extends ConsumerWidget {
       ConnectionStatus.unreachable => 'Cannot connect right now. Trying again…',
       ConnectionStatus.online || null => null,
     };
-    if (message == null) return const SizedBox.shrink();
+    return CallLayer(
+      banners: [message == null ? null : _ConnectivityBanner(message)],
+      child: child,
+    );
+  }
+}
 
+class _ConnectivityBanner extends StatelessWidget {
+  final String message;
+
+  const _ConnectivityBanner(this.message);
+
+  @override
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Material(
       color: colors.errorContainer,
@@ -436,9 +449,18 @@ class _AuthGateState extends ConsumerState<_AuthGate>
 
   void _openActiveSessions() {
     if (!mounted) return;
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const ActiveSessionsPage()));
+    unawaited(
+      _openOverCall(
+        MaterialPageRoute(builder: (_) => const ActiveSessionsPage()),
+      ),
+    );
   }
+
+  Future<T?> _openOverCall<T>(Route<T> route) => pushOverCallScreen(
+    Navigator.of(context),
+    ref.read(activeCallControllerProvider),
+    route,
+  );
 
   void _openRoomById(String roomId, {bool instant = false}) {
     final client = ref.read(matrixClientProvider);
@@ -464,12 +486,14 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     }
     final room = client.getRoomById(roomId);
     if (room == null || !mounted) return;
-    Navigator.of(context).push(
-      pageRoute(
-        instant: instant,
-        builder: (_) => isIncomingInvite(room)
-            ? RoomInvitePage(room: room)
-            : pageForRoom(room),
+    unawaited(
+      _openOverCall(
+        pageRoute(
+          instant: instant,
+          builder: (_) => isIncomingInvite(room)
+              ? RoomInvitePage(room: room)
+              : pageForRoom(room),
+        ),
       ),
     );
   }
@@ -492,12 +516,14 @@ class _AuthGateState extends ConsumerState<_AuthGate>
             .catchError((Object _) => false);
     if (!mounted || !loggedIn) return;
     final client = ref.read(matrixClientProvider);
-    Navigator.of(context).push(
-      pageRoute(
-        instant: instant,
-        builder: (_) => SharePickerPage(
-          client: client,
-          destination: (room) => RoomPage(room: room, pendingShare: share),
+    unawaited(
+      _openOverCall(
+        pageRoute(
+          instant: instant,
+          builder: (_) => SharePickerPage(
+            client: client,
+            destination: (room) => RoomPage(room: room, pendingShare: share),
+          ),
         ),
       ),
     );

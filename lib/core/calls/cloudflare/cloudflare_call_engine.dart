@@ -339,11 +339,13 @@ class CloudflareCallEngine implements CallEngine {
     final sessionId = _sessionId;
     if (pc == null || sessionId == null || mids.isEmpty) return;
     final current = await pc.getLocalDescription();
+    if (!_isLiveConnection(pc)) return;
     if (current == null || current.sdp == null || current.type == null) return;
 
     try {
       await _closeTracksOrThrow(pc, sessionId, mids, force, current);
     } catch (e, s) {
+      if (!_isLiveConnection(pc)) return;
       debugPrint('[Call] closing tracks $mids failed (ignored): $e\n$s');
     }
   }

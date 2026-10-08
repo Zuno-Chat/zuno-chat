@@ -54,6 +54,9 @@ void main() {
       ..accessToken = 'test-token';
   }
 
+  Future<void> endCallsIn(Iterable<String> roomIds) async =>
+      requests.add('END ${roomIds.join(',')}');
+
   Room joinedRoom(Client client) =>
       buildTestRoom(client)..membership = Membership.join;
 
@@ -113,7 +116,8 @@ void main() {
           home: Scaffold(
             body: Builder(
               builder: (context) => TextButton(
-                onPressed: () => confirmAndExitRoom(context, room),
+                onPressed: () =>
+                    confirmAndExitRoom(context, room, endCallsIn: endCallsIn),
                 child: const Text('go'),
               ),
             ),
@@ -143,6 +147,27 @@ void main() {
       expect(find.text('Leave room?'), findsNothing);
       expect(leaveRequests(), isEmpty);
       expect(forgetRequests(), isEmpty);
+    });
+
+    testWidgets('confirming ends a call in the room before leaving it', (
+      tester,
+    ) async {
+      await tapExit(tester, joinedRoom(exitClient()));
+
+      await tester.tap(find.widgetWithText(TextButton, 'Leave'));
+      await tester.pumpAndSettle();
+
+      expect(requests.first, 'END !room:example.org');
+      expect(leaveRequests(), hasLength(1));
+    });
+
+    testWidgets('cancelling the prompt ends no call', (tester) async {
+      await tapExit(tester, joinedRoom(exitClient()));
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(requests.where((r) => r.startsWith('END')), isEmpty);
     });
 
     testWidgets('confirming the prompt leaves the room', (tester) async {
@@ -347,6 +372,35 @@ void main() {
       expect(roomExitMessage(two), 'You also leave 2 of its rooms.');
     });
 
+    testWidgets('leaving a community ends a call in any room it takes along', (
+      tester,
+    ) async {
+      final client = exitClient();
+      final gear = member(client, '!gear:example.org', 'Gear swap');
+      final space = community(client, rooms: [gear]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () =>
+                    confirmAndExitRoom(context, space, endCallsIn: endCallsIn),
+                child: const Text('go'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Leave'));
+      await tester.pumpAndSettle();
+
+      expect(requests.first, 'END ${space.id},!gear:example.org');
+      expect(leaveRequests(), isNotEmpty);
+    });
+
     testWidgets('leaving a community while offline says it was not left', (
       tester,
     ) async {
@@ -356,7 +410,8 @@ void main() {
           home: Scaffold(
             body: Builder(
               builder: (context) => TextButton(
-                onPressed: () => confirmAndExitRoom(context, space),
+                onPressed: () =>
+                    confirmAndExitRoom(context, space, endCallsIn: endCallsIn),
                 child: const Text('go'),
               ),
             ),

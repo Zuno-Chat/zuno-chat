@@ -155,7 +155,8 @@ so another client cannot claim a longer share.
   run, since Android cannot restart location from the background and a
   silent resume would outlive the owner's intent. Leaving a room ends its
   share without a write, deleting the start message stops it first, and
-  sign-out clears every share before `logout()` (`authentication.md`).
+  sign-out and account deletion clear every share while the token still
+  works (`authentication.md`).
 - **Viewers trust only what checks out**: a position counts only from a
   device in its sender's own device list that the room's state names for
   that share, from a joined member who is not ignored, with a valid

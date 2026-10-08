@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
-import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/device_keys_refresh.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/sign_out.dart';
@@ -134,7 +133,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
     try {
       await signOutThisDevice(
         ref.read(matrixClientProvider),
-        liveLocation: ref.read(liveLocationSharingProvider),
+        windDown: ref.read(signOutWindDownProvider),
       );
     } catch (e) {
       logCaught('sign out', e);

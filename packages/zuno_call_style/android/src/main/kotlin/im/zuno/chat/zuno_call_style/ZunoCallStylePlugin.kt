@@ -8,6 +8,7 @@ import android.graphics.BitmapFactory
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
 import androidx.core.graphics.drawable.IconCompat
+import im.zuno.chat.zuno_notifications.AppLaunchIntent
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -133,11 +134,9 @@ class ZunoCallStylePlugin :
         }
         val caller = personBuilder.build()
 
-        val launchIntent = launchIntentFlags(context) { intent ->
-            intent.action = SELECT_FOREGROUND_NOTIFICATION_ACTION
-            intent.putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
-            intent.putExtra(PAYLOAD_EXTRA, payload)
-        }
+        val launchIntent = AppLaunchIntent.of(context, SELECT_FOREGROUND_NOTIFICATION_ACTION)
+            .putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
+            .putExtra(PAYLOAD_EXTRA, payload)
         val contentPendingIntent = PendingIntent.getActivity(
             context,
             RING_NOTIFICATION_ID,
@@ -160,13 +159,11 @@ class ZunoCallStylePlugin :
             pendingIntentFlags(),
         )
 
-        val answerIntent = launchIntentFlags(context) { intent ->
-            intent.action = SELECT_FOREGROUND_NOTIFICATION_ACTION
-            intent.putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
-            intent.putExtra(ACTION_ID_EXTRA, RingDecisions.ANSWER_ACTION_ID)
-            intent.putExtra(CANCEL_NOTIFICATION_EXTRA, true)
-            intent.putExtra(PAYLOAD_EXTRA, payload)
-        }
+        val answerIntent = AppLaunchIntent.of(context, SELECT_FOREGROUND_NOTIFICATION_ACTION)
+            .putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
+            .putExtra(ACTION_ID_EXTRA, RingDecisions.ANSWER_ACTION_ID)
+            .putExtra(CANCEL_NOTIFICATION_EXTRA, true)
+            .putExtra(PAYLOAD_EXTRA, payload)
         val answerPendingIntent = PendingIntent.getActivity(
             context,
             RING_NOTIFICATION_ID * 16 + 1,
@@ -210,22 +207,12 @@ class ZunoCallStylePlugin :
         context.packageName,
     )
 
-    private fun launchIntentFlags(context: Context, configure: (Intent) -> Unit): Intent {
-        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            ?: Intent(Intent.ACTION_MAIN).apply {
-                addCategory(Intent.CATEGORY_LAUNCHER)
-                setPackage(context.packageName)
-            }
-        configure(intent)
-        return intent
-    }
-
     private fun pendingIntentFlags(): Int =
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
 
     private companion object {
         const val RING_NOTIFICATION_ID = IncomingRing.NOTIFICATION_ID
-        const val NOTIFICATION_ID_EXTRA = "notificationId"
+        const val NOTIFICATION_ID_EXTRA = RingDecisions.NOTIFICATION_ID_EXTRA
         const val PAYLOAD_EXTRA = "payload"
         const val ACTION_ID_EXTRA = "actionId"
         const val CANCEL_NOTIFICATION_EXTRA = "cancelNotification"

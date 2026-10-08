@@ -256,7 +256,8 @@ flowchart TD
 - **Inbound share is a trampoline on Android and an inbox on iOS.** A
   `SEND` delivered straight to `MainActivity` would start a second
   Flutter engine in the sender's task, so `ShareActivity` forwards it
-  with `NEW_TASK | SINGLE_TOP`. Share plugins were rejected because they
+  with `NEW_TASK | CLEAR_TOP | SINGLE_TOP`, like every intent that opens
+  the app (`app-foundation.md`). Share plugins were rejected because they
   want `singleTask`, which calls and the lock-screen ring were tuned
   against. The iOS extension is its own process with no engine, so it
   must copy before it closes.

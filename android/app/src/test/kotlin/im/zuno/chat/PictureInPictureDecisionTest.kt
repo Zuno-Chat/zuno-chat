@@ -52,4 +52,37 @@ class PictureInPictureDecisionTest {
             PictureInPictureDecision.keepsCamera(inPictureInPicture = false, started = true),
         )
     }
+
+    @Test
+    fun `Back from the first screen opens the window while it can show the other camera`() {
+        assertEquals(
+            RootBack.EnterPictureInPicture,
+            PictureInPictureDecision.onRootBack(eligible = true, callHeld = true),
+        )
+    }
+
+    @Test
+    fun `Back from the first screen sends any other call to the background, never closing it`() {
+        assertEquals(
+            RootBack.MoveToBack,
+            PictureInPictureDecision.onRootBack(eligible = false, callHeld = true),
+        )
+    }
+
+    @Test
+    fun `without a call Back from the first screen keeps the platform default`() {
+        assertEquals(
+            RootBack.Default,
+            PictureInPictureDecision.onRootBack(eligible = false, callHeld = false),
+        )
+    }
+
+    @Test
+    fun `Back is kept from the system only while the window can open`() {
+        assertTrue(PictureInPictureDecision.claimsBack(frameworkHandlesBack = false, eligible = true))
+        assertFalse(
+            PictureInPictureDecision.claimsBack(frameworkHandlesBack = false, eligible = false),
+        )
+        assertTrue(PictureInPictureDecision.claimsBack(frameworkHandlesBack = true, eligible = false))
+    }
 }

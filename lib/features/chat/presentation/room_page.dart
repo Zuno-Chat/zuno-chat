@@ -14,7 +14,9 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/active_call_provider.dart';
+import '../../../core/calls/end_call.dart';
 import '../../../core/calls/matrixrtc/active_room_call.dart';
 import '../../../core/calls/matrixrtc/call_member_state.dart';
 import '../../../core/calls/matrixrtc/call_session.dart';
@@ -58,7 +60,9 @@ import '../../../core/security/security_providers.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/share/inbound_share.dart';
 import '../../../core/shortcuts/home_screen_shortcut.dart';
+import '../../../core/ui/keep_clear.dart';
 import '../../../core/ui/route_settled.dart';
+import '../../../core/ui/sheet.dart';
 import '../../calls/presentation/call_page.dart';
 import '../../communities/presentation/join_requests_view.dart';
 import '../../location/presentation/live_location_banner.dart';
@@ -591,11 +595,22 @@ class _RoomPageState extends ConsumerState<RoomPage>
     );
   }
 
-  Future<void> _startCall(CallKind kind) async {
-    if (ref.read(activeCallProvider) != null) {
+  bool _busyWithCall() {
+    final active = ref.read(activeCallProvider);
+    if (active == null || active.phase == CallSessionPhase.ended) return false;
+    final call = active.room.id == widget.room.id
+        ? ref.read(activeCallControllerProvider)
+        : null;
+    if (call != null) {
+      showCallScreen(Navigator.of(context), call);
+    } else {
       _snack('You are already in a call');
-      return;
     }
+    return true;
+  }
+
+  Future<void> _startCall(CallKind kind) async {
+    if (_busyWithCall()) return;
     if (!canPublishCallMemberState(widget.room)) {
       _snack('You do not have permission to start calls in this room');
       return;
@@ -633,21 +648,28 @@ class _RoomPageState extends ConsumerState<RoomPage>
       );
       if (confirmed != true || !mounted) return;
     }
-    final session = CallSession.startOutgoing(
-      widget.room,
-      kind,
-      lowDataMode: ref.read(lowDataCallsProvider),
+    _openCall(
+      () => CallSession.startOutgoing(
+        widget.room,
+        kind,
+        lowDataMode: ref.read(lowDataCallsProvider),
+      ),
     );
-    ref.read(activeCallProvider.notifier).set(session);
-    unawaited(_pushCallPage(session));
   }
 
-  Future<void> _pushCallPage(CallSession session) =>
-      Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => CallPage(session: session)));
+  CallSession? _openCall(CallSession Function() create) {
+    final session = ref.read(activeCallProvider.notifier).start(create);
+    if (session == null) {
+      _busyWithCall();
+      return null;
+    }
+    final call = ref.read(activeCallControllerProvider);
+    if (call != null) showCallScreen(Navigator.of(context), call);
+    return session;
+  }
 
   Future<void> _joinActiveCall(ActiveRoomCall call) async {
-    if (ref.read(activeCallProvider) != null) return;
+    if (_busyWithCall()) return;
     if (!canPublishCallMemberState(widget.room)) {
       _snack('You do not have permission to join calls in this room');
       return;
@@ -656,15 +678,15 @@ class _RoomPageState extends ConsumerState<RoomPage>
       _snack('No connection. Try again once back online.');
       return;
     }
-    final session = CallSession.forIncoming(
-      room: widget.room,
-      callId: call.callId,
-      kind: CallKind.values.asNameMap()[call.kind] ?? CallKind.voice,
-      lowDataMode: ref.read(lowDataCallsProvider),
+    final session = _openCall(
+      () => CallSession.forIncoming(
+        room: widget.room,
+        callId: call.callId,
+        kind: CallKind.values.asNameMap()[call.kind] ?? CallKind.voice,
+        lowDataMode: ref.read(lowDataCallsProvider),
+      ),
     );
-    ref.read(activeCallProvider.notifier).set(session);
-    unawaited(_pushCallPage(session));
-    unawaited(session.accept().catchError((_) {}));
+    if (session != null) unawaited(session.accept().catchError((_) {}));
   }
 
   void _startReply(Event event) {
@@ -833,7 +855,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
   }
 
   Future<void> _pickReaction(Event event, Timeline timeline) async {
-    final key = await showModalBottomSheet<String>(
+    final key = await showSheet<String>(
       context: context,
       isScrollControlled: true,
       builder: (context) => SizedBox(
@@ -1334,7 +1356,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
   }
 
   Future<void> _showAttachmentMenu() async {
-    final choice = await showModalBottomSheet<_Attachment>(
+    final choice = await showSheet<_Attachment>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
@@ -1688,7 +1710,13 @@ class _RoomPageState extends ConsumerState<RoomPage>
           ),
           PopupMenuItem(
             onTap: () async {
-              if (!await confirmAndExitRoom(context, widget.room)) return;
+              if (!await confirmAndExitRoom(
+                context,
+                widget.room,
+                endCallsIn: ref.read(endCallsInProvider),
+              )) {
+                return;
+              }
               if (context.mounted) Navigator.of(context).pop();
             },
             child: Text(roomExitLabel(widget.room)),
@@ -1747,56 +1775,66 @@ class _RoomPageState extends ConsumerState<RoomPage>
                             ],
                           ),
                   ),
-                  if (timeline != null &&
-                      (_editingEvent != null || _replyingToEvent != null))
-                    ComposeBar(
-                      title: _editingEvent != null
-                          ? 'Editing message'
-                          : 'Replying to ${_replyingToEvent!.senderFromMemoryOrFallback.calcDisplayname()}',
-                      snippet: previewSnippet(
-                        _editingEvent ?? _replyingToEvent!,
-                        timeline,
-                      ),
-                      onCancel: _cancelCompose,
-                    ),
-                  if (!widget.room.isDirectChat && canPost)
-                    MentionSuggestions(room: widget.room, controller: _input),
-                  if (canPost)
-                    MessageComposer(
-                      controller: _input,
-                      onSend: _send,
-                      onAttach: _showAttachmentMenu,
-                      incognitoKeyboard: incognitoKeyboard,
-                      isRecording: _recording,
-                      recordingDuration: _recordingDuration,
-                      recordingWillCancel: _recordingWillCancel,
-                      tapToggleRecording: _tapToggleRecording,
-                      onMicPointerDown: _onMicPointerDown,
-                      onMicPointerMove: _onMicPointerMove,
-                      onMicPointerUp: _onMicPointerUp,
-                      onMicPointerCancel: _onMicPointerCancel,
-                      onCancelRecording: _cancelRecording,
-                    )
-                  else
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: Center(
-                        child: Text(
-                          widget.room.isAbandonedDMRoom
-                              ? '${inviteDisplay.title} left this chat'
-                              : 'You cannot send messages here',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
+                  KeepClearArea(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (timeline != null &&
+                            (_editingEvent != null || _replyingToEvent != null))
+                          ComposeBar(
+                            title: _editingEvent != null
+                                ? 'Editing message'
+                                : 'Replying to ${_replyingToEvent!.senderFromMemoryOrFallback.calcDisplayname()}',
+                            snippet: previewSnippet(
+                              _editingEvent ?? _replyingToEvent!,
+                              timeline,
+                            ),
+                            onCancel: _cancelCompose,
                           ),
-                        ),
-                      ),
+                        if (!widget.room.isDirectChat && canPost)
+                          MentionSuggestions(
+                            room: widget.room,
+                            controller: _input,
+                          ),
+                        if (canPost)
+                          MessageComposer(
+                            controller: _input,
+                            onSend: _send,
+                            onAttach: _showAttachmentMenu,
+                            incognitoKeyboard: incognitoKeyboard,
+                            isRecording: _recording,
+                            recordingDuration: _recordingDuration,
+                            recordingWillCancel: _recordingWillCancel,
+                            tapToggleRecording: _tapToggleRecording,
+                            onMicPointerDown: _onMicPointerDown,
+                            onMicPointerMove: _onMicPointerMove,
+                            onMicPointerUp: _onMicPointerUp,
+                            onMicPointerCancel: _onMicPointerCancel,
+                            onCancelRecording: _cancelRecording,
+                          )
+                        else
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: Center(
+                              child: Text(
+                                widget.room.isAbandonedDMRoom
+                                    ? '${inviteDisplay.title} left this chat'
+                                    : 'You cannot send messages here',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
+                  ),
                 ],
               ),
             ),

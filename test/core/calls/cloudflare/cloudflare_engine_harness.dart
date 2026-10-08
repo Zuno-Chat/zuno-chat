@@ -46,6 +46,7 @@ class FakeSfu {
   String? offerSdp;
   Completer<void>? sessionGate;
   Completer<void>? pullGate;
+  Completer<void>? closeGate;
   var _sessions = 0;
   var _answers = 0;
   var _offers = 0;
@@ -136,6 +137,7 @@ class FakeSfu {
       return _json({});
     }
     if (path.endsWith('/tracks/close')) {
+      await closeGate?.future;
       if (closeRenegotiates) {
         return _json({
           'requiresImmediateRenegotiation': true,

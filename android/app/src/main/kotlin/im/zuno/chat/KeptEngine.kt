@@ -16,6 +16,7 @@ class HostState(context: Context) {
     ) as PowerManager
     var preventScreenshots = false
     var showOverLockscreen = false
+    var frameworkHandlesBack = false
     var pipEligible = false
     var pipAspect = Rational(3, 4)
     var pipCamera = false
@@ -89,6 +90,8 @@ object KeptEngine {
     private val reasons = EngineKeepReasons()
 
     val keepAlive: Boolean get() = reasons.any
+
+    fun holds(reason: EngineKeepReason): Boolean = reasons.holds(reason)
 
     fun hold(reason: EngineKeepReason) {
         reasons.hold(reason)

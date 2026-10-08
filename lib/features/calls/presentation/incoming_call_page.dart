@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
+import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/active_call_provider.dart';
 import '../../../core/calls/matrixrtc/call_decline.dart';
 import '../../../core/calls/matrixrtc/call_session.dart';
@@ -164,26 +165,27 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   Future<void> _accept() async {
     if (_resolved) return;
     _resolved = true;
-    if (ref.read(activeCallProvider) != null) {
-      _handedOffToCall = true;
+    final session = ref
+        .read(activeCallProvider.notifier)
+        .start(
+          () => CallSession.forIncoming(
+            room: widget.call.room,
+            callId: widget.call.callId,
+            kind: widget.call.kind,
+            lowDataMode: ref.read(lowDataCallsProvider),
+          ),
+        );
+    _handedOffToCall = true;
+    if (session == null) {
       _dismiss();
       return;
     }
-    final session = CallSession.forIncoming(
-      room: widget.call.room,
-      callId: widget.call.callId,
-      kind: widget.call.kind,
-      lowDataMode: ref.read(lowDataCallsProvider),
-    );
-    ref.read(activeCallProvider.notifier).set(session);
-    _handedOffToCall = true;
     _releaseRing();
     if (!mounted) return;
-    unawaited(
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => CallPage(session: session)),
-      ),
-    );
+    final call = ref.read(activeCallControllerProvider);
+    if (call != null) {
+      showCallScreen(Navigator.of(context), call, replace: true);
+    }
     unawaited(session.accept().catchError((_) {}));
   }
 

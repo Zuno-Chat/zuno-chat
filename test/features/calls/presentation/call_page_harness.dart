@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,71 +7,41 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/errors/global_error_handler.dart';
+import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
+import 'package:zuno/features/calls/presentation/call_layer.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
 
+import '../../../helpers/call_channel_mocks.dart';
 import '../../../helpers/fake_call_session.dart';
 
+export '../../../helpers/call_channel_mocks.dart';
 export '../../../helpers/fake_call_session.dart';
 
-class CallPageHarness {
+class CallPageHarness extends CallChannelMocks {
   CallPageHarness(
     this.tester, {
     PlatformCapabilities? capabilities,
     List<Override> overrides = const [],
+    this.topBanner,
+    this.home = const Scaffold(body: Text('Chat')),
   }) {
     SharedPreferences.setMockInitialValues({});
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    void mock(String name, Future<Object?>? Function(MethodCall call) handle) {
-      final channel = MethodChannel(name);
-      messenger.setMockMethodCallHandler(channel, handle);
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    }
-
-    mock('zuno/calls', (call) async {
-      calls.add(call);
-      return null;
-    });
-    mock('FlutterWebRTC.Method', (call) async {
-      webrtc.add(call);
-      return switch (call.method) {
-        'getSources' => {
-          'sources': [
-            for (final id in audioOutputs)
-              {
-                'deviceId': id,
-                'groupId': id,
-                'kind': 'audiooutput',
-                'label': id,
-              },
-          ],
-        },
-        'createVideoRenderer' => {'textureId': _textureFor()},
-        _ => null,
-      };
-    });
     for (final name in [
-      'FlutterWebRTC.Event',
       'zuno/vibration',
       'dexterous.com/flutter/local_notifications',
     ]) {
-      mock(name, (_) async => null);
+      final channel = MethodChannel(name);
+      messenger.setMockMethodCallHandler(channel, (_) async => null);
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
     }
-
-    const wakelock =
-        'dev.flutter.pigeon.wakelock_plus_platform_interface.WakelockPlusApi.toggle';
-    messenger.setMockMessageHandler(wakelock, (message) async {
-      final args = const _PigeonReader().decodeMessage(message) as List;
-      wakelockToggles.add((args.single as List).single as bool);
-      await wakelockGate?.future;
-      return const StandardMessageCodec().encodeMessage(<Object?>[null]);
-    });
-    addTearDown(() => messenger.setMockMessageHandler(wakelock, null));
-
     container = ProviderContainer(
       overrides: [
         if (capabilities != null)
@@ -88,25 +56,13 @@ class CallPageHarness {
   }
 
   final WidgetTester tester;
+  final Widget? topBanner;
+  final Widget home;
   late final ProviderContainer container;
-  final navigatorKey = GlobalKey<NavigatorState>();
+  final navigatorKey = globalNavigatorKey;
 
-  final calls = <MethodCall>[];
-  final webrtc = <MethodCall>[];
-  final wakelockToggles = <bool>[];
-  Completer<void>? wakelockGate;
-  List<String> audioOutputs = ['earpiece', 'speaker'];
-  var _nextTexture = 0;
-
-  int _textureFor() {
-    final id = ++_nextTexture;
-    final channel = MethodChannel('FlutterWebRTC/Texture$id');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (_) async => null);
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    return id;
-  }
+  ActiveCallController get call =>
+      container.read(activeCallControllerProvider)!;
 
   static Room buildRoom() => buildCallRoom();
 
@@ -126,7 +82,12 @@ class CallPageHarness {
         child: MaterialApp(
           theme: zunoLightTheme,
           navigatorKey: navigatorKey,
-          home: const Scaffold(body: Text('Chat')),
+          scaffoldMessengerKey: globalScaffoldMessengerKey,
+          builder: (context, child) => CallLayer(
+            banners: [topBanner],
+            child: child ?? const SizedBox.shrink(),
+          ),
+          home: home,
         ),
       ),
     );
@@ -134,11 +95,12 @@ class CallPageHarness {
 
   void pushCall(FakeCallSession session) {
     container.read(activeCallProvider.notifier).set(session);
-    unawaited(
-      navigatorKey.currentState!.push(
-        MaterialPageRoute<void>(builder: (_) => CallPage(session: session)),
-      ),
-    );
+    showCallScreen(navigatorKey.currentState!, call);
+  }
+
+  Future<void> minimize() async {
+    await tester.tap(find.byTooltip('Minimize call'));
+    await settle();
   }
 
   Future<void> settle() async {
@@ -149,6 +111,7 @@ class CallPageHarness {
   }
 
   Future<void> close() async {
+    container.read(activeCallControllerProvider)?.close();
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pump(const Duration(seconds: 1));
@@ -159,62 +122,6 @@ class CallPageHarness {
     navigator.mediaDevices.ondevicechange?.call(null);
     await settle();
   }
-
-  List<Object?> argsOf(String method) => [
-    for (final call in calls)
-      if (call.method == method) call.arguments,
-  ];
-
-  int count(String method) => argsOf(method).length;
-
-  bool get ringbackPlaying =>
-      calls
-          .where(
-            (c) =>
-                c.method == 'startRingbackTone' ||
-                c.method == 'stopRingbackTone',
-          )
-          .lastOrNull
-          ?.method ==
-      'startRingbackTone';
-
-  bool? get proximityScreenOff =>
-      (argsOf('setProximityScreenOff').lastOrNull as Map?)?['enabled'] as bool?;
-
-  bool? get showOverLockscreen =>
-      (argsOf('setShowOverLockscreen').lastOrNull as Map?)?['show'] as bool?;
-
-  bool? get pictureInPictureEligible =>
-      (argsOf('setPictureInPicture').lastOrNull as Map?)?['eligible'] as bool?;
-
-  ({String? streamId, String? ownerTag})? get pictureInPictureVideo {
-    final args = argsOf('setPictureInPicture').lastOrNull as Map?;
-    if (args == null) return null;
-    return (
-      streamId: args['streamId'] as String?,
-      ownerTag: args['ownerTag'] as String?,
-    );
-  }
-
-  String? get audioRoute {
-    for (final call in webrtc.reversed) {
-      final args = call.arguments as Map?;
-      if (call.method == 'enableSpeakerphone') {
-        return args!['enable'] == true ? 'speaker' : 'earpiece';
-      }
-      if (call.method == 'selectAudioOutput') {
-        return args!['deviceId'] as String;
-      }
-    }
-    return null;
-  }
-
-  int get audioRouteChanges => webrtc
-      .where(
-        (c) =>
-            c.method == 'enableSpeakerphone' || c.method == 'selectAudioOutput',
-      )
-      .length;
 
   Finder get speakerButton => find.byWidgetPredicate(
     (w) =>
@@ -227,12 +134,4 @@ class CallPageHarness {
         find.descendant(of: speakerButton, matching: find.byType(Icon)),
       )
       .icon;
-}
-
-class _PigeonReader extends StandardMessageCodec {
-  const _PigeonReader();
-
-  @override
-  Object? readValueOfType(int type, ReadBuffer buffer) =>
-      type == 129 ? readValue(buffer) : super.readValueOfType(type, buffer);
 }

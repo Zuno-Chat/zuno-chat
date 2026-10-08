@@ -7,6 +7,12 @@ enum class PipEntryMode {
     AutoEnter,
 }
 
+enum class RootBack {
+    EnterPictureInPicture,
+    MoveToBack,
+    Default,
+}
+
 object PictureInPictureDecision {
     fun entryMode(sdkInt: Int): PipEntryMode = if (sdkInt < Build.VERSION_CODES.S) {
         PipEntryMode.EnterOnLeave
@@ -19,4 +25,13 @@ object PictureInPictureDecision {
 
     fun keepsCamera(inPictureInPicture: Boolean, started: Boolean): Boolean =
         inPictureInPicture && started
+
+    fun claimsBack(frameworkHandlesBack: Boolean, eligible: Boolean): Boolean =
+        frameworkHandlesBack || eligible
+
+    fun onRootBack(eligible: Boolean, callHeld: Boolean): RootBack = when {
+        eligible -> RootBack.EnterPictureInPicture
+        callHeld -> RootBack.MoveToBack
+        else -> RootBack.Default
+    }
 }

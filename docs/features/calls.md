@@ -13,7 +13,8 @@ server-sent VoIP push while it is closed.
 
 ```mermaid
 flowchart LR
-  UI["CallPage → CallView"] --> S[CallSession]
+  UI["Call screen, bar, window"] --> A[ActiveCallController]
+  A --> S[CallSession]
   S -->|"m.call.member state, im.zuno.call_* messages"| HS[(Homeserver)]
   S -->|"call key, Olm to-device"| HS
   S --> E[CloudflareCallEngine]
@@ -27,7 +28,8 @@ flowchart LR
 | `CallSession` | `lib/core/calls/matrixrtc/` | Matrix-side signaling and the call lifecycle: invite, decline, ring timeout, `m.call.member` publish and reconcile, the call key, hang-up and the summary |
 | `CallEngine` → `CloudflareCallEngine` | `lib/core/calls/cloudflare/` | Media: one peer connection and one Cloudflare session per call, with every participant's tracks muxed onto it |
 | `calls_module.dart` | same | Speaks Cloudflare's own API to the module, which adds the app id and credentials server-side. Only signaling goes through it; media flows straight between the device and the SFU |
-| `CallPage` → `CallView` | `lib/features/calls/presentation/` | `CallPage` owns the session, the renderers and every side effect. `CallView` only lays out plain values |
+| `ActiveCallController` | `lib/core/calls/` | The device side of the active call for its whole life: renderers, audio route, ringback, foreground service, wake lock, lock-screen display, ear sensor, picture-in-picture and teardown. It starts when `activeCallProvider` gets a session, with no frame |
+| `CallPage` → `CallView`, `CallLayer` | `lib/features/calls/presentation/` | `CallPage` is the call screen and only draws. `CallLayer` sits above the Navigator and shows a minimized call and Android picture-in-picture. `CallView` only lays out plain values |
 | Ring routing | `lib/core/calls/notifications/`; iOS `RingCoordinator` | Presenting, cancelling, answering and declining rings |
 
 **Platform seams** (`lib/core/calls/platform/`). Whatever the OS shows or
@@ -63,6 +65,11 @@ stateDiagram-v2
 - **A call ends** as hung up, declined by either side, missed (the
   caller's ring timed out with nobody joined) or failed. A failure carries
   a user-facing message.
+- **It also ends, without writing anything, once its room is left** (from
+  any device) **or this device is signed out**, because neither a left room
+  nor a revoked token takes writes.
+- **One call at a time.** Starting or answering is refused while a call
+  that has not ended is held, and the call's own room reopens it instead.
 - **"Prevent accidental calls"** (on by default, Settings → Chats & calls)
   asks for confirmation before a call starts.
 
@@ -192,6 +199,33 @@ tier.
 - **Screen**: a voice call on the earpiece blanks the screen by proximity,
   and a video call keeps it awake.
 
+### Minimized calls
+
+Back, or the minimize button under the call's top-left pill, closes the
+call screen and keeps the call. Every way back in goes through
+`showCallScreen`, which never opens a second call screen: the bar or
+window, the call buttons of the call's own room, answering, and on Android
+the ongoing-call notification. A page opened from outside (a notification,
+a shortcut or a share) takes the call screen's place, so Back from it goes
+to what was under the call.
+
+| Situation | Shows |
+|---|---|
+| No remote camera on | A green bar at the top of the app: the room, the timer or the call's status, Muted, and "Return to call" |
+| A remote camera on | A floating window with that person's video, at its aspect |
+| Android picture-in-picture | The remote tile over the whole app, whatever screen is on top |
+
+- **The window drags and snaps to the nearest corner** below the app bar,
+  and stays clear of the keyboard and of the open page's bottom bar and
+  sheets (`app-foundation.md`).
+- **Video goes only where it shows**: every camera while the call screen is
+  open, only the windowed person while minimized, none behind the bar. A
+  renderer exists only for someone with video, on both platforms.
+- **Minimized, the ear sensor and Android's lock-screen display are off**,
+  so minimizing on a locked phone returns to the lock screen. The camera
+  keeps sending and a video call keeps the screen awake, since the app is
+  still in front.
+
 ### Picture-in-picture
 
 Picture-in-picture shows the other side's camera only, so it is offered
@@ -200,8 +234,8 @@ window's eligibility, aspect ratio and stream to native code.
 
 | | Android | iOS |
 |---|---|---|
-| Entry | When the user leaves the app | AVKit's video-call PiP starts on its own |
-| Rendering | Flutter draws one remote tile | Native renders the remote track, since the app has no GPU in the background |
+| Entry | When the user leaves the app, or presses Back on the first screen | AVKit's video-call PiP starts on its own |
+| Rendering | Flutter draws one remote tile over the whole app | Native renders the remote track, since the app has no GPU in the background |
 | Ending | Hidden when the last remote camera goes off; the call carries on behind its notification | Closed natively (see Gotchas) |
 
 A visible window keeps the camera sending, so the app does not count as in
@@ -219,7 +253,9 @@ the system kills it. The next activity adopts the engine and re-applies its
 per-engine state, such as lock-screen display, the wake lock and ringback.
 An old activity can finish after a new one has set up its engine, so
 engine-wide state (the push flag, the calls channel, live location
-capture) is released only by the engine that set it.
+capture) is released only by the engine that set it. Back on the first
+screen during a call sends the task to the back instead of finishing it,
+as Android 16 already does, so the activity is not torn down mid-call.
 
 ### Ringing
 
@@ -243,6 +279,9 @@ capture) is released only by the engine that set it.
   it through the full-screen intent, which needs full-screen-intent access
   (onboarding asks); without it, a locked phone shows only a heads-up
   notification.
+- **Only a ring's own launch shows Zuno over a locked keyguard.** Every
+  other lock-screen decision belongs to the ring page and the call
+  controller, so no other launch can show chats over the lock screen.
 - **The ring's sound and vibration are native and process-wide**
   (`IncomingRing`), because Dart audio dies with its engine and freezes
   with the process. Several stops back each other up (cancel, the
@@ -338,6 +377,8 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | No automatic voice downgrade, and voice to video is one way | A downgrade needs distributed coordination and risks flicker, and an off camera costs little |
 | Screen share is not built | Android capture needs its own MediaProjection consent and foreground-service type |
 | New mid-call facts ride `fociInfo`; new signaling is an `im.zuno.*` msgtype | Both sides already reconcile `fociInfo`, and a msgtype gets timeline plumbing for free |
+| A call-lifetime controller outside the call screen, drawn by an app-level layer | A lock-screen answer may never build the screen, and the screen, the bar, the window and picture-in-picture share one set of renderers |
+| A minimized call is a bar for voice and a window for video, and a tap only opens it | One tap target, never a second set of controls |
 
 ## Gotchas
 
@@ -384,8 +425,17 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 - Re-verify the `CallStyle` intents on a flutter_local_notifications
   major, because they copy its undocumented intent shape and a mis-wire
   fails only on a real tap.
-- The foreground service starts first in `CallPage`, because Android
-  allows starting one only shortly after user interaction.
+- The foreground service starts when the call is set, with no frame,
+  because Android allows starting one only shortly after user interaction.
+- A call's device effects run through one serial lock and are released
+  only while no other call holds the device, because one call's end must
+  never undo the next call's start.
+- Hang-up stops local media before the membership clear, so a stalled
+  request never keeps the microphone or camera live. A track close that
+  this teardown cuts off is expected and is not logged.
+- On Android, native code takes flutter_webrtc's plugin from the engine
+  that asked, never `sharedSingleton`, which points at the last engine
+  created, such as a notification action's.
 - `CallsChannelPlugin` registers only on `EngineHost`'s engine, because
   CallKit state is process-wide and another engine's reset would end the
   app's calls.
@@ -403,6 +453,8 @@ belong in the `zuno_calls` module, never the client.
 
 ## Testing
 
-`CallPage` runs on a `FakeCallSession` (`call_page_harness.dart`) and the
-engine on a scripted SFU (`cloudflare_engine_harness.dart`). CallKit tests
-run on Linux as iOS through `fake_calls_channel.dart`.
+The call screen, the bar, the window and picture-in-picture run on a
+`FakeCallSession` through `call_page_harness.dart`, which mounts
+`CallLayer` as the app does, and the engine runs on a scripted SFU
+(`cloudflare_engine_harness.dart`). CallKit tests run on Linux as iOS
+through `fake_calls_channel.dart`.

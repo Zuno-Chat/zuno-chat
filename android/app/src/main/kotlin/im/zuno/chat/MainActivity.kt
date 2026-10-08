@@ -29,12 +29,15 @@ import android.view.WindowManager
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import im.zuno.chat.zuno_call_style.RingDecisions
+import im.zuno.chat.zuno_notifications.AppLaunchIntent
 import im.zuno.chat.zuno_notifications.RoomLaunchIntent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.lang.ref.WeakReference
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -47,16 +50,18 @@ class MainActivity : FlutterActivity() {
     private var fcmEngineId: Int? = null
     private var adopted: KeptEngine.Kept? = null
     private lateinit var host: HostState
-
-    private fun applyShowOverLockscreenIfLocked() {
-        val keyguardManager = getSystemService(KEYGUARD_SERVICE) as? KeyguardManager
-        if (keyguardManager?.isKeyguardLocked == true) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-        }
-    }
+    private var duplicate = false
+    private var restoredFrameworkHandlesBack = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val running = runningInstance?.get()?.takeUnless { it.isFinishing || it.isDestroyed }
+        if (running != null) {
+            duplicate = true
+            super.onCreate(savedInstanceState)
+            handOverTo(running)
+            return
+        }
+        runningInstance = WeakReference(this)
         val launch = intent
         if (launch != null &&
             !LaunchIntentDecision.carriesLaunchTarget(launch.flags, savedInstanceState != null)
@@ -69,10 +74,42 @@ class MainActivity : FlutterActivity() {
             }
         }
         super.onCreate(savedInstanceState)
-        applyShowOverLockscreenIfLocked()
+        showRingOverLockscreen(intent)
+    }
+
+    override fun onDestroy() {
+        if (runningInstance?.get() === this) runningInstance = null
+        super.onDestroy()
+    }
+
+    private fun handOverTo(running: MainActivity) {
+        val launch = intent
+        finish()
+        val decision = LaunchIntentDecision.onDuplicate(
+            launch.action,
+            launch.flags,
+            handedOver = launch.getBooleanExtra(EXTRA_HANDED_OVER, false),
+            sameTask = running.taskId == taskId,
+        )
+        if (decision == DuplicateLaunch.HandOver) {
+            startActivity(
+                Intent(launch)
+                    .putExtra(EXTRA_HANDED_OVER, true)
+                    .addFlags(AppLaunchIntent.TO_RUNNING_APP),
+            )
+        }
+    }
+
+    private fun showRingOverLockscreen(launch: Intent?) {
+        if (launch == null) return
+        val notificationId = launch.getIntExtra(RingDecisions.NOTIFICATION_ID_EXTRA, -1)
+        if (!RingDecisions.ringLaunch(launch.action, notificationId)) return
+        val keyguardManager = getSystemService(KEYGUARD_SERVICE) as? KeyguardManager
+        if (keyguardManager?.isKeyguardLocked == true) setShowOverLockscreen(true)
     }
 
     override fun provideFlutterEngine(context: Context): FlutterEngine? {
+        if (duplicate) return FlutterEngine(context, null, false)
         val kept = KeptEngine.adopt() ?: return null
         adopted = kept
         return kept.engine
@@ -81,28 +118,76 @@ class MainActivity : FlutterActivity() {
     private fun engineFate(): HostEngineFate =
         HostEngineDecision.onHostDetached(KeptEngine.keepAlive, adopted != null)
 
-    override fun shouldDestroyEngineWithHost(): Boolean = when (engineFate()) {
-        HostEngineFate.Keep -> false
-        HostEngineFate.Destroy -> true
-        HostEngineFate.Default -> super.shouldDestroyEngineWithHost()
+    override fun shouldDestroyEngineWithHost(): Boolean {
+        if (duplicate) return true
+        return when (engineFate()) {
+            HostEngineFate.Keep -> false
+            HostEngineFate.Destroy -> true
+            HostEngineFate.Default -> super.shouldDestroyEngineWithHost()
+        }
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
-        val detached = KeptEngine.Kept(flutterEngine, fcmEngineId, networkStreamHandler, host)
-        if (engineFate() == HostEngineFate.Keep) {
-            KeptEngine.keep(detached)
-        } else {
-            detached.releaseHost()
+        if (!duplicate) {
+            val detached =
+                KeptEngine.Kept(flutterEngine, fcmEngineId, networkStreamHandler, host)
+            if (engineFate() == HostEngineFate.Keep) {
+                KeptEngine.keep(detached)
+            } else {
+                detached.releaseHost()
+            }
+            fcmEngineId = null
+            networkStreamHandler = null
         }
-        fcmEngineId = null
-        networkStreamHandler = null
         super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    override fun setFrameworkHandlesBack(frameworkHandlesBack: Boolean) {
+        if (::host.isInitialized) {
+            host.frameworkHandlesBack = frameworkHandlesBack
+        } else {
+            restoredFrameworkHandlesBack = frameworkHandlesBack
+        }
+        claimBack()
+    }
+
+    override fun getBackCallbackState(): Boolean =
+        if (::host.isInitialized) host.frameworkHandlesBack else restoredFrameworkHandlesBack
+
+    private fun claimBack() {
+        super.setFrameworkHandlesBack(
+            PictureInPictureDecision.claimsBack(
+                getBackCallbackState(),
+                ::host.isInitialized && host.pipEligible,
+            ),
+        )
+    }
+
+    override fun popSystemNavigator(): Boolean {
+        if (!::host.isInitialized) return false
+        val callHeld = KeptEngine.holds(EngineKeepReason.Call)
+        return when (PictureInPictureDecision.onRootBack(host.pipEligible, callHeld)) {
+            RootBack.EnterPictureInPicture -> {
+                if (!enterPictureInPicture()) moveTaskToBack(true)
+                true
+            }
+
+            RootBack.MoveToBack -> {
+                moveTaskToBack(true)
+                true
+            }
+
+            RootBack.Default -> false
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        if (duplicate) return
         val kept = adopted
-        host = kept?.host ?: HostState(this)
+        host = kept?.host ?: HostState(this).also {
+            it.frameworkHandlesBack = restoredFrameworkHandlesBack
+        }
         AppEngine.attach(flutterEngine)
         fcmEngineId = kept?.fcmEngineId?.also { FcmRouter.rebindApp(it, this) }
             ?: FcmRouter.attachApp(flutterEngine, this)
@@ -257,6 +342,7 @@ class MainActivity : FlutterActivity() {
                         call.argument<Int>("aspectHeight") ?: 4,
                     )
                     applyPictureInPictureParams()
+                    claimBack()
                     if (PictureInPictureDecision.shouldHide(
                             host.pipEligible,
                             isInPictureInPictureMode,
@@ -269,7 +355,9 @@ class MainActivity : FlutterActivity() {
 
                 "attachPlaceholderVideo" -> {
                     val streamId = call.argument<String>("streamId")
-                    result.success(streamId?.let { PlaceholderVideo.attach(it) })
+                    result.success(
+                        streamId?.let { PlaceholderVideo.attach(flutterEngine, it) },
+                    )
                 }
 
                 "releasePlaceholderVideo" -> {
@@ -535,6 +623,7 @@ class MainActivity : FlutterActivity() {
             applyPictureInPictureParams()
             intent?.let { deliverLaunch(it) }
         }
+        claimBack()
     }
 
     private fun applyPreventScreenshots() {
@@ -615,11 +704,15 @@ class MainActivity : FlutterActivity() {
         super.onUserLeaveHint()
         if (!host.pipEligible) return
         if (pipEntryMode != PipEntryMode.EnterOnLeave) return
-        try {
-            enterPictureInPictureMode(buildPictureInPictureParams())
-        } catch (error: IllegalStateException) {
-        } catch (error: IllegalArgumentException) {
-        }
+        enterPictureInPicture()
+    }
+
+    private fun enterPictureInPicture(): Boolean = try {
+        enterPictureInPictureMode(buildPictureInPictureParams())
+    } catch (error: IllegalStateException) {
+        false
+    } catch (error: IllegalArgumentException) {
+        false
     }
 
     private fun hidePictureInPicture() {
@@ -637,11 +730,15 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        applyShowOverLockscreenIfLocked()
+        showRingOverLockscreen(intent)
         deliverLaunch(intent)
     }
 
     private fun deliverLaunch(intent: Intent) {
+        if (intent.action == CallForegroundService.ACTION_OPEN_CALL) {
+            callsChannel?.invokeMethod("openCallScreen", null)
+            return
+        }
         ShareActivity.channelPayload(intent)?.let { share ->
             shareChannel?.invokeMethod("share", share)
             return
@@ -764,6 +861,8 @@ class MainActivity : FlutterActivity() {
         private const val APP_DATA_CHANNEL = "zuno/app_data"
         private const val PUSH_DIAG_CHANNEL = "zuno/push_diag"
         private const val PIP_HANG_UP_REQUEST_CODE = 4102
+        private const val EXTRA_HANDED_OVER = "im.zuno.chat.HANDED_OVER"
+        private var runningInstance: WeakReference<MainActivity>? = null
         private var pendingRoomId: String? = null
         private var pendingShare: Map<String, Any?>? = null
     }

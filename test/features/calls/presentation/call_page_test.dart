@@ -7,11 +7,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/security/account_security_status.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
@@ -20,7 +20,6 @@ import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_controls.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
 import 'package:zuno/features/calls/presentation/call_view.dart';
-import 'package:zuno/features/calls/presentation/participant_tile.dart';
 import 'package:zuno/features/verification/presentation/why_confirm_sheet.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -49,7 +48,7 @@ void main() {
 
     for (final kind in CallKind.values) {
       testWidgets('a $kind call builds before its engine exists, dark, with '
-          'End call ready and Back blocked', (tester) async {
+          'End call and Minimize ready', (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = const Size(360, 640);
         addTearDown(tester.view.reset);
@@ -59,11 +58,17 @@ void main() {
           kind: kind,
         );
 
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
+        container.read(activeCallProvider.notifier).set(session);
+        final call = container.read(activeCallControllerProvider)!;
+
         await tester.pumpWidget(
-          ProviderScope(
+          UncontrolledProviderScope(
+            container: container,
             child: MaterialApp(
               theme: zunoLightTheme,
-              home: CallPage(session: session),
+              home: CallPage(call: call),
             ),
           ),
         );
@@ -72,10 +77,7 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.text('Connecting…'), findsOneWidget);
         expect(find.byTooltip('End call'), findsOneWidget);
-        expect(
-          find.byWidgetPredicate((w) => w is PopScope && !w.canPop),
-          findsOneWidget,
-        );
+        expect(find.byTooltip('Minimize call'), findsOneWidget);
         expect(
           Theme.of(tester.element(find.byType(CallControls))).brightness,
           Brightness.dark,
@@ -453,42 +455,54 @@ void main() {
       await harness.close();
     });
 
+    testWidgets('a burst of roster changes gives each person one renderer', (
+      tester,
+    ) async {
+      final harness = CallPageHarness(tester);
+      final session = sessionFor(CallKind.video);
+      await harness.open(session);
+      session.moveTo(CallSessionPhase.active);
+      await harness.settle();
+
+      session.engine.setParticipants([
+        localParticipant(camera: true),
+        remoteParticipant(),
+      ]);
+      session.engine.setParticipants([
+        localParticipant(camera: true),
+        remoteParticipant(camera: true),
+      ]);
+      await harness.settle();
+
+      expect(
+        harness.webrtc.where((c) => c.method == 'createVideoRenderer'),
+        hasLength(2),
+      );
+      await harness.close();
+    });
+
     testWidgets('someone leaving releases their video renderer', (
       tester,
     ) async {
       final harness = CallPageHarness(tester);
       final session = await talking(harness, CallKind.video);
+      session.engine.setParticipants([
+        localParticipant(camera: true),
+        remoteParticipant(camera: true),
+      ]);
+      await harness.settle();
       final created = harness.webrtc
           .where((c) => c.method == 'createVideoRenderer')
           .length;
       expect(created, 2);
 
-      session.engine.setParticipants([localParticipant()]);
+      session.engine.setParticipants([localParticipant(camera: true)]);
       await harness.settle();
 
       expect(
         harness.webrtc.where((c) => c.method == 'videoRendererDispose'),
         hasLength(1),
       );
-      await harness.close();
-    });
-
-    testWidgets('in picture-in-picture only the other side is shown', (
-      tester,
-    ) async {
-      final harness = CallPageHarness(tester);
-      final session = await talking(harness, CallKind.video);
-      session.engine.setParticipants([
-        localParticipant(),
-        remoteParticipant(camera: true),
-      ]);
-      await harness.settle();
-
-      CallNotificationService.instance.inPictureInPicture.value = true;
-      await harness.settle();
-
-      expect(find.byType(ParticipantTile), findsOneWidget);
-      expect(find.byTooltip('End call'), findsNothing);
       await harness.close();
     });
 
@@ -575,6 +589,27 @@ void main() {
       expect(find.text('Connection lost'), findsOneWidget);
     });
 
+    testWidgets('a wakelock that will not switch never stops a call from '
+        'starting or winding down', (tester) async {
+      final harness = CallPageHarness(tester)..wakelockFails = true;
+      final session = await talking(harness, CallKind.video);
+      session.engine.setParticipants([
+        localParticipant(camera: true),
+        remoteParticipant(camera: true),
+      ]);
+      await harness.settle();
+      expect(harness.audioRoute, 'speaker');
+
+      session.end(reason: CallEndReason.failed, message: 'Connection lost');
+      await harness.settle();
+
+      expect(find.text('Connection lost'), findsOneWidget);
+      expect(
+        harness.webrtc.where((c) => c.method == 'videoRendererDispose'),
+        hasLength(2),
+      );
+    });
+
     testWidgets('a headset connected after the call ended changes nothing', (
       tester,
     ) async {
@@ -651,6 +686,22 @@ void main() {
 
       expect(find.text(confirmAnn), findsNothing);
       await halfAMinute(tester);
+
+      expect(find.text(confirmAnn), findsOneWidget);
+      await call.harness.close();
+    });
+
+    testWidgets('an offer earned while the call was minimized shows as soon '
+        'as the call is reopened', (tester) async {
+      final call = await talkingTo(tester);
+      await call.harness.minimize();
+
+      await halfAMinute(tester);
+      showCallScreen(
+        call.harness.navigatorKey.currentState!,
+        call.harness.call,
+      );
+      await call.harness.settle();
 
       expect(find.text(confirmAnn), findsOneWidget);
       await call.harness.close();

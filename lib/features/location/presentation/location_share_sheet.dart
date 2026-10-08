@@ -8,6 +8,7 @@ import '../../../core/location/live_location_availability.dart';
 import '../../../core/location/live_location_protocol.dart';
 import '../../../core/notifications/background_sync_service.dart';
 import '../../../core/platform/platform_capabilities.dart';
+import '../../../core/ui/sheet.dart';
 import 'location_failure_text.dart';
 import 'location_map_page.dart';
 import 'location_map_view.dart';
@@ -51,7 +52,7 @@ Future<LocationShareChoice?> showLocationShareSheet(
   bool inChat = false,
   Future<bool> Function()? runsUnrestricted,
   Future<void> Function()? allowUnrestricted,
-}) => showModalBottomSheet<LocationShareChoice>(
+}) => showSheet<LocationShareChoice>(
   context: context,
   isScrollControlled: true,
   builder: (_) => _LocationShareSheet(

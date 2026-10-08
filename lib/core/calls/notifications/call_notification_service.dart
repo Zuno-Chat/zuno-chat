@@ -256,6 +256,7 @@ class CallNotificationService {
         ),
       );
   final _hangUpController = StreamController<String?>.broadcast();
+  final _openCallScreenController = StreamController<void>.broadcast();
   final _systemMuteController = StreamController<SystemMute>.broadcast();
   final _ringEndedController = StreamController<RingingCallInfo>.broadcast();
   final _systemCallFailedController = StreamController<String>.broadcast();
@@ -275,6 +276,7 @@ class CallNotificationService {
   Stream<HandedMessageAction> get onMessageAction =>
       _messageActionController.stream;
   Stream<String?> get onHangUp => _hangUpController.stream;
+  Stream<void> get onOpenCallScreen => _openCallScreenController.stream;
   Stream<SystemMute> get onSystemMute => _systemMuteController.stream;
   Stream<RingingCallInfo> get onRingEnded => _ringEndedController.stream;
   Stream<String> get onSystemCallFailed => _systemCallFailedController.stream;
@@ -579,6 +581,8 @@ class CallNotificationService {
     switch (method) {
       case 'hangUpCall':
         _hangUpController.add(_callIdFrom(arguments));
+      case 'openCallScreen':
+        _openCallScreenController.add(null);
       case 'pictureInPictureChanged':
         inPictureInPicture.value = arguments == true;
       case 'pictureInPictureCameraChanged':

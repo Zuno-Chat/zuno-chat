@@ -20,6 +20,7 @@ import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
@@ -226,6 +227,23 @@ void main() {
       content[galleryGroupKey] as Map<String, Object?>?;
 
   group('photos', () {
+    testWidgets('the floating call window keeps clear of the attachments '
+        'sheet', (tester) async {
+      await openRoom(tester);
+
+      await tester.tap(find.byIcon(Icons.attach_file_outlined));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        find.ancestor(
+          of: find.text('Take photo'),
+          matching: find.byType(KeepClearArea),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('a camera photo is captioned and sent', (tester) async {
       picker.answer = [_photo('IMG_1.jpg')];
       await openRoom(tester);

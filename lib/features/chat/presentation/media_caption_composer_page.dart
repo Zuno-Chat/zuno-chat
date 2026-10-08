@@ -4,9 +4,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import 'caption_bar.dart';
 import 'image_caption_composer_page.dart' show ComposedImage;
 import 'preview_decode_width.dart';
-import 'send_icon.dart';
 import 'video_caption_composer_page.dart'
     show ComposedVideo, ComposerVideoPreview, composeVideo;
 
@@ -177,29 +177,10 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
                   ],
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      autofillHints: null,
-                      controller: _captionControllers[_page],
-                      decoration: const InputDecoration(
-                        hintText: 'Add a caption…',
-                      ),
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _send(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    icon: const SendIcon(),
-                    tooltip: multiple ? 'Send all' : 'Send',
-                    onPressed: _send,
-                  ),
-                ],
-              ),
+            CaptionBar(
+              controller: _captionControllers[_page],
+              sendTooltip: multiple ? 'Send all' : 'Send',
+              onSend: _send,
             ),
           ],
         ),

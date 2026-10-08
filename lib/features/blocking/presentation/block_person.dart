@@ -1,20 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/calls/end_call.dart';
 import '../../../core/matrix/official_room.dart';
 
 typedef BlockPerson = Future<void> Function(String userId);
 
 bool canBlockPerson(String userId) => userId != officialNoticesUserId;
 
-Future<void> blockOnServer(Client client, String userId) =>
-    client.ignoreUser(userId);
+Future<void> blockOnServer(
+  Client client,
+  String userId, {
+  required EndCallsIn endCallsIn,
+}) async {
+  await endCallsIn([
+    for (final room in client.rooms)
+      if (room.directChatMatrixID == userId) room.id,
+  ]);
+  await client.ignoreUser(userId);
+}
 
 Future<bool> confirmAndBlockPerson(
   BuildContext context, {
   required Client client,
   required String userId,
   required String name,
+  required EndCallsIn endCallsIn,
   BlockPerson? block,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
@@ -25,7 +36,9 @@ Future<bool> confirmAndBlockPerson(
       userId: userId,
       name: name,
       leavesChat: client.getDirectChatFromUserId(userId) != null,
-      block: block ?? (userId) => blockOnServer(client, userId),
+      block:
+          block ??
+          (userId) => blockOnServer(client, userId, endCallsIn: endCallsIn),
     ),
   );
   if (blocked != true) return false;

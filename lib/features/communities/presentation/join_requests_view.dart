@@ -11,6 +11,7 @@ import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/route_settled.dart';
+import '../../../core/ui/sheet.dart';
 import '../../../core/ui/zuno_theme.dart';
 
 String _nameOf(User user) {
@@ -126,7 +127,7 @@ bool _peopleCanAsk(Room room) => switch (room.joinRules) {
 };
 
 Future<void> showJoinRequestsSheet(BuildContext context, Room room) =>
-    showModalBottomSheet<void>(
+    showSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

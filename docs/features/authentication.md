@@ -100,8 +100,8 @@ sequenceDiagram
 
 | Path | Steps, in order |
 |---|---|
-| Sign out (Settings, or this device in Your devices) | Clear live location shares (bounded), `stopAllNotificationDelivery`, then `client.logout()` |
-| Delete account | Warning, typed username, password, `deactivateAccount(erase: true)`, best-effort push teardown, then `client.clear()` |
+| Sign out (Settings, or this device in Your devices) | End the active call and clear live location shares (each bounded), `stopAllNotificationDelivery`, then `client.logout()` |
+| Delete account | Warning, typed username, password, ending the active call and clearing live location shares, `deactivateAccount(erase: true)`, best-effort push teardown, then `client.clear()` |
 
 Both paths end in `client.clear`, which triggers the `_AuthGate` wipe;
 neither cleans local data itself, and every new path must end there too.
@@ -209,8 +209,14 @@ What the push teardown does is in `notifications.md`.
 - **Sign-out stops push before `logout()`, deletion after deactivating.**
   Sign-out must tear down while the token still works, while deletion can
   still fail at its password prompt, and tearing down first would silence a
-  live account. Live location shares are cleared first for the same reason:
-  only a working token can write their end.
+  live account. The active call is ended and live location shares are
+  cleared first for the same reason: only a working token can write their
+  end. Both are read when the wind-down runs, so a call answered meanwhile
+  ends too.
+- **Deletion ends the call and the shares at the password Confirm, whatever
+  the server answers**, because the server checks the password and deletes
+  in one request with no dry run. The prompt says so whenever something is
+  live.
 
 ### Device safety (Android only)
 

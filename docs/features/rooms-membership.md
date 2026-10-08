@@ -66,6 +66,7 @@ files.
 
 **Rooms and access**
 - **One kind-aware exit, not Leave plus Delete.** Both make the row vanish, so a user cannot tell them apart. `exitRoom` forgets a direct chat, which has no history to come back to, but only leaves a group, which persists without you and may be rejoinable. Declining an invitation goes through the same rule.
+- **Leaving, deleting or blocking ends that room's call first**, while the user is still a member, so the call's summary and membership clear still go out (`calls.md`).
 - **Access is one of four choices**, and each maps to a join rule and a directory listing:
 
   | Access | Join rule | Listed | Offered for |

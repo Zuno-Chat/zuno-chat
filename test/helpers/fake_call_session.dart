@@ -17,7 +17,10 @@ class FakeCallSession implements CallSession {
     required this.kind,
     this.role = CallSessionRole.callee,
     this._phase = CallSessionPhase.connecting,
+    this.journal,
   }) : engine = FakeCallEngine(kind: kind);
+
+  final List<String>? journal;
 
   @override
   final Room room;
@@ -67,6 +70,7 @@ class FakeCallSession implements CallSession {
   Future<void> hangUp({bool byUser = false, bool summarized = false}) async {
     hangUpsByUser.add(byUser);
     hangUpsSummarized.add(summarized);
+    journal?.add(byUser ? 'call ended' : 'call dropped');
   }
 
   @override
@@ -124,12 +128,13 @@ CallEngineParticipant localParticipant({
 CallEngineParticipant remoteParticipant({
   String userId = '@ann:example.org',
   bool camera = false,
+  bool encrypted = true,
 }) => CallEngineParticipant(
   id: VoipParticipantId(userId: userId, deviceId: 'ANN'),
   isLocal: false,
   videoEnabled: camera,
   videoStream: camera ? FakeMediaStream('$userId-video') : null,
-  encrypted: true,
+  encrypted: encrypted,
 );
 
 Room buildCallRoom() {

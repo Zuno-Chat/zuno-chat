@@ -6,6 +6,7 @@ import android.util.Log
 import com.cloudwebrtc.webrtc.FlutterWebRTCPlugin
 import com.cloudwebrtc.webrtc.MethodCallHandlerImpl
 import com.cloudwebrtc.webrtc.video.LocalVideoTrack
+import io.flutter.embedding.engine.FlutterEngine
 import java.nio.ByteBuffer
 import java.util.UUID
 import org.webrtc.JavaI420Buffer
@@ -60,9 +61,9 @@ class PlaceholderVideo private constructor(
         private const val TAG = "PlaceholderVideo"
         private val active = mutableMapOf<String, PlaceholderVideo>()
 
-        fun attach(streamId: String): String? {
-            val plugin = FlutterWebRTCPlugin.sharedSingleton
-                ?: return unavailable("flutter_webrtc is not registered")
+        fun attach(engine: FlutterEngine, streamId: String): String? {
+            val plugin = engine.plugins.get(FlutterWebRTCPlugin::class.java) as? FlutterWebRTCPlugin
+                ?: return unavailable("flutter_webrtc is not registered on this engine")
             val factory = plugin.peerConnectionFactory
                 ?: return unavailable("flutter_webrtc has no peer connection factory")
             val stream = plugin.getStreamForId(streamId, "")

@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:zuno/core/calls/cloudflare/cloudflare_api_client.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
@@ -954,6 +956,55 @@ void main() {
         expect(call.backend.placeholders, hasLength(1));
         expect(call.backend.releasedPlaceholders, call.backend.placeholders);
         expect(call.pc.disposed, isTrue);
+      });
+    });
+  });
+
+  group('leaving while a track close is under way', () {
+    late List<String> logs;
+    late DebugPrintCallback originalDebugPrint;
+
+    setUp(() {
+      logs = [];
+      originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logs.add(message);
+      };
+    });
+    tearDown(() => debugPrint = originalDebugPrint);
+
+    test('a close that leaving cuts off is not reported as a failure', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.remoteJoins();
+        call.sfu.closeGate = Completer<void>();
+        call.engine.removeRemoteParticipant(ann);
+        call.flush();
+        expect(call.sfu.closes, hasLength(1));
+
+        call.leave();
+        call.sfu.closeGate!.completeError(
+          http.ClientException('Connection closed while receiving data'),
+        );
+        call.flush();
+
+        expect(logs.where((line) => line.contains('closing tracks')), isEmpty);
+      });
+    });
+
+    test('no close is sent once leaving has begun', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.remoteJoins();
+        call.pc.localDescriptionGate = Completer<void>();
+        call.engine.removeRemoteParticipant(ann);
+        call.flush();
+
+        call.leave();
+        call.pc.localDescriptionGate!.complete();
+        call.flush();
+
+        expect(call.sfu.closes, isEmpty);
       });
     });
   });

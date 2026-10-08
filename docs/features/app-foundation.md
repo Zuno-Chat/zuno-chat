@@ -59,6 +59,10 @@ flowchart TD
 
 **A launch target is taken once.** Android hands a relaunch from Recents the original launch intent again, so `MainActivity` swaps it for a bare `ACTION_MAIN` before the plugins attach, and a share or notification tap never repeats. A share or room open that arrives before anyone listens is held, latest only.
 
+**The call sits above the Navigator.** `CallLayer`, in `MaterialApp.builder`, shows a minimized call and Android picture-in-picture over every route. `showCallScreen` owns the call screen's route: it opens it once, and closes it when the call ends. `_AuthGate`'s outside entries (a notification, shortcut or share) replace the call screen instead of covering it (`calls.md`).
+
+**Every launch reaches the one running activity on Android.** Each intent Zuno builds to open the app (notifications, shortcuts, the ring, inbound share) carries `NEW_TASK | CLEAR_TOP | SINGLE_TOP` from one builder, so a tap reaches the running `MainActivity` even with a picker on top of it. A second `MainActivity` that still starts (from the launcher or a plugin's notification) never runs Dart: it hands a real target to the running one, once, and closes.
+
 **Signing out pops to root from one place.** `_AuthGate` swaps only the root route's content, so a pushed screen (Settings, where Sign out lives) would otherwise stay up. The pop runs from `onLoginStateChanged`, which also covers a remote sign-out, and only on a real logged-in to logged-out transition.
 
 ### Look and motion (`lib/core/ui/`)
@@ -86,6 +90,8 @@ Shared pieces:
 | `StepLayout`, `StepHero` | One-question screens, with the actions pinned at the bottom above the keyboard. |
 | `RowMemo` | Returns the identical widget for an equal record, so a list row rebuilds only when its value-equal record changes. |
 | `RouteSettled` | `onRouteSettled()` fires once the push slide has finished, for work that would otherwise land mid-slide. |
+| `TopBannerFrame` | App-wide top banners (the call bar, the offline notice). They stack and slide in and out, and the content keeps its own status-bar inset, moving only by what that inset cannot hide. The slide re-lays out the content each frame, as the keyboard does: the one exception to animating position only. |
+| `KeepClearArea`, `showSheet` | Bottom chrome the floating call window keeps clear of: the composer, the home bar, caption bars. Every bottom sheet opens through `showSheet`, which marks the whole sheet. |
 
 **Performance rules**, binding on every screen. The floor is a mid-range phone from about 2021.
 
@@ -300,6 +306,9 @@ stateDiagram-v2
 - **Edit `project.pbxproj` only with CocoaPods' bundled xcodeproj gem** (`tool/xcode/add_sources.rb`), because Xcode 27 saves it at an `objectVersion` CocoaPods cannot read. Keep "Embed Foundation Extensions" above "Run Script" in Runner, or Thin Binary forms a build cycle.
 - **Every target compiles in Swift 6 mode**, so a channel handler copies the `@MainActor` shape of those in `ios/Runner/`, and one run off the main thread crashes instead of racing.
 - **A missing usage-description key crashes on first use**, and permission_handler compiles out any permission whose key it cannot find, so builds from Xcode.app need `PERMISSION_HANDLER_INFO_PLIST` in launchd's environment, which a reboot clears.
+
+**Android activity**
+- **An intent that opens the app without `CLEAR_TOP` starts a second `MainActivity` and engine** whenever another activity sits on Zuno's task, so every one comes from the shared launch-intent builder.
 
 **Capability flags and assets**
 - **`canUseFullScreenIntent()` answers `true` wherever `fullScreenIntent` is off**, which onboarding relies on to skip the Android page, so an iOS row must not read it.

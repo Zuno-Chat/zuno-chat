@@ -16,6 +16,8 @@ class EngineKeepReasons {
 
     val any: Boolean get() = held.isNotEmpty()
 
+    fun holds(reason: EngineKeepReason): Boolean = reason in held
+
     fun hold(reason: EngineKeepReason) {
         held.add(reason)
     }

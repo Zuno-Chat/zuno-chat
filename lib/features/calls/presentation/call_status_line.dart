@@ -2,9 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/calls/models/call_status.dart';
 import 'call_status_widgets.dart';
-
-enum CallStatus { calling, connecting, waiting, encrypting, talking }
 
 String callClock(Duration elapsed) {
   final seconds = elapsed.isNegative ? 0 : elapsed.inSeconds;

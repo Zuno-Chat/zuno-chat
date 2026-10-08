@@ -1,4 +1,4 @@
-import '../../../core/calls/models/call_kind.dart';
+import 'models/call_kind.dart';
 
 enum CallAudioRoute { earpiece, speaker, wiredHeadset, bluetooth }
 

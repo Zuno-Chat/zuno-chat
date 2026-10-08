@@ -1,7 +1,5 @@
 import '../../../core/security/user_trust.dart';
 
-const callConfirmPromptDelay = Duration(seconds: 30);
-
 bool callConfirmPromptWanted({
   required UserTrustState trust,
   required bool thisDeviceReady,

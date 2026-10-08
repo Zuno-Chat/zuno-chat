@@ -1,6 +1,8 @@
 package im.zuno.chat
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HostEngineDecisionTest {
@@ -57,5 +59,15 @@ class HostEngineDecisionTest {
         reasons.release(EngineKeepReason.LiveLocation)
 
         assertEquals(true, reasons.any)
+    }
+
+    @Test
+    fun `a live location share alone is not a call`() {
+        val reasons = EngineKeepReasons()
+        reasons.hold(EngineKeepReason.LiveLocation)
+        assertFalse(reasons.holds(EngineKeepReason.Call))
+
+        reasons.hold(EngineKeepReason.Call)
+        assertTrue(reasons.holds(EngineKeepReason.Call))
     }
 }
