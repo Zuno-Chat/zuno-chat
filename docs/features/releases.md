@@ -54,8 +54,8 @@ The logic (versions, build numbers, commit types, guards) is pure Dart in
 - **iOS uploads first**, because an App Store submission can be withdrawn
   while a Play production commit can only be halted.
 - **The next monthly cut skips commits named in a `cherry picked from`
-  trailer**, so a fix shipped as a hotfix is not counted twice. Remove a
-  shipped hotfix's line from `next.txt` for the same reason.
+  trailer**, so a fix shipped as a hotfix is not counted twice. Take a
+  shipped hotfix's fixes off the bug count in `next.txt` for the same reason.
 - **Dry run**: dispatch `release` on `rc/dry-run` with `dry_run`. It runs
   the full gate, both signed builds and store validation, and pushes no tag.
 

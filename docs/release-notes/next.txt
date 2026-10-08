@@ -1,16 +1,6 @@
 New
-• Share your live location.
+• Share your live location in chats and rooms.
 • Picture-in-picture for iPhone video calls.
-• Restore from a recovery code file.
+• Restore from a saved recovery code file.
 
-Fixed
-• Choppy or missing video in calls.
-• Camera staying on.
-• Picture-in-picture ending calls.
-• False weak-connection warnings.
-• Squashed portrait recordings.
-• Unclear error messages.
-• Test alerts ignoring sound.
-• Your picture missing on calls.
-• Shifting avatar colors.
-• Dead-end call confirm prompts.
+Fixed 12 bugs.

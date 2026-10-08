@@ -116,17 +116,15 @@ that nobody can undo it. The button repeats the action.
 - Write: "Donations help pay for running Zuno."
 - Not: "Enjoying Zuno? Support us today."
 
-**Release notes** (store "What's new"). Features under "New", fixes under
-"Fixed", in that order; leave out an empty section. One bullet per change, in
-the fewest words that still make sense: what changed for the reader, never
-how. A feature says what the reader can now do; a fix names the problem that
-is gone.
+**Release notes** (store "What's new"). Features under "New", one bullet
+each, saying what the reader can now do, never how. Fixes are not listed,
+only counted in one closing line ("Fixed 1 bug." for one). Leave out
+whichever part is empty.
 - Write:
   ```
   New
   • Picture-in-picture for iPhone video calls.
 
-  Fixed
-  • Closing picture-in-picture ending the call.
+  Fixed 3 bugs.
   ```
-- Not: "Bug fixes and performance improvements." / "Calls no longer misread stale relay round-trip times as a weak connection."
+- Not: "Bug fixes and performance improvements." / "• Closing picture-in-picture ending the call." / "• Picture-in-picture through AVPictureInPictureController."
