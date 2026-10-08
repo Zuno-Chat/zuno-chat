@@ -14,6 +14,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/retry_backoff.dart';
 import '../../matrix/bearer_authorization.dart';
+import '../../matrix/olm_sender.dart';
 import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
 import '../cloudflare/calls_module.dart';
@@ -482,14 +483,8 @@ class CallSession {
     if (_encryptionKey != null) return;
     if (event.type != callEncryptionKeyEventType) return;
 
-    final encryptedContent = event.encryptedContent;
-    if (encryptedContent == null) return;
-
-    final senderKey = encryptedContent['sender_key'];
-    if (senderKey is! String) return;
-    final device = client.getUserDeviceKeysByCurve25519Key(senderKey);
-    if (device == null || device.blocked) return;
-    if (device.userId != event.senderId) return;
+    final device = olmSenderDevice(client, event);
+    if (device == null) return;
 
     final key = parseCallEncryptionKeyContent(
       content: event.content,
@@ -497,9 +492,10 @@ class CallSession {
     );
     if (key == null) return;
 
-    final deviceId = device.deviceId;
-    if (deviceId == null) return;
-    final id = VoipParticipantId(userId: device.userId, deviceId: deviceId);
+    final id = VoipParticipantId(
+      userId: device.userId,
+      deviceId: device.deviceId!,
+    );
     if (!_currentCallParticipants().contains(id)) {
       if (_pendingKeys.length < _maxPendingKeys) _pendingKeys[id] = key;
       return;

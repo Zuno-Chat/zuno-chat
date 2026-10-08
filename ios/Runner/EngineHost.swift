@@ -99,6 +99,7 @@ final class EngineHost {
       ("ZunoVoipPlugin", VoipPlugin.self),
       ("ZunoLaunchPlugin", LaunchPlugin.self),
       ("ZunoNsePlugin", NsePlugin.self),
+      ("ZunoLiveLocationPlugin", LiveLocationPlugin.self),
     ]
     for plugin in plugins {
       if let registrar = engine.registrar(forPlugin: plugin.key) {

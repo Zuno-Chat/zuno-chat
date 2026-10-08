@@ -6,11 +6,11 @@ import android.content.Intent
 
 class CallActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val channel = MainActivity.callsChannel
-        when (CallHangUpDecision.decide(intent.action, channel != null)) {
-            CallHangUpAction.DeliverToDart -> channel?.invokeMethod(HANG_UP_METHOD, null)
-            CallHangUpAction.StopService -> CallForegroundService.stop(context)
-            CallHangUpAction.Ignore -> Unit
+        val channel = AppEngine.callsChannel
+        when (ServiceActionDecision.route(intent.action, ACTION_HANG_UP, channel != null)) {
+            ServiceActionRoute.DeliverToDart -> channel?.invokeMethod(HANG_UP_METHOD, null)
+            ServiceActionRoute.StopService -> CallForegroundService.stop(context)
+            ServiceActionRoute.Ignore -> Unit
         }
     }
 

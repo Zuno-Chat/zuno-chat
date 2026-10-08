@@ -22,6 +22,7 @@ Widget _host({
   required bool interactive,
   String? attribution = _credit,
   GeoUri geo = _geo,
+  bool persistTiles = true,
 }) => ProviderScope(
   overrides: [
     mapTilesProvider.overrideWith(
@@ -40,7 +41,11 @@ Widget _host({
     home: Scaffold(
       body: SizedBox.fromSize(
         size: interactive ? _fullScreenSize : _previewSize,
-        child: LocationMapView(geo: geo, interactive: interactive),
+        child: LocationMapView(
+          geo: geo,
+          interactive: interactive,
+          persistTiles: persistTiles,
+        ),
       ),
     ),
   ),
@@ -90,6 +95,15 @@ void main() {
     expect(tester.widget<TileLayer>(find.byType(TileLayer)).panBuffer, 0);
   });
 
+  testWidgets('a live view keeps its tiles off the disk', (tester) async {
+    await tester.pumpWidget(_host(interactive: false, persistTiles: false));
+    await tester.pump();
+
+    final layer = tester.widget<TileLayer>(find.byType(TileLayer));
+    final provider = layer.tileProvider as NetworkTileProvider;
+    expect(provider.cachingProvider, isA<DisabledMapCachingProvider>());
+  });
+
   testWidgets('tiles are fetched as Zuno, not as flutter_map', (tester) async {
     await tester.pumpWidget(_host(interactive: true));
     await tester.pump();
@@ -102,14 +116,14 @@ void main() {
     MapOptions optionsOf(WidgetTester tester) =>
         tester.widget<FlutterMap>(find.byType(FlutterMap)).options;
 
-    testWidgets('stops zooming out at neighbourhood level', (tester) async {
+    testWidgets('stops zooming out at city level', (tester) async {
       await tester.pumpWidget(_host(interactive: true));
       await tester.pump();
 
-      expect(optionsOf(tester).minZoom, 14);
+      expect(optionsOf(tester).minZoom, 12);
     });
 
-    testWidgets('pans no further than 5 km from the pin', (tester) async {
+    testWidgets('pans no further than 10 km from the pin', (tester) async {
       await tester.pumpWidget(_host(interactive: true));
       await tester.pump();
 
@@ -125,7 +139,7 @@ void main() {
           LatLng(bounds.south, pin.longitude),
           LatLng(bounds.north, pin.longitude),
         ),
-        closeTo(10, 0.5),
+        closeTo(20, 0.5),
       );
       expect(
         distance.as(
@@ -133,7 +147,7 @@ void main() {
           LatLng(pin.latitude, bounds.west),
           LatLng(pin.latitude, bounds.east),
         ),
-        closeTo(10, 0.5),
+        closeTo(20, 0.5),
       );
     });
 
@@ -156,6 +170,67 @@ void main() {
 
       expect(optionsOf(tester).minZoom, isNull);
       expect(optionsOf(tester).cameraConstraint, isA<UnconstrainedCamera>());
+    });
+  });
+
+  group('a moving pin', () {
+    const moved = GeoUri(latitude: 52.5603, longitude: 13.3777);
+
+    MapCamera cameraOf(WidgetTester tester) => tester
+        .widget<FlutterMap>(find.byType(FlutterMap))
+        .mapController!
+        .camera;
+
+    double metersFrom(WidgetTester tester, GeoUri geo) => const Distance().as(
+      LengthUnit.Meter,
+      cameraOf(tester).center,
+      LatLng(geo.latitude, geo.longitude),
+    );
+
+    testWidgets('a preview follows the pin', (tester) async {
+      await tester.pumpWidget(_host(interactive: false));
+      await tester.pump();
+
+      await tester.pumpWidget(_host(interactive: false, geo: moved));
+      await tester.pump();
+
+      expect(metersFrom(tester, moved), lessThan(1));
+    });
+
+    testWidgets('a full map follows the pin past its first neighbourhood', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_host(interactive: true));
+      await tester.pump();
+
+      await tester.pumpWidget(_host(interactive: true, geo: moved));
+      await tester.pump();
+
+      expect(metersFrom(tester, moved), lessThan(1));
+      final bounds =
+          (tester
+                      .widget<FlutterMap>(find.byType(FlutterMap))
+                      .options
+                      .cameraConstraint
+                  as ContainCamera)
+              .bounds;
+      expect(bounds.contains(LatLng(_geo.latitude, _geo.longitude)), isTrue);
+      expect(bounds.contains(LatLng(moved.latitude, moved.longitude)), isTrue);
+    });
+
+    testWidgets('a pin that stays put leaves the camera where it is', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_host(interactive: true));
+      await tester.pump();
+      await tester.drag(find.byType(FlutterMap), const Offset(0, 120));
+      await tester.pump(const Duration(seconds: 1));
+      final dragged = cameraOf(tester).center;
+
+      await tester.pumpWidget(_host(interactive: true));
+      await tester.pump();
+
+      expect(cameraOf(tester).center, dragged);
     });
   });
 }

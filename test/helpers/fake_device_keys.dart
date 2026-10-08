@@ -1,11 +1,10 @@
 import 'package:matrix/matrix.dart';
 
-DeviceKeys testDeviceKeys(
-  Client client,
+Map<String, Object?> _deviceKeysJson(
   String userId,
   String deviceId, {
   String? name,
-}) => DeviceKeys.fromJson({
+}) => {
   'user_id': userId,
   'device_id': deviceId,
   'algorithms': <String>[],
@@ -15,7 +14,22 @@ DeviceKeys testDeviceKeys(
   },
   'signatures': <String, Object?>{},
   if (name != null) 'unsigned': {'device_display_name': name},
-}, client);
+};
+
+DeviceKeys testDeviceKeys(
+  Client client,
+  String userId,
+  String deviceId, {
+  String? name,
+}) =>
+    DeviceKeys.fromJson(_deviceKeysJson(userId, deviceId, name: name), client);
+
+class SelfSignedTestDeviceKeys extends DeviceKeys {
+  SelfSignedTestDeviceKeys(super.json, super.client) : super.fromJson();
+
+  @override
+  bool get selfSigned => true;
+}
 
 DeviceKeysList _keysOf(Client client, String userId) =>
     client.userDeviceKeys[userId] ??= DeviceKeysList(userId, client);
@@ -30,6 +44,17 @@ DeviceKeysList setTestDevices(
   ..deviceKeys = {
     for (final MapEntry(key: id, value: name) in devices.entries)
       id: testDeviceKeys(client, userId, id, name: name),
+  };
+
+DeviceKeysList setSelfSignedTestDevices(
+  Client client,
+  String userId,
+  List<String> deviceIds,
+) => _keysOf(client, userId)
+  ..outdated = false
+  ..deviceKeys = {
+    for (final id in deviceIds)
+      id: SelfSignedTestDeviceKeys(_deviceKeysJson(userId, id), client),
   };
 
 CrossSigningKey testMasterKey(Client client, String userId) {

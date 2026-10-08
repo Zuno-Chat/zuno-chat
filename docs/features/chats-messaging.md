@@ -74,6 +74,10 @@ guesses on its own.
   surface.
 - **Call summaries** are ordinary `m.room.message` events with Zuno
   msgtypes, classified here like everything else.
+- **Live location starts** are `m.room.message` events with a Zuno
+  msgtype too. Their tile draws the live share while it runs and reads like
+  a deleted message once it ended; they offer no copy, and deleting your
+  own stops its share first (`location-sharing.md`).
 
 ## Rendering
 

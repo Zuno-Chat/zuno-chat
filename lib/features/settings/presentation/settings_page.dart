@@ -5,11 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/feedback.dart';
+import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/own_profile.dart';
-import '../../../core/notifications/notification_delivery_provider.dart';
+import '../../../core/matrix/sign_out.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_providers.dart';
@@ -160,13 +161,11 @@ class SettingsPage extends ConsumerWidget {
           MaterialPageRoute(builder: (_) => const SecureBackupPage()),
         );
       case _LogOutChoice.logOut:
-        await _logOut(ref.read(matrixClientProvider));
+        await signOutThisDevice(
+          ref.read(matrixClientProvider),
+          liveLocation: ref.read(liveLocationSharingProvider),
+        );
     }
-  }
-
-  Future<void> _logOut(Client client) async {
-    await stopAllNotificationDelivery(client);
-    await client.logout();
   }
 }
 

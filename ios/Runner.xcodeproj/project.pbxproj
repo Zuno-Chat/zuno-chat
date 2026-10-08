@@ -138,6 +138,7 @@
 		A05828E7E80A747B5163BA27 /* silent_ring.caf in Resources */ = {isa = PBXBuildFile; fileRef = 41636D566A3CA45659AB378F /* silent_ring.caf */; };
 		A0926627D046D9C3A37DBDAE /* NotifyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 660787025A6B7CABCE1FA8C0 /* NotifyStore.swift */; };
 		A175C65DF1E0D91592F4E082 /* CallProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E11F59974648F275128A92 /* CallProviding.swift */; };
+		A1B78852CD4921EC851A6436 /* LiveLocationSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2586BF67E26331D52926D2D /* LiveLocationSettingsTests.swift */; };
 		A1D6F623858335AB08E9917E /* NseComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F627B809A51563568A9D9251 /* NseComposer.swift */; };
 		A4668D4AC89C5A756153927F /* NseContentFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240F6C27E2132367A677987E /* NseContentFactoryTests.swift */; };
 		A488A74B768789A6B5E1262E /* NseCatchUpPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6D0BCBFC6EA6F9192D630EE /* NseCatchUpPlatform.swift */; };
@@ -163,6 +164,7 @@
 		BF54F69569357DEAB1DA8C32 /* ShareInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 041067C3B89CB667219F49E2 /* ShareInbox.swift */; };
 		C1A116C5341C63D2BE3F791D /* NsePipelineFakes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D881A265EB9E87B54C707B3 /* NsePipelineFakes.swift */; };
 		C48588B9E329F32D34C3EE17 /* NotificationCategories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1027D8D1024A54ADFADDF3A5 /* NotificationCategories.swift */; };
+		C5A0E6737732007AD6FE90DB /* LiveLocationPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403949012800862D639C17A1 /* LiveLocationPlugin.swift */; };
 		C6EDD6364FCEA73074C3DCB9 /* NsePipelineCatchUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0765FF193D0C6EA22AB938D /* NsePipelineCatchUp.swift */; };
 		C92D6367D944324CDEEA00F7 /* NotifySweep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BF31B25F6D9880611AF8BF5 /* NotifySweep.swift */; };
 		D28A46BE0853F5F06A21ACEE /* Ledger.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE984B87E9BCF77C3D638AD1 /* Ledger.swift */; };
@@ -304,6 +306,7 @@
 		37B028565504235C6399A1F5 /* CallKitCenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CallKitCenter.swift; sourceTree = "<group>"; };
 		3B3653C6B521218169CDF707 /* SealedFile.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SealedFile.swift; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		403949012800862D639C17A1 /* LiveLocationPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveLocationPlugin.swift; sourceTree = "<group>"; };
 		405059E2B0D83EBA20FD167C /* NotifySweepTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotifySweepTests.swift; sourceTree = "<group>"; };
 		41636D566A3CA45659AB378F /* silent_ring.caf */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file; path = silent_ring.caf; sourceTree = "<group>"; };
 		41CCBA4CDE990946218D65AA /* CallAudio.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CallAudio.swift; sourceTree = "<group>"; };
@@ -382,6 +385,7 @@
 		9F1BDB19F7EB389CBBDC260D /* NotifyStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotifyStoreTests.swift; sourceTree = "<group>"; };
 		A202C062FE9AE66393C51C6E /* NseStateFakes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NseStateFakes.swift; sourceTree = "<group>"; };
 		A23D6BE883901C8F99B8FBF0 /* DeliveredSweepTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeliveredSweepTests.swift; sourceTree = "<group>"; };
+		A2586BF67E26331D52926D2D /* LiveLocationSettingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveLocationSettingsTests.swift; sourceTree = "<group>"; };
 		A267C325615245155A8F0AFC /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A526BC54B7BC68917800194C /* NsePipeline.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NsePipeline.swift; sourceTree = "<group>"; };
 		A7086E78353C1BDCCB9D1166 /* ApnsTokenPluginTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ApnsTokenPluginTests.swift; sourceTree = "<group>"; };
@@ -529,6 +533,7 @@
 				DDDAE7D1512287EA652F8AC5 /* NseCatchUpRenderTests.swift */,
 				25929F2CE82BFFCE70399287 /* EarlyPresentationTests.swift */,
 				45B07DA367CA8414D2789776 /* CallPictureInPictureTests.swift */,
+				A2586BF67E26331D52926D2D /* LiveLocationSettingsTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -716,6 +721,7 @@
 				987E5D8D63217B95F0BE45C7 /* PushDiagExtras.swift */,
 				B6BBD847B520364DC175E6CE /* MetricSummaries.swift */,
 				73C26F74F25FBC9833C9B957 /* CallPictureInPicture.swift */,
+				403949012800862D639C17A1 /* LiveLocationPlugin.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -1109,6 +1115,7 @@
 				9FD595B27C483E8DDDE69869 /* NseCatchUpRenderTests.swift in Sources */,
 				2AD93008E823AE0849A008D7 /* EarlyPresentationTests.swift in Sources */,
 				1E744E247967904AEF90580C /* CallPictureInPictureTests.swift in Sources */,
+				A1B78852CD4921EC851A6436 /* LiveLocationSettingsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1202,6 +1209,7 @@
 				C6EDD6364FCEA73074C3DCB9 /* NsePipelineCatchUp.swift in Sources */,
 				12E384AE927A2127744FFA29 /* ReplyNotSentNotice.swift in Sources */,
 				0D99D5165D1CAF80676491B2 /* CallPictureInPicture.swift in Sources */,
+				C5A0E6737732007AD6FE90DB /* LiveLocationPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

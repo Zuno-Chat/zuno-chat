@@ -48,6 +48,7 @@ import '../../../core/security/unverified_device_warning_provider.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../calls/presentation/incoming_call_page.dart';
 import '../../communities/presentation/community_page.dart';
+import '../../location/presentation/own_live_location_banner.dart';
 import '../../onboarding/presentation/onboarding_flow_page.dart';
 import '../../settings/presentation/secure_backup_page.dart';
 import '../../settings/presentation/settings_page.dart';
@@ -635,6 +636,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
               children: [
                 const NewDeviceAlertBanner(),
                 const NotificationDeliveryBanner(),
+                OwnLiveLocationBanner(onOpen: open),
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: () => _refresh(context, client),

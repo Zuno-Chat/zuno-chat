@@ -1,21 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/location/live_location_protocol.dart';
+import 'package:zuno/core/location/live_location_sharing.dart';
+import 'package:zuno/core/location/live_location_viewing.dart';
+import 'package:zuno/core/location/map_tiles_provider.dart';
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/data/message_row_data.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
+import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
 import 'package:zuno/features/chat/presentation/message_tile.dart';
 import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/reply_target_cache.dart';
 import 'package:zuno/features/chat/presentation/swipe_to_reply.dart';
+import 'package:zuno/features/location/presentation/live_location_map_page.dart';
 
+import '../../../helpers/fake_live_location.dart';
 import '../../../helpers/fake_matrix.dart';
 
 const me = '@me:example.org';
@@ -63,6 +72,7 @@ void main() {
     Event? older,
     bool canReply = true,
     ReplyTargetCache? cache,
+    List<Override> overrides = const [],
   }) async {
     final all = events ?? [event];
     db.events = all;
@@ -85,6 +95,7 @@ void main() {
     );
     await tester.pumpWidget(
       ProviderScope(
+        overrides: overrides,
         child: MaterialApp(
           theme: zunoLightTheme,
           home: Scaffold(
@@ -459,5 +470,151 @@ void main() {
       tester.getSize(find.byType(MessageBubble)).width,
       closeTo(800 * 2 / 3, 0.5),
     );
+  });
+
+  group('live location', () {
+    late DateTime now;
+
+    List<Override> liveOverrides() => [
+      matrixClientProvider.overrideWithValue(client),
+      liveLocationViewingProvider.overrideWith((ref) {
+        final viewing = LiveLocationViewing(
+          client: client,
+          isOffline: () => false,
+        );
+        ref.onDispose(viewing.dispose);
+        return viewing;
+      }),
+      liveLocationSharingProvider.overrideWith((ref) {
+        final sharing = LiveLocationSharing(
+          client: client,
+          capture: FakeLiveLocationCapture(),
+          isOffline: () => false,
+          recipients: (_) async => const [],
+        );
+        ref.onDispose(sharing.dispose);
+        return sharing;
+      }),
+      mapTilesProvider.overrideWith((ref) async => null),
+    ];
+
+    Event start() => buildTestEvent(
+      room,
+      eventId: '\$start',
+      senderId: bob,
+      originServerTs: now,
+      content: liveLocationStartContent(
+        shareId: 'share1',
+        endsAt: now.add(const Duration(hours: 1)),
+        duration: LiveLocationDuration.hour,
+      ),
+    );
+
+    setUp(() {
+      now = DateTime.now();
+      client.rooms.add(room);
+      room.setState(
+        buildTestEvent(
+          room,
+          eventId: '\$encryption',
+          senderId: bob,
+          type: EventTypes.Encryption,
+          stateKey: '',
+          originServerTs: now,
+          content: {'algorithm': AlgorithmTypes.megolmV1AesSha2},
+        ),
+      );
+    });
+
+    testWidgets('a live share opens its map on the sender', (tester) async {
+      room.setState(
+        buildTestEvent(
+          room,
+          eventId: '\$live',
+          senderId: bob,
+          type: liveLocationStateType,
+          stateKey: bob,
+          originServerTs: now,
+          content: LiveShareState(
+            shareId: 'share1',
+            deviceId: 'PHONE',
+            endsAt: now.add(const Duration(hours: 1)),
+          ).toContent(),
+        ),
+      );
+      await pumpTile(tester, start(), overrides: liveOverrides());
+
+      await tester.tap(find.byIcon(Icons.share_location_outlined).first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(
+        tester
+            .widget<LiveLocationMapPage>(find.byType(LiveLocationMapPage))
+            .focus,
+        bob,
+      );
+    });
+
+    testWidgets('a live share keeps the map frame', (tester) async {
+      room.setState(
+        buildTestEvent(
+          room,
+          eventId: '\$live',
+          senderId: bob,
+          type: liveLocationStateType,
+          stateKey: bob,
+          originServerTs: now,
+          content: LiveShareState(
+            shareId: 'share1',
+            deviceId: 'PHONE',
+            endsAt: now.add(const Duration(hours: 1)),
+          ).toContent(),
+        ),
+      );
+      await pumpTile(tester, start(), overrides: liveOverrides());
+
+      final bubble = tester.widget<MessageBubble>(find.byType(MessageBubble));
+      expect(bubble.padding, const EdgeInsets.all(mediaInset));
+      expect(
+        tester.getSize(find.byType(MessageBubble)).width,
+        closeTo(
+          tester.view.physicalSize.width / tester.view.devicePixelRatio * 2 / 3,
+          0.5,
+        ),
+      );
+    });
+
+    testWidgets('an ended share reads like a deleted message, time and all', (
+      tester,
+    ) async {
+      await pumpTile(tester, start(), overrides: liveOverrides());
+
+      final bubble = tester.widget<MessageBubble>(find.byType(MessageBubble));
+      expect(bubble.padding, isNot(const EdgeInsets.all(mediaInset)));
+      expect(find.byType(MessageMeta), findsOneWidget);
+      expect(
+        tester.getBottomLeft(find.byType(MessageMeta)).dy,
+        closeTo(tester.getBottomLeft(find.text('Live location ended')).dy, 3),
+      );
+      expect(
+        tester.getSize(find.byType(MessageBubble)).width,
+        lessThan(
+          tester.view.physicalSize.width / tester.view.devicePixelRatio * 2 / 3,
+        ),
+      );
+    });
+
+    testWidgets('an ended share reads as ended and opens nothing', (
+      tester,
+    ) async {
+      await pumpTile(tester, start(), overrides: liveOverrides());
+
+      expect(find.text('Live location ended'), findsOneWidget);
+      await tester.tap(find.text('Live location ended'));
+      await tester.pump();
+
+      expect(find.byType(LiveLocationMapPage), findsNothing);
+    });
   });
 }

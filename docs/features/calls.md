@@ -160,7 +160,8 @@ tier.
   whose ordered ratchet does not suit lossy media.
 - **The key travels Olm-encrypted over to-device**, from any device holding
   it to each device that joins. The first valid key wins: one from a
-  known, unblocked device of a current participant.
+  known, unblocked device of a current participant, looked up only among
+  its sender's own devices.
 - **The key is never rotated**, since rotating on every departure would
   interrupt everyone's media.
 - **Media is gated on keys.** Local tracks stay disabled until their frame
@@ -210,11 +211,15 @@ video while the screen is recorded or mirrored.
 ### The Android engine during a call
 
 Closing the picture-in-picture window or swiping the task away destroys the
-activity, which would take the Flutter engine and the call with it. During
-a call `MainActivity` hands the engine to `KeptEngine` instead, and the
-call carries on behind `CallForegroundService` until it ends or the system
-kills it. The next activity adopts the engine and re-applies its
+activity, which would take the Flutter engine and the call with it. While a
+call or a live location share runs, `MainActivity` hands the engine to
+`KeptEngine` instead, which keeps it for as long as any of those reasons
+holds; the call carries on behind `CallForegroundService` until it ends or
+the system kills it. The next activity adopts the engine and re-applies its
 per-engine state, such as lock-screen display, the wake lock and ringback.
+An old activity can finish after a new one has set up its engine, so
+engine-wide state (the push flag, the calls channel, live location
+capture) is released only by the engine that set it.
 
 ### Ringing
 

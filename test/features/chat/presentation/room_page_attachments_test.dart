@@ -12,9 +12,12 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/location/live_location_protocol.dart';
+import 'package:zuno/core/location/live_location_sharing.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
@@ -24,6 +27,8 @@ import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
 
 import '../../../helpers/fake_attachments.dart';
+import '../../../helpers/fake_geolocator.dart';
+import '../../../helpers/fake_live_location.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_video_player.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -83,35 +88,6 @@ class _FakeFilePicker extends FilePickerPlatform {
   }
 }
 
-class _FakeGeolocator extends GeolocatorPlatform {
-  @override
-  Future<bool> isLocationServiceEnabled() async => true;
-
-  @override
-  Future<LocationPermission> checkPermission() async =>
-      LocationPermission.whileInUse;
-
-  @override
-  Future<LocationAccuracyStatus> getLocationAccuracy() async =>
-      LocationAccuracyStatus.precise;
-
-  @override
-  Future<Position> getCurrentPosition({
-    LocationSettings? locationSettings,
-  }) async => Position(
-    latitude: 52.37,
-    longitude: 4.89,
-    timestamp: DateTime(2026, 9, 27),
-    accuracy: 12,
-    altitude: 0,
-    altitudeAccuracy: 0,
-    heading: 0,
-    headingAccuracy: 0,
-    speed: 0,
-    speedAccuracy: 0,
-  );
-}
-
 XFile _photo(String name) => XFile.fromData(
   img.encodeJpg(img.Image(width: 64, height: 48)),
   path: '/picked/$name',
@@ -141,7 +117,8 @@ void main() {
     final originalGeolocator = GeolocatorPlatform.instance;
     ImagePickerPlatform.instance = picker;
     FilePickerPlatform.instance = files;
-    GeolocatorPlatform.instance = _FakeGeolocator();
+    GeolocatorPlatform.instance = FakeGeolocator()
+      ..position = fakePosition(latitude: 52.37, longitude: 4.89, accuracy: 12);
     installFakeVideoPlayer();
     temp = Directory.systemTemp.createTempSync('zuno_room_send_');
     final messenger =
@@ -189,6 +166,8 @@ void main() {
   Future<void> openRoom(
     WidgetTester tester, {
     List<Override> overrides = const [],
+    bool encrypting = false,
+    void Function(Room room)? prepare,
   }) async {
     ambientCapabilities = capabilitiesLike(
       iosCapabilities,
@@ -199,7 +178,9 @@ void main() {
       db: SendingFakeDatabaseApi(),
       capabilities: capabilitiesLike(iosCapabilities, nativeImageResize: false),
       overrides: overrides,
+      encrypting: encrypting,
     );
+    prepare?.call(harness.room);
     harness.respond = (request) {
       final path = request.url.path;
       if (path.endsWith('/media/config') && uploadLimit != null) {
@@ -691,6 +672,85 @@ void main() {
 
       expect(find.text('Location not sent. Try again.'), findsOneWidget);
     });
+
+    group('live', () {
+      late _StartRecordingSharing sharing;
+
+      Future<void> openEncryptedRoom(WidgetTester tester) => openRoom(
+        tester,
+        encrypting: true,
+        overrides: [
+          mapTilesProvider.overrideWith((ref) async => null),
+          liveLocationSharingProvider.overrideWith((ref) {
+            sharing = _StartRecordingSharing(ref.watch(matrixClientProvider));
+            ref.onDispose(sharing.dispose);
+            return sharing;
+          }),
+        ],
+        prepare: (room) {
+          room.setState(
+            buildTestEvent(
+              room,
+              eventId: r'$encryption',
+              senderId: '@me:example.org',
+              type: EventTypes.Encryption,
+              stateKey: '',
+              content: {'algorithm': AlgorithmTypes.megolmV1AesSha2},
+            ),
+          );
+          room.setState(
+            buildTestEvent(
+              room,
+              eventId: r'$power',
+              senderId: '@me:example.org',
+              type: EventTypes.RoomPowerLevels,
+              stateKey: '',
+              content: {
+                'users': {'@me:example.org': 100},
+              },
+            ),
+          );
+        },
+      );
+
+      Future<void> startLive(WidgetTester tester) async {
+        await choose(tester, 'Location');
+        await harness.drive(tester, turns: 4);
+        await tester.tap(find.text('Share live location'));
+        await harness.drive(tester, turns: 4);
+        await tester.tap(find.text('Start sharing'));
+        await harness.drive(tester);
+      }
+
+      testWidgets('shares the found location for the chosen time', (
+        tester,
+      ) async {
+        await openEncryptedRoom(tester);
+
+        await startLive(tester);
+
+        final started = sharing.started.single;
+        expect(started.roomId, harness.room.id);
+        expect(started.duration, LiveLocationDuration.quarterHour);
+        expect(started.first.geo.latitude, 52.37);
+        expect(started.first.geo.longitude, 4.89);
+      });
+
+      testWidgets('a share that cannot start says why', (tester) async {
+        await openEncryptedRoom(tester);
+        sharing.refusal = LiveShareStartFailure.captureUnavailable;
+
+        await startLive(tester);
+
+        expect(
+          find.text(
+            'Live location could not start. Check that location is on, '
+            'then try again.',
+          ),
+          findsOneWidget,
+        );
+      });
+    });
   });
 
   testWidgets('an unsent message goes again once back online', (tester) async {
@@ -725,4 +785,28 @@ void main() {
 
     expect(harness.sent.single['body'], 'still there?');
   });
+}
+
+class _StartRecordingSharing extends LiveLocationSharing {
+  _StartRecordingSharing(Client client)
+    : super(
+        client: client,
+        capture: FakeLiveLocationCapture(),
+        isOffline: () => false,
+        recipients: (_) async => const [],
+      );
+
+  final started =
+      <({String roomId, LiveLocationDuration duration, LivePosition first})>[];
+  LiveShareStartFailure? refusal;
+
+  @override
+  Future<void> start(
+    Room room,
+    LiveLocationDuration duration,
+    LivePosition first,
+  ) async {
+    if (refusal case final reason?) throw LiveShareStartException(reason);
+    started.add((roomId: room.id, duration: duration, first: first));
+  }
 }

@@ -34,6 +34,7 @@ enum NseClassifier {
   static let callInviteType = "im.zuno.call_invite"
   static let callDeclineType = "im.zuno.call_decline"
   static let callSummaryType = "im.zuno.call_summary"
+  static let liveLocationType = "im.zuno.live_location"
   static let verificationRequestType = "m.key.verification.request"
 
   static func classify(_ event: NseEvent, ownUserId: String, nowMs: Int64) -> NseClass {
@@ -96,6 +97,7 @@ enum NseClassifier {
       return (body(event), false)
     }
     if msgtype == "m.location" { return ("Location", false) }
+    if msgtype == liveLocationType { return ("Live location", false) }
     return (stripReplyFallback(plaintextBody(event)), false)
   }
 

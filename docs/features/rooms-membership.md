@@ -84,9 +84,9 @@ files.
   |---|---|
   | Admin | Name, topic, photo, address, settings, history visibility, permissions, encryption |
   | Moderator | Remove, ban, delete others' messages, notify everyone |
-  | Member | Invite, send messages, start or join calls |
+  | Member | Invite, send messages, start or join calls, share live location |
 
-  A public room differs only in calls, which need a moderator. The table applies at creation only: making an existing room public leaves the permissions an admin may have set.
+  A public room differs only in calls and live location, which need a moderator. The table applies at creation only: making an existing room public leaves the permissions an admin may have set.
 - **Edits are optimistic.** Settings, access, role and member changes write local state once the server accepts them, because the SDK setters return only an event ID and a page would otherwise stay stale.
 
 **Roles and permissions**

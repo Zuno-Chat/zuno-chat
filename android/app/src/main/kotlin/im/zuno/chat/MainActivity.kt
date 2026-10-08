@@ -29,6 +29,7 @@ import android.view.WindowManager
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import im.zuno.chat.zuno_notifications.RoomLaunchIntent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -41,6 +42,7 @@ import java.util.concurrent.Executors
 class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var shareChannel: MethodChannel? = null
+    private var callsChannel: MethodChannel? = null
     private var networkStreamHandler: NetworkAvailabilityStreamHandler? = null
     private var fcmEngineId: Int? = null
     private var adopted: KeptEngine.Kept? = null
@@ -77,7 +79,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun engineFate(): HostEngineFate =
-        HostEngineDecision.onHostDetached(KeptEngine.callActive, adopted != null)
+        HostEngineDecision.onHostDetached(KeptEngine.keepAlive, adopted != null)
 
     override fun shouldDestroyEngineWithHost(): Boolean = when (engineFate()) {
         HostEngineFate.Keep -> false
@@ -101,7 +103,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         val kept = adopted
         host = kept?.host ?: HostState(this)
-        ZunoPushService.appEngineAlive = true
+        AppEngine.attach(flutterEngine)
         fcmEngineId = kept?.fcmEngineId?.also { FcmRouter.rebindApp(it, this) }
             ?: FcmRouter.attachApp(flutterEngine, this)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ZunoPushService.WAKELOCK_CHANNEL)
@@ -130,7 +132,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        if (kept == null) pendingRoomId = intent?.getStringExtra(EXTRA_ROOM_ID)
+        if (kept == null) pendingRoomId = intent?.getStringExtra(RoomLaunchIntent.EXTRA_ROOM_ID)
 
         val shareChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
         this.shareChannel = shareChannel
@@ -156,8 +158,11 @@ class MainActivity : FlutterActivity() {
                 .setStreamHandler(it)
         }
 
+        LiveLocationChannel.register(flutterEngine, this)
+
         val callsChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CALLS_CHANNEL)
-        Companion.callsChannel = callsChannel
+        this.callsChannel = callsChannel
+        AppEngine.bindCalls(flutterEngine, callsChannel)
         callsChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "setShowOverLockscreen" -> {
@@ -171,7 +176,7 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "startCallForegroundService" -> {
-                    KeptEngine.callStarted()
+                    KeptEngine.hold(EngineKeepReason.Call)
                     CallForegroundService.start(
                         applicationContext,
                         title = call.argument<String>("title") ?: "Ongoing call",
@@ -182,7 +187,7 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "stopCallForegroundService" -> {
-                    KeptEngine.callEnded()
+                    KeptEngine.release(EngineKeepReason.Call)
                     CallForegroundService.stop(applicationContext)
                     result.success(null)
                 }
@@ -641,7 +646,7 @@ class MainActivity : FlutterActivity() {
             shareChannel?.invokeMethod("share", share)
             return
         }
-        val roomId = intent.getStringExtra(EXTRA_ROOM_ID) ?: return
+        val roomId = intent.getStringExtra(RoomLaunchIntent.EXTRA_ROOM_ID) ?: return
         channel?.invokeMethod("openRoom", roomId)
     }
 
@@ -702,10 +707,7 @@ class MainActivity : FlutterActivity() {
     ): Boolean {
         if (!ShortcutManagerCompat.isRequestPinShortcutSupported(this)) return false
 
-        val intent = Intent(this, MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            putExtra(EXTRA_ROOM_ID, roomId)
-        }
+        val intent = RoomLaunchIntent.forRoom(this, roomId)
 
         val icon = if (iconBytes != null) {
             IconCompat.createWithBitmap(BitmapFactory.decodeByteArray(iconBytes, 0, iconBytes.size))
@@ -761,10 +763,8 @@ class MainActivity : FlutterActivity() {
         private const val DEVICE_SAFETY_CHANNEL = "zuno/device_safety"
         private const val APP_DATA_CHANNEL = "zuno/app_data"
         private const val PUSH_DIAG_CHANNEL = "zuno/push_diag"
-        private const val EXTRA_ROOM_ID = "room_id"
         private const val PIP_HANG_UP_REQUEST_CODE = 4102
         private var pendingRoomId: String? = null
         private var pendingShare: Map<String, Any?>? = null
-        var callsChannel: MethodChannel? = null
     }
 }

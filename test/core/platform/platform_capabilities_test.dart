@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/location/maps_link.dart';
 import 'package:zuno/core/notifications/background_sync_service.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/app_platform.dart';
@@ -291,6 +292,18 @@ final _capabilities = <_Capability>[
     read: (c) => c.externalPaymentLinks,
     android: true,
     ios: false,
+  ),
+  _Capability(
+    'liveLocation',
+    read: (c) => c.liveLocation,
+    android: true,
+    ios: true,
+  ),
+  _Capability(
+    'mapsApp',
+    read: (c) => c.mapsApp,
+    android: MapsApp.geoIntent,
+    ios: MapsApp.appleMaps,
   ),
   _Capability(
     'deliveryModes',

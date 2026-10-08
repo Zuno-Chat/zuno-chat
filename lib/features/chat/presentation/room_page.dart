@@ -23,6 +23,8 @@ import '../../../core/calls/models/call_kind.dart';
 import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/files/picked_file.dart';
+import '../../../core/location/live_location_availability.dart';
+import '../../../core/location/live_location_sharing.dart';
 import '../../../core/location/location_message.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/attachment_action_buttons.dart';
@@ -59,6 +61,8 @@ import '../../../core/shortcuts/home_screen_shortcut.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../calls/presentation/call_page.dart';
 import '../../communities/presentation/join_requests_view.dart';
+import '../../location/presentation/live_location_banner.dart';
+import '../../location/presentation/live_location_text.dart';
 import '../../location/presentation/location_share_sheet.dart';
 import '../../reports/presentation/report_sheet.dart';
 import '../../room_info/presentation/room_info_page.dart';
@@ -708,6 +712,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
     final messenger = ScaffoldMessenger.of(context);
     try {
+      await ref.read(liveLocationSharingProvider).stopShareStartedBy(event);
       await widget.room.redactEvent(event.eventId);
     } catch (e) {
       logCaught('delete message', e);
@@ -733,10 +738,17 @@ class _RoomPageState extends ConsumerState<RoomPage>
         !event.hasAttachment &&
         displayEvent.messageType == MessageTypes.Text;
     final attachmentKind = classifyAttachment(displayEvent);
-    final isAttachment =
-        attachmentKind != AttachmentKind.none &&
-        attachmentKind != AttachmentKind.location;
-    final isTextMessage = !isAttachment;
+    final isAttachment = switch (attachmentKind) {
+      AttachmentKind.none ||
+      AttachmentKind.location ||
+      AttachmentKind.liveLocation => false,
+      AttachmentKind.image ||
+      AttachmentKind.video ||
+      AttachmentKind.voice ||
+      AttachmentKind.file => true,
+    };
+    final isTextMessage =
+        !isAttachment && attachmentKind != AttachmentKind.liveLocation;
     final galleryCount = galleryEvents?.length ?? 0;
 
     final action = await showMessageActionsSheet(
@@ -1393,14 +1405,34 @@ class _RoomPageState extends ConsumerState<RoomPage>
   }
 
   Future<void> _sendLocation() async {
-    final geo = await showLocationShareSheet(context);
-    if (geo == null || !mounted) return;
-    try {
-      await widget.room.sendEvent(
-        locationMessageContent(geo, timestamp: DateTime.now()),
-      );
-    } catch (_) {
-      if (mounted) _snack('Location not sent. Try again.');
+    final sharing = ref.read(liveLocationSharingProvider);
+    final room = widget.room;
+    final choice = await showLocationShareSheet(
+      context,
+      liveLocation: ref.read(platformCapabilitiesProvider).liveLocation
+          ? liveLocationAvailability(
+              room,
+              sharingHere: sharing.isSharingIn(room.id),
+            )
+          : LiveLocationAvailability.unavailable,
+      inChat: room.isDirectChat,
+    );
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case SendPin(:final geo):
+        try {
+          await room.sendEvent(
+            locationMessageContent(geo, timestamp: DateTime.now()),
+          );
+        } catch (_) {
+          if (mounted) _snack('Location not sent. Try again.');
+        }
+      case ShareLive(:final first, :final duration):
+        try {
+          await sharing.start(room, duration, first);
+        } on LiveShareStartException catch (error) {
+          if (mounted) _snack(liveShareStartFailureText(error.reason));
+        }
     }
   }
 
@@ -1679,6 +1711,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
                       call: activeRoomCall,
                       onJoin: () => _joinActiveCall(activeRoomCall),
                     ),
+                  LiveLocationBanner(room: widget.room),
                   Expanded(
                     child: timeline == null
                         ? _TimelinePlaceholder(loading: routeSettled)

@@ -100,7 +100,7 @@ sequenceDiagram
 
 | Path | Steps, in order |
 |---|---|
-| Sign out (Settings, or this device in Your devices) | `stopAllNotificationDelivery`, then `client.logout()` |
+| Sign out (Settings, or this device in Your devices) | Clear live location shares (bounded), `stopAllNotificationDelivery`, then `client.logout()` |
 | Delete account | Warning, typed username, password, `deactivateAccount(erase: true)`, best-effort push teardown, then `client.clear()` |
 
 Both paths end in `client.clear`, which triggers the `_AuthGate` wipe;
@@ -209,7 +209,8 @@ What the push teardown does is in `notifications.md`.
 - **Sign-out stops push before `logout()`, deletion after deactivating.**
   Sign-out must tear down while the token still works, while deletion can
   still fail at its password prompt, and tearing down first would silence a
-  live account.
+  live account. Live location shares are cleared first for the same reason:
+  only a working token can write their end.
 
 ### Device safety (Android only)
 

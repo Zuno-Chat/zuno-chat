@@ -38,7 +38,7 @@ class ZunoPushService : UnifiedPushService() {
     @Synchronized
     private fun ensureDeliveryEngine() {
         val action = PushEngineDecision.decide(
-            appEngineAlive = appEngineAlive,
+            appEngineAlive = AppEngine.alive,
             headlessEngineGeneration = headlessEngineGeneration,
             pluginCount = Plugin.count,
         )
@@ -82,7 +82,7 @@ class ZunoPushService : UnifiedPushService() {
             PushKind.BADGE -> Unit
         }
         val hold = PushEngineDecision.shouldHoldWakeLock(
-            appEngineAlive = appEngineAlive,
+            appEngineAlive = AppEngine.alive,
             hasHeadlessEngine = headlessEngine != null,
         )
         if (hold) holdWakeLock(applicationContext, eventId)
@@ -187,8 +187,5 @@ class ZunoPushService : UnifiedPushService() {
 
         @Volatile
         var headlessEngineGeneration: Int? = null
-
-        @Volatile
-        var appEngineAlive = false
     }
 }

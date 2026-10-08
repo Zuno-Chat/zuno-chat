@@ -116,6 +116,8 @@ class _LastMessagePreviewState extends State<LastMessagePreview> {
         );
       case MessageKind.location:
         return _iconLine(context, Icons.location_on_outlined, summary.text);
+      case MessageKind.liveLocation:
+        return _iconLine(context, Icons.share_location_outlined, summary.text);
       case MessageKind.callSummary:
         final missed = summary.call!.status == CallSummaryStatus.missed;
         return _iconLine(

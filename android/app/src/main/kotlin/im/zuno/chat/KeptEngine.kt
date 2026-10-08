@@ -10,6 +10,7 @@ import android.util.Rational
 import io.flutter.embedding.engine.FlutterEngine
 
 class HostState(context: Context) {
+    val context: Context = context.applicationContext
     private val powerManager = context.applicationContext.getSystemService(
         Context.POWER_SERVICE,
     ) as PowerManager
@@ -72,9 +73,9 @@ object KeptEngine {
         val host: HostState,
     ) {
         fun releaseHost() {
-            ZunoPushService.appEngineAlive = false
+            AppEngine.detach(engine)
             fcmEngineId?.let { FcmRouter.detachApp(it) }
-            MainActivity.callsChannel = null
+            LiveLocationChannel.detach(engine, host.context)
             network?.stop()
             host.release()
         }
@@ -85,17 +86,18 @@ object KeptEngine {
     private val releaseLater = Runnable { release() }
     private var kept: Kept? = null
 
-    var callActive = false
-        private set
+    private val reasons = EngineKeepReasons()
 
-    fun callStarted() {
-        callActive = true
+    val keepAlive: Boolean get() = reasons.any
+
+    fun hold(reason: EngineKeepReason) {
+        reasons.hold(reason)
         main.removeCallbacks(releaseLater)
     }
 
-    fun callEnded() {
-        callActive = false
-        if (kept == null) return
+    fun release(reason: EngineKeepReason) {
+        reasons.release(reason)
+        if (reasons.any || kept == null) return
         main.removeCallbacks(releaseLater)
         main.postDelayed(releaseLater, RELEASE_GRACE_MS)
     }

@@ -117,7 +117,7 @@ Each flag is one of these kinds:
 
 | Kind | Examples |
 |---|---|
-| Native handler on both platforms | `screenSecurity`, `inboundShare`, `nativeSignOutWipe`, `clientLease`, `pictureInPicture` |
+| Native handler on both platforms | `screenSecurity`, `inboundShare`, `nativeSignOutWipe`, `clientLease`, `pictureInPicture`, `liveLocation` |
 | Awaiting an iOS handler | `deviceSafetyChecks` |
 | Off on iOS by design (`../decisions/ios-push-and-ring.md`) | `notificationImages`, `notificationAvatars` |
 | Android concept, iOS `false` for good | `batteryExemption`, `foregroundSyncService`, `fullScreenIntent`, `homeScreenShortcuts` |
@@ -125,6 +125,7 @@ Each flag is one of these kinds:
 | iOS-only behavior | `apnsRegistration`, `voipRing`, `nseNotifications`, `signOutWipeKeepsProcess` |
 | Call seam selectors | `nativeIncomingRingUi`, `callForegroundService` and `nativeRingbackTone` on Android, `callKit` on iOS. The factories check `callKit` first, so the Android three never flip. |
 | Apple limitation | `recorderWritesOgg` (Apple cannot write Ogg), `screenshotBlocking` (no app can block a screenshot) |
+| Per-platform value | `mapsApp` (a `geo:` intent on Android, Apple Maps on iOS), `deliveryModes` |
 
 The `zuno/*` channels, each behind its flag:
 
@@ -133,6 +134,7 @@ The `zuno/*` channels, each behind its flag:
 | Calls (`calls.md`) | `zuno/calls`: call presentation, ringback, audio routes, screen security and the sensitive clipboard | `zuno/call_style` | `zuno/voip` |
 | Push and notifications (`notifications.md`) | `zuno/push_wakelock`, `zuno/push_diag` | `zuno/fcm`, `zuno/background_sync`, `zuno/conversations`, `zuno/vibration` | `zuno/apns`, `zuno/nse`, `zuno/notification_actions` |
 | Media and uploads | `zuno/image`, `zuno/video`, `zuno/upload_service` | | |
+| Live location (`location-sharing.md`) | `zuno/live_location`, with its fix stream `zuno/live_location/fixes` | | |
 | App | `zuno/app_data` (the sign-out wipe), `zuno/client_lease`, `zuno/network`, `zuno/shortcuts`, `zuno/share`, `zuno/wake_lock` | `zuno/device_safety` | `zuno/launch` (the wake reason) |
 
 ### iOS project
@@ -242,6 +244,7 @@ stateDiagram-v2
 **Backgrounding pauses `/sync`.** `_AuthGate` calls `client.abortSync()` on `paused`, which also tears down the in-flight long-poll, and sets `client.backgroundSync = true` on `resumed`.
 - The background-service delivery mode is exempt, since keeping `/sync` alive is its whole purpose.
 - A call or a ring keeps sync running, because a call learns of the other side leaving, and a ring of an answer elsewhere, only through sync. A CallKit answer on the lock screen never resumes the app, so on iOS a ring or call that starts in the background turns sync back on.
+- A live location share keeps sync running too, because watches and membership changes arrive only through sync (`location-sharing.md`). While only a share keeps it alive, the app drives sync itself with a longer long-poll: an idle long-poll costs a radio wake-up per round, and it returns as soon as anything arrives, so a longer one loses no latency. A long-poll that fails after a long wait means something between the device and the server cuts long requests, so it falls back to the SDK's length for the rest of the session.
 - Attachment sends survive backgrounding: `abortSync()` leaves the HTTP client alone, and an in-flight send holds a foreground service or background task (`chats-messaging.md`).
 
 ### Errors
@@ -275,7 +278,8 @@ stateDiagram-v2
 **Client, SDK and Riverpod**
 - **`vod.init()` throws on a second call in the same isolate**, so always use `ensureVodozemacInitialized()`.
 - **The SDK's `BoxCollection.transaction` has no `try/finally`**, so after a throwing action, later direct writes land in a batch nobody commits while the cache already shows them.
-- **`Client.importantStateEvents` must list every state type a feature needs live**, or the SDK silently drops its live updates in rooms that are not fully loaded (`m.call.member` is there for this).
+- **`Client.importantStateEvents` must list every state type a feature needs live**, or the SDK silently drops its live updates in rooms that are not fully loaded (`m.call.member` and `im.zuno.live_location` are there for this).
+- **The SDK's in-memory log buffer grows without bound** and could hold anything the SDK logs, so the client keeps no history of it.
 - **`oneShotSync` joins an in-flight long-poll instead of starting a sync**, so any "refresh now" goes through `forceSyncNow` (`force_sync.dart`), which aborts first and restores the sync loop afterwards.
 - **`softLoggedOut` is a token refresh in flight, not a sign-out**: only `loggedOut` reads as signed out.
 - **Riverpod 3 retries a failed provider on its own**, so a `FutureProvider` whose error must reach the UI passes `retry: (_, _) => null`.
@@ -287,6 +291,7 @@ stateDiagram-v2
 - **Never give flutter_secure_storage a `groupId` or change its `accessibility` without migrating first**: the database key then reads as absent, and `obtainDatabaseCipher` deletes `zuno.db`.
 - **Never give `zuno.db` a plaintext header**, because the key cache and the shared open read the salt from its first bytes. Those reads also drop the process's POSIX locks on the file, one more reason the database never moves to an App Group (`../decisions/ios-push-and-ring.md`).
 - **SQLCipher 5 cannot open a 4.x database with its defaults**, so a bump needs compatibility settings or a migration.
+- **The SDK keeps every encrypted to-device payload for replay and queues failed sends**, so the app's database keeps ephemeral payloads (live location positions and watches) out of both, or coordinates would reach the disk and stale positions would replay later.
 - **App Group files are written through a temp file and a rename, never in the purged `Library/Caches`**, because a file lock held at suspension gets the process killed (`0xdead10cc`). The write takes the temp file's protection class, so set it on the temp file.
 - **Darwin notifications between the app and its extensions are system-wide**, so they only ever mean "go re-read" and never carry data or authority.
 - **Changing the Team ID strands the App Group containers and the Keychain items**, because their identifiers carry it.

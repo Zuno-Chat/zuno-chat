@@ -5,9 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
+import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/device_keys_refresh.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/notifications/notification_delivery_provider.dart';
+import '../../../core/matrix/sign_out.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/ui/card_group.dart';
@@ -131,9 +132,10 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
     );
     if (confirmed != true || !mounted) return;
     try {
-      final client = ref.read(matrixClientProvider);
-      await stopAllNotificationDelivery(client);
-      await client.logout();
+      await signOutThisDevice(
+        ref.read(matrixClientProvider),
+        liveLocation: ref.read(liveLocationSharingProvider),
+      );
     } catch (e) {
       logCaught('sign out', e);
       messenger.showSnackBar(
