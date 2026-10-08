@@ -82,17 +82,31 @@ class FakeCallEngine implements CallEngine {
   final cameraEnabledRequests = <bool>[];
   int switchCameraCalls = 0;
   int switchToVideoCalls = 0;
+  Object? cameraError;
 
   @override
   Future<void> setMicrophoneMuted(bool muted) async =>
       microphoneMutedRequests.add(muted);
+
   @override
-  Future<void> setCameraEnabled(bool enabled) async =>
-      cameraEnabledRequests.add(enabled);
+  Future<void> setCameraEnabled(bool enabled) async {
+    cameraEnabledRequests.add(enabled);
+    if (cameraError case final error?) throw error;
+  }
+
   @override
   Future<void> switchCamera() async => switchCameraCalls++;
   @override
-  Future<void> switchToVideo() async => switchToVideoCalls++;
+  Future<void> switchToVideo() async {
+    switchToVideoCalls++;
+    if (cameraError case final error?) throw error;
+  }
+
+  final appInBackgroundRequests = <bool>[];
+
+  @override
+  Future<void> setAppInBackground(bool inBackground) async =>
+      appInBackgroundRequests.add(inBackground);
 
   bool micMuted = false;
 

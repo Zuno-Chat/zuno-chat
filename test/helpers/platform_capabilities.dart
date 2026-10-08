@@ -1,3 +1,4 @@
+import 'package:zuno/core/location/maps_link.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -41,6 +42,9 @@ PlatformCapabilities capabilitiesLike(
   bool? voipRing,
   bool? nseNotifications,
   bool? nativeNotificationActions,
+  bool? externalPaymentLinks,
+  bool? liveLocation,
+  MapsApp? mapsApp,
   List<NotificationDeliveryMode>? deliveryModes,
   NotificationDeliveryMode? defaultDeliveryMode,
 }) => PlatformCapabilities(
@@ -93,6 +97,10 @@ PlatformCapabilities capabilitiesLike(
   nativeNotificationActions:
       nativeNotificationActions ?? base.nativeNotificationActions,
   videoRendererNeedsDetach: base.videoRendererNeedsDetach,
+  cameraStopsInBackground: base.cameraStopsInBackground,
+  externalPaymentLinks: externalPaymentLinks ?? base.externalPaymentLinks,
+  liveLocation: liveLocation ?? base.liveLocation,
+  mapsApp: mapsApp ?? base.mapsApp,
   deliveryModes: deliveryModes ?? base.deliveryModes,
   defaultDeliveryMode: defaultDeliveryMode ?? base.defaultDeliveryMode,
 );

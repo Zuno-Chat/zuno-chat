@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/calls/end_call.dart';
 import '../../../core/calls/matrixrtc/call_member_state.dart';
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/errors/best_effort.dart';
@@ -23,6 +25,7 @@ import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/circle_icon.dart';
 import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
+import '../../../core/ui/sheet.dart';
 import '../../blocking/presentation/block_person.dart';
 import '../../chat/presentation/room_page.dart';
 import '../../communities/presentation/join_requests_view.dart';
@@ -44,7 +47,7 @@ const _memberPreviewCount = 5;
 
 enum RoomInfoResult { left }
 
-class RoomInfoPage extends StatefulWidget {
+class RoomInfoPage extends ConsumerStatefulWidget {
   final Room room;
   final BlockPerson? blockPerson;
   final void Function(CallKind kind)? onStartCall;
@@ -57,10 +60,10 @@ class RoomInfoPage extends StatefulWidget {
   });
 
   @override
-  State<RoomInfoPage> createState() => _RoomInfoPageState();
+  ConsumerState<RoomInfoPage> createState() => _RoomInfoPageState();
 }
 
-class _RoomInfoPageState extends State<RoomInfoPage>
+class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     with RouteSettled<RoomInfoPage> {
   bool? _mutedOverride;
   bool _muteBusy = false;
@@ -117,7 +120,13 @@ class _RoomInfoPageState extends State<RoomInfoPage>
 
   Future<void> _exit() async {
     final navigator = Navigator.of(context);
-    if (!await confirmAndExitRoom(context, widget.room)) return;
+    if (!await confirmAndExitRoom(
+      context,
+      widget.room,
+      endCallsIn: ref.read(endCallsInProvider),
+    )) {
+      return;
+    }
     if (mounted) navigator.pop(RoomInfoResult.left);
   }
 
@@ -266,7 +275,7 @@ class _RoomInfoPageState extends State<RoomInfoPage>
     final canRemove = manageable && room.canKick;
     final canBanUser = manageable && room.canBan;
 
-    final action = await showModalBottomSheet<_MemberAction>(
+    final action = await showSheet<_MemberAction>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
@@ -335,6 +344,7 @@ class _RoomInfoPageState extends State<RoomInfoPage>
       client: widget.room.client,
       userId: userId,
       name: name,
+      endCallsIn: ref.read(endCallsInProvider),
       block: widget.blockPerson,
     );
     if (blocked) navigator.popUntil((route) => route.isFirst);
@@ -427,6 +437,7 @@ class _RoomInfoPageState extends State<RoomInfoPage>
         client: room.client,
         avatarUrl: user.avatarUrl,
         fallbackText: user.calcDisplayname(),
+        toneSeed: user.id,
         radius: 18,
       ),
       title: Text(user.calcDisplayname()),
@@ -547,7 +558,7 @@ class _RoomInfoPageState extends State<RoomInfoPage>
                     client: room.client,
                     avatarUrl: room.avatar,
                     fallbackText: name,
-                    toneSeed: chatPartnerId ?? room.id,
+                    toneSeed: roomToneSeed(room),
                     radius: 44,
                   ),
                   const SizedBox(height: 12),

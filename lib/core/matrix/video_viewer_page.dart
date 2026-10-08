@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 import 'package:video_player/video_player.dart';
 
+import '../errors/best_effort.dart';
 import '../platform/platform_capabilities.dart';
 import 'attachment_action_buttons.dart';
 import 'attachment_cache.dart';
@@ -50,6 +51,7 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
       }
       setState(() => _controller = controller..play());
     } catch (e) {
+      logCaught('load video', e);
       if (mounted) setState(() => _error = e);
     }
   }

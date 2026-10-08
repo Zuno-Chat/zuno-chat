@@ -201,4 +201,15 @@ class IncomingRingDecisionsTest {
             RingDecisions.amplitudes(longArrayOf(0, 800, 500, 800, 2000)),
         )
     }
+
+    @Test
+    fun `only the ring's own launches may show over the lock screen`() {
+        val select = "SELECT_FOREGROUND_NOTIFICATION"
+
+        assertTrue(RingDecisions.ringLaunch(select, 4002))
+        assertFalse(RingDecisions.ringLaunch(select, 1234))
+        assertFalse(RingDecisions.ringLaunch("SELECT_NOTIFICATION", 4002))
+        assertFalse(RingDecisions.ringLaunch("im.zuno.chat.OPEN_CALL", -1))
+        assertFalse(RingDecisions.ringLaunch(null, 4002))
+    }
 }

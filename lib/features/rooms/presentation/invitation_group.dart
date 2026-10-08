@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_invite.dart';
@@ -64,6 +65,7 @@ class _InvitationState extends State<_Invitation> {
     try {
       await action();
     } catch (e) {
+      logCaught('answer invitation', e);
       messenger.showSnackBar(
         SnackBar(content: Text(failureMessage(e, failed: failed))),
       );
@@ -99,7 +101,7 @@ class _InvitationState extends State<_Invitation> {
                   avatarUrl: isGroup ? room.avatar : inviterUser?.avatarUrl,
                   fallbackText: name,
                   radius: 26,
-                  toneSeed: isGroup ? room.id : inviter,
+                  toneSeed: roomToneSeed(room),
                   shape: AvatarShape.forRoom(room),
                 ),
                 const SizedBox(width: 12),

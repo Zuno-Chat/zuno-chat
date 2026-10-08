@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -110,7 +111,10 @@ void main() {
   testWidgets('says when this device cannot restore from it', (tester) async {
     await pumpPage(tester);
 
-    expect(subtitleOf(tester, 'Status'), startsWith('Active, but this device'));
+    expect(
+      subtitleOf(tester, 'Status'),
+      'Active, but this device cannot restore from it (set up Secure backup)',
+    );
   });
 
   testWidgets('says when this device can restore from it', (tester) async {
@@ -217,16 +221,43 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('a failure says so and keeps the backup', (tester) async {
-      client.deleteError = Exception('offline');
+    testWidgets('a refusal says so, without the server error, and keeps '
+        'the backup', (tester) async {
+      client.deleteError = MatrixException.fromJson({
+        'errcode': 'M_FORBIDDEN',
+        'error': 'Not allowed',
+      });
       await pumpPage(tester);
 
       await tapDelete(tester);
       await tester.tap(find.widgetWithText(TextButton, 'Delete'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Failed to delete'), findsOneWidget);
+      expect(find.text('Could not delete the key backup.'), findsOneWidget);
+      expect(find.textContaining('M_FORBIDDEN'), findsNothing);
+      expect(find.textContaining('Not allowed'), findsNothing);
       expect(tester.widget<ListTile>(deleteRow()).onTap, isNotNull);
+    });
+
+    testWidgets('deleting while offline says to check the connection', (
+      tester,
+    ) async {
+      client.deleteError = http.ClientException('Failed host lookup');
+      await pumpPage(tester);
+
+      await tapDelete(tester);
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Could not delete the key backup. Check your connection and try '
+          'again.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Exception'), findsNothing);
+      expect(client.deleted, isEmpty);
     });
 
     testWidgets('a failed read afterwards is not reported as a failed delete', (
@@ -240,7 +271,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(client.deleted, ['7']);
-      expect(find.textContaining('Failed to delete'), findsNothing);
+      expect(find.textContaining('Could not delete'), findsNothing);
       expect(
         find.text('Could not load the key backup. Pull down to try again.'),
         findsOneWidget,

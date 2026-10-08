@@ -29,6 +29,8 @@ void main() {
 
   late List<http.Request> requests;
   late bool refuseReports;
+  late bool refuseJoins;
+  late bool offline;
   late Client client;
   late Room room;
 
@@ -49,11 +51,25 @@ void main() {
     );
     requests = [];
     refuseReports = false;
+    refuseJoins = false;
+    offline = false;
     client = buildTestClient(
       userId: '@me:example.org',
       database: _ForgettingDatabase(),
       httpClient: MockClient((request) async {
         requests.add(request);
+        if (offline) {
+          throw http.ClientException('Failed host lookup', request.url);
+        }
+        if (refuseJoins && request.url.path.endsWith('/join')) {
+          return http.Response(
+            jsonEncode({
+              'errcode': 'M_FORBIDDEN',
+              'error': 'You are not invited to this room.',
+            }),
+            403,
+          );
+        }
         if (refuseReports && request.url.path.endsWith('/report')) {
           return http.Response(
             jsonEncode({'errcode': 'M_LIMIT_EXCEEDED', 'error': 'Slow down'}),
@@ -271,6 +287,40 @@ void main() {
 
     expect(blocked, isEmpty);
     expect(requestedPaths().where((p) => p.endsWith('/leave')), isEmpty);
+    expect(find.byType(RoomInvitePage), findsOneWidget);
+  });
+
+  testWidgets('a refused join says so, without the server error', (
+    tester,
+  ) async {
+    inviteFromBob();
+    refuseJoins = true;
+    await openInvite(tester);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Join'));
+    await settleNetwork(tester);
+
+    expect(find.text('Could not join.'), findsOneWidget);
+    expect(find.textContaining('M_FORBIDDEN'), findsNothing);
+    expect(find.textContaining('Exception'), findsNothing);
+    expect(find.byType(RoomInvitePage), findsOneWidget);
+  });
+
+  testWidgets('declining while offline says to check the connection', (
+    tester,
+  ) async {
+    inviteFromBob();
+    await openInvite(tester);
+    offline = true;
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Decline'));
+    await settleNetwork(tester);
+
+    expect(
+      find.text('Could not decline. Check your connection and try again.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Exception'), findsNothing);
     expect(find.byType(RoomInvitePage), findsOneWidget);
   });
 

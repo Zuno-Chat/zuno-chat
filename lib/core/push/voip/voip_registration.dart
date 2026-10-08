@@ -30,6 +30,22 @@ const voipTokenWaits = [
 String voipAppIdFor(String environment) =>
     environment == 'development' ? voipDevelopmentAppId : voipProductionAppId;
 
+sealed class VoipRefusal {
+  const VoipRefusal({required this.at});
+
+  final DateTime at;
+}
+
+final class VoipRefusedByServer extends VoipRefusal {
+  const VoipRefusedByServer({required super.at, required this.reply});
+
+  final VoipServerRefused reply;
+}
+
+final class VoipKeyNotKept extends VoipRefusal {
+  const VoipKeyNotKept({required super.at});
+}
+
 enum VoipRegistrationState {
   idle,
   unavailable,
@@ -56,6 +72,7 @@ class VoipRegistration {
   final _retry = RegistrationRetry();
   final _recheck = RegistrationRecheck();
   final _state = ValueNotifier(VoipRegistrationState.idle);
+  final _lastRefusal = ValueNotifier<VoipRefusal?>(null);
   final _current = ValueNotifier(false);
   final _serverOffsetMs = ValueNotifier<int?>(null);
   Timer? _tokenWait;
@@ -67,6 +84,8 @@ class VoipRegistration {
   set retryDelay(Duration Function(int attempt) delay) => _retry.delay = delay;
 
   ValueListenable<VoipRegistrationState> get state => _state;
+
+  ValueListenable<VoipRefusal?> get lastRefusal => _lastRefusal;
 
   ValueListenable<bool> get current => _current;
 
@@ -121,6 +140,7 @@ class VoipRegistration {
     }
     _current.value = false;
     _serverOffsetMs.value = null;
+    _lastRefusal.value = null;
     _state.value = VoipRegistrationState.idle;
     await _readModel.wipe();
     await _channel.setSession(signedIn: false);
@@ -179,13 +199,19 @@ class VoipRegistration {
         _current.value = true;
         _recheck.markChecked();
         _retry.reset();
+        _lastRefusal.value = null;
         _state.value = VoipRegistrationState.registered;
-      case VoipServerAccepted():
-        _fail(client);
+      case VoipServerAccepted(:final kid):
+        debugPrint('zuno/voip: the server kept key $kid, not ${status.kid}');
+        _fail(client, VoipKeyNotKept(at: now()));
       case VoipServerUnreachable(:final retryAfter):
         _quietRetry(client, retryAfter);
-      case VoipServerRefused():
-        _fail(client);
+      case final VoipServerRefused refused:
+        debugPrint(
+          'zuno/voip: the server refused this device '
+          '(${refused.status} ${refused.errcode})',
+        );
+        _fail(client, VoipRefusedByServer(at: now(), reply: refused));
     }
   }
 
@@ -194,7 +220,8 @@ class VoipRegistration {
     _scheduleRetry(client, after);
   }
 
-  void _fail(Client client) {
+  void _fail(Client client, VoipRefusal refusal) {
+    _lastRefusal.value = refusal;
     _state.value = VoipRegistrationState.failed;
     _scheduleRetry(client, null);
   }

@@ -9,7 +9,7 @@ import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/own_profile.dart';
-import '../../../core/notifications/notification_delivery_provider.dart';
+import '../../../core/matrix/sign_out.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_providers.dart';
@@ -38,6 +38,7 @@ class SettingsPage extends ConsumerWidget {
     final capabilities = ref.watch(platformCapabilitiesProvider);
     final screenshotBlocking = capabilities.screenshotBlocking;
     final canChooseDelivery = capabilities.deliveryModes.length > 1;
+    final paymentLinks = capabilities.externalPaymentLinks;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: CardListView(
@@ -77,11 +78,13 @@ class SettingsPage extends ConsumerWidget {
                     : 'Recovery, devices, screen content',
                 page: const SecurityPrivacySettingsPage(),
               ),
-              const _CategoryTile(
+              _CategoryTile(
                 icon: Icons.info_outline,
                 title: 'About',
-                subtitle: 'Version, donate, diagnostics',
-                page: AboutPage(),
+                subtitle: paymentLinks
+                    ? 'Version, donate, diagnostics'
+                    : 'Version, terms, diagnostics',
+                page: const AboutPage(),
               ),
               if (showFeedback)
                 ListTile(
@@ -157,13 +160,11 @@ class SettingsPage extends ConsumerWidget {
           MaterialPageRoute(builder: (_) => const SecureBackupPage()),
         );
       case _LogOutChoice.logOut:
-        await _logOut(ref.read(matrixClientProvider));
+        await signOutThisDevice(
+          ref.read(matrixClientProvider),
+          windDown: ref.read(signOutWindDownProvider),
+        );
     }
-  }
-
-  Future<void> _logOut(Client client) async {
-    await stopAllNotificationDelivery(client);
-    await client.logout();
   }
 }
 

@@ -234,6 +234,30 @@
       }
     },
     {
+      "name": "live location",
+      "room": {
+        "title": "Alice",
+        "dm": true
+      },
+      "sender": "@alice:zuno.im",
+      "sender_name": "Alice",
+      "age_ms": 5000,
+      "event": {
+        "type": "m.room.message",
+        "content": {
+          "msgtype": "im.zuno.live_location",
+          "body": "Live location for 1 hour",
+          "share_id": "share1",
+          "ends_ts": 1790003600000
+        }
+      },
+      "expect": {
+        "class": "message",
+        "title": "Alice",
+        "body": "Live location"
+      }
+    },
+    {
       "name": "notice",
       "room": {
         "title": "Alice",

@@ -15,6 +15,7 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/room_access.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/rooms/presentation/room_list_page.dart';
 
@@ -368,6 +369,21 @@ void main() {
     final menuTitles = menuTiles.map((tile) => (tile.title! as Text).data);
 
     expect(menuTitles, ['New chat', 'New room', 'Find public rooms']);
+  });
+
+  testWidgets('the floating call window keeps clear of the new chat menu', (
+    tester,
+  ) async {
+    await pumpRoomList(tester);
+    await openNewChatMenu(tester);
+
+    expect(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byType(KeepClearArea),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('on Communities, the menu offers community and public '

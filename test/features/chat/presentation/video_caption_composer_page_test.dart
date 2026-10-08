@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
 
 import '../../../helpers/fake_video_player.dart';
@@ -156,5 +157,19 @@ void main() {
 
     expect(closed, isTrue);
     expect(result, isNull);
+  });
+
+  testWidgets('the floating call window keeps clear of the caption bar', (
+    tester,
+  ) async {
+    await open(tester);
+
+    expect(
+      find.ancestor(
+        of: find.byTooltip('Send'),
+        matching: find.byType(KeepClearArea),
+      ),
+      findsOneWidget,
+    );
   });
 }

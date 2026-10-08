@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/matrix/room_roles.dart';
+import '../../../core/ui/sheet.dart';
 
 Future<RoomRole?> showRolePicker(
   BuildContext context, {
@@ -10,7 +11,7 @@ Future<RoomRole?> showRolePicker(
   final sortedOptions = [...options]
     ..sort((a, b) => b.powerLevel.compareTo(a.powerLevel));
 
-  return showModalBottomSheet<RoomRole>(
+  return showSheet<RoomRole>(
     context: context,
     builder: (context) => SafeArea(
       child: Wrap(

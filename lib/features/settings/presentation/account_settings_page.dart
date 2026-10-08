@@ -11,6 +11,7 @@ import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import '../../../core/ui/sheet.dart';
 import 'change_password_dialog.dart';
 
 const _rowSpinner = SizedBox(
@@ -95,7 +96,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
   }
 
   Future<void> _changeAvatar() async {
-    final action = await showModalBottomSheet<_AvatarAction>(
+    final action = await showSheet<_AvatarAction>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
@@ -217,6 +218,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
                   client: client,
                   avatarUrl: _profile?.avatarUrl,
                   fallbackText: displayName ?? userId ?? '?',
+                  toneSeed: userId ?? '',
                   radius: 20,
                 ),
                 title: const Text('Profile picture'),

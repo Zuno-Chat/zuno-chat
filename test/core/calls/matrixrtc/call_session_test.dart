@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
@@ -841,6 +842,129 @@ void main() {
         expect(permissionCalls, ['requestPermissions']);
         expect(ready, isTrue);
       });
+    });
+  });
+
+  group('the app going to the background', () {
+    setUp(() => moveLifecycleTo(binding, AppLifecycleState.resumed));
+    tearDown(() => moveLifecycleTo(binding, AppLifecycleState.resumed));
+
+    CallSession answering(
+      String callId,
+      FakeCallEngine engine, {
+      ValueListenable<bool>? pictureInPictureCamera,
+    }) {
+      final session = CallSession.forIncoming(
+        room: room,
+        callId: callId,
+        kind: CallKind.video,
+        engineBuilder: () async => engine,
+        initialEncryptionKeyForTesting: testKey(),
+        pictureInPictureCamera: pictureInPictureCamera,
+      );
+      addTearDown(session.dispose);
+      return session;
+    }
+
+    test('tells the engine where the app is at join, then each time it '
+        'hides or comes back', () async {
+      final engine = FakeCallEngine();
+      final session = answering('call-hidden', engine);
+
+      await session.accept();
+      await pumpEventQueue();
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      moveLifecycleTo(binding, AppLifecycleState.resumed);
+
+      expect(engine.appInBackgroundRequests, [false, true, false]);
+    });
+
+    test(
+      'a call answered in the background starts in the background',
+      () async {
+        moveLifecycleTo(binding, AppLifecycleState.paused);
+        final engine = FakeCallEngine();
+        final session = answering('call-hidden-at-join', engine);
+
+        await session.accept();
+        await pumpEventQueue();
+
+        expect(engine.appInBackgroundRequests, [true]);
+      },
+    );
+
+    test('once the call ends, the engine hears nothing more', () async {
+      final engine = FakeCallEngine();
+      final session = answering('call-hidden-ended', engine);
+      await session.accept();
+      await pumpEventQueue();
+
+      await session.hangUp(summarized: true);
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+
+      expect(engine.appInBackgroundRequests, [false]);
+    });
+
+    test(
+      'a picture-in-picture window that can use the camera keeps it while '
+      'the app is hidden, and losing it brings the placeholder back',
+      () async {
+        final pictureInPicture = ValueNotifier(false);
+        final engine = FakeCallEngine();
+        final session = answering(
+          'call-pip-camera',
+          engine,
+          pictureInPictureCamera: pictureInPicture,
+        );
+        await session.accept();
+        await pumpEventQueue();
+
+        pictureInPicture.value = true;
+        moveLifecycleTo(binding, AppLifecycleState.paused);
+        pictureInPicture.value = false;
+        pictureInPicture.value = true;
+        moveLifecycleTo(binding, AppLifecycleState.resumed);
+        pictureInPicture.value = false;
+
+        expect(engine.appInBackgroundRequests, [false, true, false]);
+      },
+    );
+
+    test('a call answered in the background follows the window from the '
+        'start', () async {
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      final pictureInPicture = ValueNotifier(false);
+      final engine = FakeCallEngine();
+      final session = answering(
+        'call-pip-none',
+        engine,
+        pictureInPictureCamera: pictureInPicture,
+      );
+
+      await session.accept();
+      await pumpEventQueue();
+      pictureInPicture.value = true;
+      pictureInPicture.value = false;
+
+      expect(engine.appInBackgroundRequests, [true, false, true]);
+    });
+
+    test('once the call ends, the window changes nothing', () async {
+      final pictureInPicture = ValueNotifier(false);
+      final engine = FakeCallEngine();
+      final session = answering(
+        'call-pip-ended',
+        engine,
+        pictureInPictureCamera: pictureInPicture,
+      );
+      await session.accept();
+      await pumpEventQueue();
+
+      await session.hangUp(summarized: true);
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+      pictureInPicture.value = true;
+
+      expect(engine.appInBackgroundRequests, [false]);
     });
   });
 
@@ -2815,6 +2939,216 @@ void main() {
       },
     );
   });
+
+  group('the call follows its room and the sign-in', () {
+    Future<(CallSession, FakeCallEngine)> activeIn(Room callRoom) async {
+      final engine = FakeCallEngine();
+      final session = CallSession.forIncoming(
+        room: callRoom,
+        callId: 'call1',
+        kind: CallKind.voice,
+        engineBuilder: () async => engine,
+        initialEncryptionKeyForTesting: testKey(),
+      );
+      addTearDown(session.dispose);
+      await session.accept();
+      await pumpEventQueue();
+      expect(session.phase, CallSessionPhase.active);
+      return (session, engine);
+    }
+
+    test('a cache rebuild mid-call keeps following the rebuilt room', () async {
+      client.rooms.add(room);
+      final (session, engine) = await activeIn(room);
+
+      final rebuilt = buildTestRoom(client);
+      rebuilt.setState(
+        remoteMemberEvent(
+          rebuilt,
+          userId: '@ann:example.org',
+          deviceId: 'ANN',
+          callId: 'call1',
+          fociActive: {'sessionId': 'fresh'},
+        ),
+      );
+      client.rooms
+        ..clear()
+        ..add(rebuilt);
+      client.onSync.add(SyncUpdate(nextBatch: 'next'));
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.active);
+      expect(engine.updateRemoteParticipantCalls, greaterThan(0));
+      expect(session.room, same(rebuilt));
+    });
+
+    group('leaving the room ends the call without writing to it', () {
+      late List<http.Request> requests;
+      late Client recording;
+      late Room recordingRoom;
+
+      setUp(() {
+        requests = [];
+        recording = buildCallTestClient((request) async {
+          requests.add(request);
+          return http.Response('{"event_id":"\$evt"}', 200);
+        });
+        recordingRoom = buildTestRoom(recording);
+        recording.rooms.add(recordingRoom);
+      });
+
+      test('a sync that lists the room as left', () async {
+        final (session, engine) = await activeIn(recordingRoom);
+        requests.clear();
+
+        recording.onSync.add(
+          SyncUpdate(
+            nextBatch: 'next',
+            rooms: RoomsUpdate(leave: {recordingRoom.id: LeftRoomUpdate()}),
+          ),
+        );
+        await pumpEventQueue();
+
+        expect(session.phase, CallSessionPhase.ended);
+        expect(engine.leaveCalls, 1);
+        expect(requests, isEmpty);
+      });
+
+      test(
+        'a sync after which the room is gone, as blocking leaves a chat',
+        () async {
+          final (session, engine) = await activeIn(recordingRoom);
+          requests.clear();
+
+          recording.rooms.remove(recordingRoom);
+          recording.onSync.add(SyncUpdate(nextBatch: 'next'));
+          await pumpEventQueue();
+
+          expect(session.phase, CallSessionPhase.ended);
+          expect(engine.leaveCalls, 1);
+          expect(requests, isEmpty);
+        },
+      );
+
+      test(
+        'a local sync while the cache is being rebuilt keeps the call',
+        () async {
+          final (session, _) = await activeIn(recordingRoom);
+
+          recording.rooms.clear();
+          recording.onSync.add(SyncUpdate(nextBatch: ''));
+          await pumpEventQueue();
+
+          expect(session.phase, CallSessionPhase.active);
+        },
+      );
+    });
+
+    test(
+      'signing out elsewhere ends the call at once, without writing',
+      () async {
+        final requests = <http.Request>[];
+        final recording = buildCallTestClient((request) async {
+          requests.add(request);
+          return http.Response('{"event_id":"\$evt"}', 200);
+        });
+        final (session, engine) = await activeIn(buildTestRoom(recording));
+        requests.clear();
+
+        recording.onLoginStateChanged.add(LoginState.loggedOut);
+        await pumpEventQueue();
+
+        expect(session.phase, CallSessionPhase.ended);
+        expect(engine.leaveCalls, 1);
+        expect(requests, isEmpty);
+      },
+    );
+
+    test('hanging up stops the microphone and camera before the membership '
+        'clear reaches the server', () async {
+      final clearing = Completer<void>();
+      final slow = buildCallTestClient((request) async {
+        if (request.method == 'PUT' &&
+            request.url.path.contains(callMemberEventType) &&
+            request.body.contains('"memberships":[]')) {
+          await clearing.future;
+        }
+        return http.Response('{"event_id":"\$evt"}', 200);
+      });
+      final (session, engine) = await activeIn(
+        _FakeSendEventRoom(client: slow, id: '!room:example.org'),
+      );
+
+      final hungUp = session.hangUp(byUser: true);
+      await pumpEventQueue();
+
+      expect(engine.leaveCalls, 1);
+      clearing.complete();
+      await hungUp;
+      expect(session.phase, CallSessionPhase.ended);
+    });
+
+    test(
+      'a hang-up while the call key is being set leaves nothing listening to '
+      'the app',
+      () async {
+        final engine = _SlowKeyEngine();
+        final camera = _ListenedFlag();
+        final session = CallSession.forIncoming(
+          room: _FakeSendEventRoom(client: client, id: room.id),
+          callId: 'call1',
+          kind: CallKind.voice,
+          engineBuilder: () async => engine,
+          initialEncryptionKeyForTesting: testKey(),
+          pictureInPictureCamera: camera,
+        );
+        addTearDown(session.dispose);
+
+        final accepted = session.accept();
+        await pumpEventQueue();
+        final hungUp = session.hangUp(byUser: true);
+        await pumpEventQueue();
+        engine.keySet.complete();
+        await hungUp;
+        await accepted.catchError((_) {});
+        await pumpEventQueue();
+
+        expect(session.phase, CallSessionPhase.ended);
+        expect(camera.listened, isFalse);
+      },
+    );
+
+    test(
+      'a membership refresh the server refuses is not an uncaught error',
+      () async {
+        var refuse = false;
+        final refusing = buildCallTestClient((request) async {
+          if (refuse && request.method == 'PUT') {
+            return http.Response(
+              '{"errcode":"M_FORBIDDEN","error":"not a member"}',
+              403,
+            );
+          }
+          return http.Response('{"event_id":"\$evt"}', 200);
+        });
+        final session = CallSession.forIncoming(
+          room: buildTestRoom(refusing),
+          callId: 'refresh-refused',
+          kind: CallKind.voice,
+          engineBuilder: () async => FakeCallEngine(),
+          membershipRefreshInterval: const Duration(milliseconds: 40),
+        );
+        addTearDown(session.dispose);
+        await session.accept();
+        await pumpEventQueue();
+        refuse = true;
+
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+
+        expect(session.phase, CallSessionPhase.active);
+      },
+    );
+  });
 }
 
 class _OrderTrackingCallEngine implements CallEngine {
@@ -2855,6 +3189,8 @@ class _OrderTrackingCallEngine implements CallEngine {
   Future<void> switchCamera() async {}
   @override
   Future<void> switchToVideo() async {}
+  @override
+  Future<void> setAppInBackground(bool inBackground) async {}
 
   @override
   Map<String, Object?>? get localFociInfo => const {
@@ -2882,4 +3218,17 @@ class _OrderTrackingCallEngine implements CallEngine {
 
   @override
   void dispose() {}
+}
+
+class _SlowKeyEngine extends FakeCallEngine {
+  final keySet = Completer<void>();
+
+  @override
+  Future<void> setEncryptionKey(Uint8List key) => keySet.future;
+}
+
+class _ListenedFlag extends ValueNotifier<bool> {
+  _ListenedFlag() : super(false);
+
+  bool get listened => hasListeners;
 }

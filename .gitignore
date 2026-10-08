@@ -82,14 +82,8 @@ lib/firebase_options.dart
 graphify-out/
 .claude/
 
-# Internal docs and the AI working notes stay local; the brand voice
-# guide, the feature docs, the decision records and the release notes are
-# public.
-docs/*
-!docs/brand-voice.md
-!docs/features/
-!docs/decisions/
-!docs/release-notes/
+# Plans, specs, research and the AI notes stay local.
+docs/working/
 /CLAUDE.md
 
 # Brainstorm mockups from the visual companion

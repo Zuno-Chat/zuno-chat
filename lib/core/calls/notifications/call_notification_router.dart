@@ -11,6 +11,7 @@ import '../../navigation/global_navigator.dart';
 import '../../navigation/launch_route.dart';
 import '../../platform/platform_capabilities.dart';
 import '../../settings/app_preferences_provider.dart';
+import '../active_call_controller.dart';
 import '../active_call_provider.dart';
 import '../matrixrtc/call_decline.dart';
 import '../matrixrtc/call_session.dart';
@@ -39,6 +40,7 @@ class CallNotificationRouter extends Notifier<void> {
   @override
   void build() {
     ref.watch(systemCallSyncProvider);
+    ref.listen(activeCallControllerProvider, (_, _) {});
     final notifications = CallNotificationService.instance;
     void on<T>(Stream<T> stream, void Function(T event) onEvent) {
       final sub = stream.listen(onEvent);
@@ -49,6 +51,7 @@ class CallNotificationRouter extends Notifier<void> {
     if (!capabilities.voipRing) on(notifications.onAction, handle);
     on(notifications.onHangUp, handleHangUp);
     on(notifications.onRingEnded, handleRingEnded);
+    on(notifications.onOpenCallScreen, (_) => _openActiveCallScreen());
     on(notifications.onSystemCallFailed, (callId) {
       if (ref.read(activeCallProvider)?.callId == callId) return;
       ref.read(resolvedCallIdsProvider.notifier).markResolved(callId);
@@ -242,24 +245,33 @@ class CallNotificationRouter extends Notifier<void> {
     }
 
     RingingCall.instance.set(call.callId);
-    final session = CallSession.forIncoming(
-      room: room,
-      callId: call.callId,
-      kind: call.isVideo ? CallKind.video : CallKind.voice,
-      lowDataMode: ref.read(lowDataCallsProvider),
-    );
-    ref.read(activeCallProvider.notifier).set(session);
+    final session = ref
+        .read(activeCallProvider.notifier)
+        .start(
+          () => CallSession.forIncoming(
+            room: room,
+            callId: call.callId,
+            kind: call.isVideo ? CallKind.video : CallKind.voice,
+            lowDataMode: ref.read(lowDataCallsProvider),
+          ),
+        );
+    if (session == null) {
+      _log('already on a call; ignoring accept for ${call.callId}');
+      RingingCall.instance.clear(call.callId);
+      _releaseSystemCall(call, SystemCallEnd.failed);
+      return;
+    }
     final navigator = globalNavigatorKey.currentState;
     if (navigator == null) {
       if (!ref.read(platformCapabilitiesProvider).voipRing) {
-        ref.read(activeCallProvider.notifier).set(null);
+        ref.read(activeCallProvider.notifier).clear(session);
         RingingCall.instance.clear(call.callId);
         _reportFailure('Could not open the call screen.');
         return;
       }
       unawaited(_openCallPageWhenShown(session, instant: instant));
     } else {
-      _pushCallPage(navigator, session, instant: instant);
+      _showCallScreen(navigator, session, instant: instant);
     }
     _log('accepted ${call.callId}, opening the call screen');
     unawaited(session.accept().catchError((_) {}));
@@ -274,24 +286,26 @@ class CallNotificationRouter extends Notifier<void> {
       final navigator = globalNavigatorKey.currentState;
       if (navigator == null) continue;
       if (!identical(ref.read(activeCallProvider), session)) return;
-      _pushCallPage(navigator, session, instant: instant);
+      _showCallScreen(navigator, session, instant: instant);
       return;
     }
   }
 
-  void _pushCallPage(
+  void _showCallScreen(
     NavigatorState navigator,
     CallSession session, {
     required bool instant,
   }) {
-    unawaited(
-      navigator.push(
-        pageRoute(
-          instant: instant,
-          builder: (_) => CallPage(session: session),
-        ),
-      ),
-    );
+    final call = ref.read(activeCallControllerProvider);
+    if (call == null || !identical(call.session, session)) return;
+    showCallScreen(navigator, call, instant: instant);
+  }
+
+  void _openActiveCallScreen() {
+    final call = ref.read(activeCallControllerProvider);
+    final navigator = globalNavigatorKey.currentState;
+    if (call == null || navigator == null) return;
+    showCallScreen(navigator, call);
   }
 
   Future<bool> _isOver(String callId) async =>

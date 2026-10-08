@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/calls/call_picture_in_picture.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
-import 'package:zuno/features/calls/presentation/call_picture_in_picture.dart';
 
 void main() {
   const local = CallEngineParticipant(

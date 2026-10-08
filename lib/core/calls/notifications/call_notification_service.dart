@@ -256,6 +256,7 @@ class CallNotificationService {
         ),
       );
   final _hangUpController = StreamController<String?>.broadcast();
+  final _openCallScreenController = StreamController<void>.broadcast();
   final _systemMuteController = StreamController<SystemMute>.broadcast();
   final _ringEndedController = StreamController<RingingCallInfo>.broadcast();
   final _systemCallFailedController = StreamController<String>.broadcast();
@@ -265,6 +266,7 @@ class CallNotificationService {
   final _audioRouteController =
       StreamController<Map<Object?, Object?>>.broadcast();
   final inPictureInPicture = ValueNotifier<bool>(false);
+  final pictureInPictureCamera = ValueNotifier<bool>(false);
 
   Stream<CallNotificationResponse> get onAction => _actionController.stream;
   Stream<String> get onMessageTap => _messageTapController.stream;
@@ -274,6 +276,7 @@ class CallNotificationService {
   Stream<HandedMessageAction> get onMessageAction =>
       _messageActionController.stream;
   Stream<String?> get onHangUp => _hangUpController.stream;
+  Stream<void> get onOpenCallScreen => _openCallScreenController.stream;
   Stream<SystemMute> get onSystemMute => _systemMuteController.stream;
   Stream<RingingCallInfo> get onRingEnded => _ringEndedController.stream;
   Stream<String> get onSystemCallFailed => _systemCallFailedController.stream;
@@ -578,8 +581,12 @@ class CallNotificationService {
     switch (method) {
       case 'hangUpCall':
         _hangUpController.add(_callIdFrom(arguments));
+      case 'openCallScreen':
+        _openCallScreenController.add(null);
       case 'pictureInPictureChanged':
         inPictureInPicture.value = arguments == true;
+      case 'pictureInPictureCameraChanged':
+        pictureInPictureCamera.value = arguments == true;
       case 'answerCall':
         _deliverNativeCallAction(CallNotificationAction.accept, arguments);
       case 'declineCall':
@@ -1221,11 +1228,15 @@ class CallNotificationService {
     required bool eligible,
     required int aspectWidth,
     required int aspectHeight,
+    String? streamId,
+    String? ownerTag,
   }) => _capabilities.pictureInPicture
       ? _invoke('setPictureInPicture', {
           'eligible': eligible,
           'aspectWidth': aspectWidth,
           'aspectHeight': aspectHeight,
+          'streamId': ?streamId,
+          'ownerTag': ?ownerTag,
         })
       : Future.value();
 

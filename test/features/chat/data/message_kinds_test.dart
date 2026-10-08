@@ -69,6 +69,16 @@ void main() {
         EventTypes.Message,
         AttachmentKind.location,
       ),
+      'a live location': (
+        {
+          'msgtype': 'im.zuno.live_location',
+          'body': 'Live location for 1 hour',
+          'share_id': 'share1',
+          'ends_ts': 1700003600000,
+        },
+        EventTypes.Message,
+        AttachmentKind.liveLocation,
+      ),
       'text': (
         {'msgtype': 'm.text', 'body': 'hi'},
         EventTypes.Message,

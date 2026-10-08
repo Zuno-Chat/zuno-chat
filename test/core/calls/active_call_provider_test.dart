@@ -7,6 +7,7 @@ import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 
+import '../../helpers/fake_call_session.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -69,6 +70,51 @@ void main() {
       expect(isCallActiveInProcess(), isTrue);
     },
   );
+
+  group('starting a call', () {
+    test('a live call refuses another, which is never built', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(activeCallProvider.notifier);
+      final live = session();
+      expect(notifier.start(() => live), same(live));
+
+      var built = false;
+      final refused = notifier.start(() {
+        built = true;
+        return session();
+      });
+
+      expect(refused, isNull);
+      expect(built, isFalse);
+      expect(container.read(activeCallProvider), same(live));
+    });
+
+    test('a call that has ended no longer holds the line', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(activeCallProvider.notifier);
+      notifier.start(
+        () => FakeCallSession(room: room, kind: CallKind.voice)..end(),
+      );
+      final next = session();
+
+      expect(notifier.start(() => next), same(next));
+      expect(isCallActiveInProcess(), isTrue);
+    });
+
+    test('a cleared call lets the next one start', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(activeCallProvider.notifier);
+      final first = session();
+      notifier.start(() => first);
+      notifier.clear(first);
+      final next = session();
+
+      expect(notifier.start(() => next), same(next));
+    });
+  });
 
   test('a mark left by an earlier run is dropped on start', () {
     markCallActiveInProcess(true);

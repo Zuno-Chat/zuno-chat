@@ -4,7 +4,7 @@ import '../../../core/format/human_units.dart';
 import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/reply_fallback.dart';
 
-enum AttachmentKind { none, image, video, voice, file, location }
+enum AttachmentKind { none, image, video, voice, file, location, liveLocation }
 
 AttachmentKind classifyAttachment(Event displayEvent) =>
     switch (summarize(displayEvent).kind) {
@@ -13,6 +13,7 @@ AttachmentKind classifyAttachment(Event displayEvent) =>
       MessageKind.voice => AttachmentKind.voice,
       MessageKind.file => AttachmentKind.file,
       MessageKind.location => AttachmentKind.location,
+      MessageKind.liveLocation => AttachmentKind.liveLocation,
       MessageKind.text ||
       MessageKind.callSummary ||
       MessageKind.deleted ||

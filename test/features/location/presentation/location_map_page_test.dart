@@ -5,8 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/location/presentation/location_map_page.dart';
 import 'package:zuno/features/location/presentation/location_map_view.dart';
+
+import '../../../helpers/platform_capabilities.dart';
 
 const _geo = GeoUri(
   latitude: 52.5163,
@@ -34,11 +37,20 @@ void main() {
     addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
   }
 
-  Future<void> pumpPage(WidgetTester tester, {GeoUri geo = _geo}) async {
+  Future<void> pumpPage(
+    WidgetTester tester, {
+    GeoUri geo = _geo,
+    PlatformCapabilities? capabilities,
+  }) async {
     mockLauncher(tester);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [mapTilesProvider.overrideWith((ref) async => null)],
+        overrides: [
+          mapTilesProvider.overrideWith((ref) async => null),
+          platformCapabilitiesProvider.overrideWithValue(
+            capabilities ?? androidCapabilities,
+          ),
+        ],
         child: MaterialApp(
           home: LocationMapPage(
             geo: geo,
@@ -94,6 +106,19 @@ void main() {
     await tester.pump();
 
     expect(launched.single['url'], 'geo:52.5163,13.3777?q=52.5163,13.3777');
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('on iOS the pin opens in Apple Maps', (tester) async {
+    await pumpPage(tester, capabilities: iosCapabilities);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Open in maps app'));
+    await tester.pump();
+
+    expect(
+      launched.single['url'],
+      'https://maps.apple.com/?ll=52.5163,13.3777&q=52.5163,13.3777',
+    );
     expect(find.byType(SnackBar), findsNothing);
   });
 

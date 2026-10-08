@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/calls/call_audio_route.dart';
+import 'package:zuno/core/calls/call_proximity.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
-import 'package:zuno/features/calls/presentation/call_audio_route.dart';
-import 'package:zuno/features/calls/presentation/call_proximity.dart';
 
 void main() {
   group('proximityScreenOffWanted', () {
@@ -11,7 +11,7 @@ void main() {
         proximityScreenOffWanted(
           kind: CallKind.voice,
           audioRoute: CallAudioRoute.earpiece,
-          finished: false,
+          screenOpen: true,
         ),
         isTrue,
       );
@@ -22,7 +22,7 @@ void main() {
         proximityScreenOffWanted(
           kind: CallKind.video,
           audioRoute: CallAudioRoute.earpiece,
-          finished: false,
+          screenOpen: true,
         ),
         isFalse,
       );
@@ -33,7 +33,7 @@ void main() {
         proximityScreenOffWanted(
           kind: CallKind.voice,
           audioRoute: CallAudioRoute.speaker,
-          finished: false,
+          screenOpen: true,
         ),
         isFalse,
       );
@@ -48,7 +48,7 @@ void main() {
           proximityScreenOffWanted(
             kind: CallKind.voice,
             audioRoute: headset,
-            finished: false,
+            screenOpen: true,
           ),
           isFalse,
           reason: headset.name,
@@ -56,12 +56,12 @@ void main() {
       }
     });
 
-    test('a finished call releases the screen', () {
+    test('a minimized call leaves the screen on: the user is using it', () {
       expect(
         proximityScreenOffWanted(
           kind: CallKind.voice,
           audioRoute: CallAudioRoute.earpiece,
-          finished: true,
+          screenOpen: false,
         ),
         isFalse,
       );

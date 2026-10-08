@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/rooms/presentation/home_bottom_bar.dart';
 
@@ -151,6 +152,18 @@ void main() {
       tester,
       () => bar(chatsUnread: true, communitiesUnread: true),
       theme: zunoLightTheme,
+    );
+  });
+
+  testWidgets('the floating call window keeps clear of it', (tester) async {
+    await pump(tester, bar(selected: HomeTab.chats));
+
+    expect(
+      find.descendant(
+        of: find.byType(HomeBottomBar),
+        matching: find.byType(KeepClearArea),
+      ),
+      findsOneWidget,
     );
   });
 }

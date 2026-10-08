@@ -220,7 +220,7 @@ void main() {
         tester.element(find.text('room list')),
       );
       expect(opened, isA<CallPage>());
-      expect((opened as CallPage).session, same(session));
+      expect((opened as CallPage).call.session, same(session));
       expect(RingingCall.instance.callId, 'call1');
       expect(calls.map((c) => c.method), contains('cancelIncomingCallStyle'));
 

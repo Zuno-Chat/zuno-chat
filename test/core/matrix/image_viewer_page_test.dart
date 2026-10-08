@@ -40,7 +40,11 @@ void main() {
     server.goneFromServer(event);
 
     await tester.pumpWidget(MaterialApp(home: ImageViewerPage(event: event)));
-    await pumpWhileFetching(tester);
+    await pumpWhileFetching(
+      tester,
+      rounds: 500,
+      until: () => server.downloads.isNotEmpty,
+    );
 
     expect(server.downloads, hasLength(1));
     expect(find.byType(CircularProgressIndicator), findsOneWidget);

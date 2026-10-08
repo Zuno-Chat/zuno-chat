@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -145,9 +146,64 @@ Future<void> pumpWhileFetching(
   }
 }
 
+final class FakePickedFile extends PlatformFile {
+  FakePickedFile(this.name, this.bytes, {String? path, this.readError})
+    : uri = Uri.file(path ?? '/picked/$name');
+
+  @override
+  final String name;
+  final Uint8List bytes;
+  final Object? readError;
+
+  @override
+  final Uri uri;
+
+  @override
+  XFile get xFile => XFile.fromData(bytes, path: uri.toFilePath());
+
+  @override
+  int? lengthSync() => bytes.length;
+
+  @override
+  Future<int> length() async => bytes.length;
+
+  @override
+  Future<Uint8List> readAsBytes() async {
+    final error = readError;
+    if (error != null) throw error;
+    return bytes;
+  }
+
+  @override
+  Stream<Uint8List> readAsByteStream() => Stream.value(bytes);
+}
+
 class FakeFilePicker extends FilePickerPlatform {
   Uri? answer = Uri.parse('content://downloads/1');
   final saved = <({String fileName, Uint8List bytes, String mimeType})>[];
+  PlatformFile? picked;
+  Object? pickError;
+  int picks = 0;
+
+  @override
+  Future<PlatformFile?> pickFile({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    int compressionQuality = 0,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async {
+    picks++;
+    final error = pickError;
+    if (error != null) throw error;
+    return picked;
+  }
 
   @override
   Future<Uri?> saveFile({
@@ -166,18 +222,26 @@ class FakeFilePicker extends FilePickerPlatform {
   }
 }
 
+FakeFilePicker installFakeFilePicker() {
+  final picker = FakeFilePicker();
+  final original = FilePickerPlatform.instance;
+  FilePickerPlatform.instance = picker;
+  addTearDown(() => FilePickerPlatform.instance = original);
+  return picker;
+}
+
 class DeviceFakes {
-  DeviceFakes._();
+  DeviceFakes._(this.picker);
 
   final gallery = <MethodCall>[];
   final galleryFilesPresent = <bool>[];
   final shared = <Map<Object?, Object?>>[];
-  final picker = FakeFilePicker();
+  final FakeFilePicker picker;
   bool galleryRefuses = false;
 }
 
 DeviceFakes installDeviceFakes() {
-  final fakes = DeviceFakes._();
+  final fakes = DeviceFakes._(installFakeFilePicker());
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   const gal = MethodChannel('gal');
@@ -200,12 +264,9 @@ DeviceFakes installDeviceFakes() {
     fakes.shared.add(call.arguments as Map<Object?, Object?>);
     return 'dev.fluttercommunity.plus/share/success';
   });
-  final originalPicker = FilePickerPlatform.instance;
-  FilePickerPlatform.instance = fakes.picker;
   addTearDown(() {
     messenger.setMockMethodCallHandler(gal, null);
     messenger.setMockMethodCallHandler(share, null);
-    FilePickerPlatform.instance = originalPicker;
   });
   return fakes;
 }

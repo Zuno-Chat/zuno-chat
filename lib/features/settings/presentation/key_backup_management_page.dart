@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/connection_error.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 
 class KeyBackupManagementPage extends ConsumerStatefulWidget {
@@ -68,8 +69,8 @@ class _KeyBackupManagementPageState
         title: const Text('Delete key backup?'),
         content: const Text(
           'This deletes the online backup of your encrypted message keys. '
-          "Devices that haven't already synced these keys another way "
-          "won't be able to recover them. This doesn't change Secure "
+          'Devices that have not already synced these keys another way '
+          'will not be able to recover them. This does not change Secure '
           'backup itself — a new backup can be created again later.',
         ),
         actions: [
@@ -91,7 +92,14 @@ class _KeyBackupManagementPageState
     try {
       await ref.read(matrixClientProvider).deleteRoomKeysVersion(info.version);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+      logCaught('delete key backup', e);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            failureMessage(e, failed: 'Could not delete the key backup.'),
+          ),
+        ),
+      );
       return;
     } finally {
       if (mounted) setState(() => _deleting = false);
@@ -129,8 +137,8 @@ class _KeyBackupManagementPageState
                       subtitle: Text(
                         _cachedOnThisDevice
                             ? 'Active — this device can restore from it'
-                            : "Active, but this device can't restore from it "
-                                  '(set up Secure backup)',
+                            : 'Active, but this device cannot restore from '
+                                  'it (set up Secure backup)',
                       ),
                     ),
                     ListTile(

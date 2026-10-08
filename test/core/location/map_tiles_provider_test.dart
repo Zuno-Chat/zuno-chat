@@ -218,6 +218,18 @@ void main() {
       expect(tiles.tileProvider.headers, isNot(contains('User-Agent')));
     });
 
+    test('live maps keep tiles in memory only, with the same user agent', () {
+      final tiles = MapTiles(
+        source: source,
+        httpClient: MockClient((_) async => _image()),
+        userAgent: 'Zuno/1.2.3',
+      );
+
+      final provider = tiles.ephemeralTileProvider as NetworkTileProvider;
+      expect(provider.cachingProvider, isA<DisabledMapCachingProvider>());
+      expect(provider.headers['User-Agent'], 'Zuno/1.2.3');
+    });
+
     test('caches tiles in the shared tile cache unless given one', () {
       final tiles = MapTiles(
         source: source,

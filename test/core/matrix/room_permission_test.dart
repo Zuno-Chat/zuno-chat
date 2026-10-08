@@ -16,8 +16,8 @@ RoomPermission _find(String id) =>
 
 void main() {
   group('catalog', () {
-    test('has exactly 15 entries: 3 basic + 12 advanced', () {
-      expect(roomPermissions, hasLength(15));
+    test('has exactly 16 entries: 3 basic + 13 advanced', () {
+      expect(roomPermissions, hasLength(16));
       expect(
         roomPermissions.where((p) => p.section == RoomPermissionSection.basic),
         hasLength(3),
@@ -26,7 +26,7 @@ void main() {
         roomPermissions.where(
           (p) => p.section == RoomPermissionSection.advanced,
         ),
-        hasLength(12),
+        hasLength(13),
       );
     });
 
@@ -44,6 +44,21 @@ void main() {
       expect(ids, isNot(contains('widgets')));
       expect(ids, isNot(contains('server_acl')));
       expect(ids, isNot(contains('tombstone')));
+    });
+
+    test('includes live location, mapped to its state event', () {
+      final permission = _find('live_location');
+      expect(
+        permission.read({
+          'events': {'im.zuno.live_location': 0},
+        }),
+        0,
+      );
+      final content = <String, Object?>{};
+      permission.write(content, 50);
+      expect(content, {
+        'events': {'im.zuno.live_location': 50},
+      });
     });
 
     test('includes calls, mapped to m.call.member', () {
@@ -116,6 +131,7 @@ void main() {
       expect(levelFor('ban'), RoomRole.moderator);
       expect(levelFor('events_default'), RoomRole.member);
       expect(levelFor('calls'), RoomRole.member);
+      expect(levelFor('live_location'), RoomRole.member);
       expect(levelFor('redact'), RoomRole.moderator);
       expect(levelFor('notify_room'), RoomRole.moderator);
       expect(levelFor('state_default'), RoomRole.admin);
@@ -132,14 +148,20 @@ void main() {
       );
     });
 
-    test('a public room keeps calls for moderators and changes nothing '
-        'else', () {
+    test('a public room keeps calls and live location for moderators and '
+        'changes nothing else', () {
       final private = defaultGroupPowerLevels();
       final public = defaultGroupPowerLevels(public: true);
 
       expect(roomRoleForLevel(_find('calls').read(public)), RoomRole.moderator);
+      expect(
+        roomRoleForLevel(_find('live_location').read(public)),
+        RoomRole.moderator,
+      );
       for (final permission in roomPermissions) {
-        if (permission.id == 'calls') continue;
+        if (permission.id == 'calls' || permission.id == 'live_location') {
+          continue;
+        }
         expect(
           permission.read(public),
           permission.read(private),

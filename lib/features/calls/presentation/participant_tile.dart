@@ -145,6 +145,7 @@ class _ParticipantTileState extends State<ParticipantTile> {
                       client: user!.room.client,
                       avatarUrl: user!.avatarUrl,
                       fallbackText: user!.calcDisplayname(),
+                      toneSeed: user!.id,
                       radius: 36,
                     )
                   : CircleAvatar(

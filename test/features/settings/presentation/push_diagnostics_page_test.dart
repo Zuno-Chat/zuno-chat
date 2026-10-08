@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/push_diagnostics_data.dart';
@@ -11,9 +11,11 @@ import 'package:zuno/core/push/push_diagnostics_source.dart';
 import 'package:zuno/core/push/recent_pushes.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/push_diagnostics_page.dart';
+import 'package:zuno/features/settings/presentation/push_target_status_page.dart';
 import 'package:zuno/features/settings/presentation/recent_pushes_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 final _ios = capabilitiesLike(
@@ -60,7 +62,7 @@ class _FakeSource implements PushDiagnosticsSource {
   });
 
   final PlatformCapabilities? capabilities;
-  final ServerReach reach;
+  ServerReach reach;
   PushTestOutcome outcome;
   bool fails;
   int loads = 0;
@@ -107,6 +109,7 @@ Future<void> _pump(
         platformCapabilitiesProvider.overrideWithValue(capabilities ?? _ios),
         notificationDeliveryModeProvider.overrideWith(() => _FixedMode(mode)),
         sharedPreferencesProvider.overrideWithValue(prefs),
+        matrixClientProvider.overrideWithValue(buildTestClient()),
       ],
       child: MaterialApp(home: PushDiagnosticsPage(share: share)),
     ),
@@ -227,6 +230,73 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(RecentPushesPage), findsOneWidget);
+  });
+
+  group('coming back from Push target', () {
+    Future<void> openPushTarget(WidgetTester tester) async {
+      await tester.tap(find.text('Push target'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PushTargetStatusPage), findsOneWidget);
+    }
+
+    Future<void> goBack(WidgetTester tester) async {
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.byType(PushTargetStatusPage), findsNothing);
+    }
+
+    Finder testRow() =>
+        find.widgetWithText(ListTile, 'Send a test notification');
+
+    testWidgets('checks again and shows what changed there', (tester) async {
+      final source = _FakeSource();
+      await _pump(tester, source);
+      expect(tester.widget<ListTile>(testRow()).enabled, isTrue);
+
+      await openPushTarget(tester);
+      expect(source.loads, 1);
+      source.reach = ServerReach.notInstalled;
+
+      await goBack(tester);
+
+      expect(source.loads, 2);
+      expect(tester.widget<ListTile>(testRow()).enabled, isFalse);
+      expect(
+        find.descendant(
+          of: testRow(),
+          matching: find.text('Not available on this server'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a check that fails says so instead of the old report', (
+      tester,
+    ) async {
+      final source = _FakeSource();
+      await _pump(tester, source);
+      expect(find.text('Permission'), findsOneWidget);
+
+      await openPushTarget(tester);
+      source.fails = true;
+
+      await goBack(tester);
+
+      expect(source.loads, 2);
+      expect(find.text('Permission'), findsNothing);
+      expect(
+        find.text('Could not check. Pull down to try again.'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<ListTile>(
+              find.widgetWithText(ListTile, 'Share diagnostics'),
+            )
+            .enabled,
+        isFalse,
+      );
+    });
   });
 
   testWidgets('Android on UnifiedPush has no Recent pushes row', (

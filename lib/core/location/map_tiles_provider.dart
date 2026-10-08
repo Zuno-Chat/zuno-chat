@@ -32,6 +32,13 @@ class MapTiles {
     cachingProvider: cachingProvider ?? mapTileCache(),
     silenceExceptions: true,
   );
+
+  late final TileProvider ephemeralTileProvider = NetworkTileProvider(
+    headers: {'User-Agent': ?userAgent},
+    httpClient: httpClient,
+    cachingProvider: const DisabledMapCachingProvider(),
+    silenceExceptions: true,
+  );
 }
 
 const _reprobeAfter = Duration(minutes: 5);

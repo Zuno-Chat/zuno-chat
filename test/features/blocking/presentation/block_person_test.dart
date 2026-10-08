@@ -32,6 +32,7 @@ void main() {
                   userId: '@ann:example.org',
                   name: 'Ann',
                   block: block ?? (userId) async => blocked.add(userId),
+                  endCallsIn: (_) async {},
                 ),
               ),
               child: const Text('open'),
