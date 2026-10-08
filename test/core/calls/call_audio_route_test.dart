@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/calls/call_audio_route.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
-import 'package:zuno/features/calls/presentation/call_audio_route.dart';
 
 void main() {
   const bluetooth = CallAudioRoute.bluetooth;

@@ -6,10 +6,12 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/about_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/platform_capabilities.dart';
 
 void main() {
   Finder switchTile(String title) =>
@@ -19,13 +21,18 @@ void main() {
     WidgetTester tester, {
     AboutPage page = const AboutPage(),
     Map<String, Object> prefs = const {},
+    PlatformCapabilities? capabilities,
   }) async {
     await tester.binding.setSurfaceSize(const Size(800, 3000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     SharedPreferences.setMockInitialValues(prefs);
     final sharedPrefs = await SharedPreferences.getInstance();
     final container = ProviderContainer(
-      overrides: [sharedPreferencesProvider.overrideWithValue(sharedPrefs)],
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(sharedPrefs),
+        if (capabilities != null)
+          platformCapabilitiesProvider.overrideWithValue(capabilities),
+      ],
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(
@@ -92,6 +99,32 @@ void main() {
 
     expect(find.text('Donate'), findsOneWidget);
     expect(find.text('Donations help pay for running Zuno.'), findsOneWidget);
+  });
+
+  testWidgets('hides Donate where the store forbids payment links', (
+    tester,
+  ) async {
+    await pumpAbout(tester, capabilities: iosCapabilities);
+
+    expect(find.text('Donate'), findsNothing);
+    expect(find.text('Donations help pay for running Zuno.'), findsNothing);
+    expect(find.text('Privacy policy'), findsOneWidget);
+    expect(find.text('Terms'), findsOneWidget);
+    expectEveryRowOnACard();
+  });
+
+  testWidgets('shows Donate wherever payment links are allowed', (
+    tester,
+  ) async {
+    await pumpAbout(
+      tester,
+      capabilities: capabilitiesLike(
+        iosCapabilities,
+        externalPaymentLinks: true,
+      ),
+    );
+
+    expect(find.text('Donate'), findsOneWidget);
   });
 
   testWidgets('tapping Donate opens the donation section of the website', (

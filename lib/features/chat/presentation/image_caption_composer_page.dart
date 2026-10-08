@@ -2,8 +2,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import 'caption_bar.dart';
 import 'preview_decode_width.dart';
-import 'send_icon.dart';
 
 class ComposedImage {
   final Uint8List bytes;
@@ -135,29 +135,10 @@ class _ImageCaptionComposerPageState extends State<ImageCaptionComposerPage> {
                   ],
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      autofillHints: null,
-                      controller: _captionControllers[_page],
-                      decoration: const InputDecoration(
-                        hintText: 'Add a caption…',
-                      ),
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _send(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    icon: const SendIcon(),
-                    tooltip: multiple ? 'Send all' : 'Send',
-                    onPressed: _send,
-                  ),
-                ],
-              ),
+            CaptionBar(
+              controller: _captionControllers[_page],
+              sendTooltip: multiple ? 'Send all' : 'Send',
+              onSend: _send,
             ),
           ],
         ),

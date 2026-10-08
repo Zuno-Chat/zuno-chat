@@ -72,6 +72,20 @@ class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi {
   }
 }
 
+class _HarnessClient extends Client {
+  _HarnessClient(
+    super.clientName, {
+    required super.database,
+    required super.httpClient,
+    required this.encrypting,
+  });
+
+  final bool encrypting;
+
+  @override
+  bool get encryptionEnabled => encrypting || super.encryptionEnabled;
+}
+
 class RoomPageHarness {
   final StoredEventsFakeDatabaseApi db;
   final requests = <String>[];
@@ -80,6 +94,7 @@ class RoomPageHarness {
   FutureOr<http.Response?> Function(http.Request request)? respond;
   final PlatformCapabilities? capabilities;
   final List<Override> overrides;
+  final bool encrypting;
   late final Client client;
   late final Room room;
   late final UploadProgressHttpClient httpClient;
@@ -88,6 +103,7 @@ class RoomPageHarness {
     StoredEventsFakeDatabaseApi? db,
     this.capabilities,
     this.overrides = const [],
+    this.encrypting = false,
   }) : db = db ?? StoredEventsFakeDatabaseApi() {
     FlutterLocalNotificationsPlatform.instance =
         AndroidFlutterLocalNotificationsPlugin();
@@ -131,7 +147,12 @@ class RoomPageHarness {
         return http.Response('{}', 200);
       }),
     );
-    client = Client('test', database: this.db, httpClient: httpClient);
+    client = _HarnessClient(
+      'test',
+      database: this.db,
+      httpClient: httpClient,
+      encrypting: encrypting,
+    );
     client.setUserId('@me:example.org');
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';

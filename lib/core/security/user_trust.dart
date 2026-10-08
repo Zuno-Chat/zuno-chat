@@ -39,5 +39,8 @@ userTrustFactsOf(DeviceKeysList? keys) {
   );
 }
 
+bool deviceApprovedByOwner(DeviceKeys? device) =>
+    device?.hasValidSignatureChain(verifiedByTheirMasterKey: true) ?? false;
+
 bool userTrustNeedsAttention(UserTrustState state) =>
     state == UserTrustState.identityChanged;

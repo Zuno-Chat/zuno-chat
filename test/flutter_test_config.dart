@@ -11,6 +11,8 @@ import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 const _networkChannel = EventChannel('zuno/network');
+const _liveLocationChannel = MethodChannel('zuno/live_location');
+const _liveLocationFixes = EventChannel('zuno/live_location/fixes');
 
 TestDefaultBinaryMessenger? _testMessenger() {
   if (BindingBase.debugBindingType() == null) return null;
@@ -24,9 +26,18 @@ void _resetAmbientCapabilities() =>
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   setUp(() {
     _resetAmbientCapabilities();
-    _testMessenger()?.setMockStreamHandler(
+    final messenger = _testMessenger();
+    messenger?.setMockStreamHandler(
       _networkChannel,
       MockStreamHandler.inline(onListen: (_, _) {}),
+    );
+    messenger?.setMockStreamHandler(
+      _liveLocationFixes,
+      MockStreamHandler.inline(onListen: (_, _) {}),
+    );
+    messenger?.setMockMethodCallHandler(
+      _liveLocationChannel,
+      (_) async => null,
     );
   });
 

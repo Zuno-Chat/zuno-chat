@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/calls/models/call_status.dart';
 import 'call_status_line.dart';
 import 'call_status_widgets.dart';
 

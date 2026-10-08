@@ -19,11 +19,20 @@ Android is the only supported platform. iOS is not built yet.
 
 ## Homeservers
 
-The app signs in to any Matrix homeserver. Some features expect extras
-from the homeserver: Synapse modules for calls and TURN credentials and for
-sign-up codes, an FCM push gateway, and a tile source for location messages
-advertised under `im.zuno.tiles` in its `.well-known/matrix/client`.
-Without them those features are unavailable and everything else works.
+The app signs in to any Matrix homeserver. Some features need extras on
+the homeserver. Without them, those features are unavailable and
+everything else works.
+
+| Extra | What it does |
+|---|---|
+| [`zuno_calls`](https://github.com/Zuno-Chat/zuno_calls) | Synapse module for voice and video calls. It's a proxy for Cloudflare Calls signaling and issues Cloudflare TURN credentials |
+| [`zuno_register`](https://github.com/Zuno-Chat/zuno_register) | Synapse module for sign-up codes. It emails a single-use registration token to prove the user controls the inbox |
+| [`zuno_push`](https://github.com/Zuno-Chat/zuno_push) | Synapse module that rings a closed iOS app through VoIP pushes, and serves the notification extension's API |
+| [Sygnal](https://github.com/element-hq/sygnal) | Push gateway: FCM on Android, APNs on iOS |
+| Tile source | Maps for location messages: an `https://` URL template with `{z}`, `{x}` and `{y}`, advertised under `im.zuno.tiles` in `.well-known/matrix/client` |
+
+The modules are AGPL-3.0, like the app. Each installs through the
+`modules:` entry in `homeserver.yaml`, documented in its repository.
 
 ## Build and run
 

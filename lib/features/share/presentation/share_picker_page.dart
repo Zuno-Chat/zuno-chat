@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_title.dart';
@@ -88,6 +89,7 @@ class _SharePickerPageState extends State<SharePickerPage> {
                         avatarUrl: display.avatarUrl,
                         fallbackText: display.title,
                         isDirect: room.isDirectChat,
+                        toneSeed: roomToneSeed(room),
                       ),
                       title: Text(
                         display.title,

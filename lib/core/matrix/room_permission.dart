@@ -1,5 +1,6 @@
 import 'package:matrix/matrix.dart';
 
+import '../location/live_location_protocol.dart';
 import 'optimistic_room_state.dart';
 import 'room_roles.dart';
 
@@ -111,6 +112,11 @@ final List<RoomPermission> roomPermissions = [
     fallback: 0,
   ),
   _stateEventOverride('calls', 'Start or join calls', 'm.call.member'),
+  _stateEventOverride(
+    'live_location',
+    'Share live location',
+    liveLocationStateType,
+  ),
   _directField(
     'redact',
     "Delete other people's messages",
@@ -211,6 +217,7 @@ const Map<String, RoomRole> _defaultGroupPermissionRoles = {
   'ban': RoomRole.moderator,
   'events_default': RoomRole.member,
   'calls': RoomRole.member,
+  'live_location': RoomRole.member,
   'redact': RoomRole.moderator,
   'notify_room': RoomRole.moderator,
   'state_default': RoomRole.admin,
@@ -221,6 +228,7 @@ const Map<String, RoomRole> _defaultGroupPermissionRoles = {
 
 const Map<String, RoomRole> _publicRoomPermissionRoles = {
   'calls': RoomRole.moderator,
+  'live_location': RoomRole.moderator,
 };
 
 Map<String, dynamic> defaultGroupPowerLevels({bool public = false}) {

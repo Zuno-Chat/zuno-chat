@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
 
 final _onePixelPng = base64Decode(
@@ -136,5 +137,19 @@ void main() {
 
     expect(closed, isTrue);
     expect(result, isNull);
+  });
+
+  testWidgets('the floating call window keeps clear of the caption bar', (
+    tester,
+  ) async {
+    await open(tester, ['a.png']);
+
+    expect(
+      find.ancestor(
+        of: find.byTooltip('Send'),
+        matching: find.byType(KeepClearArea),
+      ),
+      findsOneWidget,
+    );
   });
 }

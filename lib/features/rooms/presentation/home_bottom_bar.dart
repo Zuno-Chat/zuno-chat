@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/ui/keep_clear.dart';
 import '../../../core/ui/zuno_motion.dart';
 
 enum HomeTab { chats, communities }
@@ -23,53 +24,55 @@ class HomeBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return ColoredBox(
-      color: colors.surface,
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(6),
-                    child: Row(
-                      children: [
-                        _Tab(
-                          label: 'Chats',
-                          icon: Icons.chat_bubble_outline,
-                          selectedIcon: Icons.chat_bubble,
-                          selected: selected == HomeTab.chats,
-                          unread: chatsUnread,
-                          onTap: () => onSelect(HomeTab.chats),
-                        ),
-                        _Tab(
-                          label: 'Communities',
-                          icon: Icons.workspaces_outlined,
-                          selectedIcon: Icons.workspaces,
-                          selected: selected == HomeTab.communities,
-                          unread: communitiesUnread,
-                          onTap: () => onSelect(HomeTab.communities),
-                        ),
-                      ],
+    return KeepClearArea(
+      child: ColoredBox(
+        color: colors.surface,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Row(
+                        children: [
+                          _Tab(
+                            label: 'Chats',
+                            icon: Icons.chat_bubble_outline,
+                            selectedIcon: Icons.chat_bubble,
+                            selected: selected == HomeTab.chats,
+                            unread: chatsUnread,
+                            onTap: () => onSelect(HomeTab.chats),
+                          ),
+                          _Tab(
+                            label: 'Communities',
+                            icon: Icons.workspaces_outlined,
+                            selectedIcon: Icons.workspaces,
+                            selected: selected == HomeTab.communities,
+                            unread: communitiesUnread,
+                            onTap: () => onSelect(HomeTab.communities),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              _NewButton(
-                tooltip: selected == HomeTab.chats
-                    ? 'New chat'
-                    : 'New community',
-                onTap: onNew,
-              ),
-            ],
+                const SizedBox(width: 10),
+                _NewButton(
+                  tooltip: selected == HomeTab.chats
+                      ? 'New chat'
+                      : 'New community',
+                  onTap: onNew,
+                ),
+              ],
+            ),
           ),
         ),
       ),

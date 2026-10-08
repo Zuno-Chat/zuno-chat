@@ -17,12 +17,22 @@ class _ForgettableDatabase extends FakeDatabaseApi {
 void main() {
   late List<String> requests;
 
-  Client exitClient({int forgetStatus = 200, bool offline = false}) {
+  Client exitClient({
+    int forgetStatus = 200,
+    bool refuseLeave = false,
+    bool offline = false,
+  }) {
     requests = [];
     final httpClient = MockClient((request) async {
       requests.add('${request.method} ${request.url.path}');
       if (offline) {
         throw http.ClientException('Failed host lookup', request.url);
+      }
+      if (refuseLeave && request.url.path.endsWith('/leave')) {
+        return http.Response(
+          jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'Not allowed'}),
+          403,
+        );
       }
       if (request.url.path.endsWith('/forget')) {
         return http.Response(
@@ -43,6 +53,9 @@ void main() {
       ..homeserver = Uri.parse('https://example.org')
       ..accessToken = 'test-token';
   }
+
+  Future<void> endCallsIn(Iterable<String> roomIds) async =>
+      requests.add('END ${roomIds.join(',')}');
 
   Room joinedRoom(Client client) =>
       buildTestRoom(client)..membership = Membership.join;
@@ -103,7 +116,8 @@ void main() {
           home: Scaffold(
             body: Builder(
               builder: (context) => TextButton(
-                onPressed: () => confirmAndExitRoom(context, room),
+                onPressed: () =>
+                    confirmAndExitRoom(context, room, endCallsIn: endCallsIn),
                 child: const Text('go'),
               ),
             ),
@@ -135,6 +149,27 @@ void main() {
       expect(forgetRequests(), isEmpty);
     });
 
+    testWidgets('confirming ends a call in the room before leaving it', (
+      tester,
+    ) async {
+      await tapExit(tester, joinedRoom(exitClient()));
+
+      await tester.tap(find.widgetWithText(TextButton, 'Leave'));
+      await tester.pumpAndSettle();
+
+      expect(requests.first, 'END !room:example.org');
+      expect(leaveRequests(), hasLength(1));
+    });
+
+    testWidgets('cancelling the prompt ends no call', (tester) async {
+      await tapExit(tester, joinedRoom(exitClient()));
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(requests.where((r) => r.startsWith('END')), isEmpty);
+    });
+
     testWidgets('confirming the prompt leaves the room', (tester) async {
       await tapExit(tester, joinedRoom(exitClient()));
 
@@ -159,6 +194,34 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Exception'), findsNothing);
+    });
+
+    testWidgets('a refused leave says only that the room was not left, and '
+        'logs why', (tester) async {
+      final logged = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logged.add(message);
+      };
+      try {
+        await tapExit(tester, joinedRoom(exitClient(refuseLeave: true)));
+
+        await tester.tap(find.widgetWithText(TextButton, 'Leave'));
+        for (var i = 0; i < 3; i++) {
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+          await tester.pumpAndSettle();
+        }
+      } finally {
+        debugPrint = originalDebugPrint;
+      }
+
+      expect(find.text('Could not leave the room.'), findsOneWidget);
+      expect(find.textContaining('M_FORBIDDEN'), findsNothing);
+      expect(find.textContaining('Not allowed'), findsNothing);
+      expect(
+        logged,
+        contains(allOf(startsWith('zuno/caught:'), contains('M_FORBIDDEN'))),
+      );
     });
 
     testWidgets('deleting a chat while offline says it was not deleted', (
@@ -309,6 +372,35 @@ void main() {
       expect(roomExitMessage(two), 'You also leave 2 of its rooms.');
     });
 
+    testWidgets('leaving a community ends a call in any room it takes along', (
+      tester,
+    ) async {
+      final client = exitClient();
+      final gear = member(client, '!gear:example.org', 'Gear swap');
+      final space = community(client, rooms: [gear]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () =>
+                    confirmAndExitRoom(context, space, endCallsIn: endCallsIn),
+                child: const Text('go'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Leave'));
+      await tester.pumpAndSettle();
+
+      expect(requests.first, 'END ${space.id},!gear:example.org');
+      expect(leaveRequests(), isNotEmpty);
+    });
+
     testWidgets('leaving a community while offline says it was not left', (
       tester,
     ) async {
@@ -318,7 +410,8 @@ void main() {
           home: Scaffold(
             body: Builder(
               builder: (context) => TextButton(
-                onPressed: () => confirmAndExitRoom(context, space),
+                onPressed: () =>
+                    confirmAndExitRoom(context, space, endCallsIn: endCallsIn),
                 child: const Text('go'),
               ),
             ),

@@ -684,6 +684,19 @@ void main() {
       expect(service.inPictureInPicture.value, isFalse);
     });
 
+    test('tracks whether the system window can use the camera', () async {
+      final service = CallNotificationService.instance;
+      addTearDown(() => service.pictureInPictureCamera.value = false);
+      expect(service.pictureInPictureCamera.value, isFalse);
+
+      await sendFromPlatform('pictureInPictureCameraChanged', true);
+      expect(service.pictureInPictureCamera.value, isTrue);
+      expect(service.inPictureInPicture.value, isFalse);
+
+      await sendFromPlatform('pictureInPictureCameraChanged', false);
+      expect(service.pictureInPictureCamera.value, isFalse);
+    });
+
     test('sends eligibility and aspect ratio to the platform', () async {
       final calls = <MethodCall>[];
       _messenger.setMockMethodCallHandler(callsChannel, (call) async {

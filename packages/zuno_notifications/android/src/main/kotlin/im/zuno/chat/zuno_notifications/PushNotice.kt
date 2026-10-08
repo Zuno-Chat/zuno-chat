@@ -5,6 +5,7 @@ import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.SharedPreferences
 import android.media.AudioAttributes
 import android.os.Build
 import android.os.VibrationAttributes
@@ -75,6 +76,7 @@ object PushNotice {
                 return false
             }
             val copy = PushNoticeDecision.copyFor(cached)
+            val alert = alertFor(prefs)
             val tap = PendingIntent.getActivity(
                 context,
                 notificationId,
@@ -87,7 +89,7 @@ object PushNotice {
                 .setContentText(copy.text)
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setSilent(!prefs.getBoolean(TONE_KEY, true))
+                .setSilent(alert.silent)
                 .setAutoCancel(true)
                 .setContentIntent(tap)
                 .setShortcutId(roomId)
@@ -116,7 +118,7 @@ object PushNotice {
             manager.notify(notificationId, builder.build())
             notified = true
             synchronized(posted) { posted[roomId] = eventId }
-            if (prefs.getBoolean(VIBRATION_KEY, true)) vibrate(context)
+            if (alert.vibrate) vibrate(context)
             Log.d(TAG, "Instant notice posted for $roomId")
         } catch (e: Exception) {
             Log.w(TAG, "Could not post the instant notice", e)
@@ -174,6 +176,7 @@ object PushNotice {
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 )
             }
+            val alert = alertFor(context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE))
             val notification = NotificationCompat.Builder(
                 context,
                 PushNoticeDecision.DIRECT_CHANNEL,
@@ -183,10 +186,12 @@ object PushNotice {
                 .setContentText(TEST_TEXT)
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setSilent(alert.silent)
                 .setAutoCancel(true)
                 .setContentIntent(tap)
                 .build()
             manager.notify(NotificationIds.TEST_NOTIFICATION_ID, notification)
+            if (alert.vibrate) vibrate(context)
             return true
         } catch (e: Exception) {
             Log.w(TAG, "Could not post the test notice", e)
@@ -199,6 +204,11 @@ object PushNotice {
         posted.remove(roomId)
         true
     }
+
+    private fun alertFor(prefs: SharedPreferences): NoticeAlert = PushNoticeDecision.alertFor(
+        messageTone = prefs.getBoolean(TONE_KEY, true),
+        messageVibration = prefs.getBoolean(VIBRATION_KEY, true),
+    )
 
     private fun smallIcon(context: Context): Int {
         val id = context.resources.getIdentifier(SMALL_ICON, "drawable", context.packageName)

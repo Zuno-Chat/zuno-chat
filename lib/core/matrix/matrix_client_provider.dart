@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 
 import '../calls/matrixrtc/call_member_state.dart' show callMemberEventType;
+import '../location/live_location_protocol.dart' show liveLocationStateType;
 import '../platform/platform_capabilities.dart';
 import '../push/read_model/session_exporter.dart';
 import '../push/send_keep_awake.dart';
@@ -20,7 +21,9 @@ import 'client_lease.dart';
 import 'client_startup.dart';
 import 'database_key.dart';
 import 'database_raw_key.dart';
+import 'ephemeral_to_device.dart';
 import 'fresh_token_http_client.dart';
+import 'sdk_logs.dart';
 import 'session_refresh.dart';
 import 'upload_progress_http_client.dart';
 import 'vodozemac_init.dart';
@@ -142,6 +145,7 @@ Future<StartedMatrixClient> _startClient(
   required bool backgroundSync,
   ClientLease? lease,
 }) async {
+  keepNoSdkLogHistory();
   final vodInitFuture = ensureVodozemacInitialized();
   final watch = Stopwatch()..start();
 
@@ -161,7 +165,7 @@ Future<StartedMatrixClient> _startClient(
     final exportsSessions = exportsInboundSessions(appClient: backgroundSync);
     final database = exportsSessions
         ? await openSessionExportingDatabase(sqlite)
-        : await MatrixSdkDatabase.init('zuno', database: sqlite);
+        : await openZunoDatabase(sqlite);
     final databaseMs = watch.elapsedMilliseconds;
 
     final started = client = ZunoClient(
@@ -191,7 +195,9 @@ Future<StartedMatrixClient> _startClient(
     );
     await vodInitFuture;
 
-    started.importantStateEvents.add(callMemberEventType);
+    started.importantStateEvents
+      ..add(callMemberEventType)
+      ..add(liveLocationStateType);
 
     await started.restoreSession();
     if (kDebugMode) {

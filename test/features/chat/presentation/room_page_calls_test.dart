@@ -11,10 +11,12 @@ import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
+import 'package:zuno/features/calls/presentation/call_page.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 
+import '../../../helpers/call_channel_mocks.dart';
+import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_matrix.dart';
-import '../../calls/presentation/call_page_harness.dart';
 import 'room_page_harness.dart';
 
 void main() {
@@ -82,10 +84,9 @@ void main() {
   ProviderContainer container(WidgetTester tester) =>
       ProviderScope.containerOf(tester.element(find.byType(RoomPage)));
 
-  void alreadyInCall(WidgetTester tester) =>
-      container(tester)
-          .read(activeCallProvider.notifier)
-          .set(FakeCallSession(room: harness.room, kind: CallKind.voice));
+  void alreadyInCall(WidgetTester tester, {Room? room}) => container(tester)
+      .read(activeCallProvider.notifier)
+      .set(FakeCallSession(room: room ?? harness.room, kind: CallKind.voice));
 
   group('starting a call', () {
     for (final (tooltip, line) in [
@@ -112,13 +113,68 @@ void main() {
 
     testWidgets('is refused during another call', (tester) async {
       await openRoom(tester);
-      alreadyInCall(tester);
+      alreadyInCall(
+        tester,
+        room: buildTestRoom(harness.room.client, id: '!other:example.org'),
+      );
 
       await tester.tap(find.byTooltip('Voice call'));
       await harness.settle(tester);
 
       expect(find.text('You are already in a call'), findsOneWidget);
       expect(find.text('Call Hikers?'), findsNothing);
+    });
+
+    testWidgets('in the room of the call you are in, it returns to that call', (
+      tester,
+    ) async {
+      CallChannelMocks();
+      await openRoom(tester);
+      alreadyInCall(tester);
+
+      await tester.tap(find.byTooltip('Voice call'));
+      await harness.settle(tester);
+
+      expect(find.byType(CallPage), findsOneWidget);
+      expect(find.text('You are already in a call'), findsNothing);
+      expect(find.text('Call Hikers?'), findsNothing);
+    });
+
+    testWidgets('a prompt confirmed while another call went on underneath '
+        'leaves that call alone', (tester) async {
+      await openRoom(tester);
+      await tester.tap(find.byTooltip('Voice call'));
+      await harness.settle(tester);
+      expect(find.text('Call Hikers?'), findsOneWidget);
+      final other = FakeCallSession(
+        room: buildTestRoom(harness.room.client, id: '!other:example.org'),
+        kind: CallKind.voice,
+      );
+      container(tester).read(activeCallProvider.notifier).set(other);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Call'));
+      await harness.settle(tester);
+
+      expect(find.text('You are already in a call'), findsOneWidget);
+      expect(container(tester).read(activeCallProvider), same(other));
+      expect(other.hangUps, 0);
+    });
+
+    testWidgets('a prompt confirmed while a call in this room went on '
+        'underneath returns to that call', (tester) async {
+      CallChannelMocks();
+      await openRoom(tester);
+      await tester.tap(find.byTooltip('Voice call'));
+      await harness.settle(tester);
+      alreadyInCall(tester);
+      final scope = container(tester);
+      final live = scope.read(activeCallProvider);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Call'));
+      await harness.settle(tester);
+
+      expect(find.byType(CallPage), findsOneWidget);
+      expect(scope.read(activeCallProvider), same(live));
     });
 
     testWidgets('is refused offline', (tester) async {
@@ -172,16 +228,36 @@ void main() {
       expect(container(tester).read(activeCallProvider), isNull);
     });
 
-    testWidgets('joining during another call does nothing', (tester) async {
+    testWidgets('joining during a call in another room says you are already '
+        'in one', (tester) async {
       await openRoom(tester, callInProgress: 'c-bob');
-      alreadyInCall(tester);
+      alreadyInCall(
+        tester,
+        room: buildTestRoom(harness.room.client, id: '!other:example.org'),
+      );
       await harness.settle(tester);
 
       await tester.tap(find.text('Voice call in progress'));
       await harness.settle(tester);
 
       expect(container(tester).read(activeCallProvider)!.callId, 'call-1');
-      expect(find.byType(SnackBar), findsNothing);
+      expect(find.text('You are already in a call'), findsOneWidget);
+    });
+
+    testWidgets('joining in the room of the call you are in returns to that '
+        'call', (tester) async {
+      CallChannelMocks();
+      await openRoom(tester, callInProgress: 'c-bob');
+      alreadyInCall(tester);
+      await harness.settle(tester);
+      final scope = container(tester);
+
+      await tester.tap(find.text('Voice call in progress'));
+      await harness.settle(tester);
+
+      expect(find.byType(CallPage), findsOneWidget);
+      expect(find.text('You are already in a call'), findsNothing);
+      expect(scope.read(activeCallProvider)!.callId, 'call-1');
     });
 
     testWidgets('the call you are in gets no banner', (tester) async {

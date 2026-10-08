@@ -70,7 +70,10 @@ class FakeSender extends RTCRtpSender {
   @override
   MediaStreamTrack? track;
   @override
-  RTCRtpParameters parameters = RTCRtpParameters(encodings: []);
+  RTCRtpParameters parameters = RTCRtpParameters(
+    encodings: [],
+    degradationPreference: RTCDegradationPreference.BALANCED,
+  );
   final appliedParameters = <RTCRtpParameters>[];
   final replacedTracks = <MediaStreamTrack?>[];
 
@@ -167,10 +170,15 @@ class FakePeerConnection extends RTCPeerConnection {
   RTCIceGatheringState? get iceGatheringState =>
       RTCIceGatheringState.RTCIceGatheringStateComplete;
 
+  final offerConstraints = <Map<String, dynamic>?>[];
+
   @override
   Future<RTCSessionDescription> createOffer([
-    Map<String, dynamic> constraints = const {},
-  ]) async => RTCSessionDescription('local offer ${++_offers}', 'offer');
+    Map<String, dynamic>? constraints,
+  ]) async {
+    offerConstraints.add(constraints);
+    return RTCSessionDescription('local offer ${++_offers}', 'offer');
+  }
 
   @override
   Future<RTCSessionDescription> createAnswer([
@@ -190,8 +198,13 @@ class FakePeerConnection extends RTCPeerConnection {
     if (description.type != 'rollback') _local = description;
   }
 
+  Completer<void>? localDescriptionGate;
+
   @override
-  Future<RTCSessionDescription?> getLocalDescription() async => _local;
+  Future<RTCSessionDescription?> getLocalDescription() async {
+    await localDescriptionGate?.future;
+    return _local;
+  }
 
   @override
   Future<void> setRemoteDescription(RTCSessionDescription description) async {
@@ -394,6 +407,26 @@ class FakeWebRtcBackend implements WebRtcBackend {
     final stream = FakeMediaStream(label);
     streams.add(stream);
     return stream;
+  }
+
+  bool placeholderAvailable = true;
+  final placeholders = <PlaceholderVideo>[];
+  final releasedPlaceholders = <PlaceholderVideo>[];
+
+  @override
+  Future<PlaceholderVideo?> createPlaceholderVideo() async {
+    if (!placeholderAvailable) return null;
+    final placeholder = (
+      stream: FakeMediaStream('placeholder-${placeholders.length + 1}'),
+      track: FakeTrack('video', 'black-${++_tracks}'),
+    );
+    placeholders.add(placeholder);
+    return placeholder;
+  }
+
+  @override
+  Future<void> releasePlaceholderVideo(PlaceholderVideo placeholder) async {
+    releasedPlaceholders.add(placeholder);
   }
 
   @override

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/calls/call_audio_route.dart';
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/ui/zuno_colors.dart';
-import 'call_audio_route.dart';
 
 class CallControls extends StatelessWidget {
   final CallKind kind;

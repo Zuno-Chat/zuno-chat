@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/calls/call_audio_route.dart';
 import '../../../core/calls/models/call_engine_participant.dart';
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/calls/models/call_quality.dart';
+import '../../../core/calls/models/call_status.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_title.dart';
-import 'call_audio_route.dart';
 import 'call_controls.dart';
 import 'call_stage.dart';
 import 'call_status_line.dart';
@@ -44,6 +45,7 @@ class CallView extends StatefulWidget {
   final VoidCallback onSwitchCamera;
   final VoidCallback onToggleSpeaker;
   final VoidCallback onHangUp;
+  final VoidCallback onMinimize;
   final String? confirmName;
   final VoidCallback? onConfirmPerson;
 
@@ -64,6 +66,7 @@ class CallView extends StatefulWidget {
     required this.onSwitchCamera,
     required this.onToggleSpeaker,
     required this.onHangUp,
+    required this.onMinimize,
     this.confirmName,
     this.onConfirmPerson,
   });
@@ -71,16 +74,14 @@ class CallView extends StatefulWidget {
   List<CallViewParticipant> get present => connecting ? const [] : remote;
 
   CallStatus get status {
-    final present = this.present;
-    if (present.isEmpty) {
-      if (calling) return CallStatus.calling;
-      return connecting ? CallStatus.connecting : CallStatus.waiting;
-    }
     final local = this.local;
-    if (local == null) return CallStatus.encrypting;
-    return [...present, local].any((p) => p.encrypting)
-        ? CallStatus.encrypting
-        : CallStatus.talking;
+    return callStatus(
+      calling: calling,
+      connecting: connecting,
+      someoneHere: present.isNotEmpty,
+      keysPending:
+          local == null || [...present, local].any((p) => p.encrypting),
+    );
   }
 
   @override
@@ -90,6 +91,9 @@ class CallView extends StatefulWidget {
 class _CallViewState extends State<CallView> {
   static const _controlsReserve = 92.0;
   static const _pillReserve = 34.0;
+  static const _selfWidth = 100.0;
+  static const _gap = 12.0;
+  static const _minimizeReserve = 64.0;
 
   DateTime? _encryptingSince;
 
@@ -178,28 +182,31 @@ class _CallViewState extends State<CallView> {
               minimum: const EdgeInsets.all(12),
               child: Stack(
                 children: [
-                  if (fullVideo)
-                    Positioned(
-                      key: const ValueKey('header'),
-                      left: 0,
-                      top: 0,
-                      right: self == null ? 0 : 112,
-                      child: Align(
-                        alignment: AlignmentDirectional.topStart,
-                        child: _header(present.single, status),
-                      ),
+                  Positioned(
+                    key: const ValueKey('header'),
+                    left: 0,
+                    top: 0,
+                    right: self == null ? 0 : _selfWidth + _gap,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 8,
+                      children: [
+                        if (fullVideo) _header(present.single, status),
+                        _minimizeButton(overVideo: fullVideo),
+                      ],
                     ),
+                  ),
                   if (self != null)
                     Positioned(
                       key: const ValueKey('self'),
                       right: 0,
                       top: 0,
-                      width: 100,
+                      width: _selfWidth,
                       height: 140,
                       child: ParticipantTile(
                         participant: self.participant,
                         renderer: self.renderer,
-                        user: null,
+                        user: self.user,
                         showStatus: false,
                       ),
                     ),
@@ -267,7 +274,7 @@ class _CallViewState extends State<CallView> {
         client: room.client,
         avatarUrl: user?.avatarUrl ?? room.avatar,
         fallbackText: name,
-        toneSeed: user?.id ?? room.id,
+        toneSeed: user?.id ?? roomToneSeed(room),
         radius: radius,
       ),
       name: name,
@@ -276,6 +283,21 @@ class _CallViewState extends State<CallView> {
       encryptingSince: _encryptingSince,
       remoteMuted: other?.participant.audioMuted ?? false,
       remoteWeak: other?.participant.lowBandwidth ?? false,
+    );
+  }
+
+  Widget _minimizeButton({required bool overVideo}) {
+    final colors = Theme.of(context).colorScheme;
+    return IconButton(
+      onPressed: widget.onMinimize,
+      tooltip: 'Minimize call',
+      icon: const Icon(Icons.close_fullscreen),
+      style: IconButton.styleFrom(
+        backgroundColor: overVideo
+            ? Colors.black54
+            : colors.surfaceContainerHighest,
+        foregroundColor: overVideo ? Colors.white : colors.onSurface,
+      ),
     );
   }
 
@@ -295,7 +317,7 @@ class _CallViewState extends State<CallView> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+          padding: const EdgeInsets.fromLTRB(_minimizeReserve, 10, 16, 8),
           child: Row(
             children: [
               Flexible(

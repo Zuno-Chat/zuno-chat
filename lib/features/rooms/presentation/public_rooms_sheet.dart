@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/format/member_count.dart';
 import '../../../core/matrix/matrix_ids.dart';
+import '../../../core/ui/sheet.dart';
 import 'room_kind_avatar.dart';
 
 typedef PublicRoomsSearch = Future<QueryPublicRoomsResponse> Function({
@@ -20,7 +21,7 @@ Future<String?> showPublicRoomsSheet(
   required Client client,
   bool communities = false,
   PublicRoomsSearch? search,
-}) => showModalBottomSheet<String>(
+}) => showSheet<String>(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
@@ -265,6 +266,7 @@ class _RoomRow extends StatelessWidget {
         avatarUrl: room.avatarUrl,
         fallbackText: title,
         isDirect: false,
+        toneSeed: room.roomId,
         community: community,
       ),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),

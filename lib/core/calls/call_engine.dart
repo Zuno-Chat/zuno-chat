@@ -24,6 +24,7 @@ abstract class CallEngine {
   Future<void> setCameraEnabled(bool enabled);
   Future<void> switchCamera();
   Future<void> switchToVideo();
+  Future<void> setAppInBackground(bool inBackground);
   Future<void> setEncryptionKey(Uint8List key);
 
   void updateRemoteParticipant(

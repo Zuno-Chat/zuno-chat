@@ -11,7 +11,7 @@ void main() {
         shouldPauseBackgroundSync(
           AppLifecycleState.paused,
           NotificationDeliveryMode.fcm,
-          inCall: false,
+          keepSyncAlive: false,
         ),
         isTrue,
       );
@@ -22,7 +22,7 @@ void main() {
         shouldPauseBackgroundSync(
           AppLifecycleState.paused,
           NotificationDeliveryMode.unifiedPush,
-          inCall: false,
+          keepSyncAlive: false,
         ),
         isTrue,
       );
@@ -33,14 +33,14 @@ void main() {
         shouldPauseBackgroundSync(
           AppLifecycleState.paused,
           NotificationDeliveryMode.backgroundService,
-          inCall: false,
+          keepSyncAlive: false,
         ),
         isFalse,
       );
     });
 
-    test('never pauses during a call: the other side leaving is only '
-        'visible through sync', () {
+    test('never pauses while a call or a live share needs sync: the other '
+        'side leaving and watch signals arrive only through sync', () {
       for (final mode in [
         NotificationDeliveryMode.fcm,
         NotificationDeliveryMode.unifiedPush,
@@ -49,7 +49,7 @@ void main() {
           shouldPauseBackgroundSync(
             AppLifecycleState.paused,
             mode,
-            inCall: true,
+            keepSyncAlive: true,
           ),
           isFalse,
           reason: mode.toString(),
@@ -68,7 +68,7 @@ void main() {
           shouldPauseBackgroundSync(
             state,
             NotificationDeliveryMode.fcm,
-            inCall: false,
+            keepSyncAlive: false,
           ),
           isFalse,
           reason: state.toString(),
@@ -111,6 +111,63 @@ void main() {
           reason: state.toString(),
         );
       }
+    });
+  });
+
+  group('shouldLongPollInBackground', () {
+    test('long-polls in the background for a live share alone', () {
+      expect(
+        shouldLongPollInBackground(
+          AppLifecycleState.paused,
+          NotificationDeliveryMode.fcm,
+          forCall: false,
+          forLiveShare: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a call or ring keeps the regular loop', () {
+      expect(
+        shouldLongPollInBackground(
+          AppLifecycleState.paused,
+          NotificationDeliveryMode.fcm,
+          forCall: true,
+          forLiveShare: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('never in front, never without a share, never for the background '
+        'service', () {
+      expect(
+        shouldLongPollInBackground(
+          AppLifecycleState.resumed,
+          NotificationDeliveryMode.fcm,
+          forCall: false,
+          forLiveShare: true,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldLongPollInBackground(
+          AppLifecycleState.paused,
+          NotificationDeliveryMode.fcm,
+          forCall: false,
+          forLiveShare: false,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldLongPollInBackground(
+          AppLifecycleState.paused,
+          NotificationDeliveryMode.backgroundService,
+          forCall: false,
+          forLiveShare: true,
+        ),
+        isFalse,
+      );
     });
   });
 }

@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
+import im.zuno.chat.zuno_notifications.AppLaunchIntent
 
 class CallForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
@@ -23,12 +24,10 @@ class CallForegroundService : Service() {
 
         ensureChannel()
 
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-            ?: Intent(this, MainActivity::class.java)
         val contentIntent = PendingIntent.getActivity(
             this,
             0,
-            launchIntent,
+            AppLaunchIntent.of(this, ACTION_OPEN_CALL),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
@@ -83,6 +82,7 @@ class CallForegroundService : Service() {
     }
 
     companion object {
+        const val ACTION_OPEN_CALL = "im.zuno.chat.OPEN_CALL"
         private const val CHANNEL_ID = "calls_ongoing"
         private const val NOTIFICATION_ID = 4001
         private const val EXTRA_TITLE = "title"

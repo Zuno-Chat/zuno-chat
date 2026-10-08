@@ -62,7 +62,7 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
               client: room.client,
               avatarUrl: display.avatarUrl,
               fallbackText: display.title,
-              toneSeed: room.directChatMatrixID ?? room.id,
+              toneSeed: roomToneSeed(room),
               radius: 18,
             ),
             const SizedBox(width: 10),

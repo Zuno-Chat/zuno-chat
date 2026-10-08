@@ -8,6 +8,8 @@ import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/calls/active_call_provider.dart';
+import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/account_security_status.dart';
 import 'package:zuno/core/security/security_providers.dart';
@@ -17,6 +19,7 @@ import 'package:zuno/features/settings/presentation/sign_in_another_device_page.
 import 'package:zuno/features/verification/presentation/approve_this_device_page.dart';
 import 'package:zuno/features/verification/presentation/verification_page.dart';
 
+import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../verification/presentation/verification_harness.dart';
 
@@ -74,6 +77,7 @@ class _DevicesClient extends Client {
   Object? deleteError;
   int logouts = 0;
   Object? logoutError;
+  final journal = <String>[];
   int tokenRequests = 0;
 
   void setKeys(List<_Keys> keys) =>
@@ -118,6 +122,7 @@ class _DevicesClient extends Client {
     logouts++;
     final error = logoutError;
     if (error != null) throw error;
+    journal.add('logged out');
   }
 
   @override
@@ -403,6 +408,28 @@ void main() {
       await confirm(tester, 'Sign out');
 
       expect(client.logouts, 1);
+    });
+
+    testWidgets('signing out mid-call ends the call before the token goes', (
+      tester,
+    ) async {
+      threeDevices();
+      await pumpPage(tester);
+      ProviderScope.containerOf(tester.element(find.byType(ActiveSessionsPage)))
+          .read(activeCallProvider.notifier)
+          .set(
+            FakeCallSession(
+              room: buildCallRoom(),
+              kind: CallKind.voice,
+              journal: client.journal,
+            ),
+          );
+
+      await tester.tap(find.text('Sign out this device'));
+      await tester.pumpAndSettle();
+      await confirm(tester, 'Sign out');
+
+      expect(client.journal, ['call ended', 'logged out']);
     });
 
     testWidgets('Cancel keeps it signed in', (tester) async {

@@ -7,15 +7,15 @@ final _asking = Expando<bool>('uia password asked');
 Future<String?> askPasswordForUia(
   BuildContext context, {
   String title = 'Confirm your password',
+  String? message,
   String? error,
 }) {
   final controller = TextEditingController();
   return showDialog<String>(
     context: context,
     barrierDismissible: false,
-    builder: (context) => AlertDialog(
-      title: Text(title),
-      content: AutofillGroup(
+    builder: (context) {
+      final field = AutofillGroup(
         onDisposeAction: AutofillContextAction.cancel,
         child: TextField(
           controller: controller,
@@ -25,18 +25,28 @@ Future<String?> askPasswordForUia(
           decoration: InputDecoration(labelText: 'Password', errorText: error),
           onSubmitted: (v) => Navigator.of(context).pop(v),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(controller.text),
-          child: const Text('Confirm'),
-        ),
-      ],
-    ),
+      );
+      return AlertDialog(
+        title: Text(title),
+        content: message == null
+            ? field
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [Text(message), const SizedBox(height: 16), field],
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Confirm'),
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -45,6 +55,7 @@ Future<void> answerUiaWithPassword(
   UiaRequest uia, {
   required String userId,
   String title = 'Confirm your password',
+  String? message,
   String? Function()? preparedPassword,
 }) async {
   if (uia.state != UiaRequestState.waitForUser || _asking[uia] == true) return;
@@ -60,6 +71,7 @@ Future<void> answerUiaWithPassword(
         await askPasswordForUia(
           context,
           title: title,
+          message: message,
           error: _passwordSent[uia] == true ? 'Wrong password.' : null,
         );
   } finally {

@@ -152,7 +152,7 @@ void main() {
     );
   });
 
-  test('a module refusal is refused with its status and errcode', () async {
+  test('a module refusal keeps its status, errcode and error', () async {
     final invalid = _server(
       (_) async => _module({
         'errcode': 'M_INVALID_PARAM',
@@ -169,8 +169,14 @@ void main() {
     final first = await _put(invalid) as VoipServerRefused;
     final second = await _put(disabled) as VoipServerRefused;
 
-    expect((first.status, first.errcode), (400, 'M_INVALID_PARAM'));
-    expect((second.status, second.errcode), (503, 'IM.ZUNO.PUSH_DISABLED'));
+    expect(
+      (first.status, first.errcode, first.error),
+      (400, 'M_INVALID_PARAM', 'bad key'),
+    );
+    expect(
+      (second.status, second.errcode, second.error),
+      (503, 'IM.ZUNO.PUSH_DISABLED', 'off'),
+    );
   });
 
   test('a module answer outside the contract is refused', () async {

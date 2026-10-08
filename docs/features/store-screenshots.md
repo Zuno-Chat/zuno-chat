@@ -3,7 +3,8 @@
 `tool/screenshots/` renders the real `RoomListPage`, `RoomPage` and
 `CallView` with made-up people and messages, and writes RGB PNGs to
 `build/screenshots/`. Run `flutter test tool/screenshots`; it lives outside
-`test/`, so the suite never runs it.
+`test/`, so the suite never runs it. Uploading is by hand: the release
+pipeline never touches screenshots (`releases.md`).
 
 ## Devices
 
@@ -14,30 +15,27 @@
 | `android-phone` | 360×640 @3 | 1080×1920 | Play phone, 9:16 for promotion eligibility |
 | `android-tablet-10in` | 800×1280 @2 | 1600×2560 | Play 10" tablet |
 
-Each device writes chat list and room (light and dark) plus a voice call.
+Each device writes the chat list and a room, in light and dark, plus a
+voice call.
 
 ## Decisions
 
-- **Rendered, not captured.** No device, account or real data; the clock
-  is fixed at 9:41 today, so reruns differ only by the date labels.
-- **RGB, no alpha.** Play rejects screenshots with an alpha channel.
-- **Calls are dark only**, as `CallPage` always wraps `zunoDarkTheme`.
-- **No video calls.** `RTCVideoView` draws a native texture a test cannot
-  fill, so a video call renders as an avatar on black. Real video needs a
-  device screenshot.
+- **Rendered, not captured**, so shots need no device, account or real
+  data.
+- **RGB, no alpha**, because Play rejects screenshots with an alpha channel.
+- **Calls are dark only**, because `CallPage` always uses the dark theme.
+- **No video calls**, because a test cannot fill the native video texture,
+  so real video needs a device screenshot.
 
 ## Gotchas
 
-- **One test file per device.** `ThemeData` fixes `platform` (typography,
-  back icon) from `defaultTargetPlatform` when `zunoLightTheme` is first
-  built, so a second platform in the same isolate gets the first one's look.
-- **Fonts are loaded by hand**: Roboto and MaterialIcons from the Flutter
-  SDK cache (found from `Platform.resolvedExecutable`), SF from
-  `/System/Library/Fonts/SFNS.ttf`. iOS shots therefore need macOS.
-- **`tool/` is not test code to the analyzer**, so no `@visibleForTesting`
-  members: preferences come from a mocked channel, capabilities from a
-  `platformCapabilitiesProvider` override.
-- **Encrypted rooms need `encryptionEnabled`** (a `Client` subclass), or
-  `canSendDefaultMessages` is false and `RoomPage` hides the composer.
-- No status bar, letter avatars, no photos or emoji: tests have no images
-  or emoji font.
+- **One test file per device**, because `ThemeData` fixes its platform look
+  when the theme is first built in an isolate.
+- **Fonts are loaded by hand** from the Flutter SDK cache and macOS, so iOS
+  shots need a Mac.
+- **The analyzer does not treat `tool/` as test code**, so the screenshots
+  cannot use `@visibleForTesting` members.
+- **Encrypted rooms need a `Client` subclass that reports
+  `encryptionEnabled`**, or `RoomPage` hides the composer.
+- **Shots have no status bar, photos or emoji, and avatars are letters**,
+  because a test loads no images and has no emoji font.

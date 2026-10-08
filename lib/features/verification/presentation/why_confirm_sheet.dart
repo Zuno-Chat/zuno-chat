@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/ui/sheet.dart';
+
 Future<bool?> showWhyConfirmSheet(
   BuildContext context, {
   required String name,
   String? unavailableReason,
-}) => showModalBottomSheet<bool>(
+}) => showSheet<bool>(
   context: context,
   isScrollControlled: true,
   builder: (_) =>

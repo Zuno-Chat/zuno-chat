@@ -135,6 +135,7 @@ class _MentionSuggestionsState extends State<MentionSuggestions> {
                 client: widget.room.client,
                 avatarUrl: user.avatarUrl,
                 fallbackText: user.calcDisplayname(),
+                toneSeed: user.id,
                 radius: 16,
               ),
               title: Text(user.calcDisplayname()),

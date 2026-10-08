@@ -1,6 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart'
-    show RTCRtpParameters, RTCRtpEncoding, StatsReport;
+    show
+        RTCDegradationPreference,
+        RTCRtpParameters,
+        RTCRtpEncoding,
+        StatsReport;
 
 import 'package:zuno/core/calls/cloudflare/call_quality_policy.dart';
 import 'package:zuno/core/calls/models/call_quality.dart';
@@ -109,30 +113,40 @@ void main() {
       expect(videoEncodingFor(CallQuality.good, lowDataMode: false), (
         scaleResolutionDownBy: 1.0,
         maxFramerate: 30,
-        maxBitrate: 800000,
+        maxBitrate: 950000,
       ));
       expect(videoEncodingFor(CallQuality.good, lowDataMode: true), (
         scaleResolutionDownBy: 1.0,
-        maxFramerate: 24,
+        maxFramerate: 30,
         maxBitrate: 500000,
       ));
     });
 
-    test('lower tiers never scale below half resolution', () {
-      expect(
-        videoEncodingFor(
-          CallQuality.degraded,
-          lowDataMode: false,
-        ).scaleResolutionDownBy,
-        2.0,
-      );
-      expect(
-        videoEncodingFor(
-          CallQuality.poor,
-          lowDataMode: false,
-        ).scaleResolutionDownBy,
-        2.0,
-      );
+    test('good and degraded keep 30 fps, poor drops to 24', () {
+      for (final lowData in [false, true]) {
+        int fps(CallQuality quality) =>
+            videoEncodingFor(quality, lowDataMode: lowData).maxFramerate;
+        expect(fps(CallQuality.good), 30, reason: 'low data $lowData');
+        expect(fps(CallQuality.degraded), 30, reason: 'low data $lowData');
+        expect(fps(CallQuality.poor), 24, reason: 'low data $lowData');
+      }
+    });
+
+    test('degraded sends 240p and poor 180p, whichever the capture', () {
+      for (final lowData in [false, true]) {
+        final captured = captureSizeFor(lowDataMode: lowData).height;
+        double sentHeight(CallQuality quality) =>
+            captured /
+            videoEncodingFor(
+              quality,
+              lowDataMode: lowData,
+            ).scaleResolutionDownBy;
+        expect(sentHeight(CallQuality.degraded), closeTo(240, 0.01));
+        expect(sentHeight(CallQuality.poor), closeTo(180, 0.01));
+      }
+    });
+
+    test('poor sends less than degraded', () {
       expect(
         videoEncodingFor(CallQuality.poor, lowDataMode: false).maxBitrate,
         lessThan(
@@ -202,6 +216,21 @@ void main() {
       expect(result.encodings, hasLength(1));
     });
 
+    test('replaces the balanced preference flutter_webrtc reads back with '
+        'keeping the frame rate', () {
+      final result = applyVideoEncodingLimits(
+        RTCRtpParameters(
+          encodings: [],
+          degradationPreference: RTCDegradationPreference.BALANCED,
+        ),
+        limits,
+      );
+      expect(
+        result.degradationPreference,
+        RTCDegradationPreference.MAINTAIN_FRAMERATE,
+      );
+    });
+
     test('returns the same params instance it was given', () {
       final params = RTCRtpParameters(encodings: [RTCRtpEncoding(rid: 'a')]);
       final result = applyVideoEncodingLimits(params, limits);
@@ -247,22 +276,99 @@ void main() {
       },
     );
 
+    StatsReport succeededPair(
+      String id,
+      double rttSeconds, {
+      bool nominated = true,
+    }) => StatsReport(id, 'candidate-pair', 0, {
+      'state': 'succeeded',
+      'nominated': nominated,
+      'currentRoundTripTime': rttSeconds,
+    });
+    StatsReport transport(String selectedPairId) => StatsReport(
+      'transport',
+      'transport',
+      0,
+      {'selectedCandidatePairId': selectedPairId},
+    );
+
+    test('reads RTT from the selected pair, not a stale relay after it', () {
+      final counters = StatsCounters.fromReports([
+        transport('wifi'),
+        succeededPair('wifi', 0.016),
+        succeededPair('relay', 0.420, nominated: false),
+      ]);
+      expect(counters.rttMs, 16);
+    });
+
+    test('without a transport report, reads the nominated pair', () {
+      final counters = StatsCounters.fromReports([
+        succeededPair('wifi', 0.020),
+        succeededPair('relay', 0.420, nominated: false),
+      ]);
+      expect(counters.rttMs, 20);
+    });
+
+    test('a succeeded pair nobody selected or nominated gives no RTT', () {
+      final counters = StatsCounters.fromReports([
+        succeededPair('relay', 0.420, nominated: false),
+      ]);
+      expect(counters.rttMs, isNull);
+    });
+
+    StatsCounters counters(int lost, int received, {double? rttMs}) =>
+        StatsCounters(
+          streams: {'in': (lost: lost, received: received)},
+          rttMs: rttMs,
+        );
+
     test('sampleSince computes the loss fraction of the delta only', () {
-      const previous = StatsCounters(packetsLost: 10, packetsReceived: 1000);
-      const current = StatsCounters(
-        packetsLost: 20,
-        packetsReceived: 1090,
+      final sample = counters(
+        20,
+        1090,
         rttMs: 40,
-      );
-      final sample = current.sampleSince(previous);
+      ).sampleSince(counters(10, 1000));
       expect(sample.lossFraction, closeTo(0.1, 1e-9));
       expect(sample.rttMs, 40);
     });
 
     test('a negative delta (duplicate packets) clamps to zero loss', () {
-      const previous = StatsCounters(packetsLost: 10, packetsReceived: 100);
-      const current = StatsCounters(packetsLost: 8, packetsReceived: 100);
-      expect(current.sampleSince(previous).lossFraction, 0);
+      expect(counters(8, 100).sampleSince(counters(10, 100)).lossFraction, 0);
+    });
+
+    test('a silent stretch of a few packets says nothing about loss', () {
+      final sample = counters(1, 7, rttMs: 40).sampleSince(counters(0, 0));
+      expect(sample.lossFraction, 0);
+      expect(sample.rttMs, 40);
+    });
+
+    test('enough packets to judge still count their loss', () {
+      expect(
+        counters(6, 54).sampleSince(counters(0, 0)).lossFraction,
+        closeTo(0.1, 1e-9),
+      );
+    });
+
+    test('a stream seen for the first time counts from its next sample, so '
+        'its start-up is not taken for loss', () {
+      final before = StatsCounters.fromReports([inbound(0, 500)]);
+      final after = StatsCounters.fromReports([
+        inbound(0, 600),
+        StatsReport('new', 'inbound-rtp', 0, {
+          'packetsLost': 30,
+          'packetsReceived': 70,
+        }),
+      ]);
+      final next = StatsCounters.fromReports([
+        inbound(0, 700),
+        StatsReport('new', 'inbound-rtp', 0, {
+          'packetsLost': 40,
+          'packetsReceived': 170,
+        }),
+      ]);
+
+      expect(after.sampleSince(before).lossFraction, 0);
+      expect(next.sampleSince(after).lossFraction, closeTo(10 / 210, 1e-9));
     });
   });
 }

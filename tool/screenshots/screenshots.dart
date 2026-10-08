@@ -15,6 +15,7 @@ import 'package:image/image.dart' as img;
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/calls/call_audio_route.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/call_quality.dart';
@@ -26,7 +27,6 @@ import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
-import 'package:zuno/features/calls/presentation/call_audio_route.dart';
 import 'package:zuno/features/calls/presentation/call_view.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/rooms/presentation/room_list_page.dart';
@@ -647,6 +647,7 @@ Widget _voiceCall(_World w) {
       onSwitchCamera: () {},
       onToggleSpeaker: () {},
       onHangUp: () {},
+      onMinimize: () {},
     ),
   );
 }

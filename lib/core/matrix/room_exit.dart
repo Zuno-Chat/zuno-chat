@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../calls/end_call.dart';
+import '../errors/best_effort.dart';
 import '../errors/connection_error.dart';
 import 'communities.dart';
 import 'room_title.dart';
@@ -13,6 +15,11 @@ Future<void> exitRoom(Room room, {required bool isDirect}) async {
     await room.forget();
   } catch (_) {}
 }
+
+Iterable<String> _roomIdsLeftBy(Room room) => [
+  room.id,
+  if (room.isSpace) ...roomsLeavingWith(room).map((left) => left.id),
+];
 
 String roomExitLabel(Room room) {
   if (room.isDirectChat) return 'Delete chat';
@@ -41,7 +48,11 @@ String roomExitMessage(Room room) {
 IconData roomExitIcon(Room room) =>
     room.isDirectChat ? Icons.delete_outline : Icons.logout_outlined;
 
-Future<bool> confirmAndExitRoom(BuildContext context, Room room) async {
+Future<bool> confirmAndExitRoom(
+  BuildContext context,
+  Room room, {
+  required EndCallsIn endCallsIn,
+}) async {
   final isDirect = room.isDirectChat;
   final messenger = ScaffoldMessenger.of(context);
   final confirmed = await showDialog<bool>(
@@ -64,9 +75,11 @@ Future<bool> confirmAndExitRoom(BuildContext context, Room room) async {
   if (confirmed != true) return false;
 
   try {
+    await endCallsIn(_roomIdsLeftBy(room));
     await exitRoom(room, isDirect: isDirect);
     return true;
   } catch (e) {
+    logCaught('exit room', e);
     final String failed;
     if (isDirect) {
       failed = 'Could not delete the chat.';

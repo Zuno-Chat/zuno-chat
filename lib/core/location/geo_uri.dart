@@ -43,19 +43,16 @@ class GeoUri {
     );
   }
 
+  String get point => '${_compact(latitude)},${_compact(longitude)}';
+
   String toUriString() {
-    final base = 'geo:${_compact(latitude)},${_compact(longitude)}';
+    final base = 'geo:$point';
     final u = uncertaintyMeters;
     return u == null ? base : '$base;u=${_compact(u)}';
   }
 
   String get coordinatesLabel =>
       '${latitude.toStringAsFixed(4)}, ${longitude.toStringAsFixed(4)}';
-
-  Uri get externalMapsUri {
-    final point = '${_compact(latitude)},${_compact(longitude)}';
-    return Uri.parse('geo:$point?q=$point');
-  }
 
   static String _compact(double value) =>
       value.toStringAsFixed(6).replaceFirst(RegExp(r'\.?0+$'), '');

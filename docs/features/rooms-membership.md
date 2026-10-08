@@ -1,576 +1,144 @@
 # Rooms & Membership
 
-## Overview
-
-Covers the room list, room creation/joining, room info & settings, the
-4-tier role/permission model, invitations (both sides), and moderation
-primitives (block/ignore/report). Zuno targets one self-hosted, non-
-federated homeserver — that single fact shapes ID entry, permission
-defaults, and what "finding people" can mean.
-
-Room roles & permissions and invitations are called out in the codebase
-map as architecturally load-bearing: `room_roles.dart` + `room_permission.dart`
-(4-tier model on `m.room.power_levels`), and `room_invite.dart` (deliberately
-asymmetric sender/receiver views).
+The chat list, room creation and access, room info and settings, the 4-tier
+role model, invitations, the room media feed, and person-level moderation
+(block, report). Zuno targets one self-hosted, non-federated homeserver, and
+that single fact shapes ID entry, permission defaults and what discovery can
+mean. Screens call the `matrix` SDK directly, and live Matrix room state is
+the only source of truth.
 
 ## Architecture
 
-- No repository layer: room-list, room-info, and settings screens call
-  `matrix` SDK methods directly on `Client`/`Room` (`room.setName`,
-  `room.kick`, `client.createGroupChat`, ...). SDK types are the app state.
-- `lib/core/matrix/room_invite.dart` — pure, unit-tested functions reading
-  room state to decide invite display/notification behavior. Shared by the
-  room list, `RoomPage`'s app bar, and both notification paths (live +
-  push).
-- **The chat list is split from its page.** `RoomListPage` keeps the
-  page-level duties (new-chat flows, onboarding, verification and
-  incoming-call listeners, the long-press sheet); `ChatListView` draws.
-  Each sync tick a room is read into a value-equal `ChatRowData`
-  (`features/rooms/data/`) holding everything the row *displays*, computed
-  time label included; `RowMemo` returns the identical `ChatRow` when the
-  record is unchanged, which Flutter skips, so a sync rebuilds only the
-  rows that changed. The list's delegate has a `findChildIndexCallback`
-  keyed on the room ID: without it a chat jumping to the top shifts every
-  index and remounts the rows in between, memo or not. `ChatRow` is presentational (its preview is a widget
-  slot, filled by `LastMessagePreview`); `InvitationGroup` holds incoming
-  invitations above the chats. Rows share one height through a prototype
-  (`SliverPrototypeExtentList`). The page has Chats and Communities tabs
-  fed by one `arrangeHome` per sync; see `communities.md`. Until a fresh
-  session's first sync (`firstSyncProvider`), a client with no rooms shows
-  a spinner on both tabs instead of the empty state, so a new sign-in never
-  says "No chats yet" about chats still on their way.
-- `room_exit.dart` — the leave/forget rule plus the shared confirm prompt
-  and its copy. `room_title.dart` — `roomTitle()`, the one name every
-  surface shows for a room.
-- `room_roles.dart` — the 4-tier role model and role-assignment rules
-  (`assignableRolesFor`, `canManageMember`, `bannedUserIds`).
-- `room_permission.dart` — the permission catalog, each entry mapping to a
-  field/`events` override in `m.room.power_levels`, plus
-  `defaultGroupPowerLevels(public:)` for new-room creation.
-- `abuse_report.dart` — reasons, the reason string and the two send
-  calls (`reportMessage`, `reportPerson`). `report_sheet.dart`
-  (`lib/features/reports/`) is the one sheet every entry point opens: a
-  message's long-press menu, the member sheet, chat info, the invitation.
-- `block_person.dart` (`lib/features/blocking/`) — `confirmAndBlockPerson`,
-  the one dialog behind every Block entry point (chat info, the member
-  sheet, "Block and decline" on an invitation), `blockOnServer`
-  (`client.ignoreUser`) and `canBlockPerson`. `blocked_people_page.dart`
-  is the list under Settings → Security, with Unblock.
-- `call_member_state.dart` — owns the call-specific power-level gate
-  (`m.call.member`) and `hasSomeoneToCall`; reused by room permissions and
-  by the room list's call-button gating.
-- Native Android `MethodChannel` (`android/.../MainActivity.kt`) backs
-  "Add to home screen" (pinned shortcuts) — no Flutter plugin exists for
-  Android's pinned-shortcut API.
-- `public_rooms_sheet.dart` — the directory search sheet behind the room
-  list's "+ → Find public rooms". Takes an injectable `PublicRoomsSearch`
-  (defaults to `client.queryPublicRooms`), 20 rooms a page, loads the next
-  page when the end scrolls into view, and discards responses superseded by
-  a newer search (generation counter). Rooms mode drops `m.space` rows;
-  communities mode asks the server for `room_types: [m.space]`. Hands back
-  a room ID; the room list joins it, waits for the sync that brings it
-  (`joinAndAwaitRoom`) and opens it.
-- `room_access.dart` — public/private as one concept over two server facts
-  (join rule + directory listing), plus Community (`restricted`) and Ask to
-  join (`knock`) for rooms inside a community, the admin-only gate and
-  `createGroupRoom`, the one call behind the room list's "New room" dialog
-  (name + Private/Public, private by default).
-  `room_access_label.dart` renders it (globe / crossed globe) in the room
-  info header next to "Encrypted" and under the name in the chat header.
-- `room_avatar.dart` — upload + state write + optimistic state in one
-  step; the SDK's `setAvatar` returns only an event ID, which left every
-  page stale until reopened.
-- Room info layout: a header (avatar, name, Encrypted • access, topic), a
-  row of quick actions, then `CardGroup`s. The topic (`room_topic.dart`,
-  chats too, hidden when blank) is centered and linkified; it folds at three
-  lines behind "Read more", decided by measuring with a `TextPainter` at the
-  current width, text scale and bold-text setting, so a short topic gets no
-  button. The topic shows only here: a chat-header subtitle fit about 18
-  characters beside the call buttons, and a strip under the header cost a
-  row in every room. Quick actions are Call and Video (only
-  when `RoomInfoPage.onStartCall` is given, the room allows it and someone
-  else is there; `RoomPage` passes a callback that pops the page and
-  starts the call), Mute/Unmute, and Invite. Block, Report and the exit
-  row (`roomExitLabel`) close the page; exiting pops
-  `RoomInfoResult.left`, and `RoomPage` then pops itself. Members are
-  requested in `onRouteSettled`; if the request fails, the members already
-  in memory show and the count comes from the room summary.
-- Room info members: `member_tile.dart` (shared row; badge from
-  `memberBadge`) and `members_sheet.dart` (full list, searchable, same
-  rows). The page shows five, owner first (`membersOwnerFirst`), then
-  "View all members". `RoomInfoPage` listens to `client.onRoomState` so
-  settings edits (all applied optimistically) show without reopening.
-  Invite, remove, ban, unban and turning on encryption are optimistic too:
-  the member state is written locally and the loaded list edited in place.
-- Room info media: `lib/core/matrix/room_media_feed.dart` is a per-room,
-  cursor-paged feed over the SDK's `Room.searchEvents` (local database
-  first, then server history in pages of 100 events, decrypting as it
-  goes). One load gathers up to 40 media events across at most 4 requests,
-  dedups by event ID, prepends new media from `client.onTimelineEvent`
-  and drops redactions. Kind (photo/video/file) comes from
-  `event_display.dart`'s `summarize`; voice messages are excluded.
-  `roomMediaFeedProvider` (keep-alive family keyed by `Room`) caches feeds
-  for the session and invalidates itself on logout. `room_media_section.dart`
-  previews six thumbs plus a "More media and files" row;
-  `room_media_page.dart` is the tabbed page (photos and videos by month,
-  files) that auto-loads while history keeps yielding media, offers "Load
-  older" after a dry stretch (`stalled`) and "Try again" after a failure
-  (`failed`). Thumbs open `GalleryViewerPage` over the loaded list.
+| Area | Components |
+|---|---|
+| Chat list | `RoomListPage` owns the new-chat flows and the long-press sheet, and `ChatListView` draws the list. The Chats and Communities tabs share one `arrangeHome` split per sync (`communities.md`). |
+| Rows | Each visible room is read into a value-equal `ChatRowData`, and `RowMemo` hands back the identical `ChatRow` for an unchanged record (pattern: `app-foundation.md`). Incoming invitations sit above the rows. |
+| Directory | `public_rooms_sheet.dart` searches the server directory. The chat list joins the chosen room and opens it once sync brings it. |
+| Access | `room_access.dart` treats access as one concept over two server facts, the join rule and the directory listing (table under Decisions). |
+| Room info | `lib/features/room_info/`: header, quick actions, members, settings, permissions and media. Which sections show depends on the kind of room (table below). |
+| Shared rules | `room_exit.dart` (the exit rule), `room_title.dart` (the one title every surface shows), `optimistic_room_state.dart`. |
+| Roles | `room_roles.dart`: read-only `-1`, member `0`, moderator `50`, admin `100`, where any other level reads as the tier below it. It also decides who may manage whom (`canManageMember`, `assignableRolesFor`). |
+| Permissions | `room_permission.dart`: the permission catalog, where each entry is one field of `m.room.power_levels`, and the defaults for new rooms. `RoomPermissionsPage` shows it for rooms and communities. |
+| Call gating | `call_member_state.dart`: `canPublishCallMemberState` and `hasSomeoneToCall`, used by every call button. |
+| Invitations | `room_invite.dart`: pure functions that decide how an invitation is displayed and notified, shared by the chat list, the chat header, `RoomInvitePage` and both notification paths. |
+| Room media | `room_media_feed.dart` (the feed) and `room_media_page.dart` (the tabbed screen). |
+| Moderation | `abuse_report.dart` and `report_sheet.dart` sit behind every report entry point, and `block_person.dart` behind every Block entry point. Blocked people are listed under Settings → Security. |
 
-## Data & State
+Add to home screen is Android only: the `zuno/shortcuts` channel pins a
+native shortcut, because no Flutter plugin covers Android's pinned-shortcut
+API.
 
-- **Single source of truth**: Matrix room state, read live off the SDK's
-  in-memory `Room`/`Client.rooms`, not a local duplicate.
-- **Role model**: a 4-tier scheme layered over the raw power-level int —
-  read-only (`-1`), member (`0`), moderator (`50`), admin (`100`). `-1` is
-  a Zuno-specific extension (not part of the wider Matrix/Element 0/50/100
-  convention); verified against SDK source that power levels aren't
-  floored at 0. Read-only behavior (can't message, can't edit room
-  metadata, can't join calls) isn't separately implemented — it falls out
-  for free from existing per-feature power-level checks.
-- **Permission catalog** (`room_permission.dart`): each entry maps to a
-  field or `events` override on the room's single `m.room.power_levels`
-  state event. Every read/write path is checked against the real SDK
-  getters it must stay consistent with (`canBan`, `canKick`,
-  `canSendEvent`, `canSendDefaultStates`, `canSendNotification`, etc.),
-  never hand-rolled separately.
-  - `users_default` is *not* a permission — it's the room's default-role
-    *value*, exposed as its own "Room defaults" setting
-    (`roomDefaultRoleSetting`), not a row in the permission list.
-  - Deliberately excluded from the catalog: `m.room.server_acl` (no
-    federation — nothing to gate), room upgrade/tombstone (high-
-    blast-radius, no SDK convenience method, needs its own design pass),
-    "modify widgets" (no widget feature exists to gate).
-- **New-room defaults**: `defaultGroupPowerLevels()` builds a
-  `power_level_content_override` from Zuno's own fixed role table (name/
-  topic/avatar/main-address/settings/history-visibility/permissions/
-  encryption at admin; invite/send-messages at member; kick/ban/redact/
-  notify at moderator) and passes it to `Client.createGroupChat` — because
-  homeserver presets (e.g. Synapse's `private_chat`) default several of
-  these to moderator, which would silently disagree with Zuno's own
-  permissions UI the moment a room is created. `users_default` is left
-  unset since its spec fallback already matches Zuno's own default.
-  A public room differs only through `_publicRoomPermissionRoles`
-  (start or join calls at moderator). It applies at
-  creation only: making an existing room public leaves its permissions
-  alone, because an admin may have set them.
-- **Invitation state** is nothing but a room's `m.room.member` event(s) —
-  no separate invite entity. `RoomSummary` fields
-  (`m.invited_member_count`, `m.joined_member_count`, `m.heroes`) are used
-  wherever "is someone still deciding" must survive a cold start, since
-  full member state does not (see Gotchas).
-- Banned users: read from cached `m.room.member` state
-  (`bannedUserIds`) — the SDK has no dedicated "list bans" call.
+### Chat list updates
 
-## Communication
+```mermaid
+flowchart LR
+  S["onSync + onRoomState"] --> A["arrangeHome"]
+  A --> D["ChatRowData per visible room"]
+  D --> M{"RowMemo: equal record?"}
+  M -->|yes| K["same ChatRow, not rebuilt"]
+  M -->|no| N["new ChatRow"]
+```
 
-- All room/membership actions go straight through `matrix` SDK methods:
-  `Room.join()`, `Room.leave()`, `Room.forget()`, `room.kick`/`ban`/`unban`,
-  `room.setName`/`setDescription`/`setAvatar`, `setCanonicalAlias`,
-  `setHistoryVisibility`, `enableEncryption`, `Client.createGroupChat`,
-  `Client.getUrlPreview`, `Client.getUserProfile`,
-  `Client.queryPublicRooms` (`POST /publicRooms`, `generic_search_term`),
-  `Client.joinRoom`, `Room.setJoinRules`,
-  `Client.setRoomVisibilityOnDirectory`.
-- **Invite delivery, live**: `client.onNotification` (not
-  `onTimelineEvent`) — an invitation is stripped `invite_state` for an
-  unjoined room, not a timeline event; the SDK gates re-emission on
-  `prevBatch` so a sync backlog doesn't fire all at once.
-  `roomInviteNotificationProvider` watches this continuously from
-  `RoomListPage.build()`.
-- **Invite delivery, push**: `incoming_push_handler.dart` routes through
-  `inviteNotificationFor` — the same pure function the live path uses —
-  because the default push handler (`messageNotificationFor`) only
-  recognizes `m.room.message` and silently drops `m.room.member` (invite)
-  pushes.
-- **One notification per invitation**: both paths claim the room in
-  `notifications.announced_invites` (room → time, kept 7 days, serialized
-  per isolate) before posting, and a failed post gives the claim back. A
-  sync showing the room joined or left forgets it, so a later invitation
-  announces again. A push for an invitation already announced retracts its
-  instant notice, except within 30 s of the announcement, when that post
-  has already replaced the notice in place. The live path posts without an
-  event id: the SDK's id for it is a synthetic `invite_for_<roomId>`. On
-  iOS the notification extension announces an invitation while Zuno is not
-  in front and the app only in front; each records `invite:<roomId>` in the
-  read model, and the app counts the extension's as announced
-  (`notifications.md`).
-- Tapping an invite notification opens `RoomInvitePage` via `app.dart`'s
-  `_openRoomById`, never the room itself — an unjoined room has no
-  timeline or composer.
-- Link previews: fetched and OG-parsed server-side via
-  `client.getUrlPreview` (`preview_url` endpoint) — the client never
-  contacts the linked site directly. Only scans plain text-shaped
-  messages, not attachment captions/filenames.
-- All ID entry/display is local-part-only, everywhere — see Key Design
-  Decisions (server isolation).
+### Room info
 
-## Key Design Decisions
+| Section | Direct chat | Group room |
+|---|---|---|
+| Members | Hidden | Shown |
+| Settings | Hidden | Shown when you can change any setting |
+| Permissions | Hidden | Admins edit, moderators read, others do not see it |
+| Security (per-person trust) | Shown | Hidden |
+| Advanced (room ID and address) | Owners and admins | Owners and admins |
 
-- **The official Zuno chat is identified by who created it, not what it is
-  called.** `isOfficialZunoRoom` (`lib/core/matrix/official_room.dart`)
-  requires both the server-set `m.server_notice` tag and
-  `@notices:zuno.chat` as the room's creator; the badge then shows in the
-  chat list and the chat header. A user can tag their own rooms but cannot
-  forge a creator, so the badge cannot be copied. The user id carries the
-  `zuno.chat` domain literally.
-- **Room names cannot contain "Zuno".** `roomNameError`
-  (`lib/core/matrix/room_name_check.dart`) lowercases the name and reads
-  `0` as `o`, so `Zun0` is refused too. It gates the new-group dialog and
-  the rename dialog. This is client-side only: the API accepts anything, so
-  a server-side check is the one that enforces it.
+Per-person trust shows only in direct chats, because encryption is universal
+and trust belongs to the one-to-one relationship.
 
-- **Public means listed *and* open.** "Public" sets the join rule to
-  `public` and publishes the room to the server directory; "private" sets
-  `invite` and unlists. One without the other is either invisible or
-  unjoinable. The write order is chosen for its failure mode: public lists
-  first, then opens (a refused listing changes nothing); private closes
-  first, then unlists (stopping joins wins). Admin-only by app policy, same
-  as permission editing; a confirmation lists the consequences per
-  direction. The chat header marks only public group rooms (a globe) — the
-  same "mark the exception" rule as the encryption icon.
-- **A new public room is one `createRoom` call** (`public_chat` preset +
-  `visibility: public`, still encrypted), not create-then-`setRoomAccess`:
-  a server that refuses listing then creates nothing, instead of leaving a
-  private room behind an error. The dialog states what Public means under
-  the choice, so creation has no separate confirmation.
-- **Rooms are joined from the directory or an invitation, never by ID.**
-  The + menu offers New chat, New room and Find public rooms only.
-- **Owner is the create-event sender** (`isRoomOwner`, plus
-  `additional_creators` on v12 rooms): sorted first and badged "Owner" for
-  everyone, but still an admin underneath. Role badges (Admin/Moderator/
-  Member) show only to admins and moderators; "Invited" and "Owner" show to
-  all. The Advanced section (room ID/alias) shows to owners and admins, in
-  rooms and chats alike — a chat gives both people admin level.
-  On room versions below 12 the creator can be demoted, so ownership is a
-  label, never a permission gate.
-- **Direct chats hide Members, Advanced and keep only Security**; group
-  rooms hide the Security section entirely (encryption is universal, and
-  the per-person trust rows belong to the 1:1 relationship).
-- **Room access changes ask first** with the consequences of that
-  direction; editors cap name (50), topic (250) and address (50).
-  Clearing the address deletes the old alias from the directory
-  (tolerating not-found) and writes an empty canonical-alias state;
-  sending `#:server` is exactly what an unguarded empty value did.
-  A room without `m.room.history_visibility` reads as `shared`, the Matrix
-  default (the SDK returns null for it).
-- **Server isolation**: since Zuno targets one self-hosted, non-federated
-  homeserver, the server part of a Matrix ID is never shown or asked for.
-  User lookups (DM start, room invite) take only a local username (`@` is
-  a static prefix); any read-only ID display shows sigil + local
-  part only (`@user`, never `@user:homeserver`), including a mention
-  rendered in a message. The part the dialogs append is the account's own
-  server name (`ownServerName`, `server_name.dart`) — never
-  `client.homeserver.host`, which is the delegated API host and made every
-  local invite look federated. No exceptions remain.
-- **Sender/receiver invite views are deliberately asymmetric.**
-  - *Sender side*: no profile is shown for an unaccepted invitee — the
-    server hands over their `m.room.member` state before they've agreed to
-    anything, "a promise the room hasn't earned." The room is titled with
-    the typed Matrix ID, no avatar, until accepted. A room with its own
-    name/avatar is exempt (that's about the room, not the person).
-  - *Receiver side*: the inviter's name and avatar are shown in full,
-    because "who is this?" is the entire question being asked.
-  - This reasoning quietly assumed the inviter is probably known to the
-    recipient. A planned change **amends, not reverses**, the receiver
-    rule for first-contact invites from strangers (see Known Gaps) —
-    full disclosure is preserved once the user has actively asked
-    (opened `RoomInvitePage`), not before.
-- **Permission-gated feature surfaces check "can do X", never "will the
-  server accept this"** — e.g. `canSendDefaultMessages` gates the
-  composer (swapped for a notice rather than an ambient disabled state)
-  specifically because it already accounts for encrypted/tombstoned rooms
-  correctly, avoiding a class of `M_FORBIDDEN` round trips discovered only
-  after the fact.
-- **Room-info permission editing is admin-only by app policy**, stricter
-  than the room's own configured "change permissions" level: admins edit,
-  moderators see read-only, members/read-only members don't see the entry.
-  Because every value this UI writes is ≤100 and editing requires level
-  100, Matrix's "sender level must be ≥ both old and new value" rule is
-  satisfied by construction with no extra runtime validation.
-- **Per-member role/kick/ban actions** layer an app-level business rule
-  (only admins create admins; moderators can only move someone down to
-  member/read-only) on top of the server-enforced rule (can't act on
-  someone whose level is already ≥ yours). The app rule is strictly
-  narrower, so the UI never offers an action the homeserver would reject.
-  Self-editing is always excluded.
-- **A signal that never varies carries no information**: the room list's
-  encryption lock icon was removed as a per-room badge (every room is
-  encrypted by default, so it was constant noise) and inverted to only
-  mark the rare *unencrypted* room (reachable via manual join-by-ID/alias)
-  — silence is the safe/default state, a mark is reserved for the
-  consequential exception. This freed-up attention budget is shared with
-  `security-verification.md`'s attention system (`security_emphasis.dart`)
-  — the room-list row is one of the surfaces it governs.
-- **Three unrelated conditions share one dimming treatment**
-  (`ChatRowData.dimmed`): muted means "you asked not to hear from it,"
-  pending means "there is no conversation here yet" — nothing to read,
-  nobody to call (see `hasSomeoneToCall` below) — and partner-left means
-  "this one is over." All three reduce to "this row isn't one of your live
-  chats," which a muted name color says at a glance while a title-row glyph
-  and the subtitle carry the specifics: a clock and "Waiting for … to
-  accept", a crossed-out person and "Left the chat". Dimming is by color,
-  never `Opacity` (an off-screen pass per row), so combinations cannot
-  compound into something unreadable.
-- **The one-person/group indicator is a badge on the avatar, not a
-  separate glyph in the title row** (`room_kind_avatar.dart`) — it used
-  to sit ahead of the room name, competing for the tile's one line of
-  horizontal space and pushing the name right whenever a mute bell or
-  pending clock was also present. On the avatar it costs no width. Filled
-  rather than outlined (it overlays a photo of arbitrary colour) on a
-  `surface`-coloured disc so it reads as punched out of the avatar. Not
-  styled as a security indicator, and unlike the lock badge it replaced,
-  this one genuinely varies row to row.
-- **Calls require a real callable party, not just permission.** Call
-  buttons are gated on `canPublishCallMemberState` *and*
-  `hasSomeoneToCall` (at least one joined member besides self) — a
-  permission check alone let an unaccepted invite or an emptied-out group
-  offer a working call button that could never connect a second party.
-- **One kind-aware exit, not "leave" plus "delete".** The two were
-  indistinguishable to a user: `client.rooms` excludes left rooms, so both
-  made the row vanish and only the server-side archive differed.
-  `exitRoom()` (`room_exit.dart`) always leaves and forgets **only** a
-  direct chat, which has no history to come back to; a group is left but
-  kept, since it persists without you and may be rejoinable. Declining an
-  invite is the same question, so `declineInvite` delegates to it rather
-  than restating the rule. The label follows the kind — "Delete chat" on a
-  DM, "Leave room" otherwise — and both the room list sheet and the
-  RoomPage menu confirm first.
-- **An abandoned DM is read-only, not broken.** Once the other person
-  leaves (`Room.isAbandonedDMRoom`) the SDK names the room "Empty chat
-  (was Bob)", which is both techy and wrong — the history is still there.
-  `roomTitle()` (`room_title.dart`) returns their name instead and is the
-  single title source for every surface: list, chat, notifications, push,
-  calls, room info, share picker. `canPostInRoom()` then drops the
-  composer, mention suggestions, swipe-to-reply, the reply/react/edit
-  actions and the room's place in the share picker. Redaction deliberately
-  stays — removing your own message is cleanup, not communication. Call
-  buttons needed no new gate:
-  `hasSomeoneToCall` already requires `joined > 1`, and an abandoned DM
-  has exactly one.
-- **Moderation tooling lives outside the app entirely** (planned, not
-  built) — this reaffirms, rather than contradicts, the standing "no
-  admin-facing surface" rule for a personal client turned public service.
-  Reports/suspension/room-shutdown are meant to be handled through a
-  separate operator surface (web console, CLI, Synapse Admin) the client
-  knows nothing about.
-- **Reports go to the operator, not to room admins.** Room admins own what
-  happens inside a room (remove, ban, delete); a report is the only channel
-  to the operator, for what admins cannot cover — chats and invitations
-  (no admin), an abusive admin, illegal content, account-level action. The
-  sheet says so in rooms. Anyone can report anyone but themselves.
-- **A report carries IDs and a reason, never content.** Everything is
-  end-to-end encrypted, so the server gets the event or user ID plus a
-  reason string; the copy says Zuno cannot read the message and asks for a
-  description. Reason format, built for filtering:
-  `category[: note] [(room <id>)]` with categories `spam`, `harassment`,
-  `illegal`, `other` (`other` requires a note).
-- **An invitation is reported by its sender**, with the room ID in the
-  reason: invite state has no event ID to report, and the sender is the
-  signal invite-abuse limits need. "Report and decline" declines only after
-  the report is accepted; a refused report leaves the invitation alone.
-- **Blocking is the SDK's ignore, with its defaults.** `ignoreUser` leaves
-  the chat with that person, declines their pending invitations, stores
-  them in `m.ignored_user_list` and clears the local cache, so the server
-  re-sends every room without their messages. Leaving is deliberate: a
-  kept chat would show one side only and still let the blocker send. The
-  cost is that unblocking never brings the chat back, which the dialog
-  says, and only when a chat exists.
-- **Anyone can block anyone, whatever their role** — it is the one
-  moderation tool that works in chats and on invitations, which have no
-  admin. Google Play requires it for direct messages.
-- **The official `@notices:zuno.chat` account cannot be blocked**
-  (`canBlockPerson`): server notices carry the shutdown notice the terms
-  promise.
+### Room media feed
 
-## Gotchas & Constraints
+`room_media_feed.dart` is a paged feed per room over the SDK's
+`Room.searchEvents`, which reads the local database first and then pages
+through server history, decrypting as it goes. New media from sync is
+prepended and a redaction removes its target. The feed is a keep-alive
+provider per room, so it lasts the session. Room info previews the latest
+thumbnails, and `room_media_page.dart` shows photos and videos by month, and
+files.
 
-- **Mute waits for the push-rules sync.** `room.setPushRuleState` returns
-  early when the new state equals `room.pushRuleState`, and that only
-  changes when the next sync delivers `m.push_rules`; a Mute followed at
-  once by Unmute would otherwise be a silent no-op. `_setMuted` locks while
-  in flight, shows the new state at once, and keeps that override until
-  the push-rules sync arrives (or 10 s pass). A refused request flips back
-  and says so.
-- **Never reload members right after changing one.** Before sync, the
-  local member list still matches the room summary, so `requestParticipants`
-  returns it unchanged. After an optimistic change the counts disagree, and
-  it first re-reads the database's member events, restoring the old
-  membership. `RoomInfoPage` edits its list in place and lets sync confirm.
-- **The media feed's first load always hits the server once** —
-  `searchEvents` does the full local-database scan and the first server
-  page in one call, even when the database already held enough media.
-  Live prepend skips events that fail to decrypt on arrival; they show
-  only after a fresh feed. `CustomScrollView` adds no system inset on its
-  own — the media page's load footer is wrapped in `SliverSafeArea` so the
-  last grid row clears the navigation bar.
-- **Synapse ≥ 1.126 refuses directory publishing by default**
-  (`room_list_publication_rules`). Without an allow rule "Find public
-  rooms" lists nothing and "Public" fails; the app maps the server's
-  "Not allowed to publish room" to "This server doesn't allow listing
-  rooms" and leaves the room private.
-- **The access indicator reads the join rule, not directory visibility** —
-  visibility needs an HTTP call per room. A room listed by other means but
-  still invite-only reads as private.
-- **A record that can go stale is a stale row.** `ChatRowData` must hold
-  every value the row or its preview shows, plus the last event's ID and
-  status (not rendered, but they keep the memoized preview on the current
-  `Event` instance; see `chats-messaging.md` on `lastEvent` identity).
-  Adding something to the row means adding it to the record.
-- **Every text line in a chat row is strut-locked** (`core/ui/line_strut.dart`).
-  The list is fixed-extent; measured with real fonts, Thai and Devanagari
-  grew a row 2 to 6 px at larger font-size settings until it was.
-- **A tinted tappable surface is a `Material`, not a decorated
-  `Container`**: ink paints under a Material's child, so an opaque
-  container hides the ripple (`InvitationGroup`).
-- **`ChatListView` and `ChatRow` test without the page**, from fake rooms
-  (`buildTestRoom`, `room.setState`, `room.lastEvent = …`).
-- **`RoomListPage` and `RoomPage` do render in widget tests** with
-  `TimelineCapableFakeDatabaseApi`, `room.partial = false`, a `MockClient`
-  drained via `tester.runAsync`, and an `UncontrolledProviderScope` whose
-  container outlives the tree (`RoomPage.dispose` touches a provider in a
-  microtask). `RoomPage` never settles — use bounded pumps.
-- **Member state is not loaded on cold start**, and an invitation *is*
-  nothing but member state. `getRoomList` (cold-start room rebuild) reads
-  the preload box only, never the separate `_roomMembersBox` that
-  `m.room.member` events are filed into. Symptom class: inviter shown as
-  "Someone", a DM invite accepted into a group room instead, a sender's
-  own pending indicator vanishing after restart. Mitigations:
-  `loadInviteMembers` reads the member box directly and restores it before
-  any accept/decline; anything needing "is someone still deciding" prefers
-  `RoomSummary` fields (survive cold start) over live member state.
-- **A member event whose sender is its own subject is a fallback
-  substitute, not a real invitation** — `unsafeGetUserFromMemoryOrFallback`
-  synthesizes one from the global profile when a member event can't be
-  found (invite rooms refuse `/state` pre-join), overwriting real invite
-  data. Detected by checking sender == subject (nobody invites themselves)
-  and treated as "not loaded."
-- **Cross-user verification cannot reach someone who hasn't accepted an
-  invite** — `startVerification` sends a room message, and an invited user
-  has no timeline yet, only stripped `invite_state`. The UI shows a
-  passive "You can confirm them once they join" row instead of opening a
-  verification flow that would hang. Verifying someone from a *group* room
-  you've never DM'd silently creates a new DM and waits on their
-  acceptance — same underlying limit, left as-is (slow, not wrong).
-- **A room can never be truly server-agnostic on identity checks**:
-  confirming a contact requires your own device to be verified first (SDK
-  can't sign another identity from an unverified device) — this chains
-  into a forced recovery setup rather than silently hiding the option.
-- **E2EE permanently rules out content-based spam/abuse filtering** at
-  the server. Every server-side signal available to combat invite spam or
-  abuse is metadata only (account age, IP, invite fan-out, accept ratio,
-  burst timing) — "filter spam later" is not an available plan.
-- **Profile lookups are an account-enumeration oracle.** A pre-invite
-  `client.getUserProfile` existence check (proposed, not yet built) is
-  in tension with the login form's single-error-message anti-enumeration
-  design, and needs its own server-side rate limit; some Synapse configs
-  (`require_auth_for_profile_requests`,
-  `limit_profile_requests_to_users_who_share_rooms`) also break the check
-  outright and need a fallback.
-- **The "first-contact" test has a cold-start blind spot.** The cheap
-  client-side test for "have I ever shared a room with this inviter" runs
-  over `client.rooms`, but member state is exactly what's missing on a
-  cold start — and push-triggered invite handling *is* a cold start. Not
-  yet resolved; recommendation on record is to fail quiet (treat as
-  known/trusted) rather than loud when the test can't answer, since a
-  false negative costs one non-critical notification while a false
-  positive is the entire spam problem re-opened.
+## Decisions
 
-## Known Gaps (planned, not yet built)
+**Rooms and access**
+- **One kind-aware exit, not Leave plus Delete.** Both make the row vanish, so a user cannot tell them apart. `exitRoom` forgets a direct chat, which has no history to come back to, but only leaves a group, which persists without you and may be rejoinable. Declining an invitation goes through the same rule.
+- **Leaving, deleting or blocking ends that room's call first**, while the user is still a member, so the call's summary and membership clear still go out (`calls.md`).
+- **Access is one of four choices**, and each maps to a join rule and a directory listing:
 
-These are open problems, not implemented and not silently resolved
-elsewhere:
+  | Access | Join rule | Listed | Offered for |
+  |---|---|---|---|
+  | Public | `public` | Yes | Rooms outside a community, and communities |
+  | Community | `restricted` to the room's communities | No | Rooms inside a community (`communities.md`) |
+  | Ask to join | `knock` | No | Rooms inside a community |
+  | Private | `invite` | No | Everything; the default for a new room outside a community |
 
-- **Invite-spam notification hardening.** First-contact invite
-  notifications and the inline room-list tile currently surface fully
-  attacker-controlled strings (inviter display name, room name) straight
-  to a lock screen with no acceptance required. Planned fix: fixed,
-  neutral copy ("New chat request") for senders with no shared history,
-  plus a quiet, un-notified "Requests" section in the room list —
-  contingent on resolving the first-contact test's cold-start gap above.
-  Note the in-flight MSC4155 (client-controlled invite filtering) should
-  be checked before building a bespoke account-data schema for this.
-- **Server-side invite-abuse limits** (spam-checker module): capping
-  outstanding unaccepted invites per sender, decline/ignore ratio as
-  reputation, and tiered limits by account age/reciprocated contact.
-  None exist yet; entirely server-side (`user_may_invite` module), no
-  client change required.
-- **Existence check before DM creation.** `_startDirectMessage` currently
-  creates the room before inviting, so a typo'd username leaves a
-  permanent orphan room waiting for someone who doesn't exist. No
-  pre-check exists yet (see enumeration-oracle gotcha above for why it's
-  non-trivial).
-- **Blocked people show as usernames only.** The server refuses profile
-  lookups for people you share no room with
-  (`limit_profile_requests_to_users_who_share_rooms`), which is the usual
-  case after a block.
-- **Whether Synapse suppresses a blocked person's invitations and push is
-  unconfirmed** — expected, not yet checked with two accounts.
-- **Moderation stays out of the app** (see Key Design Decisions). The admin
-  reads reports on the operator side; reports have no retention period
-  yet. They are also the input signal the reputation-based invite limits
-  above would depend on.
-- **No way for two strangers to find each other as people.** Rooms are
-  discoverable through the public directory now; people still only by
-  exact username. Two candidates on record: user-
-  directory search (another enumeration surface, needs rate limiting) and
-  invite links (opens a DM with the link's generator, no directory, no
-  enumeration) — invite links are the recommended first answer as cheaper
-  and safer.
+- **Public means listed and open**, since one without the other leaves a room invisible or unjoinable. Going public lists first, so a refused listing changes nothing. Going private closes first, because stopping joins matters most. Changing access is admin-only and never offered in direct chats.
+- **A new public room is one `createRoom` call**, so a server that refuses the listing creates nothing instead of leaving a private room behind an error.
+- **Rooms are joined from the directory or an invitation, never by a typed ID.**
+- **New rooms get Zuno's own power levels**, because homeserver presets set several of them to moderator and would contradict the permissions UI from the start:
 
-## Extension Guidance
+  | Role | Permissions |
+  |---|---|
+  | Admin | Name, topic, photo, address, settings, history visibility, permissions, encryption |
+  | Moderator | Remove, ban, delete others' messages, notify everyone |
+  | Member | Invite, send messages, start or join calls, share live location |
 
-- New permission-gated feature surfaces: add a catalog entry to
-  `room_permission.dart` mapped to the real SDK getter it must agree
-  with — never hand-roll a second power-level check. Follow the existing
-  per-field `canChangeStateEvent` pattern rather than one blanket
-  "can edit room" check.
-- New member-facing actions (kick/ban-shaped): reuse `canManageMember`
-  (`room_roles.dart`) for the self/peer/superior exclusion rather than
-  reimplementing the "sender level must exceed target's current level"
-  rule.
-- Any new invite-adjacent UI (block, report, requests section) belongs
-  alongside `room_invite.dart`'s existing pure-function shape — decide the
-  "shared history" / first-contact test once, in one place, and reuse it
-  rather than letting notification and room-list code drift into separate
-  checks.
-- Anything that needs to survive a cold start before full member state is
-  loaded should prefer `RoomSummary` fields, following the precedent set
-  by invite-pending detection and `hasSomeoneToCall`.
-- Room upgrade/tombstone and `m.room.server_acl` are deliberately absent
-  from the permission catalog — don't add UI for either without a
-  dedicated design pass (upgrade is one-way and high-blast-radius; ACLs
-  govern federation, which doesn't exist here).
-- A new place to block from: call `confirmAndBlockPerson`, hide it behind
-  `canBlockPerson`, and leave the screen afterwards — the cache clear
-  makes every open `Room` stale, so chat info pops to the chat list.
-- Widget tests inject `blockPerson`/`unblock`: the fake database cannot
-  clear a cache. `block_on_server_test.dart` runs the real call against a
-  fake server instead.
-- A new thing to report: add an entry point that opens `showReportSheet`
-  with its own title and explanation, and send through `abuse_report.dart`
-  so the reason format stays one format. The server also accepts room
-  reports (`client.reportRoom`); nothing uses it yet.
-- Moderation/report features must not grow an in-app admin screen — route
-  any such need to the separate operator-facing surface described above
-  (Known Gaps).
+  A public room differs only in calls and live location, which need a moderator. The table applies at creation only: making an existing room public leaves the permissions an admin may have set.
+- **Edits are optimistic.** Settings, access, role and member changes write local state once the server accepts them, because the SDK setters return only an event ID and a page would otherwise stay stale.
 
-## Dependencies / Integration
+**Roles and permissions**
+- **Read-only (`-1`) is a Zuno extension.** The SDK does not floor power levels at 0, so the existing power checks already refuse messages, edits and calls, and read-only needs no code of its own.
+- **Gate on "can do X" through the SDK getter, never on "will the server accept".** Each catalog entry agrees with its getter (`canBan`, `canSendEvent` and so on), which already handle cases such as encrypted and tombstoned rooms. A new permission-gated surface gets a catalog entry, never a hand-rolled power-level check.
+- **Some permissions are deliberately absent from the catalog.** Server ACLs are left out because Zuno has no federation, room upgrade because it needs its own design, and widgets because they are ruled out (`../decisions/excluded.md`).
+- **Permission editing is admin-only**, stricter than the room's own level. Every value the page writes is at most 100, so Matrix's rule that the sender must outrank both the old and the new value holds by construction.
+- **Member actions narrow the server's rule.** Only admins make admins, moderators can only move someone down, and nobody edits themselves, so the UI never offers an action the server would refuse.
+- **The owner is the sender of the create event**, listed first and badged, but still an admin underneath. Ownership is a label, never a permission gate, because below room version 12 the creator can be demoted.
+- **Calls need someone to call.** Call buttons require both the call permission and at least one other joined member, read from the room summary, so calls are never offered in pending or emptied rooms.
 
-- `matrix` Dart SDK: source of truth for all room/membership/power-level
-  state; several decisions here were verified directly against SDK source
-  (power levels not floored at 0; `canSendDefaultMessages` semantics)
-  rather than assumed.
-- Notifications (`NotificationDeliveryProvider`, live `onNotification`
-  path, and `incoming_push_handler.dart`): invitations are one of the
-  event types both paths must independently recognize.
-- Security & verification (`lib/core/security/`): cross-user confirmation
-  is blocked by invite-pending state and by the confirming device's own
-  unverified/no-recovery status; the confirm flow chains into
-  `SecureBackupPage` when needed.
-- Calls (`CallSession`/`call_member_state.dart`): call permission and
-  "someone to call" gating is shared between Room roles & permissions and
-  the room list's call-button logic.
-- Event display (`event_display.dart`): room-list previews (e.g. "Waiting
-  for @bob to accept") take precedence over normal last-message summaries
-  while an invite is pending.
+**Chat list**
+- **Snapshot and memo, not per-room notifiers.** `room.onUpdate` is deprecated, and a missed signal would leave a stale row that nothing catches.
+- **The time label lives in the record**, so 09:41 turns into Yesterday on the first sync after midnight without a timer.
+- **No empty state before the first sync**, so a new sign-in never claims there are no chats while they are still on their way.
+- **Only the rare unencrypted room is marked**, never every encrypted one (attention rules: `security-verification.md`).
+- **An abandoned direct chat is read-only, not broken.** `roomTitle()` names the partner instead of the SDK's "Empty chat (was …)" on every surface, and `canPostInRoom()` removes everything that would communicate.
+- **The official chat is known by its creator.** Its badge requires both the server-notice tag and `@notices:zuno.chat` as the creator, because anyone can tag a room but nobody can forge a creator. Room names containing "Zuno" are also refused, but only as a client-side courtesy.
+- **Server isolation.** The server part of a Matrix ID is never shown or asked for: lookups take a local username, and displays show `@user`. The server the dialogs append is `ownServerName`, never `client.homeserver.host`, which is the delegated API host and would make every local invitation look federated.
+
+**Invitations**
+- **An invitation is nothing but `m.room.member` state**, with no separate entity behind it.
+- **Sender and receiver views are deliberately asymmetric.** The sender sees no profile for an invitee who has not accepted, because the server hands over their member state before they have agreed to anything, so the room is titled with the typed username until then. The receiver sees the inviter's name and avatar in full, because "who is this?" is the whole question.
+- **One notification per invitation.** Two paths can announce it: the live path listens to `client.onNotification`, since an invitation is stripped state and not a timeline event, and the push path uses `inviteNotificationFor`, since the default push handler drops `m.room.member`. Each claims the room before posting, and a sync that shows the room joined or left releases the claim.
+- **Tapping an invitation opens `RoomInvitePage`**, never the room, which has no timeline or composer yet.
+
+**Moderation**
+- **Moderation tooling stays out of the app** (`../decisions/excluded.md`). Room admins act inside their rooms, and reports go to the operator for what admins cannot handle: chats and invitations, an abusive admin, illegal content and account-level action.
+- **A report carries IDs and a reason, never content**, because everything is end-to-end encrypted. The reason has one filterable format, `category[: note] [(room <id>)]`, with the categories `spam`, `harassment`, `illegal` and `other` (which requires a note).
+- **An invitation is reported by its sender**, with the room ID in the reason, because invite state has no event ID and invite-abuse limits key on the sender.
+- **Blocking is the SDK's `ignoreUser` with its defaults**: it leaves the direct chat, declines the person's invitations and clears the local cache so the server resends rooms without their messages. A kept chat would show only one side, so leaving is deliberate, and unblocking never brings the chat back.
+- **Anyone can block anyone, whatever their role**, since Google Play requires it for direct messages. The exception is `@notices:zuno.chat`, which carries the shutdown notice the terms promise.
+
+## Gotchas
+
+- **Member state is not loaded at cold start**, so invitation checks after a restart read the `RoomSummary` counts and heroes, and `loadInviteMembers` restores the member state before an accept or decline.
+- **A member event whose sender is its own subject is an SDK-made substitute**, since nobody invites themselves, so it is treated as not loaded rather than allowed to overwrite real invite data.
+- **Never reload members right after changing one**, because `requestParticipants` would re-read the database and restore the old membership, so room info edits its list in place.
+- **Mute waits for the push-rules sync**, because `setPushRuleState` compares against a value that changes only when sync delivers `m.push_rules`, so room info locks the switch until then.
+- **A field missing from `ChatRowData` is a stale row**: the record must hold everything the row or its preview shows.
+- **The list delegate needs `findChildIndexCallback` keyed on the room ID**, or a chat jumping to the top remounts every row in between.
+- **Every text line in a row is strut-locked** (`core/ui/line_strut.dart`), because the list is fixed-extent and fallback fonts would otherwise grow a row.
+- **Synapse refuses directory publishing by default** (`room_list_publication_rules`), so Public fails until the server allows it, and the app keeps the room private.
+- **The access label reads the join rule, not the directory listing**, which costs a request per room, so an invite-only room listed by other means reads as private.
+- **Blocking clears the local cache**, which makes every open `Room` stale, so every Block entry point returns to the chat list.
+- **Blocked people show as usernames**, because servers refuse profile lookups for people you share no room with.
+- **End-to-end encryption rules out server-side spam filtering**, so every available signal is metadata.
+- **`RoomListPage` tests need an `UncontrolledProviderScope` whose container outlives the tree**, because `RoomPage.dispose` reads a provider in a microtask.
+
+## Designed, not built
+
+- **Message requests.** Invitations from someone you share no room with would land quietly in a Requests section. The open problem is the shared-room test at cold start, where it should fail quiet and treat the inviter as known. Check MSC4155 before building a bespoke schema.
+- **An existence check before a direct chat**, so a mistyped username does not leave an orphan room, without reopening account enumeration.
+- **Finding people** works only by exact username. Invite links are preferred over user-directory search, which would be another enumeration surface.

@@ -13,6 +13,7 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/data_storage_settings_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
 
 class _CacheClient extends Client {
@@ -231,12 +232,11 @@ void main() {
     await pumpPage(tester);
 
     await tester.tap(find.text('Clear media cache'));
-    for (var i = 0; i < 10; i++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 20)),
-      );
-      await tester.pump();
-    }
+    await pumpWhileFetching(
+      tester,
+      rounds: 200,
+      until: () => find.text('Media cache cleared').evaluate().isNotEmpty,
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(AlertDialog), findsNothing);

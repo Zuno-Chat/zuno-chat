@@ -1,4 +1,4 @@
-import '../../../core/calls/models/call_engine_participant.dart';
+import 'models/call_engine_participant.dart';
 
 typedef PictureInPictureAspect = ({int width, int height});
 

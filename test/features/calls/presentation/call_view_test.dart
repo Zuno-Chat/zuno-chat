@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/calls/call_audio_route.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/call_quality.dart';
+import 'package:zuno/core/calls/models/call_status.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
+import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
-import 'package:zuno/features/calls/presentation/call_audio_route.dart';
 import 'package:zuno/features/calls/presentation/call_controls.dart';
 import 'package:zuno/features/calls/presentation/call_stage.dart';
 import 'package:zuno/features/calls/presentation/call_status_line.dart';
@@ -64,7 +66,7 @@ void main() {
         videoEnabled: camera,
       ),
       renderer: null,
-      user: local ? null : room.unsafeGetUserFromMemoryOrFallback(userId),
+      user: room.unsafeGetUserFromMemoryOrFallback(userId),
       encrypting: encrypting,
     );
   }
@@ -107,6 +109,7 @@ void main() {
           onSwitchCamera: () => pressed.add('flip'),
           onToggleSpeaker: () => pressed.add('speaker'),
           onHangUp: () => pressed.add('end'),
+          onMinimize: () => pressed.add('minimize'),
           confirmName: confirmName,
           onConfirmPerson: confirmName == null
               ? null
@@ -157,6 +160,33 @@ void main() {
 
       expect(shownStatus(tester), CallStatus.connecting);
       expect(find.text('Ann'), findsNothing);
+    });
+
+    testWidgets('a direct call keeps their colour while connecting, talking '
+        'and leaving', (tester) async {
+      room.client.accountData['m.direct'] = BasicEvent(
+        type: 'm.direct',
+        content: {
+          '@ann:example.org': [room.id],
+        },
+      );
+      String? shownTone() => tester
+          .widget<MxcAvatar>(
+            find.descendant(
+              of: find.byType(VoiceCallStage),
+              matching: find.byType(MxcAvatar),
+            ),
+          )
+          .toneSeed;
+
+      await pump(tester, connecting: true, remote: [person('Ann')]);
+      expect(shownTone(), '@ann:example.org');
+
+      await pump(tester, remote: [person('Ann')]);
+      expect(shownTone(), '@ann:example.org');
+
+      await pump(tester);
+      expect(shownTone(), '@ann:example.org');
     });
 
     testWidgets('connected with nobody there yet says it is waiting', (
@@ -274,6 +304,7 @@ void main() {
             onSwitchCamera: () {},
             onToggleSpeaker: () {},
             onHangUp: () {},
+            onMinimize: () {},
           ),
         ),
       );
@@ -301,6 +332,22 @@ void main() {
       expect(self, findsOneWidget);
       expect(tester.getSize(self), const Size(100, 140));
       expect(tester.getRect(self).right, closeTo(360 - 12, 0.5));
+    });
+
+    testWidgets('with your camera off it shows your own picture', (
+      tester,
+    ) async {
+      await pump(tester, kind: CallKind.video, calling: true);
+
+      final self = tester.widget<ParticipantTile>(find.byType(ParticipantTile));
+      expect(self.user?.id, '@me:example.org');
+      expect(
+        find.descendant(
+          of: find.byType(ParticipantTile),
+          matching: find.byType(MxcAvatar),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a voice call has no such view', (tester) async {
@@ -634,6 +681,7 @@ void main() {
       onSwitchCamera: () {},
       onToggleSpeaker: () {},
       onHangUp: () {},
+      onMinimize: () {},
       confirmName: confirmName,
       onConfirmPerson: confirmName == null ? null : () {},
     );
@@ -705,5 +753,64 @@ void main() {
         );
       });
     }
+  });
+
+  group('minimizing', () {
+    final minimizeButton = find.ancestor(
+      of: find.byTooltip('Minimize call'),
+      matching: find.byType(IconButton),
+    );
+
+    testWidgets('in a video call it sits right under their name, which keeps '
+        'the very left', (tester) async {
+      await pump(
+        tester,
+        kind: CallKind.video,
+        localCamera: true,
+        remote: [person('Ann', camera: true)],
+      );
+
+      final header = tester.getRect(find.byType(VideoCallHeader));
+      final minimize = tester.getRect(minimizeButton);
+      expect(header.left, 12);
+      expect(minimize.left, 12);
+      expect(minimize.top, header.bottom + 8);
+      expect(
+        minimize.right,
+        lessThan(tester.getRect(find.byKey(const ValueKey('self'))).left),
+      );
+    });
+
+    testWidgets('in a voice call it takes the top left corner', (tester) async {
+      await pump(tester, remote: [person('Ann')]);
+
+      expect(tester.getTopLeft(minimizeButton), const Offset(12, 24));
+    });
+
+    testWidgets('in a group the title follows it, like a page title after '
+        'Back', (tester) async {
+      await pump(tester, remote: [person('Ann'), person('Bob')]);
+
+      final title = tester.getRect(find.text('Weekend hike'));
+      final minimize = tester.getRect(minimizeButton);
+      expect(minimize.left, 12);
+      expect(title.left, greaterThanOrEqualTo(minimize.right));
+    });
+
+    testWidgets('it shows arrows pointing inward on a filled circle', (
+      tester,
+    ) async {
+      await pump(tester, remote: [person('Ann')]);
+
+      final icon = find.descendant(
+        of: find.byTooltip('Minimize call'),
+        matching: find.byIcon(Icons.close_fullscreen),
+      );
+      expect(icon, findsOneWidget);
+      final button = tester.widget<IconButton>(
+        find.ancestor(of: icon, matching: find.byType(IconButton)),
+      );
+      expect(button.style?.backgroundColor?.resolve({}), isNotNull);
+    });
   });
 }

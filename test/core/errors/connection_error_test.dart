@@ -45,13 +45,34 @@ void main() {
     );
   });
 
-  test('any other failure keeps its own message', () {
+  test('a refusal from the server reads only as what failed', () {
+    final message = failureMessage(
+      MatrixException.fromJson({
+        'errcode': 'M_FORBIDDEN',
+        'error': 'You are not invited to this room.',
+      }),
+      failed: 'Could not leave the room.',
+    );
+
+    expect(message, 'Could not leave the room.');
+    expect(message, isNot(contains('M_FORBIDDEN')));
+    expect(message, isNot(contains('not invited')));
+  });
+
+  test('a programming error reads only as what failed', () {
+    final message = failureMessage(
+      StateError('bad state'),
+      failed: 'Could not leave the room.',
+    );
+
+    expect(message, 'Could not leave the room.');
+    expect(message, isNot(contains('bad state')));
+  });
+
+  test('a thrown string never reaches the message', () {
     expect(
-      failureMessage(
-        StateError('bad state'),
-        failed: 'Could not leave the room.',
-      ),
-      'Bad state: bad state',
+      failureMessage('Tried to request history', failed: 'Not muted.'),
+      'Not muted.',
     );
   });
 

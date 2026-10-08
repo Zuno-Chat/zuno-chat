@@ -7,10 +7,10 @@ enum class PipEntryMode {
     AutoEnter,
 }
 
-enum class PipExit {
-    Expanded,
-    Hidden,
-    ClosedByUser,
+enum class RootBack {
+    EnterPictureInPicture,
+    MoveToBack,
+    Default,
 }
 
 object PictureInPictureDecision {
@@ -23,9 +23,15 @@ object PictureInPictureDecision {
     fun shouldHide(eligible: Boolean, inPictureInPicture: Boolean): Boolean =
         inPictureInPicture && !eligible
 
-    fun onLeft(lifecycleCreated: Boolean, selfHidden: Boolean): PipExit = when {
-        selfHidden -> PipExit.Hidden
-        lifecycleCreated -> PipExit.ClosedByUser
-        else -> PipExit.Expanded
+    fun keepsCamera(inPictureInPicture: Boolean, started: Boolean): Boolean =
+        inPictureInPicture && started
+
+    fun claimsBack(frameworkHandlesBack: Boolean, eligible: Boolean): Boolean =
+        frameworkHandlesBack || eligible
+
+    fun onRootBack(eligible: Boolean, callHeld: Boolean): RootBack = when {
+        eligible -> RootBack.EnterPictureInPicture
+        callHeld -> RootBack.MoveToBack
+        else -> RootBack.Default
     }
 }

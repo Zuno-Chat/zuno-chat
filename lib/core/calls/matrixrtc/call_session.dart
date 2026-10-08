@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show ValueListenable, debugPrint, visibleForTesting;
 import 'package:flutter/widgets.dart'
     show AppLifecycleListener, AppLifecycleState, WidgetsBinding;
 import 'package:http/http.dart' as http;
@@ -13,6 +14,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/retry_backoff.dart';
 import '../../matrix/bearer_authorization.dart';
+import '../../matrix/olm_sender.dart';
 import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
 import '../cloudflare/calls_module.dart';
@@ -20,6 +22,7 @@ import '../cloudflare/cloudflare_call_engine.dart';
 import '../models/call_engine_status.dart';
 import '../models/call_kind.dart';
 import '../models/voip_participant_id.dart';
+import '../notifications/call_notification_service.dart';
 import 'active_room_call.dart';
 import 'call_decline.dart';
 import 'call_encryption_key_event.dart';
@@ -46,13 +49,22 @@ const _callFullMessage =
     'This call is full. Up to $maxCallParticipants people can join a call.';
 
 class CallSession {
-  final Room room;
+  final Client client;
+  final String _roomId;
+  Room _room;
+  bool _roomSeen;
   final String callId;
   final CallSessionRole role;
   final bool lowDataMode;
   CallKind kind;
 
-  Client get client => room.client;
+  Room get room {
+    final live = client.getRoomById(_roomId);
+    if (live == null) return _room;
+    _roomSeen = true;
+    return _room = live;
+  }
+
   String get _myUserId => client.userID!;
   String get _myDeviceId => client.deviceID!;
 
@@ -75,6 +87,8 @@ class CallSession {
   StreamSubscription<Event>? _declineSub;
   StreamSubscription<void>? _localStateSub;
   StreamSubscription<CallEngineStatus>? _statusSub;
+  StreamSubscription<LoginState>? _loginSub;
+  bool _endedLocally = false;
 
   final Set<VoipParticipantId> _knownRemote = {};
   final Map<VoipParticipantId, String?> _knownRemoteSessions = {};
@@ -109,9 +123,10 @@ class CallSession {
   final Duration ringTimeout;
   final Duration membershipRefreshInterval;
   final http.Client? callsHttpClient;
+  final ValueListenable<bool> _pictureInPictureCamera;
 
   CallSession._({
-    required this.room,
+    required Room room,
     required this.callId,
     required this.role,
     required this.kind,
@@ -124,11 +139,37 @@ class CallSession {
     this.ringTimeout = _ringTimeout,
     this.membershipRefreshInterval = _membershipRefreshInterval,
     this.callsHttpClient,
-  });
+    ValueListenable<bool>? pictureInPictureCamera,
+  }) : client = room.client,
+       _roomId = room.id,
+       _room = room,
+       _roomSeen = room.client.getRoomById(room.id) != null,
+       _pictureInPictureCamera =
+           pictureInPictureCamera ??
+           CallNotificationService.instance.pictureInPictureCamera;
 
   void _setPhase(CallSessionPhase phase) {
+    if (_phase == CallSessionPhase.ended) return;
     _phase = phase;
+    if (phase == CallSessionPhase.ended) _releaseListeners();
     _phaseController.add(phase);
+  }
+
+  void _followSignIn() {
+    _loginSub = client.onLoginStateChanged.stream.listen((state) {
+      if (state == LoginState.loggedOut) unawaited(_endLocally());
+    });
+  }
+
+  Future<void> _endLocally() async {
+    if (_phase == CallSessionPhase.ended || _endedLocally) return;
+    _endedLocally = true;
+    endReason ??= CallEndReason.hungUp;
+    _releaseListeners();
+    if (_engine case final engine?) {
+      await _tearDownEngine(engine, 'the call ending locally');
+    }
+    _setPhase(CallSessionPhase.ended);
   }
 
   Future<CallEngine> _buildEngine() async {
@@ -154,6 +195,7 @@ class CallSession {
     @visibleForTesting Duration? ringTimeout,
     @visibleForTesting Duration? membershipRefreshInterval,
     @visibleForTesting http.Client? callsHttpClient,
+    @visibleForTesting ValueListenable<bool>? pictureInPictureCamera,
   }) {
     final session = CallSession._(
       room: room,
@@ -170,9 +212,11 @@ class CallSession {
       membershipRefreshInterval:
           membershipRefreshInterval ?? _membershipRefreshInterval,
       callsHttpClient: callsHttpClient,
+      pictureInPictureCamera: pictureInPictureCamera,
     );
     session._encryptionKey = _generateCallKey();
     session._listenForDecline();
+    session._followSignIn();
     unawaited(session._startOutgoingConnect());
     return session;
   }
@@ -189,7 +233,7 @@ class CallSession {
   }
 
   void _handleDeclineEvent(Event event) {
-    if (event.room.id != room.id) return;
+    if (event.room.id != _roomId) return;
     if (event.messageType != callDeclineMsgtype) return;
     if (event.content.tryGet<String>('call_id') != callId) return;
     if (_phase == CallSessionPhase.ended) return;
@@ -215,6 +259,7 @@ class CallSession {
         'call_id': callId,
         'kind': kind.name,
       });
+      if (_hangUp != null || _phase == CallSessionPhase.ended) return;
       await _connect();
       _startRingTimeout();
     } catch (_) {
@@ -237,22 +282,27 @@ class CallSession {
     @visibleForTesting Duration? remoteLeftConfirmDelay,
     @visibleForTesting Duration? membershipRefreshInterval,
     @visibleForTesting http.Client? callsHttpClient,
+    @visibleForTesting ValueListenable<bool>? pictureInPictureCamera,
   }) {
     return CallSession._(
-      room: room,
-      callId: callId,
-      role: CallSessionRole.callee,
-      kind: kind,
-      lowDataMode: lowDataMode,
-      phase: CallSessionPhase.ringing,
-      engineBuilder: engineBuilder,
-      keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
-      keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
-      remoteLeftConfirmDelay: remoteLeftConfirmDelay ?? _remoteLeftConfirmDelay,
-      membershipRefreshInterval:
-          membershipRefreshInterval ?? _membershipRefreshInterval,
-      callsHttpClient: callsHttpClient,
-    ).._encryptionKey = initialEncryptionKeyForTesting;
+        room: room,
+        callId: callId,
+        role: CallSessionRole.callee,
+        kind: kind,
+        lowDataMode: lowDataMode,
+        phase: CallSessionPhase.ringing,
+        engineBuilder: engineBuilder,
+        keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
+        keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
+        remoteLeftConfirmDelay:
+            remoteLeftConfirmDelay ?? _remoteLeftConfirmDelay,
+        membershipRefreshInterval:
+            membershipRefreshInterval ?? _membershipRefreshInterval,
+        callsHttpClient: callsHttpClient,
+        pictureInPictureCamera: pictureInPictureCamera,
+      )
+      .._encryptionKey = initialEncryptionKeyForTesting
+      .._followSignIn();
   }
 
   Future<void> accept() async {
@@ -351,6 +401,8 @@ class CallSession {
         await built.setMicrophoneMuted(muted);
       }
       if (_encryptionKey case final key?) await built.setEncryptionKey(key);
+      if (await _abandonEngineIfEnded(built)) return;
+      await _followAppLifecycle(built);
       await built.join();
       if (await _abandonEngineIfEnded(built)) return;
 
@@ -369,14 +421,12 @@ class CallSession {
       );
 
       await _publishOwnMembership();
-      if (_phase == CallSessionPhase.ended) return;
+      if (_phase == CallSessionPhase.ended || _hangUp != null) return;
       _membershipRefreshTimer = Timer.periodic(
         membershipRefreshInterval,
-        (_) => _publishOwnMembership(force: true),
+        (_) => _publishMembershipBestEffort(force: true),
       );
-      _syncSub = client.onSync.stream.listen(
-        (_) => _reconcileRemoteMemberships(),
-      );
+      _syncSub = client.onSync.stream.listen(_onSync);
       _reconcileRemoteMemberships();
       _setPhase(CallSessionPhase.active);
       _activeAt = DateTime.now();
@@ -401,6 +451,52 @@ class CallSession {
 
   bool _engineTornDown = false;
 
+  AppLifecycleListener? _lifecycleListener;
+  void Function()? _pictureInPictureListener;
+  bool? _engineInBackground;
+
+  Future<void> _followAppLifecycle(CallEngine engine) async {
+    bool hidden(AppLifecycleState? state) => switch (state) {
+      AppLifecycleState.hidden ||
+      AppLifecycleState.paused ||
+      AppLifecycleState.detached => true,
+      _ => false,
+    };
+
+    Future<void> tell(bool inBackground) async {
+      if (_engineInBackground == inBackground) return;
+      _engineInBackground = inBackground;
+      await runBestEffort(
+        () => engine.setAppInBackground(inBackground),
+        label: 'tell the engine the app is in the background: $inBackground',
+      );
+    }
+
+    var appHidden = hidden(WidgetsBinding.instance.lifecycleState);
+    bool inBackground() => appHidden && !_pictureInPictureCamera.value;
+
+    _stopFollowingAppLifecycle();
+    _lifecycleListener = AppLifecycleListener(
+      onStateChange: (state) {
+        if (state == AppLifecycleState.inactive) return;
+        appHidden = hidden(state);
+        unawaited(tell(inBackground()));
+      },
+    );
+    void onPictureInPicture() => unawaited(tell(inBackground()));
+    _pictureInPictureListener = onPictureInPicture;
+    _pictureInPictureCamera.addListener(onPictureInPicture);
+    await tell(inBackground());
+  }
+
+  void _stopFollowingAppLifecycle() {
+    _lifecycleListener?.dispose();
+    _lifecycleListener = null;
+    final listener = _pictureInPictureListener;
+    if (listener != null) _pictureInPictureCamera.removeListener(listener);
+    _pictureInPictureListener = null;
+  }
+
   Future<bool> _abandonEngineIfEnded(CallEngine engine) async {
     if (_hangUp == null && _phase != CallSessionPhase.ended) return false;
     await _tearDownEngine(engine, 'a hangup during connect');
@@ -408,6 +504,7 @@ class CallSession {
   }
 
   Future<void> _tearDownEngine(CallEngine engine, String why) async {
+    _stopFollowingAppLifecycle();
     if (_engineTornDown) return;
     _engineTornDown = true;
     await runBestEffort(engine.leave, label: 'leave engine after $why');
@@ -424,14 +521,8 @@ class CallSession {
     if (_encryptionKey != null) return;
     if (event.type != callEncryptionKeyEventType) return;
 
-    final encryptedContent = event.encryptedContent;
-    if (encryptedContent == null) return;
-
-    final senderKey = encryptedContent['sender_key'];
-    if (senderKey is! String) return;
-    final device = client.getUserDeviceKeysByCurve25519Key(senderKey);
-    if (device == null || device.blocked) return;
-    if (device.userId != event.senderId) return;
+    final device = olmSenderDevice(client, event);
+    if (device == null) return;
 
     final key = parseCallEncryptionKeyContent(
       content: event.content,
@@ -439,9 +530,10 @@ class CallSession {
     );
     if (key == null) return;
 
-    final deviceId = device.deviceId;
-    if (deviceId == null) return;
-    final id = VoipParticipantId(userId: device.userId, deviceId: deviceId);
+    final id = VoipParticipantId(
+      userId: device.userId,
+      deviceId: device.deviceId!,
+    );
     if (!_currentCallParticipants().contains(id)) {
       if (_pendingKeys.length < _maxPendingKeys) _pendingKeys[id] = key;
       return;
@@ -530,9 +622,12 @@ class CallSession {
     });
   }
 
-  void _publishMembershipBestEffort() {
+  void _publishMembershipBestEffort({bool force = false}) {
     unawaited(
-      runBestEffort(_publishOwnMembership, label: 'refresh membership'),
+      runBestEffort(
+        () => _publishOwnMembership(force: force),
+        label: 'refresh membership',
+      ),
     );
   }
 
@@ -550,7 +645,7 @@ class CallSession {
       fociActive: foci,
     );
     _membershipEventId = await client.setRoomStateWithKey(
-      room.id,
+      _roomId,
       callMemberEventType,
       _myUserId,
       {
@@ -563,7 +658,7 @@ class CallSession {
   Future<void> _clearOwnMembership() async {
     try {
       await client.setRoomStateWithKey(
-        room.id,
+        _roomId,
         callMemberEventType,
         _myUserId,
         {'memberships': <Object?>[]},
@@ -571,9 +666,26 @@ class CallSession {
     } catch (_) {}
   }
 
+  void _onSync(SyncUpdate update) {
+    if (_leftRoom(update)) {
+      unawaited(_endLocally());
+      return;
+    }
+    _reconcileRemoteMemberships();
+  }
+
+  bool _leftRoom(SyncUpdate update) {
+    if (update.rooms?.leave?.containsKey(_roomId) ?? false) return true;
+    final live = client.getRoomById(_roomId);
+    if (live == null) return _roomSeen && update.nextBatch.isNotEmpty;
+    return live.membership == Membership.leave ||
+        live.membership == Membership.ban;
+  }
+
   void _reconcileRemoteMemberships() {
     final eng = _engine;
     if (eng == null) return;
+    if (_roomSeen && client.getRoomById(_roomId) == null) return;
     final states = room.states[callMemberEventType] ?? const {};
     final seenThisPass = <VoipParticipantId>{};
 
@@ -650,7 +762,17 @@ class CallSession {
     _declineSub,
     _localStateSub,
     _statusSub,
+    _loginSub,
   ];
+
+  void _releaseListeners() {
+    _cancelTimers();
+    _stopFollowingAppLifecycle();
+    _pendingKeys.clear();
+    for (final subscription in _subscriptions) {
+      unawaited(subscription?.cancel());
+    }
+  }
 
   Future<void>? _hangUp;
   bool _endedByUser = false;
@@ -671,25 +793,18 @@ class CallSession {
     final wasUnanswered = !_everHadRemote;
     final othersStillPresent = _knownRemote.isNotEmpty;
 
-    _cancelTimers();
-    _pendingKeys.clear();
-    for (final subscription in _subscriptions) {
-      await subscription?.cancel();
+    _releaseListeners();
+    if (_engine case final engine?) {
+      await _tearDownEngine(engine, 'a hang-up');
     }
-
-    await _clearOwnMembership();
-    if (_engine case final engine? when !_engineTornDown) {
-      _engineTornDown = true;
-      await engine.leave();
-      engine.dispose();
-    }
+    if (!_endedLocally) await _clearOwnMembership();
 
     final reason = endReason ??= wasRinging || wasUnanswered
         ? CallEndReason.missed
         : CallEndReason.hungUp;
     _setPhase(CallSessionPhase.ended);
 
-    if (!othersStillPresent && !_summarized) {
+    if (!othersStillPresent && !_summarized && !_endedLocally) {
       final status = switch (reason) {
         CallEndReason.missed => CallSummaryStatus.missed,
         CallEndReason.declinedByThem => CallSummaryStatus.declined,
@@ -710,11 +825,7 @@ class CallSession {
   }
 
   void dispose() {
-    _cancelTimers();
-    _pendingKeys.clear();
-    for (final subscription in _subscriptions) {
-      unawaited(subscription?.cancel());
-    }
+    _releaseListeners();
     _phaseController.close();
     _remoteJoinedController.close();
   }

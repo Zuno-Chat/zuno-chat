@@ -6,13 +6,12 @@ data class NoticeCopy(val title: String, val text: String)
 
 data class NoticeConversation(val title: String, val isGroup: Boolean)
 
+data class NoticeAlert(val silent: Boolean, val vibrate: Boolean)
+
 object PushNoticeDecision {
     const val DIRECT_CHANNEL = "direct_messages"
     const val GROUP_CHANNEL = "group_messages"
     const val MENTIONS_ONLY = "mentionsOnly"
-    const val TEST_EVENT_PREFIX = "\$zuno_test_"
-
-    fun isTestPush(eventId: String?): Boolean = eventId?.startsWith(TEST_EVENT_PREFIX) == true
 
     fun shouldPost(
         roomId: String?,
@@ -52,6 +51,9 @@ object PushNoticeDecision {
 
     fun shouldPostMissed(notificationsEnabled: Boolean, channelExists: Boolean): Boolean =
         notificationsEnabled && channelExists
+
+    fun alertFor(messageTone: Boolean, messageVibration: Boolean): NoticeAlert =
+        NoticeAlert(silent = !messageTone, vibrate = messageVibration)
 
     fun conversationFor(room: CachedRoom?): NoticeConversation? {
         if (room == null) return null
