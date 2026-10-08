@@ -49,74 +49,14 @@ jobs:
             echo "sha=$(git rev-parse HEAD)"
           } >>"$GITHUB_OUTPUT"
 
-  analyze-test:
+  checks:
     needs: prepare
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: 3.47.5
-          cache: true
-      - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test
-
-  kotlin-test:
-    needs: prepare
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: 3.47.5
-          cache: true
-      - run: flutter pub get
-      - run: flutter build apk --config-only
-      - working-directory: android
-        run: ./gradlew :app:testDebugUnitTest
-
-  swift-test:
-    needs: prepare
-    runs-on: xcode-27
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '27.0'
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: 3.47.5
-          cache: true
-      - run: flutter pub get
-      - run: flutter build ios --config-only --no-codesign
-      - working-directory: ios
-        run: pod install
-      - run: |
-          udid=$(xcrun simctl list devices available --json | jq -r '[.devices | to_entries | map(select(.key | test("iOS"))) | sort_by(.key | [scan("[0-9]+") | tonumber]) | .[].value[] | select(.name | startswith("iPhone"))] | last | .udid')
-          xcrun simctl bootstatus "$udid" -b
-          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner \
-            -only-testing:RunnerTests -destination "id=$udid" -parallel-testing-enabled NO \
-            -collect-test-diagnostics never test
+    uses: ./.github/workflows/checks.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
 
   build-android:
-    needs: [prepare, analyze-test, kotlin-test, swift-test]
+    needs: [prepare, checks]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: release
@@ -160,7 +100,7 @@ jobs:
           if-no-files-found: error
 
   build-ios:
-    needs: [prepare, analyze-test, kotlin-test, swift-test]
+    needs: [prepare, checks]
     runs-on: xcode-27
     timeout-minutes: 60
     environment: release
