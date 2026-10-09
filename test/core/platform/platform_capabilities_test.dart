@@ -82,8 +82,8 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
-    'nativeRingbackTone',
-    read: (c) => c.nativeRingbackTone,
+    'nativeCallAudio',
+    read: (c) => c.nativeCallAudio,
     android: true,
     ios: false,
   ),

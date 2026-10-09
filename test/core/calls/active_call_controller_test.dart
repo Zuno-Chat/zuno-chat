@@ -9,6 +9,7 @@ import 'package:zuno/core/calls/models/call_surface.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 
 import '../../helpers/call_channel_mocks.dart';
+import '../../helpers/fake_call_engine.dart';
 import '../../helpers/fake_call_session.dart';
 
 void main() {
@@ -49,10 +50,11 @@ void main() {
     expect(container.read(activeCallControllerProvider), isNull);
   });
 
-  test('a call replaced by another leaves the new call its notice', () async {
+  test('a call replaced by another leaves the new call its notice and its '
+      'call audio, started on its own route', () async {
     final mocks = CallChannelMocks();
     final container = containerWithControllers();
-    final first = voiceCall();
+    final first = FakeCallSession(room: buildCallRoom(), kind: CallKind.video);
     container.read(activeCallProvider.notifier).set(first);
     await pumpEventQueue();
 
@@ -61,6 +63,12 @@ void main() {
     await pumpEventQueue();
 
     expect(mocks.count('stopCallForegroundService'), 0);
+    expect(mocks.count('stopCallAudio'), 0);
+    expect(mocks.argsOf('startCallAudio'), [
+      {'route': 'speaker'},
+      {'route': 'earpiece'},
+    ]);
+    expect(mocks.callAudioRunning, isTrue);
     expect(container.read(activeCallControllerProvider)?.session, same(second));
   });
 
@@ -75,6 +83,20 @@ void main() {
 
     expect(mocks.count('startCallForegroundService'), 1);
     expect(mocks.count('stopCallForegroundService'), 0);
+    expect(mocks.count('startCallAudio'), 1);
+    expect(mocks.count('stopCallAudio'), 0);
+    expect(mocks.callAudioRunning, isTrue);
+  });
+
+  test('a call that has already ended never builds its engine', () async {
+    CallChannelMocks();
+    final container = containerWithControllers();
+    final ended = _EngineCountingSession()..end();
+
+    container.read(activeCallProvider.notifier).set(ended);
+    await pumpEventQueue();
+
+    expect(ended.engineReads, 0);
   });
 
   test('a call shows on one surface at a time: its screen, then '
@@ -115,4 +137,16 @@ void main() {
     await pumpEventQueue();
     expect(call.surface, CallSurface.none);
   });
+}
+
+class _EngineCountingSession extends FakeCallSession {
+  _EngineCountingSession() : super(room: buildCallRoom(), kind: CallKind.voice);
+
+  int engineReads = 0;
+
+  @override
+  FakeCallEngine get engine {
+    engineReads++;
+    return super.engine;
+  }
 }

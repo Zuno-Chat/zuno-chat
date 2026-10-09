@@ -182,11 +182,14 @@ class EngineHarness {
     CallKind kind = CallKind.voice,
     bool lowDataMode = false,
     PlatformCapabilities? capabilities,
+    Uri Function()? baseUri,
   }) {
     engine = CloudflareCallEngine(
-      baseUri: () => Uri.parse(
-        'https://example.org/_synapse/client/zuno/calls/cloudflare',
-      ),
+      baseUri:
+          baseUri ??
+          () => Uri.parse(
+            'https://example.org/_synapse/client/zuno/calls/cloudflare',
+          ),
       authorization: () async => 'Bearer test-token',
       kind: kind,
       lowDataMode: lowDataMode,

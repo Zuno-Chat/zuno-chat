@@ -35,6 +35,7 @@ import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/sent_call_declines.dart';
 
 class _PendingRingPresenter implements IncomingCallPresenter {
   final shownCallIds = <String>[];
@@ -87,6 +88,7 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   late Client client;
+  late SentCallDeclines declines;
   late Room room;
   late RecordedCallsChannel native;
   Object? ringReply;
@@ -102,14 +104,15 @@ void main() {
       reply: (call) => call.method == 'reportIncomingCall' ? ringReply : null,
     );
 
+    declines = SentCallDeclines();
     client = buildTestClient(
       userId: '@me:example.org',
       deviceId: 'THISPHONE',
       database: SendCapableFakeDatabaseApi(),
-      httpClient: MockClient(
-        (request) async =>
-            http.Response(jsonEncode({'event_id': r'$evt'}), 200),
-      ),
+      httpClient: MockClient((request) async {
+        declines.record(request);
+        return http.Response(jsonEncode({'event_id': r'$evt'}), 200);
+      }),
     );
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
@@ -181,15 +184,7 @@ void main() {
     content: _inviteContent(callId: callId, kind: kind),
   );
 
-  Set<String?> declinedCallIds() {
-    final declined = <String?>{};
-    client.onTimelineEvent.stream.listen((e) {
-      if (e.messageType == callDeclineMsgtype) {
-        declined.add(e.content.tryGet<String>('call_id'));
-      }
-    });
-    return declined;
-  }
+  List<String?> declinedCallIds() => declines.watch();
 
   List<String> ringScreenCallIds(WidgetTester tester) => [
     for (final page in tester.widgetList<IncomingCallPage>(
@@ -264,12 +259,7 @@ void main() {
       addTearDown(session.dispose);
       container.read(activeCallProvider.notifier).set(session);
 
-      final declineTxIds = <String?>{};
-      client.onTimelineEvent.stream.listen((e) {
-        if (e.messageType == callDeclineMsgtype) {
-          declineTxIds.add(e.unsigned?.tryGet<String>('transaction_id'));
-        }
-      });
+      final declined = declinedCallIds();
 
       await deliverAndSettle(
         tester,
@@ -282,7 +272,7 @@ void main() {
       );
 
       expect(find.byType(IncomingCallPage), findsNothing);
-      expect(declineTxIds, hasLength(1));
+      expect(declined, ['call2']);
       expect(container.read(activeCallProvider), same(session));
       expect(container.read(resolvedCallIdsProvider), contains('call2'));
     },
@@ -295,12 +285,7 @@ void main() {
     addTearDown(session.dispose);
     container.read(activeCallProvider.notifier).set(session);
 
-    final declineCallIds = <String?>{};
-    client.onTimelineEvent.stream.listen((e) {
-      if (e.messageType == callDeclineMsgtype) {
-        declineCallIds.add(e.content.tryGet<String>('call_id'));
-      }
-    });
+    final declined = declinedCallIds();
 
     await deliverAndSettle(
       tester,
@@ -322,7 +307,7 @@ void main() {
     );
 
     expect(find.byType(IncomingCallPage), findsNothing);
-    expect(declineCallIds, {'call2', 'call3'});
+    expect(declined, ['call2', 'call3']);
     expect(container.read(activeCallProvider), same(session));
   });
 
@@ -351,10 +336,7 @@ void main() {
     container.read(activeCallProvider.notifier).set(session);
     container.read(resolvedCallIdsProvider.notifier).markResolved('call2');
 
-    final declines = <Event>[];
-    client.onTimelineEvent.stream.listen((e) {
-      if (e.messageType == callDeclineMsgtype) declines.add(e);
-    });
+    final declined = declinedCallIds();
 
     await deliverAndSettle(
       tester,
@@ -367,7 +349,7 @@ void main() {
     );
 
     expect(find.byType(IncomingCallPage), findsNothing);
-    expect(declines, isEmpty);
+    expect(declined, isEmpty);
   });
 
   testWidgets('the SnackBar actually appears with the right caller info', (
@@ -503,7 +485,7 @@ void main() {
       );
 
       expect(find.byType(IncomingCallPage), findsNothing);
-      expect(declined, {'call2'});
+      expect(declined, ['call2']);
       expect(container.read(resolvedCallIdsProvider), contains('call2'));
       expect(find.text('Missed call from Carol'), findsOneWidget);
       expect(native.argsOf('reportIncomingCall'), isEmpty);
@@ -615,7 +597,7 @@ void main() {
         invite(callId: 'call2', senderId: '@carol:example.org'),
       );
 
-      expect(declined, {'call2'});
+      expect(declined, ['call2']);
       expect(container.read(resolvedCallIdsProvider), contains('call2'));
       expect(find.text('Missed call from Carol'), findsOneWidget);
       expect(ringScreenCallIds(tester), ['call1']);
@@ -652,7 +634,7 @@ void main() {
         invite(callId: 'call2', senderId: '@carol:example.org'),
       );
 
-      expect(declined, {'call1'});
+      expect(declined, ['call1']);
       expect(container.read(resolvedCallIdsProvider), isNot(contains('call2')));
       expect(find.textContaining('Missed call'), findsNothing);
       expect(presenter.shownCallIds, ['call1', 'call2']);

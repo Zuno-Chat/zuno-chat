@@ -21,17 +21,16 @@ class LocalMedia {
 
   MediaStream? _microphoneStream;
   MediaStream? _cameraStream;
+  MediaStream? _capture;
   MediaStream? _cameraCapture;
   Future<void>? _opening;
   bool _closed = false;
-  final _microphoneCaptured = Completer<void>();
 
   MediaStream? get microphoneStream => _microphoneStream;
   MediaStream? get cameraStream => _cameraStream;
   MediaStreamTrack? get microphone =>
       _microphoneStream?.getAudioTracks().firstOrNull;
   MediaStreamTrack? get camera => _cameraStream?.getVideoTracks().firstOrNull;
-  Future<void> get microphoneCaptured => _microphoneCaptured.future;
 
   Map<String, Object?> get _videoConstraints {
     final size = captureSizeFor(lowDataMode: lowDataMode);
@@ -43,50 +42,71 @@ class LocalMedia {
     };
   }
 
-  Future<void> open() => _opening ??= _open();
+  Future<void> open({required bool withCamera}) =>
+      _opening ??= _open(withCamera);
 
-  Future<void> _open() async {
-    final stream = await _webRtc.getUserMedia({
+  Future<void> _open(bool withCamera) async {
+    if (_closed) return;
+    final capture = await _webRtc.getUserMedia({
       'audio': true,
-      'video': cameraEnabled && camera == null ? _videoConstraints : false,
+      'video': withCamera && cameraEnabled && camera == null
+          ? _videoConstraints
+          : false,
     });
-    _microphoneCaptured.complete();
     if (_closed) {
-      await quietly(stream.dispose);
+      await quietly(capture.dispose);
       return;
     }
-    final microphone = await _webRtc.createLocalMediaStream('local_audio');
-    _microphoneStream = microphone;
-    for (final track in stream.getAudioTracks()) {
-      await microphone.addTrack(track);
-    }
-    final videoTracks = stream.getVideoTracks();
-    if (videoTracks.isNotEmpty) {
-      final camera = await _webRtc.createLocalMediaStream('local_video');
-      _cameraStream = camera;
-      for (final track in videoTracks) {
-        await camera.addTrack(track);
+    MediaStream? microphone;
+    MediaStream? cameraStream;
+    try {
+      microphone = await _adopt('local_audio', capture.getAudioTracks());
+      final videoTracks = capture.getVideoTracks();
+      if (videoTracks.isNotEmpty) {
+        cameraStream = await _adopt('local_video', videoTracks);
       }
+    } catch (_) {
+      await quietly(microphone?.dispose);
+      await quietly(capture.dispose);
+      rethrow;
     }
     if (_closed) {
-      await close();
-      await quietly(stream.dispose);
+      await quietly(cameraStream?.dispose);
+      await quietly(microphone.dispose);
+      await quietly(capture.dispose);
+      return;
     }
+    _capture = capture;
+    _microphoneStream = microphone;
+    if (cameraStream != null) _cameraStream = cameraStream;
+  }
+
+  Future<MediaStream> _adopt(
+    String label,
+    List<MediaStreamTrack> tracks,
+  ) async {
+    final stream = await _webRtc.createLocalMediaStream(label);
+    try {
+      for (final track in tracks) {
+        await stream.addTrack(track);
+      }
+    } catch (_) {
+      await quietly(stream.dispose);
+      rethrow;
+    }
+    return stream;
   }
 
   Future<void> startCamera() async {
+    if (_closed) return;
     final captured = await _webRtc.getUserMedia({
       'audio': false,
       'video': _videoConstraints,
     });
-    MediaStream? wrapper;
+    final MediaStream wrapper;
     try {
-      wrapper = await _webRtc.createLocalMediaStream('local_video');
-      for (final track in captured.getVideoTracks()) {
-        await wrapper.addTrack(track);
-      }
+      wrapper = await _adopt('local_video', captured.getVideoTracks());
     } catch (_) {
-      await quietly(wrapper?.dispose);
       await quietly(captured.dispose);
       rethrow;
     }
@@ -134,8 +154,11 @@ class LocalMedia {
   Future<void> close() async {
     _closed = true;
     final microphone = _microphoneStream;
+    final capture = _capture;
     _microphoneStream = null;
+    _capture = null;
     await quietly(microphone?.dispose);
     await stopCamera();
+    await quietly(capture?.dispose);
   }
 }

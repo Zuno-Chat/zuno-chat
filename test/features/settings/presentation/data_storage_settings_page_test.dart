@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -23,12 +24,14 @@ class _CacheClient extends Client {
 
   int clears = 0;
   Object? error;
+  Completer<void>? finishing;
 
   @override
   Future<void> clearCache() async {
     final error = this.error;
     if (error != null) throw error;
     clears++;
+    await finishing?.future;
   }
 }
 
@@ -192,6 +195,25 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(client.clears, 1);
+    expect(find.text('Cache cleared'), findsOneWidget);
+  });
+
+  testWidgets('Clear cache says it is done only once the clear, space given '
+      'back included, has finished', (tester) async {
+    final finishing = client.finishing = Completer();
+    await pumpPage(tester);
+
+    await tester.tap(find.text('Clear cache'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Clear cache'));
+    await tester.pumpAndSettle();
+
+    expect(client.clears, 1);
+    expect(find.text('Cache cleared'), findsNothing);
+
+    finishing.complete();
+    await tester.pumpAndSettle();
+
     expect(find.text('Cache cleared'), findsOneWidget);
   });
 

@@ -16,7 +16,7 @@ class PlatformCapabilities {
   final bool screenshotBlocking;
   final bool sensitiveClipboard;
   final bool lockScreenCallUi;
-  final bool nativeRingbackTone;
+  final bool nativeCallAudio;
   final bool callForegroundService;
   final bool autostartSettings;
   final bool headlessWakeLocks;
@@ -68,7 +68,7 @@ class PlatformCapabilities {
     required this.screenshotBlocking,
     required this.sensitiveClipboard,
     required this.lockScreenCallUi,
-    required this.nativeRingbackTone,
+    required this.nativeCallAudio,
     required this.callForegroundService,
     required this.autostartSettings,
     required this.headlessWakeLocks,
@@ -124,7 +124,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         screenshotBlocking: true,
         sensitiveClipboard: true,
         lockScreenCallUi: true,
-        nativeRingbackTone: true,
+        nativeCallAudio: true,
         callForegroundService: true,
         autostartSettings: true,
         headlessWakeLocks: true,
@@ -180,7 +180,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         screenshotBlocking: false,
         sensitiveClipboard: true,
         lockScreenCallUi: false,
-        nativeRingbackTone: false,
+        nativeCallAudio: false,
         callForegroundService: false,
         autostartSettings: false,
         headlessWakeLocks: true,

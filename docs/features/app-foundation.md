@@ -129,7 +129,7 @@ Each flag is one of these kinds:
 | Android concept, iOS `false` for good | `batteryExemption`, `foregroundSyncService`, `fullScreenIntent`, `homeScreenShortcuts` |
 | Android-only behavior | `atomicDatabaseBatches`, `instantPushNotices` |
 | iOS-only behavior | `apnsRegistration`, `voipRing`, `nseNotifications`, `signOutWipeKeepsProcess` |
-| Call seam selectors | `nativeIncomingRingUi`, `callForegroundService` and `nativeRingbackTone` on Android, `callKit` on iOS. The factories check `callKit` first, so the Android three never flip. |
+| Call seam selectors | `nativeIncomingRingUi`, `callForegroundService` and `nativeCallAudio` on Android, `callKit` on iOS. The factories check `callKit` first, so the Android three never flip. |
 | Apple limitation | `recorderWritesOgg` (Apple cannot write Ogg), `screenshotBlocking` (no app can block a screenshot) |
 | Per-platform value | `mapsApp` (a `geo:` intent on Android, Apple Maps on iOS), `deliveryModes` |
 
@@ -137,7 +137,7 @@ The `zuno/*` channels, each behind its flag:
 
 | Area | Both platforms | Android | iOS |
 |---|---|---|---|
-| Calls (`calls.md`) | `zuno/calls`: call presentation, ringback, audio routes, screen security and the sensitive clipboard | `zuno/call_style` | `zuno/voip` |
+| Calls (`calls.md`) | `zuno/calls`: call presentation, call audio and its routes, ringback, screen security and the sensitive clipboard | `zuno/call_style` | `zuno/voip` |
 | Push and notifications (`notifications.md`) | `zuno/push_wakelock`, `zuno/push_diag` | `zuno/fcm`, `zuno/background_sync`, `zuno/conversations`, `zuno/vibration` | `zuno/apns`, `zuno/nse`, `zuno/notification_actions` |
 | Media and uploads | `zuno/image`, `zuno/video`, `zuno/upload_service` | | |
 | Live location (`location-sharing.md`) | `zuno/live_location`, with its fix stream `zuno/live_location/fixes` | | |
@@ -199,9 +199,11 @@ The `zuno/*` channels, each behind its flag:
 
 **SQLCipher's derived key is cached** in secure storage, tagged with the file's salt, because the passphrase is already a random key and SQLCipher's key stretching on every cold process buys nothing.
 
-**The app's client compacts `zuno.db` each time it opens it**, because SQLite never hands freed pages back to the disk on its own. The first open switches the file to incremental auto-vacuum with one full `VACUUM`, every later open frees the released pages, and Clear cache compacts right after clearing.
+**The app's client compacts `zuno.db` each time it opens it**, because SQLite never hands freed pages back to the disk on its own. The file runs in incremental auto-vacuum, and each open frees a bounded number of free pages, so a large backlog drains over several launches instead of stalling one.
+- A store not yet incremental is switched at open, with one full `VACUUM`, only while it is small; a large one waits for the next cache clear.
+- Every cache clear is followed by a full rewrite, owned by the database layer (a mixin on both app database classes overriding `clearCache`), so Clear cache, the first-launch repair and the SDK's own clears inside migrations all give the space back.
 - It runs before the key cache reads the file, so that read never meets a file mid-rewrite.
-- Background clients never compact, since a push wake has no time for a rewrite.
+- Background clients never compact at open, since a push wake has no time for a rewrite; an SDK migration that clears the cache still rewrites the file in whichever client runs it, a background one included.
 
 **On Android, every SDK write transaction is one native batch** (`AtomicBatchDatabase`). sqflite_sqlcipher shares one native connection per path across every engine in the process, and a Dart-side transaction spans several channel round trips. An engine that dies inside one would leave the shared connection mid-transaction, and every later write in the process would be silently discarded. The wrapper therefore replays each commit as `BEGIN IMMEDIATE … COMMIT` in one native call. For the same reason, an open that meets another engine's abandoned transaction rolls it back rather than failing (`shared_database_open.dart`). iOS opens a connection per engine and stays unwrapped.
 

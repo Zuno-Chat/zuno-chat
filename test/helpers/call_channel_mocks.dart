@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 
 import 'fake_calls_channel.dart';
 
@@ -11,9 +14,10 @@ const _wakelockChannel =
 class CallChannelMocks {
   CallChannelMocks() {
     _native = installFakeCallsChannel(
-      reply: (call) => call.method == 'takeCallEvents'
-          ? _takeNativeEvents()
-          : callsReply?.call(call),
+      reply: (call) async {
+        if (call.method == 'takeCallEvents') return _takeNativeEvents();
+        return await callsReply?.call(call) ?? _nativeCallAudio(call);
+      },
     );
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -26,17 +30,6 @@ class CallChannelMocks {
     mock('FlutterWebRTC.Method', (call) async {
       webrtc.add(call);
       return switch (call.method) {
-        'getSources' => {
-          'sources': [
-            for (final id in audioOutputs)
-              {
-                'deviceId': id,
-                'groupId': id,
-                'kind': 'audiooutput',
-                'label': id,
-              },
-          ],
-        },
         'createVideoRenderer' => _createRenderer(),
         _ => null,
       };
@@ -64,7 +57,9 @@ class CallChannelMocks {
   Completer<void>? wakelockGate;
   bool wakelockFails = false;
   int rendererCreatesToRefuse = 0;
-  List<String> audioOutputs = ['earpiece', 'speaker'];
+  List<String> headsets = [];
+  String? _callAudioRoute;
+  List<String> _reportedHeadsets = const [];
   var _nextTexture = 0;
 
   List<MethodCall> get calls => _native.calls;
@@ -126,25 +121,49 @@ class CallChannelMocks {
     );
   }
 
-  String? get audioRoute {
-    for (final call in webrtc.reversed) {
-      final args = call.arguments as Map?;
-      if (call.method == 'enableSpeakerphone') {
-        return args!['enable'] == true ? 'speaker' : 'earpiece';
-      }
-      if (call.method == 'selectAudioOutput') {
-        return args!['deviceId'] as String;
-      }
+  Map<String, Object?> get _callAudioState => {
+    'route': ?_callAudioRoute,
+    'headsets': headsets,
+  };
+
+  Object? _nativeCallAudio(MethodCall call) {
+    final route = (call.arguments as Map?)?['route'] as String?;
+    switch (call.method) {
+      case 'startCallAudio':
+        _callAudioRoute = route;
+        _reportedHeadsets = [...headsets];
+        return _callAudioState;
+      case 'setAudioRoute':
+        if (_callAudioRoute != null) _callAudioRoute = route;
+      case 'stopCallAudio':
+        _callAudioRoute = null;
+      case 'audioRoute':
+        return _callAudioState;
     }
     return null;
   }
 
-  int get audioRouteChanges => webrtc
-      .where(
-        (c) =>
-            c.method == 'enableSpeakerphone' || c.method == 'selectAudioOutput',
-      )
-      .length;
+  Iterable<MethodCall> get _routeRequests => calls.where(
+    (c) => c.method == 'startCallAudio' || c.method == 'setAudioRoute',
+  );
+
+  String? get audioRoute =>
+      (_routeRequests.lastOrNull?.arguments as Map?)?['route'] as String?;
+
+  int get audioRouteChanges => _routeRequests.length;
+
+  bool get callAudioRunning => _callAudioRoute != null;
+
+  Future<void> reportHeadsets(List<String> connected) async {
+    headsets = connected;
+    if (!callAudioRunning || listEquals(_reportedHeadsets, connected)) return;
+    _reportedHeadsets = [...connected];
+    nativeEvents.add({
+      'method': 'audioRouteChanged',
+      'arguments': _callAudioState,
+    });
+    await CallNotificationService.instance.takeQueuedNativeCalls();
+  }
 }
 
 class _PigeonReader extends StandardMessageCodec {

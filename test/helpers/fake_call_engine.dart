@@ -61,23 +61,17 @@ class FakeCallEngine implements CallEngine {
   @override
   final CallKind kind;
 
-  final microphone = Completer<void>();
   int startLocalMediaCalls = 0;
   Completer<void>? startGate;
-
-  @override
-  Future<void> get microphoneCaptured => microphone.future;
 
   @override
   Future<void> startLocalMedia() async {
     startLocalMediaCalls++;
     await startGate?.future;
-    if (!microphone.isCompleted) microphone.complete();
   }
 
   @override
   Future<void> join() async {
-    if (!microphone.isCompleted) microphone.complete();
     await joinGate?.future;
     if (failJoin) {
       throw joinError ?? StateError('engine failed to connect to the SFU');
@@ -87,6 +81,7 @@ class FakeCallEngine implements CallEngine {
 
   int leaveCalls = 0;
   int disposeCalls = 0;
+  Completer<void>? leaveGate;
 
   @override
   Future<void> leave() async {
@@ -95,6 +90,7 @@ class FakeCallEngine implements CallEngine {
     }
     leaveCalls++;
     joined = false;
+    await leaveGate?.future;
   }
 
   final microphoneMutedRequests = <bool>[];

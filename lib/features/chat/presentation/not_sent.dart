@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/calls/matrixrtc/call_summary_message.dart';
+
 bool isNotSent(Event event) =>
-    event.status.isError && event.senderId == event.room.client.userID;
+    event.status.isError &&
+    event.senderId == event.room.client.userID &&
+    !isCallSignalingMessage(event.messageType) &&
+    !isCallSummaryMessage(event.messageType);
 
 List<Event> notSentOwnEvents(Iterable<Event> events) =>
     events.where(isNotSent).toList();

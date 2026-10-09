@@ -155,8 +155,7 @@ void main() {
 
     testWidgets('a headset already connected takes the sound, even on a video '
         'call', (tester) async {
-      final harness = CallPageHarness(tester)
-        ..audioOutputs = ['earpiece', 'speaker', 'bluetooth'];
+      final harness = CallPageHarness(tester)..headsets = ['bluetooth'];
       await harness.open(sessionFor(CallKind.video));
 
       expect(harness.audioRoute, 'bluetooth');
@@ -199,7 +198,7 @@ void main() {
       final harness = CallPageHarness(tester);
       await talking(harness, CallKind.voice);
 
-      await harness.changeAudioOutputs(['earpiece', 'speaker', 'bluetooth']);
+      await harness.changeHeadsets(['bluetooth']);
 
       expect(harness.audioRoute, 'bluetooth');
       expect(harness.speakerIcon, Icons.bluetooth_audio_outlined);
@@ -213,9 +212,9 @@ void main() {
       final harness = CallPageHarness(tester);
       await talking(harness, CallKind.video);
 
-      await harness.changeAudioOutputs(['speaker', 'wired-headset']);
+      await harness.changeHeadsets(['wiredHeadset']);
 
-      expect(harness.audioRoute, 'wired-headset');
+      expect(harness.audioRoute, 'wiredHeadset');
       expect(harness.speakerIcon, Icons.headphones_outlined);
       await harness.close();
     });
@@ -226,12 +225,11 @@ void main() {
     ]) {
       testWidgets('unplugging the headset on a $kind call goes back to the '
           '$fallback', (tester) async {
-        final harness = CallPageHarness(tester)
-          ..audioOutputs = ['earpiece', 'speaker', 'wired-headset'];
+        final harness = CallPageHarness(tester)..headsets = ['wiredHeadset'];
         await talking(harness, kind);
-        expect(harness.audioRoute, 'wired-headset');
+        expect(harness.audioRoute, 'wiredHeadset');
 
-        await harness.changeAudioOutputs(['earpiece', 'speaker']);
+        await harness.changeHeadsets([]);
 
         expect(harness.audioRoute, fallback);
         expect(harness.proximityScreenOff, kind == CallKind.voice);
@@ -241,12 +239,11 @@ void main() {
 
     testWidgets('a device change that connects nothing new leaves the sound '
         'where it is', (tester) async {
-      final harness = CallPageHarness(tester)
-        ..audioOutputs = ['earpiece', 'speaker', 'bluetooth'];
+      final harness = CallPageHarness(tester)..headsets = ['bluetooth'];
       await talking(harness, CallKind.voice);
       final before = harness.audioRouteChanges;
 
-      await harness.changeAudioOutputs(['earpiece', 'speaker', 'bluetooth']);
+      await harness.changeHeadsets(['bluetooth']);
 
       expect(harness.audioRouteChanges, before);
       expect(harness.audioRoute, 'bluetooth');
@@ -255,8 +252,7 @@ void main() {
 
     testWidgets('the speaker button leaves the headset for the speaker and '
         'comes back to it', (tester) async {
-      final harness = CallPageHarness(tester)
-        ..audioOutputs = ['earpiece', 'speaker', 'bluetooth'];
+      final harness = CallPageHarness(tester)..headsets = ['bluetooth'];
       await talking(harness, CallKind.voice);
 
       await tester.tap(find.byTooltip('Turn speaker on'));
@@ -647,7 +643,7 @@ void main() {
       await harness.settle();
       final before = harness.audioRouteChanges;
 
-      await harness.changeAudioOutputs(['earpiece', 'speaker', 'bluetooth']);
+      await harness.changeHeadsets(['bluetooth']);
 
       expect(harness.audioRouteChanges, before);
     });

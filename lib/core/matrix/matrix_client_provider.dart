@@ -259,7 +259,7 @@ Future<sqflite.Database> _openDatabase(
   await _assertSqlCipherPresent(database);
   if (createKey) {
     await runBestEffort(
-      () => compactDatabase(database),
+      () => compactOnOpen(database),
       label: 'compact the database at startup',
     );
     unawaited(

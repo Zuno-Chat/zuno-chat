@@ -33,6 +33,11 @@ RTCSessionDescription _remoteDescription(CfSessionDescription description) =>
       description.type,
     );
 
+const _audioSender = 'local-audio';
+const _videoSender = 'local-video';
+
+typedef _SenderCryptor = ({RTCRtpSender sender, FrameCryptor cryptor});
+
 class CloudflareCallEngine implements CallEngine {
   final CloudflareApiClient _api;
   final WebRtcBackend _webRtc;
@@ -61,8 +66,10 @@ class CloudflareCallEngine implements CallEngine {
       StreamController<List<CallEngineParticipant>>.broadcast();
 
   KeyProvider? _keyProvider;
-  final Map<String, FrameCryptor> _frameCryptors = {};
-  final Set<String> _senderWrapsInFlight = {};
+  final Map<String, _SenderCryptor> _senderCryptors = {};
+  final Set<RTCRtpSender> _senderWrapsInFlight = Set.identity();
+  final Map<String, FrameCryptor> _receiverCryptors = {};
+  final Set<String> _receiverWrapsInFlight = {};
 
   final Future<List<Map<String, Object?>>> _iceServers;
   final bool lowDataMode;
@@ -106,9 +113,8 @@ class CloudflareCallEngine implements CallEngine {
 
   @override
   Future<void> setEncryptionKey(Uint8List key) async {
+    if (_left) return;
     final existingKeyProvider = _keyProvider;
-    final hadAudioCryptor = _frameCryptors.containsKey('local-audio');
-    final hadVideoCryptor = _frameCryptors.containsKey('local-video');
     final keyProvider =
         existingKeyProvider ??
         await _webRtc.frameCryptorFactory.createDefaultKeyProvider(
@@ -120,31 +126,35 @@ class CloudflareCallEngine implements CallEngine {
         );
     try {
       await keyProvider.setSharedKey(key: key);
-      await _wrapLocalSenders(keyProvider);
     } catch (_) {
-      if (!hadAudioCryptor) {
-        await _frameCryptors.remove('local-audio')?.dispose();
-      }
-      if (!hadVideoCryptor) {
-        await _frameCryptors.remove('local-video')?.dispose();
-      }
-      if (existingKeyProvider == null) {
-        await keyProvider.dispose();
-      }
+      if (existingKeyProvider == null) await quietly(keyProvider.dispose);
       rethrow;
     }
+    if (_left) {
+      if (existingKeyProvider == null) await quietly(keyProvider.dispose);
+      return;
+    }
+    final keptCryptors = Map.of(_senderCryptors);
     _keyProvider = keyProvider;
-    await runBestEffort(
-      () => _wrapLocalSenders(keyProvider),
-      label: 'wrap senders after key',
-    );
-    for (final remote in _remote.values.toList()) {
-      for (final entry in remote.recvTransceivers.entries.toList()) {
-        final label = '${remote.id}-${entry.key}';
-        await runBestEffort(
-          () => _wrapReceiver(label, entry.value.receiver),
-          label: 'wrap receiver $label after key',
-        );
+    try {
+      await _wrapLocalSenders(keyProvider);
+    } catch (_) {
+      await _forgetKey(
+        keyProvider,
+        created: existingKeyProvider == null,
+        keptCryptors: keptCryptors,
+      );
+      rethrow;
+    }
+    if (_pc case final pc?) {
+      for (final remote in _remote.values.toList()) {
+        for (final entry in remote.recvTransceivers.entries.toList()) {
+          final label = '${remote.id}-${entry.key}';
+          await runBestEffort(
+            () => _wrapReceiver(label, entry.value.receiver, pc),
+            label: 'wrap receiver $label after key',
+          );
+        }
       }
     }
     _applyLocalTrackState();
@@ -160,50 +170,116 @@ class CloudflareCallEngine implements CallEngine {
     }
   }
 
+  Future<void> _forgetKey(
+    KeyProvider keyProvider, {
+    required bool created,
+    required Map<String, _SenderCryptor> keptCryptors,
+  }) async {
+    final added = [
+      for (final MapEntry(key: label, value: wrapped)
+          in _senderCryptors.entries)
+        if (!identical(keptCryptors[label], wrapped)) label,
+    ];
+    final dropped = [
+      for (final label in added) _senderCryptors.remove(label)!.cryptor,
+    ];
+    _applyLocalTrackState();
+    await _disposeCryptors(dropped, 'after a key that could not be applied');
+    if (!created || !identical(_keyProvider, keyProvider)) return;
+    _keyProvider = null;
+    await runBestEffort(
+      keyProvider.dispose,
+      label: 'dispose key provider after a key that could not be applied',
+    );
+  }
+
+  RTCRtpSender? _currentSender(String label) => label == _audioSender
+      ? _localAudioTransceiver?.sender
+      : _localVideoTransceiver?.sender;
+
+  bool _encrypts(String label) {
+    final sender = _currentSender(label);
+    return sender != null && identical(_senderCryptors[label]?.sender, sender);
+  }
+
   void _applyLocalTrackState() => _media.applyTrackState(
-    microphoneEncrypted: _frameCryptors.containsKey('local-audio'),
-    cameraEncrypted: _frameCryptors.containsKey('local-video'),
+    microphoneEncrypted: _encrypts(_audioSender),
+    cameraEncrypted: _encrypts(_videoSender),
   );
 
   Future<void> _wrapLocalSenders(KeyProvider keyProvider) async {
-    if (_localAudioTransceiver case final t?) {
-      await _wrapSender('local-audio', t.sender, keyProvider);
-    }
-    if (_localVideoTransceiver case final t?) {
-      await _wrapSender('local-video', t.sender, keyProvider);
+    final pc = _pc;
+    if (pc == null) return;
+    for (final label in const [_audioSender, _videoSender]) {
+      if (!_isLiveConnection(pc)) return;
+      if (_currentSender(label) case final sender?) {
+        await _wrapSender(label, sender, pc, keyProvider);
+      }
     }
   }
 
   Future<void> _wrapSender(
     String label,
     RTCRtpSender sender,
+    RTCPeerConnection pc,
     KeyProvider keyProvider,
   ) async {
-    if (_frameCryptors.containsKey(label) ||
+    if (identical(_senderCryptors[label]?.sender, sender) ||
         sender.track == null ||
-        !_senderWrapsInFlight.add(label)) {
+        !_senderWrapsInFlight.add(sender)) {
       return;
     }
+    bool stillWanted() =>
+        _isLiveConnection(pc) &&
+        identical(_currentSender(label), sender) &&
+        identical(_keyProvider, keyProvider);
     try {
-      final cryptor = await _webRtc.frameCryptorFactory
-          .createFrameCryptorForRtpSender(
-            participantId: label,
-            sender: sender,
-            algorithm: Algorithm.kAesGcm,
-            keyProvider: keyProvider,
-          );
+      final FrameCryptor cryptor;
       try {
-        await cryptor.setEnabled(true);
+        cryptor = await _webRtc.frameCryptorFactory
+            .createFrameCryptorForRtpSender(
+              participantId: label,
+              sender: sender,
+              algorithm: Algorithm.kAesGcm,
+              keyProvider: keyProvider,
+            );
       } catch (_) {
-        await runBestEffort(
-          cryptor.dispose,
-          label: 'dispose failed sender cryptor $label',
-        );
-        rethrow;
+        if (stillWanted()) rethrow;
+        return;
       }
-      _frameCryptors[label] = cryptor;
+      if (stillWanted()) {
+        try {
+          await cryptor.setEnabled(true);
+        } catch (_) {
+          await _disposeCryptors([cryptor], 'that failed to start');
+          if (stillWanted()) rethrow;
+          return;
+        }
+      }
+      if (!stillWanted()) {
+        await _disposeCryptors([cryptor], 'for a sender no longer in use');
+        return;
+      }
+      final replaced = _senderCryptors[label];
+      _senderCryptors[label] = (sender: sender, cryptor: cryptor);
+      _applyLocalTrackState();
+      if (replaced != null) {
+        await _disposeCryptors([replaced.cryptor], 'for a replaced sender');
+      }
     } finally {
-      _senderWrapsInFlight.remove(label);
+      _senderWrapsInFlight.remove(sender);
+    }
+  }
+
+  Future<void> _disposeCryptors(
+    Iterable<FrameCryptor> cryptors,
+    String reason,
+  ) async {
+    for (final cryptor in cryptors) {
+      await runBestEffort(
+        cryptor.dispose,
+        label: 'dispose cryptor ${cryptor.participantId} $reason',
+      );
     }
   }
 
@@ -218,26 +294,40 @@ class CloudflareCallEngine implements CallEngine {
     }, label: 'set video codec preferences');
   }
 
-  Future<void> _wrapReceiver(String label, RTCRtpReceiver receiver) async {
+  Future<void> _wrapReceiver(
+    String label,
+    RTCRtpReceiver receiver,
+    RTCPeerConnection pc,
+  ) async {
     final keyProvider = _keyProvider;
-    if (keyProvider == null || _frameCryptors.containsKey(label)) return;
-    final cryptor = await _webRtc.frameCryptorFactory
-        .createFrameCryptorForRtpReceiver(
-          participantId: label,
-          receiver: receiver,
-          algorithm: Algorithm.kAesGcm,
-          keyProvider: keyProvider,
-        );
-    try {
-      await cryptor.setEnabled(true);
-    } catch (_) {
-      await runBestEffort(
-        cryptor.dispose,
-        label: 'dispose failed receiver cryptor $label',
-      );
-      rethrow;
+    if (keyProvider == null ||
+        !_isLiveConnection(pc) ||
+        _receiverCryptors.containsKey(label) ||
+        !_receiverWrapsInFlight.add(label)) {
+      return;
     }
-    _frameCryptors[label] = cryptor;
+    try {
+      final cryptor = await _webRtc.frameCryptorFactory
+          .createFrameCryptorForRtpReceiver(
+            participantId: label,
+            receiver: receiver,
+            algorithm: Algorithm.kAesGcm,
+            keyProvider: keyProvider,
+          );
+      try {
+        await cryptor.setEnabled(true);
+      } catch (_) {
+        await _disposeCryptors([cryptor], 'that failed to start');
+        rethrow;
+      }
+      if (!_isLiveConnection(pc)) {
+        await _disposeCryptors([cryptor], 'for a closed connection');
+        return;
+      }
+      _receiverCryptors[label] = cryptor;
+    } finally {
+      _receiverWrapsInFlight.remove(label);
+    }
   }
 
   @override
@@ -268,9 +358,6 @@ class CloudflareCallEngine implements CallEngine {
 
   @override
   CallKind get kind => _kind;
-
-  @override
-  Future<void> get microphoneCaptured => _media.microphoneCaptured;
 
   @override
   CallQuality get quality => _classifier.current;
@@ -418,7 +505,13 @@ class CloudflareCallEngine implements CallEngine {
   Future<void> startLocalMedia() async {
     if (_left) return;
     await _prepareCallAudio();
-    await _serialCameraWork(_media.open);
+    if (_left) return;
+    await _serialCameraWork(
+      () => _media.open(
+        withCamera: !_inBackground || _capabilities.cameraStopsInBackground,
+      ),
+    );
+    _applyLocalTrackState();
     _notifyParticipants();
   }
 
@@ -512,18 +605,14 @@ class CloudflareCallEngine implements CallEngine {
   Future<void> _attachLocalMediaAndPublish() async {
     final pc = _pc;
     if (pc == null || !_isLiveConnection(pc)) return;
-    _localAudioTransceiver = await pc.addTransceiver(
+    final audioTransceiver = await pc.addTransceiver(
       track: _media.microphone!,
       init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendOnly),
     );
     if (!_isLiveConnection(pc)) return;
-    final keyProvider = _keyProvider;
-    if (keyProvider != null) {
-      await _wrapSender(
-        'local-audio',
-        _localAudioTransceiver!.sender,
-        keyProvider,
-      );
+    _localAudioTransceiver = audioTransceiver;
+    if (_keyProvider case final keyProvider?) {
+      await _wrapSender(_audioSender, audioTransceiver.sender, pc, keyProvider);
     }
     if (!_isLiveConnection(pc)) return;
 
@@ -546,8 +635,8 @@ class CloudflareCallEngine implements CallEngine {
     _localVideoTransceiver = videoTransceiver;
     await _preferVideoCodecs(videoTransceiver);
     if (!_isLiveConnection(pc)) return;
-    if (keyProvider != null) {
-      await _wrapSender('local-video', videoTransceiver.sender, keyProvider);
+    if (_keyProvider case final keyProvider?) {
+      await _wrapSender(_videoSender, videoTransceiver.sender, pc, keyProvider);
     }
     if (!_isLiveConnection(pc)) return;
     _applyLocalTrackState();
@@ -648,14 +737,13 @@ class CloudflareCallEngine implements CallEngine {
     _pc = null;
     _detachConnectionCallbacks(oldPc);
     _sessionId = null;
+    final senderCryptors = _forgetLocalSenders();
     _lastCounters = null;
     _firstMediaTimer?.cancel();
     _sendingTrackNames.clear();
-    await _resetRemotesForRejoin();
-    for (final label in const ['local-audio', 'local-video']) {
-      await _frameCryptors.remove(label)?.dispose();
-    }
     if (oldPc != null) await _disposePeerConnection(oldPc);
+    await _disposeCryptors(senderCryptors, 'on rejoin');
+    await _resetRemotesForRejoin();
     await _openConnection();
     if (_left) {
       final orphanedPc = _pc;
@@ -677,12 +765,27 @@ class CloudflareCallEngine implements CallEngine {
     _notifyParticipants();
   }
 
+  List<FrameCryptor> _forgetLocalSenders() {
+    _localAudioTransceiver = null;
+    _localVideoTransceiver = null;
+    final cryptors = [
+      for (final wrapped in _senderCryptors.values) wrapped.cryptor,
+    ];
+    _senderCryptors.clear();
+    _applyLocalTrackState();
+    return cryptors;
+  }
+
+  List<FrameCryptor> _forgetReceivers() {
+    final cryptors = [..._receiverCryptors.values];
+    _receiverCryptors.clear();
+    return cryptors;
+  }
+
   Future<void> _resetRemotesForRejoin() async {
     _midOwners.clear();
-    for (final remote in _remote.values) {
-      for (final name in remote.recvTransceivers.keys.toList()) {
-        await _frameCryptors.remove('${remote.id}-$name')?.dispose();
-      }
+    await _disposeCryptors(_forgetReceivers(), 'on rejoin');
+    for (final remote in _remote.values.toList()) {
       await remote.resetTracks();
     }
   }
@@ -864,36 +967,33 @@ class CloudflareCallEngine implements CallEngine {
     _firstMediaTimer = null;
     _lastCounters = null;
     _setStatus(CallEngineStatus.disconnected);
-    for (final remote in _remote.values) {
+    final pc = _pc;
+    _pc = null;
+    _sessionId = null;
+    final senderCryptors = _forgetLocalSenders();
+    if (pc != null) await _disposePeerConnection(pc);
+
+    for (final remote in _remote.values.toList()) {
       await remote.resetTracks();
     }
     _remote.clear();
     _midOwners.clear();
     _notifyParticipants();
 
-    for (final entry in _frameCryptors.entries) {
-      await runBestEffort(
-        entry.value.dispose,
-        label: 'dispose cryptor ${entry.key} on leave',
-      );
-    }
-    _frameCryptors.clear();
+    await _disposeCryptors([
+      ...senderCryptors,
+      ..._forgetReceivers(),
+    ], 'on leave');
     if (_keyProvider case final keyProvider?) {
+      _keyProvider = null;
       await runBestEffort(
         keyProvider.dispose,
         label: 'dispose key provider on leave',
       );
     }
-    _keyProvider = null;
 
     await _media.close();
-    _localAudioTransceiver = null;
-    _localVideoTransceiver = null;
-
-    if (_pc case final pc?) await _disposePeerConnection(pc);
     await _releasePlaceholderVideo();
-    _pc = null;
-    _sessionId = null;
     _api.close();
   }
 
@@ -1047,7 +1147,7 @@ class CloudflareCallEngine implements CallEngine {
     }
     final keyProvider = _keyProvider;
     if (keyProvider != null) {
-      await _wrapSender('local-video', sender, keyProvider);
+      await _wrapSender(_videoSender, sender, pc, keyProvider);
       if (!_isLiveConnection(pc)) return;
     }
     _applyLocalTrackState();
@@ -1132,7 +1232,8 @@ class CloudflareCallEngine implements CallEngine {
     for (final name in names) {
       final transceiver = remote.recvTransceivers.remove(name);
       remote.pulledTrackNames.remove(name);
-      await _frameCryptors.remove('${remote.id}-$name')?.dispose();
+      final cryptor = _receiverCryptors.remove('${remote.id}-$name');
+      if (cryptor != null) await _disposeCryptors([cryptor], 'on close');
       remote.setStream(name, null);
       _midOwners.removeWhere(
         (_, owner) => owner.participant == remote.id && owner.trackName == name,
@@ -1303,7 +1404,7 @@ class CloudflareCallEngine implements CallEngine {
       remote.recvTransceivers[owner.trackName] = transceiver;
       final label = '${remote.id}-${owner.trackName}';
       await runBestEffort(
-        () => _wrapReceiver(label, transceiver.receiver),
+        () => _wrapReceiver(label, transceiver.receiver, pc),
         label: 'wrap receiver $label',
       );
     }

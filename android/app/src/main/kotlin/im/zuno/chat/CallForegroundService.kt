@@ -1,16 +1,18 @@
 package im.zuno.chat
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ServiceInfo
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
+import androidx.core.content.ContextCompat
 import im.zuno.chat.zuno_notifications.AppLaunchIntent
 
 class CallForegroundService : Service() {
@@ -51,13 +53,22 @@ class CallForegroundService : Service() {
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val type = if (withCamera) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            } else {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            val type = CallServiceDecision.foregroundServiceType(
+                wantsCamera = withCamera,
+                cameraGranted = ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.CAMERA,
+                ) == PackageManager.PERMISSION_GRANTED,
+            )
+            try {
+                startForeground(NOTIFICATION_ID, notification, type)
+            } catch (error: SecurityException) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    CallServiceDecision.fallbackType(type) ?: throw error,
+                )
             }
-            startForeground(NOTIFICATION_ID, notification, type)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }

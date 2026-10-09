@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/location/map_tile_cache.dart';
 import '../../../core/matrix/attachment_cache.dart';
-import '../../../core/matrix/database_compaction.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
@@ -38,7 +37,7 @@ class DataStorageSettingsPage extends ConsumerWidget {
     if (confirmed != true) return;
 
     try {
-      await clearCacheAndCompact(ref.read(matrixClientProvider));
+      await ref.read(matrixClientProvider).clearCache();
     } catch (e) {
       logCaught('clear cache', e);
       messenger.showSnackBar(

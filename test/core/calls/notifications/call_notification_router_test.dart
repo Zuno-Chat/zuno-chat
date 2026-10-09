@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,9 +22,11 @@ import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import '../../../helpers/fake_call_engine.dart';
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
@@ -88,12 +91,15 @@ void main() {
   }
 
   CallSession startOngoingCall(String callId) {
+    final gate = teardownGate;
     final session = CallSession.forIncoming(
       room: room,
       callId: callId,
       kind: CallKind.voice,
+      engineBuilder: () => FakeCallEngine()..leaveGate = gate,
     );
     addTearDown(session.dispose);
+    session.engine;
     container.read(activeCallProvider.notifier).set(session);
     return session;
   }
@@ -166,10 +172,10 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: SendCapableFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
-        if (request.url.path.contains('/state/')) await teardownGate?.future;
-        return http.Response(jsonEncode({'event_id': r'$evt'}), 200);
-      }),
+      httpClient: MockClient(
+        (request) async =>
+            http.Response(jsonEncode({'event_id': r'$evt'}), 200),
+      ),
     );
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
@@ -376,29 +382,47 @@ void main() {
       restartRouterOn(legacyIos, presenter: RecordingIncomingCallPresenter());
     });
 
-    test('ending the call in progress and answering the next starts the '
-        'next', () async {
-      startOngoingCall('call1');
+    Future<void> showApp(WidgetTester tester) => tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          navigatorKey: globalNavigatorKey,
+          home: const SizedBox(),
+        ),
+      ),
+    );
 
-      await sendFromNative('hangUpCall', {'callId': 'call1'});
-      await sendFromNative('answerCall', bobsCall(callId: 'call2'));
-      await pumpEventQueue();
+    testWidgets('ending the call in progress and answering the next starts the '
+        'next', (tester) async {
+      await showApp(tester);
+
+      await tester.runAsync(() async {
+        startOngoingCall('call1');
+        await sendFromNative('hangUpCall', {'callId': 'call1'});
+        await sendFromNative('answerCall', bobsCall(callId: 'call2'));
+        await pumpEventQueue();
+      });
 
       expect(callIdsSent(toNative, 'startSystemCall'), ['call1', 'call2']);
     });
 
-    test('hanging up the answered call while the one before is still ending '
-        'starts nothing and marks the answered call over', () async {
-      teardownGate = Completer<void>();
-      startOngoingCall('call1');
+    testWidgets('hanging up the answered call while the one before is still '
+        'ending starts nothing and marks the answered call over', (
+      tester,
+    ) async {
+      await showApp(tester);
 
-      await sendFromNative('hangUpCall', {'callId': 'call1'});
-      await sendFromNative('answerCall', bobsCall(callId: 'call2'));
-      await pumpEventQueue();
-      await sendFromNative('hangUpCall', {'callId': 'call2'});
-      await pumpEventQueue();
-      teardownGate!.complete();
-      await pumpEventQueue();
+      await tester.runAsync(() async {
+        teardownGate = Completer<void>();
+        startOngoingCall('call1');
+        await sendFromNative('hangUpCall', {'callId': 'call1'});
+        await sendFromNative('answerCall', bobsCall(callId: 'call2'));
+        await pumpEventQueue();
+        await sendFromNative('hangUpCall', {'callId': 'call2'});
+        await pumpEventQueue();
+        teardownGate!.complete();
+        await pumpEventQueue();
+      });
 
       expect(callIdsSent(toNative, 'startSystemCall'), ['call1']);
       expect(container.read(resolvedCallIdsProvider), contains('call2'));
@@ -602,17 +626,21 @@ void main() {
       expect(asked, contains('requestPermissions'));
     });
 
-    test(
-      'without VoIP rings an accept with no screen still gives up',
-      () async {
-        restartRouterOn(legacyIos);
+    test('without VoIP rings an accept with no screen gives up before it '
+        'starts the call', () async {
+      restartRouterOn(legacyIos);
+      final started = <String>[];
+      container.listen(activeCallProvider, (_, session) {
+        if (session != null) started.add(session.callId);
+      });
 
-        await router().handle(accept());
-        await pumpEventQueue();
+      await router().handle(accept());
+      await pumpEventQueue();
 
-        expect(container.read(activeCallProvider), isNull);
-      },
-    );
+      expect(started, isEmpty);
+      expect(container.read(activeCallProvider), isNull);
+      expect(RingingCall.instance.callId, isNull);
+    });
   });
 
   group('starting the router', () {

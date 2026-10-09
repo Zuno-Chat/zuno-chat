@@ -163,7 +163,7 @@ void main() {
       final session = await start(container);
 
       expect(session.engine.microphoneMutedRequests, [true]);
-      expect(session.membershipRefreshes, 0);
+      expect(session.membershipRefreshes, 1);
 
       await goLive(session, [localParticipant(muted: true)]);
 
@@ -269,8 +269,8 @@ void main() {
       ]);
     });
 
-    test('a system mute before the call connects reaches the engine at once '
-        'and is not echoed back', () async {
+    test('a system mute before the call connects reaches the engine at once, '
+        'leaves publishing to the call, and is not echoed back', () async {
       final container = syncing(iosCapabilities);
       final session = await start(container);
 
@@ -279,7 +279,7 @@ void main() {
       await show(session, [localParticipant(muted: true)]);
 
       expect(session.engine.microphoneMutedRequests, [true]);
-      expect(session.membershipRefreshes, 0);
+      expect(session.membershipRefreshes, 1);
       expect(native.argsOf('setCallMuted'), isEmpty);
     });
 
@@ -427,7 +427,6 @@ void main() {
   group('ending', () {
     for (final (reason, closedAs) in [
       (CallEndReason.hungUp, 'remoteEnded'),
-      (CallEndReason.declinedByUs, 'remoteEnded'),
       (CallEndReason.declinedByThem, 'remoteEnded'),
       (CallEndReason.missed, 'unanswered'),
       (CallEndReason.failed, 'failed'),

@@ -18,10 +18,7 @@ class FakeCallSession implements CallSession {
     this.role = CallSessionRole.callee,
     this._phase = CallSessionPhase.connecting,
     this.journal,
-    bool microphonePending = false,
-  }) : engine = FakeCallEngine(kind: kind) {
-    if (!microphonePending) captureMicrophone();
-  }
+  }) : engine = FakeCallEngine(kind: kind);
 
   final List<String>? journal;
 
@@ -47,8 +44,6 @@ class FakeCallSession implements CallSession {
   @override
   Stream<void> get remoteJoinedStream => _remoteJoined.stream;
 
-  void captureMicrophone() => engine.microphone.complete();
-
   @override
   bool everHadRemote = false;
   @override
@@ -57,6 +52,7 @@ class FakeCallSession implements CallSession {
   String? failedMessage;
 
   bool microphoneGranted = true;
+  bool disposed = false;
   int membershipRefreshes = 0;
   final hangUpsByUser = <bool>[];
   final hangUpsSummarized = <bool>[];
@@ -80,6 +76,9 @@ class FakeCallSession implements CallSession {
 
   @override
   bool get endedByUser => hangUpsByUser.firstOrNull ?? false;
+
+  @override
+  void dispose() => disposed = true;
 
   void moveTo(CallSessionPhase next) {
     _phase = next;

@@ -116,6 +116,61 @@ void main() {
     });
   });
 
+  group('letting go of a call', () {
+    FakeCallSession fakeCall() =>
+        FakeCallSession(room: room, kind: CallKind.voice);
+
+    test('a call replaced by the next is disposed, the next one is not', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(activeCallProvider.notifier);
+      final first = fakeCall()..end();
+      final second = fakeCall();
+
+      notifier.start(() => first);
+      notifier.start(() => second);
+
+      expect(first.disposed, isTrue);
+      expect(second.disposed, isFalse);
+    });
+
+    test('a call cleared from the line is disposed', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(activeCallProvider.notifier);
+      final live = fakeCall();
+      notifier.start(() => live);
+
+      notifier.clear(live);
+
+      expect(live.disposed, isTrue);
+    });
+
+    test('clearing a call no longer on the line disposes nothing', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(activeCallProvider.notifier);
+      final ended = fakeCall();
+      final newer = fakeCall();
+      notifier.set(newer);
+
+      notifier.clear(ended);
+
+      expect(ended.disposed, isFalse);
+      expect(newer.disposed, isFalse);
+    });
+
+    test('the call on the line when the app shuts down is disposed', () {
+      final container = ProviderContainer();
+      final live = fakeCall();
+      container.read(activeCallProvider.notifier).start(() => live);
+
+      container.dispose();
+
+      expect(live.disposed, isTrue);
+    });
+  });
+
   test('a mark left by an earlier run is dropped on start', () {
     markCallActiveInProcess(true);
 

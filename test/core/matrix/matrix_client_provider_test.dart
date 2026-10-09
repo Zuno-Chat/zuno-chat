@@ -228,6 +228,8 @@ void main() {
     late Map<String, String> secrets;
     late List<Map<Object?, Object?>> opened;
     late List<String> executed;
+    late List<String> queried;
+    late Map<String, int> pragmas;
     late List<List<Map<Object?, Object?>>> batches;
     late int busyOpens;
     late int keyedTables;
@@ -245,6 +247,8 @@ void main() {
       secrets = {};
       opened = [];
       executed = [];
+      queried = [];
+      pragmas = {};
       batches = [];
       busyOpens = 0;
       keyedTables = 0;
@@ -293,6 +297,15 @@ void main() {
             executed.add('${args['sql']}');
             return null;
           case 'query':
+            queried.add('${args['sql']}');
+            if (pragmas['${args['sql']}'] case final value?) {
+              return {
+                'columns': ['value'],
+                'rows': [
+                  [value],
+                ],
+              };
+            }
             if (args['sql'] == 'SELECT * FROM box_client' &&
                 clientReadFails(++clientReads)) {
               throw PlatformException(
@@ -453,6 +466,45 @@ void main() {
 
         expect((app as ZunoClient).appClient, isTrue);
         expect((background as ZunoClient).appClient, isFalse);
+      });
+    });
+
+    group('compaction', () {
+      bool vacuums(String sql) => sql.toLowerCase().contains('vacuum');
+
+      setUp(() => pragmas['PRAGMA auto_vacuum'] = 2);
+
+      test('the app frees a bounded share of free pages at each open, '
+          'reading each freed page back as a row', () async {
+        await create();
+
+        expect(queried, contains('PRAGMA incremental_vacuum(1000)'));
+        expect(executed.where(vacuums), isEmpty);
+      });
+
+      test('a cache clear on the app database is given back only once the '
+          'clear has committed', () async {
+        ambientCapabilities = iosCapabilities;
+        final client = await create();
+        executed.clear();
+
+        await client.database.clearCache();
+
+        expect(executed, [
+          'BEGIN IMMEDIATE',
+          'COMMIT',
+          'PRAGMA auto_vacuum = 2',
+          'VACUUM',
+        ]);
+      });
+
+      test('a background client never compacts at open', () async {
+        await obtainDatabaseCipher();
+
+        await create(backgroundSync: false);
+
+        expect(queried.where(vacuums), isEmpty);
+        expect(executed.where(vacuums), isEmpty);
       });
     });
 

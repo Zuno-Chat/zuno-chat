@@ -96,14 +96,14 @@ class ActiveCallController extends ChangeNotifier {
     required this._ownsDevice,
     required this._release,
   }) : _audioOutput = callAudioOutputFor(capabilities),
-       _systemRoutesAudio = capabilities.callKit,
+       _systemPicksStartingRoute = capabilities.callKit,
        _detachVideoBeforeRelease = capabilities.videoRendererNeedsDetach;
 
   final CallSession session;
   final OngoingCallPresenter _ongoingCall;
   final RingbackTonePlayer _ringback;
   final CallAudioOutput _audioOutput;
-  final bool _systemRoutesAudio;
+  final bool _systemPicksStartingRoute;
   final bool _detachVideoBeforeRelease;
   final SerialLock _deviceEffects;
   final bool Function() _ownsDevice;
@@ -126,8 +126,6 @@ class ActiveCallController extends ChangeNotifier {
   Set<CallAudioRoute> _headsets = const {};
   Future<void> _headsetSync = Future.value();
   bool _routeChosen = false;
-  bool _microphoneOpen = false;
-  bool _audioRouted = false;
   DateTime? _talkingSince;
   Timer? _talkedLongEnoughTimer;
   bool _talkedLongEnough = false;
@@ -220,13 +218,12 @@ class ActiveCallController extends ChangeNotifier {
     _remoteJoinedSub = session.remoteJoinedStream.listen(
       (_) => _syncRingback(),
     );
-    unawaited(session.engine.microphoneCaptured.then(_onMicrophoneCaptured));
-    unawaited(_attachEngine());
     _syncRingback();
     if (session.phase == CallSessionPhase.ended) {
       scheduleMicrotask(leave);
       return;
     }
+    unawaited(_attachEngine());
     unawaited(_init());
   }
 
@@ -280,22 +277,34 @@ class ActiveCallController extends ChangeNotifier {
     await _deviceEffects.run(() async {
       if (_finished) return;
       unawaited(_startOngoingCall());
+      _started = true;
       if (session.kind == CallKind.video) await _keepScreenOn();
     });
     if (_finished) return;
-    _started = true;
     _syncShowOverLockscreen();
     final snapshot = await _audioOutput.read();
     _headsets = snapshot.headsets;
     if (_finished) return;
     if (!_routeChosen) {
-      _audioRoute = snapshot.route ?? startingRoute(session.kind, _headsets);
+      final systemRoute = _systemPicksStartingRoute ? snapshot.route : null;
+      _audioRoute = systemRoute ?? startingRoute(session.kind, _headsets);
       _routeChosen = true;
     }
     _notify();
     _audioOutput.watch(_onAudioDevicesChanged);
-    unawaited(_routeAudio());
+    final started = await _deviceEffects.run(_beginCallAudio);
+    if (started != null) _onHeadsets(started.headsets);
     _syncProximityScreenOff();
+  }
+
+  Future<CallAudioSnapshot?> _beginCallAudio() async {
+    if (_finished) return null;
+    try {
+      return await _audioOutput.begin(_audioRoute);
+    } catch (error) {
+      logCaught('start call audio', error);
+      return null;
+    }
   }
 
   Future<void> _startOngoingCall() => _ongoingCall
@@ -518,22 +527,7 @@ class ActiveCallController extends ChangeNotifier {
     if (session.role != CallSessionRole.caller) return;
     final waiting =
         !session.everHadRemote && session.phase != CallSessionPhase.ended;
-    final routed = _systemRoutesAudio || _audioRouted;
-    unawaited(waiting && routed ? _ringback.start() : _ringback.stop());
-  }
-
-  void _onMicrophoneCaptured(void _) {
-    _microphoneOpen = true;
-    unawaited(_routeAudio());
-  }
-
-  Future<void> _routeAudio() async {
-    if (!_routeChosen || !_microphoneOpen || _audioRouted) return;
-    if (_finished || _released) return;
-    _audioRouted = true;
-    if (!_systemRoutesAudio) await _applyAudioRoute();
-    if (_finished || _released) return;
-    _syncRingback();
+    unawaited(waiting ? _ringback.start() : _ringback.stop());
   }
 
   void _onAudioDevicesChanged() {
@@ -542,8 +536,16 @@ class ActiveCallController extends ChangeNotifier {
 
   Future<void> _syncHeadsets() async {
     final snapshot = await _audioOutput.read();
-    if (_finished) return;
-    final headsets = snapshot.headsets;
+    if (_finished || _onHeadsets(snapshot.headsets)) return;
+    final actual = snapshot.route;
+    if (actual == null || actual == _audioRoute) return;
+    _audioRoute = actual;
+    _notify();
+    _syncProximityScreenOff();
+  }
+
+  bool _onHeadsets(Set<CallAudioRoute> headsets) {
+    if (_finished) return true;
     final next = routeAfterHeadsetChange(
       route: _audioRoute,
       before: _headsets,
@@ -551,15 +553,9 @@ class ActiveCallController extends ChangeNotifier {
       kind: session.kind,
     );
     _headsets = headsets;
-    if (next != null) {
-      unawaited(_setAudioRoute(next));
-      return;
-    }
-    final actual = snapshot.route;
-    if (actual == null || actual == _audioRoute) return;
-    _audioRoute = actual;
-    _notify();
-    _syncProximityScreenOff();
+    if (next == null) return false;
+    unawaited(_setAudioRoute(next));
+    return true;
   }
 
   Future<void> _setAudioRoute(CallAudioRoute route) async {
@@ -568,15 +564,10 @@ class ActiveCallController extends ChangeNotifier {
     _routeChosen = true;
     _notify();
     _syncProximityScreenOff();
-    await _applyAudioRoute();
-  }
-
-  Future<void> _applyAudioRoute() async {
     await runBestEffort(
-      () => _audioOutput.apply(_audioRoute),
+      () => _audioOutput.apply(route),
       label: 'route call audio',
     );
-    await _ringback.restartForRouteChange();
   }
 
   Future<void> _keepScreenOn() =>
@@ -593,6 +584,7 @@ class ActiveCallController extends ChangeNotifier {
       if (_finished) return;
       unawaited(_keepScreenOn());
       session.kind = CallKind.video;
+      _letOngoingCallUseCamera();
       if (_audioRoute == CallAudioRoute.earpiece) {
         unawaited(_setAudioRoute(CallAudioRoute.speaker));
       }
@@ -603,8 +595,16 @@ class ActiveCallController extends ChangeNotifier {
     }
     final cameraOn = _local?.videoEnabled ?? false;
     await session.engine.setCameraEnabled(!cameraOn);
+    if (!cameraOn) _letOngoingCallUseCamera();
     unawaited(session.refreshMembership());
   }
+
+  void _letOngoingCallUseCamera() => unawaited(
+    _deviceEffects.run(() async {
+      if (_finished || !_started || !_ownsDevice()) return;
+      await _startOngoingCall();
+    }),
+  );
 
   Future<void> _finish() async {
     if (_finished) return;
@@ -639,6 +639,7 @@ class ActiveCallController extends ChangeNotifier {
       ownerTag: null,
     ));
     _sendProximityScreenOff(false);
+    await runBestEffort(_audioOutput.end, label: 'stop call audio');
     await runBestEffort(
       _ongoingCall.stop,
       label: 'stop the ongoing-call notice',

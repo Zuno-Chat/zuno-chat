@@ -11,6 +11,27 @@ import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 
 import '../../../helpers/fake_matrix.dart';
 
+class _RecordingRoom extends Room {
+  _RecordingRoom(Client client) : super(id: '!r:x', client: client);
+
+  final pendingCopies = <bool>[];
+
+  @override
+  Future<String?> sendEvent(
+    Map<String, dynamic> content, {
+    String type = EventTypes.Message,
+    String? txid,
+    Event? inReplyTo,
+    String? editEventId,
+    String? threadRootEventId,
+    String? threadLastEventId,
+    bool displayPendingEvent = true,
+  }) async {
+    pendingCopies.add(displayPendingEvent);
+    return r'$decline';
+  }
+}
+
 void main() {
   late Room room;
 
@@ -70,6 +91,18 @@ void main() {
     expect(content['msgtype'], callDeclineMsgtype);
     expect(content, isNot(contains('m.relates_to')));
   });
+
+  test(
+    'keeps no local copy that could be resent once the call is over',
+    () async {
+      final recording = _RecordingRoom(buildTestClient(userId: '@me:x'));
+
+      await declineCall(recording, 'c1');
+      await declineCallOrFail(recording, 'c1');
+
+      expect(recording.pendingCopies, [false, false]);
+    },
+  );
 
   group('a decline that has to reach the server', () {
     Room roomAnswering(int status) {

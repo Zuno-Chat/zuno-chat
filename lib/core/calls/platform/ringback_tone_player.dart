@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,62 +17,21 @@ abstract interface class RingbackTonePlayer {
   Future<void> start();
 
   Future<void> stop();
-
-  Future<void> restartForRouteChange();
 }
 
-RingbackTonePlayer ringbackTonePlayerFor(PlatformCapabilities capabilities) {
-  if (capabilities.callKit) return CallKitRingbackTonePlayer.instance;
-  if (capabilities.nativeRingbackTone) {
-    return AndroidRingbackTonePlayer.instance;
-  }
-  return const NoopRingbackTonePlayer();
-}
+RingbackTonePlayer ringbackTonePlayerFor(PlatformCapabilities capabilities) =>
+    capabilities.callKit || capabilities.nativeCallAudio
+    ? NativeRingbackTonePlayer.instance
+    : const NoopRingbackTonePlayer();
 
 final ringbackTonePlayerProvider = Provider<RingbackTonePlayer>(
   (ref) => ringbackTonePlayerFor(ref.watch(platformCapabilitiesProvider)),
 );
 
-class AndroidRingbackTonePlayer implements RingbackTonePlayer {
+class NativeRingbackTonePlayer implements RingbackTonePlayer {
   @visibleForTesting
-  AndroidRingbackTonePlayer();
-  static final instance = AndroidRingbackTonePlayer();
-
-  bool _playing = false;
-
-  @override
-  Future<void> start() async {
-    if (_playing) return;
-    final settings = await loadNotificationSoundSettings();
-    if (!settings.ringtone) return;
-    _playing = true;
-    debugPrint('zuno/sound: ringback start');
-    await _invokeCallChannel('startRingbackTone');
-  }
-
-  @override
-  Future<void> stop() async {
-    if (!_playing) return;
-    _playing = false;
-    debugPrint('zuno/sound: ringback stop');
-    await _invokeCallChannel('stopRingbackTone');
-  }
-
-  @override
-  Future<void> restartForRouteChange() async {
-    if (!_playing) return;
-    await stop();
-    await start();
-  }
-
-  @visibleForTesting
-  bool get isPlaying => _playing;
-}
-
-class CallKitRingbackTonePlayer implements RingbackTonePlayer {
-  @visibleForTesting
-  CallKitRingbackTonePlayer();
-  static final instance = CallKitRingbackTonePlayer();
+  NativeRingbackTonePlayer();
+  static final instance = NativeRingbackTonePlayer();
 
   bool _playing = false;
 
@@ -95,11 +54,11 @@ class CallKitRingbackTonePlayer implements RingbackTonePlayer {
     await _invokeCallChannel('stopRingbackTone');
   }
 
-  @override
-  Future<void> restartForRouteChange() async {}
-
   @visibleForTesting
   bool get isPlaying => _playing;
+
+  @visibleForTesting
+  static void forgetForTest() => instance._playing = false;
 }
 
 class NoopRingbackTonePlayer implements RingbackTonePlayer {
@@ -110,7 +69,4 @@ class NoopRingbackTonePlayer implements RingbackTonePlayer {
 
   @override
   Future<void> stop() async {}
-
-  @override
-  Future<void> restartForRouteChange() async {}
 }

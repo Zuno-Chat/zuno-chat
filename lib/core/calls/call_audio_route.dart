@@ -2,26 +2,6 @@ import 'models/call_kind.dart';
 
 enum CallAudioRoute { earpiece, speaker, wiredHeadset, bluetooth }
 
-const _bluetoothPortTypes = {
-  'BluetoothHFP',
-  'BluetoothA2DPOutput',
-  'BluetoothLE',
-};
-
-const _wiredPortTypes = {'Headphones', 'USBAudio'};
-
-Set<CallAudioRoute> headsetsIn(
-  Iterable<({String deviceId, String? groupId})> outputs,
-) => {
-  for (final output in outputs)
-    if (output.deviceId == 'bluetooth' ||
-        _bluetoothPortTypes.contains(output.groupId))
-      CallAudioRoute.bluetooth
-    else if (output.deviceId == 'wired-headset' ||
-        _wiredPortTypes.contains(output.groupId))
-      CallAudioRoute.wiredHeadset,
-};
-
 CallAudioRoute? _preferredHeadset(Set<CallAudioRoute> headsets) {
   if (headsets.contains(CallAudioRoute.bluetooth)) {
     return CallAudioRoute.bluetooth;

@@ -17,7 +17,6 @@ abstract class CallEngine {
   CallQuality get quality;
   Stream<void> get localStateChangedStream;
   Map<String, Object?>? get localFociInfo;
-  Future<void> get microphoneCaptured;
 
   Future<void> startLocalMedia();
   Future<void> join();

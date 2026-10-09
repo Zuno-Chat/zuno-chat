@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
@@ -76,15 +75,12 @@ class _NativeAudio {
 }
 
 void main() {
-  FakeCallSession callerSession({
-    CallKind kind = CallKind.voice,
-    bool microphonePending = false,
-  }) => FakeCallSession(
-    room: CallPageHarness.buildRoom(),
-    kind: kind,
-    role: CallSessionRole.caller,
-    microphonePending: microphonePending,
-  );
+  FakeCallSession callerSession({CallKind kind = CallKind.voice}) =>
+      FakeCallSession(
+        room: CallPageHarness.buildRoom(),
+        kind: kind,
+        role: CallSessionRole.caller,
+      );
 
   FakeCallSession calleeSession(CallKind kind) =>
       FakeCallSession(room: CallPageHarness.buildRoom(), kind: kind);
@@ -125,7 +121,7 @@ void main() {
 
     expect(harness.count('startCallForegroundService'), 1);
     expect(harness.ringbackPlaying, isTrue);
-    expect(navigator.mediaDevices.ondevicechange, isNotNull);
+    expect(harness.callAudioRunning, isTrue);
 
     session.end();
     await harness.settle();
@@ -133,41 +129,75 @@ void main() {
     expect(find.byType(CallPage), findsNothing);
     expect(harness.count('stopCallForegroundService'), 1);
     expect(harness.ringbackPlaying, isFalse);
-    expect(navigator.mediaDevices.ondevicechange, isNull);
+    expect(harness.count('stopCallAudio'), 1);
+    expect(harness.callAudioRunning, isFalse);
   });
 
-  for (final (kind, outputs, route) in [
-    (CallKind.video, ['earpiece', 'speaker'], 'speaker'),
-    (CallKind.voice, ['earpiece', 'speaker'], 'earpiece'),
-    (CallKind.video, ['earpiece', 'speaker', 'bluetooth'], 'bluetooth'),
-    (CallKind.voice, ['earpiece', 'speaker', 'wired-headset'], 'wired-headset'),
+  for (final (kind, headsets, route) in [
+    (CallKind.video, <String>[], 'speaker'),
+    (CallKind.voice, <String>[], 'earpiece'),
+    (CallKind.video, ['bluetooth'], 'bluetooth'),
+    (CallKind.voice, ['wiredHeadset'], 'wiredHeadset'),
   ]) {
-    testWidgets('android holds a ${kind.name} call\'s ringback until the '
-        'microphone is open, then plays it on the $route', (tester) async {
+    testWidgets('android starts a ${kind.name} call\'s audio on the $route, '
+        'with the ringback asked for at once', (tester) async {
       final harness = CallPageHarness(tester, capabilities: androidCapabilities)
-        ..audioOutputs = outputs;
-      String? routeAtRingback;
-      harness.callsReply = (call) {
-        if (call.method == 'startRingbackTone') {
-          routeAtRingback = harness.audioRoute;
-        }
-        return null;
-      };
-      final session = callerSession(kind: kind, microphonePending: true);
+        ..headsets = headsets;
+      final session = callerSession(kind: kind);
       await harness.open(session);
 
-      expect(harness.count('startRingbackTone'), 0);
-
-      session.captureMicrophone();
-      await harness.settle();
-
+      expect(harness.argsOf('startCallAudio'), [
+        {'route': route},
+      ]);
       expect(harness.ringbackPlaying, isTrue);
-      expect(routeAtRingback, route);
+
       session.end();
       await harness.settle();
+
       expect(harness.ringbackPlaying, isFalse);
+      expect(harness.count('stopCallAudio'), 1);
     });
   }
+
+  testWidgets('android: a headset that connects just as call audio starts '
+      'takes the sound', (tester) async {
+    final harness = CallPageHarness(tester, capabilities: androidCapabilities);
+    harness.callsReply = (call) {
+      if (call.method != 'audioRoute') return null;
+      harness.headsets = ['bluetooth'];
+      return {'headsets': <String>[]};
+    };
+    final session = callerSession();
+    await harness.open(session);
+
+    expect(harness.argsOf('startCallAudio'), [
+      {'route': 'earpiece'},
+    ]);
+    expect(harness.audioRoute, 'bluetooth');
+    expect(harness.speakerIcon, Icons.bluetooth_audio_outlined);
+
+    session.end();
+    await harness.settle();
+  });
+
+  testWidgets('android: turning the camera back on in a video call lets the '
+      'call service use it again', (tester) async {
+    final harness = CallPageHarness(tester, capabilities: androidCapabilities);
+    final session = await talking(harness, CallKind.video);
+
+    await tester.tap(find.byTooltip('Turn camera on'));
+    await harness.settle();
+
+    expect(session.engine.cameraEnabledRequests, [true]);
+    expect(
+      [
+        for (final args in harness.argsOf('startCallForegroundService'))
+          (args! as Map)['withCamera'],
+      ],
+      [true, true],
+    );
+    await harness.close();
+  });
 
   testWidgets('a speaker choice made before the call knows its route is '
       'kept', (tester) async {
@@ -189,13 +219,13 @@ void main() {
   testWidgets('ios plays the native ringback, leaves the starting route to '
       'the system, and runs no call service', (tester) async {
     final harness = CallPageHarness(tester, capabilities: iosCapabilities);
-    final session = callerSession(microphonePending: true);
+    final session = callerSession();
     await harness.open(session);
 
     expect(find.byType(CallPage), findsOneWidget);
     expect(harness.ringbackPlaying, isTrue);
     expect(harness.count('setAudioRoute'), 0);
-    expect(harness.audioRouteChanges, 0);
+    expect(harness.count('startCallAudio'), 0);
 
     session.engine.participants = [localParticipant(), remoteParticipant()];
     session.moveTo(CallSessionPhase.active);
@@ -208,33 +238,33 @@ void main() {
     expect(harness.argsOf('setAudioRoute'), [
       {'route': 'speaker'},
     ]);
-    expect(harness.audioRouteChanges, 0);
 
     session.end();
     await harness.settle();
 
     expect(find.byType(CallPage), findsNothing);
     expect(harness.ringbackPlaying, isFalse);
+    expect(harness.count('stopCallAudio'), 0);
     expect(harness.count('startCallForegroundService'), 0);
     expect(harness.count('stopCallForegroundService'), 0);
     await harness.close();
   });
 
-  testWidgets('an android build without a call service or a native ringback '
+  testWidgets('an android build without a call service or native call audio '
       'still runs and ends the call, and asks for neither', (tester) async {
     final harness = CallPageHarness(
       tester,
       capabilities: capabilitiesLike(
         androidCapabilities,
         callForegroundService: false,
-        nativeRingbackTone: false,
+        nativeCallAudio: false,
       ),
     );
     final session = callerSession();
     await harness.open(session);
 
     expect(find.byType(CallPage), findsOneWidget);
-    expect(harness.audioRoute, 'earpiece');
+    expect(harness.audioRoute, isNull);
 
     session.end();
     await harness.settle();
@@ -244,11 +274,13 @@ void main() {
     expect(harness.count('stopCallForegroundService'), 0);
     expect(harness.count('startRingbackTone'), 0);
     expect(harness.count('stopRingbackTone'), 0);
+    expect(harness.count('startCallAudio'), 0);
+    expect(harness.count('stopCallAudio'), 0);
   });
 
   group('ios audio route', () {
     testWidgets('the call starts on the route the system reports, and nothing '
-        'is sent to change it, even once the engine attaches', (tester) async {
+        'is sent to change it, even once the call goes active', (tester) async {
       final harness = CallPageHarness(tester, capabilities: iosCapabilities);
       _NativeAudio(harness, route: 'speaker');
       final session = calleeSession(CallKind.voice);
@@ -265,7 +297,7 @@ void main() {
 
       expect(harness.speakerIcon, Icons.volume_up_outlined);
       expect(harness.count('setAudioRoute'), 0);
-      expect(harness.audioRouteChanges, 0);
+      expect(harness.count('startCallAudio'), 0);
       await harness.close();
     });
 
@@ -282,7 +314,7 @@ void main() {
 
       expect(harness.speakerIcon, Icons.volume_up_outlined);
       expect(harness.count('setAudioRoute'), 0);
-      expect(harness.audioRouteChanges, 0);
+      expect(harness.count('startCallAudio'), 0);
       await harness.close();
     });
 
@@ -319,7 +351,7 @@ void main() {
         {'route': 'bluetooth'},
       ]);
       expect(harness.speakerIcon, Icons.bluetooth_audio_outlined);
-      expect(harness.audioRouteChanges, 0);
+      expect(harness.count('startCallAudio'), 0);
       await harness.close();
     });
 
@@ -344,7 +376,7 @@ void main() {
           {'route': fallback},
         ]);
         expect(harness.proximityScreenOff, kind == CallKind.voice);
-        expect(harness.audioRouteChanges, 0);
+        expect(harness.count('startCallAudio'), 0);
         await harness.close();
       });
     }
@@ -419,8 +451,8 @@ void main() {
   });
 
   group('android switching a voice call to video', () {
-    testWidgets('tells no system call, reads no native route and moves the '
-        'sound from the ear to the speaker', (tester) async {
+    testWidgets('tells no system call and moves the sound from the ear to the '
+        'speaker', (tester) async {
       final harness = CallPageHarness(
         tester,
         capabilities: androidCapabilities,
@@ -436,8 +468,16 @@ void main() {
       expect(session.engine.switchToVideoCalls, 1);
       expect(session.kind, CallKind.video);
       expect(harness.count('upgradeCallToVideo'), 0);
-      expect(harness.count('setAudioRoute'), 0);
-      expect(harness.count('audioRoute'), 0);
+      expect(
+        [
+          for (final args in harness.argsOf('startCallForegroundService'))
+            (args! as Map)['withCamera'],
+        ],
+        [false, true],
+      );
+      expect(harness.argsOf('setAudioRoute'), [
+        {'route': 'speaker'},
+      ]);
       expect(harness.audioRouteChanges, routeChanges + 1);
       expect(harness.audioRoute, 'speaker');
       expect(harness.speakerIcon, Icons.volume_up_outlined);
@@ -450,7 +490,7 @@ void main() {
         tester,
         capabilities: androidCapabilities,
       );
-      harness.audioOutputs = ['earpiece', 'speaker', 'bluetooth'];
+      harness.headsets = ['bluetooth'];
       final session = await talking(harness, CallKind.voice);
       expect(harness.audioRoute, 'bluetooth');
       final routeChanges = harness.audioRouteChanges;
@@ -506,8 +546,33 @@ void main() {
       await harness.settle();
 
       expect(harness.count('startCallForegroundService'), 0);
+      expect(harness.count('startCallAudio'), 0);
+      expect(harness.callAudioRunning, isFalse);
       expect(harness.wakelockToggles, [false]);
       expect(harness.showOverLockscreen, isFalse);
+    });
+
+    testWidgets('android starts no call audio for a call that ended while its '
+        'audio route was still being read', (tester) async {
+      final harness = CallPageHarness(
+        tester,
+        capabilities: androidCapabilities,
+      );
+      final reading = Completer<void>();
+      harness.callsReply = (call) async {
+        if (call.method == 'audioRoute') await reading.future;
+        return null;
+      };
+      final session = callerSession();
+      await harness.open(session);
+
+      session.end();
+      await harness.settle();
+      reading.complete();
+      await harness.settle();
+
+      expect(harness.count('startCallAudio'), 0);
+      expect(harness.callAudioRunning, isFalse);
     });
 
     testWidgets('ios moves no sound and keeps no wakelock for a switch to '

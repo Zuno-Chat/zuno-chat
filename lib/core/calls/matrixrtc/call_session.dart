@@ -27,6 +27,7 @@ import 'active_room_call.dart';
 import 'call_decline.dart';
 import 'call_encryption_key_event.dart';
 import 'call_member_state.dart';
+import 'call_membership_writer.dart';
 import 'call_summary_message.dart';
 import 'ice_servers.dart';
 
@@ -34,7 +35,7 @@ enum CallSessionRole { caller, callee }
 
 enum CallSessionPhase { ringing, connecting, active, ended }
 
-enum CallEndReason { hungUp, declinedByUs, declinedByThem, missed, failed }
+enum CallEndReason { hungUp, declinedByThem, missed, failed }
 
 const _ringTimeout = Duration(seconds: 45);
 const _membershipTtl = Duration(seconds: 120);
@@ -69,7 +70,16 @@ class CallSession {
   String get _myDeviceId => client.deviceID!;
 
   CallEngine? _engine;
-  CallEngine get engine => _engine ??= _buildEngine();
+  Future<void>? _engineTeardown;
+
+  CallEngine get engine {
+    if (_engine case final built?) return built;
+    final built = _engine = _buildEngine();
+    if (_engineTeardown != null) {
+      unawaited(_releaseEngine(built, 'a call that had already ended'));
+    }
+    return built;
+  }
 
   CallSessionPhase _phase;
   final _phaseController = StreamController<CallSessionPhase>.broadcast();
@@ -82,6 +92,7 @@ class CallSession {
   DateTime? _activeAt;
   Timer? _ringTimeoutTimer;
   Timer? _membershipRefreshTimer;
+  StreamSubscription<SyncUpdate>? _roomSub;
   StreamSubscription<SyncUpdate>? _syncSub;
   StreamSubscription<ToDeviceEvent>? _toDeviceSub;
   StreamSubscription<Event>? _declineSub;
@@ -104,6 +115,8 @@ class CallSession {
   final Map<VoipParticipantId, Uint8List> _pendingKeys = {};
   static const _maxPendingKeys = 8;
 
+  bool _membershipLive = false;
+  bool _membershipRequested = false;
   String? _lastPublishedMembership;
   String? _membershipEventId;
   int? _joinedAtMs;
@@ -155,9 +168,14 @@ class CallSession {
     _phaseController.add(phase);
   }
 
-  void _followSignIn() {
+  bool get _ending => _hangUp != null || _phase == CallSessionPhase.ended;
+
+  void _followSignInAndRoom() {
     _loginSub = client.onLoginStateChanged.stream.listen((state) {
       if (state == LoginState.loggedOut) unawaited(_endLocally());
+    });
+    _roomSub = client.onSync.stream.listen((update) {
+      if (_leftRoom(update)) unawaited(_endLocally());
     });
   }
 
@@ -165,8 +183,12 @@ class CallSession {
     if (_phase == CallSessionPhase.ended || _endedLocally) return;
     _endedLocally = true;
     endReason ??= CallEndReason.hungUp;
+    await _end('the call ending locally');
+  }
+
+  Future<void> _end(String why) async {
     _releaseListeners();
-    await _tearDownEngine('the call ending locally');
+    await _tearDownEngine(why);
     _setPhase(CallSessionPhase.ended);
   }
 
@@ -214,7 +236,7 @@ class CallSession {
     );
     session._encryptionKey = _generateCallKey();
     session._listenForDecline();
-    session._followSignIn();
+    session._followSignInAndRoom();
     unawaited(session._startOutgoingConnect());
     return session;
   }
@@ -247,24 +269,24 @@ class CallSession {
       .where((user) => user.id != _myUserId)
       .length;
 
+  Future<String?>? _invite;
+
   Future<void> _startOutgoingConnect() async {
+    final String? invite;
     try {
       await ensurePermissions();
-      if (_hangUp != null || _phase == CallSessionPhase.ended) return;
+      if (_ending) return;
       _startLocalMedia().ignore();
-      await room.sendEvent({
-        'msgtype': callInviteMsgtype,
-        'body': kind == CallKind.video
-            ? 'Incoming video call'
-            : 'Incoming voice call',
-        'call_id': callId,
-        'kind': kind.name,
-      });
+      invite = await (_invite = _sendInvite());
     } catch (e) {
       await _failBeforeRinging(e);
       return;
     }
-    if (_hangUp != null || _phase == CallSessionPhase.ended) return;
+    if (invite == null) {
+      await _failBeforeRinging(StateError('The call invite was not sent'));
+      return;
+    }
+    if (_ending) return;
     try {
       await _connect();
       _startRingTimeout();
@@ -273,12 +295,30 @@ class CallSession {
     }
   }
 
+  Future<String?> _sendInvite() => room.sendEvent({
+    'msgtype': callInviteMsgtype,
+    'body': kind == CallKind.video
+        ? 'Incoming video call'
+        : 'Incoming voice call',
+    'call_id': callId,
+    'kind': kind.name,
+  }, displayPendingEvent: false);
+
+  Future<bool> _inviteDelivered() async {
+    final invite = _invite;
+    if (invite == null) return false;
+    try {
+      return await invite != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _failBeforeRinging(Object error) async {
-    if (_hangUp != null || _phase == CallSessionPhase.ended) return;
+    if (_ending) return;
     failedMessage = _failureMessage(error);
     endReason = CallEndReason.failed;
-    await _tearDownEngine('a call that never rang');
-    _setPhase(CallSessionPhase.ended);
+    await _end('a call that never rang');
   }
 
   Future<void>? _localMedia;
@@ -287,8 +327,13 @@ class CallSession {
 
   Future<void> _openLocalMedia() async {
     await ensurePermissions();
-    if (_hangUp != null || _phase == CallSessionPhase.ended) return;
-    await engine.startLocalMedia();
+    if (_ending) return;
+    final built = engine;
+    if (_cameraRefused) await built.setCameraEnabled(false);
+    if (_ending) return;
+    await _followAppLifecycle(built);
+    if (_ending) return;
+    await built.startLocalMedia();
   }
 
   static CallSession forIncoming({
@@ -323,20 +368,19 @@ class CallSession {
         pictureInPictureCamera: pictureInPictureCamera,
       )
       .._encryptionKey = initialEncryptionKeyForTesting
-      .._followSignIn();
+      .._followSignInAndRoom();
   }
 
   Future<void> accept() async {
     if (isCallFull(room, callId, excludeUserId: _myUserId)) {
       _markCallFull();
-      _setPhase(CallSessionPhase.ended);
+      await _end('a call that was full');
       return;
     }
     try {
       await _connect();
     } catch (_) {
-      if (_hangUp == null) await _tearDownEngine('a failed connect');
-      _setPhase(CallSessionPhase.ended);
+      await hangUp();
       rethrow;
     }
   }
@@ -346,29 +390,22 @@ class CallSession {
     endReason = CallEndReason.failed;
   }
 
-  Future<void> decline() async {
-    await declineCall(room, callId);
-    endReason = CallEndReason.declinedByUs;
-    _setPhase(CallSessionPhase.ended);
-  }
-
   Future<void>? _permissionsFuture;
+  bool _cameraRefused = false;
 
   Future<void> ensurePermissions() =>
       _permissionsFuture ??= _requestPermissions();
 
   Future<void> _requestPermissions() async {
-    final needed = [
-      Permission.microphone,
-      if (kind == CallKind.video) Permission.camera,
-    ];
-    final callKit = ambientCapabilities.callKit;
-    if (callKit) await _awaitMicrophonePrompt();
+    final video = kind == CallKind.video;
+    final needed = [Permission.microphone, if (video) Permission.camera];
+    if (ambientCapabilities.callKit) await _awaitMicrophonePrompt();
     final statuses = await needed.request();
     if (statuses[Permission.microphone] != PermissionStatus.granted) {
-      if (callKit) throw const _MicrophoneUnavailable();
-      throw StateError('Microphone permission is required for calls');
+      throw const _MicrophoneUnavailable();
     }
+    _cameraRefused =
+        video && statuses[Permission.camera] != PermissionStatus.granted;
   }
 
   Future<void> _awaitMicrophonePrompt() async {
@@ -408,7 +445,6 @@ class CallSession {
       final built = engine;
       if (_encryptionKey case final key?) await built.setEncryptionKey(key);
       if (await _abandonEngineIfEnded()) return;
-      await _followAppLifecycle(built);
       await built.join();
       if (await _abandonEngineIfEnded()) return;
 
@@ -425,14 +461,17 @@ class CallSession {
           runBestEffort(_publishOwnMembership, label: 'republish membership'),
         ),
       );
+      _membershipLive = true;
 
       await _publishOwnMembership();
-      if (_phase == CallSessionPhase.ended || _hangUp != null) return;
+      if (_ending) return;
       _membershipRefreshTimer = Timer.periodic(
         membershipRefreshInterval,
         (_) => _publishMembershipBestEffort(force: true),
       );
-      _syncSub = client.onSync.stream.listen(_onSync);
+      _syncSub = client.onSync.stream.listen(
+        (_) => _reconcileRemoteMemberships(),
+      );
       _reconcileRemoteMemberships();
       _setPhase(CallSessionPhase.active);
       _activeAt = DateTime.now();
@@ -452,8 +491,6 @@ class CallSession {
     _MicrophoneUnavailable() => microphoneUnavailableMessage,
     _ => callDidNotConnectMessage,
   };
-
-  bool _engineTornDown = false;
 
   AppLifecycleListener? _lifecycleListener;
   void Function()? _pictureInPictureListener;
@@ -502,18 +539,22 @@ class CallSession {
   }
 
   Future<bool> _abandonEngineIfEnded() async {
-    if (_hangUp == null && _phase != CallSessionPhase.ended) return false;
+    if (!_ending) return false;
     await _tearDownEngine('a hangup during connect');
     return true;
   }
 
-  Future<void> _tearDownEngine(String why) async {
+  Future<void> _tearDownEngine(String why) =>
+      _engineTeardown ??= _tearDownEngineOnce(why);
+
+  Future<void> _tearDownEngineOnce(String why) async {
     _stopFollowingAppLifecycle();
-    final engine = _engine;
-    if (engine == null || _engineTornDown) return;
-    _engineTornDown = true;
-    await runBestEffort(engine.leave, label: 'leave engine after $why');
-    await runBestEffort(engine.dispose, label: 'dispose engine after $why');
+    if (_engine case final built?) await _releaseEngine(built, why);
+  }
+
+  Future<void> _releaseEngine(CallEngine built, String why) async {
+    await runBestEffort(built.leave, label: 'leave engine after $why');
+    await runBestEffort(built.dispose, label: 'dispose engine after $why');
   }
 
   void _startRingTimeout() {
@@ -613,7 +654,7 @@ class CallSession {
   }
 
   Future<void> refreshMembership() async {
-    if (_phase == CallSessionPhase.ended || _engine == null) return;
+    if (!_membershipLive || _ending) return;
     final pendingTrailing = _membershipDebounceTimer;
     if (pendingTrailing == null) {
       _publishMembershipBestEffort();
@@ -637,6 +678,7 @@ class CallSession {
   }
 
   Future<void> _publishOwnMembership({bool force = false}) async {
+    if (!_membershipLive || _ending) return;
     final foci = engine.localFociInfo;
     if (foci == null) return;
     final fingerprint = jsonEncode({'kind': kind.name, 'foci': foci});
@@ -649,35 +691,17 @@ class CallSession {
       createdAtMs: _joinedAtMs ??= DateTime.now().millisecondsSinceEpoch,
       fociActive: foci,
     );
-    _membershipEventId = await client.setRoomStateWithKey(
-      _roomId,
-      callMemberEventType,
-      _myUserId,
-      {
-        'memberships': [membership.toJson()],
-      },
-    );
+    _membershipRequested = true;
+    _membershipEventId = await writeOwnCallMembership(client, _roomId, {
+      'memberships': [membership.toJson()],
+    });
     _lastPublishedMembership = fingerprint;
   }
 
-  Future<void> _clearOwnMembership() async {
-    try {
-      await client.setRoomStateWithKey(
-        _roomId,
-        callMemberEventType,
-        _myUserId,
-        {'memberships': <Object?>[]},
-      );
-    } catch (_) {}
-  }
-
-  void _onSync(SyncUpdate update) {
-    if (_leftRoom(update)) {
-      unawaited(_endLocally());
-      return;
-    }
-    _reconcileRemoteMemberships();
-  }
+  Future<void> _clearOwnMembership() => runBestEffort(
+    () => writeOwnCallMembership(client, _roomId, {'memberships': <Object?>[]}),
+    label: 'clear our call membership',
+  );
 
   bool _leftRoom(SyncUpdate update) {
     if (update.rooms?.leave?.containsKey(_roomId) ?? false) return true;
@@ -762,6 +786,7 @@ class CallSession {
   }
 
   List<StreamSubscription<Object?>?> get _subscriptions => [
+    _roomSub,
     _syncSub,
     _toDeviceSub,
     _declineSub,
@@ -796,42 +821,73 @@ class CallSession {
     if (_phase == CallSessionPhase.ended) return;
     final wasRinging = _phase == CallSessionPhase.ringing;
     final wasUnanswered = !_everHadRemote;
-    final othersStillPresent = _knownRemote.isNotEmpty;
-
-    _releaseListeners();
-    await _tearDownEngine('a hang-up');
-    if (!_endedLocally) await _clearOwnMembership();
-
     final reason = endReason ??= wasRinging || wasUnanswered
         ? CallEndReason.missed
         : CallEndReason.hungUp;
-    _setPhase(CallSessionPhase.ended);
+    final durationMs = switch (_activeAt) {
+      final activeAt? => DateTime.now().difference(activeAt).inMilliseconds,
+      null => 0,
+    };
 
-    if (!othersStillPresent && !_summarized && !_endedLocally) {
-      final status = switch (reason) {
-        CallEndReason.declinedByThem => CallSummaryStatus.declined,
-        _ when wasUnanswered => CallSummaryStatus.missed,
-        CallEndReason.missed => CallSummaryStatus.missed,
-        _ => CallSummaryStatus.ended,
-      };
-      final duration = _activeAt == null
-          ? 0
-          : DateTime.now().difference(_activeAt!).inMilliseconds;
-      await room.sendEvent(
+    await _end('a hang-up');
+    if (_endedLocally) return;
+    await Future.wait([
+      if (_membershipRequested) _clearOwnMembership(),
+      if (!_summarized)
+        _sendEndNotice(
+          reason,
+          wasUnanswered: wasUnanswered,
+          durationMs: durationMs,
+        ),
+    ]);
+  }
+
+  Future<void> _sendEndNotice(
+    CallEndReason reason, {
+    required bool wasUnanswered,
+    required int durationMs,
+  }) async {
+    if (role == CallSessionRole.callee && !_membershipRequested) {
+      if (reason == CallEndReason.failed) return;
+      await runBestEffort(
+        () => declineCall(room, callId),
+        label: 'decline a call we never joined',
+      );
+      return;
+    }
+    if (role == CallSessionRole.caller && !await _inviteDelivered()) return;
+    if (_othersStillInCall()) return;
+    final status = switch (reason) {
+      CallEndReason.declinedByThem => CallSummaryStatus.declined,
+      _ when wasUnanswered => CallSummaryStatus.missed,
+      CallEndReason.missed => CallSummaryStatus.missed,
+      _ => CallSummaryStatus.ended,
+    };
+    await runBestEffort(
+      () => room.sendEvent(
         CallSummary(
           callId: callId,
           kind: kind.name,
           status: status,
-          durationMs: duration,
+          durationMs: durationMs,
         ).toMessageContent(membershipEventId: _membershipEventId),
-      );
-    }
+        displayPendingEvent: false,
+      ),
+      label: 'post the call summary',
+    );
   }
 
+  bool _othersStillInCall() => _currentCallParticipants().any(
+    (id) => id.userId != _myUserId || id.deviceId != _myDeviceId,
+  );
+
   void dispose() {
-    _releaseListeners();
-    _phaseController.close();
-    _remoteJoinedController.close();
+    unawaited(
+      _end('a call that was let go').whenComplete(() {
+        _phaseController.close();
+        _remoteJoinedController.close();
+      }),
+    );
   }
 }
 

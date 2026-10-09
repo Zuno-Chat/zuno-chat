@@ -3,37 +3,55 @@ import 'package:matrix/matrix.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' show Database;
 
 import 'package:zuno/core/matrix/database_compaction.dart';
+import 'package:zuno/core/matrix/ephemeral_to_device.dart';
+import 'package:zuno/core/push/read_model/session_exporter.dart';
+
+typedef _Statement = (String method, String sql);
 
 class _RecordingDatabase implements Database {
-  _RecordingDatabase({required this.autoVacuum});
+  _RecordingDatabase({
+    required this.autoVacuum,
+    this.pageCount = 0,
+    this.freelistCount = 0,
+  });
 
   final int autoVacuum;
-  final statements = <String>[];
+  final int pageCount;
+  final int freelistCount;
+  final statements = <_Statement>[];
   String? failing;
+  var closed = false;
+
+  @override
+  bool get isOpen => !closed;
 
   @override
   Future<List<Map<String, Object?>>> rawQuery(
     String sql, [
     List<Object?>? arguments,
   ]) async {
-    statements.add(sql);
+    statements.add(('rawQuery', sql));
+    if (sql == failing) throw StateError('disk full');
+    final value = switch (sql) {
+      'PRAGMA auto_vacuum' => autoVacuum,
+      'PRAGMA page_count' => pageCount,
+      'PRAGMA freelist_count' => freelistCount,
+      _ => null,
+    };
     return [
-      {'auto_vacuum': autoVacuum},
+      if (value != null) {'value': value},
     ];
   }
 
   @override
   Future<void> execute(String sql, [List<Object?>? arguments]) async {
-    if (const {
-      'PRAGMA auto_vacuum',
-      'PRAGMA incremental_vacuum',
-    }.contains(sql)) {
+    if (sql.startsWith('PRAGMA') && !sql.contains('=')) {
       throw StateError(
         'Queries can be performed using SQLiteDatabase query or rawQuery '
         'methods only.',
       );
     }
-    statements.add(sql);
+    statements.add(('execute', sql));
     if (sql == failing) throw StateError('disk full');
   }
 
@@ -41,79 +59,148 @@ class _RecordingDatabase implements Database {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _ClearingClient extends Client {
-  _ClearingClient(_RecordingDatabase sqlite)
-    : super(
-        'test',
-        database: MatrixSdkDatabase.buildWithoutOpen('test', database: sqlite),
-      );
+class _ClearingDatabase extends MatrixSdkDatabase {
+  _ClearingDatabase(this.sqlite)
+    : super.buildWithoutOpen('test', database: sqlite);
 
-  var clears = 0;
+  final _RecordingDatabase sqlite;
   Object? clearFailure;
 
   @override
   Future<void> clearCache() async {
-    clears++;
+    sqlite.statements.add(_clear);
     if (clearFailure case final failure?) throw failure;
   }
 }
 
-void main() {
-  group('compacting', () {
-    test('a database that cannot give space back is switched over in one '
-        'rewrite', () async {
-      final database = _RecordingDatabase(autoVacuum: 0);
+class _CompactingDatabase extends _ClearingDatabase
+    with CompactsAfterCacheClear {
+  _CompactingDatabase(super.sqlite);
+}
 
-      await compactDatabase(database);
+class _NoSessionEvents implements InboundSessionEvents {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+const _clear = ('super', 'clearCache');
+const _switchOver = [
+  ('execute', 'PRAGMA auto_vacuum = 2'),
+  ('execute', 'VACUUM'),
+];
+const _measure = [
+  ('rawQuery', 'PRAGMA auto_vacuum'),
+  ('rawQuery', 'PRAGMA page_count'),
+  ('rawQuery', 'PRAGMA freelist_count'),
+];
+
+void main() {
+  group('each open', () {
+    test('a database that already gives space back frees a bounded share of '
+        'its free pages, reading each freed page back as a row', () async {
+      final database = _RecordingDatabase(autoVacuum: 2);
+
+      await compactOnOpen(database);
 
       expect(database.statements, [
-        'PRAGMA auto_vacuum',
-        'PRAGMA auto_vacuum = 2',
-        'VACUUM',
+        ('rawQuery', 'PRAGMA auto_vacuum'),
+        ('rawQuery', 'PRAGMA incremental_vacuum(1000)'),
       ]);
     });
 
-    test('a database already switched gives back its free pages', () async {
-      final database = _RecordingDatabase(autoVacuum: 2);
+    test('a fresh database is switched over in one rewrite', () async {
+      final database = _RecordingDatabase(autoVacuum: 0);
 
-      await compactDatabase(database);
+      await compactOnOpen(database);
 
-      expect(database.statements, [
-        'PRAGMA auto_vacuum',
-        'PRAGMA incremental_vacuum',
-      ]);
+      expect(database.statements, [..._measure, ..._switchOver]);
+    });
+
+    test('a large database that cannot give space back yet waits for the '
+        'next cache clear instead of a rewrite at startup', () async {
+      final database = _RecordingDatabase(autoVacuum: 0, pageCount: 100000);
+
+      await compactOnOpen(database);
+
+      expect(database.statements, _measure);
+    });
+
+    test('a large file that is mostly free pages is switched over, since a '
+        'rewrite costs only what it keeps', () async {
+      final database = _RecordingDatabase(
+        autoVacuum: 0,
+        pageCount: 100000,
+        freelistCount: 99900,
+      );
+
+      await compactOnOpen(database);
+
+      expect(database.statements, [..._measure, ..._switchOver]);
+    });
+
+    test('a step that fails stops there and leaves the caller to log '
+        'it', () async {
+      final database = _RecordingDatabase(autoVacuum: 0)
+        ..failing = 'PRAGMA page_count';
+
+      await expectLater(compactOnOpen(database), throwsStateError);
+
+      expect(database.statements.last, ('rawQuery', 'PRAGMA page_count'));
     });
   });
 
-  group('clearing the cache', () {
-    test('gives the freed space back', () async {
-      final database = _RecordingDatabase(autoVacuum: 2);
-      final client = _ClearingClient(database);
+  group('after a cache clear', () {
+    test('a clear made below any client, as a migration makes it, is given '
+        'back in one switching rewrite', () async {
+      final database = _CompactingDatabase(_RecordingDatabase(autoVacuum: 0));
 
-      await clearCacheAndCompact(client);
+      await database.clearCache();
 
-      expect(client.clears, 1);
-      expect(database.statements, contains('PRAGMA incremental_vacuum'));
+      expect(database.sqlite.statements, [_clear, ..._switchOver]);
     });
 
-    test('still counts as done when giving space back fails', () async {
-      final database = _RecordingDatabase(autoVacuum: 2)
-        ..failing = 'PRAGMA incremental_vacuum';
-      final client = _ClearingClient(database);
+    test('the clear still succeeds when the rewrite fails', () async {
+      final database = _CompactingDatabase(_RecordingDatabase(autoVacuum: 2))
+        ..sqlite.failing = 'VACUUM';
 
-      await clearCacheAndCompact(client);
+      await database.clearCache();
 
-      expect(client.clears, 1);
+      expect(database.sqlite.statements, [_clear, ..._switchOver]);
     });
 
-    test('that fails touches nothing else and says so', () async {
-      final database = _RecordingDatabase(autoVacuum: 2);
-      final client = _ClearingClient(database)
+    test('a closed database is cleared but never rewritten', () async {
+      final database = _CompactingDatabase(_RecordingDatabase(autoVacuum: 2))
+        ..sqlite.closed = true;
+
+      await database.clearCache();
+
+      expect(database.sqlite.statements, [_clear]);
+    });
+
+    test('a clear that fails is never rewritten and still says so', () async {
+      final database = _CompactingDatabase(_RecordingDatabase(autoVacuum: 2))
         ..clearFailure = StateError('database locked');
 
-      await expectLater(clearCacheAndCompact(client), throwsStateError);
+      await expectLater(database.clearCache(), throwsStateError);
 
-      expect(database.statements, isEmpty);
+      expect(database.sqlite.statements, [_clear]);
+    });
+
+    test('both app databases give space back after every clear', () {
+      final sqlite = _RecordingDatabase(autoVacuum: 2);
+
+      expect(
+        ZunoDatabase('zuno', database: sqlite),
+        isA<CompactsAfterCacheClear>(),
+      );
+      expect(
+        SessionExportingDatabase(
+          'zuno',
+          database: sqlite,
+          inboundSessionEvents: _NoSessionEvents(),
+        ),
+        isA<CompactsAfterCacheClear>(),
+      );
     });
   });
 }

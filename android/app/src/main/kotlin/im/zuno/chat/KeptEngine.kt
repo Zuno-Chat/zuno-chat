@@ -1,8 +1,6 @@
 package im.zuno.chat
 
 import android.content.Context
-import android.media.AudioManager
-import android.media.ToneGenerator
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -20,8 +18,10 @@ class HostState(context: Context) {
     var pipEligible = false
     var pipAspect = Rational(3, 4)
     var pipCamera = false
+    val callAudio = CallAudio(this.context) { state ->
+        AppEngine.callsChannel?.invokeMethod("audioRouteChanged", state)
+    }
     private var proximityWakeLock: PowerManager.WakeLock? = null
-    private var ringbackTone: ToneGenerator? = null
 
     fun setProximityScreenOff(enabled: Boolean) {
         if (!enabled) {
@@ -37,28 +37,9 @@ class HostState(context: Context) {
             .apply { acquire() }
     }
 
-    fun startRingbackTone() {
-        stopRingbackTone()
-        try {
-            val generator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, 80)
-            generator.startTone(ToneGenerator.TONE_SUP_RINGTONE)
-            ringbackTone = generator
-        } catch (error: RuntimeException) {
-            ringbackTone = null
-        }
-    }
-
-    fun stopRingbackTone() {
-        ringbackTone?.let {
-            it.stopTone()
-            it.release()
-        }
-        ringbackTone = null
-    }
-
     fun release() {
         setProximityScreenOff(false)
-        stopRingbackTone()
+        callAudio.release()
     }
 
     private companion object {

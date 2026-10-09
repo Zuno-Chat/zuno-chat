@@ -6,15 +6,23 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:zuno/core/calls/cloudflare/webrtc_backend.dart';
 
 class FakeTrack extends MediaStreamTrack {
-  FakeTrack(this.kind, this.id);
+  FakeTrack(this.kind, this.id, {this.journal});
 
   @override
   final String kind;
   @override
   final String id;
-  @override
-  bool enabled = true;
+  final List<String>? journal;
+  bool _enabled = true;
   bool stopped = false;
+
+  @override
+  bool get enabled => _enabled;
+  @override
+  set enabled(bool value) {
+    if (value != _enabled) journal?.add('$id ${value ? 'on' : 'off'}');
+    _enabled = value;
+  }
 
   @override
   String? get label => id;
@@ -63,12 +71,18 @@ class FakeMediaStream extends MediaStream {
 }
 
 class FakeSender extends RTCRtpSender {
-  FakeSender(this.senderId, this.track);
+  FakeSender(this.senderId, this.track, {this.owner}) {
+    if (track case final placed?) {
+      placements.add((track: placed, enabled: placed.enabled));
+    }
+  }
 
   @override
   final String senderId;
   @override
   MediaStreamTrack? track;
+  final FakePeerConnection? owner;
+  final placements = <({MediaStreamTrack? track, bool enabled})>[];
   @override
   RTCRtpParameters parameters = RTCRtpParameters(
     encodings: [],
@@ -88,6 +102,7 @@ class FakeSender extends RTCRtpSender {
   Future<void> replaceTrack(MediaStreamTrack? track) async {
     this.track = track;
     replacedTracks.add(track);
+    placements.add((track: track, enabled: track?.enabled ?? false));
   }
 
   @override
@@ -132,9 +147,11 @@ class FakeTransceiver extends RTCRtpTransceiver {
 }
 
 class FakePeerConnection extends RTCPeerConnection {
-  FakePeerConnection(this.configuration);
+  FakePeerConnection(this.configuration, {this.name = 'pc', this.journal});
 
   final Map<String, dynamic> configuration;
+  final String name;
+  final List<String>? journal;
   final rtpTransceivers = <FakeTransceiver>[];
   final localDescriptions = <RTCSessionDescription>[];
   final remoteDescriptions = <RTCSessionDescription>[];
@@ -242,7 +259,7 @@ class FakePeerConnection extends RTCPeerConnection {
     final mid = '${rtpTransceivers.length}';
     final transceiver = FakeTransceiver(
       mid: mid,
-      sender: FakeSender('sender-$mid', track),
+      sender: FakeSender('sender-$mid', track, owner: this),
       receiver: FakeReceiver('receiver-$mid', null),
       direction: init?.direction,
     );
@@ -256,13 +273,19 @@ class FakePeerConnection extends RTCPeerConnection {
   @override
   Future<void> close() async => closed = true;
   @override
-  Future<void> dispose() async => disposed = true;
+  Future<void> dispose() async {
+    disposed = true;
+    journal?.add('$name disposed');
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class FakeKeyProvider extends KeyProvider {
+  FakeKeyProvider({this.journal});
+
+  final List<String>? journal;
   final sharedKeys = <Uint8List>[];
   bool disposed = false;
 
@@ -274,18 +297,28 @@ class FakeKeyProvider extends KeyProvider {
       sharedKeys.add(key);
 
   @override
-  Future<void> dispose() async => disposed = true;
+  Future<void> dispose() async {
+    disposed = true;
+    journal?.add('key provider disposed');
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class FakeFrameCryptor extends FrameCryptor {
-  FakeFrameCryptor(this.participantId, {this.failEnable = false});
+  FakeFrameCryptor(
+    this.participantId, {
+    this.failEnable = false,
+    this.sender,
+    this.journal,
+  });
 
   @override
   final String participantId;
   final bool failEnable;
+  final RTCRtpSender? sender;
+  final List<String>? journal;
   bool isEnabled = false;
   bool disposed = false;
 
@@ -299,16 +332,23 @@ class FakeFrameCryptor extends FrameCryptor {
   @override
   Future<bool> get enabled async => isEnabled;
   @override
-  Future<void> dispose() async => disposed = true;
+  Future<void> dispose() async {
+    disposed = true;
+    journal?.add('$participantId cryptor disposed');
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class FakeFrameCryptorFactory implements FrameCryptorFactory {
+  FakeFrameCryptorFactory({this.journal});
+
+  final List<String>? journal;
   final keyProviders = <FakeKeyProvider>[];
   final cryptors = <FakeFrameCryptor>[];
   final failEnableFor = <String>{};
+  Completer<void>? senderGate;
 
   Iterable<FakeFrameCryptor> get live => cryptors.where((c) => !c.disposed);
 
@@ -318,15 +358,17 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
   Future<KeyProvider> createDefaultKeyProvider(
     KeyProviderOptions options,
   ) async {
-    final provider = FakeKeyProvider();
+    final provider = FakeKeyProvider(journal: journal);
     keyProviders.add(provider);
     return provider;
   }
 
-  FakeFrameCryptor _cryptor(String label) {
+  FakeFrameCryptor _cryptor(String label, {RTCRtpSender? sender}) {
     final cryptor = FakeFrameCryptor(
       label,
       failEnable: failEnableFor.contains(label),
+      sender: sender,
+      journal: journal,
     );
     cryptors.add(cryptor);
     return cryptor;
@@ -338,7 +380,13 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
     required RTCRtpSender sender,
     required Algorithm algorithm,
     required KeyProvider keyProvider,
-  }) async => _cryptor(participantId);
+  }) async {
+    await senderGate?.future;
+    if (sender is FakeSender && (sender.owner?.disposed ?? false)) {
+      throw StateError('peerConnection not found');
+    }
+    return _cryptor(participantId, sender: sender);
+  }
 
   @override
   Future<FrameCryptor> createFrameCryptorForRtpReceiver({
@@ -350,14 +398,16 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
 }
 
 class FakeWebRtcBackend implements WebRtcBackend {
+  final journal = <String>[];
   final peerConnections = <FakePeerConnection>[];
   final captureConstraints = <Map<String, dynamic>>[];
   final captures = <FakeMediaStream>[];
   final streams = <FakeMediaStream>[];
-  final cryptors = FakeFrameCryptorFactory();
+  late final cryptors = FakeFrameCryptorFactory(journal: journal);
   final muteModes = <({MicrophoneMuteMode mode, int capturesBefore})>[];
   final audioArms = <({int capturesBefore, int connectionsBefore})>[];
   Object? captureError;
+  final adoptErrors = <String, Object>{};
   Completer<void>? captureGate;
   int cameraSwitches = 0;
   var _tracks = 0;
@@ -368,7 +418,11 @@ class FakeWebRtcBackend implements WebRtcBackend {
   Future<RTCPeerConnection> createPeerConnection(
     Map<String, dynamic> configuration,
   ) async {
-    final pc = FakePeerConnection(configuration);
+    final pc = FakePeerConnection(
+      configuration,
+      name: 'pc${peerConnections.length + 1}',
+      journal: journal,
+    );
     peerConnections.add(pc);
     return pc;
   }
@@ -393,10 +447,14 @@ class FakeWebRtcBackend implements WebRtcBackend {
     if (captureError case final error?) throw error;
     final stream = FakeMediaStream('capture-${captures.length + 1}');
     if (constraints['audio'] == true) {
-      stream.tracks.add(FakeTrack('audio', 'mic-${++_tracks}'));
+      stream.tracks.add(
+        FakeTrack('audio', 'mic-${++_tracks}', journal: journal),
+      );
     }
     if (constraints['video'] is Map) {
-      stream.tracks.add(FakeTrack('video', 'camera-${++_tracks}'));
+      stream.tracks.add(
+        FakeTrack('video', 'camera-${++_tracks}', journal: journal),
+      );
     }
     captures.add(stream);
     return stream;
@@ -404,6 +462,7 @@ class FakeWebRtcBackend implements WebRtcBackend {
 
   @override
   Future<MediaStream> createLocalMediaStream(String label) async {
+    if (adoptErrors[label] case final error?) throw error;
     final stream = FakeMediaStream(label);
     streams.add(stream);
     return stream;

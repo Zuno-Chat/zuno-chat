@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +15,7 @@ class _RepairClient extends Client {
   final bool loggedIn;
   var clears = 0;
   Object? clearFailure;
+  Completer<void>? finishing;
 
   @override
   bool isLogged() => loggedIn;
@@ -21,6 +24,7 @@ class _RepairClient extends Client {
   Future<void> clearCache() async {
     clears++;
     if (clearFailure case final failure?) throw failure;
+    await finishing?.future;
   }
 }
 
@@ -60,5 +64,22 @@ void main() {
     await repairLeftRoomsOnce(client, prefs);
 
     expect(client.clears, 2);
+  });
+
+  test('the rebuild counts as done only once its clear, space given back '
+      'included, has finished', () async {
+    final client = _RepairClient(loggedIn: true);
+    final finishing = client.finishing = Completer();
+
+    final repair = repairLeftRoomsOnce(client, prefs);
+    await pumpEventQueue();
+
+    expect(client.clears, 1);
+    expect(prefs.getBool(leftRoomsRepairedKey), isNull);
+
+    finishing.complete();
+    await repair;
+
+    expect(prefs.getBool(leftRoomsRepairedKey), isTrue);
   });
 }

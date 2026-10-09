@@ -136,9 +136,7 @@ class _SystemCallBinding {
     if (mute.callId != session.callId || _ended) return;
     _muted = mute.muted;
     await session.engine.setMicrophoneMuted(mute.muted);
-    if (session.phase == CallSessionPhase.active) {
-      unawaited(session.refreshMembership());
-    }
+    unawaited(session.refreshMembership());
   }
 
   void fail(String callId) {

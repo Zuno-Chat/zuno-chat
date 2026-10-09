@@ -289,14 +289,19 @@ void main() {
       expect(lockscreenShown(), isFalse);
     });
 
-    testWidgets('before the app has a navigator says so and gives the call '
-        'back', (tester) async {
+    testWidgets('before the app has a navigator says so and starts no '
+        'call', (tester) async {
       final container = await pumpApp(tester, withNavigator: false);
+      final started = <CallSession>[];
+      container.listen(activeCallProvider, (_, session) {
+        if (session != null) started.add(session);
+      });
 
       await router(container).handle(response(CallNotificationAction.accept));
       await tester.pump();
 
       expect(find.text('Could not open the call screen.'), findsOneWidget);
+      expect(started, isEmpty);
       expect(container.read(activeCallProvider), isNull);
       expect(RingingCall.instance.callId, isNull);
     });

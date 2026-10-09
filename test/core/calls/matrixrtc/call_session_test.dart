@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:zuno/core/calls/call_engine.dart';
 import 'package:zuno/core/calls/matrixrtc/call_encryption_key_event.dart';
 import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
@@ -36,8 +37,11 @@ class _TestDeviceKeys extends DeviceKeys {
 class _FakeSendEventRoom extends Room {
   _FakeSendEventRoom({required super.client, required super.id});
 
+  final attempts = <Map<String, dynamic>>[];
+  final pendingCopies = <bool>[];
   final sentEvents = <Map<String, dynamic>>[];
   Object? sendError;
+  bool undelivered = false;
   Completer<void>? sendGate;
 
   @override
@@ -51,8 +55,11 @@ class _FakeSendEventRoom extends Room {
     String? threadLastEventId,
     bool displayPendingEvent = true,
   }) async {
+    attempts.add(content);
+    pendingCopies.add(displayPendingEvent);
     await sendGate?.future;
     if (sendError case final error?) throw error;
+    if (undelivered) return null;
     sentEvents.add(content);
     return client.generateUniqueTransactionId();
   }
@@ -461,10 +468,11 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await expectLater(session.accept(), throwsA(isA<StateError>()));
+      await expectLater(session.accept(), throwsException);
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
+      expect(session.failedMessage, microphoneUnavailableMessage);
       expect(engine.joined, isFalse);
     });
 
@@ -512,7 +520,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      await expectLater(session.accept(), throwsStateError);
+      await expectLater(session.accept(), throwsException);
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
@@ -610,11 +618,8 @@ void main() {
         );
         addTearDown(session.dispose);
 
-        await expectLater(
-          session.ensurePermissions(),
-          throwsA(isA<StateError>()),
-        );
-        await expectLater(session.accept(), throwsA(isA<StateError>()));
+        await expectLater(session.ensurePermissions(), throwsException);
+        await expectLater(session.accept(), throwsException);
         expect(session.phase, CallSessionPhase.ended);
         expect(session.endReason, CallEndReason.failed);
       },
@@ -819,16 +824,16 @@ void main() {
       expect(session.failedMessage, microphoneUnavailableMessage);
     });
 
-    test('on Android, a microphone refused at the prompt still fails as a '
-        'call that did not connect', () async {
+    test('on Android, a microphone refused at the prompt fails the call with '
+        'the microphone message too', () async {
       ambientCapabilities = androidCapabilities;
       answeredStatus = denied;
       final session = answering('call-mic-refused-android');
 
-      await expectLater(session.accept(), throwsStateError);
+      await expectLater(session.accept(), throwsException);
 
       expect(permissionCalls, ['requestPermissions']);
-      expect(session.failedMessage, callDidNotConnectMessage);
+      expect(session.failedMessage, microphoneUnavailableMessage);
     });
 
     test('on Android, the microphone is asked for straight away even from '
@@ -949,6 +954,26 @@ void main() {
       pictureInPicture.value = false;
 
       expect(engine.appInBackgroundRequests, [true, false, true]);
+    });
+
+    test('a caller follows the app to the background from the moment its '
+        'camera opens, before its invite is out', () async {
+      final r = _FakeSendEventRoom(client: client, id: '!bg:example.org')
+        ..sendGate = Completer<void>();
+      final engine = FakeCallEngine(kind: CallKind.video);
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.video,
+        engineBuilder: () => engine,
+      );
+      addTearDown(session.dispose);
+      await pumpEventQueue();
+
+      moveLifecycleTo(binding, AppLifecycleState.paused);
+
+      expect(r.sentEvents, isEmpty);
+      expect(engine.appInBackgroundRequests, [false, true]);
+      r.sendGate!.complete();
     });
 
     test('once the call ends, the window changes nothing', () async {
@@ -1791,13 +1816,10 @@ void main() {
         engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
-      var captured = false;
-      unawaited(engine.microphoneCaptured.then((_) => captured = true));
 
       await pumpEventQueue();
 
       expect(engine.startLocalMediaCalls, 1);
-      expect(captured, isTrue);
       expect(engine.joined, isFalse);
       expect(r.sentEvents, isEmpty);
       r.sendGate!.complete();
@@ -1823,15 +1845,15 @@ void main() {
       await session.phaseStream.firstWhere((p) => p == CallSessionPhase.ended);
       await pumpEventQueue();
 
-      expect(r.sentEvents, isEmpty);
+      expect(r.attempts, isEmpty);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failedMessage, callDidNotConnectMessage);
+      expect(session.failedMessage, microphoneUnavailableMessage);
       expect(engine.startLocalMediaCalls, 0);
     });
 
-    test('an invite that cannot be sent ends the call with a message and '
-        'releases the microphone', () async {
-      final r = sendRoom()..sendError = StateError('offline');
+    test('an invite the server never confirms ends the call with a message, '
+        'releases the microphone and rings nobody', () async {
+      final r = sendRoom()..undelivered = true;
       final engine = FakeCallEngine();
       final session = CallSession.startOutgoing(
         r,
@@ -1848,6 +1870,7 @@ void main() {
       expect(engine.leaveCalls, 1);
       expect(engine.disposeCalls, 1);
       expect(engine.joined, isFalse);
+      expect(r.attempts.single['msgtype'], callInviteMsgtype);
     });
 
     test('a call that fails to connect after ringing posts a missed call, so '
@@ -1902,6 +1925,322 @@ void main() {
       expect(engine.disposeCalls, 1);
       expect(engine.joined, isFalse);
     });
+  });
+
+  group('what an outgoing call sends', () {
+    _FakeSendEventRoom sendRoom() =>
+        _FakeSendEventRoom(client: client, id: '!sends:example.org');
+
+    test('its invite and summary keep no local copy that could be resent '
+        'once the call is over', () async {
+      final r = sendRoom();
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.voice,
+        engineBuilder: () => FakeCallEngine(),
+      );
+      addTearDown(session.dispose);
+      await session.phaseStream.firstWhere((p) => p == CallSessionPhase.active);
+
+      await session.hangUp(byUser: true);
+
+      expect(r.attempts.map((e) => e['msgtype']), [
+        callInviteMsgtype,
+        callSummaryMsgtype,
+      ]);
+      expect(r.pendingCopies, [false, false]);
+    });
+
+    test('nothing at all when it is hung up while the microphone prompt is '
+        'still up', () async {
+      final prompt = Completer<void>();
+      messenger.setMockMethodCallHandler(permissionChannel, (call) async {
+        if (call.method != 'requestPermissions') return null;
+        await prompt.future;
+        final requested = (call.arguments as List).cast<int>();
+        return {for (final p in requested) p: 1};
+      });
+      final memberPuts = <String>[];
+      final logging = buildCallTestClient((request) async {
+        if (request.url.path.contains(callMemberEventType)) {
+          memberPuts.add(request.body);
+        }
+        return http.Response('{"event_id":"\$evt"}', 200);
+      });
+      final r = _FakeSendEventRoom(client: logging, id: '!prompt:example.org');
+      final engine = FakeCallEngine();
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.voice,
+        engineBuilder: () => engine,
+      );
+      addTearDown(session.dispose);
+      await pumpEventQueue();
+
+      await session.hangUp(byUser: true);
+      prompt.complete();
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.ended);
+      expect(r.attempts, isEmpty);
+      expect(memberPuts, isEmpty);
+      expect(engine.startLocalMediaCalls, 0);
+    });
+
+    test('a missed call once its invite lands, when hung up while the invite '
+        'was still going out', () async {
+      final r = sendRoom()..sendGate = Completer<void>();
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.voice,
+        engineBuilder: () => FakeCallEngine(),
+      );
+      addTearDown(session.dispose);
+      await pumpEventQueue();
+
+      final hangingUp = session.hangUp(byUser: true);
+      await pumpEventQueue();
+      expect(session.phase, CallSessionPhase.ended);
+      r.sendGate!.complete();
+      await hangingUp;
+
+      expect(r.sentEvents.map((e) => e['msgtype']), [
+        callInviteMsgtype,
+        callSummaryMsgtype,
+      ]);
+      expect(r.sentEvents.last['status'], CallSummaryStatus.missed.name);
+    });
+
+    test('nothing more when hung up while an invite that never lands was '
+        'going out', () async {
+      final r = sendRoom()
+        ..sendGate = Completer<void>()
+        ..undelivered = true;
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.voice,
+        engineBuilder: () => FakeCallEngine(),
+      );
+      addTearDown(session.dispose);
+      await pumpEventQueue();
+
+      final hangingUp = session.hangUp(byUser: true);
+      r.sendGate!.complete();
+      await hangingUp;
+
+      expect(r.attempts.single['msgtype'], callInviteMsgtype);
+    });
+
+    test('a video call with the camera refused goes ahead with the camera '
+        'off', () async {
+      messenger.setMockMethodCallHandler(permissionChannel, (call) async {
+        if (call.method != 'requestPermissions') return null;
+        final requested = (call.arguments as List).cast<int>();
+        return {
+          for (final p in requested)
+            p: p == Permission.microphone.value ? 1 : 0,
+        };
+      });
+      final r = sendRoom();
+      final engine = _JournalEngine(kind: CallKind.video);
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.video,
+        engineBuilder: () => engine,
+      );
+      addTearDown(session.dispose);
+
+      await session.phaseStream.firstWhere((p) => p == CallSessionPhase.active);
+
+      expect(engine.journal.take(2), ['camera false', 'local media']);
+      expect(r.sentEvents.single['msgtype'], callInviteMsgtype);
+      expect(session.failedMessage, isNull);
+    });
+
+    test('leaving the room while the invite is going out ends the call '
+        'without writing to it', () async {
+      final memberPuts = <String>[];
+      final logging = buildCallTestClient((request) async {
+        if (request.url.path.contains(callMemberEventType)) {
+          memberPuts.add(request.body);
+        }
+        return http.Response('{"event_id":"\$evt"}', 200);
+      });
+      final r = _FakeSendEventRoom(client: logging, id: '!left:example.org')
+        ..sendGate = Completer<void>();
+      logging.rooms.add(r);
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.voice,
+        engineBuilder: () => FakeCallEngine(),
+      );
+      addTearDown(session.dispose);
+      await pumpEventQueue();
+
+      logging.onSync.add(
+        SyncUpdate(
+          nextBatch: 'left',
+          rooms: RoomsUpdate(leave: {r.id: LeftRoomUpdate()}),
+        ),
+      );
+      await pumpEventQueue();
+      expect(session.phase, CallSessionPhase.ended);
+      r.sendGate!.complete();
+      await pumpEventQueue();
+
+      expect(r.attempts.single['msgtype'], callInviteMsgtype);
+      expect(memberPuts, isEmpty);
+    });
+  });
+
+  group('the summary a caller posts', () {
+    void joinMembers(Room r, List<String> userIds) {
+      for (final id in userIds) {
+        r.setState(
+          StrippedStateEvent(
+            type: EventTypes.RoomMember,
+            senderId: id,
+            stateKey: id,
+            content: {'membership': 'join'},
+          ),
+        );
+      }
+    }
+
+    void bobIn(_FakeSendEventRoom r, CallSession session, {required bool in_}) {
+      r.setState(
+        in_
+            ? remoteMemberEvent(
+                r,
+                userId: '@bob:example.org',
+                deviceId: 'BOB',
+                callId: session.callId,
+              )
+            : buildTestEvent(
+                r,
+                eventId: r'$bob-left',
+                senderId: '@bob:example.org',
+                type: callMemberEventType,
+                stateKey: '@bob:example.org',
+                content: const {'memberships': <Object?>[]},
+              ),
+      );
+      client.onSync.add(SyncUpdate(nextBatch: 'bob-${in_ ? 'in' : 'out'}'));
+    }
+
+    Future<String?> statusAfter(
+      Future<void> Function(
+        CallSession session,
+        _FakeSendEventRoom room,
+        FakeCallEngine engine,
+      )
+      ending, {
+      Duration? ringTimeout,
+    }) async {
+      final r = _FakeSendEventRoom(client: client, id: '!summary:example.org');
+      joinMembers(r, ['@me:example.org', '@bob:example.org']);
+      final engine = FakeCallEngine();
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.voice,
+        engineBuilder: () => engine,
+        ringTimeout: ringTimeout,
+      );
+      addTearDown(session.dispose);
+      await session.phaseStream.firstWhere((p) => p == CallSessionPhase.active);
+      await ending(session, r, engine);
+      await session.phaseStream
+          .firstWhere((p) => p == CallSessionPhase.ended)
+          .timeout(const Duration(seconds: 5), onTimeout: () => session.phase);
+      await pumpEventQueue();
+      final summaries = r.sentEvents.where(
+        (e) => e['msgtype'] == callSummaryMsgtype,
+      );
+      return summaries.singleOrNull?['status'] as String?;
+    }
+
+    test('declined when the other side declines', () async {
+      final status = await statusAfter((session, r, _) async {
+        client.onTimelineEvent.add(
+          buildTestEvent(
+            r,
+            eventId: r'$decline',
+            senderId: '@bob:example.org',
+            content: {
+              'msgtype': callDeclineMsgtype,
+              'body': 'Call declined',
+              'call_id': session.callId,
+            },
+          ),
+        );
+      });
+
+      expect(status, CallSummaryStatus.declined.name);
+    });
+
+    test('missed when nobody answers before the ring times out', () async {
+      final status = await statusAfter(
+        (_, _, _) async {},
+        ringTimeout: const Duration(milliseconds: 50),
+      );
+
+      expect(status, CallSummaryStatus.missed.name);
+    });
+
+    test('missed when hung up before anyone answers', () async {
+      final status = await statusAfter(
+        (session, _, _) => session.hangUp(byUser: true),
+      );
+
+      expect(status, CallSummaryStatus.missed.name);
+    });
+
+    test('missed when the connection fails before anyone answers', () async {
+      final status = await statusAfter((_, _, engine) async {
+        engine.statusController.add(CallEngineStatus.failed);
+      });
+
+      expect(status, CallSummaryStatus.missed.name);
+    });
+
+    test('ended when hung up after an answer, once the other side has '
+        'gone', () async {
+      final status = await statusAfter((session, r, _) async {
+        bobIn(r, session, in_: true);
+        await pumpEventQueue();
+        bobIn(r, session, in_: false);
+        await pumpEventQueue();
+        await session.hangUp(byUser: true);
+      });
+
+      expect(status, CallSummaryStatus.ended.name);
+    });
+
+    test('ended when the connection fails after an answer, once the other '
+        'side has gone', () async {
+      final status = await statusAfter((session, r, engine) async {
+        bobIn(r, session, in_: true);
+        await pumpEventQueue();
+        bobIn(r, session, in_: false);
+        await pumpEventQueue();
+        engine.statusController.add(CallEngineStatus.failed);
+      });
+
+      expect(status, CallSummaryStatus.ended.name);
+    });
+
+    test(
+      'none when hung up while the other side is still in the call',
+      () async {
+        final status = await statusAfter((session, r, _) async {
+          bobIn(r, session, in_: true);
+          await pumpEventQueue();
+          await session.hangUp(byUser: true);
+        });
+
+        expect(status, isNull);
+      },
+    );
   });
 
   group('_connect key-before-join ordering', () {
@@ -2033,6 +2372,116 @@ void main() {
         expect(r.publishes.length, before + 2);
         expect(r.publishes.last, contains('"audioMuted":false'));
       });
+    });
+  });
+
+  group('our membership goes public only once the call hears its key', () {
+    test('a refresh while connecting publishes nothing, and joining publishes '
+        'once, with the latest state', () {
+      fakeAsync((async) {
+        final c = _PublishCountingClient();
+        final joinGate = Completer<void>();
+        final engine = _EarlySessionEngine(joinGate: joinGate);
+        final session = CallSession.forIncoming(
+          room: buildTestRoom(c),
+          callId: 'call-early-refresh',
+          kind: CallKind.voice,
+          engineBuilder: () => engine,
+        );
+        addTearDown(session.dispose);
+        unawaited(session.accept());
+        async.flushMicrotasks();
+
+        engine.micMuted = true;
+        unawaited(session.refreshMembership());
+        async.elapse(const Duration(seconds: 2));
+        expect(c.publishes, isEmpty);
+
+        joinGate.complete();
+        async.elapse(const Duration(seconds: 2));
+
+        expect(session.phase, CallSessionPhase.active);
+        expect(c.publishes.single, contains('"audioMuted":true'));
+      });
+    });
+
+    test('a callee whose membership write fails clears it on the way out, '
+        'so nobody waits on a ghost', () async {
+      final memberPuts = <String>[];
+      final refusing = buildCallTestClient((request) async {
+        if (request.method == 'PUT' &&
+            request.url.path.contains(callMemberEventType)) {
+          memberPuts.add(request.body);
+          if (memberPuts.length == 1) {
+            return http.Response(
+              '{"errcode":"M_UNKNOWN","error":"later"}',
+              500,
+            );
+          }
+        }
+        return http.Response('{"event_id":"\$evt"}', 200);
+      });
+      final session = CallSession.forIncoming(
+        room: _FakeSendEventRoom(client: refusing, id: '!ghost:example.org'),
+        callId: 'call-ghost',
+        kind: CallKind.voice,
+        engineBuilder: () => FakeCallEngine(),
+      );
+      addTearDown(session.dispose);
+
+      await expectLater(session.accept(), throwsA(isA<MatrixException>()));
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.ended);
+      expect(session.endReason, CallEndReason.failed);
+      expect(memberPuts, hasLength(2));
+      expect(memberPuts.last, contains('"memberships":[]'));
+    });
+
+    test('the next call in the same room publishes only after the last '
+        "call's membership clear has gone out", () async {
+      final clearGate = Completer<void>();
+      final memberPuts = <String>[];
+      final gated = buildCallTestClient((request) async {
+        if (request.method == 'PUT' &&
+            request.url.path.contains(callMemberEventType)) {
+          memberPuts.add(request.body);
+          if (request.body.contains('"memberships":[]')) {
+            await clearGate.future;
+          }
+        }
+        return http.Response('{"event_id":"\$evt"}', 200);
+      });
+      CallSession answer(String callId) {
+        final session = CallSession.forIncoming(
+          room: _FakeSendEventRoom(client: gated, id: '!same:example.org'),
+          callId: callId,
+          kind: CallKind.voice,
+          engineBuilder: () => FakeCallEngine(),
+        );
+        addTearDown(session.dispose);
+        return session;
+      }
+
+      final first = answer('first');
+      await first.accept();
+      final hangingUp = first.hangUp(byUser: true);
+      await pumpEventQueue();
+      expect(first.phase, CallSessionPhase.ended);
+
+      final second = answer('second');
+      final accepting = second.accept();
+      await pumpEventQueue();
+      expect(memberPuts, hasLength(2));
+
+      clearGate.complete();
+      await accepting;
+      await hangingUp;
+
+      expect(memberPuts, hasLength(3));
+      expect(memberPuts[1], contains('"memberships":[]'));
+      expect(memberPuts[2], contains('"call_id":"second"'));
+      expect(second.phase, CallSessionPhase.active);
     });
   });
 
@@ -2335,10 +2784,11 @@ void main() {
       expect(engine.joined, isFalse);
       expect(engine.leaveCalls, 1);
       expect(engine.disposeCalls, 1);
-      expect(memberPuts, hasLength(putsAtHangup));
-      expect(memberPuts.last, contains('"memberships":[]'));
+      expect(putsAtHangup, 0);
+      expect(memberPuts, isEmpty);
       expect(session.phase, CallSessionPhase.ended);
-      expect(summariesIn(sendRoom), 1);
+      expect(summariesIn(sendRoom), 0);
+      expect(sendRoom.sentEvents.single['msgtype'], callDeclineMsgtype);
     });
 
     test(
@@ -2366,10 +2816,11 @@ void main() {
 
         expect(engine.leaveCalls, 1);
         expect(engine.disposeCalls, 1);
-        expect(memberPuts, hasLength(putsAtHangup));
-        expect(memberPuts.last, contains('"memberships":[]'));
+        expect(putsAtHangup, 0);
+        expect(memberPuts, isEmpty);
         expect(session.phase, CallSessionPhase.ended);
-        expect(summariesIn(sendRoom), 1);
+        expect(summariesIn(sendRoom), 0);
+        expect(sendRoom.sentEvents.single['msgtype'], callDeclineMsgtype);
       },
     );
   });
@@ -2603,6 +3054,47 @@ void main() {
       expect(session.endReason, CallEndReason.failed);
       expect(session.failedMessage, callFull);
       expect(engineBuilds, 0);
+    });
+
+    test('a full call whose engine the call screen already built releases '
+        'it', () async {
+      fill(room, 'call-full-built', 6);
+      final engine = FakeCallEngine();
+      final session = CallSession.forIncoming(
+        room: room,
+        callId: 'call-full-built',
+        kind: CallKind.voice,
+        engineBuilder: () => engine,
+      );
+      addTearDown(session.dispose);
+      expect(session.engine, same(engine));
+
+      await session.accept();
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.ended);
+      expect(engine.leaveCalls, 1);
+      expect(engine.disposeCalls, 1);
+    });
+
+    test('an engine asked for after the call has ended is released at '
+        'once', () async {
+      fill(room, 'call-full-late', 6);
+      final engine = FakeCallEngine();
+      final session = CallSession.forIncoming(
+        room: room,
+        callId: 'call-full-late',
+        kind: CallKind.voice,
+        engineBuilder: () => engine,
+      );
+      addTearDown(session.dispose);
+      await session.accept();
+
+      expect(session.engine, same(engine));
+      await pumpEventQueue();
+
+      expect(engine.leaveCalls, 1);
+      expect(engine.disposeCalls, 1);
     });
 
     test('accepting a call with 5 other people connects', () async {
@@ -2846,29 +3338,10 @@ void main() {
       expect(session.phase, CallSessionPhase.active);
     });
 
-    test('declining an incoming call tells the caller and ends it as '
-        'declined by us', () async {
-      final r = sendRoom();
-      final session = CallSession.forIncoming(
-        room: r,
-        callId: 'incoming-1',
-        kind: CallKind.voice,
-        engineBuilder: () => FakeCallEngine(),
-      );
-      addTearDown(session.dispose);
-
-      await session.decline();
-
-      expect(r.sentEvents.single['msgtype'], callDeclineMsgtype);
-      expect(r.sentEvents.single['call_id'], 'incoming-1');
-      expect(session.phase, CallSessionPhase.ended);
-      expect(session.endReason, CallEndReason.declinedByUs);
-    });
-
     test(
       'an outgoing call whose invite cannot be sent ends as failed',
       () async {
-        final r = sendRoom()..sendError = StateError('offline');
+        final r = sendRoom()..undelivered = true;
         final engine = FakeCallEngine();
         final session = CallSession.startOutgoing(
           r,
@@ -2883,6 +3356,102 @@ void main() {
         expect(engine.joined, isFalse);
       },
     );
+
+    test('a joiner who backs out while others are in the call posts no '
+        'summary', () async {
+      final r = sendRoom();
+      for (final (userId, deviceId) in [
+        ('@ann:example.org', 'ANN'),
+        ('@bob:example.org', 'BOB'),
+      ]) {
+        r.setState(
+          remoteMemberEvent(
+            r,
+            userId: userId,
+            deviceId: deviceId,
+            callId: 'group-call',
+          ),
+        );
+      }
+      final joinGate = Completer<void>();
+      final session = CallSession.forIncoming(
+        room: r,
+        callId: 'group-call',
+        kind: CallKind.voice,
+        engineBuilder: () => FakeCallEngine(joinGate: joinGate),
+      );
+      addTearDown(session.dispose);
+      final accepting = session.accept();
+      await pumpEventQueue();
+
+      await session.hangUp(byUser: true);
+      joinGate.complete();
+      await accepting;
+
+      expect(
+        r.sentEvents.where((e) => e['msgtype'] == callSummaryMsgtype),
+        isEmpty,
+      );
+    });
+
+    test('a joiner who hangs up while its own membership is going out posts '
+        'no summary while others are in the call', () async {
+      final publishGate = Completer<void>();
+      final gated = buildCallTestClient((request) async {
+        if (request.method == 'PUT' &&
+            request.url.path.contains(callMemberEventType)) {
+          await publishGate.future;
+        }
+        return http.Response('{"event_id":"\$evt"}', 200);
+      });
+      final r = _FakeSendEventRoom(client: gated, id: '!group:example.org');
+      for (final (userId, deviceId) in [
+        ('@ann:example.org', 'ANN'),
+        ('@bob:example.org', 'BOB'),
+      ]) {
+        r.setState(
+          remoteMemberEvent(
+            r,
+            userId: userId,
+            deviceId: deviceId,
+            callId: 'group-call',
+          ),
+        );
+      }
+      final session = CallSession.forIncoming(
+        room: r,
+        callId: 'group-call',
+        kind: CallKind.voice,
+        engineBuilder: () => FakeCallEngine(),
+      );
+      addTearDown(session.dispose);
+      final accepting = session.accept();
+      await pumpEventQueue();
+
+      final hangingUp = session.hangUp(byUser: true);
+      await pumpEventQueue();
+      publishGate.complete();
+      await Future.wait([accepting, hangingUp]);
+
+      expect(r.attempts, isEmpty);
+    });
+
+    test('a callee whose connect fails sends no decline, so its other '
+        'phones can still answer', () async {
+      final r = sendRoom();
+      final session = CallSession.forIncoming(
+        room: r,
+        callId: 'failed-callee',
+        kind: CallKind.voice,
+        engineBuilder: () => FakeCallEngine(failJoin: true),
+      );
+      addTearDown(session.dispose);
+
+      await expectLater(session.accept(), throwsStateError);
+      await pumpEventQueue();
+
+      expect(r.attempts, isEmpty);
+    });
 
     test(
       'membership is refreshed on a timer so the call never expires',
@@ -3118,8 +3687,8 @@ void main() {
       },
     );
 
-    test('hanging up stops the microphone and camera before the membership '
-        'clear reaches the server', () async {
+    test('hanging up stops the microphone and camera, and ends the call, '
+        'before the membership clear reaches the server', () async {
       final clearing = Completer<void>();
       final slow = buildCallTestClient((request) async {
         if (request.method == 'PUT' &&
@@ -3137,9 +3706,9 @@ void main() {
       await pumpEventQueue();
 
       expect(engine.leaveCalls, 1);
+      expect(session.phase, CallSessionPhase.ended);
       clearing.complete();
       await hungUp;
-      expect(session.phase, CallSessionPhase.ended);
     });
 
     test(
@@ -3171,6 +3740,33 @@ void main() {
         expect(camera.listened, isFalse);
       },
     );
+
+    test('a call that is let go ends and releases its engine without '
+        'writing anything', () async {
+      final requests = <http.Request>[];
+      final recording = buildCallTestClient((request) async {
+        requests.add(request);
+        return http.Response('{"event_id":"\$evt"}', 200);
+      });
+      final engine = FakeCallEngine();
+      final session = CallSession.forIncoming(
+        room: buildTestRoom(recording),
+        callId: 'let-go',
+        kind: CallKind.voice,
+        engineBuilder: () => engine,
+      );
+      expect(session.engine, same(engine));
+      final phases = <CallSessionPhase>[];
+      session.phaseStream.listen(phases.add);
+
+      session.dispose();
+      await pumpEventQueue();
+
+      expect(phases, [CallSessionPhase.ended]);
+      expect(engine.leaveCalls, 1);
+      expect(engine.disposeCalls, 1);
+      expect(requests, isEmpty);
+    });
 
     test(
       'a membership refresh the server refuses is not an uncaught error',
@@ -3223,9 +3819,6 @@ class _OrderTrackingCallEngine implements CallEngine {
 
   @override
   CallKind get kind => CallKind.voice;
-
-  @override
-  Future<void> get microphoneCaptured => Completer<void>().future;
 
   @override
   Future<void> startLocalMedia() async => calls.add('startLocalMedia');
@@ -3291,4 +3884,34 @@ class _ListenedFlag extends ValueNotifier<bool> {
   _ListenedFlag() : super(false);
 
   bool get listened => hasListeners;
+}
+
+class _EarlySessionEngine extends FakeCallEngine {
+  _EarlySessionEngine({super.joinGate});
+
+  @override
+  Map<String, Object?>? get localFociInfo => {
+    'sessionId': 'early-session',
+    'tracks': const {'audio': 'audio'},
+    'audioMuted': micMuted,
+    'encrypted': appliedKey != null,
+  };
+}
+
+class _JournalEngine extends FakeCallEngine {
+  _JournalEngine({super.kind});
+
+  final journal = <String>[];
+
+  @override
+  Future<void> setCameraEnabled(bool enabled) async {
+    journal.add('camera $enabled');
+    await super.setCameraEnabled(enabled);
+  }
+
+  @override
+  Future<void> startLocalMedia() async {
+    journal.add('local media');
+    await super.startLocalMedia();
+  }
 }

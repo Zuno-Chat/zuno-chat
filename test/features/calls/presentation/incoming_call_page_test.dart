@@ -10,6 +10,7 @@ import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
+import 'package:zuno/core/calls/matrixrtc/call_decline.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
@@ -97,6 +98,7 @@ void main() {
   late GlobalKey<NavigatorState> navigatorKey;
   late _RecordingNavigatorObserver observer;
   late RecordedCallsChannel callsLog;
+  late List<String> sentEvents;
 
   setUp(() async {
     callsLog = installFakeCallsChannel();
@@ -109,13 +111,16 @@ void main() {
     prefs = await SharedPreferences.getInstance();
 
     db = _PartialProfilesDatabaseApi();
+    sentEvents = [];
     client = _TestClient(
       'test',
       database: db,
-      httpClient: MockClient(
-        (request) async =>
-            http.Response(jsonEncode({'event_id': r'$evt'}), 200),
-      ),
+      httpClient: MockClient((request) async {
+        if (request.method == 'PUT' && request.url.path.contains('/send/')) {
+          sentEvents.add(request.url.path);
+        }
+        return http.Response(jsonEncode({'event_id': r'$evt'}), 200);
+      }),
     );
     client.setUserId('@me:example.org');
     client.baseUri = Uri.parse('https://example.org');
@@ -447,12 +452,6 @@ void main() {
       pushIncomingCall(call());
       await tester.pumpAndSettle();
 
-      final declineTxIds = <String?>{};
-      client.onTimelineEvent.stream.listen((e) {
-        if (e.messageType == callDeclineMsgtype) {
-          declineTxIds.add(e.unsigned?.tryGet<String>('transaction_id'));
-        }
-      });
       final button = iconButtonFor(tester, find.byIcon(Icons.call_end));
       await tester.runAsync(() async {
         final first = button.onPressed!.call() as Future<void>;
@@ -461,7 +460,8 @@ void main() {
       });
       await tester.pumpAndSettle();
 
-      expect(declineTxIds, hasLength(1));
+      expect(sentEvents, hasLength(1));
+      expect(sentEvents.single, endsWith('/${callDeclineTxid('call1')}'));
       expect(find.byType(IncomingCallPage), findsNothing);
       expect(observer.events.where((e) => e == 'pop'), hasLength(1));
     });
@@ -792,16 +792,10 @@ void main() {
           findsNothing,
         );
 
-        final declineTxIds = <String?>{};
-        client.onTimelineEvent.stream.listen((e) {
-          if (e.messageType == callDeclineMsgtype) {
-            declineTxIds.add(e.unsigned?.tryGet<String>('transaction_id'));
-          }
-        });
         await tester.tap(find.text('Decline'));
         await tester.pumpAndSettle();
 
-        expect(declineTxIds, isEmpty);
+        expect(sentEvents, isEmpty);
         expect(find.byType(IncomingCallPage), findsOneWidget);
       },
     );

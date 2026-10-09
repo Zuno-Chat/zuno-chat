@@ -42,9 +42,9 @@ plays for a call goes through one of six interfaces, each built by a
 |---|---|---|
 | `IncomingCallPresenter` | `CallStyle` notification with a native ring | CallKit |
 | `OngoingCallPresenter` | `CallForegroundService` | No-op: CallKit shows the call |
-| `RingbackTonePlayer` | `ToneGenerator` on the voice-call stream | A native synthesized tone |
+| `RingbackTonePlayer` | A tone in native `CallAudio` | A native synthesized tone |
 | `SystemCall` | No-op | The CallKit call |
-| `CallAudioOutput` | flutter_webrtc's audio routing | Native routes |
+| `CallAudioOutput` | Native `CallAudio` owns focus, mode and route | Native routes in CallKit's session |
 | `PushRingBridge` | No-op | Binds pushed rings to their calls |
 
 ### Call lifecycle
@@ -66,19 +66,26 @@ stateDiagram-v2
 - **Local media opens before the join.** A caller checks the microphone
   permission before it rings anyone, then opens the microphone and camera
   while the invite is sent; answering opens them at once. Joining only
-  publishes them.
-- **The engine lives as long as the session**, built on first use, so the
-  call screen's controls act from the first frame and a mute or camera
-  change made while ringing carries into the call.
+  publishes them, and the session follows the app's lifecycle from the
+  moment local media opens.
+- **Permissions**: a refused microphone fails the call with the microphone
+  message on every platform, and a refused camera starts a video call with
+  the camera off.
+- **The engine is built at call start and lives as long as the session**,
+  so the call screen's controls act from the first frame and a mute or
+  camera change made while ringing carries into the call. Every end path
+  releases it, and one built after the call ended is released at once.
 - **A call ends** as hung up, declined by either side, missed (the
   caller's ring timed out with nobody joined) or failed. A failure carries
   a user-facing message.
+- **Ended means torn down locally.** The membership clear and the end
+  notice go out after the phase turns ended, and iOS holds a short
+  background task once CallKit ends the call so they still leave.
 - **A caller that fails after its invite went out ends as a hang-up does**,
-  and an unanswered call's summary is always missed, so the other side
-  stops ringing.
+  so its summary stops the other side ringing.
 - **It also ends, without writing anything, once its room is left** (from
-  any device) **or this device is signed out**, because neither a left room
-  nor a revoked token takes writes.
+  any device, watched from the start) **or this device is signed out**,
+  because neither a left room nor a revoked token takes writes.
 - **One call at a time.** Starting or answering is refused while a call
   that has not ended is held, and the call's own room reopens it instead.
 - **"Prevent accidental calls"** (on by default, Settings → Chats & calls)
@@ -92,14 +99,32 @@ stateDiagram-v2
   `videoEnabled`, `encrypted` and `lowBandwidth`. The room's "call in
   progress" banner reads the same state, so a missed ring or a closed app
   still finds the call.
-- **Membership is republished periodically and on every change.** User
-  toggles are coalesced, because state events are permanent room history.
+- **Membership is published only once the session listens for to-device
+  call keys**, so a key sent in reply is never lost; refreshes before that
+  are ignored. After that it is republished periodically and on every
+  change, with user toggles coalesced, because state events are permanent
+  room history.
+- **One serial writer per room carries all of our membership writes**, each
+  waited on for a bounded time, and the latest membership is written again
+  if a stale write lands late, so a quick redial is never wiped by the
+  previous call's clear. A clear is written only if we requested a
+  membership.
 - **Invite, decline and summary are `im.zuno.call_*` msgtypes** on
   `m.room.message`, so they ride the existing timeline plumbing. Only the
   summary renders.
-- **Every end path sends a summary.** It is the one signal both sides can
-  rely on: the callee learns of an early cancel from it, the caller of a
-  late decline.
+- **They are sent without a local pending copy, and the chat's not-sent
+  retry skips call messages**, so a call that is over is never resent.
+- **Every end sends one end notice**, the one signal both sides can rely
+  on: the callee learns of an early cancel from it, the caller of a late
+  decline.
+
+  | Who ends | Sends |
+  |---|---|
+  | Anyone with others still in the room's live memberships | Nothing: the last one out posts the summary |
+  | A caller whose invite was never delivered | Nothing, so hanging up during the microphone prompt is silent |
+  | A callee that never joined | A decline |
+  | A callee whose connect failed before it joined | Nothing, so its other phones can still answer |
+  | Anyone else | The summary: declined, missed or ended |
 - **Declines and answered summaries carry an `m.reference`**, which stays
   cleartext in encrypted rooms, so a push rule keeps them off the push path
   (`notifications.md`). Missed and declined summaries still push, because
@@ -107,7 +132,8 @@ stateDiagram-v2
 
 **Group calls** break assumptions a one-to-one call could get away with:
 
-- Leaving is not ending: whoever is last out posts the summary.
+- Leaving is not ending: whoever is last out, by the room's live
+  memberships, posts the summary.
 - Any device holding the call key relays it to a newcomer, not only the
   caller.
 - The 6-person cap is enforced only on the client, since the module cannot
@@ -136,7 +162,7 @@ sequenceDiagram
 |---|---|
 | ICE is gathered whole before an offer goes out | Cloudflare's REST signaling takes candidates only inside the offer, so there is no trickle ICE |
 | A lost connection rejoins with a new session and peer connection, a few times, before the call ends as "Connection lost" | Cloudflare sessions cannot ICE-restart |
-| TURN credentials are minted through the module at join, and a failed mint means no TURN, not a failed call | Only some networks need TURN |
+| TURN credentials are minted through the module when the engine is built at call start, and a failed mint means no TURN, not a failed call | Only some networks need TURN |
 | A black placeholder stands in whenever the camera is not sending, and a track is advertised only once it has sent bytes | Cloudflare drops a published track that receives no packets for 30 s, and advertising earlier lets someone pull a track the SFU does not have yet |
 | Opus goes out without DTX | A muted microphone with DTX sends nothing, so the 30 s rule would drop the audio track |
 | Every track swap is `replaceTrack`, never a mid-call re-offer | A re-offer recreates the receive streams, and Android's flutter_webrtc then renders nothing (flutter-webrtc#2124) |
@@ -149,7 +175,8 @@ is published at join, and the placeholder fills it in three cases:
 - **A voice call**, until it switches to video, which is one way.
 - **Camera off**: the camera stops, its light included.
 - **The app in the background**, unless a picture-in-picture window keeps
-  the camera. Android releases the camera. iOS stops it itself
+  the camera. Android releases the camera, and local media opened in the
+  background leaves it off until the app returns. iOS stops it itself
   (`cameraStopsInBackground`), so the engine keeps the track.
 
 ### Quality and data use
@@ -182,10 +209,13 @@ tier.
   its sender's own devices.
 - **The key is never rotated**, since rotating on every departure would
   interrupt everyone's media.
-- **Media is gated on keys.** Local tracks stay disabled until their frame
-  cryptor exists, and a remote is pulled only once both sides report
-  `encrypted`. There is no unencrypted fallback. Until the key lands, the
-  call shows "encrypting".
+- **Media is gated on keys.** Each local sender owns its frame cryptor,
+  tied to the live connection and that sender, and a track is enabled only
+  while its current sender has its own cryptor. A remote is pulled only
+  once both sides report `encrypted`. There is no unencrypted fallback.
+  Until the key lands, the call shows "encrypting".
+- **A rejoin wraps the new connection's senders afresh**, and a key that
+  lands mid-reconnect is applied to the new connection.
 
 ### Call screens
 
@@ -204,9 +234,8 @@ tier.
   (`security-verification.md`).
 - **Audio route**: a call starts on a connected headset, else the earpiece
   for voice and the speaker for video, and a newly connected headset takes
-  the sound. Android selects headsets explicitly, because AudioSwitch
-  would otherwise stick to the last chosen device. iOS routes natively, and
-  the in-app button follows CallKit's.
+  the sound. On Android each call picks its own starting route. iOS adopts
+  CallKit's system route, and the in-app button follows CallKit's.
 - **Screen**: a voice call on the earpiece blanks the screen by proximity,
   and a video call keeps it awake.
 
@@ -261,12 +290,30 @@ call or a live location share runs, `MainActivity` hands the engine to
 `KeptEngine` instead, which keeps it for as long as any of those reasons
 holds; the call carries on behind `CallForegroundService` until it ends or
 the system kills it. The next activity adopts the engine and re-applies its
-per-engine state, such as lock-screen display, the wake lock and ringback.
+per-engine state, such as lock-screen display, the wake lock and call audio.
 An old activity can finish after a new one has set up its engine, so
 engine-wide state (the push flag, the calls channel, live location
 capture) is released only by the engine that set it. Back on the first
 screen during a call sends the task to the back instead of finishing it,
 as Android 16 already does, so the activity is not torn down mid-call.
+
+### Android call audio
+
+Native `CallAudio` owns Android call audio, and `MainActivity` turns off
+flutter_webrtc's AudioSwitch session management, so focus, mode and route
+have one owner that is ready before the microphone opens. Dart drives it
+over `zuno/calls` (`nativeCallAudio`); starting it returns the current
+state, so a headset already connected at start is seen. iOS leaves the
+session to CallKit.
+
+| Owns | Rule |
+|---|---|
+| Audio focus | Requested for voice communication, accepting delayed gain |
+| Mode | `MODE_IN_COMMUNICATION` while active, and always `MODE_NORMAL` on stop, so another owner's mode is never restored |
+| Route | `setCommunicationDevice` on Android 12+; speakerphone plus paired Bluetooth SCO on 8–11, where the effective route comes from SCO state broadcasts |
+| Microphone mute | A stale system-wide mute is cleared for the call and restored after it |
+| Headsets | Device and route changes are reported to Dart |
+| Ringback | Plays only while wanted and while call audio is active |
 
 ### Ringing
 
@@ -298,14 +345,11 @@ as Android 16 already does, so the activity is not torn down mid-call.
   with the process. Several stops back each other up (cancel, the
   notification's delete intent, Answer, an alarm and a timer), and every
   one names its call.
-- **Ringback is a `ToneGenerator` on the voice-call stream**, so it follows
-  the earpiece or speaker. It stops when the other side's membership
-  appears, not when our own join finishes. Neither the ring nor ringback
-  takes audio focus, since the call's own audio session would pause it.
-- **Ringback starts once the microphone is open and the route applied**,
-  because flutter_webrtc switches Android into call-audio mode only on
-  microphone capture, and before that the voice-call stream plays from the
-  earpiece.
+- **Ringback is a tone on the voice-call stream inside native call audio**,
+  so it follows the chosen route. It stops when the other side's
+  membership appears, not when our own join finishes. Neither the ring nor
+  the tone takes audio focus of its own, since the call's audio focus
+  would pause it.
 - **Hang up from the ongoing notification or the PiP window** goes to the
   live engine, because teardown needs the live session. Only the ring's
   Decline can run headless.
@@ -393,7 +437,8 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | Screen share is not built | Android capture needs its own MediaProjection consent and foreground-service type |
 | New mid-call facts ride `fociInfo`; new signaling is an `im.zuno.*` msgtype | Both sides already reconcile `fociInfo`, and a msgtype gets timeline plumbing for free |
 | A call-lifetime controller outside the call screen, drawn by an app-level layer | A lock-screen answer may never build the screen, and the screen, the bar, the window and picture-in-picture share one set of renderers |
-| Microphone and camera open at call start, not at join | The controls, the ringback and Android's audio route all need them before the call connects |
+| Microphone and camera open at call start, not at join | The controls act on them before the call connects |
+| Android call audio is native, not flutter_webrtc's AudioSwitch | AudioSwitch entered call mode only on microphone capture and stuck to the last chosen device, so ringback and the route waited on the microphone |
 | A minimized call is a bar for voice and a window for video, and a tap only opens it | One tap target, never a second set of controls |
 
 ## Gotchas
@@ -445,6 +490,22 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   fails only on a real tap.
 - The foreground service starts when the call is set, with no frame,
   because Android allows starting one only shortly after user interaction.
+- The foreground service asks for the camera type only while the camera
+  permission is granted, else falls back to microphone only, because
+  Android 14+ throws a `SecurityException` otherwise; Dart re-sends the
+  start when the camera turns on, which widens it.
+- Hang-up and rejoin switch tracks off and dispose the peer connection
+  before the frame cryptors and the key provider, because on iOS a
+  disposed cryptor passes frames through unencrypted.
+- A null result from sending the invite fails the call, because the SDK
+  returns null rather than throwing when a send fails.
+- `LocalMedia` releases a capture it fails to adopt and never captures
+  after close, because a late or broken open would otherwise leave the
+  microphone or camera live.
+- The active-call provider disposes every session it drops, because a
+  dropped session would otherwise keep its engine and listeners alive.
+- On Android the notification router checks for a call screen before it
+  starts a call, so a call it cannot show is never started.
 - A call's device effects run through one serial lock and are released
   only while no other call holds the device, because one call's end must
   never undo the next call's start.

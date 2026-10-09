@@ -244,6 +244,11 @@ class CallNotificationRouter extends Notifier<void> {
       return;
     }
 
+    final navigator = globalNavigatorKey.currentState;
+    if (navigator == null && !ref.read(platformCapabilitiesProvider).voipRing) {
+      _reportFailure('Could not open the call screen.');
+      return;
+    }
     RingingCall.instance.set(call.callId);
     final session = ref
         .read(activeCallProvider.notifier)
@@ -261,14 +266,7 @@ class CallNotificationRouter extends Notifier<void> {
       _releaseSystemCall(call, SystemCallEnd.failed);
       return;
     }
-    final navigator = globalNavigatorKey.currentState;
     if (navigator == null) {
-      if (!ref.read(platformCapabilitiesProvider).voipRing) {
-        ref.read(activeCallProvider.notifier).clear(session);
-        RingingCall.instance.clear(call.callId);
-        _reportFailure('Could not open the call screen.');
-        return;
-      }
       unawaited(_openCallPageWhenShown(session, instant: instant));
     } else {
       _showCallScreen(navigator, session, instant: instant);

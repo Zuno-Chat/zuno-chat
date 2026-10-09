@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 import 'package:vodozemac/vodozemac.dart' as vod;
 
+import '../../matrix/database_compaction.dart';
 import '../../matrix/ephemeral_to_device.dart';
 import 'mention_spec.dart';
 
@@ -76,7 +77,10 @@ mixin InboundSessionHooks on DatabaseApi {
 }
 
 class SessionExportingDatabase extends MatrixSdkDatabase
-    with InboundSessionHooks, EphemeralToDeviceStorage {
+    with
+        InboundSessionHooks,
+        EphemeralToDeviceStorage,
+        CompactsAfterCacheClear {
   SessionExportingDatabase(
     super.name, {
     super.database,

@@ -3,6 +3,6 @@ New
 • Picture-in-picture for iPhone video calls.
 • Restore from a saved recovery code file.
 • Minimize a call and keep using Zuno.
-• Mute, use the speaker or turn your camera off while a call rings.
+• Mute, use the speaker or turn your camera off while your call rings.
 
-Fixed 25 bugs.
+Fixed 33 bugs.

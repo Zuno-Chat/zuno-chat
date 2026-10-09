@@ -29,6 +29,7 @@ import android.view.WindowManager
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import com.cloudwebrtc.webrtc.audio.AudioSwitchManager
 import im.zuno.chat.zuno_call_style.RingDecisions
 import im.zuno.chat.zuno_notifications.AppLaunchIntent
 import im.zuno.chat.zuno_notifications.RoomLaunchIntent
@@ -182,6 +183,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        AudioSwitchManager.setAudioSessionManagementEnabled(false)
         super.configureFlutterEngine(flutterEngine)
         if (duplicate) return
         val kept = adopted
@@ -277,13 +279,34 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
 
+                "startCallAudio" -> {
+                    host.callAudio.start(
+                        CallAudioRoute.fromWire(call.argument<String>("route"))
+                            ?: CallAudioRoute.Earpiece,
+                    )
+                    result.success(host.callAudio.state)
+                }
+
+                "stopCallAudio" -> {
+                    host.callAudio.stop()
+                    result.success(null)
+                }
+
+                "audioRoute" -> result.success(host.callAudio.state)
+
+                "setAudioRoute" -> {
+                    CallAudioRoute.fromWire(call.argument<String>("route"))
+                        ?.let(host.callAudio::setRoute)
+                    result.success(null)
+                }
+
                 "startRingbackTone" -> {
-                    host.startRingbackTone()
+                    host.callAudio.setRingbackWanted(true)
                     result.success(null)
                 }
 
                 "stopRingbackTone" -> {
-                    host.stopRingbackTone()
+                    host.callAudio.setRingbackWanted(false)
                     result.success(null)
                 }
 

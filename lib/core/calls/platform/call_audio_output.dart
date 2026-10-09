@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../platform/platform_capabilities.dart';
 import '../call_audio_route.dart';
@@ -17,15 +16,24 @@ typedef CallAudioSnapshot = ({
 abstract interface class CallAudioOutput {
   Future<CallAudioSnapshot> read();
 
+  Future<CallAudioSnapshot?> begin(CallAudioRoute route);
+
   Future<void> apply(CallAudioRoute route);
 
   void watch(void Function() onChanged);
 
   void unwatch();
+
+  Future<void> end();
 }
 
-CallAudioOutput callAudioOutputFor(PlatformCapabilities capabilities) =>
-    capabilities.callKit ? CallKitCallAudioOutput() : WebRtcCallAudioOutput();
+CallAudioOutput callAudioOutputFor(PlatformCapabilities capabilities) {
+  if (capabilities.callKit) return NativeCallAudioOutput(startsSession: false);
+  if (capabilities.nativeCallAudio) {
+    return NativeCallAudioOutput(startsSession: true);
+  }
+  return const NoCallAudioOutput();
+}
 
 CallAudioSnapshot callAudioSnapshotFrom(Map<Object?, Object?>? state) {
   final byName = CallAudioRoute.values.asNameMap();
@@ -40,52 +48,10 @@ CallAudioSnapshot callAudioSnapshotFrom(Map<Object?, Object?>? state) {
   return (headsets: headsets, route: byName[state?['route']]);
 }
 
-class WebRtcCallAudioOutput implements CallAudioOutput {
-  void Function(dynamic)? _handler;
+class NativeCallAudioOutput implements CallAudioOutput {
+  NativeCallAudioOutput({required this.startsSession});
 
-  @override
-  Future<CallAudioSnapshot> read() async {
-    try {
-      final outputs = await Helper.audiooutputs;
-      return (
-        headsets: headsetsIn(
-          outputs.map(
-            (output) => (deviceId: output.deviceId, groupId: output.groupId),
-          ),
-        ),
-        route: null,
-      );
-    } catch (_) {
-      return (headsets: const <CallAudioRoute>{}, route: null);
-    }
-  }
-
-  @override
-  Future<void> apply(CallAudioRoute route) => switch (route) {
-    CallAudioRoute.speaker => Helper.setSpeakerphoneOn(true),
-    CallAudioRoute.earpiece => Helper.setSpeakerphoneOn(false),
-    CallAudioRoute.wiredHeadset => Helper.selectAudioOutput('wired-headset'),
-    CallAudioRoute.bluetooth => Helper.selectAudioOutput('bluetooth'),
-  };
-
-  @override
-  void watch(void Function() onChanged) {
-    void handler(dynamic _) => onChanged();
-    _handler = handler;
-    navigator.mediaDevices.ondevicechange = handler;
-  }
-
-  @override
-  void unwatch() {
-    final handler = _handler;
-    _handler = null;
-    if (handler != null && navigator.mediaDevices.ondevicechange == handler) {
-      navigator.mediaDevices.ondevicechange = null;
-    }
-  }
-}
-
-class CallKitCallAudioOutput implements CallAudioOutput {
+  final bool startsSession;
   StreamSubscription<Map<Object?, Object?>>? _changes;
   CallAudioSnapshot? _pushed;
 
@@ -105,15 +71,23 @@ class CallKitCallAudioOutput implements CallAudioOutput {
   }
 
   @override
-  Future<void> apply(CallAudioRoute route) async {
+  Future<CallAudioSnapshot?> begin(CallAudioRoute route) async {
+    if (!startsSession) return null;
     try {
-      await _callsChannel.invokeMethod<void>('setAudioRoute', {
-        'route': route.name,
-      });
+      return callAudioSnapshotFrom(
+        await _callsChannel.invokeMapMethod<Object?, Object?>(
+          'startCallAudio',
+          {'route': route.name},
+        ),
+      );
     } on MissingPluginException {
-      return;
+      return null;
     }
   }
+
+  @override
+  Future<void> apply(CallAudioRoute route) =>
+      _invoke('setAudioRoute', {'route': route.name});
 
   @override
   void watch(void Function() onChanged) {
@@ -132,4 +106,41 @@ class CallKitCallAudioOutput implements CallAudioOutput {
     _changes = null;
     _pushed = null;
   }
+
+  @override
+  Future<void> end() async {
+    if (!startsSession) return;
+    await _invoke('stopCallAudio');
+  }
+
+  Future<void> _invoke(String method, [Object? arguments]) async {
+    try {
+      await _callsChannel.invokeMethod<void>(method, arguments);
+    } on MissingPluginException {
+      return;
+    }
+  }
+}
+
+class NoCallAudioOutput implements CallAudioOutput {
+  const NoCallAudioOutput();
+
+  @override
+  Future<CallAudioSnapshot> read() async =>
+      (headsets: const <CallAudioRoute>{}, route: null);
+
+  @override
+  Future<CallAudioSnapshot?> begin(CallAudioRoute route) async => null;
+
+  @override
+  Future<void> apply(CallAudioRoute route) async {}
+
+  @override
+  void watch(void Function() onChanged) {}
+
+  @override
+  void unwatch() {}
+
+  @override
+  Future<void> end() async {}
 }

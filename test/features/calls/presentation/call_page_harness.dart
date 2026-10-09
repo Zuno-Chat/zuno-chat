@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -117,9 +116,8 @@ class CallPageHarness extends CallChannelMocks {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  Future<void> changeAudioOutputs(List<String> ids) async {
-    audioOutputs = ids;
-    navigator.mediaDevices.ondevicechange?.call(null);
+  Future<void> changeHeadsets(List<String> connected) async {
+    await reportHeadsets(connected);
     await settle();
   }
 

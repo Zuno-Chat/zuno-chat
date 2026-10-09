@@ -9,10 +9,16 @@ final activeCallProvider = NotifierProvider<ActiveCallNotifier, CallSession?>(
 );
 
 class ActiveCallNotifier extends Notifier<CallSession?> {
+  CallSession? _held;
+
   @override
   CallSession? build() {
     markCallActiveInProcess(false);
-    ref.onDispose(() => markCallActiveInProcess(false));
+    ref.onDispose(() {
+      markCallActiveInProcess(false);
+      _held?.dispose();
+      _held = null;
+    });
     return null;
   }
 
@@ -32,7 +38,10 @@ class ActiveCallNotifier extends Notifier<CallSession?> {
   }
 
   void _hold(CallSession? session) {
+    final dropped = _held;
+    _held = session;
     state = session;
     markCallActiveInProcess(session != null);
+    if (dropped != null && !identical(dropped, session)) dropped.dispose();
   }
 }

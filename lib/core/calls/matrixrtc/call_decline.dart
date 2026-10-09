@@ -22,6 +22,7 @@ String callDeclineTxid(String callId) => 'zuno-decline-$callId';
 Future<String?> _sendDecline(Room room, String callId) => room.sendEvent(
   callDeclineContent(room, callId),
   txid: callDeclineTxid(callId),
+  displayPendingEvent: false,
 );
 
 Future<void> declineCall(Room room, String callId) =>

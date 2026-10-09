@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/features/chat/presentation/not_sent.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -41,6 +42,26 @@ void main() {
 
   test("someone else's event is never ours to resend", () {
     expect(isNotSent(message(EventStatus.error, senderId: '@a:x')), isFalse);
+  });
+
+  test('a call message that failed is never offered again, since a late '
+      'copy would describe a call that is over', () {
+    for (final msgtype in [
+      callInviteMsgtype,
+      callDeclineMsgtype,
+      callSummaryMsgtype,
+    ]) {
+      final failed = buildTestEvent(
+        room,
+        eventId: '\$$msgtype',
+        senderId: '@me:x',
+        status: EventStatus.error,
+        content: {'msgtype': msgtype, 'body': 'call', 'call_id': 'c1'},
+      );
+
+      expect(isNotSent(failed), isFalse, reason: msgtype);
+      expect(notSentOwnEvents([failed]), isEmpty, reason: msgtype);
+    }
   });
 
   test('notSentOwnEvents keeps only own failed events, in timeline order', () {

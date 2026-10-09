@@ -39,6 +39,7 @@ import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
+import '../../helpers/sent_call_declines.dart';
 
 Map<String, Object?> _invite(String callId, {CallKind kind = CallKind.voice}) =>
     {
@@ -152,18 +153,13 @@ void main() {
     return started;
   }
 
-  Set<String?> declinedCallIds() {
-    final declined = <String?>{};
-    client.onTimelineEvent.stream.listen((e) {
-      if (e.messageType == callDeclineMsgtype) {
-        declined.add(e.content.tryGet<String>('call_id'));
-      }
-    });
-    return declined;
-  }
+  late SentCallDeclines declines;
+
+  List<String?> declinedCallIds() => declines.watch();
 
   setUp(() async {
     ambientCapabilities = capabilitiesLike(iosCapabilities, voipRing: true);
+    declines = SentCallDeclines();
     ringRateLimiter.clear();
     RingingCall.instance.callId = null;
     SystemRing.instance.reset();
@@ -213,6 +209,7 @@ void main() {
         if (request.url.path.contains('/state/m.call.member/')) {
           return stateReply(request);
         }
+        declines.record(request);
         return http.Response(jsonEncode({'event_id': r'$sent'}), 200);
       }),
     );
@@ -302,7 +299,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(declined, {'call2'});
+      expect(declined, ['call2']);
       expect(container.read(resolvedCallIdsProvider), contains('call2'));
       expect(native.argsOf('reportIncomingCall'), isEmpty);
       expect(find.text('Missed call from Carol'), findsOneWidget);
@@ -322,7 +319,7 @@ void main() {
 
       await deliver(invite('call2'));
 
-      expect(declined, {'call2'});
+      expect(declined, ['call2']);
       expect(native.argsOf('reportIncomingCall'), isEmpty);
     });
 
@@ -624,7 +621,7 @@ void main() {
       await sendFromNative('declineCall', pushRing('call1'));
       await pumpEventQueue();
 
-      expect(declined, {'call1'});
+      expect(declined, ['call1']);
       expect(native.argsOf('declineSent'), [
         {'roomId': room.id, 'callId': 'call1'},
       ]);

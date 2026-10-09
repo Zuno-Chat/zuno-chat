@@ -351,33 +351,12 @@ void main() {
     });
   });
 
-  group('the microphone opening', () {
-    test('counts as soon as the capture returns, before the SFU answers', () {
+  group('opening local media', () {
+    test('before joining captures the microphone and camera at once, and '
+        'joining publishes them without capturing again', () {
       inCall((call) {
-        var captured = false;
-        unawaited(call.engine.microphoneCaptured.then((_) => captured = true));
-        call.sfu.sessionGate = Completer<void>();
-
-        final joining = call.engine.join();
-        call.flush();
-
-        expect(captured, isTrue);
-        expect(call.sfu.pushes, isEmpty);
-        call.sfu.sessionGate!.complete();
-        call.wait(joining);
-      }, kind: CallKind.video);
-    });
-
-    test('opening local media before joining captures the microphone and '
-        'camera at once, and joining publishes them without capturing '
-        'again', () {
-      inCall((call) {
-        var captured = false;
-        unawaited(call.engine.microphoneCaptured.then((_) => captured = true));
-
         call.wait(call.engine.startLocalMedia());
 
-        expect(captured, isTrue);
         expect(call.backend.captureConstraints.single['audio'], isTrue);
         expect(call.backend.captureConstraints.single['video'], isA<Map>());
         expect(call.backend.peerConnections, isEmpty);
@@ -395,8 +374,8 @@ void main() {
       }, kind: CallKind.video);
     });
 
-    test('under CallKit, opening local media arms the audio gate before the '
-        'microphone, once', () {
+    test('under CallKit arms the audio gate before the microphone, '
+        'once', () {
       inCall((call) {
         call.wait(call.engine.startLocalMedia());
         call.join();
@@ -407,7 +386,7 @@ void main() {
       }, capabilities: iosCapabilities);
     });
 
-    test('leaving while local media is still opening releases it', () {
+    test('leaving while it is still opening releases it', () {
       inCall((call) {
         final gate = Completer<void>();
         call.backend.captureGate = gate;
@@ -423,21 +402,113 @@ void main() {
       });
     });
 
-    test('never counts when the microphone is refused', () {
+    test('a hang-up before it reaches the microphone captures nothing', () {
       inCall((call) {
-        var captured = false;
-        unawaited(call.engine.microphoneCaptured.then((_) => captured = true));
-        call.backend.captureError = StateError('Permission denied');
-
-        expect(call.join, throwsA(isA<StateError>()));
+        final opening = call.engine.startLocalMedia();
+        call.engine.leave();
         call.flush();
+        call.wait(opening);
 
-        expect(captured, isFalse);
-      });
+        expect(call.backend.captureConstraints, isEmpty);
+      }, capabilities: iosCapabilities);
+    });
+
+    test('a capture it cannot take over is released, microphone and all', () {
+      inCall((call) {
+        call.backend.adoptErrors['local_video'] = StateError('no stream');
+
+        expect(
+          () => call.wait(call.engine.startLocalMedia()),
+          throwsA(isA<StateError>()),
+        );
+
+        expect(call.backend.captures.single.disposed, isTrue);
+        expect(call.backend.streams.single.id, 'local_audio');
+        expect(call.backend.streams.single.disposed, isTrue);
+        expect(call.local.audioStream, isNull);
+      }, kind: CallKind.video);
+    });
+
+    test(
+      'hanging up releases the capture behind the microphone and camera',
+      () {
+        inCall((call) {
+          call.joinEncrypted();
+
+          call.leave();
+
+          expect(call.backend.captures, isNotEmpty);
+          expect(
+            call.backend.captures,
+            everyElement(
+              isA<FakeMediaStream>().having(
+                (s) => s.disposed,
+                'disposed',
+                true,
+              ),
+            ),
+          );
+        }, kind: CallKind.video);
+      },
+    );
+
+    test('opened in the background where the camera would keep running, it '
+        'leaves the camera off until the app returns', () {
+      inCall(
+        (call) {
+          call.wait(call.engine.setAppInBackground(true));
+
+          call.wait(call.engine.startLocalMedia());
+
+          expect(call.backend.captureConstraints.single['video'], isFalse);
+          expect(call.local.videoStream, isNull);
+
+          call.wait(call.engine.setAppInBackground(false));
+
+          expect(call.backend.captureConstraints.last['video'], isA<Map>());
+          expect(call.local.videoStream, isNotNull);
+        },
+        kind: CallKind.video,
+        capabilities: androidCapabilities,
+      );
+    });
+
+    test('opened in the background where the camera stops by itself, it '
+        'captures the camera with the microphone', () {
+      inCall(
+        (call) {
+          call.wait(call.engine.setAppInBackground(true));
+
+          call.wait(call.engine.startLocalMedia());
+
+          expect(call.backend.captureConstraints.single['video'], isA<Map>());
+        },
+        kind: CallKind.video,
+        capabilities: iosCapabilities,
+      );
     });
   });
 
   group('joining fails', () {
+    test('an engine whose server address cannot be worked out still builds '
+        'and opens local media, and fails only when it joins', () {
+      fakeAsync((async) {
+        final call = EngineHarness(
+          async,
+          baseUri: () => throw StateError('no homeserver'),
+        );
+
+        call.wait(call.engine.startLocalMedia());
+        expect(call.local.audioStream, isNotNull);
+
+        expect(call.join, throwsA(isA<StateError>()));
+        expect(call.engine.status, CallEngineStatus.failed);
+
+        call.leave();
+        expect(call.backend.captures.single.disposed, isTrue);
+      });
+    });
+
     test('an SFU that refuses a session fails the join and releases the '
         'connection, and leaving releases the microphone', () {
       inCall((call) {
