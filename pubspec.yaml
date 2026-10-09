@@ -53,7 +53,7 @@ dependencies:
   flutter_riverpod: ^3.4.2
   matrix: ^12.0.1
   mime: ^2.1.0
-  flutter_secure_storage: ^11.0.0
+  flutter_secure_storage: ^11.2.0
   # SQLCipher-backed drop-in for sqflite — the Matrix SDK's local database
   # (access token, Olm account pickle, every inbound Megolm session,
   # cached plaintext) was previously stored unencrypted. Its `Database` is
@@ -84,9 +84,9 @@ dependencies:
   clock: ^1.1.2
   audioplayers: ^6.8.1
   shared_preferences: ^2.5.5
-  package_info_plus: ^10.2.1
+  package_info_plus: ^10.2.2
   http: ^1.6.0
-  share_plus: ^13.3.0
+  share_plus: ^13.3.1
   gal: ^2.3.3
   emoji_picker_flutter: ^4.5.3
   # Calls (see docs/features/calls.md): WebRTC media for the
@@ -95,11 +95,11 @@ dependencies:
   # during an active call.
   flutter_webrtc: ^1.6.0+hotfix.1
   permission_handler: ^13.0.2
-  flutter_local_notifications: ^22.3.0
+  flutter_local_notifications: ^22.3.1
   wakelock_plus: ^1.4.0
   light_compressor: ^2.2.0
   video_player: ^2.14.0
-  image: ^4.9.2
+  image: ^4.10.1
   flutter_svg: ^2.3.0
   unifiedpush: ^6.2.0
   # unifiedpush_platform_interface types (PublicKeySet, PushEndpoint) are
@@ -112,12 +112,12 @@ dependencies:
   # either side silently corrupts the payload (it scans fine and then
   # fails verification).
   qr_flutter: ^4.1.0
-  mobile_scanner: ^7.0.0
+  mobile_scanner: ^7.4.2
   # Already present transitively (flutter_html depends on it) and already
   # version-pinned below — listed directly because
   # sanitize_message_html.dart imports package:html/dom.dart by name to
   # walk and rebuild a message's formatted_body against an allowlist.
-  html: ^0.15.6
+  html: ^0.15.7
   # Already present transitively (the matrix SDK depends on it) — listed
   # directly because attachment_cache.dart hashes cache keys with sha256
   # so the on-disk filenames carry no metadata.
@@ -125,8 +125,8 @@ dependencies:
   blurhash_dart: ^1.2.1
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
-  geolocator: ^14.0.3
-  sentry_flutter: ^9.30.0
+  geolocator: ^14.1.1
+  sentry_flutter: ^9.30.1
 dev_dependencies:
   # Deterministic time for the poll/timeout loops on the call paths
   # (await_room.dart) — a real 10s wait is not a test.
