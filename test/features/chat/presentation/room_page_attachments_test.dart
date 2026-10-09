@@ -23,6 +23,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
+import 'package:zuno/features/chat/presentation/message_composer.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
@@ -68,6 +69,7 @@ class _FakeImagePicker extends ImagePickerPlatform {
 class _FakeFilePicker extends FilePickerPlatform {
   List<PlatformFile> answer = [];
   Object? error;
+  Completer<void>? copying;
 
   @override
   Future<List<PlatformFile>> pickFiles({
@@ -83,6 +85,11 @@ class _FakeFilePicker extends FilePickerPlatform {
     LinuxOptions linuxOptions = const LinuxOptions(),
     WebOptions webOptions = const WebOptions(),
   }) async {
+    final copying = this.copying;
+    if (copying != null) {
+      onFileLoading?.call(FilePickerStatus.picking);
+      await copying.future;
+    }
     final error = this.error;
     if (error != null) throw error;
     return answer;
@@ -592,6 +599,11 @@ void main() {
   });
 
   group('files', () {
+    Finder attachSpinner() => find.descendant(
+      of: find.byType(MessageComposer),
+      matching: find.byType(CircularProgressIndicator),
+    );
+
     testWidgets('a file is sent under its name', (tester) async {
       files.answer = [
         FakePickedFile('notes.pdf', Uint8List.fromList([1, 2])),
@@ -634,6 +646,42 @@ void main() {
 
       expect(harness.sent.single['body'], 'notes.pdf');
       expect(copy.existsSync(), isFalse);
+    });
+
+    testWidgets('attach spins while the picked file is on its way', (
+      tester,
+    ) async {
+      files.copying = Completer<void>();
+      files.answer = [
+        FakePickedFile('notes.pdf', Uint8List.fromList([1])),
+      ];
+      await openRoom(tester);
+
+      await choose(tester, 'Choose file');
+
+      expect(attachSpinner(), findsOneWidget);
+      expect(harness.sent, isEmpty);
+
+      files.copying!.complete();
+      await harness.drive(tester);
+
+      expect(attachSpinner(), findsNothing);
+      expect(harness.sent.single['body'], 'notes.pdf');
+    });
+
+    testWidgets('a pick that fails on its way stops the spin and says so', (
+      tester,
+    ) async {
+      files.copying = Completer<void>();
+      files.error = PlatformException(code: 'unknown_path');
+      await openRoom(tester);
+
+      await choose(tester, 'Choose file');
+      files.copying!.complete();
+      await harness.drive(tester);
+
+      expect(attachSpinner(), findsNothing);
+      expect(find.text('Files did not open. Try again.'), findsOneWidget);
     });
 
     testWidgets('nothing picked sends nothing', (tester) async {

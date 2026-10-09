@@ -139,6 +139,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   final _recorder = AudioRecorder();
   bool _recording = false;
+  bool _gettingFile = false;
   final _recordingDuration = ValueNotifier(Duration.zero);
 
   @visibleForTesting
@@ -1151,7 +1152,12 @@ class _RoomPageState extends ConsumerState<RoomPage>
   }
 
   Future<void> _pickAndSendFile() async {
-    final files = await FilePicker.pickFiles();
+    final files = await trackPickerCopy(
+      (onFileLoading) => FilePicker.pickFiles(onFileLoading: onFileLoading),
+      onCopying: (copying) {
+        if (mounted) setState(() => _gettingFile = copying);
+      },
+    );
     try {
       for (final file in files) {
         final bytes = await file.readAsBytes();
@@ -1806,6 +1812,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
                             controller: _input,
                             onSend: _send,
                             onAttach: _showAttachmentMenu,
+                            attaching: _gettingFile,
                             incognitoKeyboard: incognitoKeyboard,
                             isRecording: _recording,
                             recordingDuration: _recordingDuration,

@@ -10,6 +10,7 @@ class MessageComposer extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
   final VoidCallback onAttach;
+  final bool attaching;
   final bool incognitoKeyboard;
   final bool isRecording;
   final ValueListenable<Duration> recordingDuration;
@@ -26,6 +27,7 @@ class MessageComposer extends StatelessWidget {
     required this.controller,
     required this.onSend,
     required this.onAttach,
+    required this.attaching,
     required this.incognitoKeyboard,
     required this.isRecording,
     required this.recordingDuration,
@@ -124,9 +126,17 @@ class MessageComposer extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.attach_file_outlined),
+                          icon: attaching
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.attach_file_outlined),
                           color: hintColor,
-                          onPressed: onAttach,
+                          onPressed: attaching ? null : onAttach,
                         ),
                         Expanded(
                           child: TextField(

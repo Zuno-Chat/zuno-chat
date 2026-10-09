@@ -9,48 +9,52 @@ void main() {
   late TextEditingController controller;
   late ValueNotifier<Duration> duration;
   late int sends;
+  late int attaches;
   late int probeBuilds;
 
   setUp(() {
     controller = TextEditingController();
     duration = ValueNotifier(Duration.zero);
     sends = 0;
+    attaches = 0;
     probeBuilds = 0;
     addTearDown(controller.dispose);
     addTearDown(duration.dispose);
   });
 
-  Widget harness({bool recording = false}) => MaterialApp(
-    theme: zunoLightTheme,
-    home: Scaffold(
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Builder(
-            builder: (context) {
-              probeBuilds++;
-              return const SizedBox.shrink();
-            },
+  Widget harness({bool recording = false, bool attaching = false}) =>
+      MaterialApp(
+        theme: zunoLightTheme,
+        home: Scaffold(
+          body: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Builder(
+                builder: (context) {
+                  probeBuilds++;
+                  return const SizedBox.shrink();
+                },
+              ),
+              MessageComposer(
+                controller: controller,
+                onSend: () => sends++,
+                onAttach: () => attaches++,
+                attaching: attaching,
+                incognitoKeyboard: false,
+                isRecording: recording,
+                recordingDuration: duration,
+                recordingWillCancel: false,
+                tapToggleRecording: false,
+                onMicPointerDown: (_) {},
+                onMicPointerMove: (_) {},
+                onMicPointerUp: (_) {},
+                onMicPointerCancel: (_) {},
+                onCancelRecording: () {},
+              ),
+            ],
           ),
-          MessageComposer(
-            controller: controller,
-            onSend: () => sends++,
-            onAttach: () {},
-            incognitoKeyboard: false,
-            isRecording: recording,
-            recordingDuration: duration,
-            recordingWillCancel: false,
-            tapToggleRecording: false,
-            onMicPointerDown: (_) {},
-            onMicPointerMove: (_) {},
-            onMicPointerUp: (_) {},
-            onMicPointerCancel: (_) {},
-            onCancelRecording: () {},
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 
   testWidgets('the box grows to five lines, then scrolls', (tester) async {
     await tester.pumpWidget(harness());
@@ -70,6 +74,28 @@ void main() {
 
     expect(fiveLines, greaterThan(oneLine));
     expect(nineLines, fiveLines);
+  });
+
+  testWidgets('attach opens the menu while no file is on its way', (
+    tester,
+  ) async {
+    await tester.pumpWidget(harness());
+
+    await tester.tap(find.byIcon(Icons.attach_file_outlined));
+
+    expect(attaches, 1);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('attach spins and waits while a file is on its way', (
+    tester,
+  ) async {
+    await tester.pumpWidget(harness(attaching: true));
+
+    expect(find.byIcon(Icons.attach_file_outlined), findsNothing);
+    await tester.tap(find.byType(CircularProgressIndicator));
+
+    expect(attaches, 0);
   });
 
   testWidgets('Enter inserts a new line and does not send', (tester) async {

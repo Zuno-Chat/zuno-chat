@@ -33,10 +33,19 @@ Future<String?> readPickedRecoveryCodeFile(
   List<Directory>? temporaryRoots,
 }) async {
   try {
-    final length = file.lengthSync() ?? await file.length();
-    if (length > _maxRecoveryCodeFileBytes) return null;
-    return decodeRecoveryCodeFile(await file.readAsBytes());
+    return decodeRecoveryCodeFile(
+      await _readAtMost(file.readAsByteStream(), _maxRecoveryCodeFileBytes + 1),
+    );
   } finally {
     await discardPickedCopy(file, temporaryRoots: temporaryRoots);
   }
+}
+
+Future<Uint8List> _readAtMost(Stream<Uint8List> stream, int limit) async {
+  final bytes = BytesBuilder(copy: false);
+  await for (final chunk in stream) {
+    bytes.add(chunk);
+    if (bytes.length >= limit) break;
+  }
+  return bytes.takeBytes();
 }

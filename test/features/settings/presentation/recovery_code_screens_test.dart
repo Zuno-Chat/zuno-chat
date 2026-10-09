@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -573,6 +574,29 @@ void main() {
         expect(fieldText(tester), code);
         expect(find.text('Looks right.'), findsOneWidget);
         expect(submits, 0);
+      });
+
+      testWidgets('spins while the saved file is on its way', (tester) async {
+        final code = validWords(12).join(' ');
+        picker
+          ..copying = Completer<void>()
+          ..picked = FakePickedFile(
+            'zuno-recovery-code.txt',
+            Uint8List.fromList(utf8.encode('$code\n')),
+          );
+        await pumpField(tester);
+
+        await tester.tap(find.text('Open a saved file'));
+        await tester.pump();
+
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(find.byIcon(Icons.file_open_outlined), findsNothing);
+
+        picker.copying!.complete();
+        await tester.pumpAndSettle();
+
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+        expect(fieldText(tester), code);
       });
 
       testWidgets('a cancelled pick changes nothing', (tester) async {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -165,7 +166,7 @@ final class FakePickedFile extends PlatformFile {
   int? lengthSync() => bytes.length;
 
   @override
-  Future<int> length() async => bytes.length;
+  Future<int?> length() async => bytes.length;
 
   @override
   Future<Uint8List> readAsBytes() async {
@@ -175,7 +176,10 @@ final class FakePickedFile extends PlatformFile {
   }
 
   @override
-  Stream<Uint8List> readAsByteStream() => Stream.value(bytes);
+  Stream<Uint8List> readAsByteStream() {
+    final error = readError;
+    return error != null ? Stream.error(error) : Stream.value(bytes);
+  }
 }
 
 class FakeFilePicker extends FilePickerPlatform {
@@ -183,6 +187,7 @@ class FakeFilePicker extends FilePickerPlatform {
   final saved = <({String fileName, Uint8List bytes, String mimeType})>[];
   PlatformFile? picked;
   Object? pickError;
+  Completer<void>? copying;
   int picks = 0;
 
   @override
@@ -200,6 +205,11 @@ class FakeFilePicker extends FilePickerPlatform {
     WebOptions webOptions = const WebOptions(),
   }) async {
     picks++;
+    final copying = this.copying;
+    if (copying != null) {
+      onFileLoading?.call(FilePickerStatus.picking);
+      await copying.future;
+    }
     final error = pickError;
     if (error != null) throw error;
     return picked;
