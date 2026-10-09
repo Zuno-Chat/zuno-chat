@@ -124,16 +124,47 @@ void main() {
       tester.widget<CallStatusLine>(find.byType(CallStatusLine)).status;
 
   group('before anyone has joined', () {
-    testWidgets('the caller sees who is being called, and only End call '
-        'works', (tester) async {
-      await pump(tester, connecting: true, calling: true);
+    testWidgets('the caller sees who is being called, and every button works '
+        'before the call connects', (tester) async {
+      await pump(tester, kind: CallKind.video, connecting: true, calling: true);
 
       expect(find.byType(VoiceCallStage), findsOneWidget);
       expect(find.text('Weekend hike'), findsOneWidget);
       expect(find.text('Calling…'), findsOneWidget);
+      for (final tooltip in [
+        'Mute',
+        'Turn camera on',
+        'Turn speaker on',
+        'End call',
+      ]) {
+        await tester.tap(find.byTooltip(tooltip));
+      }
+      expect(pressed, ['mute', 'camera', 'speaker', 'end']);
+    });
+
+    testWidgets('until your own state is known only End call works', (
+      tester,
+    ) async {
+      await pump(tester, connecting: true, calling: true, withLocal: false);
+
       await tester.tap(find.byTooltip('Mute'), warnIfMissed: false);
       await tester.tap(find.byTooltip('End call'));
       expect(pressed, ['end']);
+    });
+
+    testWidgets('your own camera view waits until the call connects', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        kind: CallKind.video,
+        connecting: true,
+        calling: true,
+        localCamera: true,
+      );
+
+      expect(find.byType(ParticipantTile), findsNothing);
+      expect(find.byTooltip('Switch camera'), findsOneWidget);
     });
 
     testWidgets('the person answering sees Connecting', (tester) async {

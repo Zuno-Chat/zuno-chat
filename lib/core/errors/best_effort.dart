@@ -18,3 +18,10 @@ Future<bool> runBestEffort(
     return false;
   }
 }
+
+Future<void> quietly(Future<void> Function()? action) async {
+  if (action == null) return;
+  try {
+    await action();
+  } catch (_) {}
+}

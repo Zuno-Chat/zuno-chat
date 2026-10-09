@@ -12,7 +12,7 @@ import 'package:zuno/core/calls/cloudflare/cloudflare_api_client.dart';
 const _base = '/_synapse/client/zuno/calls/cloudflare';
 
 CloudflareApiClient _client(http.Client mock) => CloudflareApiClient(
-  baseUri: Uri.parse('https://example.org$_base'),
+  baseUri: () => Uri.parse('https://example.org$_base'),
   authorization: () async => 'Bearer syt_token',
   httpClient: mock,
 );

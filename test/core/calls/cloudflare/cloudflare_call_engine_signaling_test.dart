@@ -351,18 +351,108 @@ void main() {
     });
   });
 
+  group('the microphone opening', () {
+    test('counts as soon as the capture returns, before the SFU answers', () {
+      inCall((call) {
+        var captured = false;
+        unawaited(call.engine.microphoneCaptured.then((_) => captured = true));
+        call.sfu.sessionGate = Completer<void>();
+
+        final joining = call.engine.join();
+        call.flush();
+
+        expect(captured, isTrue);
+        expect(call.sfu.pushes, isEmpty);
+        call.sfu.sessionGate!.complete();
+        call.wait(joining);
+      }, kind: CallKind.video);
+    });
+
+    test('opening local media before joining captures the microphone and '
+        'camera at once, and joining publishes them without capturing '
+        'again', () {
+      inCall((call) {
+        var captured = false;
+        unawaited(call.engine.microphoneCaptured.then((_) => captured = true));
+
+        call.wait(call.engine.startLocalMedia());
+
+        expect(captured, isTrue);
+        expect(call.backend.captureConstraints.single['audio'], isTrue);
+        expect(call.backend.captureConstraints.single['video'], isA<Map>());
+        expect(call.backend.peerConnections, isEmpty);
+        expect(call.local.audioStream, isNotNull);
+        expect(call.local.videoStream, isNotNull);
+        final announced = call.emitted.last.singleWhere((p) => p.isLocal);
+        expect(announced.audioStream, isNotNull);
+
+        call.joinEncrypted();
+
+        expect(call.backend.captureConstraints, hasLength(1));
+        final [audio, video] = call.pc.rtpTransceivers;
+        expect(audio.sender.track, call.microphone);
+        expect(video.sender.track, same(call.camera));
+      }, kind: CallKind.video);
+    });
+
+    test('under CallKit, opening local media arms the audio gate before the '
+        'microphone, once', () {
+      inCall((call) {
+        call.wait(call.engine.startLocalMedia());
+        call.join();
+
+        expect(call.backend.audioArms, [
+          (capturesBefore: 0, connectionsBefore: 0),
+        ]);
+      }, capabilities: iosCapabilities);
+    });
+
+    test('leaving while local media is still opening releases it', () {
+      inCall((call) {
+        final gate = Completer<void>();
+        call.backend.captureGate = gate;
+        final opening = call.engine.startLocalMedia();
+        call.flush();
+
+        call.leave();
+        gate.complete();
+        call.wait(opening);
+
+        expect(call.backend.captures.single.disposed, isTrue);
+        expect(call.local.audioStream, isNull);
+      });
+    });
+
+    test('never counts when the microphone is refused', () {
+      inCall((call) {
+        var captured = false;
+        unawaited(call.engine.microphoneCaptured.then((_) => captured = true));
+        call.backend.captureError = StateError('Permission denied');
+
+        expect(call.join, throwsA(isA<StateError>()));
+        call.flush();
+
+        expect(captured, isFalse);
+      });
+    });
+  });
+
   group('joining fails', () {
     test('an SFU that refuses a session fails the join and releases the '
-        'capture and the connection', () {
+        'connection, and leaving releases the microphone', () {
       inCall((call) {
         call.sfu.sessionStatus = 500;
 
         expect(call.join, throwsA(isA<CloudflareCallsException>()));
 
         expect(call.engine.status, CallEngineStatus.failed);
-        expect(call.backend.captures.single.disposed, isTrue);
         expect(call.pc.disposed, isTrue);
         expect(call.sfu.pushes, isEmpty);
+
+        call.leave();
+
+        expect(call.backend.streams, isNotEmpty);
+        expect(call.backend.streams.every((s) => s.disposed), isTrue);
       });
     });
 

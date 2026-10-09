@@ -39,8 +39,15 @@ class FakeCallEngine implements CallEngine {
     statusController.add(next);
   }
 
+  List<CallEngineParticipant> _participants = const [];
+
   @override
-  List<CallEngineParticipant> participants = const [];
+  List<CallEngineParticipant> get participants => _participants;
+
+  set participants(List<CallEngineParticipant> next) {
+    _participants = next;
+    participantsController.add(next);
+  }
 
   final participantsController =
       StreamController<List<CallEngineParticipant>>.broadcast();
@@ -49,16 +56,28 @@ class FakeCallEngine implements CallEngine {
   Stream<List<CallEngineParticipant>> get participantsStream =>
       participantsController.stream;
 
-  void setParticipants(List<CallEngineParticipant> next) {
-    participants = next;
-    participantsController.add(next);
-  }
+  void setParticipants(List<CallEngineParticipant> next) => participants = next;
 
   @override
   final CallKind kind;
 
+  final microphone = Completer<void>();
+  int startLocalMediaCalls = 0;
+  Completer<void>? startGate;
+
+  @override
+  Future<void> get microphoneCaptured => microphone.future;
+
+  @override
+  Future<void> startLocalMedia() async {
+    startLocalMediaCalls++;
+    await startGate?.future;
+    if (!microphone.isCompleted) microphone.complete();
+  }
+
   @override
   Future<void> join() async {
+    if (!microphone.isCompleted) microphone.complete();
     await joinGate?.future;
     if (failJoin) {
       throw joinError ?? StateError('engine failed to connect to the SFU');

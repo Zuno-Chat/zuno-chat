@@ -184,7 +184,7 @@ class EngineHarness {
     PlatformCapabilities? capabilities,
   }) {
     engine = CloudflareCallEngine(
-      baseUri: Uri.parse(
+      baseUri: () => Uri.parse(
         'https://example.org/_synapse/client/zuno/calls/cloudflare',
       ),
       authorization: () async => 'Bearer test-token',

@@ -76,10 +76,14 @@ class _NativeAudio {
 }
 
 void main() {
-  FakeCallSession callerSession() => FakeCallSession(
+  FakeCallSession callerSession({
+    CallKind kind = CallKind.voice,
+    bool microphonePending = false,
+  }) => FakeCallSession(
     room: CallPageHarness.buildRoom(),
-    kind: CallKind.voice,
+    kind: kind,
     role: CallSessionRole.caller,
+    microphonePending: microphonePending,
   );
 
   FakeCallSession calleeSession(CallKind kind) =>
@@ -132,10 +136,60 @@ void main() {
     expect(navigator.mediaDevices.ondevicechange, isNull);
   });
 
+  for (final (kind, outputs, route) in [
+    (CallKind.video, ['earpiece', 'speaker'], 'speaker'),
+    (CallKind.voice, ['earpiece', 'speaker'], 'earpiece'),
+    (CallKind.video, ['earpiece', 'speaker', 'bluetooth'], 'bluetooth'),
+    (CallKind.voice, ['earpiece', 'speaker', 'wired-headset'], 'wired-headset'),
+  ]) {
+    testWidgets('android holds a ${kind.name} call\'s ringback until the '
+        'microphone is open, then plays it on the $route', (tester) async {
+      final harness = CallPageHarness(tester, capabilities: androidCapabilities)
+        ..audioOutputs = outputs;
+      String? routeAtRingback;
+      harness.callsReply = (call) {
+        if (call.method == 'startRingbackTone') {
+          routeAtRingback = harness.audioRoute;
+        }
+        return null;
+      };
+      final session = callerSession(kind: kind, microphonePending: true);
+      await harness.open(session);
+
+      expect(harness.count('startRingbackTone'), 0);
+
+      session.captureMicrophone();
+      await harness.settle();
+
+      expect(harness.ringbackPlaying, isTrue);
+      expect(routeAtRingback, route);
+      session.end();
+      await harness.settle();
+      expect(harness.ringbackPlaying, isFalse);
+    });
+  }
+
+  testWidgets('a speaker choice made before the call knows its route is '
+      'kept', (tester) async {
+    final harness = CallPageHarness(tester, capabilities: androidCapabilities);
+    final session = _SlowPermissionSession();
+    session.engine.participants = [localParticipant(camera: true)];
+    await harness.open(session);
+
+    await tester.tap(find.byTooltip('Turn speaker off'));
+    await harness.settle();
+    session.granted.complete();
+    await harness.settle();
+
+    expect(harness.audioRoute, 'earpiece');
+    expect(harness.speakerIcon, Icons.hearing_outlined);
+    await harness.close();
+  });
+
   testWidgets('ios plays the native ringback, leaves the starting route to '
       'the system, and runs no call service', (tester) async {
     final harness = CallPageHarness(tester, capabilities: iosCapabilities);
-    final session = callerSession();
+    final session = callerSession(microphonePending: true);
     await harness.open(session);
 
     expect(find.byType(CallPage), findsOneWidget);

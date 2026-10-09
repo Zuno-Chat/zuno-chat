@@ -17,6 +17,7 @@ import '../models/call_quality.dart';
 import '../models/voip_participant_id.dart';
 import 'call_quality_policy.dart';
 import 'cloudflare_api_client.dart';
+import 'local_media.dart';
 import 'negotiation_lock.dart';
 import 'opus_send_params.dart';
 import 'remote_track_plan.dart';
@@ -32,13 +33,6 @@ RTCSessionDescription _remoteDescription(CfSessionDescription description) =>
       description.type,
     );
 
-Future<void> _quietly(Future<void> Function()? action) async {
-  if (action == null) return;
-  try {
-    await action();
-  } catch (_) {}
-}
-
 class CloudflareCallEngine implements CallEngine {
   final CloudflareApiClient _api;
   final WebRtcBackend _webRtc;
@@ -47,15 +41,12 @@ class CloudflareCallEngine implements CallEngine {
   RTCPeerConnection? _pc;
   String? _sessionId;
 
-  MediaStream? _localAudioStream;
-  MediaStream? _localVideoStream;
+  final LocalMedia _media;
+  Future<void>? _callAudioPrepared;
   RTCRtpTransceiver? _localAudioTransceiver;
   RTCRtpTransceiver? _localVideoTransceiver;
-  bool _micMuted = false;
-  bool _cameraEnabled;
   bool _sendingCamera = false;
   bool _inBackground = false;
-  MediaStream? _restartedCapture;
   Future<void> _cameraWork = Future<void>.value();
   final Set<String> _sendingTrackNames = {};
   Timer? _firstMediaTimer;
@@ -86,7 +77,7 @@ class CloudflareCallEngine implements CallEngine {
   bool _isLiveConnection(RTCPeerConnection pc) => !_left && identical(_pc, pc);
 
   CloudflareCallEngine({
-    required Uri baseUri,
+    required Uri Function() baseUri,
     required Future<String> Function() authorization,
     required CallKind kind,
     Future<List<Map<String, Object?>>>? iceServers,
@@ -102,22 +93,16 @@ class CloudflareCallEngine implements CallEngine {
        ),
        _iceServers = iceServers ?? Future.value(const []),
        _kind = kind,
-       _cameraEnabled = kind == CallKind.video;
+       _media = LocalMedia(
+         _webRtc,
+         lowDataMode: lowDataMode,
+         cameraEnabled: kind == CallKind.video,
+       );
 
   final PlatformCapabilities? _injectedCapabilities;
 
   PlatformCapabilities get _capabilities =>
       _injectedCapabilities ?? ambientCapabilities;
-
-  Map<String, Object?> get _videoConstraints {
-    final size = captureSizeFor(lowDataMode: lowDataMode);
-    return {
-      'facingMode': _frontCamera ? 'user' : 'environment',
-      'width': size.width,
-      'height': size.height,
-      'frameRate': 30,
-    };
-  }
 
   @override
   Future<void> setEncryptionKey(Uint8List key) async {
@@ -175,18 +160,10 @@ class CloudflareCallEngine implements CallEngine {
     }
   }
 
-  void _applyLocalTrackState() {
-    final audioEncrypted = _frameCryptors.containsKey('local-audio');
-    final videoEncrypted = _frameCryptors.containsKey('local-video');
-    for (final track
-        in _localAudioStream?.getAudioTracks() ?? const <MediaStreamTrack>[]) {
-      track.enabled = audioEncrypted && !_micMuted;
-    }
-    for (final track
-        in _localVideoStream?.getVideoTracks() ?? const <MediaStreamTrack>[]) {
-      track.enabled = videoEncrypted && _cameraEnabled;
-    }
-  }
+  void _applyLocalTrackState() => _media.applyTrackState(
+    microphoneEncrypted: _frameCryptors.containsKey('local-audio'),
+    cameraEncrypted: _frameCryptors.containsKey('local-video'),
+  );
 
   Future<void> _wrapLocalSenders(KeyProvider keyProvider) async {
     if (_localAudioTransceiver case final t?) {
@@ -275,13 +252,13 @@ class CloudflareCallEngine implements CallEngine {
     CallEngineParticipant(
       id: _localId,
       isLocal: true,
-      audioStream: _localAudioStream,
-      videoStream: _localVideoStream,
-      audioMuted: _micMuted,
-      videoEnabled: _cameraEnabled,
+      audioStream: _media.microphoneStream,
+      videoStream: _media.cameraStream,
+      audioMuted: _media.microphoneMuted,
+      videoEnabled: _media.cameraEnabled,
       encrypted: _keyProvider != null,
       lowBandwidth: _classifier.current != CallQuality.good,
-      frontCamera: _frontCamera,
+      frontCamera: _media.frontCamera,
     ),
     ..._remote.values.map((r) => r.toParticipant()),
   ];
@@ -291,6 +268,9 @@ class CloudflareCallEngine implements CallEngine {
 
   @override
   CallKind get kind => _kind;
+
+  @override
+  Future<void> get microphoneCaptured => _media.microphoneCaptured;
 
   @override
   CallQuality get quality => _classifier.current;
@@ -435,7 +415,16 @@ class CloudflareCallEngine implements CallEngine {
   }
 
   @override
-  Future<void> join() async {
+  Future<void> startLocalMedia() async {
+    if (_left) return;
+    await _prepareCallAudio();
+    await _serialCameraWork(_media.open);
+    _notifyParticipants();
+  }
+
+  Future<void> _prepareCallAudio() => _callAudioPrepared ??= _armCallAudio();
+
+  Future<void> _armCallAudio() async {
     if (_capabilities.callKit) {
       await runBestEffort(
         _webRtc.armSystemCallAudio,
@@ -448,44 +437,17 @@ class CloudflareCallEngine implements CallEngine {
         label: 'set microphone mute mode',
       );
     }
-    final mediaFuture = _webRtc.getUserMedia({
-      'audio': true,
-      'video': _kind == CallKind.video ? _videoConstraints : false,
-    });
-    var mediaAdopted = false;
-    MediaStream? capturedStream;
-    try {
-      final results = await Future.wait<Object?>(
-        [_openConnection().then((_) => null), mediaFuture],
-        eagerError: true,
-        cleanUp: (value) {
-          if (value is MediaStream) unawaited(_quietly(value.dispose));
-        },
-      );
-      final stream = results[1] as MediaStream;
-      capturedStream = stream;
-      if (_left) {
-        await _discardLocalCapture(stream);
-        return;
-      }
+  }
 
-      _localAudioStream = await _webRtc.createLocalMediaStream('local_audio');
-      for (final track in stream.getAudioTracks()) {
-        await _localAudioStream!.addTrack(track);
-      }
-      final videoTracks = stream.getVideoTracks();
-      if (videoTracks.isNotEmpty) {
-        _localVideoStream = await _webRtc.createLocalMediaStream('local_video');
-        for (final track in videoTracks) {
-          await _localVideoStream!.addTrack(track);
-        }
-        _frontCamera = true;
-      }
-      mediaAdopted = true;
-      if (_left) {
-        await _discardLocalCapture(stream);
-        return;
-      }
+  @override
+  Future<void> join() async {
+    await _prepareCallAudio();
+    try {
+      await Future.wait<void>([
+        _openConnection(),
+        startLocalMedia(),
+      ], eagerError: true);
+      if (_left) return;
 
       await _serialCameraWork(_publishLocalMedia);
       if (_left) return;
@@ -496,7 +458,6 @@ class CloudflareCallEngine implements CallEngine {
         (_) => unawaited(_pollStats()),
       );
     } catch (_) {
-      if (!mediaAdopted) await _quietly(capturedStream?.dispose);
       _setStatus(CallEngineStatus.failed);
       rethrow;
     }
@@ -538,17 +499,7 @@ class CloudflareCallEngine implements CallEngine {
   }
 
   Future<void> _disposePeerConnection(RTCPeerConnection pc) =>
-      _quietly(pc.dispose);
-
-  Future<void> _discardLocalCapture(MediaStream? captured) async {
-    final audio = _localAudioStream;
-    final video = _localVideoStream;
-    _localAudioStream = null;
-    _localVideoStream = null;
-    await _quietly(audio?.dispose);
-    await _quietly(video?.dispose);
-    await _quietly(captured?.dispose);
-  }
+      quietly(pc.dispose);
 
   Future<void> _publishLocalMedia() async {
     await _attachLocalMediaAndPublish();
@@ -562,7 +513,7 @@ class CloudflareCallEngine implements CallEngine {
     final pc = _pc;
     if (pc == null || !_isLiveConnection(pc)) return;
     _localAudioTransceiver = await pc.addTransceiver(
-      track: _localAudioStream!.getAudioTracks().first,
+      track: _media.microphone!,
       init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendOnly),
     );
     if (!_isLiveConnection(pc)) return;
@@ -577,8 +528,8 @@ class CloudflareCallEngine implements CallEngine {
     if (!_isLiveConnection(pc)) return;
 
     _localVideoTransceiver = null;
-    final camera = _cameraTrack;
-    final videoTrack = camera != null && _cameraEnabled && !_inBackground
+    final camera = _media.camera;
+    final videoTrack = camera != null && _media.cameraEnabled && !_inBackground
         ? camera
         : await _placeholderTrack() ?? camera;
     if (!_isLiveConnection(pc)) return;
@@ -601,7 +552,9 @@ class CloudflareCallEngine implements CallEngine {
     if (!_isLiveConnection(pc)) return;
     _applyLocalTrackState();
     _setSendingCamera(
-      videoTrack != null && identical(videoTrack, camera) && _cameraEnabled,
+      videoTrack != null &&
+          identical(videoTrack, camera) &&
+          _media.cameraEnabled,
     );
 
     if (!_isLiveConnection(pc)) return;
@@ -933,12 +886,7 @@ class CloudflareCallEngine implements CallEngine {
     }
     _keyProvider = null;
 
-    await _quietly(_localAudioStream?.dispose);
-    await _quietly(_localVideoStream?.dispose);
-    await _quietly(_restartedCapture?.dispose);
-    _localAudioStream = null;
-    _localVideoStream = null;
-    _restartedCapture = null;
+    await _media.close();
     _localAudioTransceiver = null;
     _localVideoTransceiver = null;
 
@@ -951,7 +899,7 @@ class CloudflareCallEngine implements CallEngine {
 
   @override
   Future<void> setMicrophoneMuted(bool muted) async {
-    _micMuted = muted;
+    _media.microphoneMuted = muted;
     _applyLocalTrackState();
     _notifyParticipants();
   }
@@ -959,18 +907,17 @@ class CloudflareCallEngine implements CallEngine {
   @override
   Future<void> setCameraEnabled(bool enabled) async {
     if (enabled && _kind == CallKind.voice) return switchToVideo();
-    _cameraEnabled = enabled;
+    _media.cameraEnabled = enabled;
     _notifyParticipants();
     await _serialCameraWork(_applyCameraState);
   }
 
-  bool _frontCamera = true;
-
   @override
-  Future<void> switchCamera() async {
-    final track = _cameraTrack;
-    if (track == null) return;
-    _frontCamera = await _webRtc.switchCamera(track);
+  Future<void> switchCamera() => _serialCameraWork(_switchCameraOnce);
+
+  Future<void> _switchCameraOnce() async {
+    if (_media.camera == null && _localVideoTransceiver != null) return;
+    await _media.switchCamera();
     _notifyParticipants();
   }
 
@@ -996,13 +943,13 @@ class CloudflareCallEngine implements CallEngine {
 
   Future<void> _switchToVideoOnce() async {
     if (_left) return;
-    _cameraEnabled = true;
+    _media.cameraEnabled = true;
     try {
       await _applyCameraState();
     } catch (_) {
-      _cameraEnabled = false;
+      _media.cameraEnabled = false;
       _setSendingCamera(false);
-      await _stopCamera();
+      await _media.stopCamera();
       _notifyParticipants();
       rethrow;
     }
@@ -1017,9 +964,6 @@ class CloudflareCallEngine implements CallEngine {
     return run;
   }
 
-  MediaStreamTrack? get _cameraTrack =>
-      _localVideoStream?.getVideoTracks().firstOrNull;
-
   void _setSendingCamera(bool sending) {
     if (_sendingCamera == sending) return;
     _sendingCamera = sending;
@@ -1027,12 +971,38 @@ class CloudflareCallEngine implements CallEngine {
   }
 
   Future<void> _applyCameraState() async {
+    if (_left) return;
+    final transceiver = _localVideoTransceiver;
+    if (transceiver == null) return _applyCameraStateBeforePublishing();
     final pc = _pc;
-    final sender = _localVideoTransceiver?.sender;
-    if (pc == null || sender == null || !_isLiveConnection(pc)) return;
-    if (!_cameraEnabled) return _cameraOff(pc, sender);
+    if (pc == null || !_isLiveConnection(pc)) return;
+    final sender = transceiver.sender;
+    if (!_media.cameraEnabled) return _cameraOff(pc, sender);
     if (_inBackground) return _pauseCamera(pc, sender);
     return _cameraOn(pc, sender);
+  }
+
+  Future<void> _applyCameraStateBeforePublishing() async {
+    final cameraEnabled = _media.cameraEnabled;
+    if (cameraEnabled && !_inBackground) {
+      if (_media.camera != null) return;
+      await _startCamera();
+    } else {
+      if (cameraEnabled && _capabilities.cameraStopsInBackground) return;
+      await _media.stopCamera();
+    }
+    _notifyParticipants();
+  }
+
+  Future<void> _startCamera() async {
+    try {
+      await _media.startCamera();
+    } catch (_) {
+      _media.cameraEnabled = false;
+      _notifyParticipants();
+      rethrow;
+    }
+    _applyLocalTrackState();
   }
 
   Future<void> _cameraOff(RTCPeerConnection pc, RTCRtpSender sender) async {
@@ -1047,7 +1017,7 @@ class CloudflareCallEngine implements CallEngine {
       await sender.replaceTrack(placeholder);
       if (!_isLiveConnection(pc)) return;
     }
-    await _stopCamera();
+    await _media.stopCamera();
     _notifyParticipants();
   }
 
@@ -1059,23 +1029,17 @@ class CloudflareCallEngine implements CallEngine {
       await sender.replaceTrack(placeholder);
       if (!_isLiveConnection(pc)) return;
     }
-    if (_capabilities.cameraStopsInBackground || _cameraTrack == null) return;
-    await _stopCamera();
+    if (_capabilities.cameraStopsInBackground || _media.camera == null) return;
+    await _media.stopCamera();
     _notifyParticipants();
   }
 
   Future<void> _cameraOn(RTCPeerConnection pc, RTCRtpSender sender) async {
-    if (_cameraTrack == null) {
-      try {
-        await _stopCamera();
-        await _startCamera(pc);
-      } catch (_) {
-        _cameraEnabled = false;
-        _notifyParticipants();
-        rethrow;
-      }
+    if (_media.camera == null) {
+      await _media.stopCamera();
+      await _startCamera();
     }
-    final camera = _cameraTrack;
+    final camera = _media.camera;
     if (camera == null || !_isLiveConnection(pc)) return;
     if (sender.track?.id != camera.id) {
       await sender.replaceTrack(camera);
@@ -1093,41 +1057,6 @@ class CloudflareCallEngine implements CallEngine {
     _notifyParticipants();
   }
 
-  Future<void> _startCamera(RTCPeerConnection pc) async {
-    final captured = await _webRtc.getUserMedia({
-      'audio': false,
-      'video': _videoConstraints,
-    });
-    MediaStream? wrapper;
-    try {
-      wrapper = await _webRtc.createLocalMediaStream('local_video');
-      for (final track in captured.getVideoTracks()) {
-        await wrapper.addTrack(track);
-      }
-    } catch (_) {
-      await _quietly(wrapper?.dispose);
-      await _quietly(captured.dispose);
-      rethrow;
-    }
-    if (!_isLiveConnection(pc)) {
-      await _quietly(wrapper.dispose);
-      await _quietly(captured.dispose);
-      return;
-    }
-    _localVideoStream = wrapper;
-    _restartedCapture = captured;
-    _applyLocalTrackState();
-  }
-
-  Future<void> _stopCamera() async {
-    final camera = _localVideoStream;
-    final restarted = _restartedCapture;
-    _localVideoStream = null;
-    _restartedCapture = null;
-    await _quietly(camera?.dispose);
-    await _quietly(restarted?.dispose);
-  }
-
   @override
   Map<String, Object?>? get localFociInfo {
     final sessionId = _sessionId;
@@ -1138,7 +1067,7 @@ class CloudflareCallEngine implements CallEngine {
         for (final name in _publishedTrackNames)
           if (_sendingTrackNames.contains(name)) name: name,
       },
-      'audioMuted': _micMuted,
+      'audioMuted': _media.microphoneMuted,
       'videoEnabled': _sendingCamera,
       'encrypted': _keyProvider != null,
       'lowBandwidth': _classifier.current != CallQuality.good,
@@ -1208,7 +1137,7 @@ class CloudflareCallEngine implements CallEngine {
       _midOwners.removeWhere(
         (_, owner) => owner.participant == remote.id && owner.trackName == name,
       );
-      await _quietly(remote.adoptedStreams.remove(name)?.dispose);
+      await quietly(remote.adoptedStreams.remove(name)?.dispose);
       if (transceiver == null) continue;
       mids.add(transceiver.mid);
       _midOwners.remove(transceiver.mid);
@@ -1405,13 +1334,13 @@ class CloudflareCallEngine implements CallEngine {
         );
         await stream.addTrack(track);
       } catch (_) {
-        await _quietly(stream?.dispose);
+        await quietly(stream?.dispose);
         rethrow;
       }
       if (!_isLiveConnection(pc) ||
           !stillWanted() ||
           remote.adoptedStreams.containsKey(trackName)) {
-        await _quietly(stream.dispose);
+        await quietly(stream.dispose);
         return;
       }
       remote.adoptedStreams[trackName] = stream;
@@ -1491,7 +1420,7 @@ class _RemoteParticipant {
 
   Future<void> resetTracks() async {
     for (final s in adoptedStreams.values) {
-      await _quietly(s.dispose);
+      await quietly(s.dispose);
     }
     adoptedStreams.clear();
     recvTransceivers.clear();

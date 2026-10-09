@@ -38,6 +38,7 @@ class _FakeSendEventRoom extends Room {
 
   final sentEvents = <Map<String, dynamic>>[];
   Object? sendError;
+  Completer<void>? sendGate;
 
   @override
   Future<String?> sendEvent(
@@ -50,6 +51,7 @@ class _FakeSendEventRoom extends Room {
     String? threadLastEventId,
     bool displayPendingEvent = true,
   }) async {
+    await sendGate?.future;
     if (sendError case final error?) throw error;
     sentEvents.add(content);
     return client.generateUniqueTransactionId();
@@ -201,7 +203,7 @@ void main() {
           room: room,
           callId: 'call1',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
           initialEncryptionKeyForTesting: testKey(),
         );
         addTearDown(session.dispose);
@@ -239,7 +241,7 @@ void main() {
           room: capturingRoom,
           callId: 'call-enc',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
         registerDevice(
@@ -289,7 +291,7 @@ void main() {
         room: room,
         callId: 'call2',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
         initialEncryptionKeyForTesting: testKey(),
       );
       addTearDown(session.dispose);
@@ -314,7 +316,7 @@ void main() {
           room: room,
           callId: 'call-key-late-fail',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
         registerDevice(
@@ -364,7 +366,7 @@ void main() {
           room: sendRoom,
           callId: 'call-hangup-race',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
 
@@ -389,7 +391,7 @@ void main() {
           room: room,
           callId: 'call3',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
 
@@ -407,7 +409,7 @@ void main() {
         room: room,
         callId: 'call-teardown',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
@@ -429,7 +431,7 @@ void main() {
         room: room,
         callId: 'call7',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
@@ -455,7 +457,7 @@ void main() {
         room: room,
         callId: 'call4',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
@@ -478,7 +480,7 @@ void main() {
           room: sendRoom,
           callId: 'call-lost',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
         await session.accept();
@@ -494,28 +496,28 @@ void main() {
       },
     );
 
-    test(
-      'a permission denial while the engine build also fails ends cleanly',
-      () async {
-        messenger.setMockMethodCallHandler(permissionChannel, (call) async {
-          if (call.method != 'requestPermissions') return null;
-          final requested = (call.arguments as List).cast<int>();
-          return {for (final p in requested) p: 0};
-        });
-        final session = CallSession.forIncoming(
-          room: room,
-          callId: 'call-double-fail',
-          kind: CallKind.voice,
-          engineBuilder: () async => throw StateError('engine down'),
-        );
-        addTearDown(session.dispose);
+    test('a permission denial ends the call cleanly without opening the '
+        'microphone', () async {
+      messenger.setMockMethodCallHandler(permissionChannel, (call) async {
+        if (call.method != 'requestPermissions') return null;
+        final requested = (call.arguments as List).cast<int>();
+        return {for (final p in requested) p: 0};
+      });
+      final engine = FakeCallEngine();
+      final session = CallSession.forIncoming(
+        room: room,
+        callId: 'call-permission-denied',
+        kind: CallKind.voice,
+        engineBuilder: () => engine,
+      );
+      addTearDown(session.dispose);
 
-        await expectLater(session.accept(), throwsStateError);
+      await expectLater(session.accept(), throwsStateError);
 
-        expect(session.phase, CallSessionPhase.ended);
-        expect(session.endReason, CallEndReason.failed);
-      },
-    );
+      expect(session.phase, CallSessionPhase.ended);
+      expect(session.endReason, CallEndReason.failed);
+      expect(engine.startLocalMediaCalls, 0);
+    });
 
     test('a failed status that arrives while connecting is finishing does not get overwritten back to active', () async {
       final engine = FakeCallEngine();
@@ -537,7 +539,7 @@ void main() {
         room: raceRoom,
         callId: 'call-race',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
@@ -579,7 +581,7 @@ void main() {
           room: room,
           callId: 'call5',
           kind: CallKind.voice,
-          engineBuilder: () async => FakeCallEngine(),
+          engineBuilder: () => FakeCallEngine(),
         );
         addTearDown(session.dispose);
 
@@ -604,7 +606,7 @@ void main() {
           room: room,
           callId: 'call6',
           kind: CallKind.voice,
-          engineBuilder: () async => FakeCallEngine(),
+          engineBuilder: () => FakeCallEngine(),
         );
         addTearDown(session.dispose);
 
@@ -651,7 +653,7 @@ void main() {
         room: room,
         callId: callId,
         kind: CallKind.voice,
-        engineBuilder: () async => engine ?? FakeCallEngine(),
+        engineBuilder: () => engine ?? FakeCallEngine(),
       );
       addTearDown(session.dispose);
       return session;
@@ -683,7 +685,7 @@ void main() {
         expect(session.failedMessage, microphoneUnavailableMessage);
         expect(permissionCalls, ['checkPermissionStatus']);
         expect(engine.joined, isFalse);
-        expect(engine.disposeCalls, 1);
+        expect(engine.startLocalMediaCalls, 0);
       });
     });
 
@@ -858,7 +860,7 @@ void main() {
         room: room,
         callId: callId,
         kind: CallKind.video,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
         initialEncryptionKeyForTesting: testKey(),
         pictureInPictureCamera: pictureInPictureCamera,
       );
@@ -980,7 +982,7 @@ void main() {
         final sessionA = CallSession.startOutgoing(
           sendRoom,
           CallKind.voice,
-          engineBuilder: () async => engineA,
+          engineBuilder: () => engineA,
         );
         addTearDown(sessionA.dispose);
         await sessionA.phaseStream.firstWhere(
@@ -991,7 +993,7 @@ void main() {
         final sessionB = CallSession.startOutgoing(
           sendRoom,
           CallKind.voice,
-          engineBuilder: () async => engineB,
+          engineBuilder: () => engineB,
         );
         addTearDown(sessionB.dispose);
         await sessionB.phaseStream.firstWhere(
@@ -1014,7 +1016,7 @@ void main() {
         room: room,
         callId: 'call-td-1',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
@@ -1056,7 +1058,7 @@ void main() {
         room: room,
         callId: 'call-td-plain',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
       registerDevice(
@@ -1097,7 +1099,7 @@ void main() {
         room: room,
         callId: 'call-td-outsider',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
       registerDevice(
@@ -1129,7 +1131,7 @@ void main() {
           room: room,
           callId: 'call-td-spoof',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
         registerDevice(
@@ -1170,7 +1172,7 @@ void main() {
           room: room,
           callId: 'call-td-race',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
         registerDevice(
@@ -1215,7 +1217,7 @@ void main() {
         room: room,
         callId: 'call-td-2',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
       await session.accept();
@@ -1241,7 +1243,7 @@ void main() {
         room: room,
         callId: 'call-td-3',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
       await session.accept();
@@ -1280,7 +1282,7 @@ void main() {
         room: room,
         callId: 'call-td-4',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
         initialEncryptionKeyForTesting: firstKey,
       );
       addTearDown(session.dispose);
@@ -1333,7 +1335,7 @@ void main() {
         room: r,
         callId: 'call-relay-1',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
@@ -1383,7 +1385,7 @@ void main() {
         room: r,
         callId: 'call-relay-2',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
         initialEncryptionKeyForTesting: key,
       );
       addTearDown(session.dispose);
@@ -1453,7 +1455,7 @@ void main() {
           room: r,
           callId: 'call-relay-retry',
           kind: CallKind.voice,
-          engineBuilder: () async => FakeCallEngine(),
+          engineBuilder: () => FakeCallEngine(),
           initialEncryptionKeyForTesting: testKey(),
           keyRelayBaseDelay: Duration.zero,
           keyRelayMaxDelay: Duration.zero,
@@ -1483,7 +1485,7 @@ void main() {
         room: r,
         callId: 'call-relay-3',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
         initialEncryptionKeyForTesting: testKey(),
       );
       addTearDown(session.dispose);
@@ -1515,7 +1517,7 @@ void main() {
         room: r,
         callId: 'call-relay-4',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
         initialEncryptionKeyForTesting: testKey(),
       );
       addTearDown(session.dispose);
@@ -1563,7 +1565,7 @@ void main() {
           room: r,
           callId: 'call-relay-5',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
           initialEncryptionKeyForTesting: testKey(),
         );
         addTearDown(session.dispose);
@@ -1612,7 +1614,7 @@ void main() {
         room: r,
         callId: 'call-relay-6',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
         initialEncryptionKeyForTesting: testKey(),
         keyRelayBaseDelay: Duration.zero,
         keyRelayMaxDelay: Duration.zero,
@@ -1667,7 +1669,7 @@ void main() {
         room: room,
         callId: 'call-remote-1',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
@@ -1684,7 +1686,7 @@ void main() {
         room: room,
         callId: 'call-remote-2',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
@@ -1712,7 +1714,7 @@ void main() {
         room: room,
         callId: 'call-remote-3',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
@@ -1752,7 +1754,7 @@ void main() {
           room: room,
           callId: 'call-remote-4',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
 
@@ -1776,6 +1778,132 @@ void main() {
     );
   });
 
+  group('the start of an outgoing call', () {
+    _FakeSendEventRoom sendRoom() =>
+        _FakeSendEventRoom(client: client, id: '!start:example.org');
+
+    test('opens the microphone while its invite is still being sent', () async {
+      final r = sendRoom()..sendGate = Completer<void>();
+      final engine = FakeCallEngine();
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.video,
+        engineBuilder: () => engine,
+      );
+      addTearDown(session.dispose);
+      var captured = false;
+      unawaited(engine.microphoneCaptured.then((_) => captured = true));
+
+      await pumpEventQueue();
+
+      expect(engine.startLocalMediaCalls, 1);
+      expect(captured, isTrue);
+      expect(engine.joined, isFalse);
+      expect(r.sentEvents, isEmpty);
+      r.sendGate!.complete();
+      await session.phaseStream.firstWhere((p) => p == CallSessionPhase.active);
+      expect(engine.startLocalMediaCalls, 1);
+    });
+
+    test('rings nobody when the microphone is refused', () async {
+      messenger.setMockMethodCallHandler(permissionChannel, (call) async {
+        if (call.method != 'requestPermissions') return null;
+        final requested = (call.arguments as List).cast<int>();
+        return {for (final p in requested) p: 0};
+      });
+      final r = sendRoom();
+      final engine = FakeCallEngine();
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.voice,
+        engineBuilder: () => engine,
+      );
+      addTearDown(session.dispose);
+
+      await session.phaseStream.firstWhere((p) => p == CallSessionPhase.ended);
+      await pumpEventQueue();
+
+      expect(r.sentEvents, isEmpty);
+      expect(session.endReason, CallEndReason.failed);
+      expect(session.failedMessage, callDidNotConnectMessage);
+      expect(engine.startLocalMediaCalls, 0);
+    });
+
+    test('an invite that cannot be sent ends the call with a message and '
+        'releases the microphone', () async {
+      final r = sendRoom()..sendError = StateError('offline');
+      final engine = FakeCallEngine();
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.voice,
+        engineBuilder: () => engine,
+      );
+      addTearDown(session.dispose);
+
+      await session.phaseStream.firstWhere((p) => p == CallSessionPhase.ended);
+      await pumpEventQueue();
+
+      expect(session.endReason, CallEndReason.failed);
+      expect(session.failedMessage, callDidNotConnectMessage);
+      expect(engine.leaveCalls, 1);
+      expect(engine.disposeCalls, 1);
+      expect(engine.joined, isFalse);
+    });
+
+    test('a call that fails to connect after ringing posts a missed call, so '
+        'the other side stops ringing', () async {
+      final r = sendRoom();
+      final engine = FakeCallEngine(failJoin: true);
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.video,
+        engineBuilder: () => engine,
+      );
+      addTearDown(session.dispose);
+
+      await session.phaseStream.firstWhere((p) => p == CallSessionPhase.ended);
+      await pumpEventQueue();
+
+      final summary = CallSummary.fromEvent(
+        buildTestEvent(
+          r,
+          eventId: r'$summary',
+          senderId: '@me:example.org',
+          content: r.sentEvents.last,
+        ),
+      );
+      expect(r.sentEvents.first['msgtype'], callInviteMsgtype);
+      expect(summary?.status, CallSummaryStatus.missed);
+      expect(summary?.callId, session.callId);
+      expect(session.endReason, CallEndReason.failed);
+      expect(session.failedMessage, callDidNotConnectMessage);
+      expect(engine.disposeCalls, 1);
+    });
+
+    test('a call hung up before its invite is sent releases the microphone '
+        'and is never joined', () async {
+      final r = sendRoom()..sendGate = Completer<void>();
+      final engine = FakeCallEngine();
+      final session = CallSession.startOutgoing(
+        r,
+        CallKind.voice,
+        engineBuilder: () => engine,
+      );
+      addTearDown(session.dispose);
+      await pumpEventQueue();
+
+      final hangingUp = session.hangUp(byUser: true);
+      r.sendGate!.complete();
+      await hangingUp;
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.ended);
+      expect(engine.leaveCalls, 1);
+      expect(engine.disposeCalls, 1);
+      expect(engine.joined, isFalse);
+    });
+  });
+
   group('_connect key-before-join ordering', () {
     test(
       'the caller-side key is applied before join() is ever called',
@@ -1786,14 +1914,14 @@ void main() {
           room: room,
           callId: 'call-order-1',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
           initialEncryptionKeyForTesting: testKey(),
         );
         addTearDown(session.dispose);
 
         await session.accept();
 
-        expect(calls, ['setEncryptionKey', 'join']);
+        expect(calls, ['startLocalMedia', 'setEncryptionKey', 'join']);
       },
     );
 
@@ -1804,86 +1932,13 @@ void main() {
         room: room,
         callId: 'call-order-2',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
       await session.accept();
 
-      expect(calls, ['join']);
-    });
-  });
-
-  group('muting before the engine exists', () {
-    CallSession incoming(
-      String callId,
-      Future<CallEngine> Function() engineBuilder,
-    ) {
-      final session = CallSession.forIncoming(
-        room: room,
-        callId: callId,
-        kind: CallKind.voice,
-        engineBuilder: engineBuilder,
-      );
-      addTearDown(session.dispose);
-      return session;
-    }
-
-    test('a mute asked for while the engine is being built reaches it before '
-        'it joins', () async {
-      final calls = <String>[];
-      final built = Completer<CallEngine>();
-      final session = incoming('call-mute-building', () => built.future);
-      final accepting = session.accept();
-      await pumpEventQueue();
-
-      await session.setMicrophoneMutedWhenReady(true);
-      built.complete(_OrderTrackingCallEngine(calls));
-      await accepting;
-
-      expect(calls, ['setMicrophoneMuted(true)', 'join']);
-    });
-
-    test('only the last mute asked for before connecting is applied', () async {
-      final calls = <String>[];
-      final session = incoming(
-        'call-mute-latest',
-        () async => _OrderTrackingCallEngine(calls),
-      );
-
-      await session.setMicrophoneMutedWhenReady(true);
-      await session.setMicrophoneMutedWhenReady(false);
-      await session.accept();
-
-      expect(calls, ['setMicrophoneMuted(false)', 'join']);
-    });
-
-    test(
-      'a mute asked for once the call is connected goes straight to the engine',
-      () async {
-        final engine = FakeCallEngine();
-        final session = incoming('call-mute-live', () async => engine);
-        await session.accept();
-        expect(engine.microphoneMutedRequests, isEmpty);
-
-        await session.setMicrophoneMutedWhenReady(true);
-
-        expect(engine.microphoneMutedRequests, [true]);
-      },
-    );
-
-    test('on Android, a call nobody muted joins without a mute', () async {
-      ambientCapabilities = androidCapabilities;
-      final calls = <String>[];
-      final session = incoming(
-        'call-mute-none',
-        () async => _OrderTrackingCallEngine(calls),
-      );
-
-      await session.accept();
-
-      expect(calls, ['join']);
-      expect(session.phase, CallSessionPhase.active);
+      expect(calls, ['startLocalMedia', 'join']);
     });
   });
 
@@ -1895,7 +1950,7 @@ void main() {
         room: buildTestRoom(c),
         callId: callId,
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       await session.accept();
       await pumpEventQueue();
@@ -2003,7 +2058,7 @@ void main() {
         room: room,
         callId: 'call-dec-1',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
       room.setState(
@@ -2036,7 +2091,7 @@ void main() {
         room: room,
         callId: 'call-dec-2',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
       await session.accept();
@@ -2063,7 +2118,7 @@ void main() {
         room: sendRoom,
         callId: callId,
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
         initialEncryptionKeyForTesting: null,
       );
       return (session: session, engine: engine, room: sendRoom);
@@ -2205,7 +2260,7 @@ void main() {
           room: sendRoom,
           callId: 'hangup-late',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
         await session.accept();
@@ -2256,18 +2311,15 @@ void main() {
       );
     }
 
-    test('an engine built after the hangup is torn down, not joined', () async {
+    test('a hang-up while the microphone is still opening tears the engine '
+        'down, never joined', () async {
       final (room: sendRoom, :memberPuts) = roomLoggingMemberPuts();
-      final engine = FakeCallEngine();
-      final buildGate = Completer<void>();
+      final engine = FakeCallEngine()..startGate = Completer<void>();
       final session = CallSession.forIncoming(
         room: sendRoom,
-        callId: 'hangup-during-build',
+        callId: 'hangup-during-open',
         kind: CallKind.voice,
-        engineBuilder: () async {
-          await buildGate.future;
-          return engine;
-        },
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
@@ -2276,7 +2328,7 @@ void main() {
       await session.hangUp();
       final putsAtHangup = memberPuts.length;
 
-      buildGate.complete();
+      engine.startGate!.complete();
       await accepting;
       await pumpEventQueue();
 
@@ -2299,7 +2351,7 @@ void main() {
           room: sendRoom,
           callId: 'hangup-during-join',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
 
@@ -2344,7 +2396,7 @@ void main() {
         room: sendRoom,
         callId: callId,
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
         remoteLeftConfirmDelay: remoteLeftConfirmDelay,
       );
       await session.accept();
@@ -2537,7 +2589,7 @@ void main() {
         room: room,
         callId: 'call-full',
         kind: CallKind.voice,
-        engineBuilder: () async {
+        engineBuilder: () {
           engineBuilds++;
           return FakeCallEngine();
         },
@@ -2560,7 +2612,7 @@ void main() {
         room: room,
         callId: 'call-room',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
 
@@ -2585,7 +2637,7 @@ void main() {
           room: sendRoom,
           callId: 'call-race',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
         await session.accept();
@@ -2611,7 +2663,7 @@ void main() {
         room: room,
         callId: 'call-stay',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
       );
       addTearDown(session.dispose);
       fill(room, 'call-stay', 5);
@@ -2642,7 +2694,7 @@ void main() {
           room: buildTestRoom(c),
           callId: 'call-joined-at',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
         await session.accept();
@@ -2699,7 +2751,7 @@ void main() {
       final session = CallSession.startOutgoing(
         r,
         CallKind.voice,
-        engineBuilder: () async => FakeCallEngine(),
+        engineBuilder: () => FakeCallEngine(),
         ringTimeout: ringTimeout,
       );
       addTearDown(session.dispose);
@@ -2801,7 +2853,7 @@ void main() {
         room: r,
         callId: 'incoming-1',
         kind: CallKind.voice,
-        engineBuilder: () async => FakeCallEngine(),
+        engineBuilder: () => FakeCallEngine(),
       );
       addTearDown(session.dispose);
 
@@ -2821,7 +2873,7 @@ void main() {
         final session = CallSession.startOutgoing(
           r,
           CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
         );
         addTearDown(session.dispose);
         await pumpEventQueue();
@@ -2847,7 +2899,7 @@ void main() {
           room: buildTestRoom(capturing),
           callId: 'refresh-1',
           kind: CallKind.voice,
-          engineBuilder: () async => FakeCallEngine(),
+          engineBuilder: () => FakeCallEngine(),
           membershipRefreshInterval: const Duration(milliseconds: 40),
         );
         addTearDown(session.dispose);
@@ -2879,6 +2931,8 @@ void main() {
               'audioTracks': [],
               'videoTracks': [],
             };
+          case 'createLocalMediaStream':
+            return {'streamId': 'local-stream'};
           default:
             return null;
         }
@@ -2947,7 +3001,7 @@ void main() {
         room: callRoom,
         callId: 'call1',
         kind: CallKind.voice,
-        engineBuilder: () async => engine,
+        engineBuilder: () => engine,
         initialEncryptionKeyForTesting: testKey(),
       );
       addTearDown(session.dispose);
@@ -3098,7 +3152,7 @@ void main() {
           room: _FakeSendEventRoom(client: client, id: room.id),
           callId: 'call1',
           kind: CallKind.voice,
-          engineBuilder: () async => engine,
+          engineBuilder: () => engine,
           initialEncryptionKeyForTesting: testKey(),
           pictureInPictureCamera: camera,
         );
@@ -3135,7 +3189,7 @@ void main() {
           room: buildTestRoom(refusing),
           callId: 'refresh-refused',
           kind: CallKind.voice,
-          engineBuilder: () async => FakeCallEngine(),
+          engineBuilder: () => FakeCallEngine(),
           membershipRefreshInterval: const Duration(milliseconds: 40),
         );
         addTearDown(session.dispose);
@@ -3169,6 +3223,12 @@ class _OrderTrackingCallEngine implements CallEngine {
 
   @override
   CallKind get kind => CallKind.voice;
+
+  @override
+  Future<void> get microphoneCaptured => Completer<void>().future;
+
+  @override
+  Future<void> startLocalMedia() async => calls.add('startLocalMedia');
 
   @override
   Future<void> join() async {

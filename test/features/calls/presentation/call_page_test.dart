@@ -20,6 +20,7 @@ import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_controls.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
 import 'package:zuno/features/calls/presentation/call_view.dart';
+import 'package:zuno/features/calls/presentation/participant_tile.dart';
 import 'package:zuno/features/verification/presentation/why_confirm_sheet.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -47,7 +48,7 @@ void main() {
     });
 
     for (final kind in CallKind.values) {
-      testWidgets('a $kind call builds before its engine exists, dark, with '
+      testWidgets('a $kind call builds before it connects, dark, with '
           'End call and Minimize ready', (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = const Size(360, 640);
@@ -514,6 +515,33 @@ void main() {
       await harness.settle();
 
       expect(find.text('Reconnecting…'), findsWidgets);
+      await harness.close();
+    });
+  });
+
+  group('before the call connects', () {
+    testWidgets('every button acts the moment the call starts', (tester) async {
+      final harness = CallPageHarness(tester);
+      final session = sessionFor(CallKind.video);
+      session.engine.participants = [localParticipant(camera: true)];
+      await harness.open(session);
+
+      for (final tooltip in [
+        'Mute',
+        'Turn camera off',
+        'Switch camera',
+        'Turn speaker off',
+      ]) {
+        await tester.tap(find.byTooltip(tooltip));
+        await harness.settle();
+      }
+
+      expect(session.phase, CallSessionPhase.connecting);
+      expect(session.engine.microphoneMutedRequests, [true]);
+      expect(session.engine.cameraEnabledRequests, [false]);
+      expect(session.engine.switchCameraCalls, 1);
+      expect(harness.audioRoute, 'earpiece');
+      expect(find.byType(ParticipantTile), findsNothing);
       await harness.close();
     });
   });

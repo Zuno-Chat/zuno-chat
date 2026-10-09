@@ -295,6 +295,115 @@ void main() {
     });
   });
 
+  group('before joining', () {
+    test('muting joins with the microphone off', () {
+      inCall((call) {
+        call.wait(call.engine.setMicrophoneMuted(true));
+        expect(call.local.audioMuted, isTrue);
+
+        call.joinEncrypted();
+
+        expect(call.microphone.enabled, isFalse);
+        expect(call.engine.localFociInfo?['audioMuted'], isTrue);
+      }, kind: CallKind.voice);
+    });
+
+    test('turning the camera off joins with the microphone only, on the '
+        'placeholder', () {
+      inCall((call) {
+        call.wait(call.engine.setCameraEnabled(false));
+        expect(call.local.videoEnabled, isFalse);
+
+        call.joinEncrypted();
+
+        expect(call.backend.captureConstraints, [
+          {'audio': true, 'video': false},
+        ]);
+        expect(call.videoSlot.sender.track, placeholderOf(call));
+        expect(call.local.videoEnabled, isFalse);
+      });
+    });
+
+    test('switching camera opens the back camera when joining', () {
+      inCall((call) {
+        call.wait(call.engine.switchCamera());
+        expect(call.local.frontCamera, isFalse);
+
+        call.joinEncrypted();
+
+        final video = call.backend.captureConstraints.single['video'] as Map;
+        expect(video['facingMode'], 'environment');
+        expect(call.local.frontCamera, isFalse);
+      });
+    });
+
+    test('switching to video opens the camera at once, and joining sends it '
+        'without opening another', () {
+      inCall((call) {
+        call.wait(call.engine.switchToVideo());
+
+        expect(call.backend.captureConstraints.single['audio'], isFalse);
+        expect(call.backend.captureConstraints.single['video'], isA<Map>());
+        expect(call.engine.kind, CallKind.video);
+
+        call.joinEncrypted();
+
+        expect(call.backend.captureConstraints.last, {
+          'audio': true,
+          'video': false,
+        });
+        expect(call.videoSlot.sender.track, same(call.camera));
+        call.mediaFlows();
+        expect(call.engine.localFociInfo?['videoEnabled'], isTrue);
+      }, kind: CallKind.voice);
+    });
+
+    test('a camera that will not open keeps the call to voice', () {
+      inCall((call) {
+        call.backend.captureError = StateError('Camera denied');
+
+        expect(
+          () => call.wait(call.engine.switchToVideo()),
+          throwsA(isA<StateError>()),
+        );
+        call.backend.captureError = null;
+        call.joinEncrypted();
+
+        expect(call.engine.kind, CallKind.voice);
+        expect(call.local.videoEnabled, isFalse);
+        expect(call.backend.captureConstraints.last, {
+          'audio': true,
+          'video': false,
+        });
+      }, kind: CallKind.voice);
+    });
+
+    test('turning the camera off and on while joining captures leaves one '
+        'camera open, and sends it', () {
+      inCall((call) {
+        final gate = Completer<void>();
+        call.backend.captureGate = gate;
+        final joining = call.engine.join();
+        call.flush();
+
+        final off = call.engine.setCameraEnabled(false);
+        final on = call.engine.setCameraEnabled(true);
+        gate.complete();
+        call.wait(joining);
+        call.wait(off);
+        call.wait(on);
+        call.encrypt();
+
+        final cameras = [
+          for (final stream in call.backend.streams)
+            if (stream.id == 'local_video' && !stream.disposed) stream,
+        ];
+        expect(cameras, hasLength(1));
+        expect(call.videoSlot.sender.track, same(call.camera));
+      });
+    });
+  });
+
   group('while the connection is being set up', () {
     test('a switch to video asked for while joining turns the camera on '
         'once published', () {

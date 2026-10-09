@@ -69,7 +69,7 @@ class CallSession {
   String get _myDeviceId => client.deviceID!;
 
   CallEngine? _engine;
-  CallEngine get engine => _engine!;
+  CallEngine get engine => _engine ??= _buildEngine();
 
   CallSessionPhase _phase;
   final _phaseController = StreamController<CallSessionPhase>.broadcast();
@@ -112,7 +112,7 @@ class CallSession {
   int _consecutiveEmptyReconciles = 0;
 
   @visibleForTesting
-  final Future<CallEngine> Function()? engineBuilder;
+  final CallEngine Function()? engineBuilder;
 
   static const _defaultKeyRelayBaseDelay = Duration(milliseconds: 300);
   static const _defaultKeyRelayMaxDelay = Duration(seconds: 1);
@@ -166,16 +166,14 @@ class CallSession {
     _endedLocally = true;
     endReason ??= CallEndReason.hungUp;
     _releaseListeners();
-    if (_engine case final engine?) {
-      await _tearDownEngine(engine, 'the call ending locally');
-    }
+    await _tearDownEngine('the call ending locally');
     _setPhase(CallSessionPhase.ended);
   }
 
-  Future<CallEngine> _buildEngine() async {
+  CallEngine _buildEngine() {
     if (engineBuilder case final build?) return build();
     return CloudflareCallEngine(
-      baseUri: cloudflareCallsBaseUri(client),
+      baseUri: () => cloudflareCallsBaseUri(client),
       authorization: () => bearerAuthorization(client),
       kind: kind,
       iceServers: resolveIceServers(client, httpClient: callsHttpClient),
@@ -188,7 +186,7 @@ class CallSession {
     Room room,
     CallKind kind, {
     bool lowDataMode = false,
-    @visibleForTesting Future<CallEngine> Function()? engineBuilder,
+    @visibleForTesting CallEngine Function()? engineBuilder,
     @visibleForTesting Duration? keyRelayBaseDelay,
     @visibleForTesting Duration? keyRelayMaxDelay,
     @visibleForTesting Duration? remoteLeftConfirmDelay,
@@ -251,6 +249,9 @@ class CallSession {
 
   Future<void> _startOutgoingConnect() async {
     try {
+      await ensurePermissions();
+      if (_hangUp != null || _phase == CallSessionPhase.ended) return;
+      _startLocalMedia().ignore();
       await room.sendEvent({
         'msgtype': callInviteMsgtype,
         'body': kind == CallKind.video
@@ -259,15 +260,35 @@ class CallSession {
         'call_id': callId,
         'kind': kind.name,
       });
-      if (_hangUp != null || _phase == CallSessionPhase.ended) return;
+    } catch (e) {
+      await _failBeforeRinging(e);
+      return;
+    }
+    if (_hangUp != null || _phase == CallSessionPhase.ended) return;
+    try {
       await _connect();
       _startRingTimeout();
     } catch (_) {
-      if (phase != CallSessionPhase.ended) {
-        endReason = CallEndReason.failed;
-        _setPhase(CallSessionPhase.ended);
-      }
+      await hangUp();
     }
+  }
+
+  Future<void> _failBeforeRinging(Object error) async {
+    if (_hangUp != null || _phase == CallSessionPhase.ended) return;
+    failedMessage = _failureMessage(error);
+    endReason = CallEndReason.failed;
+    await _tearDownEngine('a call that never rang');
+    _setPhase(CallSessionPhase.ended);
+  }
+
+  Future<void>? _localMedia;
+
+  Future<void> _startLocalMedia() => _localMedia ??= _openLocalMedia();
+
+  Future<void> _openLocalMedia() async {
+    await ensurePermissions();
+    if (_hangUp != null || _phase == CallSessionPhase.ended) return;
+    await engine.startLocalMedia();
   }
 
   static CallSession forIncoming({
@@ -275,7 +296,7 @@ class CallSession {
     required String callId,
     required CallKind kind,
     bool lowDataMode = false,
-    @visibleForTesting Future<CallEngine> Function()? engineBuilder,
+    @visibleForTesting CallEngine Function()? engineBuilder,
     @visibleForTesting Uint8List? initialEncryptionKeyForTesting,
     @visibleForTesting Duration? keyRelayBaseDelay,
     @visibleForTesting Duration? keyRelayMaxDelay,
@@ -311,7 +332,13 @@ class CallSession {
       _setPhase(CallSessionPhase.ended);
       return;
     }
-    await _connect();
+    try {
+      await _connect();
+    } catch (_) {
+      if (_hangUp == null) await _tearDownEngine('a failed connect');
+      _setPhase(CallSessionPhase.ended);
+      rethrow;
+    }
   }
 
   void _markCallFull() {
@@ -372,39 +399,18 @@ class CallSession {
     }
   }
 
-  bool? _wantedMicrophoneMuted;
-
-  Future<void> setMicrophoneMutedWhenReady(bool muted) async {
-    final engine = _engine;
-    if (engine == null) {
-      _wantedMicrophoneMuted = muted;
-      return;
-    }
-    await engine.setMicrophoneMuted(muted);
-  }
-
   Future<void> _connect() async {
     _setPhase(CallSessionPhase.connecting);
     try {
-      final results = await Future.wait<Object?>(
-        [ensurePermissions(), _buildEngine()],
-        eagerError: true,
-        cleanUp: (value) {
-          if (value is CallEngine) value.dispose();
-        },
-      );
-      final built = results[1] as CallEngine;
-      _engine = built;
-      if (await _abandonEngineIfEnded(built)) return;
+      await _startLocalMedia();
+      if (await _abandonEngineIfEnded()) return;
 
-      if (_wantedMicrophoneMuted case final muted?) {
-        await built.setMicrophoneMuted(muted);
-      }
+      final built = engine;
       if (_encryptionKey case final key?) await built.setEncryptionKey(key);
-      if (await _abandonEngineIfEnded(built)) return;
+      if (await _abandonEngineIfEnded()) return;
       await _followAppLifecycle(built);
       await built.join();
-      if (await _abandonEngineIfEnded(built)) return;
+      if (await _abandonEngineIfEnded()) return;
 
       _statusSub = built.statusStream.listen((status) {
         if (status != CallEngineStatus.failed) return;
@@ -433,21 +439,19 @@ class CallSession {
     } catch (e, s) {
       debugPrint('[CallSession] _connect failed: $e\n$s');
       if (_hangUp == null) {
-        failedMessage = switch (e) {
-          MatrixException(error: MatrixError.M_FORBIDDEN) =>
-            'You do not have permission to start calls in this room',
-          _MicrophoneUnavailable() => microphoneUnavailableMessage,
-          _ => callDidNotConnectMessage,
-        };
+        failedMessage = _failureMessage(e);
         endReason = CallEndReason.failed;
-        if (_engine case final engine?) {
-          await _tearDownEngine(engine, 'a failed connect');
-        }
       }
-      _setPhase(CallSessionPhase.ended);
       rethrow;
     }
   }
+
+  static String _failureMessage(Object error) => switch (error) {
+    MatrixException(error: MatrixError.M_FORBIDDEN) =>
+      'You do not have permission to start calls in this room',
+    _MicrophoneUnavailable() => microphoneUnavailableMessage,
+    _ => callDidNotConnectMessage,
+  };
 
   bool _engineTornDown = false;
 
@@ -497,15 +501,16 @@ class CallSession {
     _pictureInPictureListener = null;
   }
 
-  Future<bool> _abandonEngineIfEnded(CallEngine engine) async {
+  Future<bool> _abandonEngineIfEnded() async {
     if (_hangUp == null && _phase != CallSessionPhase.ended) return false;
-    await _tearDownEngine(engine, 'a hangup during connect');
+    await _tearDownEngine('a hangup during connect');
     return true;
   }
 
-  Future<void> _tearDownEngine(CallEngine engine, String why) async {
+  Future<void> _tearDownEngine(String why) async {
     _stopFollowingAppLifecycle();
-    if (_engineTornDown) return;
+    final engine = _engine;
+    if (engine == null || _engineTornDown) return;
     _engineTornDown = true;
     await runBestEffort(engine.leave, label: 'leave engine after $why');
     await runBestEffort(engine.dispose, label: 'dispose engine after $why');
@@ -794,9 +799,7 @@ class CallSession {
     final othersStillPresent = _knownRemote.isNotEmpty;
 
     _releaseListeners();
-    if (_engine case final engine?) {
-      await _tearDownEngine(engine, 'a hang-up');
-    }
+    await _tearDownEngine('a hang-up');
     if (!_endedLocally) await _clearOwnMembership();
 
     final reason = endReason ??= wasRinging || wasUnanswered
@@ -806,8 +809,9 @@ class CallSession {
 
     if (!othersStillPresent && !_summarized && !_endedLocally) {
       final status = switch (reason) {
-        CallEndReason.missed => CallSummaryStatus.missed,
         CallEndReason.declinedByThem => CallSummaryStatus.declined,
+        _ when wasUnanswered => CallSummaryStatus.missed,
+        CallEndReason.missed => CallSummaryStatus.missed,
         _ => CallSummaryStatus.ended,
       };
       final duration = _activeAt == null

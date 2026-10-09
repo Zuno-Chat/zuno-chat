@@ -115,15 +115,19 @@ class ActiveCallController extends ChangeNotifier {
   StreamSubscription<CallEngineStatus>? _statusSub;
   StreamSubscription<void>? _localStateSub;
   final Map<VoipParticipantId, RTCVideoRenderer> _renderers = {};
+  List<CallEngineParticipant> _roster = const [];
   List<CallEngineParticipant>? _pendingRoster;
   Future<void>? _reconciling;
   List<CallEngineParticipant> _participants = const [];
   CallEngineParticipant? _local;
   List<CallEngineParticipant> _remotes = const [];
   CallEngineStatus? _engineStatus;
-  CallAudioRoute _audioRoute = CallAudioRoute.earpiece;
+  late CallAudioRoute _audioRoute = startingRoute(session.kind, const {});
   Set<CallAudioRoute> _headsets = const {};
   Future<void> _headsetSync = Future.value();
+  bool _routeChosen = false;
+  bool _microphoneOpen = false;
+  bool _audioRouted = false;
   DateTime? _talkingSince;
   Timer? _talkedLongEnoughTimer;
   bool _talkedLongEnough = false;
@@ -216,6 +220,8 @@ class ActiveCallController extends ChangeNotifier {
     _remoteJoinedSub = session.remoteJoinedStream.listen(
       (_) => _syncRingback(),
     );
+    unawaited(session.engine.microphoneCaptured.then(_onMicrophoneCaptured));
+    unawaited(_attachEngine());
     _syncRingback();
     if (session.phase == CallSessionPhase.ended) {
       scheduleMicrotask(leave);
@@ -282,12 +288,14 @@ class ActiveCallController extends ChangeNotifier {
     final snapshot = await _audioOutput.read();
     _headsets = snapshot.headsets;
     if (_finished) return;
-    _audioRoute = snapshot.route ?? startingRoute(session.kind, _headsets);
+    if (!_routeChosen) {
+      _audioRoute = snapshot.route ?? startingRoute(session.kind, _headsets);
+      _routeChosen = true;
+    }
     _notify();
     _audioOutput.watch(_onAudioDevicesChanged);
-    if (!_systemRoutesAudio) unawaited(_applyAudioRoute());
+    unawaited(_routeAudio());
     _syncProximityScreenOff();
-    if (session.phase == CallSessionPhase.active) await _attachEngine();
   }
 
   Future<void> _startOngoingCall() => _ongoingCall
@@ -301,13 +309,11 @@ class ActiveCallController extends ChangeNotifier {
     if (_finished) return;
     _notify();
     _syncRingback();
-    if (phase == CallSessionPhase.active) unawaited(_attachEngine());
     if (phase == CallSessionPhase.ended) leave();
   }
 
   Future<void> _attachEngine() async {
-    if (_finished) return;
-    if (!_systemRoutesAudio) unawaited(_applyAudioRoute());
+    if (_finished || _released) return;
     _participantsSub ??= session.engine.participantsStream.listen((p) {
       unawaited(_reconcile(p));
     });
@@ -332,7 +338,7 @@ class ActiveCallController extends ChangeNotifier {
 
   void _resyncVideo() {
     if (_finished) return;
-    unawaited(_reconcile(_pendingRoster ?? _participants));
+    unawaited(_reconcile(_roster));
   }
 
   Set<VoipParticipantId> _shownVideo(List<CallEngineParticipant> participants) {
@@ -359,6 +365,7 @@ class ActiveCallController extends ChangeNotifier {
   }
 
   Future<void> _reconcile(List<CallEngineParticipant> participants) {
+    _roster = participants;
     _pendingRoster = participants;
     return _reconciling ??= _drainRoster();
   }
@@ -511,7 +518,22 @@ class ActiveCallController extends ChangeNotifier {
     if (session.role != CallSessionRole.caller) return;
     final waiting =
         !session.everHadRemote && session.phase != CallSessionPhase.ended;
-    unawaited(waiting ? _ringback.start() : _ringback.stop());
+    final routed = _systemRoutesAudio || _audioRouted;
+    unawaited(waiting && routed ? _ringback.start() : _ringback.stop());
+  }
+
+  void _onMicrophoneCaptured(void _) {
+    _microphoneOpen = true;
+    unawaited(_routeAudio());
+  }
+
+  Future<void> _routeAudio() async {
+    if (!_routeChosen || !_microphoneOpen || _audioRouted) return;
+    if (_finished || _released) return;
+    _audioRouted = true;
+    if (!_systemRoutesAudio) await _applyAudioRoute();
+    if (_finished || _released) return;
+    _syncRingback();
   }
 
   void _onAudioDevicesChanged() {
@@ -543,6 +565,7 @@ class ActiveCallController extends ChangeNotifier {
   Future<void> _setAudioRoute(CallAudioRoute route) async {
     if (_finished) return;
     _audioRoute = route;
+    _routeChosen = true;
     _notify();
     _syncProximityScreenOff();
     await _applyAudioRoute();

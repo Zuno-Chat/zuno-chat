@@ -120,7 +120,7 @@ CfTracksResult _tracksResultOrThrow(Map<String, dynamic> json) {
 }
 
 class CloudflareApiClient {
-  final Uri baseUri;
+  final Uri Function() baseUri;
   final Future<String> Function() authorization;
   final http.Client httpClient;
   final bool _ownsHttpClient;
@@ -132,12 +132,15 @@ class CloudflareApiClient {
   }) : httpClient = httpClient ?? http.Client(),
        _ownsHttpClient = httpClient == null;
 
-  Uri _uri(String path) => baseUri.replace(
-    pathSegments: [
-      ...baseUri.pathSegments.where((segment) => segment.isNotEmpty),
-      ...path.split('/').where((segment) => segment.isNotEmpty),
-    ],
-  );
+  Uri _uri(String path) {
+    final base = baseUri();
+    return base.replace(
+      pathSegments: [
+        ...base.pathSegments.where((segment) => segment.isNotEmpty),
+        ...path.split('/').where((segment) => segment.isNotEmpty),
+      ],
+    );
+  }
 
   static const _maxAttempts = 3;
   static const _baseDelay = Duration(milliseconds: 150);

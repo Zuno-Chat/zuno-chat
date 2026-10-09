@@ -39,7 +39,7 @@ void main() {
   ({CloudflareCallEngine engine, List<int> sessions}) build() {
     final sessions = <int>[];
     final engine = CloudflareCallEngine(
-      baseUri: _baseUri,
+      baseUri: () => _baseUri,
       authorization: () async => 'Bearer test-token',
       kind: CallKind.voice,
       httpClient: MockClient((request) async {
@@ -72,7 +72,7 @@ void main() {
           final servers = Completer<List<Map<String, Object?>>>();
           final sessions = <int>[];
           final engine = CloudflareCallEngine(
-            baseUri: _baseUri,
+            baseUri: () => _baseUri,
             authorization: () async => 'Bearer test-token',
             kind: CallKind.voice,
             iceServers: servers.future,

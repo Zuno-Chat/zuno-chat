@@ -27,6 +27,7 @@ flowchart LR
 |---|---|---|
 | `CallSession` | `lib/core/calls/matrixrtc/` | Matrix-side signaling and the call lifecycle: invite, decline, ring timeout, `m.call.member` publish and reconcile, the call key, hang-up and the summary |
 | `CallEngine` → `CloudflareCallEngine` | `lib/core/calls/cloudflare/` | Media: one peer connection and one Cloudflare session per call, with every participant's tracks muxed onto it |
+| `LocalMedia` | same | Our microphone and camera: opened at call start, muted, switched and closed; the engine publishes what it holds |
 | `calls_module.dart` | same | Speaks Cloudflare's own API to the module, which adds the app id and credentials server-side. Only signaling goes through it; media flows straight between the device and the SFU |
 | `ActiveCallController` | `lib/core/calls/` | The device side of the active call for its whole life: renderers, audio route, ringback, foreground service, wake lock, lock-screen display, ear sensor, picture-in-picture and teardown. It starts when `activeCallProvider` gets a session, with no frame |
 | `CallPage` → `CallView`, `CallLayer` | `lib/features/calls/presentation/` | `CallPage` is the call screen and only draws. `CallLayer` sits above the Navigator and shows a minimized call and Android picture-in-picture. `CallView` only lays out plain values |
@@ -62,9 +63,19 @@ stateDiagram-v2
 - **Both factories return at once.** Connecting (permissions, the engine,
   the join and the first membership publish) runs in the background, so
   the call screen renders before any of it finishes.
+- **Local media opens before the join.** A caller checks the microphone
+  permission before it rings anyone, then opens the microphone and camera
+  while the invite is sent; answering opens them at once. Joining only
+  publishes them.
+- **The engine lives as long as the session**, built on first use, so the
+  call screen's controls act from the first frame and a mute or camera
+  change made while ringing carries into the call.
 - **A call ends** as hung up, declined by either side, missed (the
   caller's ring timed out with nobody joined) or failed. A failure carries
   a user-facing message.
+- **A caller that fails after its invite went out ends as a hang-up does**,
+  and an unanswered call's summary is always missed, so the other side
+  stops ringing.
 - **It also ends, without writing anything, once its room is left** (from
   any device) **or this device is signed out**, because neither a left room
   nor a revoked token takes writes.
@@ -291,6 +302,10 @@ as Android 16 already does, so the activity is not torn down mid-call.
   the earpiece or speaker. It stops when the other side's membership
   appears, not when our own join finishes. Neither the ring nor ringback
   takes audio focus, since the call's own audio session would pause it.
+- **Ringback starts once the microphone is open and the route applied**,
+  because flutter_webrtc switches Android into call-audio mode only on
+  microphone capture, and before that the voice-call stream plays from the
+  earpiece.
 - **Hang up from the ongoing notification or the PiP window** goes to the
   live engine, because teardown needs the live session. Only the ring's
   Decline can run headless.
@@ -378,6 +393,7 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | Screen share is not built | Android capture needs its own MediaProjection consent and foreground-service type |
 | New mid-call facts ride `fociInfo`; new signaling is an `im.zuno.*` msgtype | Both sides already reconcile `fociInfo`, and a msgtype gets timeline plumbing for free |
 | A call-lifetime controller outside the call screen, drawn by an app-level layer | A lock-screen answer may never build the screen, and the screen, the bar, the window and picture-in-picture share one set of renderers |
+| Microphone and camera open at call start, not at join | The controls, the ringback and Android's audio route all need them before the call connects |
 | A minimized call is a bar for voice and a window for video, and a tap only opens it | One tap target, never a second set of controls |
 
 ## Gotchas
@@ -387,8 +403,9 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 - `CallView` slots and `CallGrid` cells are keyed, and End call has no
   long-press tooltip, because a remount or a tooltip drops a press on End
   call.
-- `session.engine` is null until the call connects, so the build guards
-  it on `connecting`.
+- The controller re-syncs video from the latest roster the engine reported,
+  never the last one it applied, because the call screen can open while the
+  first roster is still being applied.
 - The engine's local participant carries a placeholder ID, not your Matrix
   ID, so the call screen resolves you from the signed-in account, or your
   own tile shows no avatar.
@@ -413,7 +430,8 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 - `m.call.member` must stay in `client.importantStateEvents`
   (`app-foundation.md`), or one side never sees the other join.
 - The calls module resolves against `client.homeserver`, the
-  well-known-resolved base, not the address typed at login.
+  well-known-resolved base, not the address typed at login, and per
+  request, so building an engine never fails.
 - After a flutter_webrtc bump, check the Android placeholder on a device,
   because it reaches plugin internals by reflection and fails quietly.
 - iOS sets no codec preferences, because flutter_webrtc's iOS side would

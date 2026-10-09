@@ -12,7 +12,7 @@ final _baseUri = Uri.parse(
 
 CloudflareCallEngine _buildEngine({CallKind kind = CallKind.voice}) =>
     CloudflareCallEngine(
-      baseUri: _baseUri,
+      baseUri: () => _baseUri,
       authorization: () async => 'Bearer test-token',
       kind: kind,
     );

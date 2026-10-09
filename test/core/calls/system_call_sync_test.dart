@@ -139,7 +139,7 @@ void main() {
           'title': 'Weekend hike',
           'isVideo': isVideo,
         });
-        expect(session.wantedMutes, isEmpty);
+        expect(session.engine.microphoneMutedRequests, isEmpty);
       });
     }
 
@@ -162,7 +162,7 @@ void main() {
 
       final session = await start(container);
 
-      expect(session.wantedMutes, [true]);
+      expect(session.engine.microphoneMutedRequests, [true]);
       expect(session.membershipRefreshes, 0);
 
       await goLive(session, [localParticipant(muted: true)]);
@@ -247,7 +247,6 @@ void main() {
       await pumpEventQueue();
       await show(session, [localParticipant(muted: true)]);
 
-      expect(session.wantedMutes, [true]);
       expect(session.engine.microphoneMutedRequests, [true]);
       expect(session.membershipRefreshes, 1);
       expect(native.argsOf('setCallMuted'), isEmpty);
@@ -264,27 +263,37 @@ void main() {
       await pumpEventQueue();
       await show(session, [localParticipant()]);
 
-      expect(session.wantedMutes, [false]);
+      expect(session.engine.microphoneMutedRequests, [false]);
       expect(native.argsOf('setCallMuted'), [
         {..._call, 'muted': true},
       ]);
     });
 
-    test('a system mute before the call is live waits for the engine and is '
-        'not echoed back once it joins', () async {
+    test('a system mute before the call connects reaches the engine at once '
+        'and is not echoed back', () async {
       final container = syncing(iosCapabilities);
       final session = await start(container);
 
       await sendFromNative('setMuted', {..._call, 'muted': true});
       await pumpEventQueue();
+      await show(session, [localParticipant(muted: true)]);
 
-      expect(session.wantedMutes, [true]);
-      expect(session.engine.microphoneMutedRequests, isEmpty);
+      expect(session.engine.microphoneMutedRequests, [true]);
       expect(session.membershipRefreshes, 0);
-
-      await goLive(session, [localParticipant(muted: true)]);
-
       expect(native.argsOf('setCallMuted'), isEmpty);
+    });
+
+    test('the app mute before the call connects reaches the system call '
+        'screen at once', () async {
+      final container = syncing(iosCapabilities);
+      final session = await start(container);
+
+      await show(session, [localParticipant(muted: true)]);
+
+      expect(session.phase, CallSessionPhase.connecting);
+      expect(native.argsOf('setCallMuted'), [
+        {..._call, 'muted': true},
+      ]);
     });
 
     test('a system mute for another call is ignored', () async {
@@ -299,7 +308,7 @@ void main() {
       });
       await pumpEventQueue();
 
-      expect(session.wantedMutes, isEmpty);
+      expect(session.engine.microphoneMutedRequests, isEmpty);
       expect(session.membershipRefreshes, 0);
     });
   });
@@ -474,7 +483,7 @@ void main() {
       await pumpEventQueue();
 
       expect(native.calls, isEmpty);
-      expect(session.wantedMutes, isEmpty);
+      expect(session.engine.microphoneMutedRequests, isEmpty);
       expect(session.hangUps, 0);
     });
 
@@ -491,7 +500,7 @@ void main() {
       await pumpEventQueue();
 
       expect(native.methods, ['startSystemCall', 'endSystemCall']);
-      expect(session.wantedMutes, isEmpty);
+      expect(session.engine.microphoneMutedRequests, isEmpty);
       expect(container.read(activeCallProvider), isNull);
     });
   });
@@ -599,7 +608,7 @@ void main() {
       await pumpEventQueue();
 
       expect(native.methods, ['startSystemCall', 'endSystemCall']);
-      expect(session.wantedMutes, isEmpty);
+      expect(session.engine.microphoneMutedRequests, isEmpty);
     });
   });
 
@@ -788,7 +797,7 @@ void main() {
       await pumpEventQueue();
 
       expect(native.argsOf('endSystemCall'), isEmpty);
-      expect(session.wantedMutes, isEmpty);
+      expect(session.engine.microphoneMutedRequests, isEmpty);
       expect(session.membershipRefreshes, 0);
       expect(session.hangUps, 0);
       expect(session.failedMessage, isNull);
@@ -811,7 +820,7 @@ void main() {
       await sendFromNative('callFailed', _call);
       await pumpEventQueue();
 
-      expect(session.wantedMutes, isEmpty);
+      expect(session.engine.microphoneMutedRequests, isEmpty);
       expect(session.membershipRefreshes, 0);
       expect(session.hangUps, 0);
       expect(session.failedMessage, isNull);

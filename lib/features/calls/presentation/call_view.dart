@@ -126,7 +126,9 @@ class _CallViewState extends State<CallView> {
         present.length == 1 &&
         (widget.kind == CallKind.video ||
             present.single.participant.videoEnabled);
-    final self = widget.kind == CallKind.video && !group ? widget.local : null;
+    final self = widget.kind == CallKind.video && !group && !widget.connecting
+        ? widget.local
+        : null;
     final shownQuality = widget.connecting ? CallQuality.good : widget.quality;
     final pill =
         !widget.reconnecting &&
@@ -250,7 +252,7 @@ class _CallViewState extends State<CallView> {
                 micMuted: local?.participant.audioMuted ?? false,
                 cameraOn: local?.participant.videoEnabled ?? false,
                 audioRoute: widget.audioRoute,
-                enabled: !widget.connecting,
+                enabled: local != null,
                 overVideo: fullVideo,
                 onToggleMute: widget.onToggleMute,
                 onToggleCamera: widget.onToggleCamera,

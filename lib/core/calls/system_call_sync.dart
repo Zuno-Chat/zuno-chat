@@ -88,23 +88,27 @@ class _SystemCallBinding {
       await applySystemMute((callId: session.callId, muted: true));
     }
     if (session.everHadRemote) _connected();
+    _followEngine();
     _onPhase(session.phase);
   }
 
   void _onPhase(CallSessionPhase phase) {
     if (_ended) return;
-    if (phase == CallSessionPhase.active) _attachEngine();
+    if (phase == CallSessionPhase.active) _startEmptyCallTimer();
     if (phase == CallSessionPhase.ended) _end();
   }
 
-  void _attachEngine() {
-    if (_participantsSub != null) return;
+  void _followEngine() {
+    if (_ended) return;
     final engine = session.engine;
     _participantsSub = engine.participantsStream.listen(_onParticipants);
     _onParticipants(engine.participants);
-    if (session.role == CallSessionRole.callee && !session.everHadRemote) {
-      _emptyCallTimer = Timer(emptyCallTimeout, _endIfEmpty);
-    }
+  }
+
+  void _startEmptyCallTimer() {
+    if (session.role != CallSessionRole.callee || session.everHadRemote) return;
+    if (_connectedSent || _emptyCallTimer != null) return;
+    _emptyCallTimer = Timer(emptyCallTimeout, _endIfEmpty);
   }
 
   void _onParticipants(List<CallEngineParticipant> participants) {
@@ -131,7 +135,7 @@ class _SystemCallBinding {
   Future<void> applySystemMute(SystemMute mute) async {
     if (mute.callId != session.callId || _ended) return;
     _muted = mute.muted;
-    await session.setMicrophoneMutedWhenReady(mute.muted);
+    await session.engine.setMicrophoneMuted(mute.muted);
     if (session.phase == CallSessionPhase.active) {
       unawaited(session.refreshMembership());
     }
