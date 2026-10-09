@@ -4,21 +4,15 @@ import 'geo_uri.dart';
 
 const _locationKey = 'org.matrix.msc3488.location';
 
-Map<String, Object?> locationMessageContent(
+Future<String?> sendLocationPin(
+  Room room,
   GeoUri geo, {
-  required DateTime timestamp,
-}) {
-  final uri = geo.toUriString();
-  return {
-    'msgtype': MessageTypes.Location,
-    'body': 'Location: ${geo.coordinatesLabel}',
-    'geo_uri': uri,
-    _locationKey: {'uri': uri, 'description': 'Location'},
-    'org.matrix.msc3488.asset': {'type': 'm.self'},
-    'org.matrix.msc3488.ts': timestamp.millisecondsSinceEpoch,
-    'org.matrix.msc1767.text': 'Location: ${geo.coordinatesLabel}',
-  };
-}
+  required DateTime at,
+}) => room.sendLocation(
+  'Location: ${geo.coordinatesLabel}',
+  geo.toUriString(),
+  ts: at,
+);
 
 GeoUri? locationOf(Event event) {
   if (event.messageType != MessageTypes.Location) return null;

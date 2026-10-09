@@ -76,9 +76,7 @@ class LiveShareSweep {
       if (event.type != EventTypes.RoomMember || event.stateKey != userId) {
         return false;
       }
-      final previous =
-          event.prevContent ??
-          (event.unsigned?['prev_content'] as Map<String, Object?>?);
+      final previous = event.unsigned?['prev_content'] as Map<String, Object?>?;
       return event.content['membership'] == Membership.join.name &&
           previous?['membership'] != Membership.join.name;
     });

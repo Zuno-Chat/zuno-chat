@@ -12,23 +12,6 @@ void main() {
     longitude: 13.3777,
     uncertaintyMeters: 25,
   );
-  final sentAt = DateTime.fromMillisecondsSinceEpoch(1700000000000);
-
-  group('content', () {
-    test('is an m.location message with a geo_uri, per MSC3488', () {
-      final content = locationMessageContent(geo, timestamp: sentAt);
-
-      expect(content['msgtype'], MessageTypes.Location);
-      expect(content['geo_uri'], 'geo:52.5163,13.3777;u=25');
-      expect(content['body'], isNotEmpty);
-      expect(content['org.matrix.msc3488.ts'], 1700000000000);
-      expect(content['org.matrix.msc3488.asset'], {'type': 'm.self'});
-      expect(
-        content['org.matrix.msc3488.location'],
-        containsPair('uri', 'geo:52.5163,13.3777;u=25'),
-      );
-    });
-  });
 
   group('reading a pin', () {
     late Room room;
@@ -44,9 +27,17 @@ void main() {
       content: content,
     );
 
-    test('reads back what this app sends', () {
+    test('reads back a pin as this app sends it', () {
+      final uri = geo.toUriString();
       final pin = locationOf(
-        event(locationMessageContent(geo, timestamp: sentAt)),
+        event({
+          'msgtype': MessageTypes.Location,
+          'body': 'Location: ${geo.coordinatesLabel}',
+          'geo_uri': uri,
+          'org.matrix.msc3488.ts': 1700000000000,
+          'org.matrix.msc3488.location': {'uri': uri},
+          'org.matrix.msc3488.asset': {'type': 'm.self'},
+        }),
       );
 
       expect(pin, geo);

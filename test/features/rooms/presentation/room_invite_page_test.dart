@@ -153,7 +153,7 @@ void main() {
   );
 
   testWidgets('a community invitation says so, and joining opens the '
-      'community', (tester) async {
+      'community once the join has synced', (tester) async {
     room.setState(
       buildTestEvent(
         room,
@@ -183,13 +183,31 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Join'));
-    for (var i = 0; i < 4; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump(const Duration(milliseconds: 200));
+    Future<void> settleJoin() async {
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        await tester.pump(const Duration(milliseconds: 200));
+      }
     }
 
+    await tester.tap(find.widgetWithText(FilledButton, 'Join'));
+    await settleJoin();
+
     expect(requestedPaths().any((p) => p.endsWith('/join')), isTrue);
+    expect(find.byType(CommunityPage), findsNothing);
+    expect(find.byType(RoomInvitePage), findsOneWidget);
+
+    room.membership = Membership.join;
+    client.onSync.add(
+      SyncUpdate(
+        nextBatch: 'next',
+        rooms: RoomsUpdate(join: {room.id: JoinedRoomUpdate()}),
+      ),
+    );
+    await tester.pump();
+    client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
+    await settleJoin();
+
     expect(find.byType(CommunityPage), findsOneWidget);
   });
 

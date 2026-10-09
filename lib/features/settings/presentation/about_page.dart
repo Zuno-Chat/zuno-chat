@@ -6,11 +6,10 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/navigation/zuno_links.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/settings/app_preferences_provider.dart';
+import '../../../core/settings/library_versions.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 
-const _matrixSdkVersion = '12.0.1';
-const _vodozemacVersion = '0.8.0';
 const _licenseNotice =
     'Copyright 2026 The Zuno Chat Authors.\n\n'
     'Free software under the GNU Affero General Public License, version 3 '
@@ -31,6 +30,13 @@ class AboutPage extends ConsumerWidget {
     final paymentLinks = ref
         .watch(platformCapabilitiesProvider)
         .externalPaymentLinks;
+    final libraries = ref.watch(libraryVersionsProvider);
+    String libraryVersion(String Function(LibraryVersions) pick) =>
+        switch (libraries) {
+          AsyncData(:final value) => pick(value),
+          AsyncError() => 'Unknown',
+          _ => 'Loading…',
+        };
 
     return Scaffold(
       appBar: AppBar(title: const Text('About')),
@@ -67,15 +73,15 @@ class AboutPage extends ConsumerWidget {
                     title: const Text('App version'),
                     subtitle: Text(version ?? 'Loading…'),
                   ),
-                  const ListTile(
-                    leading: Icon(Icons.hub_outlined),
-                    title: Text('Chat library version'),
-                    subtitle: Text(_matrixSdkVersion),
+                  ListTile(
+                    leading: const Icon(Icons.hub_outlined),
+                    title: const Text('Chat library version'),
+                    subtitle: Text(libraryVersion((v) => v.matrix)),
                   ),
-                  const ListTile(
-                    leading: Icon(Icons.enhanced_encryption_outlined),
-                    title: Text('Encryption library version'),
-                    subtitle: Text(_vodozemacVersion),
+                  ListTile(
+                    leading: const Icon(Icons.enhanced_encryption_outlined),
+                    title: const Text('Encryption library version'),
+                    subtitle: Text(libraryVersion((v) => v.vodozemac)),
                   ),
                 ],
               ),

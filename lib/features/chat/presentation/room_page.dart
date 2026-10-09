@@ -130,7 +130,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
   bool _historyStalled = false;
 
   final _pendingSend = ValueNotifier<PendingAttachmentSend?>(null);
-  late var _replyTargets = ReplyTargetCache(widget.room.getEventById);
+  late var _replyTargets = _newReplyTargets();
   bool _activeCallBannerShown = false;
 
   final List<FailedMediaSend> _failedSends = [];
@@ -222,6 +222,11 @@ class _RoomPageState extends ConsumerState<RoomPage>
     }
   }
 
+  ReplyTargetCache _newReplyTargets() => ReplyTargetCache(
+    widget.room.getEventById,
+    keysArrived: widget.room.onSessionKeyReceived.stream,
+  );
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -231,6 +236,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     _pendingSend.dispose();
     _recordingDuration.dispose();
     _showScrollToBottom.dispose();
+    _replyTargets.dispose();
     _timeline?.cancelSubscriptions();
     _pendingTimeline?.cancelSubscriptions();
     _roomStateSub?.cancel();
@@ -416,9 +422,10 @@ class _RoomPageState extends ConsumerState<RoomPage>
     if (confirmed != true || !mounted) return;
 
     _timeline?.cancelSubscriptions();
+    _replyTargets.dispose();
     setState(() {
       _timeline = null;
-      _replyTargets = ReplyTargetCache(widget.room.getEventById);
+      _replyTargets = _newReplyTargets();
     });
     try {
       await widget.room.client.database.deleteTimelineForRoom(widget.room.id);
@@ -1443,9 +1450,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     switch (choice) {
       case SendPin(:final geo):
         try {
-          await room.sendEvent(
-            locationMessageContent(geo, timestamp: DateTime.now()),
-          );
+          await sendLocationPin(room, geo, at: DateTime.now());
         } catch (_) {
           if (mounted) _snack('Location not sent. Try again.');
         }

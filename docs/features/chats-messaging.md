@@ -92,6 +92,11 @@ guesses on its own.
   keeps an allowlist of formatting tags, drops scripts, forms, images and
   media with their contents, and keeps only safe external links. They
   cannot reserve room on their last line, so their time row sits below.
+- **Reply quotes** fetch their target once per room visit through
+  `getEventById`, which decrypts a stored event with the keys held now. A
+  target still encrypted is fetched again once the room's late keys arrive
+  (`security-verification.md`), so its quote fills in without reopening
+  the room.
 
 ## Composer and sending
 

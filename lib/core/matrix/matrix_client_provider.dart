@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 
 import '../calls/matrixrtc/call_member_state.dart' show callMemberEventType;
+import '../errors/best_effort.dart';
 import '../location/live_location_protocol.dart' show liveLocationStateType;
 import '../platform/platform_capabilities.dart';
 import '../push/read_model/session_exporter.dart';
@@ -19,6 +20,7 @@ import '../push/send_keep_awake.dart';
 import 'atomic_batch_database.dart';
 import 'client_lease.dart';
 import 'client_startup.dart';
+import 'database_compaction.dart';
 import 'database_key.dart';
 import 'database_raw_key.dart';
 import 'ephemeral_to_device.dart';
@@ -256,6 +258,10 @@ Future<sqflite.Database> _openDatabase(
   );
   await _assertSqlCipherPresent(database);
   if (createKey) {
+    await runBestEffort(
+      () => compactDatabase(database),
+      label: 'compact the database at startup',
+    );
     unawaited(
       cacheDatabaseRawKey(
         path,

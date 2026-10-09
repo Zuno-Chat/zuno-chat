@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
@@ -77,5 +80,109 @@ void main() {
     await cache.fetch(r'$b');
 
     expect(seen, [r'$a', r'$b']);
+  });
+
+  group('when room keys arrive', () {
+    late StreamController<String> keys;
+
+    setUp(() => keys = StreamController<String>.broadcast());
+    tearDown(() => keys.close());
+
+    Event event(String type) => buildTestEvent(
+      room,
+      eventId: r'$a',
+      senderId: '@bob:example.org',
+      type: type,
+    );
+
+    test('a target still encrypted is looked up again and listeners '
+        'hear of it', () {
+      fakeAsync((async) {
+        final answers = [
+          event(EventTypes.Encrypted),
+          event(EventTypes.Message),
+        ];
+        var lookups = 0;
+        final cache = ReplyTargetCache(
+          (id) async => answers[lookups++],
+          keysArrived: keys.stream,
+        );
+        var notified = 0;
+        cache.addListener(() => notified++);
+
+        cache.fetch(r'$a');
+        async.flushMicrotasks();
+        keys
+          ..add('first')
+          ..add('second');
+        async.elapse(const Duration(seconds: 1));
+
+        expect(lookups, 2);
+        expect(cache.resolved(r'$a')!.type, EventTypes.Message);
+        expect(notified, 1);
+        cache.dispose();
+      });
+    });
+
+    test('a readable target is not looked up again', () {
+      fakeAsync((async) {
+        var lookups = 0;
+        final cache = ReplyTargetCache((id) async {
+          lookups++;
+          return event(EventTypes.Message);
+        }, keysArrived: keys.stream);
+
+        cache.fetch(r'$a');
+        async.flushMicrotasks();
+        keys.add('key');
+        async.elapse(const Duration(seconds: 1));
+
+        expect(lookups, 1);
+        cache.dispose();
+      });
+    });
+
+    test(
+      'a target still unreadable after the retry stays put, unannounced',
+      () {
+        fakeAsync((async) {
+          var lookups = 0;
+          final cache = ReplyTargetCache((id) async {
+            lookups++;
+            return event(EventTypes.Encrypted);
+          }, keysArrived: keys.stream);
+          var notified = 0;
+          cache.addListener(() => notified++);
+
+          cache.fetch(r'$a');
+          async.flushMicrotasks();
+          keys.add('key');
+          async.elapse(const Duration(seconds: 1));
+
+          expect(lookups, 2);
+          expect(cache.resolved(r'$a')!.type, EventTypes.Encrypted);
+          expect(notified, 0);
+          cache.dispose();
+        });
+      },
+    );
+
+    test('keys arriving after dispose look nothing up', () {
+      fakeAsync((async) {
+        var lookups = 0;
+        final cache = ReplyTargetCache((id) async {
+          lookups++;
+          return event(EventTypes.Encrypted);
+        }, keysArrived: keys.stream);
+
+        cache.fetch(r'$a');
+        async.flushMicrotasks();
+        cache.dispose();
+        keys.add('key');
+        async.elapse(const Duration(seconds: 1));
+
+        expect(lookups, 1);
+      });
+    });
   });
 }

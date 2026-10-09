@@ -12,7 +12,7 @@ was stays anywhere.
 | Piece | Role |
 |---|---|
 | `lib/core/location/geo_uri.dart` | Parses and formats `geo:lat,lon;u=m` (RFC 5870) |
-| `location_message.dart` | Builds MSC3488 content and reads a pin from any client |
+| `location_message.dart` | Sends a pin through the SDK's `Room.sendLocation`, which owns the MSC3488 format, and reads a pin from any client |
 | `current_position.dart` | Returns a fix, possibly approximate, or a typed failure |
 | `map_tiles*.dart`, `map_tile_cache.dart` | The tile source, its probe and the tile cache |
 | `maps_link.dart` | Hands a location to the platform's maps app |

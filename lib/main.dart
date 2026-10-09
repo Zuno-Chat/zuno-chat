@@ -13,6 +13,7 @@ import 'core/calls/notifications/ringing_call_store.dart';
 import 'core/errors/crash_reporting.dart';
 import 'core/errors/global_error_handler.dart';
 import 'core/matrix/client_startup.dart';
+import 'core/matrix/left_rooms_repair.dart';
 import 'core/matrix/matrix_client_provider.dart';
 import 'core/network/user_agent.dart';
 import 'core/notifications/native_notification_action_runner.dart';
@@ -75,6 +76,7 @@ Future<void> _runApp(List<String> args) async {
 
   await notificationsFuture;
   final (:client, :uploadProgressHttpClient) = await clientFuture;
+  await repairLeftRoomsOnce(client, preferences);
   attachFcmAppClient(client);
   if (ambientCapabilities.nativeNotificationActions) {
     nativeNotificationActionRunner.attach(client);

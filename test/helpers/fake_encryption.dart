@@ -10,8 +10,8 @@ class EncryptionDatabase extends FakeDatabaseApi {
   final secretCacheReads = <String>[];
   final heldSecretCacheReads = <String, Completer<Null>>{};
   final verifiedCrossSigningKeys = <String, bool>{};
-  final verifiedDevices = <String, bool>{};
   final refusingUsers = <String>{};
+  void Function(DeviceKeysList stored)? onStore;
   final cachedSecrets = <String>{};
 
   @override
@@ -32,22 +32,13 @@ class EncryptionDatabase extends FakeDatabaseApi {
   }
 
   @override
-  Future<void> setVerifiedUserCrossSigningKey(
-    bool verified,
-    String userId,
-    String publicKey, {
-    DateTime? trustOnFirstUseSince,
-  }) async {
+  Future<void> storeDeviceKeysList(DeviceKeysList deviceKeysList) async {
+    final userId = deviceKeysList.userId;
     if (refusingUsers.contains(userId)) throw StateError('database locked');
-    verifiedCrossSigningKeys[userId] = verified;
+    verifiedCrossSigningKeys[userId] =
+        deviceKeysList.masterKey?.directVerified ?? false;
+    onStore?.call(deviceKeysList);
   }
-
-  @override
-  Future<void> setVerifiedUserDeviceKey(
-    bool verified,
-    String userId,
-    String deviceId,
-  ) async => verifiedDevices['$userId/$deviceId'] = verified;
 }
 
 class EncryptedTestClient extends Client {
