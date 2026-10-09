@@ -2,12 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/settings/library_versions.dart';
 import 'package:zuno/features/settings/presentation/about_page.dart';
 
 import '../../../helpers/card_layout.dart';
@@ -17,11 +19,17 @@ void main() {
   Finder switchTile(String title) =>
       find.widgetWithText(SwitchListTile, title, skipOffstage: false);
 
+  String? subtitleOf(WidgetTester tester, String title) =>
+      (tester.widget<ListTile>(find.widgetWithText(ListTile, title)).subtitle!
+              as Text)
+          .data;
+
   Future<ProviderContainer> pumpAbout(
     WidgetTester tester, {
     AboutPage page = const AboutPage(),
     Map<String, Object> prefs = const {},
     PlatformCapabilities? capabilities,
+    List<Override> overrides = const [],
   }) async {
     await tester.binding.setSurfaceSize(const Size(800, 3000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -32,6 +40,7 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(sharedPrefs),
         if (capabilities != null)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
+        ...overrides,
       ],
     );
     addTearDown(container.dispose);
@@ -81,17 +90,30 @@ void main() {
         .split('"')[1];
 
     await pumpAbout(tester);
+    await tester.pump();
 
-    ListTile row(String title) =>
-        tester.widget<ListTile>(find.widgetWithText(ListTile, title));
+    expect(subtitleOf(tester, 'Chat library version'), locked('matrix'));
     expect(
-      (row('Chat library version').subtitle! as Text).data,
-      locked('matrix'),
-    );
-    expect(
-      (row('Encryption library version').subtitle! as Text).data,
+      subtitleOf(tester, 'Encryption library version'),
       locked('vodozemac'),
     );
+  });
+
+  testWidgets('library versions that cannot be read say Unknown', (
+    tester,
+  ) async {
+    await pumpAbout(
+      tester,
+      overrides: [
+        libraryVersionsProvider.overrideWith(
+          (ref) => Future.error(const FormatException('unreadable')),
+        ),
+      ],
+    );
+    await tester.pump();
+
+    expect(subtitleOf(tester, 'Chat library version'), 'Unknown');
+    expect(subtitleOf(tester, 'Encryption library version'), 'Unknown');
   });
 
   testWidgets('shows the donation row as one static line', (tester) async {

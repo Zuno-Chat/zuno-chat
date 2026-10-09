@@ -51,7 +51,7 @@ dependencies:
     path: packages/zuno_notifications
 
   flutter_riverpod: ^3.4.2
-  matrix: ^12.0.1
+  matrix: ^14.0.0
   mime: ^2.1.0
   flutter_secure_storage: ^11.2.0
   # SQLCipher-backed drop-in for sqflite — the Matrix SDK's local database
@@ -157,8 +157,7 @@ dependency_overrides:
   # runs `flutter test`, not just at an actual platform build. It only
   # reaches this graph at all via unifiedpush's *Linux desktop* plugin
   # (webpush_encryption, for the federated Linux implementation this
-  # Android-only app never uses — see CLAUDE.md: "Android is the only
-  # supported platform for v1"), so it's only ever built for the host
+  # Android and iOS app never uses), so it's only ever built for the host
   # platform `flutter test` resolves against, never for a real Android
   # build. Pinned to the last version that built without cmake until
   # either cmake is available in every dev/CI environment or unifiedpush
@@ -187,6 +186,7 @@ flutter:
     # tool/generate_tones.py to change them.
     - assets/sounds/
     - assets/wallpaper/
+    - pubspec.lock
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

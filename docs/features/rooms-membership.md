@@ -113,6 +113,7 @@ files.
 - **Sender and receiver views are deliberately asymmetric.** The sender sees no profile for an invitee who has not accepted, because the server hands over their member state before they have agreed to anything, so the room is titled with the typed username until then. The receiver sees the inviter's name and avatar in full, because "who is this?" is the whole question.
 - **One notification per invitation.** Two paths can announce it: the live path listens to `client.onNotification`, since an invitation is stripped state and not a timeline event, and the push path uses `inviteNotificationFor`, since the default push handler drops `m.room.member`. Each claims the room before posting, and a sync that shows the room joined or left releases the claim.
 - **Tapping an invitation opens `RoomInvitePage`**, never the room, which has no timeline or composer yet.
+- **Join opens the room only once sync shows it joined** (`room.join(waitForSync: true)`), so it never opens while still an invitation locally. Decline does not wait, because the SDK's wait has no timeout and a repeated leave creates no event to end it.
 
 **Moderation**
 - **Moderation tooling stays out of the app** (`../decisions/excluded.md`). Room admins act inside their rooms, and reports go to the operator for what admins cannot handle: chats and invitations, an abusive admin, illegal content and account-level action.

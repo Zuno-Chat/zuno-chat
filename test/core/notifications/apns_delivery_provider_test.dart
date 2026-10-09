@@ -736,7 +736,6 @@ void main() {
       SharedPreferences.setMockInitialValues({
         'push.apns.token': _token,
         'push.apns.app_id': apnsAppId,
-        'push.apns.sound': true,
       });
       client.pushersOnServer = [_serverPusher(_pushkey)];
 
@@ -747,7 +746,6 @@ void main() {
       expect(client.posted.map(soundOf), ['message_tone.caf']);
       expect(provider.status.value, ApnsStatus.ready);
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.containsKey('push.apns.sound'), isFalse);
       expect(prefs.getString('push.apns.sound_name'), 'message_tone.caf');
     });
 

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/security/confirmed_identity_store.dart';
 import 'package:zuno/core/security/reset_confirmations.dart';
@@ -108,6 +109,27 @@ void main() {
       expect(client.encryptionDatabase.verifiedCrossSigningKeys, {
         carol: false,
       });
+    });
+
+    test('a device list that changes mid-reset does not stop it', () async {
+      const dave = '@dave:example.org';
+      await confirm(alice);
+      await confirm(carol);
+      client.encryptionDatabase
+        ..verifiedCrossSigningKeys.clear()
+        ..onStore = (_) => client.userDeviceKeys.putIfAbsent(
+          dave,
+          () => DeviceKeysList(dave, client),
+        );
+      final prefs = await SharedPreferences.getInstance();
+
+      await forgetConfirmationsAfterIdentityReset(
+        client,
+        ConfirmedIdentityStore(prefs),
+      );
+
+      expect(confirmed(alice), isFalse);
+      expect(confirmed(carol), isFalse);
     });
 
     test('a store that cannot be cleared still un-confirms people', () async {

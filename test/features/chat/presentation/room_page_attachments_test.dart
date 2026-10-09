@@ -673,13 +673,20 @@ void main() {
       overrides: [mapTilesProvider.overrideWith((ref) async => null)],
     );
 
-    testWidgets('the found location is sent', (tester) async {
+    testWidgets('the found location is sent as an MSC3488 pin of me', (
+      tester,
+    ) async {
       await openRoomForLocation(tester);
 
       await shareLocation(tester);
 
-      expect(harness.sent.single['msgtype'], 'm.location');
-      expect(harness.sent.single['geo_uri'], startsWith('geo:52.37,4.89'));
+      final sent = harness.sent.single;
+      expect(sent['msgtype'], 'm.location');
+      expect(sent['geo_uri'], startsWith('geo:52.37,4.89'));
+      expect(sent['body'], startsWith('Location: 52.37'));
+      expect(sent['org.matrix.msc3488.location'], {'uri': sent['geo_uri']});
+      expect(sent['org.matrix.msc3488.asset'], {'type': 'm.self'});
+      expect(sent['org.matrix.msc3488.ts'], isA<int>());
     });
 
     testWidgets('a refused send says so', (tester) async {

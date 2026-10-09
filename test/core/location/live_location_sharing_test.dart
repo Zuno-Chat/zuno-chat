@@ -955,6 +955,30 @@ void main() {
 
       expect(client.stateWrites.single.content, isEmpty);
     });
+
+    test('a profile change while joined is not taken for a rejoin', () async {
+      setOwnState(room, 'LAPTOP');
+
+      sync(
+        roomId: '!family:x',
+        timeline: [
+          MatrixEvent(
+            type: EventTypes.RoomMember,
+            stateKey: '@me:x',
+            senderId: '@me:x',
+            eventId: r'$rename',
+            originServerTs: now,
+            content: const {'membership': 'join', 'displayname': 'Me'},
+            unsigned: const {
+              'prev_content': {'membership': 'join'},
+            },
+          ),
+        ],
+      );
+      await pumpEventQueue();
+
+      expect(client.stateWrites, isEmpty);
+    });
   });
 
   group('notice', () {

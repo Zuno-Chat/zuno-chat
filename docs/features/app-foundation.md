@@ -43,7 +43,7 @@ flowchart TD
 
 ### One Matrix client per process (`client_lease.dart`)
 
-**At most one Matrix client is live per process, and the app's always wins.** matrix SDK 12 writes the Olm account and session maps as whole values from each client's own cache, so two live clients on one store silently lose each other's crypto writes.
+**At most one Matrix client is live per process, and the app's always wins.** The matrix SDK writes the Olm account, each Olm session map and each user's device keys as whole values from its own cache, so two live clients on one store silently lose each other's crypto writes.
 
 - The app takes its lease before opening the store and keeps it for the life of the process. A background holder is asked to yield, and after a short grace period the app is granted anyway.
 - A background client (`createMatrixClient(backgroundSync: false)`) is denied while the app holds the lease. Each denied path falls back on something already in place: a push keeps its instant notice (`notifications.md`), and a decline or notification action hands off to the app's live route (`calls.md`).
@@ -199,6 +199,10 @@ The `zuno/*` channels, each behind its flag:
 
 **SQLCipher's derived key is cached** in secure storage, tagged with the file's salt, because the passphrase is already a random key and SQLCipher's key stretching on every cold process buys nothing.
 
+**The app's client compacts `zuno.db` each time it opens it**, because SQLite never hands freed pages back to the disk on its own. The first open switches the file to incremental auto-vacuum with one full `VACUUM`, every later open frees the released pages, and Clear cache compacts right after clearing.
+- It runs before the key cache reads the file, so that read never meets a file mid-rewrite.
+- Background clients never compact, since a push wake has no time for a rewrite.
+
 **On Android, every SDK write transaction is one native batch** (`AtomicBatchDatabase`). sqflite_sqlcipher shares one native connection per path across every engine in the process, and a Dart-side transaction spans several channel round trips. An engine that dies inside one would leave the shared connection mid-transaction, and every later write in the process would be silently discarded. The wrapper therefore replays each commit as `BEGIN IMMEDIATE … COMMIT` in one native call. For the same reason, an open that meets another engine's abandoned transaction rolls it back rather than failing (`shared_database_open.dart`). iOS opens a connection per engine and stays unwrapped.
 
 **App data stays out of device backups.** Android sets `allowBackup="false"`, and iOS excludes Application Support, Documents and the App Group folders. `Library/Preferences` still backs up, so a restore brings back the signed-in marker without a database, and the sign-out wipe clears it on first launch.
@@ -271,6 +275,7 @@ stateDiagram-v2
 - **The boot splash matches the OS launch screen pixel for pixel.** A cold start paints the mark twice, from two independent layers, and any mismatch reads as two loading screens. Holding launch targets behind it costs a plain cold start about a second, the price of no room-list flash under a ring.
 - **gzip only**: zstd saved little on real sync payloads, where IDs, keys and ciphertext do not compress, and it cost a dependency.
 - **No localization**: every string is hardcoded English.
+- **Compaction is the app's own, not the SDK's `SQfLiteEncryptionHelper.applyPragmaKey(ensureIncrementalAutoVacuum:)`**, because that helper also applies the key, and Zuno keys `zuno.db` through sqflite_sqlcipher's own open.
 - **Atomic batches, not a forked plugin.** A batch failing after `BEGIN` can still roll back another engine's write in that window, but only on a full disk, an I/O error or corruption. Owning a fork of the crypto database plugin was judged the bigger risk.
 
 ## Gotchas

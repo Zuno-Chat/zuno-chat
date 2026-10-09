@@ -426,7 +426,7 @@ void main() {
       final reads = [
         raw.rawQuery('SELECT * FROM box_rooms'),
         raw.query('box_account_data'),
-        raw.rawQuery('SELECT * FROM box_user_device_keys'),
+        raw.rawQuery('SELECT * FROM box_device_keys_list'),
       ];
       await pumpEventQueue();
 

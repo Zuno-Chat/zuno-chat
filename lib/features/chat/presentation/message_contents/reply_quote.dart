@@ -32,13 +32,28 @@ class _ReplyQuoteState extends State<ReplyQuote> {
   @override
   void initState() {
     super.initState();
+    widget.cache.addListener(_onCacheChanged);
     _resolve();
   }
 
   @override
   void didUpdateWidget(ReplyQuote oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.cache != widget.cache) {
+      oldWidget.cache.removeListener(_onCacheChanged);
+      widget.cache.addListener(_onCacheChanged);
+    }
     _resolve();
+  }
+
+  @override
+  void dispose() {
+    widget.cache.removeListener(_onCacheChanged);
+    super.dispose();
+  }
+
+  void _onCacheChanged() {
+    if (mounted) setState(() {});
   }
 
   void _resolve() {

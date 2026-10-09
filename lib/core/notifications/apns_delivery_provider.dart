@@ -30,7 +30,6 @@ const _tokenKey = 'push.apns.token';
 const _appIdKey = 'push.apns.app_id';
 const _droppedKey = 'push.apns.dropped';
 const _soundKey = 'push.apns.sound_name';
-const _legacySoundKey = 'push.apns.sound';
 
 typedef _Registration = ({String appId, String token, String pushkey});
 
@@ -348,7 +347,6 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       await prefs.remove(_appIdKey);
       await prefs.remove(_droppedKey);
       await prefs.remove(_soundKey);
-      await prefs.remove(_legacySoundKey);
     } catch (e) {
       debugPrint('zuno/push: could not forget the APNs registration ($e)');
     }
@@ -438,7 +436,6 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_soundKey, sound ?? '');
-      await prefs.remove(_legacySoundKey);
     } catch (e) {
       debugPrint('zuno/push: could not record the APNs pusher sound ($e)');
     }
