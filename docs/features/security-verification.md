@@ -97,6 +97,8 @@ flowchart TD
   phrase set up in another client, typed or opened from a saved file.
   Opening a file only fills the field, and any short plain-text file opens,
   so another client's exported key works as well as Zuno's own saved code.
+  The file is read only until it outgrows a code, because the picker does
+  not always know its size.
   Text correction is off in the field, because autocorrect mangling a word
   is the likeliest real-world failure of the design. Validation only hints
   and never blocks submission.

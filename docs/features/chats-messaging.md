@@ -146,6 +146,9 @@ named the Android way.
 
 ### Send flow
 
+- **Arrival.** While Android copies a picked file in from its provider,
+  the attach button spins; iOS's document picker shows its own download
+  progress and sends no signal.
 - **Progress.** One bar per attachment, filled first by compression and
   then by upload. The SDK reports no upload progress, so
   `UploadProgressHttpClient` slices the request body itself.
@@ -314,10 +317,12 @@ flowchart TD
   repeat: every photo Zuno sends is `photo.jpg`.
 - **Cache expiry deletes are fire-and-forget**, because two readers can
   meet the same stale entry and the loser's delete would throw.
-- **The file picker leaves a copy of each picked file in the app's
-  temporary storage**, so the copy is deleted after reading, or sent files
-  pile up; only a copy inside that storage is ever deleted, never an
-  original.
+- **The file picker leaves a copy of each picked file in a folder of its
+  own in the app's temporary storage**, so the copy and that folder are
+  deleted after reading, or sent files pile up; only what lies inside that
+  storage is ever deleted, never an original or the storage itself.
+- **The picker's "done" signal can arrive after the pick has returned**, so
+  the attach spinner ends with the pick itself.
 - **Shared file names are attacker-controlled**, so both native sides
   strip separators, reject `.` and `..`, and refuse paths outside their
   share folder; keep the Kotlin and Swift checks in step.

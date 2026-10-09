@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:cross_file/cross_file.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:zuno/core/security/recovery_code_file.dart';
@@ -108,5 +110,67 @@ void main() {
       );
       expect(File(picked.path!).existsSync(), isFalse);
     });
+
+    test('reads a code whose size the picker could not report', () async {
+      final bytes = encodeRecoveryCodeFile(_code);
+      final copy = pickerCopy(bytes);
+      final picked = _UnsizedPickedFile(copy.path!, () => Stream.value(bytes));
+
+      final code = await readPickedRecoveryCodeFile(
+        picked,
+        temporaryRoots: [temporaryRoot],
+      );
+
+      expect(code, _code);
+      expect(File(copy.path!).existsSync(), isFalse);
+    });
+
+    test('stops reading a file far bigger than a code', () async {
+      final copy = pickerCopy(_bytes([0x61]));
+      var chunksRead = 0;
+      Stream<Uint8List> fourMegabytes() async* {
+        for (var i = 0; i < 4096; i++) {
+          chunksRead++;
+          yield Uint8List(1024)..fillRange(0, 1024, 0x61);
+        }
+      }
+
+      final code = await readPickedRecoveryCodeFile(
+        _UnsizedPickedFile(copy.path!, fourMegabytes),
+        temporaryRoots: [temporaryRoot],
+      );
+
+      expect(code, isNull);
+      expect(chunksRead, lessThan(8));
+      expect(File(copy.path!).existsSync(), isFalse);
+    });
   });
+}
+
+final class _UnsizedPickedFile extends PlatformFile {
+  _UnsizedPickedFile(String path, this._chunks) : uri = Uri.file(path);
+
+  final Stream<Uint8List> Function() _chunks;
+
+  @override
+  final Uri uri;
+
+  @override
+  String get name => p.basename(uri.toFilePath());
+
+  @override
+  XFile get xFile => XFile(uri.toFilePath());
+
+  @override
+  int? lengthSync() => null;
+
+  @override
+  Future<int?> length() async => null;
+
+  @override
+  Future<Uint8List> readAsBytes() async =>
+      Uint8List.fromList(await _chunks().expand((chunk) => chunk).toList());
+
+  @override
+  Stream<Uint8List> readAsByteStream() => _chunks();
 }

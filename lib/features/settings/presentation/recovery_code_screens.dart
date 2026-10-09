@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/best_effort.dart';
+import '../../../core/files/picked_file.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/recovery_code.dart';
 import '../../../core/security/recovery_code_file.dart';
@@ -221,18 +222,26 @@ class _WideButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
+  final bool busy;
 
   const _WideButton({
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.busy = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon),
+      icon: busy
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon),
       label: Align(alignment: Alignment.centerLeft, child: Text(label)),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(48),
@@ -450,13 +459,20 @@ class RecoveryCodeEntryField extends ConsumerStatefulWidget {
 class _RecoveryCodeEntryFieldState
     extends ConsumerState<RecoveryCodeEntryField> {
   bool _opening = false;
+  bool _copying = false;
 
   Future<void> _openSavedFile() async {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _opening = true);
     try {
-      final file = await FilePicker.pickFile(
-        dialogTitle: 'Open your recovery code',
+      final file = await trackPickerCopy(
+        (onFileLoading) => FilePicker.pickFile(
+          dialogTitle: 'Open your recovery code',
+          onFileLoading: onFileLoading,
+        ),
+        onCopying: (copying) {
+          if (mounted) setState(() => _copying = copying);
+        },
       );
       if (file == null) return;
       final code = await readPickedRecoveryCodeFile(file);
@@ -517,6 +533,7 @@ class _RecoveryCodeEntryFieldState
           icon: Icons.file_open_outlined,
           label: 'Open a saved file',
           onPressed: widget.busy || _opening ? null : _openSavedFile,
+          busy: _copying,
         ),
       ],
     );
