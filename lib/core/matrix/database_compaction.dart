@@ -15,7 +15,7 @@ Future<void> compactDatabase(Database database) async {
     await database.execute('VACUUM');
     return;
   }
-  await database.execute('PRAGMA incremental_vacuum');
+  await database.rawQuery('PRAGMA incremental_vacuum');
 }
 
 Database? liveDatabase(Client client) => switch (client.database) {

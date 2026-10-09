@@ -24,6 +24,15 @@ class _RecordingDatabase implements Database {
 
   @override
   Future<void> execute(String sql, [List<Object?>? arguments]) async {
+    if (const {
+      'PRAGMA auto_vacuum',
+      'PRAGMA incremental_vacuum',
+    }.contains(sql)) {
+      throw StateError(
+        'Queries can be performed using SQLiteDatabase query or rawQuery '
+        'methods only.',
+      );
+    }
     statements.add(sql);
     if (sql == failing) throw StateError('disk full');
   }
