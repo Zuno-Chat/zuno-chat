@@ -294,12 +294,17 @@ the commonest words of ordinary prose break any run.
 - **Device checks run only on finished syncs and only add**, because the SDK
   empties and refills a device list across awaits, and saving a half-filled
   list would later report the missing devices as new sign-ins.
+- **A trust write (`setVerified`, `setBlocked`) saves the person's whole
+  device list and throws once `client.userDeviceKeys` no longer holds it**,
+  and that map changes across each write's await, so a loop of trust writes
+  runs over a snapshot and catches per person.
 - **Unlocking recovery does not download the backup**, so the restore must run
   before the post-restore sync, or that sync rebuilds previews from the same
   locked state.
 - **Late keys arrive per room** (`Room.onSessionKeyReceived`), not on sync,
-  and `Room.lastEvent` is decrypted once and cached, so the room list preview
-  retries itself.
+  and only the `Timeline` re-decrypts on them, so the room list preview
+  (`Room.lastEvent` is decrypted once and cached) and reply quotes retry
+  themselves.
 - **Starting over mints a new identity**, so it must clear both the
   confirmed-identity store and the SDK's `directVerified` flags, or a stale
   confirmation or a false `identityChanged` follows. Restoring clears nothing.

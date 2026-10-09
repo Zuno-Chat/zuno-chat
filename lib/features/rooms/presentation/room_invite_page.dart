@@ -165,7 +165,12 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
               ],
               const SizedBox(height: 32),
               FilledButton(
-                onPressed: _busy ? null : () => _answer(room.join, join: true),
+                onPressed: _busy
+                    ? null
+                    : () => _answer(
+                        () => room.join(waitForSync: true),
+                        join: true,
+                      ),
                 child: const Text('Join'),
               ),
               const SizedBox(height: 8),

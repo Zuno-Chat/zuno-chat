@@ -1,12 +1,11 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite_sqlcipher/sqflite.dart' show Database;
 
 import '../errors/best_effort.dart';
 import '../platform/platform_capabilities.dart';
 import '../settings/app_preferences_provider.dart';
+import 'database_compaction.dart';
 import 'matrix_client_provider.dart';
 
 const signedInMarkerKey = 'session.signed_in';
@@ -51,20 +50,15 @@ class SignOutWipe {
   }
 }
 
-Database? _liveDatabase(Client client) => switch (client.database) {
-  final MatrixSdkDatabase database => database.database,
-  _ => null,
-};
-
 final databaseVacuumProvider = Provider<Future<void> Function()>(
   (ref) =>
       () async =>
-          _liveDatabase(ref.read(matrixClientProvider))?.execute('VACUUM'),
+          liveDatabase(ref.read(matrixClientProvider))?.execute('VACUUM'),
 );
 
 final liveDatabasePathProvider = Provider<String? Function()>(
   (ref) =>
-      () => _liveDatabase(ref.read(matrixClientProvider))?.path,
+      () => liveDatabase(ref.read(matrixClientProvider))?.path,
 );
 
 Future<void> Function() _wipeKeepingProcess(

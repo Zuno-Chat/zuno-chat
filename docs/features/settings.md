@@ -51,7 +51,8 @@ Delete account (`authentication.md`).
   prevent screenshots. A default applies only while nothing is stored, so a
   choice someone made survives an update that changes the default.
 - **Two cache actions, never merged**, because they cost different things.
-  Clear cache drops stored messages and room state and forces a full resync.
+  Clear cache drops stored messages and room state, gives the freed space
+  back (`app-foundation.md`) and forces a full resync.
   Clear media cache drops the attachment, map tile and image caches, with no
   server call.
 - **Donation is one static About row** that opens the site in the browser.
@@ -96,9 +97,9 @@ controls are server-wide and a client-only setting would enforce nothing.
   token.
 - **`readPreventScreenshots` is the one default** for both the provider and
   the cold-start call in `main.dart`, so change it there only.
-- **About's library versions are constants** that `about_page_test.dart`
-  checks against `pubspec.lock`, so a dependency upgrade ends with updating
-  them.
+- **About reads the library versions from `pubspec.lock`, bundled as an
+  asset**, so an upgrade needs no edit, and dropping that asset leaves both
+  rows reading Unknown.
 - **`client.getUserProfile` serves a cached profile** that
   `setProfileField` does not invalidate, so Account re-reads with
   `maxCacheAge: Duration.zero` after a save.
