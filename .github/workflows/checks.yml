@@ -33,7 +33,7 @@ jobs:
       - run: flutter analyze
       - run: flutter test ${{ inputs.coverage && '--coverage' || '' }}
       - if: inputs.coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: Zuno-Chat/zuno-chat
