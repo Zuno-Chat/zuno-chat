@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:matrix/matrix.dart';
@@ -9,6 +11,7 @@ import '../../../core/calls/models/call_quality.dart';
 import '../../../core/calls/models/call_status.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_title.dart';
+import '../../../core/ui/corner_snap.dart';
 import 'call_controls.dart';
 import 'call_stage.dart';
 import 'call_status_line.dart';
@@ -48,6 +51,8 @@ class CallView extends StatefulWidget {
   final VoidCallback onMinimize;
   final String? confirmName;
   final VoidCallback? onConfirmPerson;
+  final SnapCorner selfCorner;
+  final ValueChanged<SnapCorner> onSelfCornerChanged;
 
   const CallView({
     super.key,
@@ -67,6 +72,8 @@ class CallView extends StatefulWidget {
     required this.onToggleSpeaker,
     required this.onHangUp,
     required this.onMinimize,
+    required this.selfCorner,
+    required this.onSelfCornerChanged,
     this.confirmName,
     this.onConfirmPerson,
   });
@@ -88,14 +95,15 @@ class CallView extends StatefulWidget {
   State<CallView> createState() => _CallViewState();
 }
 
+const _selfSize = Size(100, 140);
+const _gap = 12.0;
+const _edge = 12.0;
+
 class _CallViewState extends State<CallView> {
-  static const _controlsReserve = 92.0;
-  static const _pillReserve = 34.0;
-  static const _selfWidth = 100.0;
-  static const _gap = 12.0;
   static const _minimizeReserve = 64.0;
 
   DateTime? _encryptingSince;
+  CornerSpots? _selfSpots;
 
   @override
   void initState() {
@@ -141,7 +149,7 @@ class _CallViewState extends State<CallView> {
         present.length == 1 &&
         !widget.reconnecting &&
         !pill;
-    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    final padding = MediaQuery.paddingOf(context);
     final local = widget.local;
 
     final Widget stage;
@@ -158,107 +166,100 @@ class _CallViewState extends State<CallView> {
       );
     } else {
       stage = SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-            bottom: _controlsReserve + (pill || confirm ? _pillReserve : 0),
-          ),
-          child: group ? _group(present) : _voice(present.firstOrNull, status),
-        ),
+        bottom: false,
+        child: group ? _group(present) : _voice(present.firstOrNull, status),
       );
     }
 
     return Scaffold(
       backgroundColor: fullVideo || group ? Colors.black : null,
-      body: Stack(
+      body: CustomMultiChildLayout(
+        delegate: _CallLayout(
+          stageUnderDock: fullVideo,
+          padding: padding,
+          selfCorner: widget.selfCorner,
+          onSelfSpots: (spots) => _selfSpots = spots,
+        ),
         children: [
-          Positioned.fill(key: const ValueKey('stage'), child: stage),
-          Positioned.fill(
-            key: const ValueKey('notice'),
+          LayoutId(id: _Slot.stage, child: stage),
+          LayoutId(
+            id: _Slot.notice,
             child: widget.reconnecting
                 ? const ReconnectingNotice()
                 : const SizedBox.shrink(),
           ),
-          Positioned.fill(
-            key: const ValueKey('overlay'),
-            child: SafeArea(
-              minimum: const EdgeInsets.all(12),
-              child: Stack(
-                children: [
-                  Positioned(
-                    key: const ValueKey('header'),
-                    left: 0,
-                    top: 0,
-                    right: self == null ? 0 : _selfWidth + _gap,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      spacing: 8,
-                      children: [
-                        if (fullVideo) _header(present.single, status),
-                        _minimizeButton(overVideo: fullVideo),
-                      ],
-                    ),
+          if (self != null)
+            LayoutId(
+              id: _Slot.self,
+              child: CornerSnap(
+                key: const ValueKey('self'),
+                corner: widget.selfCorner,
+                onCornerChanged: widget.onSelfCornerChanged,
+                spots: () => _selfSpots!,
+                child: Semantics(
+                  label: 'You',
+                  excludeSemantics: true,
+                  child: ParticipantTile(
+                    participant: self.participant,
+                    renderer: self.renderer,
+                    user: self.user,
+                    showStatus: false,
                   ),
-                  if (self != null)
-                    Positioned(
-                      key: const ValueKey('self'),
-                      right: 0,
-                      top: 0,
-                      width: _selfWidth,
-                      height: 140,
-                      child: ParticipantTile(
-                        participant: self.participant,
-                        renderer: self.renderer,
-                        user: self.user,
-                        showStatus: false,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          if (pill)
-            Positioned(
-              key: const ValueKey('quality'),
-              left: 0,
-              right: 0,
-              bottom: safeBottom + _controlsReserve,
-              child: Center(
-                child: ConnectionQualityPill(quality: shownQuality),
-              ),
-            ),
-          if (confirm)
-            Positioned(
-              key: const ValueKey('confirm'),
-              left: 16,
-              right: 16,
-              bottom: safeBottom + _controlsReserve,
-              child: Center(
-                child: ConfirmPersonPill(
-                  name: confirmName,
-                  overVideo: fullVideo,
-                  onPressed: onConfirmPerson,
                 ),
               ),
             ),
-          Positioned(
-            key: const ValueKey('controls'),
-            left: 8,
-            right: 8,
-            bottom: safeBottom + 16,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: CallControls(
-                kind: widget.kind,
-                micMuted: local?.participant.audioMuted ?? false,
-                cameraOn: local?.participant.videoEnabled ?? false,
-                audioRoute: widget.audioRoute,
-                enabled: local != null,
-                overVideo: fullVideo,
-                onToggleMute: widget.onToggleMute,
-                onToggleCamera: widget.onToggleCamera,
-                onSwitchCamera: widget.onSwitchCamera,
-                onToggleSpeaker: widget.onToggleSpeaker,
-                onHangUp: widget.onHangUp,
+          LayoutId(
+            id: _Slot.header,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 8,
+              children: [
+                if (fullVideo) _header(present.single, status),
+                _minimizeButton(overVideo: fullVideo),
+              ],
+            ),
+          ),
+          LayoutId(
+            id: _Slot.dock,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(8, _gap, 8, padding.bottom + 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                spacing: _gap,
+                children: [
+                  if (pill)
+                    ConnectionQualityPill(
+                      key: const ValueKey('quality'),
+                      quality: shownQuality,
+                    ),
+                  if (confirm)
+                    Padding(
+                      key: const ValueKey('confirm'),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: ConfirmPersonPill(
+                        name: confirmName,
+                        overVideo: fullVideo,
+                        onPressed: onConfirmPerson,
+                      ),
+                    ),
+                  FittedBox(
+                    key: const ValueKey('controls'),
+                    fit: BoxFit.scaleDown,
+                    child: CallControls(
+                      kind: widget.kind,
+                      micMuted: local?.participant.audioMuted ?? false,
+                      cameraOn: local?.participant.videoEnabled ?? false,
+                      audioRoute: widget.audioRoute,
+                      enabled: local != null,
+                      overVideo: fullVideo,
+                      onToggleMute: widget.onToggleMute,
+                      onToggleCamera: widget.onToggleCamera,
+                      onSwitchCamera: widget.onSwitchCamera,
+                      onToggleSpeaker: widget.onToggleSpeaker,
+                      onHangUp: widget.onHangUp,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -360,4 +361,73 @@ class _CallViewState extends State<CallView> {
       ],
     );
   }
+}
+
+enum _Slot { stage, notice, self, header, dock }
+
+class _CallLayout extends MultiChildLayoutDelegate {
+  final bool stageUnderDock;
+  final EdgeInsets padding;
+  final SnapCorner selfCorner;
+  final ValueSetter<CornerSpots> onSelfSpots;
+
+  _CallLayout({
+    required this.stageUnderDock,
+    required this.padding,
+    required this.selfCorner,
+    required this.onSelfSpots,
+  });
+
+  @override
+  void performLayout(Size size) {
+    final screen = BoxConstraints.tight(size);
+    final dock = layoutChild(
+      _Slot.dock,
+      BoxConstraints(
+        minWidth: size.width,
+        maxWidth: size.width,
+        maxHeight: size.height,
+      ),
+    );
+    final dockTop = size.height - dock.height;
+    positionChild(_Slot.dock, Offset(0, dockTop));
+    layoutChild(
+      _Slot.stage,
+      stageUnderDock ? screen : BoxConstraints.tight(Size(size.width, dockTop)),
+    );
+    layoutChild(_Slot.notice, screen);
+
+    final selfShown = hasChild(_Slot.self);
+    final area = Rect.fromLTRB(
+      math.max(padding.left, _edge),
+      math.max(padding.top, _edge),
+      size.width - math.max(padding.right, _edge),
+      dockTop,
+    );
+    final headerWidth = math.max(
+      0.0,
+      area.width - (selfShown ? _selfSize.width + _gap : 0),
+    );
+    final header = layoutChild(
+      _Slot.header,
+      BoxConstraints.tightFor(width: headerWidth),
+    );
+    positionChild(_Slot.header, area.topLeft);
+
+    if (!selfShown) return;
+    final spots = CornerSpots(
+      bounds: area,
+      size: _selfSize,
+      keepClear: area.topLeft & (header + const Offset(0, _gap)),
+    );
+    onSelfSpots(spots);
+    layoutChild(_Slot.self, BoxConstraints.tight(_selfSize));
+    positionChild(_Slot.self, spots.of(selfCorner));
+  }
+
+  @override
+  bool shouldRelayout(_CallLayout oldDelegate) =>
+      oldDelegate.stageUnderDock != stageUnderDock ||
+      oldDelegate.padding != padding ||
+      oldDelegate.selfCorner != selfCorner;
 }

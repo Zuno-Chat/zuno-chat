@@ -26,6 +26,7 @@ import 'package:zuno/core/matrix/upload_progress_http_client.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/ui/corner_snap.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_view.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
@@ -648,6 +649,8 @@ Widget _voiceCall(_World w) {
       onToggleSpeaker: () {},
       onHangUp: () {},
       onMinimize: () {},
+      selfCorner: SnapCorner.topRight,
+      onSelfCornerChanged: (_) {},
     ),
   );
 }

@@ -10,6 +10,7 @@ import '../../../core/calls/models/voip_participant_id.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/navigation/launch_route.dart';
 import '../../../core/security/security_providers.dart';
+import '../../../core/ui/corner_snap.dart';
 import '../../../core/ui/zuno_theme.dart';
 import '../../verification/presentation/confirm_person.dart';
 import '../../verification/presentation/why_confirm_sheet.dart';
@@ -20,6 +21,8 @@ const cameraDidNotTurnOnMessage =
     'Camera did not turn on. Check that Zuno can use the camera and try again.';
 
 final _screens = Expando<Route<void>>('call screen route');
+
+final _selfCorners = Expando<SnapCorner>('self view corner');
 
 void showCallScreen(
   NavigatorState navigator,
@@ -189,6 +192,9 @@ class _CallPageState extends ConsumerState<CallPage> {
       onToggleSpeaker: call.toggleSpeaker,
       onHangUp: call.hangUp,
       onMinimize: () => Navigator.of(context).pop(),
+      selfCorner: _selfCorners[call] ?? SnapCorner.topRight,
+      onSelfCornerChanged: (corner) =>
+          setState(() => _selfCorners[call] = corner),
       confirmName: confirmUserId == null ? null : withoutServer(confirmUserId),
       onConfirmPerson: confirmUserId == null
           ? null

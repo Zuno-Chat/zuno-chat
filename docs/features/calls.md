@@ -232,6 +232,19 @@ tier.
 - **Confirming the other person**: in a one-to-one call, a pill offers to
   confirm someone unconfirmed or changed, once both ends can finish it
   (`security-verification.md`).
+- **The buttons and the notice over them (weak connection, or the confirm
+  offer) form one bottom dock**, and everything but a full-screen camera
+  sits above its measured height, since a fixed reserve under-measures the
+  notice at large text sizes.
+- **Your own view drags to any corner** and snaps to the nearest, for the
+  rest of the call, minimizing included; a new call starts top-right. The
+  bottom corners sit above the dock and the top-left one below the name and
+  Minimize button, which never move and paint above your view, so it never
+  covers them, even on a short landscape screen.
+- **One corner drag in `lib/core/ui/` serves your view and the minimized
+  window**: it owns the drag, the snap and the screen-reader actions that
+  move the view to each corner, and the parent places the view, the call
+  screen at layout time so it clears the header measured in the same frame.
 - **Audio route**: a call starts on a connected headset, else the earpiece
   for voice and the speaker for video, and a newly connected headset takes
   the sound. On Android each call picks its own starting route. iOS adopts
@@ -256,8 +269,8 @@ to what was under the call.
 | Android picture-in-picture | The remote tile over the whole app, whatever screen is on top |
 
 - **The window drags and snaps to the nearest corner** below the app bar,
-  and stays clear of the keyboard and of the open page's bottom bar and
-  sheets (`app-foundation.md`).
+  or moves by screen-reader action, and stays clear of the keyboard and of
+  the open page's bottom bar and sheets (`app-foundation.md`).
 - **Video goes only where it shows**: every camera while the call screen is
   open, only the windowed person while minimized, none behind the bar. A
   renderer exists only for someone with video, on both platforms.

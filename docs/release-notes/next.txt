@@ -4,6 +4,7 @@ New
 • Restore from a saved recovery code file.
 • Minimize a call and keep using Zuno.
 • Mute, use the speaker or turn your camera off while your call rings.
+• Drag your own view to any corner of a video call.
 • Crash reports, when you turn them on, now cover errors too.
 
-Fixed 39 bugs.
+Fixed 40 bugs.

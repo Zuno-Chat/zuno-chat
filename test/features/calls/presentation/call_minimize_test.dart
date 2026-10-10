@@ -7,6 +7,7 @@ import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_router.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
+import 'package:zuno/features/calls/presentation/call_window.dart';
 
 import '../../../helpers/platform_capabilities.dart';
 import 'call_page_harness.dart';
@@ -56,6 +57,25 @@ void main() {
 
     expect(find.byType(CallPage), findsNothing);
     expect(session.hangUps, 0);
+    await harness.close();
+  });
+
+  testWidgets('your view keeps the corner you put it in when the call is '
+      'minimized and reopened', (tester) async {
+    final harness = CallPageHarness(tester);
+    await talking(harness, kind: CallKind.video, remoteCamera: true);
+    final self = find.byKey(const ValueKey('self'));
+
+    await tester.drag(self, const Offset(-200, 400));
+    await harness.settle();
+    final placed = tester.getRect(self);
+    expect(placed.left, 12);
+
+    await harness.minimize();
+    await tester.tap(find.byType(CallWindow));
+    await harness.settle();
+
+    expect(tester.getRect(self), placed);
     await harness.close();
   });
 

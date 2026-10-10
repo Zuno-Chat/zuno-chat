@@ -54,39 +54,4 @@ void main() {
       const Size(160, 90),
     );
   });
-
-  test('each corner pins the window inside the bounds', () {
-    const bounds = Rect.fromLTRB(8, 88, 352, 616);
-    const window = Size(108, 144);
-    expect(
-      callWindowOrigin(CallWindowCorner.topRight, bounds, window),
-      const Offset(244, 88),
-    );
-    expect(
-      callWindowOrigin(CallWindowCorner.bottomLeft, bounds, window),
-      const Offset(8, 472),
-    );
-  });
-
-  test('with no room left above a sheet, a bottom corner stops under the '
-      'app bar', () {
-    const bounds = Rect.fromLTRB(8, 88, 352, 150);
-    const window = Size(108, 144);
-    expect(
-      callWindowOrigin(CallWindowCorner.bottomLeft, bounds, window),
-      const Offset(8, 88),
-    );
-  });
-
-  test('a released window goes to the corner nearest its center', () {
-    const bounds = Rect.fromLTRB(8, 88, 352, 616);
-    expect(
-      nearestCallWindowCorner(const Offset(100, 500), bounds),
-      CallWindowCorner.bottomLeft,
-    );
-    expect(
-      nearestCallWindowCorner(const Offset(300, 100), bounds),
-      CallWindowCorner.topRight,
-    );
-  });
 }

@@ -9,6 +9,7 @@ import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/core/calls/models/call_status.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/matrix/mxc_avatar.dart';
+import 'package:zuno/core/ui/corner_snap.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_controls.dart';
 import 'package:zuno/features/calls/presentation/call_stage.dart';
@@ -23,6 +24,7 @@ import '../../../helpers/layout_matrix.dart';
 void main() {
   late Room room;
   late List<String> pressed;
+  late List<SnapCorner> corners;
 
   setUp(() {
     final client = buildTestClient(userId: '@me:example.org');
@@ -36,6 +38,7 @@ void main() {
       ),
     );
     pressed = [];
+    corners = [];
   });
 
   CallViewParticipant person(
@@ -84,6 +87,7 @@ void main() {
     CallQuality quality = CallQuality.good,
     Size size = const Size(360, 640),
     String? confirmName,
+    SnapCorner selfCorner = SnapCorner.topRight,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -120,6 +124,8 @@ void main() {
           onConfirmPerson: confirmName == null
               ? null
               : () => pressed.add('confirm'),
+          selfCorner: selfCorner,
+          onSelfCornerChanged: corners.add,
         ),
       ),
     );
@@ -315,6 +321,126 @@ void main() {
         tester.widget<VideoCallHeader>(find.byType(VideoCallHeader)).status,
         CallStatus.encrypting,
       );
+    });
+  });
+
+  group('your view', () {
+    final self = find.byKey(const ValueKey('self'));
+    final minimizeButton = find.ancestor(
+      of: find.byTooltip('Minimize call'),
+      matching: find.byType(IconButton),
+    );
+
+    Future<void> video(
+      WidgetTester tester, {
+      SnapCorner corner = SnapCorner.topRight,
+      CallQuality quality = CallQuality.good,
+      String? confirmName,
+      bool weak = false,
+    }) => pump(
+      tester,
+      kind: CallKind.video,
+      localCamera: true,
+      remote: [person('Ann', camera: true, weak: weak)],
+      selfCorner: corner,
+      quality: quality,
+      confirmName: confirmName,
+    );
+
+    testWidgets('dragged toward another corner, it asks to move there', (
+      tester,
+    ) async {
+      await video(tester);
+
+      await tester.drag(self, const Offset(-200, 400));
+      await tester.pump();
+
+      expect(corners, [SnapCorner.bottomLeft]);
+    });
+
+    testWidgets('in a bottom corner it sits just above the buttons', (
+      tester,
+    ) async {
+      await video(tester, corner: SnapCorner.bottomLeft);
+
+      final view = tester.getRect(self);
+      final dock = tester.getRect(find.byType(CallControls));
+      expect(view.left, 12);
+      expect(view.bottom, lessThanOrEqualTo(dock.top));
+      expect(view.bottom, greaterThan(dock.top - 24));
+      expect(tester.getRect(find.byType(VideoCallHeader)).left, 12);
+    });
+
+    for (final (offer, quality, confirmName, pill) in [
+      ('a weak connection', CallQuality.poor, null, ConnectionQualityPill),
+      ('an offer to confirm', CallQuality.good, '@ann', ConfirmPersonPill),
+    ]) {
+      testWidgets('in a bottom corner it stays clear of $offer', (
+        tester,
+      ) async {
+        await video(
+          tester,
+          corner: SnapCorner.bottomRight,
+          quality: quality,
+          confirmName: confirmName,
+        );
+
+        expect(
+          tester.getRect(self).bottom,
+          lessThanOrEqualTo(tester.getRect(find.byType(pill)).top),
+        );
+      });
+    }
+
+    testWidgets('in the top left corner it sits just below Minimize, which '
+        'stays put', (tester) async {
+      await video(tester);
+      final header = tester.getRect(find.byType(VideoCallHeader));
+      final minimize = tester.getRect(minimizeButton);
+
+      await video(tester, corner: SnapCorner.topLeft);
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(tester.getRect(find.byType(VideoCallHeader)), header);
+      expect(tester.getRect(minimizeButton), minimize);
+      final view = tester.getRect(self);
+      expect(view.left, 12);
+      expect(view.top, minimize.bottom + 12);
+    });
+
+    testWidgets('in the top left corner it moves down as the header grows', (
+      tester,
+    ) async {
+      await video(tester, corner: SnapCorner.topLeft);
+      final before = tester.getRect(self).top;
+
+      await video(tester, corner: SnapCorner.topLeft, weak: true);
+
+      final view = tester.getRect(self);
+      expect(view.top, greaterThan(before));
+      expect(view.top, tester.getRect(minimizeButton).bottom + 12);
+    });
+
+    testWidgets('it passes under the header and the buttons, never over them', (
+      tester,
+    ) async {
+      await video(tester);
+      final gesture = await tester.startGesture(tester.getCenter(self));
+      await gesture.moveBy(const Offset(-20, 0));
+      await gesture.moveTo(tester.getCenter(minimizeButton));
+      await tester.pump();
+
+      await tester.tap(minimizeButton, warnIfMissed: false);
+      expect(pressed, ['minimize']);
+      await gesture.up();
+    });
+
+    testWidgets('a screen reader hears it as you', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await video(tester);
+
+      expect(tester.getSemantics(self), isSemantics(label: 'You'));
+      semantics.dispose();
     });
   });
 
@@ -607,6 +733,24 @@ void main() {
       });
     }
 
+    testWidgets('the stage ends above it, even with large text', (
+      tester,
+    ) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pump(
+        tester,
+        localEncrypting: true,
+        remote: [person('Ann')],
+        confirmName: '@ann',
+      );
+
+      expect(
+        tester.getRect(find.byType(VoiceCallStage)).bottom,
+        lessThanOrEqualTo(tester.getRect(find.byType(ConfirmPersonPill)).top),
+      );
+    });
+
     testWidgets('it steps aside for a weak connection', (tester) async {
       await pump(
         tester,
@@ -686,6 +830,8 @@ void main() {
       onMinimize: () {},
       confirmName: confirmName,
       onConfirmPerson: confirmName == null ? null : () {},
+      selfCorner: SnapCorner.topRight,
+      onSelfCornerChanged: (_) {},
     );
 
     Future<void> endCallReachable(WidgetTester tester, String name) async {
