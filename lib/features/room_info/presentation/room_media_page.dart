@@ -214,7 +214,7 @@ class _FileRow extends StatelessWidget {
         ),
       ),
       onTap: () =>
-          saveAttachmentWithFeedback(ScaffoldMessenger.of(context), event),
+          saveAttachmentsWithFeedback(ScaffoldMessenger.of(context), [event]),
     );
   }
 }

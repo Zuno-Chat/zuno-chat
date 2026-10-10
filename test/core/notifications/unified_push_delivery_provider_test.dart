@@ -14,83 +14,14 @@ import 'package:zuno/core/push/unified_push_pusher.dart';
 import 'package:zuno/core/push/unified_push_registration_store.dart';
 
 import '../../helpers/fake_matrix.dart';
-
-class _FakeUnifiedPush extends UnifiedPushPlatform {
-  List<String> installed = const [];
-  String? ackDistributor;
-  String? defaultDistributor;
-  final saved = <String>[];
-  void Function(PushEndpoint endpoint, String instance)? onNewEndpoint;
-  void Function(FailedReason reason, String instance)? onRegistrationFailed;
-
-  @override
-  Future<List<String>> getDistributors(List<String> features) async =>
-      installed;
-
-  @override
-  Future<String?> getDistributor() async => ackDistributor;
-
-  @override
-  Future<void> saveDistributor(String distributor) async {
-    saved.add(distributor);
-  }
-
-  int registerCalls = 0;
-
-  @override
-  Future<void> register(
-    String instance,
-    List<String> features,
-    String? messageForDistributor,
-    String? vapid,
-  ) async {
-    registerCalls++;
-  }
-
-  @override
-  Future<bool> tryUseCurrentOrDefaultDistributor() async {
-    final chosen = defaultDistributor;
-    if (chosen == null) return false;
-    ackDistributor = chosen;
-    return true;
-  }
-
-  int unregisterCalls = 0;
-  Object? unregisterError;
-
-  @override
-  Future<void> unregister(String instance) async {
-    unregisterCalls++;
-    final error = unregisterError;
-    if (error != null) throw error;
-  }
-
-  @override
-  Future<void> initializeCallback({
-    void Function(PushEndpoint endpoint, String instance)? onNewEndpoint,
-    void Function(FailedReason reason, String instance)? onRegistrationFailed,
-    void Function(String instance)? onUnregistered,
-    void Function(PushMessage message, String instance)? onMessage,
-  }) async {
-    this.onNewEndpoint = onNewEndpoint;
-    this.onRegistrationFailed = onRegistrationFailed;
-  }
-
-  @override
-  Future<void> initializeOnTempUnavailable(
-    void Function(String instance)? onTempUnavailable,
-  ) async => throw UnimplementedError();
-
-  @override
-  void setLinuxOptions(LinuxOptions options) {}
-}
+import '../../helpers/fake_unified_push.dart';
 
 void main() {
-  late _FakeUnifiedPush fake;
+  late FakeUnifiedPush fake;
   late UnifiedPushDeliveryProvider provider;
 
   setUp(() {
-    fake = _FakeUnifiedPush();
+    fake = FakeUnifiedPush();
     UnifiedPushPlatform.instance = fake;
     provider = UnifiedPushDeliveryProvider()
       ..distributorIgnoresBatteryOptimizations = ((_) async => true)
@@ -111,16 +42,6 @@ void main() {
       expect(fake.saved, isEmpty, reason: 'the platform already saved it');
     },
   );
-
-  test('one distributor installed is picked without asking', () async {
-    fake.installed = ['io.heckel.ntfy'];
-
-    await provider.discoverDistributors();
-
-    expect(provider.status.value, UnifiedPushStatus.distributorSelected);
-    expect(provider.savedDistributor, 'io.heckel.ntfy');
-    expect(fake.saved, ['io.heckel.ntfy']);
-  });
 
   test('no distributor installed reports that, and saves nothing', () async {
     fake.installed = const [];
@@ -147,7 +68,7 @@ void main() {
   });
 
   test('re-scans even when one is already saved and acknowledged', () async {
-    fake.ackDistributor = 'org.unifiedpush.distributor.sunup';
+    fake.distributor = 'org.unifiedpush.distributor.sunup';
     fake.installed = ['io.heckel.ntfy'];
 
     await provider.discoverDistributors();
@@ -172,19 +93,6 @@ void main() {
     setUp(() => SharedPreferences.setMockInitialValues({}));
 
     test(
-      'registers by itself when exactly one distributor is installed',
-      () async {
-        fake.installed = ['io.heckel.ntfy'];
-
-        await provider.start(buildTestClient());
-
-        expect(fake.saved, ['io.heckel.ntfy']);
-        expect(fake.registerCalls, 1);
-        expect(provider.status.value, UnifiedPushStatus.registering);
-      },
-    );
-
-    test(
       'registers with the first distributor when several are installed',
       () async {
         fake.installed = [
@@ -196,7 +104,7 @@ void main() {
 
         expect(provider.status.value, UnifiedPushStatus.registering);
         expect(fake.saved, ['io.heckel.ntfy']);
-        expect(fake.registerCalls, 1);
+        expect(fake.registrations, 1);
       },
     );
 
@@ -206,7 +114,7 @@ void main() {
       await provider.start(buildTestClient());
 
       expect(provider.status.value, UnifiedPushStatus.noDistributorFound);
-      expect(fake.registerCalls, 0);
+      expect(fake.registrations, 0);
     });
 
     test('does not register again on a repeated start()', () async {
@@ -216,18 +124,18 @@ void main() {
       await provider.start(buildTestClient());
       await provider.start(buildTestClient());
 
-      expect(fake.registerCalls, 1);
+      expect(fake.registrations, 1);
     });
 
     test('uses an already-acknowledged pick instead of re-asking', () async {
       fake.installed = ['io.heckel.ntfy', 'org.unifiedpush.distributor.sunup'];
-      fake.ackDistributor = 'io.heckel.ntfy';
+      fake.distributor = 'io.heckel.ntfy';
 
       await provider.start(buildTestClient());
 
       expect(provider.status.value, UnifiedPushStatus.registering);
       expect(provider.savedDistributor, 'io.heckel.ntfy');
-      expect(fake.registerCalls, 1);
+      expect(fake.registrations, 1);
     });
   });
 
@@ -241,14 +149,14 @@ void main() {
     test('start registers nothing', () async {
       await provider.start(buildTestClient());
 
-      expect(fake.registerCalls, 0);
+      expect(fake.registrations, 0);
       expect(provider.status.value, UnifiedPushStatus.idle);
     });
 
     test('registerNow registers nothing', () async {
       await provider.registerNow(buildTestClient());
 
-      expect(fake.registerCalls, 0);
+      expect(fake.registrations, 0);
       expect(provider.status.value, UnifiedPushStatus.idle);
     });
 
@@ -398,7 +306,7 @@ void main() {
       await provider.stop(env.client);
 
       expect(env.pusherPosts, isEmpty);
-      expect(fake.unregisterCalls, 0);
+      expect(fake.unregistrations, 0);
     });
 
     test('tears down a registration persisted by an earlier process, '
@@ -411,8 +319,9 @@ void main() {
 
       expect(env.pusherPosts, hasLength(1), reason: 'pusher should be deleted');
       expect(env.pusherPosts.single, contains('ntfy.sh/abc123'));
+      expect(env.pusherPosts.single, contains('"kind":null'));
       expect(
-        fake.unregisterCalls,
+        fake.unregistrations,
         1,
         reason: 'distributor should be unregistered',
       );
@@ -424,16 +333,6 @@ void main() {
       expect(provider.status.value, UnifiedPushStatus.idle);
     });
 
-    test('deletes the pusher by setting kind: null', () async {
-      SharedPreferences.setMockInitialValues({});
-      await persistRegistration();
-      final env = pusherClient();
-
-      await provider.stop(env.client);
-
-      expect(env.pusherPosts.single, contains('"kind":null'));
-    });
-
     test('surfaces a failed pusher delete instead of swallowing it', () async {
       SharedPreferences.setMockInitialValues({});
       await persistRegistration();
@@ -442,7 +341,7 @@ void main() {
       await provider.stop(env.client);
 
       expect(provider.lastPusherError, isNotNull);
-      expect(fake.unregisterCalls, 1);
+      expect(fake.unregistrations, 1);
       expect(
         readUnifiedPushRegistration(await SharedPreferences.getInstance()),
         isNull,
@@ -458,7 +357,7 @@ void main() {
       await provider.stop(env.client);
 
       expect(env.pusherPosts, hasLength(1));
-      expect(fake.unregisterCalls, 1);
+      expect(fake.unregistrations, 1);
     });
   });
 
@@ -499,14 +398,14 @@ void main() {
     test('a distributor that refused to register is asked again', () async {
       fake.installed = ['io.heckel.ntfy'];
       await provider.start(buildTestClient());
-      expect(fake.registerCalls, 1);
+      expect(fake.registrations, 1);
 
       fake.onRegistrationFailed!(FailedReason.network, 'default');
       expect(provider.status.value, UnifiedPushStatus.registrationFailed);
       expect(provider.retryScheduled, isTrue);
       await pumpEventQueue();
 
-      expect(fake.registerCalls, greaterThan(1));
+      expect(fake.registrations, greaterThan(1));
     });
 
     test('a distributor needing user action is not nagged', () async {
@@ -555,7 +454,7 @@ void main() {
       );
       fake
         ..installed = ['io.heckel.ntfy']
-        ..ackDistributor = 'io.heckel.ntfy';
+        ..distributor = 'io.heckel.ntfy';
     });
 
     test('is taken down and marked removed', () async {
@@ -567,7 +466,7 @@ void main() {
 
       expect(provider.removed.value, isTrue);
       expect(provider.status.value, UnifiedPushStatus.idle);
-      expect(fake.unregisterCalls, 1);
+      expect(fake.unregistrations, 1);
       expect(env.pusherPosts.last, contains('"kind":null'));
       expect(
         readUnifiedPushRegistration(await SharedPreferences.getInstance()),
@@ -596,7 +495,7 @@ void main() {
       await provider.registerNow(env.client);
 
       expect(provider.removed.value, isFalse);
-      expect(fake.registerCalls, 1);
+      expect(fake.registrations, 1);
     });
 
     test('is registered again by the next start, and unmarked once that '
@@ -606,7 +505,7 @@ void main() {
       await provider.remove(env.client);
 
       await provider.start(env.client);
-      expect(fake.registerCalls, 1);
+      expect(fake.registrations, 1);
       fake.onNewEndpoint!(PushEndpoint('https://ntfy.sh/def', null), 'default');
       await pumpEventQueue();
 
@@ -652,7 +551,7 @@ void main() {
 
     test('re-posts a pusher the homeserver has since dropped', () async {
       final env = postingClient();
-      fake.ackDistributor = 'io.heckel.ntfy';
+      fake.distributor = 'io.heckel.ntfy';
       await provider.start(env.client);
       expect(provider.status.value, UnifiedPushStatus.ready);
       final before = env.pusherPosts.length;
@@ -665,7 +564,7 @@ void main() {
 
     test('does not ask again within the interval', () async {
       final env = postingClient();
-      fake.ackDistributor = 'io.heckel.ntfy';
+      fake.distributor = 'io.heckel.ntfy';
       await provider.start(env.client);
       final before = env.pusherPosts.length;
       now = now.add(const Duration(minutes: 5));
@@ -688,16 +587,7 @@ void main() {
       expect(provider.distributorBatteryRestricted.value, isTrue);
     });
 
-    test('is clear when the distributor is exempt', () async {
-      provider.distributorIgnoresBatteryOptimizations = (_) async => true;
-      fake.installed = ['io.heckel.ntfy'];
-
-      await provider.start(buildTestClient());
-
-      expect(provider.distributorBatteryRestricted.value, isFalse);
-    });
-
-    test('asks about the distributor that was actually chosen', () async {
+    test('is clear when the distributor actually chosen is exempt', () async {
       String? asked;
       provider.distributorIgnoresBatteryOptimizations = (pkg) async {
         asked = pkg;
@@ -708,6 +598,7 @@ void main() {
       await provider.start(buildTestClient());
 
       expect(asked, 'org.unifiedpush.distributor.sunup');
+      expect(provider.distributorBatteryRestricted.value, isFalse);
     });
   });
 

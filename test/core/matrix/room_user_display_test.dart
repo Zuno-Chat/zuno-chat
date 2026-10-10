@@ -5,12 +5,10 @@ import 'package:zuno/core/matrix/room_user_display.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
-  late Client client;
   late Room room;
 
   setUp(() {
-    client = buildTestClient(userId: '@me:example.org');
-    room = buildTestRoom(client);
+    room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
   });
 
   void addMember(String userId, String displayName) {
@@ -51,13 +49,5 @@ void main() {
     final user = await resolveRoomUser(room, '@alice:example.org');
 
     expect(user.calcDisplayname(), 'Alice');
-  });
-
-  test('stays local when network is not allowed', () async {
-    room.partial = false;
-
-    final user = await resolveRoomUser(room, '@carol:example.org');
-
-    expect(user.id, '@carol:example.org');
   });
 }

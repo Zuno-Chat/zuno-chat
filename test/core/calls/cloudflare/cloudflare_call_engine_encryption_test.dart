@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -15,18 +14,11 @@ void main() {
     void Function(EngineHarness call) body, {
     CallKind kind = CallKind.video,
     PlatformCapabilities? capabilities,
-  }) {
-    fakeAsync((async) {
-      final call = EngineHarness(
-        async,
-        kind: kind,
-        capabilities: capabilities ?? androidCapabilities,
-      );
-      body(call);
-      call.leave();
-      call.flush();
-    });
-  }
+  }) => runEngineCall(
+    body,
+    kind: kind,
+    capabilities: capabilities ?? androidCapabilities,
+  );
 
   void connectionFails(EngineHarness call) {
     call.engine.handleConnectionStateForTest(

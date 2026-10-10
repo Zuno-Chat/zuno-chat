@@ -1,13 +1,11 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/invite_notification_provider.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/preferences_container.dart';
 
 void main() {
   late Client client;
@@ -52,6 +50,7 @@ void main() {
     expect(content.title, 'Alice');
     expect(content.body, 'Invited you to chat');
     expect(content.isDirectChat, isFalse);
+    expect(content.eventId, r'$invite');
   });
 
   test('names the group when the room has a name of its own', () {
@@ -73,39 +72,28 @@ void main() {
     );
   });
 
-  test('ignores an invitation addressed to someone else', () {
-    expect(
-      inviteNotificationFor(client, inviteEvent(stateKey: '@bob:example.org')),
-      isNull,
-    );
-  });
-
-  test('ignores a membership change that is not an invitation', () {
-    expect(
-      inviteNotificationFor(client, inviteEvent(membership: 'join')),
-      isNull,
-    );
-  });
-
-  test('ignores an ordinary message event', () {
-    expect(
-      inviteNotificationFor(client, inviteEvent(type: EventTypes.Message)),
-      isNull,
-    );
-  });
-
-  test('ignores an invitation this user somehow sent themselves', () {
-    expect(
-      inviteNotificationFor(client, inviteEvent(senderId: '@me:example.org')),
-      isNull,
-    );
-  });
-
-  test('carries the invite event id so a notice for it can be replaced', () {
-    final content = inviteNotificationFor(client, inviteEvent());
-
-    expect(content?.eventId, r'$invite');
-  });
+  for (final (name, event) in <(String, Event Function())>[
+    (
+      'ignores an invitation addressed to someone else',
+      () => inviteEvent(stateKey: '@bob:example.org'),
+    ),
+    (
+      'ignores a membership change that is not an invitation',
+      () => inviteEvent(membership: 'join'),
+    ),
+    (
+      'ignores an ordinary message event',
+      () => inviteEvent(type: EventTypes.Message),
+    ),
+    (
+      'ignores an invitation this user somehow sent themselves',
+      () => inviteEvent(senderId: '@me:example.org'),
+    ),
+  ]) {
+    test(name, () {
+      expect(inviteNotificationFor(client, event()), isNull);
+    });
+  }
 
   test('the sync path\'s stand-in event id is no event id at all', () {
     final event = Event(
@@ -127,16 +115,11 @@ void main() {
     setUp(() async {
       notifications = installFakeLocalNotifications();
       installSilentNotificationSideChannels();
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
       client.rooms.add(room);
-      final container = ProviderContainer(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          sharedPreferencesProvider.overrideWithValue(prefs),
-        ],
+      final container = await containerWithPreferences(
+        {},
+        overrides: [matrixClientProvider.overrideWithValue(client)],
       );
-      addTearDown(container.dispose);
       container.read(roomInviteNotificationProvider);
     });
 

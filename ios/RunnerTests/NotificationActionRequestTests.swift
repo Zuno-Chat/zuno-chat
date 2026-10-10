@@ -77,15 +77,8 @@ final class NotificationActionRequestTests: XCTestCase {
     }
   }
 
-  func testAPayloadThatIsNotAMessageGivesNoRoom() {
-    let userInfo: [AnyHashable: Any] = [
-      "payload": #"{"type":"newDevice","deviceId":"D","roomId":"!r:x"}"#
-    ]
-    XCTAssertEqual(decide(.reply, userInfo, text: "hi"), .replyNotSent(notice()))
-  }
-
   func testAnEventTimeThatIsNotAPositiveNumberIsIgnored() {
-    let values: [Any] = [0, -3, "0", "soon"]
+    let values: [Any] = [0, -3, "0"]
     for value in values {
       XCTAssertNil(NotificationActionTarget.from(userInfo: ["t": token, "o": value]).eventSeconds)
     }

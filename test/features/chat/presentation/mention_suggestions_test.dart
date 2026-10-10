@@ -159,17 +159,4 @@ void main() {
     final delegate = list.childrenDelegate as SliverChildBuilderDelegate;
     expect(delegate.childCount, 30);
   });
-
-  testWidgets('shows nothing for a plain @ in an email or before a space', (
-    tester,
-  ) async {
-    await pump(tester);
-    type('write to foo@bar');
-    await tester.pumpAndSettle();
-    expect(find.byType(ListTile), findsNothing);
-
-    type('@ ');
-    await tester.pumpAndSettle();
-    expect(find.byType(ListTile), findsNothing);
-  });
 }

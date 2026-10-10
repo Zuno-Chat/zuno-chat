@@ -108,14 +108,6 @@ final class NseComposerTests: XCTestCase {
     XCTAssertEqual(NseComposer.names(room: nil, fetched: nil, senderId: nil).title, "Zuno")
   }
 
-  func testNamesFollowTheSharedNameVectors() throws {
-    for item in try NseFixtures.cases("names_v1.json") {
-      let input = try XCTUnwrap(item["input"]?.string)
-      XCTAssertEqual(
-        NseComposer.name(input), item["output"]?.string, item["name"]?.string ?? "")
-    }
-  }
-
   func testNamesFromTheServerAreNormalizedLikeTheReadModel() {
     let event = NseEvent(
       eventId: "$e", roomId: "!r", type: "m.room.message", sender: "@sam:zuno.im",

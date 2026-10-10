@@ -123,9 +123,6 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   http.Client Function() gatewayHttpClient = http.Client.new;
 
-  Future<T?> withClient<T>(Future<T> Function(Client client) action) =>
-      _runner.withClient(action);
-
   HeadlessPushRunner get runner => _runner;
 
   Future<void> waitForFirstCallback({

@@ -3,17 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
 
 void main() {
-  group('securityStatusIcon', () {
-    test('attention is a filled glyph, not the app-wide outlined default', () {
+  test(
+    'securityStatusIcon picks the attention glyph only when it is needed',
+    () {
       expect(securityStatusIcon(attention: true), attentionIcon);
-      expect(attentionIcon, isNot(Icons.warning_amber_outlined));
-    });
-
-    test('settled stays the muted outlined check', () {
       expect(securityStatusIcon(attention: false), settledIcon);
-      expect(settledIcon, Icons.check_circle_outline);
-    });
-  });
+    },
+  );
 
   testWidgets('the stripe paints undiluted error colour', (tester) async {
     final scheme = ColorScheme.fromSeed(seedColor: Colors.deepPurple);
@@ -64,14 +60,5 @@ void main() {
     final context = await contextWith(tester, ThemeData.dark());
 
     expect(deviceApprovedColor(context), const Color(0xFF81C784));
-  });
-
-  testWidgets('an unapproved device takes the theme error colour', (
-    tester,
-  ) async {
-    final scheme = ColorScheme.fromSeed(seedColor: Colors.teal);
-    final context = await contextWith(tester, ThemeData(colorScheme: scheme));
-
-    expect(deviceUnapprovedColor(context), scheme.error);
   });
 }

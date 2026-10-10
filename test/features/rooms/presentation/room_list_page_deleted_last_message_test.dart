@@ -1,51 +1,23 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:zuno/core/errors/global_error_handler.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
-import 'package:zuno/features/rooms/presentation/room_list_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/room_list_page_harness.dart';
+import '../../../helpers/room_opening_channels.dart';
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
   late Client client;
   late Room room;
 
   setUp(() {
-    FlutterLocalNotificationsPlatform.instance =
-        AndroidFlutterLocalNotificationsPlugin();
-    const notificationsChannel = MethodChannel(
-      'dexterous.com/flutter/local_notifications',
-    );
-    const callsChannel = MethodChannel('zuno/calls');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(
-      notificationsChannel,
-      (call) async => call.method == 'initialize' ? true : null,
-    );
-    messenger.setMockMethodCallHandler(callsChannel, (_) async => null);
-    addTearDown(() {
-      messenger.setMockMethodCallHandler(notificationsChannel, null);
-      messenger.setMockMethodCallHandler(callsChannel, null);
-    });
-
-    client = Client(
-      'test',
+    installRoomOpeningChannels();
+    client = buildTestClient(
+      userId: '@me:example.org',
       database: TimelineCapableFakeDatabaseApi(),
       httpClient: MockClient((_) async => http.Response('{}', 200)),
     );
-    client.setUserId('@me:example.org');
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
     room = buildTestRoom(client)..partial = false;
@@ -74,20 +46,7 @@ void main() {
   );
 
   Future<void> pumpRoomList(WidgetTester tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          sharedPreferencesProvider.overrideWithValue(prefs),
-        ],
-        child: MaterialApp(
-          scaffoldMessengerKey: globalScaffoldMessengerKey,
-          home: const RoomListPage(),
-        ),
-      ),
-    );
+    await pumpRoomListPage(tester, client);
     await tester.pump();
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump(const Duration(seconds: 1));

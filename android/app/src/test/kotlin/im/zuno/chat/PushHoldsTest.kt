@@ -11,7 +11,7 @@ class PushHoldsTest {
     fun `the lock is let go when its only push is done`() {
         holds.acquire(key = "a", now = 0)
 
-        assertTrue(holds.release(key = null, now = 1_000))
+        assertTrue(holds.release(key = "a", now = 1_000))
     }
 
     @Test
@@ -19,21 +19,41 @@ class PushHoldsTest {
         holds.acquire(key = "a", now = 0)
         holds.acquire(key = "b", now = 100)
 
-        assertFalse(holds.release(key = null, now = 1_000))
-        assertTrue(holds.release(key = null, now = 2_000))
+        assertFalse(holds.release(key = "a", now = 1_000))
+        assertTrue(holds.release(key = "b", now = 2_000))
     }
 
     @Test
-    fun `an older push's late release never lets go of a newer push's hold`() {
-        holds.acquire(key = "old", now = 0)
-        holds.acquire(key = "new", now = 35_000)
+    fun `the same push taken twice needs a release for each`() {
+        holds.acquire(key = "a", now = 0)
+        holds.acquire(key = "a", now = 100)
 
-        assertFalse(holds.release(key = null, now = 40_000))
-        assertTrue(holds.release(key = null, now = 45_000))
+        assertFalse(holds.release(key = "a", now = 1_000))
+        assertTrue(holds.release(key = "a", now = 1_100))
     }
 
     @Test
-    fun `a hold past its timeout no longer keeps the lock`() {
+    fun `a release for a push that holds nothing changes nothing`() {
+        assertFalse(holds.release(key = "never-held", now = 0))
+
+        holds.acquire(key = "a", now = 100)
+
+        assertFalse(holds.release(key = "never-held", now = 1_000))
+        assertFalse(holds.release(key = null, now = 1_100))
+        assertTrue(holds.release(key = "a", now = 1_200))
+    }
+
+    @Test
+    fun `a push without an event id is let go only by a release without one`() {
+        holds.acquire(key = null, now = 0)
+        holds.acquire(key = "a", now = 100)
+
+        assertFalse(holds.release(key = "a", now = 1_000))
+        assertTrue(holds.release(key = "", now = 1_100))
+    }
+
+    @Test
+    fun `a hold past the timeout no longer keeps the lock`() {
         holds.acquire(key = "stuck", now = 0)
         holds.acquire(key = "b", now = 10_000)
 
@@ -41,45 +61,19 @@ class PushHoldsTest {
     }
 
     @Test
-    fun `a release naming its push lets go of that push only`() {
+    fun `a late release takes its push's oldest hold, never a newer one`() {
         holds.acquire(key = "a", now = 0)
-        holds.acquire(key = "b", now = 100)
+        holds.acquire(key = "a", now = 35_000)
 
-        assertFalse(holds.release(key = "b", now = 1_000))
-        assertTrue(holds.release(key = "a", now = 2_000))
-    }
-
-    @Test
-    fun `a release naming a push that holds nothing changes nothing`() {
-        holds.acquire(key = "a", now = 0)
-
-        assertFalse(holds.release(key = "replayed", now = 1_000))
-        assertTrue(holds.release(key = "a", now = 1_100))
-    }
-
-    @Test
-    fun `the same push held twice needs two releases`() {
-        holds.acquire(key = "a", now = 0)
-        holds.acquire(key = "a", now = 100)
-
-        assertFalse(holds.release(key = "a", now = 1_000))
-        assertTrue(holds.release(key = "a", now = 1_100))
-    }
-
-    @Test
-    fun `a push without an event id is held and let go like any other`() {
-        holds.acquire(key = null, now = 0)
-        holds.acquire(key = "a", now = 100)
-
-        assertFalse(holds.release(key = "a", now = 1_000))
-        assertTrue(holds.release(key = null, now = 1_100))
+        assertFalse(holds.release(key = "a", now = 40_000))
+        assertTrue(holds.release(key = "a", now = 45_000))
     }
 
     @Test
     fun `a hold whose release never came is written off in the end`() {
-        holds.acquire(key = "lost", now = 0)
-        holds.acquire(key = "b", now = 400_000)
+        holds.acquire(key = "a", now = 0)
+        holds.acquire(key = "a", now = 300_000)
 
-        assertTrue(holds.release(key = null, now = 401_000))
+        assertTrue(holds.release(key = "a", now = 301_000))
     }
 }

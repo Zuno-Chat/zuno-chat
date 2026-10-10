@@ -23,191 +23,118 @@ void main() {
     container.read(callUnreadCorrectionProvider);
   });
 
-  test('starts with no corrections, so the raw server count shows through', () {
-    expect(
-      displayedUnreadCount(container.read(callUnreadCorrectionProvider), room),
-      3,
+  var events = 0;
+
+  Future<void> receive(Map<String, Object?> content, {Room? inRoom}) async {
+    client.onTimelineEvent.add(
+      buildTestEvent(
+        inRoom ?? room,
+        eventId: '\$event-${events++}',
+        senderId: '@a:x',
+        content: content,
+      ),
     );
-  });
+    await pumpEventQueue();
+  }
+
+  int shown([Room? inRoom]) => displayedUnreadCount(
+    container.read(callUnreadCorrectionProvider),
+    inRoom ?? room,
+  );
 
   test(
     'a hidden call-invite message adds one correction for its room',
     () async {
-      client.onTimelineEvent.add(
-        buildTestEvent(
-          room,
-          eventId: r'$invite',
-          senderId: '@a:x',
-          content: {'msgtype': 'im.zuno.call_invite'},
-        ),
-      );
-      await pumpEventQueue();
-      final corrections = container.read(callUnreadCorrectionProvider);
-      expect(displayedUnreadCount(corrections, room), 2);
+      await receive({'msgtype': callInviteMsgtype});
+
+      expect(shown(), 2);
     },
   );
 
   test('an in-room verification message also corrects, being equally '
       'hidden from the timeline', () async {
-    client.onTimelineEvent.add(
-      buildTestEvent(
-        room,
-        eventId: r'$verif',
-        senderId: '@a:x',
-        content: {'msgtype': 'm.key.verification.request'},
-      ),
-    );
-    await pumpEventQueue();
-    expect(
-      displayedUnreadCount(container.read(callUnreadCorrectionProvider), room),
-      2,
-    );
+    await receive({'msgtype': 'm.key.verification.request'});
+
+    expect(shown(), 2);
   });
 
-  test('an ordinary message corrects nothing', () async {
-    client.onTimelineEvent.add(
-      buildTestEvent(
-        room,
-        eventId: r'$m',
-        senderId: '@a:x',
-        content: {'msgtype': 'm.text', 'body': 'hello'},
-      ),
-    );
-    await pumpEventQueue();
-    expect(
-      displayedUnreadCount(container.read(callUnreadCorrectionProvider), room),
-      3,
-    );
+  test('an ordinary message corrects nothing, so the raw server count shows '
+      'through', () async {
+    await receive({'msgtype': 'm.text', 'body': 'hello'});
+
+    expect(shown(), 3);
   });
 
   test('an edit corrects nothing — the server never counted it', () async {
-    client.onTimelineEvent.add(
-      buildTestEvent(
-        room,
-        eventId: r'$edit',
-        senderId: '@a:x',
-        content: {
-          'msgtype': 'm.text',
-          'body': '* fixed',
-          'm.new_content': {'msgtype': 'm.text', 'body': 'fixed'},
-          'm.relates_to': {'rel_type': 'm.replace', 'event_id': r'$orig'},
-        },
-      ),
-    );
-    await pumpEventQueue();
-    expect(
-      displayedUnreadCount(container.read(callUnreadCorrectionProvider), room),
-      3,
-    );
+    await receive({
+      'msgtype': 'm.text',
+      'body': '* fixed',
+      'm.new_content': {'msgtype': 'm.text', 'body': 'fixed'},
+      'm.relates_to': {'rel_type': 'm.replace', 'event_id': r'$orig'},
+    });
+
+    expect(shown(), 3);
   });
 
   test(
     'an answered call summary adds a correction; a missed one does not',
     () async {
-      const ended = CallSummary(
-        callId: 'c1',
-        kind: 'voice',
-        status: CallSummaryStatus.ended,
-        durationMs: 1000,
+      await receive(
+        const CallSummary(
+          callId: 'c1',
+          kind: 'voice',
+          status: CallSummaryStatus.ended,
+          durationMs: 1000,
+        ).toMessageContent(),
       );
-      const missed = CallSummary(
-        callId: 'c2',
-        kind: 'voice',
-        status: CallSummaryStatus.missed,
-        durationMs: 0,
+      await receive(
+        const CallSummary(
+          callId: 'c2',
+          kind: 'voice',
+          status: CallSummaryStatus.missed,
+          durationMs: 0,
+        ).toMessageContent(),
       );
-      client.onTimelineEvent.add(
-        buildTestEvent(
-          room,
-          eventId: r'$1',
-          senderId: '@a:x',
-          content: ended.toMessageContent(),
-        ),
-      );
-      client.onTimelineEvent.add(
-        buildTestEvent(
-          room,
-          eventId: r'$2',
-          senderId: '@a:x',
-          content: missed.toMessageContent(),
-        ),
-      );
-      await pumpEventQueue();
-      final corrections = container.read(callUnreadCorrectionProvider);
-      expect(displayedUnreadCount(corrections, room), 2);
+
+      expect(shown(), 2);
     },
   );
 
   test('call events that reference the call correct nothing — the server '
       'never counted them', () async {
-    const reference = {'rel_type': 'm.reference', 'event_id': r'$member'};
-    client.onTimelineEvent.add(
-      buildTestEvent(
-        room,
-        eventId: r'$decline',
-        senderId: '@a:x',
-        content: {
-          'msgtype': callDeclineMsgtype,
-          'call_id': 'c1',
-          'm.relates_to': reference,
-        },
-      ),
+    await receive({
+      'msgtype': callDeclineMsgtype,
+      'call_id': 'c1',
+      'm.relates_to': {'rel_type': 'm.reference', 'event_id': r'$member'},
+    });
+    await receive(
+      const CallSummary(
+        callId: 'c1',
+        kind: 'voice',
+        status: CallSummaryStatus.ended,
+        durationMs: 1000,
+      ).toMessageContent(membershipEventId: r'$member'),
     );
-    client.onTimelineEvent.add(
-      buildTestEvent(
-        room,
-        eventId: r'$summary',
-        senderId: '@a:x',
-        content: const CallSummary(
-          callId: 'c1',
-          kind: 'voice',
-          status: CallSummaryStatus.ended,
-          durationMs: 1000,
-        ).toMessageContent(membershipEventId: r'$member'),
-      ),
-    );
-    await pumpEventQueue();
-    expect(
-      displayedUnreadCount(container.read(callUnreadCorrectionProvider), room),
-      3,
-    );
+
+    expect(shown(), 3);
   });
 
   test(
     'clearFor removes a room\'s correction (e.g. once it is opened)',
     () async {
-      client.onTimelineEvent.add(
-        buildTestEvent(
-          room,
-          eventId: r'$invite',
-          senderId: '@a:x',
-          content: {'msgtype': 'im.zuno.call_invite'},
-        ),
-      );
-      await pumpEventQueue();
+      await receive({'msgtype': callInviteMsgtype});
+
       container.read(callUnreadCorrectionProvider.notifier).clearFor(room.id);
-      expect(
-        displayedUnreadCount(
-          container.read(callUnreadCorrectionProvider),
-          room,
-        ),
-        3,
-      );
+
+      expect(shown(), 3);
     },
   );
 
   test('displayedUnreadCount never goes negative', () async {
     final emptyRoom = buildTestRoom(client, id: '!empty:x');
-    client.onTimelineEvent.add(
-      buildTestEvent(
-        emptyRoom,
-        eventId: r'$invite',
-        senderId: '@a:x',
-        content: {'msgtype': 'im.zuno.call_invite'},
-      ),
-    );
-    await pumpEventQueue();
-    final corrections = container.read(callUnreadCorrectionProvider);
-    expect(displayedUnreadCount(corrections, emptyRoom), 0);
+
+    await receive({'msgtype': callInviteMsgtype}, inRoom: emptyRoom);
+
+    expect(shown(emptyRoom), 0);
   });
 }

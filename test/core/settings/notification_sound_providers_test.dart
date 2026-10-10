@@ -1,22 +1,13 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/notifications/notification_sound_settings.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
-Future<ProviderContainer> _containerWith(Map<String, Object> values) async {
-  SharedPreferences.setMockInitialValues(values);
-  final prefs = await SharedPreferences.getInstance();
-  return ProviderContainer(
-    overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-  );
-}
+import '../../helpers/preferences_container.dart';
 
 void main() {
   test('all four default to on', () async {
-    final container = await _containerWith({});
-    addTearDown(container.dispose);
+    final container = await containerWithPreferences({});
 
     expect(container.read(ringtoneEnabledProvider), isTrue);
     expect(container.read(callVibrationEnabledProvider), isTrue);
@@ -25,11 +16,10 @@ void main() {
   });
 
   test('each reads its own stored value back', () async {
-    final container = await _containerWith({
+    final container = await containerWithPreferences({
       ringtoneEnabledKey: false,
       messageVibrationEnabledKey: false,
     });
-    addTearDown(container.dispose);
 
     expect(container.read(ringtoneEnabledProvider), isFalse);
     expect(container.read(messageVibrationEnabledProvider), isFalse);
@@ -38,8 +28,7 @@ void main() {
   });
 
   test('set() persists under the key the player reads', () async {
-    final container = await _containerWith({});
-    addTearDown(container.dispose);
+    final container = await containerWithPreferences({});
     final prefs = container.read(sharedPreferencesProvider);
 
     await container.read(ringtoneEnabledProvider.notifier).set(false);

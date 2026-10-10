@@ -7,13 +7,7 @@ import '../../helpers/fake_encryption.dart';
 
 class _OwnerSignedKeys extends DeviceKeys {
   _OwnerSignedKeys(Client client, {required this.signedByOwner})
-    : super.fromJson({
-        'user_id': '@alice:example.org',
-        'device_id': 'A1',
-        'algorithms': <String>[],
-        'keys': {'curve25519:A1': 'curve-A1', 'ed25519:A1': 'ed-A1'},
-        'signatures': <String, Object?>{},
-      }, client);
+    : super.fromJson(testDeviceKeysJson('@alice:example.org', 'A1'), client);
 
   final bool signedByOwner;
 
@@ -44,8 +38,9 @@ void main() {
       expect(_state(currentIdentityKey: null), UserTrustState.noIdentity);
     });
 
-    test('an unconfirmed identity is the ordinary default', () {
-      expect(_state(), UserTrustState.unconfirmed);
+    test('an unconfirmed identity is the ordinary default, and losing the '
+        'stored one under-warns rather than crying wolf', () {
+      expect(_state(confirmedIdentityKey: null), UserTrustState.unconfirmed);
     });
 
     test('a confirmed identity with everything signed is confirmed', () {
@@ -78,10 +73,6 @@ void main() {
         _state(identityDirectlyVerified: true, confirmedIdentityKey: 'KEY_OLD'),
         UserTrustState.identityChanged,
       );
-    });
-
-    test('losing the stored identity under-warns rather than crying wolf', () {
-      expect(_state(confirmedIdentityKey: null), UserTrustState.unconfirmed);
     });
   });
 

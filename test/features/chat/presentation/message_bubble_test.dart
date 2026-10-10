@@ -6,11 +6,7 @@ import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
 
 import '../../../helpers/contrast.dart';
-
-Widget _wrap(Widget child, {ThemeData? theme}) => MaterialApp(
-  theme: theme ?? zunoLightTheme,
-  home: Scaffold(body: Center(child: child)),
-);
+import '../../../helpers/zuno_app.dart';
 
 Material _bubbleMaterial(WidgetTester tester) => tester.widget<Material>(
   find
@@ -126,7 +122,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const MessageBubble(
           own: true,
           position: RunPosition.single,
@@ -141,7 +137,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const MessageBubble(
           own: false,
           position: RunPosition.single,
@@ -157,7 +153,7 @@ void main() {
 
   testWidgets('message text is 16 px at 1.3 line height', (tester) async {
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const MessageBubble(
           own: false,
           position: RunPosition.single,
@@ -175,7 +171,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const MessageBubble(
           own: false,
           position: RunPosition.first,
@@ -189,7 +185,7 @@ void main() {
     expect(name.style!.fontWeight, FontWeight.w500);
 
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const MessageBubble(
           own: false,
           position: RunPosition.middle,
@@ -206,7 +202,7 @@ void main() {
     var taps = 0;
     var holds = 0;
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         MessageBubble(
           own: true,
           position: RunPosition.single,
@@ -231,7 +227,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const MessageBubble(
           own: true,
           position: RunPosition.single,
@@ -242,7 +238,7 @@ void main() {
     expect(find.byType(IntrinsicWidth), findsNothing);
 
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const MessageBubble(
           own: true,
           position: RunPosition.single,

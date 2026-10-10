@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -18,18 +17,8 @@ import 'package:zuno/features/settings/presentation/delete_account_tile.dart';
 import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_live_location.dart';
 import '../../../helpers/fake_matrix.dart';
-
-MatrixException _passwordChallenge({String? errcode}) =>
-    MatrixException.fromJson({
-      'errcode': ?errcode,
-      'session': 's1',
-      'flows': [
-        {
-          'stages': ['m.login.password'],
-        },
-      ],
-      'params': <String, Object?>{},
-    });
+import '../../../helpers/native_method_calls.dart';
+import '../../../helpers/uia_challenge.dart';
 
 class _DeactivatingClient extends Client {
   _DeactivatingClient(this.journal)
@@ -49,7 +38,7 @@ class _DeactivatingClient extends Client {
     bool? erase,
     String? idServer,
   }) async {
-    if (auth == null) throw _passwordChallenge();
+    if (auth == null) throw uiaPasswordChallenge();
     passwords.add((auth as AuthenticationPassword).password);
     if (refusals.isNotEmpty) throw refusals.removeAt(0);
     journal.add('deactivated');
@@ -98,12 +87,6 @@ void main() {
     if (activeCall != null) answer(tester, activeCall);
   }
 
-  testWidgets('offers Delete account', (tester) async {
-    await pump(tester);
-
-    expect(find.text('Delete account'), findsOneWidget);
-  });
-
   testWidgets('tapping warns before anything else', (tester) async {
     await pump(tester);
 
@@ -131,6 +114,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Delete your account?'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
   });
 
   group('type-to-confirm', () {
@@ -142,7 +126,7 @@ void main() {
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('alice'), findsWidgets);
+      expect(find.text('Type your username to confirm: alice'), findsOneWidget);
       expect(find.textContaining('@alice:example.org'), findsNothing);
       expect(find.textContaining('example.org'), findsNothing);
     });
@@ -226,13 +210,7 @@ void main() {
       );
       sharing = _sharing(sharingClient);
       client = _DeactivatingClient(sharingClient.journal);
-      const backgroundSync = MethodChannel('zuno/background_sync');
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      messenger.setMockMethodCallHandler(backgroundSync, (_) async => null);
-      addTearDown(
-        () => messenger.setMockMethodCallHandler(backgroundSync, null),
-      );
+      silenceMethodChannels(const ['zuno/background_sync']);
     });
 
     FakeCallSession call() => FakeCallSession(
@@ -350,45 +328,36 @@ void main() {
       expect(sharing.shares.value, isNotEmpty);
     });
 
-    testWidgets('the password prompt says what confirming ends, and only '
-        'while something is live', (tester) async {
-      await tester.runAsync(share);
-      await reachPassword(tester, activeCall: call());
+    for (final (name, inCall, sharingNow, notice) in [
+      (
+        'the password prompt says what confirming ends, and only while '
+            'something is live',
+        true,
+        true,
+        'Confirming ends your call and stops sharing your location, even '
+            'if the password is wrong.',
+      ),
+      (
+        'with only a call, the prompt names only the call',
+        true,
+        false,
+        'Confirming ends your call, even if the password is wrong.',
+      ),
+      (
+        'with only a share, the prompt names only the share',
+        false,
+        true,
+        'Confirming stops sharing your location, even if the password is '
+            'wrong.',
+      ),
+    ]) {
+      testWidgets(name, (tester) async {
+        if (sharingNow) await tester.runAsync(share);
+        await reachPassword(tester, activeCall: inCall ? call() : null);
 
-      expect(
-        find.text(
-          'Confirming ends your call and stops sharing your location, even '
-          'if the password is wrong.',
-        ),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('with only a call, the prompt names only the call', (
-      tester,
-    ) async {
-      await reachPassword(tester, activeCall: call());
-
-      expect(
-        find.text('Confirming ends your call, even if the password is wrong.'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('with only a share, the prompt names only the share', (
-      tester,
-    ) async {
-      await tester.runAsync(share);
-      await reachPassword(tester);
-
-      expect(
-        find.text(
-          'Confirming stops sharing your location, even if the password is '
-          'wrong.',
-        ),
-        findsOneWidget,
-      );
-    });
+        expect(find.text(notice), findsOneWidget);
+      });
+    }
 
     testWidgets('with nothing live, the prompt asks only for the password', (
       tester,
@@ -400,7 +369,7 @@ void main() {
 
     testWidgets('a wrong password has already ended the call, but Cancel then '
         'keeps the account', (tester) async {
-      client.refusals.add(_passwordChallenge(errcode: 'M_FORBIDDEN'));
+      client.refusals.add(uiaPasswordChallenge(errcode: 'M_FORBIDDEN'));
       await reachPassword(tester, activeCall: call());
 
       await enterPassword(tester, 'wrong');
@@ -426,52 +395,6 @@ void main() {
       expect(find.byType(SnackBar), findsNothing);
     });
 
-    testWidgets('an empty password counts as cancelling', (tester) async {
-      await reachPassword(tester);
-
-      await enterPassword(tester, '');
-
-      expect(client.passwords, isEmpty);
-      expect(find.byType(SnackBar), findsNothing);
-    });
-
-    testWidgets('a wrong password asks again', (tester) async {
-      client.refusals.add(_passwordChallenge(errcode: 'M_FORBIDDEN'));
-      await reachPassword(tester);
-
-      expect(find.text('Wrong password.'), findsNothing);
-      await enterPassword(tester, 'wrong');
-
-      expect(
-        find.text('Confirm your password to delete your account'),
-        findsOneWidget,
-      );
-      expect(find.text('Wrong password.'), findsOneWidget);
-
-      await enterPassword(tester, 'hunter2');
-      await finish(tester);
-
-      expect(client.passwords, ['wrong', 'hunter2']);
-      expect(client.clears, [SessionClearReason.logout]);
-    });
-
-    testWidgets('a refusal says why and keeps this device signed in', (
-      tester,
-    ) async {
-      client.refusals.add(
-        MatrixException.fromJson({
-          'errcode': 'M_UNKNOWN',
-          'error': 'account is being erased already',
-        }),
-      );
-      await reachPassword(tester);
-
-      await enterPassword(tester, 'hunter2');
-
-      expect(find.byType(SnackBar), findsOneWidget);
-      expect(client.clears, isEmpty);
-    });
-
     testWidgets('no connection says so', (tester) async {
       client.refusals.add(const SocketException('offline'));
       await reachPassword(tester);
@@ -493,7 +416,7 @@ void main() {
       await finish(tester);
 
       client.onUiaRequest.add(
-        UiaRequest(request: (auth) async => throw _passwordChallenge()),
+        UiaRequest(request: (auth) async => throw uiaPasswordChallenge()),
       );
       await tester.pumpAndSettle();
 

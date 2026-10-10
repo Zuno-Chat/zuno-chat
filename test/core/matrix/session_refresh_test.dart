@@ -98,16 +98,17 @@ void main() {
     expect(requests, 1);
   });
 
-  for (final (label, status, errcode) in [
-    ('rate limit', 429, 'M_LIMIT_EXCEEDED'),
-    ('server error', 500, 'M_UNKNOWN'),
+  for (final (label, answer) in <(String, http.Response Function())>[
+    ('rate limit', () => _json(429, {'errcode': 'M_LIMIT_EXCEEDED'})),
+    ('server error', () => _json(500, {'errcode': 'M_UNKNOWN'})),
+    ('network failure', () => throw http.ClientException('offline')),
   ]) {
     test('a $label during refresh is not treated as a dead session', () async {
       final database = _ClientRowDatabase(refreshToken: 'r0');
       var requests = 0;
       final server = MockClient((request) async {
         requests++;
-        return _json(status, {'errcode': errcode});
+        return answer();
       });
       final client = _client(database, server);
 
@@ -118,22 +119,6 @@ void main() {
       expect(requests, 1);
     });
   }
-
-  test('a network failure is not treated as a dead session', () async {
-    final database = _ClientRowDatabase(refreshToken: 'r0');
-    var requests = 0;
-    final server = MockClient((request) async {
-      requests++;
-      throw http.ClientException('offline');
-    });
-    final client = _client(database, server);
-
-    await expectLater(
-      refreshSession(client, settle: Duration.zero),
-      throwsA(isNot(isA<MatrixException>())),
-    );
-    expect(requests, 1);
-  });
 
   test('a session with no refresh token is given up, not retried', () async {
     final database = _ClientRowDatabase();

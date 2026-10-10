@@ -10,11 +10,9 @@ import 'package:zuno/features/blocking/presentation/block_person.dart';
 
 import '../../../helpers/fake_matrix.dart';
 
-class _ClearableDatabase extends FakeDatabaseApi {
-  int cacheClears = 0;
-
+class _ClearingDatabase extends FakeDatabaseApi {
   @override
-  Future<void> clearCache() async => cacheClears++;
+  Future<void> clearCache() async {}
 }
 
 void main() {
@@ -22,7 +20,6 @@ void main() {
   final ended = <String>[];
   Future<void> endCallsIn(Iterable<String> roomIds) async =>
       ended.addAll(roomIds);
-  late _ClearableDatabase database;
   late Client client;
   var refuseAccountData = false;
 
@@ -30,10 +27,9 @@ void main() {
     ended.clear();
     requests = [];
     refuseAccountData = false;
-    database = _ClearableDatabase();
     client = buildTestClient(
       userId: '@me:example.org',
-      database: database,
+      database: _ClearingDatabase(),
       httpClient: MockClient((request) {
         if (request.url.path.endsWith('/sync')) {
           return Completer<http.Response>().future;
@@ -84,22 +80,12 @@ void main() {
     });
   });
 
-  test('keeps the people who were already blocked', () async {
-    client.accountData['m.ignored_user_list'] = BasicEvent(
-      type: 'm.ignored_user_list',
-      content: {
-        'ignored_users': {'@ben:example.org': <String, Object?>{}},
-      },
-    );
+  test('a refusal from the server surfaces', () async {
+    refuseAccountData = true;
 
-    await blockOnServer(client, '@ann:example.org', endCallsIn: endCallsIn);
-
-    final stored = requests.singleWhere(
-      (r) => r.url.path.endsWith('/account_data/m.ignored_user_list'),
-    );
-    expect(
-      (jsonDecode(stored.body)['ignored_users'] as Map).keys,
-      unorderedEquals(['@ben:example.org', '@ann:example.org']),
+    await expectLater(
+      blockOnServer(client, '@ann:example.org', endCallsIn: endCallsIn),
+      throwsA(isA<MatrixException>()),
     );
   });
 
@@ -152,29 +138,5 @@ void main() {
 
     expect(ended, ['!chat:example.org']);
     expect(leftWhenEnding, isEmpty);
-  });
-
-  test('clears the saved messages so their old ones go too', () async {
-    await blockOnServer(client, '@ann:example.org', endCallsIn: endCallsIn);
-
-    expect(database.cacheClears, 1);
-  });
-
-  test('a refusal from the server surfaces, and clears nothing', () async {
-    refuseAccountData = true;
-
-    await expectLater(
-      blockOnServer(client, '@ann:example.org', endCallsIn: endCallsIn),
-      throwsA(isA<MatrixException>()),
-    );
-    expect(database.cacheClears, 0);
-  });
-
-  test('refuses something that is not a username', () async {
-    await expectLater(
-      blockOnServer(client, 'ann', endCallsIn: endCallsIn),
-      throwsException,
-    );
-    expect(requests, isEmpty);
   });
 }

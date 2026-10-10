@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -12,7 +11,6 @@ import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
-import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
@@ -38,6 +36,7 @@ import '../../helpers/fake_call_style_channel.dart';
 import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 import '../../helpers/sent_call_declines.dart';
 
@@ -54,17 +53,10 @@ http.Response _callGone(http.Request _) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  FlutterLocalNotificationsPlatform.instance =
-      AndroidFlutterLocalNotificationsPlugin();
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-  const notificationsChannel = MethodChannel(
-    'dexterous.com/flutter/local_notifications',
-  );
 
   late Client client;
   late Room room;
-  late RecordedCallsChannel native;
+  late RecordedMethodCalls native;
   late List<MethodCall> launchCalls;
   late SharedPreferences prefs;
   late http.Response Function(http.Request request) stateReply;
@@ -123,26 +115,14 @@ void main() {
     String userId = '@bob:example.org',
     String kind = 'voice',
     DateTime? at,
-  }) => room.setState(
-    buildTestEvent(
-      room,
-      eventId: '\$member-$userId-$callId',
-      senderId: userId,
-      stateKey: userId,
-      type: callMemberEventType,
-      content: {
-        'memberships': [
-          {
-            'call_id': callId,
-            'device_id': 'BOBPHONE',
-            'kind': kind,
-            'expires_ts': DateTime.now().millisecondsSinceEpoch + 120000,
-            'created_ts': (at ?? DateTime.now()).millisecondsSinceEpoch,
-            'foci_active': <String, Object?>{},
-          },
-        ],
-      },
-    ),
+  }) => joinCall(
+    room,
+    userId: userId,
+    deviceId: 'BOBPHONE',
+    callId: callId,
+    kind: kind,
+    expiresIn: const Duration(minutes: 2),
+    createdAtMs: (at ?? DateTime.now()).millisecondsSinceEpoch,
   );
 
   List<String> answeredCalls(ProviderContainer container) {
@@ -172,15 +152,9 @@ void main() {
       }),
       200,
     );
+    installFakeLocalNotifications();
     installSilentNotificationSideChannels();
     installFakeCallStyleChannel();
-    messenger.setMockMethodCallHandler(
-      notificationsChannel,
-      (call) async => call.method == 'initialize' ? true : null,
-    );
-    addTearDown(
-      () => messenger.setMockMethodCallHandler(notificationsChannel, null),
-    );
     native = installFakeCallsChannel(
       reply: (call) => switch (call.method) {
         'reportIncomingCall' => ringReply,
@@ -189,16 +163,14 @@ void main() {
         _ => null,
       },
     );
-    launchCalls = [];
-    messenger.setMockMethodCallHandler(launchChannel, (call) async {
-      launchCalls.add(call);
-      return switch (call.method) {
+    launchCalls = recordMethodChannel(
+      launchChannel.name,
+      reply: (call) => switch (call.method) {
         'takeWakeReason' => 'ring',
         'takeDiagnostics' => ['voip_unreported code=0xbaadca11'],
         _ => null,
-      };
-    });
-    addTearDown(() => messenger.setMockMethodCallHandler(launchChannel, null));
+      },
+    ).calls;
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
     client = buildTestClient(

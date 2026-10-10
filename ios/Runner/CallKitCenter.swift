@@ -217,13 +217,9 @@ final class CallKitCenter: NSObject {
     }
   }
 
-  nonisolated static func ringtoneSound(_ stored: Any?) -> String? {
-    ringtoneSound(stored: stored, flag: nil)
-  }
-
   nonisolated static func ringtoneSound(stored: Any?, flag: Bool?) -> String? {
-    if let enabled = stored as? Bool { return enabled ? nil : "silent_ring.caf" }
-    return flag == false ? "silent_ring.caf" : nil
+    if let enabled = stored as? Bool { return enabled ? nil : NseContentFactory.silentRing }
+    return flag == false ? NseContentFactory.silentRing : nil
   }
 
   nonisolated static func systemEndEvent(ringingFor ringing: TimeInterval?, answerWithdrawn: Bool)

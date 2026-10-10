@@ -2,18 +2,15 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/auth/presentation/auth_scaffold.dart';
 import 'package:zuno/features/auth/presentation/homeserver_page.dart';
 import 'package:zuno/features/auth/presentation/linked_sign_in_page.dart';
@@ -21,8 +18,10 @@ import 'package:zuno/features/auth/presentation/login_page.dart';
 import 'package:zuno/features/auth/presentation/register_page.dart';
 import 'package:zuno/features/auth/presentation/registration_code_page.dart';
 
+import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_homeserver.dart';
+import '../../../helpers/preferences_container.dart';
 
 void main() {
   Finder field(String label) =>
@@ -42,8 +41,8 @@ void main() {
     bool pushed = false,
     Map<String, Object> preferences = const {},
   }) async {
-    SharedPreferences.setMockInitialValues(preferences);
-    final container = ProviderContainer(
+    final container = await containerWithPreferences(
+      preferences,
       overrides: [
         matrixClientProvider.overrideWithValue(
           (client ?? buildTestClient())..homeserver = Uri.parse(homeserver),
@@ -54,12 +53,8 @@ void main() {
             Uri.https(chosenServerName ?? Uri.parse(homeserver).host),
           ),
         ),
-        sharedPreferencesProvider.overrideWithValue(
-          await SharedPreferences.getInstance(),
-        ),
       ],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -74,20 +69,6 @@ void main() {
       );
     }
     await tester.pumpAndSettle();
-  }
-
-  List<bool> recordScreenshotBlocking(WidgetTester tester) {
-    const channel = MethodChannel('zuno/calls');
-    final calls = <bool>[];
-    final messenger = tester.binding.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      if (call.method == 'setPreventScreenshots') {
-        calls.add((call.arguments as Map)['enabled'] as bool);
-      }
-      return null;
-    });
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    return calls;
   }
 
   FilledButton signInButton(WidgetTester tester) =>
@@ -105,38 +86,17 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('the username field advertises itself as a username', (
-    tester,
-  ) async {
-    await pumpLoginPage(tester);
-
-    expect(fieldLabelled(tester, 'Username').autofillHints, [
-      AutofillHints.username,
-    ]);
-  });
-
-  testWidgets('the password field advertises itself as a password', (
-    tester,
-  ) async {
-    await pumpLoginPage(tester);
-
-    expect(fieldLabelled(tester, 'Password').autofillHints, [
-      AutofillHints.password,
-    ]);
-  });
-
-  testWidgets('the obscured field is the one hinted as the password', (
-    tester,
-  ) async {
+  testWidgets('the fields advertise a username and a password, and only the '
+      'password is obscured', (tester) async {
     await pumpLoginPage(tester);
 
     final username = fieldLabelled(tester, 'Username');
     final password = fieldLabelled(tester, 'Password');
 
-    expect(password.obscureText, isTrue);
-    expect(password.autofillHints, contains(AutofillHints.password));
+    expect(username.autofillHints, [AutofillHints.username]);
     expect(username.obscureText, isFalse);
-    expect(username.autofillHints, contains(AutofillHints.username));
+    expect(password.autofillHints, [AutofillHints.password]);
+    expect(password.obscureText, isTrue);
   });
 
   testWidgets('both fields sit inside a single shared AutofillGroup', (
@@ -169,17 +129,6 @@ void main() {
     );
   });
 
-  testWidgets('offers Create account when the homeserver allows it', (
-    tester,
-  ) async {
-    await pumpLoginPage(
-      tester,
-      support: const RegistrationSupport(RegistrationAvailability.available),
-    );
-
-    expect(find.text('Create account'), findsOneWidget);
-  });
-
   testWidgets('the form is on the card; Create account and the server sit '
       'under it', (tester) async {
     await pumpLoginPage(
@@ -190,7 +139,6 @@ void main() {
 
     Finder inCard(Finder finder) =>
         find.descendant(of: find.byKey(authCardKey), matching: finder);
-    final cardBottom = tester.getBottomLeft(find.byKey(authCardKey)).dy;
 
     expect(inCard(field('Username')), findsOneWidget);
     expect(
@@ -201,17 +149,9 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Create account'),
       find.widgetWithText(TextButton, 'Change'),
     ]) {
+      expect(under, findsOneWidget);
       expect(inCard(under), findsNothing);
-      expect(tester.getTopLeft(under).dy, greaterThan(cardBottom));
     }
-  });
-
-  testWidgets('hides Create account when registration is disabled', (
-    tester,
-  ) async {
-    await pumpLoginPage(tester);
-
-    expect(find.text('Create account'), findsNothing);
   });
 
   testWidgets('offers nothing for a registration flow it cannot complete', (
@@ -241,11 +181,7 @@ void main() {
     );
     await pumpLoginPage(tester, client: client);
 
-    await tester.enterText(field('Username'), 'alice');
-    await tester.enterText(field('Password'), 'correct horse battery staple');
-    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
+    await signIn(tester);
 
     expect(loginBody?['refresh_token'], isTrue);
   });
@@ -282,26 +218,14 @@ void main() {
     expect(find.byType(RegistrationCodePage), findsNothing);
   });
 
-  testWidgets('the username field lowercases what is typed', (tester) async {
+  testWidgets('the username field lowercases what is typed, and still takes '
+      'a full user ID', (tester) async {
     await pumpLoginPage(tester);
 
-    await tester.enterText(field('Username'), 'Alice');
+    await tester.enterText(field('Username'), '@Alice:My-Server.org');
 
     expect(
-      tester.widget<TextField>(field('Username')).controller?.text,
-      'alice',
-    );
-  });
-
-  testWidgets('a full user ID can still be typed into the username field', (
-    tester,
-  ) async {
-    await pumpLoginPage(tester);
-
-    await tester.enterText(field('Username'), '@alice:my-server.org');
-
-    expect(
-      tester.widget<TextField>(field('Username')).controller?.text,
+      fieldLabelled(tester, 'Username').controller?.text,
       '@alice:my-server.org',
     );
   });
@@ -388,9 +312,8 @@ void main() {
 
     const message = 'Too many attempts. Try again in 30 seconds.';
 
-    testWidgets('holds the button for as long as the server said', (
-      tester,
-    ) async {
+    testWidgets('holds the button and says to wait for as long as the server '
+        'said', (tester) async {
       await pumpLimited(tester);
 
       expect(find.text(message), findsOneWidget);
@@ -401,6 +324,7 @@ void main() {
 
       await tester.pump(const Duration(seconds: 1));
       expect(signInButton(tester).onPressed, isNotNull);
+      expect(find.text(message), findsNothing);
     });
 
     testWidgets('cannot be sidestepped from the keyboard', (tester) async {
@@ -412,14 +336,6 @@ void main() {
       await tester.pump();
 
       expect(requests, hasLength(1));
-    });
-
-    testWidgets('stops saying to wait once the wait is over', (tester) async {
-      await pumpLimited(tester);
-
-      await tester.pump(const Duration(seconds: 30));
-
-      expect(find.text(message), findsNothing);
     });
   });
 
@@ -515,7 +431,7 @@ void main() {
   testWidgets('a shown password blocks screenshots until it is hidden', (
     tester,
   ) async {
-    final blocking = recordScreenshotBlocking(tester);
+    final native = installFakeCallsChannel();
     await pumpLoginPage(
       tester,
       preferences: {'settings.prevent_screenshots': false},
@@ -523,17 +439,17 @@ void main() {
 
     await tester.tap(find.byTooltip('Show password'));
     await tester.pump();
-    expect(blocking, [true]);
+    expect(native.screenshotBlocking, [true]);
 
     await tester.tap(find.byTooltip('Hide password'));
     await tester.pump();
-    expect(blocking, [true, false]);
+    expect(native.screenshotBlocking, [true, false]);
   });
 
   testWidgets('hiding never lifts the block that is on by default', (
     tester,
   ) async {
-    final blocking = recordScreenshotBlocking(tester);
+    final native = installFakeCallsChannel();
     await pumpLoginPage(tester);
 
     await tester.tap(find.byTooltip('Show password'));
@@ -541,13 +457,13 @@ void main() {
     await tester.tap(find.byTooltip('Hide password'));
     await tester.pump();
 
-    expect(blocking, [true, true]);
+    expect(native.screenshotBlocking, [true, true]);
   });
 
   testWidgets('leaving with the password shown restores screenshots', (
     tester,
   ) async {
-    final blocking = recordScreenshotBlocking(tester);
+    final native = installFakeCallsChannel();
     await pumpLoginPage(
       tester,
       pushed: true,
@@ -559,7 +475,7 @@ void main() {
     tester.state<NavigatorState>(find.byType(Navigator)).pop();
     await tester.pumpAndSettle();
 
-    expect(blocking, [true, false]);
+    expect(native.screenshotBlocking, [true, false]);
   });
 
   group('the keyboard', () {

@@ -5,24 +5,6 @@ import XCTest
 final class NseClassifierTests: XCTestCase {
   private let now: Int64 = 1_790_000_000_000
 
-  func testEveryVectorLandsInTheAndroidHandlersClass() throws {
-    let fixture = try NseFixtures.json("nse_dispatch_v1.json")
-    let me = try XCTUnwrap(fixture["me"]?.string)
-    for vector in try XCTUnwrap(fixture["cases"]?.array) {
-      let actual: String
-      switch NseClassifier.classify(
-        try NseFixtures.dispatchEvent(vector, now: now), ownUserId: me, nowMs: now)
-      {
-      case .hidden: actual = "hidden"
-      case .ring: actual = "ring"
-      case .invitation: actual = "invitation"
-      case .verification: actual = "verification"
-      case .message: actual = "message"
-      }
-      XCTAssertEqual(actual, vector["expect"]?["class"]?.string, vector["name"]?.string ?? "")
-    }
-  }
-
   func testCallSummariesNameTheCallForTheRingToEnd() {
     let summary = NseEvent(
       eventId: "$s", roomId: "!abc:zuno.im", type: "m.room.message", sender: "@alice:zuno.im",

@@ -10,15 +10,17 @@ class SerialLock {
 
 class KeyedSerialLock {
   KeyedSerialLock() {
-    _everyLock.add(this);
+    _everyLock
+      ..removeWhere((lock) => lock.target == null)
+      ..add(WeakReference(this));
   }
 
-  static final _everyLock = <KeyedSerialLock>[];
+  static final _everyLock = <WeakReference<KeyedSerialLock>>[];
 
   @visibleForTesting
   static void forgetAllForTest() {
     for (final lock in _everyLock) {
-      lock._tails.clear();
+      lock.target?._tails.clear();
     }
   }
 

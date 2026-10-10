@@ -308,3 +308,22 @@ class EngineHarness {
       if (t['trackName'] == trackName) t['mid'] as String,
   ];
 }
+
+void runEngineCall(
+  void Function(EngineHarness call) body, {
+  required CallKind kind,
+  bool lowDataMode = false,
+  PlatformCapabilities? capabilities,
+}) {
+  fakeAsync((async) {
+    final call = EngineHarness(
+      async,
+      kind: kind,
+      lowDataMode: lowDataMode,
+      capabilities: capabilities,
+    );
+    body(call);
+    call.leave();
+    call.flush();
+  });
+}

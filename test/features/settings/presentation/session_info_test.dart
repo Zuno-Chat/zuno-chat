@@ -183,26 +183,19 @@ void main() {
       );
     });
 
-    test('this phone is not approved without them, whatever the SDK says', () {
-      expect(
-        sessionApproval(
-          isCurrent: true,
-          verified: true,
-          thisDeviceHasIdentityKeys: false,
-        ),
-        SessionApproval.notApproved,
-      );
-    });
-
-    test('this phone is never "can\'t check" — it is the one asking', () {
-      expect(
-        sessionApproval(
-          isCurrent: true,
-          verified: false,
-          thisDeviceHasIdentityKeys: false,
-        ),
-        isNot(SessionApproval.unknown),
-      );
+    test('this phone is not approved without them, whatever the SDK says, '
+        'and never "cannot check", since it is the one asking', () {
+      for (final verified in [true, false]) {
+        expect(
+          sessionApproval(
+            isCurrent: true,
+            verified: verified,
+            thisDeviceHasIdentityKeys: false,
+          ),
+          SessionApproval.notApproved,
+          reason: 'verified: $verified',
+        );
+      }
     });
 
     test('another device is judged on its own signature chain', () {

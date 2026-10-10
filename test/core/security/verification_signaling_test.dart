@@ -3,15 +3,9 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/security/verification_signaling.dart';
 
 void main() {
-  test('the request that put protocol chatter in the timeline is hidden', () {
-    expect(
-      isVerificationSignalingMessage(EventTypes.KeyVerificationRequest),
-      isTrue,
-    );
-  });
-
-  test('every step of the flow is hidden, not just the request', () {
+  test('every step of the flow is hidden, from the request on', () {
     for (final type in [
+      EventTypes.KeyVerificationRequest,
       EventTypes.KeyVerificationStart,
       EventTypes.KeyVerificationReady,
       EventTypes.KeyVerificationAccept,

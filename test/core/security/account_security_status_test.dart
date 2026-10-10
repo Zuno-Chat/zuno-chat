@@ -7,31 +7,21 @@ import 'package:zuno/core/security/account_security_status.dart';
 import '../../helpers/fake_device_keys.dart';
 import '../../helpers/fake_encryption.dart';
 import '../../helpers/fake_matrix.dart';
-
-AccountSecurityFacts _facts({
-  bool recoveryExists = true,
-  bool thisDeviceHasIdentityKeys = true,
-  bool keyBackupExists = true,
-  bool keyBackupUsableHere = true,
-  int unapprovedOtherDevices = 0,
-}) => AccountSecurityFacts(
-  recoveryExists: recoveryExists,
-  thisDeviceHasIdentityKeys: thisDeviceHasIdentityKeys,
-  keyBackupExists: keyBackupExists,
-  keyBackupUsableHere: keyBackupUsableHere,
-  unapprovedOtherDevices: unapprovedOtherDevices,
-);
+import '../../helpers/security_facts.dart';
 
 void main() {
   group('accountSecurityStatus', () {
     test('everything set up and nothing pending is protected', () {
-      expect(accountSecurityStatus(_facts()), AccountSecurityStatus.protected);
+      expect(
+        accountSecurityStatus(securityFacts()),
+        AccountSecurityStatus.protected,
+      );
     });
 
     test('no cross-signing identity at all is noRecovery', () {
       expect(
         accountSecurityStatus(
-          _facts(
+          securityFacts(
             recoveryExists: false,
             thisDeviceHasIdentityKeys: false,
             keyBackupExists: false,
@@ -46,7 +36,9 @@ void main() {
       'identity exists but this device never unlocked it is deviceLocked',
       () {
         expect(
-          accountSecurityStatus(_facts(thisDeviceHasIdentityKeys: false)),
+          accountSecurityStatus(
+            securityFacts(thisDeviceHasIdentityKeys: false),
+          ),
           AccountSecurityStatus.deviceLocked,
         );
       },
@@ -55,7 +47,7 @@ void main() {
     test('an unapproved other device wins over everything else', () {
       expect(
         accountSecurityStatus(
-          _facts(keyBackupUsableHere: false, unapprovedOtherDevices: 1),
+          securityFacts(keyBackupUsableHere: false, unapprovedOtherDevices: 1),
         ),
         AccountSecurityStatus.deviceWaiting,
       );
@@ -64,24 +56,12 @@ void main() {
     test('a device that cannot check does not accuse the others', () {
       expect(
         accountSecurityStatus(
-          _facts(thisDeviceHasIdentityKeys: false, unapprovedOtherDevices: 2),
-        ),
-        AccountSecurityStatus.deviceLocked,
-      );
-    });
-
-    test('an unapproved device is ignored when there is no identity', () {
-      expect(
-        accountSecurityStatus(
-          _facts(
-            recoveryExists: false,
+          securityFacts(
             thisDeviceHasIdentityKeys: false,
-            keyBackupExists: false,
-            keyBackupUsableHere: false,
-            unapprovedOtherDevices: 3,
+            unapprovedOtherDevices: 2,
           ),
         ),
-        AccountSecurityStatus.noRecovery,
+        AccountSecurityStatus.deviceLocked,
       );
     });
 
@@ -90,7 +70,7 @@ void main() {
       () {
         expect(
           accountSecurityStatus(
-            _facts(recoveryExists: false, unapprovedOtherDevices: 2),
+            securityFacts(recoveryExists: false, unapprovedOtherDevices: 2),
           ),
           AccountSecurityStatus.noRecovery,
         );
@@ -100,7 +80,7 @@ void main() {
     test('no recovery outranks a backup this device cannot read', () {
       expect(
         accountSecurityStatus(
-          _facts(recoveryExists: false, keyBackupUsableHere: false),
+          securityFacts(recoveryExists: false, keyBackupUsableHere: false),
         ),
         AccountSecurityStatus.noRecovery,
       );
@@ -108,7 +88,7 @@ void main() {
 
     test('a backup this device cannot read is recoveryStale', () {
       expect(
-        accountSecurityStatus(_facts(keyBackupUsableHere: false)),
+        accountSecurityStatus(securityFacts(keyBackupUsableHere: false)),
         AccountSecurityStatus.recoveryStale,
       );
     });
@@ -116,7 +96,7 @@ void main() {
     test('no backup at all does not count as stale', () {
       expect(
         accountSecurityStatus(
-          _facts(keyBackupExists: false, keyBackupUsableHere: false),
+          securityFacts(keyBackupExists: false, keyBackupUsableHere: false),
         ),
         AccountSecurityStatus.protected,
       );
@@ -125,7 +105,10 @@ void main() {
     test('deviceLocked outranks recoveryStale', () {
       expect(
         accountSecurityStatus(
-          _facts(thisDeviceHasIdentityKeys: false, keyBackupUsableHere: false),
+          securityFacts(
+            thisDeviceHasIdentityKeys: false,
+            keyBackupUsableHere: false,
+          ),
         ),
         AccountSecurityStatus.deviceLocked,
       );

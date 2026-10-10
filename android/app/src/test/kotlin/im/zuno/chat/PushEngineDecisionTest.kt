@@ -7,51 +7,33 @@ import org.junit.Test
 
 class PushEngineDecisionTest {
     @Test
-    fun `boots an engine when the app engine is gone and we own none`() {
-        assertEquals(
-            PushEngineAction.BootHeadlessEngine,
-            PushEngineDecision.decide(
-                appEngineAlive = false,
-                headlessEngineGeneration = null,
-                pluginCount = 3,
-            ),
-        )
+    fun `boots an engine when the app engine is gone and we own none, a cold process included`() {
+        for (pluginCount in listOf(3, 0)) {
+            assertEquals(
+                "plugins $pluginCount",
+                PushEngineAction.BootHeadlessEngine,
+                PushEngineDecision.decide(
+                    appEngineAlive = false,
+                    headlessEngineGeneration = null,
+                    pluginCount = pluginCount,
+                ),
+            )
+        }
     }
 
     @Test
-    fun `boots an engine on a cold process`() {
-        assertEquals(
-            PushEngineAction.BootHeadlessEngine,
-            PushEngineDecision.decide(
-                appEngineAlive = false,
-                headlessEngineGeneration = null,
-                pluginCount = 0,
-            ),
-        )
-    }
-
-    @Test
-    fun `leaves the app engine alone while it is alive`() {
-        assertEquals(
-            PushEngineAction.UseExistingAppEngine,
-            PushEngineDecision.decide(
-                appEngineAlive = true,
-                headlessEngineGeneration = null,
-                pluginCount = 1,
-            ),
-        )
-    }
-
-    @Test
-    fun `leaves the app engine alone even when a headless engine exists`() {
-        assertEquals(
-            PushEngineAction.UseExistingAppEngine,
-            PushEngineDecision.decide(
-                appEngineAlive = true,
-                headlessEngineGeneration = 1,
-                pluginCount = 2,
-            ),
-        )
+    fun `leaves the app engine alone while it is alive, even when a headless engine exists`() {
+        for (generation in listOf(null, 1)) {
+            assertEquals(
+                "headless $generation",
+                PushEngineAction.UseExistingAppEngine,
+                PushEngineDecision.decide(
+                    appEngineAlive = true,
+                    headlessEngineGeneration = generation,
+                    pluginCount = 2,
+                ),
+            )
+        }
     }
 
     @Test

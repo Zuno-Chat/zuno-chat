@@ -266,19 +266,6 @@ void main() {
       );
     });
 
-    test('that fails is rolled back once, and its error surfaces', () async {
-      final database = await open();
-      native.onBatch = (_) async => throw diskFull();
-
-      final batch = database.batch()..insert('box', {'k': 'a', 'v': '1'});
-
-      await expectLater(
-        batch.commit(noResult: true),
-        failsWith('disk is full'),
-      );
-      expect(labels(), ['batch', 'execute ROLLBACK']);
-    });
-
     test('whose ROLLBACK fails still surfaces the batch error', () async {
       final database = await open();
       native.onBatch = (_) async => throw diskFull();
@@ -296,8 +283,8 @@ void main() {
       expect(labels(), ['batch', 'execute ROLLBACK']);
     });
 
-    test('that fails is rolled back before any other call from this isolate '
-        'reaches native', () async {
+    test('that fails is rolled back once, before any other call from this '
+        'isolate reaches native, and its error surfaces', () async {
       final database = await open();
       final batchArrived = Completer<void>();
       final release = Completer<void>();
@@ -419,46 +406,6 @@ void main() {
       native.onQuery = (_) => releaseReads.future;
     });
 
-    test('issued together already reach native one at a time without the '
-        'wrapper, so it costs them no extra waiting', () async {
-      final raw = await openRaw();
-
-      final reads = [
-        raw.rawQuery('SELECT * FROM box_rooms'),
-        raw.query('box_account_data'),
-        raw.rawQuery('SELECT * FROM box_device_keys_list'),
-      ];
-      await pumpEventQueue();
-
-      expect(labels(), ['query']);
-      releaseReads.complete();
-      await Future.wait(reads);
-      expect(labels(), ['query', 'query', 'query']);
-    });
-
-    test('wait for a batch already in flight, and for its rollback', () async {
-      releaseReads.complete();
-      final database = await open();
-      final release = Completer<void>();
-      native.onBatch = (_) async {
-        await release.future;
-        throw diskFull();
-      };
-
-      final commit = (database.batch()..insert('box', {'k': 'a', 'v': '1'}))
-          .commit(noResult: true);
-      final read = database.rawQuery('SELECT * FROM box');
-      await pumpEventQueue();
-
-      expect(labels(), ['batch']);
-
-      release.complete();
-      await expectLater(commit, failsWith('disk is full'));
-      await read;
-
-      expect(labels(), ['batch', 'execute ROLLBACK', 'query']);
-    });
-
     test('in flight hold back a later write until they finish', () async {
       final database = await open();
 
@@ -509,21 +456,16 @@ void main() {
       messenger.setMockMethodCallHandler(_channel, connection.handle);
     });
 
-    Future<(MatrixSdkDatabase, int)> engine({required bool atomic}) async {
-      final raw = await openRaw();
+    Future<(MatrixSdkDatabase, int)> engine() async {
+      final atomic = await open();
       final id = connection.lastOpenedId;
-      final database = await MatrixSdkDatabase.init(
-        'zuno',
-        database: atomic ? AtomicBatchDatabase(raw) : raw,
-      );
-      return (database, id);
+      return (await MatrixSdkDatabase.init('zuno', database: atomic), id);
     }
 
-    Future<void> destroyOneMidTransactionThenWriteFromTheOther({
-      required bool atomic,
-    }) async {
-      final (first, _) = await engine(atomic: atomic);
-      final (second, secondId) = await engine(atomic: atomic);
+    test('an engine destroyed mid-transaction leaves nothing open, so the '
+        "other engine's writes commit", () async {
+      final (first, _) = await engine();
+      final (second, secondId) = await engine();
       connection.destroyAfterNextCallFrom(secondId);
       unawaited(
         second.transaction(() async {
@@ -536,30 +478,10 @@ void main() {
         await first.storeAccountData('im.zuno.first', {'n': 2});
       });
       await first.storeAccountData('im.zuno.direct', {'n': 3});
-    }
-
-    test('an engine destroyed mid-transaction leaves nothing open, so the '
-        "other engine's writes commit", () async {
-      await destroyOneMidTransactionThenWriteFromTheOther(atomic: true);
 
       expect(connection.openDepth, 0);
       expect(connection.committed, contains('box_account_data/im.zuno.first'));
       expect(connection.committed, contains('box_account_data/im.zuno.direct'));
-    });
-
-    test('without the wrapper, the same death strands the other engine\'s '
-        'writes in a transaction nobody will finish', () async {
-      await destroyOneMidTransactionThenWriteFromTheOther(atomic: false);
-
-      expect(connection.openDepth, 1);
-      expect(
-        connection.committed,
-        isNot(contains('box_account_data/im.zuno.first')),
-      );
-      expect(
-        connection.committed,
-        isNot(contains('box_account_data/im.zuno.direct')),
-      );
     });
   });
 }

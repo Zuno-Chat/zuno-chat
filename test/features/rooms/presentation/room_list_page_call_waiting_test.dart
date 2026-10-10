@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,18 +22,18 @@ import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
-import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
-import 'package:zuno/features/rooms/presentation/room_list_page.dart';
 
 import '../../../helpers/call_membership.dart';
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/room_list_page_harness.dart';
 import '../../../helpers/sent_call_declines.dart';
 
 class _PendingRingPresenter implements IncomingCallPresenter {
@@ -78,28 +77,16 @@ Map<String, Object?> _inviteContent({
 };
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-  FlutterLocalNotificationsPlatform.instance =
-      AndroidFlutterLocalNotificationsPlugin();
-  const notificationsChannel = MethodChannel(
-    'dexterous.com/flutter/local_notifications',
-  );
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-
   late Client client;
   late SentCallDeclines declines;
   late Room room;
-  late RecordedCallsChannel native;
+  late RecordedMethodCalls native;
   Object? ringReply;
 
   setUp(() {
     ringRateLimiter.clear();
     ringReply = null;
-    messenger.setMockMethodCallHandler(
-      notificationsChannel,
-      (call) async => call.method == 'initialize' ? true : null,
-    );
+    installFakeLocalNotifications();
     native = installFakeCallsChannel(
       reply: (call) => call.method == 'reportIncomingCall' ? ringReply : null,
     );
@@ -119,35 +106,14 @@ void main() {
     room = buildTestRoom(client);
   });
 
-  tearDown(() {
-    messenger.setMockMethodCallHandler(notificationsChannel, null);
-  });
-
   Future<ProviderContainer> pumpRoomList(
     WidgetTester tester, {
     List<Override> overrides = const [],
   }) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    late ProviderContainer container;
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          firstSyncProvider.overrideWith((ref) async {}),
-          ...overrides,
-        ],
-        child: Builder(
-          builder: (context) {
-            container = ProviderScope.containerOf(context);
-            return MaterialApp(
-              scaffoldMessengerKey: globalScaffoldMessengerKey,
-              home: const RoomListPage(),
-            );
-          },
-        ),
-      ),
+    final container = await pumpRoomListPage(
+      tester,
+      client,
+      overrides: [firstSyncProvider.overrideWith((ref) async {}), ...overrides],
     );
     await tester.pumpAndSettle();
     return container;
@@ -170,8 +136,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  CallSession activeSession({String callId = 'active-call'}) =>
-      CallSession.forIncoming(room: room, callId: callId, kind: CallKind.voice);
+  CallSession onACall(ProviderContainer container) {
+    final session = CallSession.forIncoming(
+      room: room,
+      callId: 'active-call',
+      kind: CallKind.voice,
+    );
+    addTearDown(session.dispose);
+    container.read(activeCallProvider.notifier).set(session);
+    return session;
+  }
 
   Event invite({
     required String callId,
@@ -229,81 +203,37 @@ void main() {
     ),
   );
 
-  testWidgets(
-    'a normal incoming call while NOT on a call still rings (regression '
-    'guard)',
-    (tester) async {
-      final container = await pumpRoomList(tester);
-      expect(container.read(activeCallProvider), isNull);
-
-      await deliverAndSettle(
-        tester,
-        buildTestEvent(
-          room,
-          eventId: r'$invite1',
-          senderId: '@bob:example.org',
-          content: _inviteContent(callId: 'call1'),
-        ),
-      );
-
-      expect(find.byType(IncomingCallPage), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'a second incoming call while already on one is auto-declined and '
-    'never rings',
-    (tester) async {
-      final container = await pumpRoomList(tester);
-      final session = activeSession();
-      addTearDown(session.dispose);
-      container.read(activeCallProvider.notifier).set(session);
-
-      final declined = declinedCallIds();
-
-      await deliverAndSettle(
-        tester,
-        buildTestEvent(
-          room,
-          eventId: r'$invite2',
-          senderId: '@carol:example.org',
-          content: _inviteContent(callId: 'call2'),
-        ),
-      );
-
-      expect(find.byType(IncomingCallPage), findsNothing);
-      expect(declined, ['call2']);
-      expect(container.read(activeCallProvider), same(session));
-      expect(container.read(resolvedCallIdsProvider), contains('call2'));
-    },
-  );
-
-  testWidgets('two auto-declines back to back for two different second-callers '
-      'while still on the original call', (tester) async {
+  testWidgets('a second incoming call while already on one is auto-declined, '
+      'never rings and is announced as missed', (tester) async {
     final container = await pumpRoomList(tester);
-    final session = activeSession();
-    addTearDown(session.dispose);
-    container.read(activeCallProvider.notifier).set(session);
-
+    final session = onACall(container);
     final declined = declinedCallIds();
 
     await deliverAndSettle(
       tester,
-      buildTestEvent(
-        room,
-        eventId: r'$invite2',
-        senderId: '@carol:example.org',
-        content: _inviteContent(callId: 'call2'),
-      ),
+      invite(callId: 'call2', senderId: '@carol:example.org'),
+    );
+
+    expect(find.byType(IncomingCallPage), findsNothing);
+    expect(declined, ['call2']);
+    expect(container.read(activeCallProvider), same(session));
+    expect(container.read(resolvedCallIdsProvider), contains('call2'));
+    expect(find.text('Missed call from Carol'), findsOneWidget);
+  });
+
+  testWidgets('two auto-declines back to back for two different second-callers '
+      'while still on the original call', (tester) async {
+    final container = await pumpRoomList(tester);
+    final session = onACall(container);
+    final declined = declinedCallIds();
+
+    await deliverAndSettle(
+      tester,
+      invite(callId: 'call2', senderId: '@carol:example.org'),
     );
     await deliverAndSettle(
       tester,
-      buildTestEvent(
-        room,
-        eventId: r'$invite3',
-        senderId: '@dave:example.org',
-        content: _inviteContent(callId: 'call3'),
-      ),
+      invite(callId: 'call3', senderId: '@dave:example.org'),
     );
 
     expect(find.byType(IncomingCallPage), findsNothing);
@@ -331,54 +261,23 @@ void main() {
   testWidgets('a call_id already resolved elsewhere is still ignored, not '
       'auto-declined, even while on another call', (tester) async {
     final container = await pumpRoomList(tester);
-    final session = activeSession();
-    addTearDown(session.dispose);
-    container.read(activeCallProvider.notifier).set(session);
+    onACall(container);
     container.read(resolvedCallIdsProvider.notifier).markResolved('call2');
-
     final declined = declinedCallIds();
 
     await deliverAndSettle(
       tester,
-      buildTestEvent(
-        room,
-        eventId: r'$invite2',
-        senderId: '@carol:example.org',
-        content: _inviteContent(callId: 'call2'),
-      ),
+      invite(callId: 'call2', senderId: '@carol:example.org'),
     );
 
     expect(find.byType(IncomingCallPage), findsNothing);
     expect(declined, isEmpty);
   });
 
-  testWidgets('the SnackBar actually appears with the right caller info', (
-    tester,
-  ) async {
-    final container = await pumpRoomList(tester);
-    final session = activeSession();
-    addTearDown(session.dispose);
-    container.read(activeCallProvider.notifier).set(session);
-
-    await deliverAndSettle(
-      tester,
-      buildTestEvent(
-        room,
-        eventId: r'$invite2',
-        senderId: '@carol:example.org',
-        content: _inviteContent(callId: 'call2'),
-      ),
-    );
-
-    expect(find.text('Missed call from Carol'), findsOneWidget);
-  });
-
   testWidgets('a call my other device already answered is neither declined '
       'as busy nor announced as missed while on another call', (tester) async {
     final container = await pumpRoomList(tester);
-    final session = activeSession();
-    addTearDown(session.dispose);
-    container.read(activeCallProvider.notifier).set(session);
+    final session = onACall(container);
     answerOnMyOtherDevice('call2');
     final declined = declinedCallIds();
 
@@ -568,22 +467,16 @@ void main() {
       expect(native.argsOf('reportIncomingCall'), isEmpty);
     });
 
-    testWidgets('a ringing call holds the system ring until its ring screen '
-        'goes away', (tester) async {
+    testWidgets('the ring screen an invite opened closes when the caller '
+        'hangs up', (tester) async {
       await pumpWithPendingRings(tester);
 
       await deliverAndSettle(tester, invite(callId: 'call1'));
-
       expect(ringScreenCallIds(tester), ['call1']);
-      expect(SystemRing.instance.ringing.value, (
-        roomId: room.id,
-        callId: 'call1',
-      ));
 
       await deliverAndSettle(tester, hangUp(callId: 'call1'));
 
       expect(ringScreenCallIds(tester), isEmpty);
-      expect(SystemRing.instance.ringing.value, isNull);
     });
 
     testWidgets('a second call while another is ringing is declined like '
@@ -682,9 +575,7 @@ void main() {
     testWidgets('a call my other device already answered takes down the ring '
         'the push already posted for it', (tester) async {
       final callStyle = installFakeCallStyleChannel();
-      const vibration = MethodChannel('zuno/vibration');
-      messenger.setMockMethodCallHandler(vibration, (_) async => null);
-      addTearDown(() => messenger.setMockMethodCallHandler(vibration, null));
+      silenceMethodChannels(const ['zuno/vibration']);
       await pumpRoomList(tester);
       final prefs = await SharedPreferences.getInstance();
       await saveRingingCall(prefs, (

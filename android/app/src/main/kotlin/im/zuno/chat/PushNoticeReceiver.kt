@@ -7,7 +7,6 @@ import android.os.SystemClock
 import android.util.Log
 import im.zuno.chat.zuno_notifications.PushKind
 import im.zuno.chat.zuno_notifications.PushNotice
-import im.zuno.chat.zuno_notifications.PushWakeLock
 import io.flutter.FlutterInjector
 
 class PushNoticeReceiver : BroadcastReceiver() {
@@ -33,7 +32,7 @@ class PushNoticeReceiver : BroadcastReceiver() {
             FcmReceivePlan.TestNotice -> PushNotice.postTest(app)
 
             is FcmReceivePlan.MessageNotice -> {
-                plan.wakeLockKey?.let { PushWakeLock.acquire(app, it) }
+                plan.wakeLockKey?.let { PushWakeLock.hold(app, it) }
                 if (plan.warmUpFlutter) warmUpFlutter(app)
                 PushNotice.post(app, roomId, eventId, appInFront)
             }

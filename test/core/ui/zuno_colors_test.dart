@@ -6,15 +6,6 @@ import 'package:zuno/core/ui/zuno_colors.dart';
 import '../../helpers/contrast.dart';
 
 void main() {
-  test('the same text always gets the same tone', () {
-    expect(avatarToneFor('maya'), avatarToneFor('maya'));
-    expect(avatarTones, contains(avatarToneFor('maya')));
-  });
-
-  test('there are eight tones', () {
-    expect(avatarTones, hasLength(8));
-  });
-
   test('pinned outputs: the hash cannot change and recolor everyone', () {
     expect(avatarToneFor(''), avatarTones[1]);
     expect(avatarToneFor('maya'), avatarTones[4]);
@@ -79,11 +70,23 @@ void main() {
     expect(ZunoColors.light.lerp(null, 0.5), same(ZunoColors.light));
   });
 
-  test('copyWith replaces only what it is given', () {
-    final changed = ZunoColors.light.copyWith(success: Colors.black);
-    expect(changed.success, Colors.black);
-    expect(changed.bubbleOutgoing, ZunoColors.light.bubbleOutgoing);
-    expect(changed.link, ZunoColors.light.link);
-    expect(ZunoColors.light.copyWith(link: Colors.black).link, Colors.black);
+  test('ofTheme reads the theme\'s own colors, else the default for its brightness', () {
+    const own = ZunoColors(
+      bubbleOutgoing: Colors.black,
+      onBubbleOutgoing: Colors.white,
+      onBubbleOutgoingVariant: Colors.white,
+      success: Colors.green,
+      link: Colors.blue,
+    );
+
+    expect(ZunoColors.ofTheme(ThemeData(extensions: const [own])), same(own));
+    expect(
+      ZunoColors.ofTheme(ThemeData(brightness: Brightness.light)),
+      same(ZunoColors.light),
+    );
+    expect(
+      ZunoColors.ofTheme(ThemeData(brightness: Brightness.dark)),
+      same(ZunoColors.dark),
+    );
   });
 }

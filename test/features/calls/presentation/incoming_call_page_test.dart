@@ -1,8 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -27,7 +25,9 @@ import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
 import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 class _PartialProfilesDatabaseApi extends SendCapableFakeDatabaseApi {
@@ -36,13 +36,6 @@ class _PartialProfilesDatabaseApi extends SendCapableFakeDatabaseApi {
   @override
   Future<User?> getUser(String userId, Room room) async =>
       partialRoomProfiles[userId];
-}
-
-class _TestClient extends Client {
-  _TestClient(super.clientName, {required super.database, super.httpClient});
-
-  @override
-  String? get deviceID => 'DEVICE';
 }
 
 class _RecordingNavigatorObserver extends NavigatorObserver {
@@ -83,13 +76,6 @@ Future<void> settleRealAsync(WidgetTester tester) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  FlutterLocalNotificationsPlatform.instance =
-      AndroidFlutterLocalNotificationsPlugin();
-  const notificationsChannel = MethodChannel(
-    'dexterous.com/flutter/local_notifications',
-  );
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   late Client client;
   late Room room;
@@ -97,23 +83,21 @@ void main() {
   late SharedPreferences prefs;
   late GlobalKey<NavigatorState> navigatorKey;
   late _RecordingNavigatorObserver observer;
-  late RecordedCallsChannel callsLog;
+  late RecordedMethodCalls callsLog;
   late List<String> sentEvents;
 
   setUp(() async {
     callsLog = installFakeCallsChannel();
-    messenger.setMockMethodCallHandler(
-      notificationsChannel,
-      (call) async => null,
-    );
+    installFakeLocalNotifications();
 
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
 
     db = _PartialProfilesDatabaseApi();
     sentEvents = [];
-    client = _TestClient(
-      'test',
+    client = buildTestClient(
+      userId: '@me:example.org',
+      deviceId: 'DEVICE',
       database: db,
       httpClient: MockClient((request) async {
         if (request.method == 'PUT' && request.url.path.contains('/send/')) {
@@ -122,17 +106,12 @@ void main() {
         return http.Response(jsonEncode({'event_id': r'$evt'}), 200);
       }),
     );
-    client.setUserId('@me:example.org');
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
     room = buildTestRoom(client);
 
     navigatorKey = GlobalKey<NavigatorState>();
     observer = _RecordingNavigatorObserver();
-  });
-
-  tearDown(() {
-    messenger.setMockMethodCallHandler(notificationsChannel, null);
   });
 
   List<Object?> lockscreenShows() => [
@@ -170,6 +149,14 @@ void main() {
     return container;
   }
 
+  List<SystemRingingCall?> recordSystemRing() {
+    final changes = <SystemRingingCall?>[];
+    void record() => changes.add(SystemRing.instance.ringing.value);
+    SystemRing.instance.ringing.addListener(record);
+    addTearDown(() => SystemRing.instance.ringing.removeListener(record));
+    return changes;
+  }
+
   void pushIncomingCall(IncomingCall incomingCall) {
     navigatorKey.currentState!.push(
       MaterialPageRoute<void>(
@@ -179,23 +166,23 @@ void main() {
   }
 
   group('synchronous initState guards (race with something else)', () {
+    testWidgets('dismisses immediately, never taking the system ring, when '
+        'resolvedCallIdsProvider already has this call_id', (tester) async {
+      final container = await pumpShell(tester);
+      container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
+      final ringChanges = recordSystemRing();
+
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IncomingCallPage), findsNothing);
+      expect(find.text('room list'), findsOneWidget);
+      expect(ringChanges, isEmpty);
+    });
+
     testWidgets(
-      'dismisses immediately when resolvedCallIdsProvider already has this call_id',
-      (tester) async {
-        final container = await pumpShell(tester);
-        container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
-
-        pushIncomingCall(call());
-        await tester.pumpAndSettle();
-
-        expect(find.byType(IncomingCallPage), findsNothing);
-        expect(find.text('room list'), findsOneWidget);
-      },
-    );
-
-    testWidgets(
-      'hands off without creating a second session when activeCallProvider '
-      'already holds this call_id',
+      'hands off without creating a second session or taking the system '
+      'ring when activeCallProvider already holds this call_id',
       (tester) async {
         final container = await pumpShell(tester);
         final existing = CallSession.forIncoming(
@@ -205,6 +192,7 @@ void main() {
         );
         addTearDown(existing.dispose);
         container.read(activeCallProvider.notifier).set(existing);
+        final ringChanges = recordSystemRing();
 
         pushIncomingCall(call());
         await tester.pumpAndSettle();
@@ -212,6 +200,7 @@ void main() {
         expect(find.byType(IncomingCallPage), findsNothing);
         expect(find.text('room list'), findsOneWidget);
         expect(container.read(activeCallProvider), same(existing));
+        expect(ringChanges, isEmpty);
       },
     );
 
@@ -327,26 +316,24 @@ void main() {
       },
     );
 
-    testWidgets(
-      'dismisses when the caller hangs up before we respond (matching '
-      'call_summary event)',
-      (tester) async {
+    for (final status in [CallSummaryStatus.missed, CallSummaryStatus.ended]) {
+      testWidgets('dismisses when the caller hangs up before we respond, on a '
+          'matching ${status.name} call_summary', (tester) async {
         await pumpShell(tester);
         pushIncomingCall(call());
         await tester.pumpAndSettle();
 
-        const summary = CallSummary(
-          callId: 'call1',
-          kind: 'voice',
-          status: CallSummaryStatus.missed,
-          durationMs: 0,
-        );
         client.onTimelineEvent.add(
           buildTestEvent(
             room,
             eventId: r'$summary',
             senderId: '@bob:example.org',
-            content: summary.toMessageContent(),
+            content: CallSummary(
+              callId: 'call1',
+              kind: 'voice',
+              status: status,
+              durationMs: 0,
+            ).toMessageContent(),
           ),
         );
         await tester.pumpAndSettle();
@@ -354,34 +341,8 @@ void main() {
         expect(find.byType(IncomingCallPage), findsNothing);
         expect(find.text('room list'), findsOneWidget);
         expect(RingingCall.instance.callId, isNull);
-      },
-    );
-
-    testWidgets('dismisses for a call_summary with a non-missed status too '
-        '(e.g. ended)', (tester) async {
-      await pumpShell(tester);
-      pushIncomingCall(call());
-      await tester.pumpAndSettle();
-
-      const summary = CallSummary(
-        callId: 'call1',
-        kind: 'voice',
-        status: CallSummaryStatus.ended,
-        durationMs: 42000,
-      );
-      client.onTimelineEvent.add(
-        buildTestEvent(
-          room,
-          eventId: r'$summary',
-          senderId: '@bob:example.org',
-          content: summary.toMessageContent(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.byType(IncomingCallPage), findsNothing);
-      expect(find.text('room list'), findsOneWidget);
-    });
+      });
+    }
 
     testWidgets(
       'does not dismiss for a call_summary naming a different call_id',
@@ -443,6 +404,7 @@ void main() {
       expect(find.text('room list'), findsOneWidget);
       expect(RingingCall.instance.callId, isNull);
       expect(lockscreenShows(), containsAll([true, false]));
+      expect(sentEvents.single, endsWith('/${callDeclineTxid('call1')}'));
     });
 
     testWidgets('a fast double-tap only sends one decline and dismisses once', (
@@ -475,7 +437,7 @@ void main() {
 
         await tester.tap(find.byIcon(Icons.call));
         final session = container.read(activeCallProvider);
-        expect(session, isNotNull);
+        expect(session?.callId, 'call1');
         addTearDown(session!.dispose);
 
         final declineButton = iconButtonFor(
@@ -559,7 +521,7 @@ void main() {
         button.onPressed!.call();
 
         final session = container.read(activeCallProvider);
-        expect(session, isNotNull);
+        expect(session?.callId, 'call1');
         addTearDown(session!.dispose);
         expect(observer.events.where((e) => e == 'replace'), hasLength(1));
       },
@@ -618,26 +580,6 @@ void main() {
 
       expect(find.text('Bob Resolved'), findsOneWidget);
       expect(find.text('Bob'), findsNothing);
-    });
-
-    testWidgets('a known member with no displayname set also falls back to the '
-        'localpart', (tester) async {
-      room.setState(
-        Event(
-          eventId: r'$member-bob',
-          type: EventTypes.RoomMember,
-          stateKey: '@bob:example.org',
-          senderId: '@bob:example.org',
-          originServerTs: DateTime.now(),
-          content: const {'membership': 'join'},
-          room: room,
-        ),
-      );
-      await pumpShell(tester);
-      pushIncomingCall(call());
-      await tester.pump();
-
-      expect(find.text('Bob', skipOffstage: false), findsOneWidget);
     });
 
     testWidgets(
@@ -804,14 +746,6 @@ void main() {
   group('system ring', () {
     setUp(() => ambientCapabilities = androidCapabilities);
 
-    List<SystemRingingCall?> recordSystemRing() {
-      final changes = <SystemRingingCall?>[];
-      void record() => changes.add(SystemRing.instance.ringing.value);
-      SystemRing.instance.ringing.addListener(record);
-      addTearDown(() => SystemRing.instance.ringing.removeListener(record));
-      return changes;
-    }
-
     Future<void> ring(WidgetTester tester) async {
       pushIncomingCall(call());
       await tester.pumpAndSettle();
@@ -919,36 +853,6 @@ void main() {
 
       expect(find.byType(IncomingCallPage), findsNothing);
       expect(SystemRing.instance.ringing.value, isNull);
-    });
-
-    testWidgets('never takes it for a call already resolved', (tester) async {
-      final container = await pumpShell(tester);
-      container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
-      final ringChanges = recordSystemRing();
-
-      pushIncomingCall(call());
-      await tester.pumpAndSettle();
-
-      expect(find.byType(IncomingCallPage), findsNothing);
-      expect(ringChanges, isEmpty);
-    });
-
-    testWidgets('never takes it for a call already active', (tester) async {
-      final container = await pumpShell(tester);
-      final existing = CallSession.forIncoming(
-        room: room,
-        callId: 'call1',
-        kind: CallKind.voice,
-      );
-      addTearDown(existing.dispose);
-      container.read(activeCallProvider.notifier).set(existing);
-      final ringChanges = recordSystemRing();
-
-      pushIncomingCall(call());
-      await tester.pumpAndSettle();
-
-      expect(find.byType(IncomingCallPage), findsNothing);
-      expect(ringChanges, isEmpty);
     });
 
     testWidgets('on iOS never takes it, from ringing through Decline', (

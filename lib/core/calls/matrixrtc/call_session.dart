@@ -132,9 +132,7 @@ class CallSession {
 
   final Duration keyRelayBaseDelay;
   final Duration keyRelayMaxDelay;
-  final Duration remoteLeftConfirmDelay;
   final Duration ringTimeout;
-  final Duration membershipRefreshInterval;
   final http.Client? callsHttpClient;
   final ValueListenable<bool> _pictureInPictureCamera;
 
@@ -148,9 +146,7 @@ class CallSession {
     this.engineBuilder,
     this.keyRelayBaseDelay = _defaultKeyRelayBaseDelay,
     this.keyRelayMaxDelay = _defaultKeyRelayMaxDelay,
-    this.remoteLeftConfirmDelay = _remoteLeftConfirmDelay,
     this.ringTimeout = _ringTimeout,
-    this.membershipRefreshInterval = _membershipRefreshInterval,
     this.callsHttpClient,
     ValueListenable<bool>? pictureInPictureCamera,
   }) : client = room.client,
@@ -211,9 +207,7 @@ class CallSession {
     @visibleForTesting CallEngine Function()? engineBuilder,
     @visibleForTesting Duration? keyRelayBaseDelay,
     @visibleForTesting Duration? keyRelayMaxDelay,
-    @visibleForTesting Duration? remoteLeftConfirmDelay,
     @visibleForTesting Duration? ringTimeout,
-    @visibleForTesting Duration? membershipRefreshInterval,
     @visibleForTesting http.Client? callsHttpClient,
     @visibleForTesting ValueListenable<bool>? pictureInPictureCamera,
   }) {
@@ -227,10 +221,7 @@ class CallSession {
       engineBuilder: engineBuilder,
       keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
       keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
-      remoteLeftConfirmDelay: remoteLeftConfirmDelay ?? _remoteLeftConfirmDelay,
       ringTimeout: ringTimeout ?? _ringTimeout,
-      membershipRefreshInterval:
-          membershipRefreshInterval ?? _membershipRefreshInterval,
       callsHttpClient: callsHttpClient,
       pictureInPictureCamera: pictureInPictureCamera,
     );
@@ -345,8 +336,6 @@ class CallSession {
     @visibleForTesting Uint8List? initialEncryptionKeyForTesting,
     @visibleForTesting Duration? keyRelayBaseDelay,
     @visibleForTesting Duration? keyRelayMaxDelay,
-    @visibleForTesting Duration? remoteLeftConfirmDelay,
-    @visibleForTesting Duration? membershipRefreshInterval,
     @visibleForTesting http.Client? callsHttpClient,
     @visibleForTesting ValueListenable<bool>? pictureInPictureCamera,
   }) {
@@ -360,10 +349,6 @@ class CallSession {
         engineBuilder: engineBuilder,
         keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
         keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
-        remoteLeftConfirmDelay:
-            remoteLeftConfirmDelay ?? _remoteLeftConfirmDelay,
-        membershipRefreshInterval:
-            membershipRefreshInterval ?? _membershipRefreshInterval,
         callsHttpClient: callsHttpClient,
         pictureInPictureCamera: pictureInPictureCamera,
       )
@@ -466,7 +451,7 @@ class CallSession {
       await _publishOwnMembership();
       if (_ending) return;
       _membershipRefreshTimer = Timer.periodic(
-        membershipRefreshInterval,
+        _membershipRefreshInterval,
         (_) => _publishMembershipBestEffort(force: true),
       );
       _syncSub = client.onSync.stream.listen(
@@ -616,7 +601,7 @@ class CallSession {
     return {
       for (final entry in states.entries)
         for (final membership in parseRtcMemberships(entry.value.content))
-          if (membership.callId == callId && !membership.isExpired)
+          if (membership.callId == callId)
             VoipParticipantId(userId: entry.key, deviceId: membership.deviceId),
     };
   }
@@ -772,7 +757,7 @@ class CallSession {
       unawaited(hangUp());
       return;
     }
-    _remoteLeftConfirmTimer ??= Timer(remoteLeftConfirmDelay, () {
+    _remoteLeftConfirmTimer ??= Timer(_remoteLeftConfirmDelay, () {
       _remoteLeftConfirmTimer = null;
       _reconcileRemoteMemberships();
     });

@@ -5,8 +5,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -41,7 +41,9 @@ import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/security/device_safety.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/share/inbound_share.dart';
+import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/core/ui/zuno_splash.dart';
+import 'package:zuno/features/auth/presentation/login_page.dart';
 import 'package:zuno/features/auth/presentation/signed_out_entry.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
@@ -56,10 +58,14 @@ import 'helpers/app_lifecycle.dart';
 import 'helpers/call_channel_mocks.dart';
 import 'helpers/fake_call_session.dart';
 import 'helpers/fake_call_style_channel.dart';
+import 'helpers/fake_calls_channel.dart';
 import 'helpers/fake_local_notifications.dart';
 import 'helpers/fake_matrix.dart';
+import 'helpers/fake_permissions.dart';
 import 'helpers/fake_unified_push.dart';
 import 'helpers/fixed_homeserver.dart';
+import 'helpers/fixed_notifications_allowed.dart';
+import 'helpers/native_method_calls.dart';
 
 class _IdleSyncClient extends Client {
   _IdleSyncClient()
@@ -85,46 +91,19 @@ class _CountedHomeserver extends HomeserverNotifier {
   }
 }
 
-class _NotificationsAllowed extends NotificationsAllowedNotifier {
-  _NotificationsAllowed(this._initial);
+class _RecordingWipe extends SignOutWipe {
+  _RecordingWipe(super.prefs);
 
-  final bool? _initial;
-  int refreshes = 0;
-
-  @override
-  bool? build() => _initial;
-
-  @override
-  Future<bool?> refresh() async {
-    refreshes++;
-    return state;
-  }
-
-  void set(bool allowed) => state = allowed;
-}
-
-class _DeliveryStoppingWipe extends SignOutWipe {
-  _DeliveryStoppingWipe(super.prefs);
+  final states = <bool>[];
 
   @override
   Future<void> onLoginState(
     bool loggedIn, {
     required Future<void> Function() stopDelivery,
   }) async {
+    states.add(loggedIn);
     if (!loggedIn) await stopDelivery();
   }
-}
-
-class _RecordingUnifiedPush extends FakeUnifiedPush {
-  int registrations = 0;
-
-  @override
-  Future<void> register(
-    String instance,
-    List<String> features,
-    String? messageForDistributor,
-    String? vapid,
-  ) async => registrations++;
 }
 
 Future<void> settle(WidgetTester tester) async {
@@ -141,71 +120,43 @@ Future<void> pumpRoute(WidgetTester tester) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  FlutterLocalNotificationsPlatform.instance =
-      AndroidFlutterLocalNotificationsPlugin();
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   late _IdleSyncClient client;
   late Room room;
-  late Map<String, Object?> launchDetails;
-  late List<MethodCall> callsChannel;
-  late List<String> backgroundService;
+  late RecordedNotifications notifications;
+  late RecordedMethodCalls callsChannel;
+  late RecordedMethodCalls backgroundSync;
   late StreamController<ConnectionStatus> connection;
-  late _NotificationsAllowed permission;
+  late FixedNotificationsAllowedNotifier permission;
   String? launchShortcut;
   late Future<Object?> Function() launchShare;
+  late RecordedMethodCalls share;
 
-  void mockChannel(
-    String name,
-    Future<Object?> Function(MethodCall call) handler,
-  ) {
-    final channel = MethodChannel(name);
-    messenger.setMockMethodCallHandler(channel, handler);
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-  }
+  Iterable<String> backgroundService() => backgroundSync.methods.where(
+    (method) => method.endsWith('BackgroundSyncService'),
+  );
 
   setUp(() {
-    launchDetails = {'notificationLaunchedApp': false};
-    mockChannel(
-      'dexterous.com/flutter/local_notifications',
-      (call) async => switch (call.method) {
-        'initialize' => true,
-        'getNotificationAppLaunchDetails' => launchDetails,
-        'getActiveNotifications' => const <Object?>[],
-        _ => null,
-      },
-    );
+    notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
     installFakeCallStyleChannel();
-    callsChannel = [];
-    backgroundService = [];
+    callsChannel = installFakeCallsChannel();
     launchShortcut = null;
     launchShare = () async => null;
-    mockChannel(
-      'flutter.baseflow.com/permissions/methods',
-      (call) async => call.method == 'checkPermissionStatus' ? 1 : null,
-    );
-    mockChannel('zuno/vibration', (_) async => null);
-    mockChannel('com.llfbandit.record/messages', (_) async => null);
-    mockChannel('zuno/calls', (call) async {
-      callsChannel.add(call);
-      return null;
-    });
-    mockChannel('zuno/background_sync', (call) async {
-      if (call.method.endsWith('BackgroundSyncService')) {
-        backgroundService.add(call.method);
-      }
-      return null;
-    });
-    mockChannel(
+    installFakePermissions();
+    silenceMethodChannels(const [
+      'zuno/vibration',
+      'com.llfbandit.record/messages',
+    ]);
+    backgroundSync = recordMethodChannel('zuno/background_sync');
+    recordMethodChannel(
       'zuno/shortcuts',
-      (call) async => call.method == 'takeLaunchRoomId' ? launchShortcut : null,
+      reply: (call) =>
+          call.method == 'takeLaunchRoomId' ? launchShortcut : null,
     );
-    mockChannel(
+    share = recordMethodChannel(
       'zuno/share',
-      (call) =>
-          call.method == 'takeLaunchShare' ? launchShare() : Future.value(),
+      reply: (call) => call.method == 'takeLaunchShare' ? launchShare() : null,
     );
     connection = StreamController<ConnectionStatus>();
 
@@ -242,7 +193,7 @@ void main() {
         'settings.notification_delivery_mode': deliveryMode.name,
     });
     final prefs = await SharedPreferences.getInstance();
-    permission = _NotificationsAllowed(notificationsAllowed);
+    permission = FixedNotificationsAllowedNotifier(notificationsAllowed);
     final container = ProviderContainer(
       overrides: [
         if (loginStates != null)
@@ -290,7 +241,7 @@ void main() {
     testWidgets('a message notification that launched the app opens its chat', (
       tester,
     ) async {
-      launchDetails = {
+      notifications.launchDetails = {
         'notificationLaunchedApp': true,
         'notificationResponse': {
           'notificationId': 1,
@@ -332,6 +283,48 @@ void main() {
       expect(find.byType(RoomPage), findsNothing);
     });
 
+    testWidgets('with nothing to open, the chat list shows, and the launch '
+        'share is asked for once', (tester) async {
+      await pumpApp(tester);
+      await settle(tester);
+
+      expect(find.byType(RoomListPage), findsOneWidget);
+      expect(find.byType(SharePickerPage), findsNothing);
+      expect(share.methods, ['takeLaunchShare']);
+    });
+
+    testWidgets('a launch share opens the picker without showing the chat '
+        'list first', (tester) async {
+      launchShare = () async => {'text': 'https://example.org'};
+      await pumpApp(tester);
+
+      expect(find.byType(RoomListPage), findsNothing);
+      expect(find.byType(SharePickerPage), findsNothing);
+
+      for (var i = 0; i < 10; i++) {
+        await tester.pump();
+        if (find.byType(RoomListPage).evaluate().isNotEmpty) {
+          fail('the chat list was visible before the picker was on top');
+        }
+        if (find.byType(SharePickerPage).evaluate().isNotEmpty) break;
+      }
+
+      expect(find.byType(SharePickerPage), findsOneWidget);
+      expect(find.byType(RoomListPage, skipOffstage: false), findsOneWidget);
+    });
+
+    testWidgets('signed out, a launch share is taken and dropped', (
+      tester,
+    ) async {
+      launchShare = () async => {'text': 'https://example.org'};
+      await pumpApp(tester, loggedIn: const AsyncData(false));
+      await settle(tester);
+
+      expect(find.byType(LoginPage), findsOneWidget);
+      expect(find.byType(SharePickerPage), findsNothing);
+      expect(share.methods, ['takeLaunchShare']);
+    });
+
     testWidgets('a launch step that hangs holds the chat list back two '
         'seconds at most', (tester) async {
       launchShare = () => Completer<Object?>().future;
@@ -350,14 +343,9 @@ void main() {
     testWidgets('a share that came in before the sign-in state was known '
         'still opens the picker', (tester) async {
       initInboundShareChannel();
-      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .handlePlatformMessage(
-            'zuno/share',
-            const StandardMethodCodec().encodeMethodCall(
-              const MethodCall('share', {'text': 'early'}),
-            ),
-            (_) {},
-          );
+      await callFromNative(const MethodChannel('zuno/share'), 'share', {
+        'text': 'early',
+      });
 
       await pumpApp(tester, loginStates: Stream.value(true));
       await settle(tester);
@@ -575,21 +563,35 @@ void main() {
       expect(find.byType(SignedOutEntry), findsOneWidget);
     });
 
+    testWidgets('a start signed out is handed to the wipe at once', (
+      tester,
+    ) async {
+      late _RecordingWipe wipe;
+      await pumpApp(
+        tester,
+        loggedIn: const AsyncData(false),
+        signOutWipe: (prefs) => wipe = _RecordingWipe(prefs),
+      );
+      await tester.pump();
+
+      expect(wipe.states, [false]);
+    });
+
     testWidgets('stops notification delivery for the wipe', (tester) async {
       final logins = StreamController<bool>();
       await pumpApp(
         tester,
         loginStates: logins.stream,
-        signOutWipe: _DeliveryStoppingWipe.new,
+        signOutWipe: _RecordingWipe.new,
       );
       logins.add(true);
       await settle(tester);
-      expect(backgroundService, isEmpty);
+      expect(backgroundService(), isEmpty);
 
       logins.add(false);
       await settle(tester);
 
-      expect(backgroundService, contains('stopBackgroundSyncService'));
+      expect(backgroundService(), contains('stopBackgroundSyncService'));
     });
   });
 
@@ -604,7 +606,7 @@ void main() {
         );
         await settle(tester);
 
-        expect(backgroundService, contains('startBackgroundSyncService'));
+        expect(backgroundService(), contains('startBackgroundSyncService'));
       },
     );
 
@@ -617,7 +619,10 @@ void main() {
       );
       await settle(tester);
 
-      expect(backgroundService, isNot(contains('startBackgroundSyncService')));
+      expect(
+        backgroundService(),
+        isNot(contains('startBackgroundSyncService')),
+      );
     });
 
     testWidgets('turning notifications off stops delivery', (tester) async {
@@ -627,13 +632,13 @@ void main() {
         deliveryMode: NotificationDeliveryMode.backgroundService,
       );
       await settle(tester);
-      backgroundService.clear();
+      backgroundSync.clear();
 
       permission.set(false);
       await settle(tester);
 
-      expect(backgroundService, isNotEmpty);
-      expect(backgroundService, everyElement('stopBackgroundSyncService'));
+      expect(backgroundService(), isNotEmpty);
+      expect(backgroundService(), everyElement('stopBackgroundSyncService'));
     });
 
     testWidgets('switching mode stops the one left behind', (tester) async {
@@ -648,15 +653,15 @@ void main() {
         deliveryMode: NotificationDeliveryMode.backgroundService,
       );
       await settle(tester);
-      backgroundService.clear();
+      backgroundSync.clear();
 
       await container
           .read(notificationDeliveryModeProvider.notifier)
           .set(NotificationDeliveryMode.fcm);
       await settle(tester);
 
-      expect(backgroundService, isNotEmpty);
-      expect(backgroundService, everyElement('stopBackgroundSyncService'));
+      expect(backgroundService(), isNotEmpty);
+      expect(backgroundService(), everyElement('stopBackgroundSyncService'));
     });
   });
 
@@ -672,20 +677,16 @@ void main() {
       await settle(tester);
 
       expect(permission.refreshes, refreshesAtLaunch);
-      expect(callsChannel, isEmpty);
+      expect(callsChannel.calls, isEmpty);
 
       moveLifecycleTo(tester.binding, AppLifecycleState.paused);
       moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
       await settle(tester);
 
       expect(permission.refreshes, refreshesAtLaunch + 1);
-      expect(
-        callsChannel
-            .where((call) => call.method == 'setShowOverLockscreen')
-            .single
-            .arguments,
-        {'show': false},
-      );
+      expect(callsChannel.argsOf('setShowOverLockscreen').single, {
+        'show': false,
+      });
     });
 
     testWidgets('a return to the app takes back the routes a Decline or a '
@@ -744,11 +745,11 @@ void main() {
   });
 
   group('back online', () {
-    late _RecordingUnifiedPush unifiedPush;
+    late FakeUnifiedPush unifiedPush;
 
     setUp(() {
       final original = UnifiedPushPlatform.instance;
-      unifiedPush = _RecordingUnifiedPush();
+      unifiedPush = FakeUnifiedPush();
       UnifiedPushPlatform.instance = unifiedPush;
       unifiedPushDeliveryProvider.status.value =
           UnifiedPushStatus.registrationFailed;
@@ -789,6 +790,44 @@ void main() {
 
       expect(unifiedPush.registrations, 0);
     });
+  });
+
+  testWidgets('the connection banner says what is wrong, and goes once back '
+      'online', (tester) async {
+    client.bearerToken = null;
+    await pumpApp(tester, loggedIn: const AsyncData(false));
+    await settle(tester);
+
+    connection.add(ConnectionStatus.noInternet);
+    await settle(tester);
+    expect(find.text('No internet connection'), findsOneWidget);
+
+    connection.add(ConnectionStatus.unreachable);
+    await settle(tester);
+    expect(
+      find.text('Cannot connect right now. Trying again…'),
+      findsOneWidget,
+    );
+    expect(find.text('No internet connection'), findsNothing);
+
+    connection.add(ConnectionStatus.online);
+    await settle(tester);
+    expect(find.byIcon(Icons.cloud_off_outlined), findsNothing);
+  });
+
+  testWidgets('while the sign-in state loads, the brand splash shows: the ink '
+      'mark on amber, not a spinner', (tester) async {
+    await pumpApp(tester, loggedIn: const AsyncLoading());
+    await tester.pump();
+
+    final picture = tester.widget<SvgPicture>(find.byType(SvgPicture));
+    final loader = picture.bytesLoader as SvgAssetLoader;
+    expect(loader.assetName, 'assets/logo/zuno-mark-ink.svg');
+    expect(
+      tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+      zunoAmber,
+    );
+    expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
   testWidgets('a broken sign-in state asks to reopen the app', (tester) async {

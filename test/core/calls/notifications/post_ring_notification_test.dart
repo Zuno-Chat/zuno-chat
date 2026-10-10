@@ -16,11 +16,12 @@ import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/native_method_calls.dart';
 
 void main() {
   late Client client;
   late Room room;
-  late RecordedCallStyleCalls callStyle;
+  late RecordedMethodCalls callStyle;
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -70,10 +71,11 @@ void main() {
     },
   );
 
-  test('still rings for a caller the room has never heard of', () async {
+  test('still rings for a caller the room has never heard of, under the '
+      'name in their user id', () async {
     await postRingNotification(call());
 
-    expect(lastShowArgs()['callerName'], isNotNull);
+    expect(lastShowArgs()['callerName'], 'Bob');
   });
 
   test('rings on the group call channel for a non-direct room', () async {
@@ -134,22 +136,6 @@ void main() {
       expect(lastShowArgs()['avatarBytes'], bytes);
     },
   );
-
-  test('rings with no avatar bytes when network is allowed but the caller '
-      'has none', () async {
-    client = buildTestClient(
-      userId: '@me:example.org',
-      httpClient: MockClient(
-        (request) async => http.Response('not found', 404),
-      ),
-    )..accessToken = 'syt_test';
-    room = buildTestRoom(client);
-    addCaller('Bob');
-
-    await postRingNotification(call(), allowNetwork: true);
-
-    expect(lastShowArgs()['avatarBytes'], isNull);
-  });
 
   group('a call that ends while it is being rung', () {
     test('has its ring taken back at once, so it never rings on', () async {

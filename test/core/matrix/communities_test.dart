@@ -330,13 +330,6 @@ void main() {
     });
   });
 
-  test('a room not added to its community says so in plain words', () {
-    expect(
-      const RoomNotAddedToCommunity('!x').toString(),
-      'Room created, but not added to the community.',
-    );
-  });
-
   group('roomsLeavingWith', () {
     test('takes the rooms no other joined community holds', () {
       final only = addRoom(client, '!only:example.org', at: at(10));

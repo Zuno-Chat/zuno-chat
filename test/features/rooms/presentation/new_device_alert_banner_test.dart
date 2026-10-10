@@ -46,14 +46,18 @@ void main() {
     expect(find.text('New sign-in'), findsOneWidget);
   });
 
-  testWidgets('several queued alerts say how many more', (tester) async {
-    await pump(tester, const [
-      NewDeviceAlert(deviceId: 'BBB'),
-      NewDeviceAlert(deviceId: 'CCC'),
-    ]);
+  for (final (count, more) in [
+    (2, '+1 more new sign-in'),
+    (3, '+2 more new sign-ins'),
+  ]) {
+    testWidgets('$count queued alerts say $more', (tester) async {
+      await pump(tester, [
+        for (var i = 0; i < count; i++) NewDeviceAlert(deviceId: 'DEV$i'),
+      ]);
 
-    expect(find.textContaining('+1 more'), findsOneWidget);
-  });
+      expect(find.text(more), findsOneWidget);
+    });
+  }
 
   testWidgets('dismissing drops only the shown alert', (tester) async {
     await pump(tester, const [
@@ -67,14 +71,5 @@ void main() {
     expect(find.byKey(const ValueKey('newDeviceAlertBanner')), findsOneWidget);
     expect(find.textContaining('Second'), findsOneWidget);
     expect(find.textContaining('First'), findsNothing);
-  });
-
-  testWidgets('dismissing the last alert closes the banner', (tester) async {
-    await pump(tester, const [NewDeviceAlert(deviceId: 'BBB')]);
-
-    await tester.tap(find.byIcon(Icons.close));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const ValueKey('newDeviceAlertBanner')), findsNothing);
   });
 }

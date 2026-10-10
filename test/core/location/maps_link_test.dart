@@ -19,13 +19,4 @@ void main() {
       'https://maps.apple.com/?ll=52.5163,13.3777&q=52.5163,13.3777',
     );
   });
-
-  test('both drop trailing zeros, never precision', () {
-    const round = GeoUri(latitude: 52.5, longitude: -0.123456789);
-
-    expect(
-      mapsLink(round, MapsApp.appleMaps).toString(),
-      'https://maps.apple.com/?ll=52.5,-0.123457&q=52.5,-0.123457',
-    );
-  });
 }

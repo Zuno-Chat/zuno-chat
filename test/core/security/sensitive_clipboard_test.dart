@@ -4,11 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/security/sensitive_clipboard.dart';
 
+import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('zuno/calls');
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
@@ -17,15 +17,15 @@ void main() {
   Object? nativeError;
 
   setUp(() {
-    native = [];
     clipboardWrites = [];
     nativeError = null;
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      native.add(call);
-      final error = nativeError;
-      if (error != null) throw error;
-      return null;
-    });
+    native = installFakeCallsChannel(
+      reply: (_) {
+        final error = nativeError;
+        if (error != null) throw error;
+        return null;
+      },
+    ).calls;
     messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
       if (call.method == 'Clipboard.setData') {
         clipboardWrites.add((call.arguments as Map)['text'] as String);
@@ -36,7 +36,6 @@ void main() {
 
   tearDown(() {
     SensitiveClipboard.instance.cancelPendingClear();
-    messenger.setMockMethodCallHandler(channel, null);
     messenger.setMockMethodCallHandler(SystemChannels.platform, null);
   });
 
@@ -68,7 +67,7 @@ void main() {
   });
 
   test('no native side at all still copies the code', () async {
-    messenger.setMockMethodCallHandler(channel, null);
+    removeCallsChannel();
 
     await SensitiveClipboard.instance.copy('recovery code');
 

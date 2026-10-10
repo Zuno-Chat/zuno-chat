@@ -19,81 +19,31 @@ class _FixedRandom implements Random {
 }
 
 void main() {
-  const baseDelay = Duration(milliseconds: 200);
   const maxDelay = Duration(seconds: 2);
 
+  Duration delay(int attempt, double draw) => backoffDelay(
+    attempt,
+    baseDelay: const Duration(milliseconds: 200),
+    maxDelay: maxDelay,
+    random: _FixedRandom(draw),
+  );
+
   test('full jitter draws between zero and the exponential ceiling', () {
-    expect(
-      backoffDelay(
-        1,
-        baseDelay: baseDelay,
-        maxDelay: maxDelay,
-        random: const _FixedRandom(0),
-      ),
-      Duration.zero,
-    );
-    expect(
-      backoffDelay(
-        5,
-        baseDelay: baseDelay,
-        maxDelay: maxDelay,
-        random: const _FixedRandom(0),
-      ),
-      Duration.zero,
-    );
+    expect(delay(1, 0), Duration.zero);
+    expect(delay(5, 0), Duration.zero);
   });
 
   test('ceiling doubles each attempt when nextDouble() == 1', () {
-    expect(
-      backoffDelay(
-        1,
-        baseDelay: baseDelay,
-        maxDelay: maxDelay,
-        random: const _FixedRandom(1),
-      ),
-      const Duration(milliseconds: 200),
-    );
-    expect(
-      backoffDelay(
-        2,
-        baseDelay: baseDelay,
-        maxDelay: maxDelay,
-        random: const _FixedRandom(1),
-      ),
-      const Duration(milliseconds: 400),
-    );
-    expect(
-      backoffDelay(
-        3,
-        baseDelay: baseDelay,
-        maxDelay: maxDelay,
-        random: const _FixedRandom(1),
-      ),
-      const Duration(milliseconds: 800),
-    );
+    expect(delay(1, 1), const Duration(milliseconds: 200));
+    expect(delay(2, 1), const Duration(milliseconds: 400));
+    expect(delay(3, 1), const Duration(milliseconds: 800));
   });
 
   test('ceiling is capped at maxDelay once the exponential exceeds it', () {
-    expect(
-      backoffDelay(
-        5,
-        baseDelay: baseDelay,
-        maxDelay: maxDelay,
-        random: const _FixedRandom(1),
-      ),
-      maxDelay,
-    );
+    expect(delay(5, 1), maxDelay);
   });
 
   test('a mid-range draw scales linearly within the ceiling', () {
-    expect(
-      backoffDelay(
-        1,
-        baseDelay: baseDelay,
-        maxDelay: maxDelay,
-        random: const _FixedRandom(0.5),
-      ),
-      const Duration(milliseconds: 100),
-    );
+    expect(delay(1, 0.5), const Duration(milliseconds: 100));
   });
 }

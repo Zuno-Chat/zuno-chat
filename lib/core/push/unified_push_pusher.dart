@@ -1,6 +1,8 @@
 import 'package:matrix/matrix.dart';
 import 'package:unifiedpush_platform_interface/data/public_key_set.dart';
 
+import 'pusher_format.dart';
+
 const unifiedPushAppId = 'im.zuno.chat.unifiedpush';
 
 bool unifiedPushViaHomeserverGateway = false;
@@ -17,7 +19,7 @@ Pusher buildUnifiedPushPusher({
     deviceDisplayName: deviceDisplayName,
     kind: 'http',
     lang: 'en',
-    data: PusherData(url: gatewayUrl, format: 'event_id_only'),
+    data: PusherData(url: gatewayUrl, format: pusherFormat),
   );
 }
 
@@ -36,7 +38,7 @@ Pusher buildUnifiedPushWebPusher({
     lang: 'en',
     data: PusherData(
       url: gatewayUrl,
-      format: 'event_id_only',
+      format: pusherFormat,
       additionalProperties: {
         'endpoint': endpointUrl.toString(),
         'auth': keys.auth,

@@ -51,19 +51,15 @@ enum NotificationActionEffects {
     guard let seconds = request.eventSeconds else { return [acted] }
     let token = request.notice.roomToken ?? request.notice.thread
     let reads = [ThreadRead(token: token, upToMs: Int64(seconds) * 1000 + 999)]
-    return DeliveredSweep.identifiersToRemove(notes, reads: reads) + [acted]
+    let swept = DeliveredSweep.identifiersToRemove(notes, reads: reads)
+    return swept.contains(acted) ? swept : swept + [acted]
   }
 
   static func takeDownRead(_ request: NotificationActionRequest) {
     UNUserNotificationCenter.current().getDeliveredNotifications { notifications in
-      let notes = notifications.map {
-        DeliveredNote(
-          identifier: $0.request.identifier, thread: $0.request.content.threadIdentifier,
-          userInfo: $0.request.content.userInfo,
-          pushed: $0.request.trigger is UNPushNotificationTrigger)
-      }
       UNUserNotificationCenter.current().removeDeliveredNotifications(
-        withIdentifiers: identifiersToTakeDown(request, delivered: notes))
+        withIdentifiers: identifiersToTakeDown(
+          request, delivered: notifications.map(DeliveredNote.init)))
     }
   }
 }

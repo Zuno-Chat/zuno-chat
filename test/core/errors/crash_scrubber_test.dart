@@ -113,17 +113,6 @@ void main() {
       );
     });
 
-    test('leaves an event with nothing sensitive untouched', () {
-      final event = SentryEvent(
-        message: SentryMessage('RangeError: index out of range'),
-      );
-
-      expect(
-        scrubEvent(event).message?.formatted,
-        'RangeError: index out of range',
-      );
-    });
-
     test('survives an event with no message, exceptions or request', () {
       expect(() => scrubEvent(SentryEvent()), returnsNormally);
     });

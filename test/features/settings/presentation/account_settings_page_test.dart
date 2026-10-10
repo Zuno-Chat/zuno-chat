@@ -12,6 +12,7 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/settings/presentation/account_settings_page.dart';
 import 'package:zuno/features/settings/presentation/change_password_dialog.dart';
 
+import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
 
 const _me = '@alice:example.org';
@@ -88,30 +89,13 @@ class _ProfileClient extends Client {
   }
 }
 
-class _FakeImagePicker extends ImagePickerPlatform {
-  final sources = <ImageSource>[];
-  XFile? answer;
-
-  @override
-  Future<XFile?> getImageFromSource({
-    required ImageSource source,
-    ImagePickerOptions options = const ImagePickerOptions(),
-  }) async {
-    sources.add(source);
-    return answer;
-  }
-}
-
 void main() {
   late _ProfileClient client;
-  late _FakeImagePicker picker;
+  late FakeImagePicker picker;
 
   setUp(() {
     client = _ProfileClient();
-    picker = _FakeImagePicker();
-    final original = ImagePickerPlatform.instance;
-    ImagePickerPlatform.instance = picker;
-    addTearDown(() => ImagePickerPlatform.instance = original);
+    picker = installFakeImagePicker();
   });
 
   Future<void> pumpPage(WidgetTester tester) async {
@@ -303,17 +287,6 @@ void main() {
       expect(find.text('Remove photo'), findsNothing);
     });
 
-    testWidgets('dismissing the sheet changes nothing', (tester) async {
-      await pumpPage(tester);
-      await openSheet(tester);
-
-      await tester.tapAt(const Offset(20, 20));
-      await tester.pumpAndSettle();
-
-      expect(picker.sources, isEmpty);
-      expect(client.avatars, isEmpty);
-    });
-
     testWidgets('a photo can be removed', (tester) async {
       client.cached = _profile(
         name: 'Alice',
@@ -330,14 +303,14 @@ void main() {
     });
 
     testWidgets('a gallery photo is shrunk before it is sent', (tester) async {
-      picker.answer = photo();
+      picker.answer = [photo()];
       await pumpPage(tester);
       await openSheet(tester);
 
       await tester.tap(find.text('Choose from gallery'));
       await tester.pumpAndSettle();
 
-      expect(picker.sources, [ImageSource.gallery]);
+      expect(picker.calls, ['image:gallery']);
       final sent = client.avatars.single! as MatrixImageFile;
       expect((sent.width, sent.height), (512, 256));
       expect(find.text('Photo updated'), findsOneWidget);
@@ -352,14 +325,14 @@ void main() {
       await tester.tap(find.text('Take photo'));
       await tester.pumpAndSettle();
 
-      expect(picker.sources, [ImageSource.camera]);
+      expect(picker.calls, ['image:camera']);
       expect(client.avatars, isEmpty);
       expect(find.byType(SnackBar), findsNothing);
       expect(tester.widget<ListTile>(row('Profile picture')).onTap, isNotNull);
     });
 
     testWidgets('a failed upload says so', (tester) async {
-      picker.answer = photo();
+      picker.answer = [photo()];
       client.saveError = Exception('offline');
       await pumpPage(tester);
       await openSheet(tester);

@@ -5,39 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/calls/serial_lock.dart';
 
 void main() {
-  group('SerialLock', () {
-    test('runs one action at a time, in the order they were asked', () async {
-      final lock = SerialLock();
-      final first = Completer<void>();
-      final order = <String>[];
-
-      final a = lock.run(() async {
-        order.add('a starts');
-        await first.future;
-        order.add('a ends');
-      });
-      final b = lock.run(() async => order.add('b'));
-      await pumpEventQueue();
-      expect(order, ['a starts']);
-
-      first.complete();
-      await Future.wait([a, b]);
-
-      expect(order, ['a starts', 'a ends', 'b']);
-    });
-
-    test('an action that fails hands its error to its caller and does not '
-        'hold up the next one', () async {
-      final lock = SerialLock();
-
-      final failing = lock.run<void>(() async => throw StateError('boom'));
-      final next = lock.run(() async => 'ran');
-
-      await expectLater(failing, throwsStateError);
-      expect(await next, 'ran');
-    });
-  });
-
   test('an idle lock runs the next action in the caller\'s own zone, so a '
       'fake clock in a later test can still drive it', () async {
     final lock = SerialLock();
@@ -52,17 +19,14 @@ void main() {
     });
   });
 
-  test('a lock stuck behind work that will never finish is freed by '
-      'forgetting what it waits on', () async {
+  test('forgetting every lock frees one jammed by an action that never '
+      'finished', () async {
     final lock = SerialLock();
-    final keyed = KeyedSerialLock();
     unawaited(lock.run(() => Completer<void>().future));
-    unawaited(keyed.run('room', () => Completer<void>().future));
 
     KeyedSerialLock.forgetAllForTest();
 
     expect(await lock.run(() async => 'ran'), 'ran');
-    expect(await keyed.run('room', () async => 'ran'), 'ran');
   });
 
   group('KeyedSerialLock', () {

@@ -37,10 +37,6 @@ void main() {
     );
   });
 
-  test('feedback is unavailable in a test build, which has no DSN', () {
-    expect(feedbackAvailable, isFalse);
-  });
-
   test('sends the message as a feedback event', () async {
     final transport = _RecordingTransport();
 
@@ -60,10 +56,10 @@ void main() {
       transport: transport,
     );
 
-    final message = transport.sentEvent.contexts.feedback?.message;
-    expect(message, isNot(contains('alice')));
-    expect(message, isNot(contains('abc:zuno.chat')));
-    expect(message, isNot(contains('secret')));
+    expect(
+      transport.sentEvent.contexts.feedback?.message,
+      '@[redacted] cannot join ![redacted] access_token=[redacted]',
+    );
   });
 
   test('attaches the app release and the OS version, and no user', () async {

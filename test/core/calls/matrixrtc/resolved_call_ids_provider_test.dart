@@ -19,6 +19,7 @@ import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/recording_incoming_call_presenter.dart';
 
@@ -49,47 +50,38 @@ void main() {
     container.read(resolvedCallIdsProvider);
   });
 
-  test('starts empty', () {
-    expect(container.read(resolvedCallIdsProvider), isEmpty);
-  });
-
-  test('a call summary marks its call_id resolved', () async {
-    const summary = CallSummary(
-      callId: 'c1',
-      kind: 'voice',
-      status: CallSummaryStatus.missed,
-      durationMs: 0,
-    );
+  Future<void> summarize(
+    Room inRoom,
+    String callId, {
+    CallSummaryStatus? status,
+  }) async {
     client.onTimelineEvent.add(
       buildTestEvent(
-        room,
-        eventId: r'$1',
+        inRoom,
+        eventId: '\$summary-$callId',
         senderId: '@a:x',
-        content: summary.toMessageContent(),
+        content: status == null
+            ? {'msgtype': callSummaryMsgtype, 'call_id': callId}
+            : CallSummary(
+                callId: callId,
+                kind: 'voice',
+                status: status,
+                durationMs: 0,
+              ).toMessageContent(),
       ),
     );
     await pumpEventQueue();
-    expect(container.read(resolvedCallIdsProvider), {'c1'});
-  });
+  }
 
-  test('a call summary also cancels the ring notification', () async {
-    const summary = CallSummary(
-      callId: 'c1',
-      kind: 'voice',
-      status: CallSummaryStatus.missed,
-      durationMs: 0,
-    );
-    client.onTimelineEvent.add(
-      buildTestEvent(
-        room,
-        eventId: r'$1',
-        senderId: '@a:x',
-        content: summary.toMessageContent(),
-      ),
-    );
-    await pumpEventQueue();
-    expect(presenter.ends, hasLength(1));
-  });
+  test(
+    'call summaries mark their calls resolved, and they accumulate',
+    () async {
+      await summarize(room, 'c1', status: CallSummaryStatus.missed);
+      await summarize(room, 'c2', status: CallSummaryStatus.ended);
+
+      expect(container.read(resolvedCallIdsProvider), {'c1', 'c2'});
+    },
+  );
 
   test('other event types are ignored', () async {
     client.onTimelineEvent.add(
@@ -102,6 +94,7 @@ void main() {
     );
     await pumpEventQueue();
     expect(container.read(resolvedCallIdsProvider), isEmpty);
+    expect(presenter.ends, isEmpty);
   });
 
   test('a summary with no call_id is ignored rather than crashing', () async {
@@ -110,57 +103,12 @@ void main() {
         room,
         eventId: r'$1',
         senderId: '@a:x',
-        content: {'msgtype': 'im.zuno.call_summary'},
+        content: {'msgtype': callSummaryMsgtype},
       ),
     );
     await pumpEventQueue();
     expect(container.read(resolvedCallIdsProvider), isEmpty);
-  });
-
-  test('multiple resolved calls accumulate', () async {
-    for (final callId in ['c1', 'c2']) {
-      const missed = CallSummaryStatus.missed;
-      client.onTimelineEvent.add(
-        buildTestEvent(
-          room,
-          eventId: '\$$callId',
-          senderId: '@a:x',
-          content: CallSummary(
-            callId: callId,
-            kind: 'voice',
-            status: missed,
-            durationMs: 0,
-          ).toMessageContent(),
-        ),
-      );
-    }
-    await pumpEventQueue();
-    expect(container.read(resolvedCallIdsProvider), {'c1', 'c2'});
-  });
-
-  test('markResolved adds a call_id without needing a summary event', () {
-    container.read(resolvedCallIdsProvider.notifier).markResolved('c1');
-    expect(container.read(resolvedCallIdsProvider), {'c1'});
-  });
-
-  test('markResolved is idempotent for a call_id already resolved', () async {
-    const summary = CallSummary(
-      callId: 'c1',
-      kind: 'voice',
-      status: CallSummaryStatus.missed,
-      durationMs: 0,
-    );
-    client.onTimelineEvent.add(
-      buildTestEvent(
-        room,
-        eventId: r'$1',
-        senderId: '@a:x',
-        content: summary.toMessageContent(),
-      ),
-    );
-    await pumpEventQueue();
-    container.read(resolvedCallIdsProvider.notifier).markResolved('c1');
-    expect(container.read(resolvedCallIdsProvider), {'c1'});
+    expect(presenter.ends, isEmpty);
   });
 
   test('marking a call already resolved again changes nothing: no one is '
@@ -189,9 +137,12 @@ void main() {
     expect(seeded.read(resolvedCallIdsProvider), contains('from-push'));
   });
 
-  test('markResolved persists for the other isolate to see', () async {
+  test('markResolved adds a call at once, without a summary event, and '
+      'persists it for the other isolate to see', () async {
     container.read(resolvedCallIdsProvider.notifier).markResolved('c9');
-    await Future<void>.delayed(Duration.zero);
+    expect(container.read(resolvedCallIdsProvider), {'c9'});
+
+    await pumpEventQueue();
 
     expect(readResolvedCallIds(prefs), contains('c9'));
   });
@@ -231,29 +182,6 @@ void main() {
       expect(readResolvedCallIds(prefs), contains('after-dispose'));
     });
   });
-
-  Future<void> summarize(
-    Room inRoom,
-    String callId, {
-    CallSummaryStatus? status,
-  }) async {
-    client.onTimelineEvent.add(
-      buildTestEvent(
-        inRoom,
-        eventId: '\$summary-$callId',
-        senderId: '@a:x',
-        content: status == null
-            ? {'msgtype': callSummaryMsgtype, 'call_id': callId}
-            : CallSummary(
-                callId: callId,
-                kind: 'voice',
-                status: status,
-                durationMs: 0,
-              ).toMessageContent(),
-      ),
-    );
-    await pumpEventQueue();
-  }
 
   group('the ring a summary ends', () {
     test('a declined call ends it as declined elsewhere, naming its room and '
@@ -303,7 +231,7 @@ void main() {
   });
 
   group('through the platform presenter', () {
-    late RecordedCallsChannel toNative;
+    late RecordedMethodCalls toNative;
 
     setUp(() {
       toNative = installFakeCallsChannel();
@@ -341,66 +269,25 @@ void main() {
       ]);
     });
 
-    test('on Android the ring notification still comes down and nothing '
-        'reaches the calls channel', () async {
-      installSilentNotificationSideChannels();
-      final callStyle = installFakeCallStyleChannel();
-      resolveOn(androidCapabilities);
-
-      await summarize(room, 'c1', status: CallSummaryStatus.declined);
-
-      expect(callStyle.calls.map((c) => c.method), ['cancelIncomingCallStyle']);
-      expect(toNative.calls, isEmpty);
-      expect(container.read(resolvedCallIdsProvider), {'c1'});
-    });
-
-    Future<void> ringingOnAndroid(String callId) => saveRingingCall(prefs, (
-      roomId: room.id,
-      callId: callId,
-      callerId: '@a:x',
-      isVideo: false,
-    ));
-
-    Future<String?> rememberedCallId() async {
-      await prefs.reload();
-      return readRingingCall(prefs)?.callId;
-    }
-
-    void holdSystemRing(String callId) =>
-        SystemRing.instance.set(roomId: room.id, callId: callId);
-
-    test('on Android a summary for a call other than the one ringing leaves '
-        'the ring notification up and remembered, yet resolves that other '
-        'call', () async {
-      installSilentNotificationSideChannels();
-      final callStyle = installFakeCallStyleChannel();
-      await ringingOnAndroid('c1');
-      holdSystemRing('c1');
-      resolveOn(androidCapabilities);
-      final other = buildTestRoom(client, id: '!other:example.org');
-
-      await summarize(other, 'c2', status: CallSummaryStatus.declined);
-
-      expect(callStyle.calls, isEmpty);
-      expect(await rememberedCallId(), 'c1');
-      expect(SystemRing.instance.ringing.value?.callId, 'c1');
-      expect(container.read(resolvedCallIdsProvider), {'c2'});
-      expect(toNative.calls, isEmpty);
-    });
-
     test('on Android a summary for the ringing call takes its notification '
         'down, forgets it and lets go of the ring, though no ring screen is '
         'up to do it', () async {
       installSilentNotificationSideChannels();
       final callStyle = installFakeCallStyleChannel();
-      await ringingOnAndroid('c1');
-      holdSystemRing('c1');
+      await saveRingingCall(prefs, (
+        roomId: room.id,
+        callId: 'c1',
+        callerId: '@a:x',
+        isVideo: false,
+      ));
+      SystemRing.instance.set(roomId: room.id, callId: 'c1');
       resolveOn(androidCapabilities);
 
       await summarize(room, 'c1', status: CallSummaryStatus.missed);
 
       expect(callStyle.calls.map((c) => c.method), ['cancelIncomingCallStyle']);
-      expect(await rememberedCallId(), isNull);
+      await prefs.reload();
+      expect(readRingingCall(prefs), isNull);
       expect(SystemRing.instance.ringing.value, isNull);
       expect(container.read(resolvedCallIdsProvider), {'c1'});
       expect(toNative.calls, isEmpty);

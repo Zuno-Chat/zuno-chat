@@ -1,71 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm_pusher.dart';
 import 'package:zuno/core/push/fcm_registration_store.dart';
 
-import '../../helpers/fake_matrix.dart';
-
-class _RecordingClient extends Client {
-  _RecordingClient() : super('test', database: FakeDatabaseApi()) {
-    homeserver = Uri.parse('https://matrix.example.org');
-  }
-
-  final posted = <Pusher>[];
-  final deleted = <PusherId>[];
-  Object? postError;
-
-  void Function()? onDeletePusher;
-
-  @override
-  Future<void> postPusher(Pusher pusher, {bool? append}) async {
-    if (postError != null) throw postError!;
-    posted.add(pusher);
-  }
-
-  @override
-  Future<void> deletePusher(PusherId pusherId) async {
-    onDeletePusher?.call();
-    deleted.add(pusherId);
-  }
-
-  List<Map<String, Object?>>? pushersOnServer;
-
-  @override
-  Future<Map<String, Object?>> request(
-    RequestType type,
-    String action, {
-    dynamic data = '',
-    String contentType = 'application/json',
-    Map<String, Object?>? query,
-  }) async {
-    if (action != '/client/v3/pushers') {
-      return super.request(type, action, data: data, query: query);
-    }
-    final pushers = pushersOnServer;
-    if (pushers == null) throw Exception('offline');
-    return {'pushers': pushers};
-  }
-}
-
-Map<String, Object?> _serverPusher(String pushkey) => {
-  'app_id': fcmAppId,
-  'pushkey': pushkey,
-  'app_display_name': 'Zuno Chat',
-  'device_display_name': 'Phone',
-  'kind': 'http',
-  'lang': 'en',
-};
+import '../../helpers/pusher_recording_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late FcmDeliveryProvider provider;
-  late _RecordingClient client;
+  late PusherRecordingClient client;
   var availability = FcmAvailability.available;
   var availabilityChecks = 0;
 
@@ -73,7 +21,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     availability = FcmAvailability.available;
     availabilityChecks = 0;
-    client = _RecordingClient();
+    client = PusherRecordingClient();
     provider = FcmDeliveryProvider()
       ..availabilityReader = (() async {
         availabilityChecks++;
@@ -107,17 +55,16 @@ void main() {
     },
   );
 
-  test(
-    'stops at playServicesUnavailable without touching the homeserver',
-    () async {
-      availability = FcmAvailability.unavailable;
+  test('stops at playServicesUnavailable without touching the homeserver or '
+      'scheduling a retry', () async {
+    availability = FcmAvailability.unavailable;
 
-      await provider.start(client);
+    await provider.start(client);
 
-      expect(provider.status.value, FcmStatus.playServicesUnavailable);
-      expect(client.posted, isEmpty);
-    },
-  );
+    expect(provider.status.value, FcmStatus.playServicesUnavailable);
+    expect(client.posted, isEmpty);
+    expect(provider.retryScheduled, isFalse);
+  });
 
   test('distinguishes an update from an absence', () async {
     availability = FcmAvailability.updateRequired;
@@ -299,14 +246,6 @@ void main() {
       },
     );
 
-    test('no Play Services is not something to retry in a loop', () async {
-      availability = FcmAvailability.unavailable;
-
-      await provider.start(client);
-
-      expect(provider.retryScheduled, isFalse);
-    });
-
     test('stop cancels a pending retry', () async {
       client.postError = Exception('server said no');
       provider.retryDelay = (_) => const Duration(days: 1);
@@ -380,7 +319,9 @@ void main() {
 
     test('leaves a registration the homeserver still has alone', () async {
       await provider.start(client);
-      client.pushersOnServer = [_serverPusher('token-abc')];
+      client.pushersOnServer = [
+        serverPusherJson(appId: fcmAppId, pushkey: 'token-abc'),
+      ];
       now = now.add(registrationRecheckInterval);
 
       await provider.recheckRegistration(client);
@@ -450,7 +391,8 @@ void main() {
     expect(client.posted, hasLength(1));
   });
 
-  test('a refreshed token re-registers under the new pushkey', () async {
+  test('a refreshed token re-registers under the new pushkey and removes the '
+      'pusher it replaces', () async {
     final refreshes = StreamController<String>.broadcast();
     provider.tokenRefreshStream = () => refreshes.stream;
     addTearDown(refreshes.close);
@@ -462,17 +404,6 @@ void main() {
     expect(client.posted, hasLength(2));
     expect(client.posted.last.pushkey, 'token-def');
     expect(provider.token, 'token-def');
-  });
-
-  test('a refreshed token removes the pusher it replaces', () async {
-    final refreshes = StreamController<String>.broadcast();
-    provider.tokenRefreshStream = () => refreshes.stream;
-    addTearDown(refreshes.close);
-    await provider.start(client);
-
-    refreshes.add('token-def');
-    await pumpEventQueue();
-
     expect(client.deleted.single.pushkey, 'token-abc');
     expect(
       readFcmRegistration(await SharedPreferences.getInstance()),
@@ -694,7 +625,9 @@ void main() {
     });
 
     test('re-posts when the homeserver has dropped the pusher', () async {
-      client.pushersOnServer = [_serverPusher('somebody-elses-token')];
+      client.pushersOnServer = [
+        serverPusherJson(appId: fcmAppId, pushkey: 'somebody-elses-token'),
+      ];
 
       await provider.start(client);
 
@@ -705,7 +638,9 @@ void main() {
 
     test('leaves a confirmed registration alone when the homeserver still '
         'has it', () async {
-      client.pushersOnServer = [_serverPusher('token-abc')];
+      client.pushersOnServer = [
+        serverPusherJson(appId: fcmAppId, pushkey: 'token-abc'),
+      ];
 
       await provider.start(client);
 
@@ -1025,7 +960,7 @@ void main() {
         ..availabilityReader = (() async => FcmAvailability.available)
         ..tokenReader = (() async => 'token-abc')
         ..tokenDeleter = (() async {});
-      final freshClient = _RecordingClient();
+      final freshClient = PusherRecordingClient();
       await relaunched.start(freshClient);
       expect(freshClient.posted, hasLength(1));
     },
@@ -1034,7 +969,7 @@ void main() {
   test(
     'does not register without a homeserver to derive the gateway from',
     () async {
-      final unset = _RecordingClient()..homeserver = null;
+      final unset = PusherRecordingClient()..homeserver = null;
 
       await provider.start(unset);
 

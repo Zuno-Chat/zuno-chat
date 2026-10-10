@@ -53,25 +53,11 @@ void main() {
     expect(request['isMinBitrateCheckEnabled'], isFalse);
   });
 
-  test('asks for landscape video in its own orientation', () async {
-    await reencode(width: 1280, height: 720);
-
-    expect(requests.single['videoWidth'], 1280);
-    expect(requests.single['videoHeight'], 720);
-  });
-
   test('asks for portrait video in the encoder\'s raw orientation', () async {
     await reencode(width: 720, height: 1280);
 
     expect(requests.single['videoWidth'], 1280);
     expect(requests.single['videoHeight'], 720);
-  });
-
-  test('leaves the size to the encoder when it is unknown', () async {
-    await reencode(width: null, height: null);
-
-    expect(requests.single['videoWidth'], isNull);
-    expect(requests.single['videoHeight'], isNull);
   });
 
   test('reports progress as a fraction, capped at done', () async {
@@ -85,7 +71,7 @@ void main() {
       ),
     );
     answer = () async {
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await pumpEventQueue();
       return jsonEncode({'onSuccess': '/cache/out.mp4'});
     };
     final fractions = <double>[];

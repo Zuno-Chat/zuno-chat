@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -25,7 +26,6 @@ Future<CallLiveness> _check(Client client) => checkCallLiveness(
   roomId: '!r:zuno.im',
   callId: 'c1',
   callerId: '@alice:zuno.im',
-  timeout: const Duration(milliseconds: 200),
 );
 
 void main() {
@@ -104,10 +104,18 @@ void main() {
     },
   );
 
-  test('a slow server proves nothing either', () async {
-    final client = _clientAnswering((_) => Completer<http.Response>().future);
+  test('a slow server proves nothing either', () {
+    fakeAsync((async) {
+      final client = _clientAnswering((_) => Completer<http.Response>().future);
+      CallLiveness? liveness;
+      unawaited(_check(client).then((answer) => liveness = answer));
 
-    expect(await _check(client), CallLiveness.unknown);
+      async.elapse(callLivenessTimeout - const Duration(milliseconds: 1));
+      expect(liveness, isNull);
+
+      async.elapse(const Duration(milliseconds: 1));
+      expect(liveness, CallLiveness.unknown);
+    });
   });
 
   test('without a caller there is nothing to ask', () async {

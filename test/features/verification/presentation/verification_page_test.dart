@@ -10,6 +10,8 @@ import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/features/verification/presentation/qr_scanner_page.dart';
 import 'package:zuno/features/verification/presentation/verification_page.dart';
 
+import '../../../helpers/fake_permissions.dart';
+import '../../../helpers/route_launcher.dart';
 import 'verification_harness.dart';
 
 const _waiting = 'Waiting for the other device…';
@@ -24,19 +26,12 @@ void main() {
   }) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: TextButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => VerificationPage(
-                    keyVerification: verification,
-                    isOwnDevice: isOwnDevice,
-                    picturesFirst: picturesFirst,
-                  ),
-                ),
-              ),
-              child: const Text('open'),
+        home: Scaffold(
+          body: routeLauncher(
+            (_) => VerificationPage(
+              keyVerification: verification,
+              isOwnDevice: isOwnDevice,
+              picturesFirst: picturesFirst,
             ),
           ),
         ),
@@ -69,12 +64,14 @@ void main() {
       });
     }
 
-    testWidgets('the title names who is being checked', (tester) async {
+    testWidgets('a check of someone else asks to confirm it is them', (
+      tester,
+    ) async {
       await open(tester, FakeKeyVerification());
       expect(find.text('Confirm it is them'), findsOneWidget);
     });
 
-    testWidgets('the title names this device for an own-device check', (
+    testWidgets('an own-device check asks to approve this device', (
       tester,
     ) async {
       await open(tester, FakeKeyVerification(), isOwnDevice: true);
@@ -260,7 +257,7 @@ void main() {
 
     setUp(() {
       scanner = installFakeScanner();
-      installFakeCameraPermission();
+      installFakePermissions();
     });
 
     Future<FakeKeyVerification> openScanner(
@@ -388,35 +385,8 @@ void main() {
       expect(find.text('Check these match on both devices'), findsOneWidget);
     });
 
-    testWidgets('They match accepts', (tester) async {
-      final verification = FakeKeyVerification(
-        state: KeyVerificationState.askSas,
-        sasEmojis: testEmojis(),
-      );
-      await open(tester, verification);
-
-      await tester.tap(find.text('They match'));
-      await tester.pump();
-
-      expect(verification.calls, ['acceptSas']);
-    });
-
-    testWidgets('They do not match rejects', (tester) async {
-      final verification = FakeKeyVerification(
-        state: KeyVerificationState.askSas,
-        sasEmojis: testEmojis(),
-      );
-      await open(tester, verification);
-
-      await tester.tap(find.text('They do not match'));
-      await settle(tester);
-
-      expect(verification.calls, ['rejectSas']);
-    });
-
-    testWidgets('a second tap while the first is on its way is dropped', (
-      tester,
-    ) async {
+    testWidgets('They match accepts and They do not match rejects, and a '
+        'second tap while the first is on its way is dropped', (tester) async {
       final verification = FakeKeyVerification(
         state: KeyVerificationState.askSas,
         sasEmojis: testEmojis(),

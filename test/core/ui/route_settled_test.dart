@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/ui/route_settled.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 
+import '../../helpers/route_launcher.dart';
+
 class _Probe extends StatefulWidget {
   final VoidCallback onSettled;
   const _Probe(this.onSettled);
@@ -29,14 +31,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: zunoLightTheme,
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => _Probe(() => settled++)),
-            ),
-            child: const Text('open'),
-          ),
-        ),
+        home: routeLauncher((_) => _Probe(() => settled++)),
       ),
     );
     await tester.tap(find.text('open'));

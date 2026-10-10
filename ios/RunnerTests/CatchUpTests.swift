@@ -224,15 +224,6 @@ final class CatchUpTests: XCTestCase {
     XCTAssertEqual(outcome.posted, 0)
   }
 
-  func testTheOutcomeNamesTheUnreadRoomsForTheBadge() async {
-    let platform = FakeCatchUpPlatform(now: start)
-    platform.shown = ["e$b1"]
-    let outcome = await run(
-      platform, body([("!a:hs", "$a1", 100, false), ("!b:hs", "$b1", 90, false)]))
-    XCTAssertEqual(outcome.unreadRoomTokens, ["t!a:hs", "t!b:hs"])
-    XCTAssertEqual(outcome.posted, 1)
-  }
-
   func testTheBadgeDropsRoomsReadElsewhereUnlessTheyHaveUnreadEventsAgain() {
     let outcome = CatchUpOutcome(
       readRoomTokens: ["t1", "t2"], unreadRoomTokens: ["t2", "t4"], posted: 0, removed: [])

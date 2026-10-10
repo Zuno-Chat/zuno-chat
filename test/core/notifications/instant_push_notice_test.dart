@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
@@ -9,6 +8,7 @@ import 'package:zuno/core/notifications/notification_thread_store.dart';
 import 'package:zuno/core/notifications/notified_events_store.dart';
 
 import '../../helpers/fake_local_notifications.dart';
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -16,7 +16,7 @@ void main() {
   final id = messageNotificationIdFor(roomId);
   late RecordedNotifications notifications;
   late Map<String, String> noticed;
-  late List<String> taken;
+  late RecordedMethodCalls conversations;
   var fakeNow = DateTime(2031, 6, 1, 12);
 
   setUp(() {
@@ -26,19 +26,7 @@ void main() {
     notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
     noticed = {};
-    taken = [];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('zuno/conversations'), (
-          call,
-        ) async {
-          if (call.method != 'takePushNotice') return null;
-          final args = (call.arguments as Map).cast<String, Object?>();
-          final room = args['roomId'] as String;
-          taken.add('$room/${args['eventId']}');
-          if (noticed[room] != args['eventId']) return false;
-          noticed.remove(room);
-          return true;
-        });
+    conversations = installFakeConversationsChannel(noticed: noticed);
   });
 
   tearDown(() {
@@ -71,7 +59,7 @@ void main() {
 
       await post();
 
-      expect(taken, ['$roomId/\$e1']);
+      expect(conversations.takenNotices, ['$roomId/\$e1']);
       expect(notifications.single.id, id);
       expect(notifications.lastPlatformSpecifics['onlyAlertOnce'], isTrue);
     },
@@ -80,7 +68,7 @@ void main() {
   test('a post with no notice alerts as before', () async {
     await post();
 
-    expect(taken, ['$roomId/\$e1']);
+    expect(conversations.takenNotices, ['$roomId/\$e1']);
     expect(notifications.lastPlatformSpecifics['onlyAlertOnce'], isFalse);
   });
 
@@ -104,7 +92,7 @@ void main() {
 
       await post();
 
-      expect(taken, ['$roomId/\$e1']);
+      expect(conversations.takenNotices, ['$roomId/\$e1']);
       expect(notifications.lastPlatformSpecifics['onlyAlertOnce'], isFalse);
     },
   );
@@ -135,7 +123,7 @@ void main() {
       ),
     );
 
-    expect(taken, isEmpty);
+    expect(conversations.takenNotices, isEmpty);
     expect(noticed, containsPair(roomId, r'$e1'));
   });
 
@@ -144,7 +132,7 @@ void main() {
 
     await post(refine: true);
 
-    expect(taken, isEmpty);
+    expect(conversations.takenNotices, isEmpty);
     expect(noticed, containsPair(roomId, r'$e1'));
   });
 

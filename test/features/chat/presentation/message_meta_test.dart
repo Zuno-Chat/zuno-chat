@@ -5,10 +5,7 @@ import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
 
-Widget _wrap(Widget child) => MaterialApp(
-  theme: zunoLightTheme,
-  home: Scaffold(body: Center(child: child)),
-);
+import '../../../helpers/zuno_app.dart';
 
 Icon _icon(WidgetTester tester) => tester.widget<Icon>(find.byType(Icon));
 
@@ -20,7 +17,7 @@ void main() {
     'sending shows a clock, sent a tick, read a double tick in primary',
     (tester) async {
       await tester.pumpWidget(
-        _wrap(
+        inZunoApp(
           const MessageMeta(
             time: '09:41',
             own: true,
@@ -32,7 +29,7 @@ void main() {
       expect(_icon(tester).color, zuno.onBubbleOutgoingVariant);
 
       await tester.pumpWidget(
-        _wrap(
+        inZunoApp(
           const MessageMeta(time: '09:41', own: true, status: MetaStatus.sent),
         ),
       );
@@ -40,7 +37,7 @@ void main() {
       expect(_icon(tester).color, zuno.onBubbleOutgoingVariant);
 
       await tester.pumpWidget(
-        _wrap(
+        inZunoApp(
           const MessageMeta(time: '09:41', own: true, status: MetaStatus.read),
         ),
       );
@@ -48,7 +45,7 @@ void main() {
       expect(_icon(tester).color, colors.primary);
 
       await tester.pumpWidget(
-        _wrap(const MessageMeta(time: '09:41', own: true)),
+        inZunoApp(const MessageMeta(time: '09:41', own: true)),
       );
       expect(find.byType(Icon), findsNothing);
     },
@@ -58,7 +55,7 @@ void main() {
     'own meta uses the outgoing variant color, other meta onSurfaceVariant',
     (tester) async {
       await tester.pumpWidget(
-        _wrap(const MessageMeta(time: '09:41', own: true)),
+        inZunoApp(const MessageMeta(time: '09:41', own: true)),
       );
       expect(
         tester.widget<Text>(find.text('09:41')).style!.color,
@@ -66,7 +63,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _wrap(const MessageMeta(time: '09:41', own: false, edited: true)),
+        inZunoApp(const MessageMeta(time: '09:41', own: false, edited: true)),
       );
       expect(
         tester.widget<Text>(find.text('09:41')).style!.color,
@@ -82,7 +79,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const MessageMeta(
           time: '09:41',
           own: true,
@@ -95,7 +92,7 @@ void main() {
     expect(_icon(tester).color, colors.primaryContainer);
 
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const MessageMeta(
           time: '09:41',
           own: true,
@@ -110,7 +107,7 @@ void main() {
   group('tucked meta', () {
     const style = TextStyle(fontSize: 16, height: 1.3);
 
-    Widget tucked(String text) => _wrap(
+    Widget tucked(String text) => inZunoApp(
       SizedBox(
         width: 246,
         child: Align(

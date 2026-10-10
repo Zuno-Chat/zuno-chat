@@ -49,18 +49,7 @@ void main() {
     expect(servers.last['credential'], 'c1');
   });
 
-  test('an unreachable module degrades to no TURN, not an error', () async {
-    final client = _signedInClient();
-
-    final servers = await resolveIceServers(
-      client,
-      httpClient: MockClient((_) async => throw http.ClientException('down')),
-    );
-
-    expect(servers, isEmpty);
-  });
-
-  test('a module error response degrades to no TURN too', () async {
+  test('a module error response degrades to no TURN', () async {
     final client = _signedInClient();
 
     final servers = await resolveIceServers(

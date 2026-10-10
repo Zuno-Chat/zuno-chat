@@ -2,25 +2,20 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
-import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/message_notification_action.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/security/security_prompt.dart';
 import 'package:zuno/core/security/security_prompt_provider.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/communities/presentation/community_page.dart';
@@ -31,6 +26,9 @@ import 'package:zuno/features/settings/presentation/settings_page.dart';
 import 'package:zuno/features/verification/presentation/verification_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/pump_until.dart';
+import '../../../helpers/room_list_page_harness.dart';
+import '../../../helpers/room_opening_channels.dart';
 import '../../verification/presentation/verification_harness.dart';
 
 class _StubClient extends Client {
@@ -53,22 +51,7 @@ void main() {
   late StreamController<KeyVerification> verifications;
 
   setUp(() {
-    FlutterLocalNotificationsPlatform.instance =
-        AndroidFlutterLocalNotificationsPlugin();
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    for (final channel in const [
-      MethodChannel('dexterous.com/flutter/local_notifications'),
-      MethodChannel('zuno/calls'),
-      MethodChannel('com.llfbandit.record/messages'),
-    ]) {
-      messenger.setMockMethodCallHandler(
-        channel,
-        (call) async => call.method == 'initialize' ? true : null,
-      );
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    }
-
+    installRoomOpeningChannels();
     requests = [];
     offline = false;
     verifications = StreamController<KeyVerification>.broadcast();
@@ -111,15 +94,14 @@ void main() {
     Map<String, Object> stored = const {},
     bool settle = true,
   }) async {
-    SharedPreferences.setMockInitialValues(stored);
-    final prefs = await SharedPreferences.getInstance();
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    final container = ProviderContainer(
+    final container = await pumpRoomListPage(
+      tester,
+      client,
+      stored: stored,
       overrides: [
-        matrixClientProvider.overrideWithValue(client),
-        sharedPreferencesProvider.overrideWithValue(prefs),
         onboardingStepsProvider.overrideWith(
           (ref) => onboardingBuild?.call() ?? Future.value(onboarding),
         ),
@@ -128,16 +110,6 @@ void main() {
           (ref) => verifications.stream,
         ),
       ],
-    );
-    addTearDown(container.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          scaffoldMessengerKey: globalScaffoldMessengerKey,
-          home: const RoomListPage(),
-        ),
-      ),
     );
     await tester.pump();
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
@@ -150,10 +122,7 @@ void main() {
   }
 
   Future<void> network(WidgetTester tester) async {
-    for (var i = 0; i < 4; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
+    await pumpRealAsync(tester, rounds: 4);
     await tester.pumpAndSettle();
   }
 

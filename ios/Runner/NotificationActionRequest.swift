@@ -41,7 +41,8 @@ struct NotificationActionTarget: Equatable, Sendable {
   let eventSeconds: Int?
 
   static func from(userInfo: [AnyHashable: Any]) -> NotificationActionTarget {
-    let payload = messagePayload(userInfo["payload"])
+    let payload = NotificationUserInfo.messagePayload(in: userInfo)
+    let text = NotificationUserInfo.text
     return NotificationActionTarget(
       roomId: text(userInfo["room_id"]) ?? text(payload?["roomId"]),
       roomToken: text(userInfo["t"]) ?? text(payload?["t"]),
@@ -49,24 +50,12 @@ struct NotificationActionTarget: Equatable, Sendable {
       eventSeconds: seconds(userInfo["o"]) ?? seconds(payload?["o"]))
   }
 
-  private static func messagePayload(_ raw: Any?) -> [String: Any]? {
-    guard let json = raw as? String,
-      let decoded = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any],
-      decoded["type"] as? String == "message"
-    else { return nil }
-    return decoded
-  }
-
-  private static func text(_ value: Any?) -> String? {
-    guard let string = value as? String, !string.isEmpty else { return nil }
-    return string
-  }
-
   static let latestEventSeconds = 32_503_680_000
 
   private static func seconds(_ value: Any?) -> Int? {
-    let parsed = (value as? String).flatMap { Int($0) } ?? (value as? NSNumber)?.intValue
-    guard let parsed, parsed > 0, parsed <= latestEventSeconds else { return nil }
+    guard let parsed = NotificationUserInfo.seconds(value), parsed > 0,
+      parsed <= latestEventSeconds
+    else { return nil }
     return parsed
   }
 }

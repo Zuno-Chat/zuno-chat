@@ -21,19 +21,12 @@ void main() {
     CallKind kind = CallKind.voice,
     bool lowDataMode = false,
     PlatformCapabilities? capabilities,
-  }) {
-    fakeAsync((async) {
-      final call = EngineHarness(
-        async,
-        kind: kind,
-        lowDataMode: lowDataMode,
-        capabilities: capabilities,
-      );
-      body(call);
-      call.leave();
-      call.flush();
-    });
-  }
+  }) => runEngineCall(
+    body,
+    kind: kind,
+    lowDataMode: lowDataMode,
+    capabilities: capabilities,
+  );
 
   RTCRtpEncoding encoding(FakeSender sender) =>
       sender.appliedParameters.last.encodings!.first;
@@ -249,21 +242,6 @@ void main() {
   });
 
   group('video codec order', () {
-    test('where the platform sets one, the camera sender prefers it', () {
-      inCall(
-        (call) {
-          call.join();
-
-          expect(
-            call.videoSlot.codecPreferences!.map((c) => c.mimeType).take(2),
-            ['video/VP8', 'video/H264'],
-          );
-        },
-        kind: CallKind.video,
-        capabilities: androidCapabilities,
-      );
-    });
-
     test('where the platform keeps WebRTC\'s own order, none is set and the '
         'call still publishes its camera', () {
       inCall(
@@ -1100,7 +1078,6 @@ void main() {
           call.backend.streams.where((s) => s.id.startsWith('local_')),
           everyElement(predicate<FakeMediaStream>((s) => s.disposed)),
         );
-        expect(call.pc.disposed, isTrue);
         expect(call.pc.disposed, isTrue);
         expect(call.engine.status, CallEngineStatus.disconnected);
         expect(call.engine.participants.where((p) => !p.isLocal), isEmpty);

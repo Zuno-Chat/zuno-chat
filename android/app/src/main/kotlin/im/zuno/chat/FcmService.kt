@@ -6,7 +6,6 @@ import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import im.zuno.chat.zuno_notifications.PushNotice
-import im.zuno.chat.zuno_notifications.PushWakeLock
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 

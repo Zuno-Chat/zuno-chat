@@ -55,14 +55,6 @@ class FcmBadgeDecisionTest {
     }
 
     @Test
-    fun `a push with an empty event id is a badge push`() {
-        assertEquals(
-            FcmPushHandling.CLEAR_MESSAGES,
-            FcmBadgeDecision.handlingFor(mapOf("event_id" to "", "unread" to "0"), false),
-        )
-    }
-
-    @Test
     fun `the clear takes every chat notification and nothing else`() {
         val shown = listOf(
             ShownNotification(11, "direct_messages"),

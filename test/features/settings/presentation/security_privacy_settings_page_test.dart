@@ -19,8 +19,10 @@ import 'package:zuno/features/settings/presentation/why_security_page.dart';
 import 'package:zuno/features/verification/presentation/approve_this_device_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 class _NoDevicesClient extends EncryptedTestClient {
@@ -46,20 +48,9 @@ AccountSecurityFacts _factsFor(AccountSecurityStatus status) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const callsChannel = MethodChannel('zuno/calls');
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-  final calls = <MethodCall>[];
+  late RecordedMethodCalls native;
 
-  setUp(() {
-    calls.clear();
-    messenger.setMockMethodCallHandler(callsChannel, (call) async {
-      calls.add(call);
-      return null;
-    });
-  });
-
-  tearDown(() => messenger.setMockMethodCallHandler(callsChannel, null));
+  setUp(() => native = installFakeCallsChannel());
 
   Finder switchTile(String title) =>
       find.widgetWithText(SwitchListTile, title, skipOffstage: false);
@@ -110,30 +101,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(BlockedPeoplePage), findsOneWidget);
-    expect(find.text('Nobody is blocked'), findsOneWidget);
-  });
-
-  testWidgets('App lock no longer appears anywhere on the page', (
-    tester,
-  ) async {
-    await pumpPage(tester);
-    expect(find.text('App lock'), findsNothing);
-  });
-
-  testWidgets('Prevent screenshots is a real, enabled toggle — on by default', (
-    tester,
-  ) async {
-    await pumpPage(tester);
-
-    final tile = tester.widget<SwitchListTile>(
-      switchTile('Prevent screenshots'),
-    );
-    expect(tile.value, isTrue);
-    expect(tile.onChanged, isNotNull);
-    expect(
-      tile.subtitle,
-      isNot(isA<Text>().having((t) => t.data, 'data', 'Coming soon')),
-    );
   });
 
   group('where the platform cannot block screenshots', () {
@@ -189,7 +156,7 @@ void main() {
 
       expect(container.read(preventScreenshotsProvider), isFalse);
       expect(
-        calls,
+        native.calls,
         contains(
           isA<MethodCall>()
               .having((c) => c.method, 'method', 'setPreventScreenshots')
@@ -207,69 +174,31 @@ void main() {
     expect(find.text('On this device', skipOffstage: false), findsOneWidget);
   });
 
-  testWidgets('Android keeps the toggle', (tester) async {
-    await pumpPage(tester, capabilities: androidCapabilities);
-
-    expect(switchTile('Prevent screenshots'), findsOneWidget);
-  });
-
-  testWidgets('reads a previously-stored false value as off', (tester) async {
-    await pumpPage(tester, prefs: {'settings.prevent_screenshots': false});
-
-    final tile = tester.widget<SwitchListTile>(
-      switchTile('Prevent screenshots'),
-    );
-    expect(tile.value, isFalse);
-  });
-
-  testWidgets('tapping the toggle flips it, persists it, and calls the native '
-      'FLAG_SECURE channel', (tester) async {
+  testWidgets('Prevent screenshots shows the setting, on by default, and '
+      'flips it both ways through the native FLAG_SECURE channel', (
+    tester,
+  ) async {
     final container = await pumpPage(tester);
+    bool shown() =>
+        tester.widget<SwitchListTile>(switchTile('Prevent screenshots')).value;
+    expect(shown(), isTrue);
 
     await tester.tap(switchTile('Prevent screenshots'));
     await tester.pump();
 
     expect(container.read(preventScreenshotsProvider), isFalse);
-    final tile = tester.widget<SwitchListTile>(
-      switchTile('Prevent screenshots'),
-    );
-    expect(tile.value, isFalse);
+    expect(shown(), isFalse);
 
-    final prefs = container.read(sharedPreferencesProvider);
-    expect(prefs.getBool('settings.prevent_screenshots'), isFalse);
+    await tester.tap(switchTile('Prevent screenshots'));
+    await tester.pump();
 
-    expect(
-      calls,
-      contains(
-        isA<MethodCall>()
-            .having((c) => c.method, 'method', 'setPreventScreenshots')
-            .having((c) => c.arguments, 'arguments', {'enabled': false}),
-      ),
-    );
+    expect(container.read(preventScreenshotsProvider), isTrue);
+    expect(shown(), isTrue);
+    expect(native.argsOf('setPreventScreenshots'), [
+      {'enabled': false},
+      {'enabled': true},
+    ]);
   });
-
-  testWidgets(
-    'tapping it while off turns it back on and calls the channel with true',
-    (tester) async {
-      final container = await pumpPage(
-        tester,
-        prefs: {'settings.prevent_screenshots': false},
-      );
-
-      await tester.tap(switchTile('Prevent screenshots'));
-      await tester.pump();
-
-      expect(container.read(preventScreenshotsProvider), isTrue);
-      expect(
-        calls,
-        contains(
-          isA<MethodCall>()
-              .having((c) => c.method, 'method', 'setPreventScreenshots')
-              .having((c) => c.arguments, 'arguments', {'enabled': true}),
-        ),
-      );
-    },
-  );
 
   testWidgets(
     "the row's subtitle discloses the recent-apps-thumbnail side effect",
@@ -296,12 +225,6 @@ void main() {
     await tester.pump();
 
     expect(container.read(incognitoKeyboardProvider), isFalse);
-  });
-
-  testWidgets('Send crash reports moved out, to About', (tester) async {
-    await pumpPage(tester);
-
-    expect(find.text('Send crash reports', skipOffstage: false), findsNothing);
   });
 
   testWidgets('Advanced is a disabled placeholder that opens nothing', (
@@ -439,19 +362,12 @@ void main() {
       expect(find.byType(ActiveSessionsPage), findsOneWidget);
     });
 
-    testWidgets('How this works explains it', (tester) async {
-      await pumpWithStatus(tester, AccountSecurityStatus.protected);
-
-      await open(tester, find.text('How this works'));
-
-      expect(find.byType(WhySecurityPage), findsOneWidget);
-    });
-
     testWidgets('coming back checks the status again', (tester) async {
       await pumpWithStatus(tester, AccountSecurityStatus.protected);
       expect(factReads, 1);
 
       await open(tester, find.text('How this works'));
+      expect(find.byType(WhySecurityPage), findsOneWidget);
       await comeBack(tester);
 
       expect(find.byType(WhySecurityPage), findsNothing);

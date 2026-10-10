@@ -23,12 +23,6 @@ final class VoipPluginFixture {
       environment: { [unowned self] in self.environment }, callKitAvailable: { true },
       token: { [unowned self] in self.token }, now: { Date(timeIntervalSince1970: 1) })
   }
-
-  func call(_ plugin: VoipPlugin, _ method: String, _ arguments: [String: Any]? = nil) -> Any? {
-    var reply: Any?
-    plugin.handle(FlutterMethodCall(methodName: method, arguments: arguments)) { reply = $0 }
-    return reply
-  }
 }
 
 @MainActor
@@ -36,7 +30,8 @@ final class VoipPluginTests: XCTestCase {
   func testStatusHandsDartTheTokenEnvironmentAndAKeyItCreates() throws {
     let voip = try VoipPluginFixture(self)
 
-    let status = try XCTUnwrap(voip.call(voip.plugin(), "status") as? [String: Any])
+    let status = try XCTUnwrap(
+      immediateReply(from: voip.plugin(), method: "status") as? [String: Any])
 
     XCTAssertEqual(
       status["token"] as? String, Data([0xa1, 0xb2, 0xc3, 0xd4]).base64EncodedString())
@@ -50,7 +45,8 @@ final class VoipPluginTests: XCTestCase {
     let voip = try VoipPluginFixture(self)
     voip.token = nil
 
-    let status = try XCTUnwrap(voip.call(voip.plugin(), "status") as? [String: Any])
+    let status = try XCTUnwrap(
+      immediateReply(from: voip.plugin(), method: "status") as? [String: Any])
 
     XCTAssertTrue(status["token"] is NSNull)
     XCTAssertEqual(status["kid"] as? Int, 5)
@@ -60,16 +56,17 @@ final class VoipPluginTests: XCTestCase {
     let voip = try VoipPluginFixture(self)
     voip.memory.locked = true
 
-    XCTAssertEqual((voip.call(voip.plugin(), "status") as? FlutterError)?.code, "keychain")
+    XCTAssertEqual(
+      (immediateReply(from: voip.plugin(), method: "status") as? FlutterError)?.code, "keychain")
   }
 
   func testRotationAndAcknowledgementReachTheKeyStore() throws {
     let voip = try VoipPluginFixture(self)
     let plugin = voip.plugin()
-    _ = voip.call(plugin, "status")
+    _ = immediateReply(from: plugin, method: "status")
 
-    let rotated = try XCTUnwrap(voip.call(plugin, "rotateKey") as? [String: Any])
-    XCTAssertNil(voip.call(plugin, "ackKey", ["kid": 6]))
+    let rotated = try XCTUnwrap(immediateReply(from: plugin, method: "rotateKey") as? [String: Any])
+    XCTAssertNil(immediateReply(from: plugin, method: "ackKey", arguments: ["kid": 6]))
 
     XCTAssertEqual(rotated["kid"] as? Int, 6)
     guard case .ready(let keys) = VoipKeyStore(backend: voip.memory).load() else {
@@ -83,7 +80,8 @@ final class VoipPluginTests: XCTestCase {
     let voip = try VoipPluginFixture(self)
     voip.ring.handler.tokenUpdated(Data([9]))
 
-    let events = try XCTUnwrap(voip.call(voip.plugin(), "takeEvents") as? [[String: String]])
+    let events = try XCTUnwrap(
+      immediateReply(from: voip.plugin(), method: "takeEvents") as? [[String: String]])
 
     XCTAssertEqual(events, [["type": "token"]])
   }
@@ -91,9 +89,9 @@ final class VoipPluginTests: XCTestCase {
   func testTheSessionSwitchReachesTheHandler() throws {
     let voip = try VoipPluginFixture(self)
     let plugin = voip.plugin()
-    _ = voip.call(plugin, "status")
+    _ = immediateReply(from: plugin, method: "status")
 
-    XCTAssertNil(voip.call(plugin, "setSession", ["signedIn": false]))
+    XCTAssertNil(immediateReply(from: plugin, method: "setSession", arguments: ["signedIn": false]))
     XCTAssertEqual(VoipKeyStore(backend: voip.memory).load(), .missing)
     XCTAssertEqual(voip.ring.cache.signedOut(), .present)
   }
@@ -101,9 +99,9 @@ final class VoipPluginTests: XCTestCase {
   func testADevelopmentBuildExportsTheTestValuesWithAHexToken() throws {
     let voip = try VoipPluginFixture(self)
     let plugin = voip.plugin()
-    _ = voip.call(plugin, "status")
+    _ = immediateReply(from: plugin, method: "status")
 
-    let export = try XCTUnwrap(voip.call(plugin, "devExport") as? [String: Any])
+    let export = try XCTUnwrap(immediateReply(from: plugin, method: "devExport") as? [String: Any])
 
     XCTAssertEqual(export["token"] as? String, "a1b2c3d4")
     XCTAssertEqual(export["kid"] as? Int, 5)
@@ -115,9 +113,9 @@ final class VoipPluginTests: XCTestCase {
     let voip = try VoipPluginFixture(self)
     voip.environment = "production"
     let plugin = voip.plugin()
-    _ = voip.call(plugin, "status")
+    _ = immediateReply(from: plugin, method: "status")
 
-    XCTAssertNil(voip.call(plugin, "devExport"))
+    XCTAssertNil(immediateReply(from: plugin, method: "devExport"))
     XCTAssertNil(plugin.devExport())
   }
 
@@ -125,7 +123,7 @@ final class VoipPluginTests: XCTestCase {
     let voip = try VoipPluginFixture(self)
     voip.token = nil
     let plugin = voip.plugin()
-    _ = voip.call(plugin, "status")
+    _ = immediateReply(from: plugin, method: "status")
 
     XCTAssertNil(plugin.devExport())
   }

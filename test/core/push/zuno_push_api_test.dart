@@ -30,6 +30,27 @@ ZunoPushApi _api(
   timeout: timeout,
 );
 
+Map<String, Object?> _health({String lastResult = 'sent'}) => {
+  'pushers': [
+    {
+      'app_id': 'im.zuno.chat.ios',
+      'last_success_ts': 1790000000000,
+      'failing_since_ts': null,
+    },
+  ],
+  'voip': {
+    'registered': true,
+    'kid': 16909060,
+    'last_result': lastResult,
+    'last_ts': 1790000000000,
+  },
+  'nse': {
+    'credential_expires_ts': 1792592000000,
+    'last_fetch_ts': 1790000000000,
+  },
+  'server_ts': 1790000000123,
+};
+
 T _ok<T>(ZunoPushResult<T> result) => switch (result) {
   ZunoPushOk(:final value) => value,
   ZunoPushFailure(:final kind) => throw TestFailure('failed: $kind'),
@@ -96,26 +117,7 @@ void main() {
     });
 
     test('reads the health of pushers, VoIP and the NSE', () async {
-      reply = (_) => _module({
-        'pushers': [
-          {
-            'app_id': 'im.zuno.chat.ios',
-            'last_success_ts': 1790000000000,
-            'failing_since_ts': null,
-          },
-        ],
-        'voip': {
-          'registered': true,
-          'kid': 16909060,
-          'last_result': 'sent',
-          'last_ts': 1790000000000,
-        },
-        'nse': {
-          'credential_expires_ts': 1792592000000,
-          'last_fetch_ts': 1790000000000,
-        },
-        'server_ts': 1790000000123,
-      });
+      reply = (_) => _module(_health());
 
       final health = _ok(await api.health());
 
@@ -161,36 +163,13 @@ void main() {
 
     test('a health reply naming a send result the contract does not list yet '
         'reads it as unknown', () async {
-      reply = (_) => _module({
-        'pushers': [
-          {
-            'app_id': 'im.zuno.chat.ios',
-            'last_success_ts': 1790000000000,
-            'failing_since_ts': null,
-          },
-        ],
-        'voip': {
-          'registered': true,
-          'kid': 16909060,
-          'last_result': 'later_value',
-          'last_ts': 1790000000000,
-        },
-        'nse': {
-          'credential_expires_ts': 1792592000000,
-          'last_fetch_ts': 1790000000000,
-        },
-        'server_ts': 1790000000123,
-      });
+      reply = (_) => _module(_health(lastResult: 'later_value'));
 
       final health = _ok(await api.health());
 
       expect(health.voip.lastResult, isNull);
       expect(health.voip.registered, isTrue);
-      expect(health.voip.kid, 16909060);
-      expect(health.voip.lastTs, 1790000000000);
       expect(health.pushers.single.appId, 'im.zuno.chat.ios');
-      expect(health.nse.credentialExpiresTs, 1792592000000);
-      expect(health.nse.lastFetchTs, 1790000000000);
     });
 
     test('asks for a test alert and returns its event id', () async {

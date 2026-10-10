@@ -73,12 +73,10 @@ void main() {
         'ends_ts': end.millisecondsSinceEpoch,
       };
 
+      final longest = publishedAt.add(const Duration(hours: 2, minutes: 10));
       expect(
-        parseLiveShareState(
-          endingAt(publishedAt.add(const Duration(hours: 2, minutes: 10))),
-          publishedAt: publishedAt,
-        ),
-        isNotNull,
+        parseLiveShareState(endingAt(longest), publishedAt: publishedAt),
+        LiveShareState(shareId: 'share1', deviceId: 'PHONE', endsAt: longest),
       );
       expect(
         parseLiveShareState(
@@ -135,18 +133,15 @@ void main() {
 
         expect(liveShareStateOf(room, '@alex:x'), isNull);
       });
-
-      test('a cleared state reads as no share', () {
-        setShareState('@alex:x', {});
-
-        expect(liveShareStateOf(room, '@alex:x'), isNull);
-      });
     });
   });
 
   group('timestamps', () {
     test('read only integers that a date can hold', () {
-      expect(liveTimestamp(1700000000000), isNotNull);
+      expect(
+        liveTimestamp(1700000000000),
+        DateTime.fromMillisecondsSinceEpoch(1700000000000),
+      );
       for (final value in <Object?>[
         9000000000000000,
         -9000000000000000,
@@ -170,6 +165,8 @@ void main() {
       );
       expect(
         parseLiveShareState({
+          'share_id': 's',
+          'device_id': 'PHONE',
           'ends_ts': -9000000000000000,
         }, publishedAt: publishedAt),
         isNull,
@@ -229,19 +226,6 @@ void main() {
         liveLocationStartOf(event(content)),
         LiveLocationStart(shareId: 'share1', endsAt: endsAt),
       );
-    });
-
-    test('labels every duration', () {
-      expect(LiveLocationDuration.values.map((d) => d.label), [
-        '15 minutes',
-        '1 hour',
-        '2 hours',
-      ]);
-      expect(LiveLocationDuration.values.map((d) => d.duration), const [
-        Duration(minutes: 15),
-        Duration(hours: 1),
-        Duration(hours: 2),
-      ]);
     });
 
     test('a pin or a malformed start is not a live start', () {

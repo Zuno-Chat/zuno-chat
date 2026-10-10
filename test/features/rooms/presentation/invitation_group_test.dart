@@ -1,50 +1,36 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/mxc_avatar.dart';
+import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/rooms/presentation/invitation_group.dart';
 import 'package:zuno/features/rooms/presentation/room_invite_page.dart';
 
+import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
-
-class _ForgettingDatabaseApi extends TimelineCapableFakeDatabaseApi {
-  @override
-  Future<void> forgetRoom(String roomId) async {}
-}
+import '../../../helpers/pump_until.dart';
 
 void main() {
   late Client client;
   late List<http.Request> requests;
-  late List<String> notificationCalls;
+  late RecordedNotifications notifications;
   late bool offline;
   Completer<void>? gate;
 
   setUp(() {
     requests = [];
-    notificationCalls = [];
     offline = false;
     gate = null;
-    FlutterLocalNotificationsPlatform.instance =
-        AndroidFlutterLocalNotificationsPlugin();
-    const channel = MethodChannel('dexterous.com/flutter/local_notifications');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      notificationCalls.add(call.method);
-      return null;
-    });
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    notifications = installFakeLocalNotifications();
 
     client = Client(
       'test',
-      database: _ForgettingDatabaseApi(),
+      database: ForgettingFakeDatabaseApi(),
       httpClient: MockClient((request) async {
         requests.add(request);
         await gate?.future;
@@ -101,6 +87,7 @@ void main() {
   Future<void> pumpGroup(WidgetTester tester, List<Room> rooms) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: zunoLightTheme,
         home: Scaffold(body: InvitationGroup(invitations: rooms)),
       ),
     );
@@ -108,10 +95,7 @@ void main() {
   }
 
   Future<void> network(WidgetTester tester) async {
-    for (var i = 0; i < 4; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
+    await pumpRealAsync(tester, rounds: 4);
   }
 
   Iterable<String> calls() => requests.map((r) => r.url.pathSegments.last);
@@ -127,6 +111,23 @@ void main() {
       tester.widget<MxcAvatar>(find.byType(MxcAvatar)).toneSeed,
       '@bob:example.org',
     );
+  });
+
+  testWidgets('invitations sit on their own tinted ink surface', (
+    tester,
+  ) async {
+    await pumpGroup(tester, [invitation()]);
+
+    final surface = tester.widget<Material>(
+      find
+          .ancestor(
+            of: find.text('Invited you to chat'),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    expect(surface.color, zunoLightTheme.colorScheme.secondaryContainer);
+    expect(surface.elevation, 0);
   });
 
   testWidgets('a room invitation is named after the room and says who sent '
@@ -186,7 +187,7 @@ void main() {
     await network(tester);
 
     expect(calls(), ['join']);
-    expect(notificationCalls, contains('cancel'));
+    expect(notifications.methods, contains('cancel'));
     expect(find.byType(SnackBar), findsNothing);
   });
 
@@ -199,7 +200,7 @@ void main() {
     await network(tester);
 
     expect(calls(), ['leave', 'forget']);
-    expect(notificationCalls, contains('cancel'));
+    expect(notifications.methods, contains('cancel'));
   });
 
   testWidgets('both answers wait while one is on its way', (tester) async {
@@ -233,37 +234,26 @@ void main() {
     );
   });
 
-  testWidgets('joining offline says what failed, not the error', (
-    tester,
-  ) async {
-    await pumpGroup(tester, [
-      invitation(name: 'Book club', inviter: '@bob:example.org'),
-    ]);
-    offline = true;
+  for (final (answer, failed) in [
+    ('Join', 'Could not join.'),
+    ('Decline', 'Could not decline.'),
+  ]) {
+    testWidgets('$answer offline says what failed, not the error', (
+      tester,
+    ) async {
+      await pumpGroup(tester, [
+        invitation(name: 'Book club', inviter: '@bob:example.org'),
+      ]);
+      offline = true;
 
-    await tester.tap(find.text('Join'));
-    await network(tester);
+      await tester.tap(find.text(answer));
+      await network(tester);
 
-    expect(
-      find.text('Could not join. Check your connection and try again.'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('Exception'), findsNothing);
-  });
-
-  testWidgets('declining offline says what failed, not the error', (
-    tester,
-  ) async {
-    await pumpGroup(tester, [invitation(inviter: '@bob:example.org')]);
-    offline = true;
-
-    await tester.tap(find.text('Decline'));
-    await network(tester);
-
-    expect(
-      find.text('Could not decline. Check your connection and try again.'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('Exception'), findsNothing);
-  });
+      expect(
+        find.text('$failed Check your connection and try again.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Exception'), findsNothing);
+    });
+  }
 }

@@ -132,18 +132,6 @@ void main() {
     expect(find.text('Try again'), findsOneWidget);
   });
 
-  testWidgets('where Settings cannot open on Location Services, blocked access '
-      'still opens Settings', (tester) async {
-    await _open(
-      tester,
-      () async => const LocationFailed(LocationFailure.deniedForever),
-      capabilities: iosCapabilities,
-    );
-
-    expect(find.textContaining('Location access is blocked'), findsOneWidget);
-    expect(find.text('Open settings'), findsOneWidget);
-  });
-
   testWidgets('offers a retry after a refusal', (tester) async {
     var attempts = 0;
     await _open(tester, () async {

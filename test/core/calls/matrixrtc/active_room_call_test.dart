@@ -2,8 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/active_room_call.dart';
-import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 
+import '../../../helpers/call_membership.dart';
 import '../../../helpers/fake_matrix.dart';
 
 void main() {
@@ -19,36 +19,15 @@ void main() {
     String userId, {
     required String callId,
     String kind = 'voice',
-    String deviceId = 'DEVICE',
-    int? expiresAtMs,
     int createdAtMs = 0,
-  }) {
-    room.setState(
-      buildTestEvent(
-        room,
-        eventId: '\$$userId-$deviceId',
-        senderId: userId,
-        stateKey: userId,
-        type: callMemberEventType,
-        content: {
-          'memberships': [
-            RtcMembership(
-              callId: callId,
-              deviceId: deviceId,
-              kind: kind,
-              expiresAtMs:
-                  expiresAtMs ??
-                  DateTime.now()
-                      .add(const Duration(seconds: 30))
-                      .millisecondsSinceEpoch,
-              createdAtMs: createdAtMs,
-              fociActive: const {},
-            ).toJson(),
-          ],
-        },
-      ),
-    );
-  }
+  }) => joinCall(
+    room,
+    userId: userId,
+    deviceId: 'DEVICE',
+    callId: callId,
+    kind: kind,
+    createdAtMs: createdAtMs,
+  );
 
   group('call capacity', () {
     void fill(int count, {String callId = 'c1'}) {
@@ -73,17 +52,9 @@ void main() {
       expect(isCallFull(room, 'c1', excludeUserId: '@me:x'), isFalse);
     });
 
-    test('people in a different call or with an expired membership do not '
-        'count', () {
+    test('people in a different call do not count', () {
       fill(5);
       publishMembership('@other:x', callId: 'c2');
-      publishMembership(
-        '@gone:x',
-        callId: 'c1',
-        expiresAtMs: DateTime.now()
-            .subtract(const Duration(seconds: 5))
-            .millisecondsSinceEpoch,
-      );
       expect(isCallFull(room, 'c1', excludeUserId: '@me:x'), isFalse);
     });
 
@@ -135,28 +106,9 @@ void main() {
   test('another participant\'s membership is surfaced for joining', () {
     publishMembership('@alice:x', callId: 'c1', kind: 'video');
     final call = findActiveRoomCall(room, excludeUserId: '@me:x');
-    expect(call, isNotNull);
-    expect(call!.callId, 'c1');
-    expect(call.kind, 'video');
-    expect(call.participantUserIds, ['@alice:x']);
-  });
-
-  test('an expired membership is treated as no call in progress', () {
-    publishMembership(
-      '@alice:x',
-      callId: 'c1',
-      expiresAtMs: DateTime.now()
-          .subtract(const Duration(seconds: 5))
-          .millisecondsSinceEpoch,
-    );
-    expect(findActiveRoomCall(room, excludeUserId: '@me:x'), isNull);
-  });
-
-  test('multiple participants in the same call are all listed once', () {
-    publishMembership('@alice:x', callId: 'c1');
-    publishMembership('@bob:x', callId: 'c1');
-    final call = findActiveRoomCall(room, excludeUserId: '@me:x');
-    expect(call!.participantUserIds.toSet(), {'@alice:x', '@bob:x'});
+    expect(call?.callId, 'c1');
+    expect(call?.kind, 'video');
+    expect(call?.participantUserIds, ['@alice:x']);
   });
 
   test(

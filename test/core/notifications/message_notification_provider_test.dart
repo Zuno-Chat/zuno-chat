@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/notifications/message_notification_provider.dart';
+import 'package:zuno/core/notifications/notification_preview.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -46,12 +47,14 @@ void main() {
     EvaluatedPushRuleAction? pushRuleAction,
     NotifyMe notifyMe = NotifyMe.all,
     String? currentlyOpenRoomId,
+    NotificationPreview preview = NotificationPreview.full,
   }) => messageNotificationFor(
     client,
     event,
     pushRuleAction: pushRuleAction ?? actionWith(notify: true),
     notifyMe: notifyMe,
     currentlyOpenRoomId: currentlyOpenRoomId,
+    preview: preview,
   );
 
   test('notifies with room title + "sender: preview" body for a group message '
@@ -60,27 +63,19 @@ void main() {
 
     expect(decision.content, isNotNull);
     expect(decision.content!.roomId, room.id);
-    expect(decision.content!.body, contains('hello there'));
+    expect(decision.content!.body, 'Alice: hello there');
     expect(decision.content!.isDirectChat, isFalse);
     expect(decision.refusal, isNull);
-  });
-
-  test('carries the triggering event\'s id — what "Mark as read" points '
-      'setReadMarker at (message_notification_action.dart)', () {
-    final decision = decide(textEvent());
-
-    expect(decision.content!.eventId, r'$1');
   });
 
   Event agedEvent(Duration age) =>
       textEvent(originServerTs: DateTime.now().subtract(age));
 
-  test('notifies for a message delayed by a distributor backlog', () {
-    expect(decide(agedEvent(const Duration(minutes: 31))).content, isNotNull);
-  });
-
-  test('notifies for a message that is days old', () {
-    expect(decide(agedEvent(const Duration(days: 2))).content, isNotNull);
+  test('notifies however late a message arrives, since a distributor backlog '
+      'can hold it for days', () {
+    for (final age in const [Duration(minutes: 31), Duration(days: 2)]) {
+      expect(decide(agedEvent(age)).content, isNotNull, reason: '$age');
+    }
   });
 
   test('does not notify when the push rule says not to', () {
@@ -200,7 +195,11 @@ void main() {
     expect(decide(textEvent()).content?.quiet, isFalse);
   });
 
-  MessageNotificationDecision decideSummary(CallSummaryStatus status) => decide(
+  MessageNotificationDecision decideSummary(
+    CallSummaryStatus status, {
+    NotificationPreview preview = NotificationPreview.full,
+  }) => decide(
+    preview: preview,
     buildTestEvent(
       room,
       eventId: r'$1',
@@ -218,18 +217,36 @@ void main() {
     expect(decideSummary(CallSummaryStatus.missed).content, isNotNull);
   });
 
-  test('does not notify for a declined-call summary', () {
-    final decision = decideSummary(CallSummaryStatus.declined);
+  test('does not notify for a declined or ended call summary', () {
+    for (final status in [
+      CallSummaryStatus.declined,
+      CallSummaryStatus.ended,
+    ]) {
+      final decision = decideSummary(status);
 
-    expect(decision.content, isNull);
-    expect(decision.refusal, MessageNotificationRefusal.callSummaryNotMissed);
+      expect(decision.content, isNull, reason: '$status');
+      expect(
+        decision.refusal,
+        MessageNotificationRefusal.callSummaryNotMissed,
+        reason: '$status',
+      );
+    }
   });
 
-  test('does not notify for an ended-call summary', () {
-    final decision = decideSummary(CallSummaryStatus.ended);
+  test('Name only hides the text but keeps a missed call\'s own line', () {
+    final message = decide(
+      textEvent(),
+      preview: NotificationPreview.nameOnly,
+    ).content!;
+    expect(message.text, previewHiddenText);
+    expect(message.body, 'Alice: $previewHiddenText');
 
-    expect(decision.content, isNull);
-    expect(decision.refusal, MessageNotificationRefusal.callSummaryNotMissed);
+    final missed = decideSummary(
+      CallSummaryStatus.missed,
+      preview: NotificationPreview.nameOnly,
+    ).content!;
+    expect(missed.text, decideSummary(CallSummaryStatus.missed).content!.text);
+    expect(missed.text, isNot(previewHiddenText));
   });
 
   test('describes a photo by its caption, with no thumbnail to fetch', () {
@@ -253,16 +270,14 @@ void main() {
     expect(decision.content!.isPhoto, isTrue);
   });
 
-  test('a text message is not marked as a photo', () {
-    expect(decide(textEvent()).content!.isPhoto, isFalse);
-  });
-
-  test('carries the sender and the time so the notification can be a '
-      'conversation line', () {
+  test('carries the event, the sender and the time, so the notification is a '
+      'conversation line that Mark as read can point at', () {
     final at = DateTime.utc(2031, 2, 3, 4, 5);
     final decision = decide(textEvent(originServerTs: at));
 
     final content = decision.content!;
+    expect(content.eventId, r'$1');
+    expect(content.isPhoto, isFalse);
     expect(content.senderId, '@a:x');
     expect(content.senderName, 'Alice');
     expect(content.timestamp, at);

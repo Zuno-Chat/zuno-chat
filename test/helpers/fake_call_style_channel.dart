@@ -1,25 +1,10 @@
 import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
 
-class RecordedCallStyleCalls {
-  final List<MethodCall> calls = [];
+import 'native_method_calls.dart';
 
-  MethodCall get lastShow =>
-      calls.lastWhere((c) => c.method == 'showIncomingCallStyle');
+RecordedMethodCalls installFakeCallStyleChannel() =>
+    recordMethodChannel('zuno/call_style');
 
-  void clear() => calls.clear();
-}
-
-RecordedCallStyleCalls installFakeCallStyleChannel() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('zuno/call_style');
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-  final recorded = RecordedCallStyleCalls();
-  messenger.setMockMethodCallHandler(channel, (call) async {
-    recorded.calls.add(call);
-    return null;
-  });
-  addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-  return recorded;
+extension CallStyleReadings on RecordedMethodCalls {
+  MethodCall get lastShow => named('showIncomingCallStyle').last;
 }

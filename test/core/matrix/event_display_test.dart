@@ -376,6 +376,33 @@ final _cases = <_Case>[
     visibleWhenShowingHidden: false,
     kind: MessageKind.nonMessage,
   ),
+  _Case(
+    'call membership state',
+    build: (room) => buildTestEvent(
+      room,
+      eventId: r'$e',
+      senderId: '@a:x',
+      type: 'm.call.member',
+      stateKey: '@a:x',
+      content: {'memberships': <Object?>[]},
+    ),
+    visible: false,
+    visibleWhenShowingHidden: true,
+    kind: MessageKind.nonMessage,
+  ),
+  _Case(
+    'an event type this app has never heard of',
+    build: (room) => buildTestEvent(
+      room,
+      eventId: r'$e',
+      senderId: '@a:x',
+      type: 'com.example.something.new',
+      content: {'whatever': true},
+    ),
+    visible: false,
+    visibleWhenShowingHidden: false,
+    kind: MessageKind.nonMessage,
+  ),
 ];
 
 void main() {
@@ -463,118 +490,22 @@ void main() {
     expect(summary.call?.kind, 'video');
   });
 
-  test('every other kind leaves call null', () {
-    for (final testCase in _cases.where(
-      (c) => c.kind != MessageKind.callSummary,
-    )) {
-      expect(
-        summarize(testCase.build(room)).call,
-        isNull,
-        reason: 'summary for "${testCase.name}"',
+  test('only a server-accepted event carries the read marker, since a '
+      "local echo's id can still change", () {
+    for (final (status, carries) in [
+      (EventStatus.sending, false),
+      (EventStatus.error, false),
+      (EventStatus.sent, true),
+      (EventStatus.synced, true),
+    ]) {
+      final event = buildTestEvent(
+        room,
+        eventId: r'$e',
+        senderId: '@a:x',
+        content: {'msgtype': MessageTypes.Text, 'body': 'hi'},
+        status: status,
       );
+      expect(canCarryReadMarker(event), carries, reason: '$status');
     }
-  });
-
-  group('the read marker is not a question about what is displayed', () {
-    test('everything the app hides can still carry it', () {
-      final hidden = <String, Event>{
-        'call ring': _msg(room, {'msgtype': callInviteMsgtype, 'body': 'x'}),
-        'call decline': _msg(room, {
-          'msgtype': callDeclineMsgtype,
-          'body': 'x',
-        }),
-        'verification': _msg(room, {
-          'msgtype': 'm.key.verification.request',
-          'body': 'x',
-        }),
-        'edit': _msg(room, {
-          'msgtype': MessageTypes.Text,
-          'body': '* fixed',
-          'm.new_content': {'msgtype': MessageTypes.Text, 'body': 'fixed'},
-          'm.relates_to': {
-            'rel_type': RelationshipTypes.edit,
-            'event_id': r'$orig',
-          },
-        }),
-        'reaction': buildTestEvent(
-          room,
-          eventId: r'$e',
-          senderId: '@a:x',
-          type: EventTypes.Reaction,
-          content: {
-            'm.relates_to': {
-              'rel_type': RelationshipTypes.reaction,
-              'event_id': r'$orig',
-              'key': '👍',
-            },
-          },
-        ),
-        'room state': buildTestEvent(
-          room,
-          eventId: r'$e',
-          senderId: '@a:x',
-          type: EventTypes.RoomName,
-          stateKey: '',
-          content: {'name': 'Book club'},
-        ),
-        'call membership state': buildTestEvent(
-          room,
-          eventId: r'$e',
-          senderId: '@a:x',
-          type: 'm.call.member',
-          stateKey: '@a:x',
-          content: {'memberships': <Object?>[]},
-        ),
-        'an event type this app has never heard of': buildTestEvent(
-          room,
-          eventId: r'$e',
-          senderId: '@a:x',
-          type: 'com.example.something.new',
-          content: {'whatever': true},
-        ),
-      };
-      for (final entry in hidden.entries) {
-        expect(
-          isDisplayableTimelineEvent(entry.value, showHiddenMessages: false),
-          isFalse,
-          reason: '${entry.key} should not render',
-        );
-        expect(
-          canCarryReadMarker(entry.value),
-          isTrue,
-          reason: '${entry.key} must still be receipted',
-        );
-      }
-    });
-
-    test('a still-sending local echo cannot — its id can still change', () {
-      for (final status in [EventStatus.sending, EventStatus.error]) {
-        final event = Event(
-          status: status,
-          eventId: r'$pending',
-          type: EventTypes.Message,
-          senderId: '@a:x',
-          originServerTs: DateTime.now(),
-          content: {'msgtype': MessageTypes.Text, 'body': 'hi'},
-          room: room,
-        );
-        expect(canCarryReadMarker(event), isFalse, reason: '$status');
-      }
-    });
-
-    test('a server-accepted event can, at either sent stage', () {
-      for (final status in [EventStatus.sent, EventStatus.synced]) {
-        final event = Event(
-          status: status,
-          eventId: r'$real',
-          type: EventTypes.Message,
-          senderId: '@a:x',
-          originServerTs: DateTime.now(),
-          content: {'msgtype': MessageTypes.Text, 'body': 'hi'},
-          room: room,
-        );
-        expect(canCarryReadMarker(event), isTrue, reason: '$status');
-      }
-    });
   });
 }

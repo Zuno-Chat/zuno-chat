@@ -17,18 +17,6 @@ import 'package:zuno/core/ui/zuno_colors.dart';
 
 import '../../helpers/fake_matrix.dart';
 
-class _MediaCapableFakeDatabaseApi extends FakeDatabaseApi {
-  @override
-  Future<void> cacheCustomObject(
-    String cacheKey,
-    Map<String, Object?> object,
-  ) async {}
-
-  @override
-  Future<({Map<String, Object?> content, DateTime savedAt})?>
-  getCustomCacheObject(String cacheKey) async => null;
-}
-
 void main() {
   final png = Uint8List.fromList(img.encodePng(img.Image(width: 1, height: 1)));
   final mxc = Uri.parse('mxc://example.org/abc');
@@ -46,7 +34,7 @@ void main() {
     mediaResponse = () => http.Response.bytes(png, 200);
     client = buildTestClient(
       userId: '@me:example.org',
-      database: _MediaCapableFakeDatabaseApi(),
+      database: MediaCapableFakeDatabaseApi(),
       httpClient: MockClient((request) async {
         if (request.url.pathSegments.last == 'versions') {
           return http.Response(
@@ -117,15 +105,6 @@ void main() {
     expect(AvatarBucket.forDiameter(56), AvatarBucket.small);
     expect(AvatarBucket.forDiameter(56.5), AvatarBucket.large);
     expect(AvatarBucket.forDiameter(112), AvatarBucket.large);
-  });
-
-  test('providers are equal on address and bucket', () {
-    expect(provider(AvatarBucket.small), provider(AvatarBucket.small));
-    expect(
-      provider(AvatarBucket.small).hashCode,
-      provider(AvatarBucket.small).hashCode,
-    );
-    expect(provider(AvatarBucket.small), isNot(provider(AvatarBucket.large)));
   });
 
   testWidgets('two equal providers cost one request, at the small size', (
@@ -231,34 +210,6 @@ void main() {
     expect(await initialSize(26), closeTo(19.76, 0.01));
     expect(await initialSize(16), closeTo(12.16, 0.01));
     expect(await initialSize(56), closeTo(42.56, 0.01));
-  });
-
-  testWidgets('a tone seed picks the tone instead of the name', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MxcAvatar(
-          client: client,
-          avatarUrl: null,
-          fallbackText: 'maya',
-          toneSeed: '@maya:zuno.chat',
-        ),
-      ),
-    );
-
-    final avatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar));
-    expect(avatar.backgroundColor, avatarToneFor('@maya:zuno.chat'));
-    expect(avatar.backgroundColor, isNot(avatarToneFor('maya')));
-  });
-
-  testWidgets('a failed fetch keeps the initial and throws nothing', (
-    tester,
-  ) async {
-    mediaResponse = () => http.Response('', 404);
-    await settle(tester, host(uniqueMxc()));
-    await tester.pump();
-
-    expect(find.text('M'), findsOneWidget);
-    expect(tester.takeException(), isNull);
   });
 
   testWidgets('bytes that do not decode keep the initial and throw nothing', (

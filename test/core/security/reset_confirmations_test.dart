@@ -23,7 +23,7 @@ void main() {
     final store = ConfirmedIdentityStore(prefs);
     await store.remember('@alex:example.org', 'MASTERKEYALEX');
     await store.remember('@bob:example.org', 'MASTERKEYBOB');
-    expect(store.confirmedIdentityKey('@alex:example.org'), isNotNull);
+    expect(store.confirmedIdentityKey('@alex:example.org'), 'MASTERKEYALEX');
 
     await forgetConfirmationsAfterIdentityReset(
       buildTestClient(userId: '@me:example.org'),
@@ -33,18 +33,6 @@ void main() {
     expect(store.confirmedIdentityKey('@alex:example.org'), isNull);
     expect(store.confirmedIdentityKey('@bob:example.org'), isNull);
     expect(store.confirmedAt('@alex:example.org'), isNull);
-  });
-
-  test('an account with nothing confirmed is a no-op, not an error', () async {
-    final prefs = await SharedPreferences.getInstance();
-
-    await expectLater(
-      forgetConfirmationsAfterIdentityReset(
-        buildTestClient(userId: '@me:example.org'),
-        ConfirmedIdentityStore(prefs),
-      ),
-      completes,
-    );
   });
 
   test('a client with no user ID clears the store without throwing', () async {

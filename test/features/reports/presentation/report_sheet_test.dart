@@ -40,23 +40,23 @@ void main() {
   FilledButton sendButton(WidgetTester tester) =>
       tester.widget<FilledButton>(find.byType(FilledButton));
 
-  testWidgets('shows the title, the explanation and every reason', (
-    tester,
-  ) async {
-    await openSheet(tester, onSend: (_, _) async {});
+  testWidgets(
+    'shows the title, the explanation, every reason and the send label',
+    (tester) async {
+      await openSheet(
+        tester,
+        onSend: (_, _) async {},
+        sendLabel: 'Report and decline',
+      );
 
-    expect(find.text('Report message'), findsOneWidget);
-    expect(find.text('The report goes to Zuno.'), findsOneWidget);
-    for (final reason in ReportReason.values) {
-      expect(find.text(reason.label), findsOneWidget);
-    }
-  });
-
-  testWidgets('cannot be sent before a reason is chosen', (tester) async {
-    await openSheet(tester, onSend: (_, _) async {});
-
-    expect(sendButton(tester).onPressed, isNull);
-  });
+      expect(find.text('Report message'), findsOneWidget);
+      expect(find.text('The report goes to Zuno.'), findsOneWidget);
+      for (final reason in ReportReason.values) {
+        expect(find.text(reason.label), findsOneWidget);
+      }
+      expect(find.text('Report and decline'), findsOneWidget);
+    },
+  );
 
   testWidgets('something else needs a note', (tester) async {
     await openSheet(tester, onSend: (_, _) async {});
@@ -116,15 +116,5 @@ void main() {
 
     expect(sent, isFalse);
     expect(result, isFalse);
-  });
-
-  testWidgets('uses the given send label', (tester) async {
-    await openSheet(
-      tester,
-      onSend: (_, _) async {},
-      sendLabel: 'Report and decline',
-    );
-
-    expect(find.text('Report and decline'), findsOneWidget);
   });
 }

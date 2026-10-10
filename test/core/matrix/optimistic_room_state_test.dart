@@ -6,10 +6,11 @@ import 'package:zuno/core/matrix/optimistic_room_state.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
-  test('makes the new content immediately readable via room.getState', () {
-    final client = buildTestClient(userId: '@me:example.org');
-    final room = buildTestRoom(client);
+  late Room room;
 
+  setUp(() => room = buildTestRoom(buildTestClient(userId: '@me:example.org')));
+
+  test('makes the new content immediately readable via room.getState', () {
     expect(room.getState(EventTypes.RoomTopic), isNull);
 
     applyOptimisticRoomState(room, EventTypes.RoomTopic, {
@@ -20,27 +21,14 @@ void main() {
     expect(room.topic, 'New topic');
   });
 
-  test('overwrites a previous value for the same type/stateKey', () {
-    final client = buildTestClient(userId: '@me:example.org');
-    final room = buildTestRoom(client);
-    applyOptimisticRoomState(room, EventTypes.RoomName, {'name': 'Old'});
+  test('writes under the given state key, as the signed-in user', () {
+    applyOptimisticRoomState(room, EventTypes.RoomMember, {
+      'membership': 'invite',
+    }, stateKey: '@bob:example.org');
 
-    applyOptimisticRoomState(room, EventTypes.RoomName, {'name': 'New'});
-
-    expect(room.name, 'New');
-  });
-
-  test('respects a non-default stateKey (e.g. m.room.power_levels)', () {
-    final client = buildTestClient(userId: '@admin:example.org');
-    final room = buildTestRoom(client);
-
-    applyOptimisticRoomState(room, EventTypes.RoomPowerLevels, {
-      'events_default': 50,
-    });
-
-    expect(
-      room.getState(EventTypes.RoomPowerLevels)?.content['events_default'],
-      50,
-    );
+    final member = room.getState(EventTypes.RoomMember, '@bob:example.org');
+    expect(member?.content['membership'], 'invite');
+    expect(member?.senderId, '@me:example.org');
+    expect(room.getState(EventTypes.RoomMember), isNull);
   });
 }

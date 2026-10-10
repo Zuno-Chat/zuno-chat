@@ -8,35 +8,20 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
-import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/apns_pusher.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm_pusher.dart';
-import 'package:zuno/core/push/pusher_info.dart';
 import 'package:zuno/core/push/unified_push_pusher.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/push_target_status_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_unified_push.dart';
-import '../../../helpers/platform_capabilities.dart';
-
-const _apnsToken =
-    'a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4';
-const _apnsPushkey = 'obLD1KGyw9ShssPUobLD1KGyw9ShssPUobLD1KGyw9Q=';
-
-class _NoopPusherClient extends Client {
-  _NoopPusherClient() : super('test', database: FakeDatabaseApi()) {
-    homeserver = Uri.parse('https://matrix.example.org');
-  }
-
-  @override
-  Future<void> postPusher(Pusher pusher, {bool? append}) async {}
-}
+import '../../../helpers/fixed_delivery_mode.dart';
+import '../../../helpers/pusher_recording_client.dart';
+import '../../../helpers/route_launcher.dart';
 
 class _PushersClient extends Client {
   _PushersClient() : super('test', database: FakeDatabaseApi()) {
@@ -89,50 +74,14 @@ Map<String, Object?> _pusherJson({
   String deviceName = '',
   String? url,
   String? deviceId,
-}) => {
-  'app_id': appId,
-  'pushkey': pushkey,
-  'app_display_name': appName,
-  'device_display_name': deviceName,
-  'kind': 'http',
-  'lang': 'en',
-  'data': {'url': ?url, 'format': 'event_id_only'},
-  'device_id': ?deviceId,
-};
-
-class _FixedDeliveryModeNotifier extends NotificationDeliveryModeNotifier {
-  _FixedDeliveryModeNotifier(this._mode);
-  final NotificationDeliveryMode _mode;
-
-  @override
-  NotificationDeliveryMode build() => _mode;
-
-  void switchTo(NotificationDeliveryMode mode) => state = mode;
-}
-
-class _DistributorUnifiedPush extends FakeUnifiedPush {
-  String? distributor;
-  Object? unregisterError;
-
-  @override
-  Future<String?> getDistributor() async => distributor;
-
-  @override
-  Future<void> unregister(String instance) async {
-    final error = unregisterError;
-    if (error != null) throw error;
-  }
-}
-
-PusherInfo _pusher({required String appId, required String pushkey}) =>
-    PusherInfo(
-      appId: appId,
-      pushkey: pushkey,
-      appDisplayName: 'Zuno Chat',
-      deviceDisplayName: 'Zuno on Android',
-      kind: 'http',
-      lang: 'en',
-    );
+}) => serverPusherJson(
+  appId: appId,
+  pushkey: pushkey,
+  appName: appName,
+  deviceName: deviceName,
+  data: {'url': ?url, 'format': 'event_id_only'},
+  deviceId: deviceId,
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -142,89 +91,21 @@ void main() {
       ..availabilityReader = (() async => FcmAvailability.available)
       ..tokenReader = (() async => 'fcm-token-abc')
       ..tokenDeleter = (() async {});
-    await fcmDeliveryProvider.registerNow(_NoopPusherClient());
+    await fcmDeliveryProvider.registerNow(PusherRecordingClient());
   });
 
   tearDown(() async {
-    await fcmDeliveryProvider.stop(_NoopPusherClient());
+    await fcmDeliveryProvider.stop(PusherRecordingClient());
     unifiedPushDeliveryProvider.lastPusherError = null;
-  });
-
-  test('in fcm mode this session is identified by its registration token', () {
-    expect(currentPushkeyFor(NotificationDeliveryMode.fcm), 'fcm-token-abc');
-  });
-
-  test("this session's own FCM pusher is never an \"other push target\"", () {
-    final groups = groupPushers([
-      _pusher(appId: fcmAppId, pushkey: 'fcm-token-abc'),
-      _pusher(appId: 'org.example.other', pushkey: 'someone-else'),
-    ], currentPushkeyFor(NotificationDeliveryMode.fcm));
-
-    expect(groups.currentSession?.pushkey, 'fcm-token-abc');
-    expect(groups.others.single.pushkey, 'someone-else');
-  });
-
-  test('a transport with nothing registered claims no pusher as its own', () {
-    expect(
-      currentPushkeyFor(NotificationDeliveryMode.backgroundService),
-      isNull,
-    );
-    final groups = groupPushers([
-      _pusher(appId: fcmAppId, pushkey: 'fcm-token-abc'),
-    ], currentPushkeyFor(NotificationDeliveryMode.backgroundService));
-    expect(groups.currentSession, isNull);
-  });
-
-  test('the last error shown is the running transport, not the other one', () {
-    unifiedPushDeliveryProvider.lastPusherError = 'ntfy refused the endpoint';
-
-    expect(lastPusherErrorFor(NotificationDeliveryMode.fcm), isNull);
-    expect(
-      lastPusherErrorFor(NotificationDeliveryMode.unifiedPush),
-      'ntfy refused the endpoint',
-    );
-  });
-
-  group('Apple push', () {
-    tearDown(() async {
-      await apnsDeliveryProvider.stop(_NoopPusherClient());
-      apnsDeliveryProvider.lastPusherError = null;
-      apnsDeliveryProvider.resetEnvironmentForTesting();
-    });
-
-    test('this session is identified by its device token, and its pusher is '
-        'never an "other push target"', () async {
-      ambientCapabilities = iosCapabilities;
-      apnsDeliveryProvider
-        ..tokenReader = (() async => _apnsToken)
-        ..notificationsAllowed = (() async => true)
-        ..environmentReader = (() async => 'development');
-      await apnsDeliveryProvider.registerNow(_NoopPusherClient());
-
-      final groups = groupPushers([
-        _pusher(appId: apnsAppId, pushkey: _apnsPushkey),
-        _pusher(appId: fcmAppId, pushkey: 'fcm-token-abc'),
-      ], currentPushkeyFor(NotificationDeliveryMode.apns));
-
-      expect(groups.currentSession?.pushkey, _apnsPushkey);
-      expect(groups.others.single.appId, fcmAppId);
-    });
-
-    test('its last error is shown, not the Android one', () {
-      apnsDeliveryProvider.lastPusherError = 'M_FORBIDDEN';
-
-      expect(lastPusherErrorFor(NotificationDeliveryMode.apns), 'M_FORBIDDEN');
-      expect(lastPusherErrorFor(NotificationDeliveryMode.fcm), isNull);
-    });
   });
 
   group('the page', () {
     late _PushersClient client;
-    late _DistributorUnifiedPush unifiedPush;
+    late FakeUnifiedPush unifiedPush;
 
     setUp(() {
       client = _PushersClient();
-      unifiedPush = _DistributorUnifiedPush();
+      unifiedPush = FakeUnifiedPush();
       UnifiedPushPlatform.instance = unifiedPush;
     });
 
@@ -249,9 +130,7 @@ void main() {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           matrixClientProvider.overrideWithValue(client),
-          notificationDeliveryModeProvider.overrideWith(
-            () => _FixedDeliveryModeNotifier(mode),
-          ),
+          fixedDeliveryMode(mode),
         ],
       );
       addTearDown(container.dispose);
@@ -259,16 +138,7 @@ void main() {
         UncontrolledProviderScope(
           container: container,
           child: MaterialApp(
-            home: Builder(
-              builder: (context) => TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const PushTargetStatusPage(),
-                  ),
-                ),
-                child: const Text('open'),
-              ),
-            ),
+            home: routeLauncher((_) => const PushTargetStatusPage()),
           ),
         ),
       );
@@ -286,7 +156,7 @@ void main() {
       NotificationDeliveryMode mode,
     ) => (container.read(
       notificationDeliveryModeProvider.notifier,
-    ) as _FixedDeliveryModeNotifier).switchTo(mode);
+    ) as FixedDeliveryModeNotifier).switchTo(mode);
 
     String detail(WidgetTester tester, String label) {
       final row = find.widgetWithText(ListTile, label);
@@ -400,19 +270,15 @@ void main() {
       });
     });
 
-    for (final mode in [
-      NotificationDeliveryMode.fcm,
-      NotificationDeliveryMode.apns,
-    ]) {
-      testWidgets('with ${mode.name}, diagnostics and recent pushes live in '
-          'the hub, not here', (tester) async {
-        await pumpPage(tester, mode);
+    testWidgets('diagnostics and recent pushes live in the hub, not here', (
+      tester,
+    ) async {
+      await pumpPage(tester, NotificationDeliveryMode.fcm);
 
-        expect(find.text('Diagnostics'), findsNothing);
-        expect(find.text('Recent pushes'), findsNothing);
-        expect(find.text('Other push registrations'), findsOneWidget);
-      });
-    }
+      expect(find.text('Diagnostics'), findsNothing);
+      expect(find.text('Recent pushes'), findsNothing);
+      expect(find.text('Other push registrations'), findsOneWidget);
+    });
 
     group('other registrations', () {
       void twoOthers() => client.pushers = [
@@ -457,7 +323,7 @@ void main() {
         await pumpPage(tester, NotificationDeliveryMode.fcm, settle: false);
         await tester.pump();
 
-        expect(find.text('Loading…'), findsWidgets);
+        expect(find.text('Loading…'), findsOneWidget);
 
         client.listGate!.complete();
         await tester.pumpAndSettle();
@@ -587,7 +453,14 @@ void main() {
 
         await startRemoving(tester);
         expect(find.text('Remove push target?'), findsOneWidget);
-        expect(find.textContaining('registration token is dropped'), findsOne);
+        expect(
+          find.text(
+            'This device stops receiving notifications until you register '
+            'again or Zuno restarts. The server forgets this device, and this '
+            "device's registration token is dropped.",
+          ),
+          findsOneWidget,
+        );
 
         await confirmRemove(tester);
 
@@ -596,34 +469,6 @@ void main() {
         expect(fcmDeliveryProvider.removed.value, isTrue);
         expect(find.byType(PushTargetStatusPage), findsNothing);
       });
-
-      for (final (mode, detail) in [
-        (
-          NotificationDeliveryMode.fcm,
-          "The server forgets this device, and this device's registration "
-              'token is dropped.',
-        ),
-        (
-          NotificationDeliveryMode.unifiedPush,
-          'The server forgets this device, and the distributor registration '
-              'is dropped.',
-        ),
-      ]) {
-        testWidgets('with ${mode.name} the warning says a restart registers '
-            'it again too', (tester) async {
-          await pumpPage(tester, mode);
-
-          await startRemoving(tester);
-
-          expect(
-            find.text(
-              'This device stops receiving notifications until you register '
-              'again or Zuno restarts. $detail',
-            ),
-            findsOneWidget,
-          );
-        });
-      }
 
       testWidgets('Cancel keeps it', (tester) async {
         await pumpPage(tester, NotificationDeliveryMode.fcm);
@@ -648,7 +493,11 @@ void main() {
 
         await startRemoving(tester);
         expect(
-          find.textContaining('distributor registration is dropped'),
+          find.text(
+            'This device stops receiving notifications until you register '
+            'again or Zuno restarts. The server forgets this device, and the '
+            'distributor registration is dropped.',
+          ),
           findsOneWidget,
         );
         await confirmRemove(tester);

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +17,9 @@ import 'package:zuno/features/calls/presentation/call_page.dart';
 
 import '../../../helpers/call_channel_mocks.dart';
 import '../../../helpers/fake_call_session.dart';
+import '../../../helpers/fake_local_notifications.dart';
+import '../../../helpers/native_method_calls.dart';
+import '../../../helpers/pump_until.dart';
 
 export '../../../helpers/call_channel_mocks.dart';
 export '../../../helpers/fake_call_session.dart';
@@ -31,16 +33,8 @@ class CallPageHarness extends CallChannelMocks {
     this.home = const Scaffold(body: Text('Chat')),
   }) {
     SharedPreferences.setMockInitialValues({});
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    for (final name in [
-      'zuno/vibration',
-      'dexterous.com/flutter/local_notifications',
-    ]) {
-      final channel = MethodChannel(name);
-      messenger.setMockMethodCallHandler(channel, (_) async => null);
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    }
+    installFakeLocalNotifications();
+    silenceMethodChannels(const ['zuno/vibration']);
     container = ProviderContainer(
       overrides: [
         if (capabilities != null)
@@ -103,10 +97,11 @@ class CallPageHarness extends CallChannelMocks {
   }
 
   Future<void> settle() async {
-    for (var i = 0; i < 5; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump(const Duration(milliseconds: 100));
-    }
+    await pumpRealAsync(
+      tester,
+      rounds: 5,
+      step: const Duration(milliseconds: 100),
+    );
   }
 
   Future<void> close() async {

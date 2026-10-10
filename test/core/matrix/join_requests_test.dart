@@ -5,14 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/join_requests.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/notifications/join_request_notification_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/preferences_container.dart';
 
 const _me = '@me:example.org';
 const _asked = '!coaches:example.org';
@@ -49,18 +48,11 @@ void main() {
     client.bearerToken = 'test-token';
   });
 
-  Future<ProviderContainer> container({List<String>? stored}) async {
-    SharedPreferences.setMockInitialValues({'communities.asked.$_me': ?stored});
-    final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [
-        matrixClientProvider.overrideWithValue(client),
-        sharedPreferencesProvider.overrideWithValue(prefs),
-      ],
-    );
-    addTearDown(container.dispose);
-    return container;
-  }
+  Future<ProviderContainer> container({List<String>? stored}) =>
+      containerWithPreferences(
+        {'communities.asked.$_me': ?stored},
+        overrides: [matrixClientProvider.overrideWithValue(client)],
+      );
 
   Future<void> settle() async {
     for (var i = 0; i < 5; i++) {
@@ -280,125 +272,6 @@ void main() {
         throwsA(isA<MatrixException>()),
       );
       expect(pendingJoinRequests(room).map((u) => u.id), ['@maya:example.org']);
-    });
-
-    group('notifying', () {
-      Event knock({String userId = '@ines:example.org'}) => Event(
-        eventId: r'$knock',
-        type: EventTypes.RoomMember,
-        stateKey: userId,
-        senderId: userId,
-        originServerTs: DateTime(2026, 9, 29),
-        content: {'membership': 'knock', 'displayname': 'Ines'},
-        room: room,
-      );
-
-      setUp(() {
-        room.setState(
-          Event(
-            eventId: r'$name',
-            type: EventTypes.RoomName,
-            stateKey: '',
-            senderId: _me,
-            originServerTs: DateTime(2026),
-            content: {'name': 'Beginners'},
-            room: room,
-          ),
-        );
-      });
-
-      test('a new request tells those who can answer it', () {
-        levels(50);
-
-        final content = joinRequestNotificationFor(client, knock());
-
-        expect(content, isNotNull);
-        expect(content!.roomId, room.id);
-        expect(content.title, 'Beginners');
-        expect(content.body, 'Ines asks to join');
-        expect(content.isDirectChat, isFalse);
-      });
-
-      test('those who cannot answer are not told', () {
-        levels(0);
-
-        expect(joinRequestNotificationFor(client, knock()), isNull);
-      });
-
-      test('a request already answered is not announced', () {
-        levels(50);
-        member('@ines:example.org', 'invite');
-
-        expect(joinRequestNotificationFor(client, knock()), isNull);
-      });
-
-      test('without a name it uses the username, and carries the photo', () {
-        levels(50);
-        final plain = Event(
-          eventId: r'$plain',
-          type: EventTypes.RoomMember,
-          stateKey: '@ines:example.org',
-          senderId: '@ines:example.org',
-          originServerTs: DateTime(2026),
-          content: {'membership': 'knock', 'avatar_url': 'mxc://x/ines'},
-          room: room,
-        );
-
-        final content = joinRequestNotificationFor(client, plain)!;
-
-        expect(content.body, '@ines asks to join');
-        expect(content.senderAvatarUrl, Uri.parse('mxc://x/ines'));
-      });
-
-      test('a very long name is shortened', () {
-        levels(50);
-        final long = Event(
-          eventId: r'$long',
-          type: EventTypes.RoomMember,
-          stateKey: '@ines:example.org',
-          senderId: '@ines:example.org',
-          originServerTs: DateTime(2026),
-          content: {'membership': 'knock', 'displayname': 'I' * 200},
-          room: room,
-        );
-
-        final body = joinRequestNotificationFor(client, long)!.body;
-
-        expect(body.length, lessThan(60));
-        expect(body, endsWith('… asks to join'));
-      });
-
-      test('a request to join a community is not announced', () {
-        levels(50);
-        room.setState(
-          Event(
-            eventId: r'$create',
-            type: EventTypes.RoomCreate,
-            stateKey: '',
-            senderId: _me,
-            originServerTs: DateTime(2026),
-            content: {'type': 'm.space'},
-            room: room,
-          ),
-        );
-
-        expect(joinRequestNotificationFor(client, knock()), isNull);
-      });
-
-      test('other membership changes are not requests', () {
-        levels(50);
-        final join = Event(
-          eventId: r'$join',
-          type: EventTypes.RoomMember,
-          stateKey: '@ines:example.org',
-          senderId: '@ines:example.org',
-          originServerTs: DateTime(2026),
-          content: {'membership': 'join'},
-          room: room,
-        );
-
-        expect(joinRequestNotificationFor(client, join), isNull);
-      });
     });
   });
 }

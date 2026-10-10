@@ -7,43 +7,10 @@ import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_viewing.dart';
 
 import '../../helpers/fake_device_keys.dart';
-import '../../helpers/fake_matrix.dart';
+import '../../helpers/fake_live_location.dart';
 
-typedef _Sent = ({
-  List<String> devices,
-  String type,
-  Map<String, dynamic> content,
-});
-
-class _ViewingClient extends Client {
-  _ViewingClient() : super('test', database: FakeDatabaseApi()) {
-    setUserId('@me:x');
-  }
-
-  final sent = <_Sent>[];
+class _ViewingClient extends LiveLocationTestClient {
   final keyQueries = <Set<String>>[];
-  final blocked = <String>[];
-
-  @override
-  List<String> get ignoredUsers => List.of(blocked);
-
-  @override
-  String? get deviceID => 'MINE';
-
-  @override
-  Future<void> sendToDeviceEncrypted(
-    List<DeviceKeys> deviceKeys,
-    String eventType,
-    Map<String, dynamic> message, {
-    String? messageId,
-    bool onlyVerified = false,
-  }) async {
-    sent.add((
-      devices: [for (final d in deviceKeys) '${d.userId}/${d.deviceId}'],
-      type: eventType,
-      content: message,
-    ));
-  }
 
   @override
   Future<void> updateUserDeviceKeys({Set<String>? additionalUsers}) async {
@@ -159,8 +126,8 @@ void main() {
 
   void sync() => client.onSync.add(SyncUpdate(nextBatch: 'next'));
 
-  List<_Sent> watches() =>
-      client.sent.where((m) => m.type == liveLocationWatchType).toList();
+  List<LiveToDeviceSend> watches() =>
+      client.toDevice.where((m) => m.type == liveLocationWatchType).toList();
 
   group('positions', () {
     test('a trusted position for a live share shows', () async {
@@ -358,7 +325,7 @@ void main() {
 
     test('someone this account blocked is neither shown nor watched', () async {
       share('@alex:x');
-      client.blocked.add('@alex:x');
+      client.ignored.add('@alex:x');
       await deliver(position());
 
       expect(viewing.sharesIn(room), isEmpty);
@@ -556,17 +523,6 @@ void main() {
 
     test('a watch that fails to send leaves nothing updating', () async {
       share('@carl:x', deviceId: 'DESK');
-      room.setState(
-        Event(
-          type: EventTypes.RoomMember,
-          stateKey: '@carl:x',
-          senderId: '@carl:x',
-          eventId: r'$joined-carl',
-          originServerTs: now,
-          content: const {'membership': 'join'},
-          room: room,
-        ),
-      );
 
       final handle = viewing.watch('!family:x');
       await pumpEventQueue();

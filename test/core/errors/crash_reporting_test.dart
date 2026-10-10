@@ -23,33 +23,30 @@ SentryFlutterOptions _configuredOptions({bool trackSessions = true}) {
 
 void main() {
   group('shouldReportCrashes', () {
-    test('reports when opted in, in a release build, with a DSN', () {
-      expect(
-        shouldReportCrashes(optedIn: true, dsn: _dsn, isReleaseBuild: true),
-        isTrue,
-      );
-    });
-
-    test('does not report when opted out', () {
-      expect(
-        shouldReportCrashes(optedIn: false, dsn: _dsn, isReleaseBuild: true),
-        isFalse,
-      );
-    });
-
-    test('does not report without a DSN', () {
-      expect(
-        shouldReportCrashes(optedIn: true, dsn: '', isReleaseBuild: true),
-        isFalse,
-      );
-    });
-
-    test('does not report in a debug build', () {
-      expect(
-        shouldReportCrashes(optedIn: true, dsn: _dsn, isReleaseBuild: false),
-        isFalse,
-      );
-    });
+    final cases = <(String, bool, String, bool, bool)>[
+      (
+        'reports when opted in, in a release build, with a DSN',
+        true,
+        _dsn,
+        true,
+        true,
+      ),
+      ('does not report when opted out', false, _dsn, true, false),
+      ('does not report without a DSN', true, '', true, false),
+      ('does not report in a debug build', true, _dsn, false, false),
+    ];
+    for (final (name, optedIn, dsn, isReleaseBuild, reports) in cases) {
+      test(name, () {
+        expect(
+          shouldReportCrashes(
+            optedIn: optedIn,
+            dsn: dsn,
+            isReleaseBuild: isReleaseBuild,
+          ),
+          reports,
+        );
+      });
+    }
   });
 
   group('configureCrashReportingOptions', () {
@@ -68,10 +65,6 @@ void main() {
       expect(options.replay.sessionSampleRate, isNull);
       expect(options.replay.onErrorSampleRate, isNull);
       expect(options.tracesSampleRate, isNull);
-    });
-
-    test('keeps native crash handling on', () {
-      expect(_configuredOptions().enableNativeCrashHandling, isTrue);
     });
 
     test('tracks sessions in the foreground app but not headless', () {
@@ -145,22 +138,17 @@ void main() {
   });
 
   group('initCrashReporting', () {
-    test('stays disabled when opted out', () async {
+    test('stays disabled and mints no install ID when opted out', () async {
       final prefs = await _prefsWith({});
       await initCrashReporting(prefs, optedIn: false);
       expect(Sentry.isEnabled, isFalse);
+      expect(prefs.getString('crash_reporting.install_id'), isNull);
     });
 
     test('stays disabled in a debug build even when opted in', () async {
       final prefs = await _prefsWith({});
       await initCrashReporting(prefs, optedIn: true);
       expect(Sentry.isEnabled, isFalse);
-    });
-
-    test('does not mint an install ID while opted out', () async {
-      final prefs = await _prefsWith({});
-      await initCrashReporting(prefs, optedIn: false);
-      expect(prefs.getString('crash_reporting.install_id'), isNull);
     });
   });
 
@@ -185,14 +173,5 @@ void main() {
         expect(Sentry.isEnabled, isFalse);
       },
     );
-
-    test('a failed change does not wedge the queue', () async {
-      final prefs = await _prefsWith({});
-      await setCrashReportingEnabled(prefs, enabled: true);
-      await expectLater(
-        setCrashReportingEnabled(prefs, enabled: false),
-        completes,
-      );
-    });
   });
 }

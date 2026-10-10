@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +20,9 @@ import 'package:zuno/features/rooms/presentation/chat_row.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/layout_matrix.dart';
+import '../../../helpers/pump_until.dart';
+import '../../../helpers/room_opening_channels.dart';
+import '../../../helpers/route_launcher.dart';
 
 const _me = '@me:example.org';
 
@@ -224,6 +225,32 @@ void main() {
     await tester.pump();
   }
 
+  Future<void> pushPage(WidgetTester tester) async {
+    final scope = await overrides();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: scope,
+        child: MaterialApp(
+          theme: zunoLightTheme,
+          home: routeLauncher(
+            (_) => CommunityPage(
+              community: club,
+              loadRooms: (_) async => const [],
+              openRoom: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> network(WidgetTester tester) async {
+    await pumpRealAsync(tester, rounds: 4);
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('shows the community, its members and access, and the rooms '
       'you are in', (tester) async {
     member('!gear:example.org', 'Gear swap');
@@ -394,10 +421,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Gear swap');
     client.rooms.add(created);
     await tester.tap(find.text('Create'));
-    for (var i = 0; i < 4; i++) {
-      await tester.pump();
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    }
+    await pumpRealAsync(tester, rounds: 4);
 
     expect(
       requests.map((r) => r.url.path),
@@ -423,10 +447,7 @@ void main() {
     await tester.tap(find.text('Ask to join'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Create'));
-    for (var i = 0; i < 4; i++) {
-      await tester.pump();
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    }
+    await pumpRealAsync(tester, rounds: 4);
 
     final create = requests.firstWhere(
       (r) => r.url.path.endsWith('/createRoom'),
@@ -443,31 +464,7 @@ void main() {
   testWidgets('being removed from the community closes its page', (
     tester,
   ) async {
-    final scope = await overrides();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: scope,
-        child: MaterialApp(
-          theme: zunoLightTheme,
-          home: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => CommunityPage(
-                    community: club,
-                    loadRooms: (_) async => const [],
-                    openRoom: (_, _) {},
-                  ),
-                ),
-              ),
-              child: const Text('open'),
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('open'));
-    await tester.pumpAndSettle();
+    await pushPage(tester);
     expect(find.byType(CommunityPage), findsOneWidget);
 
     client.onSync.add(
@@ -495,14 +492,6 @@ void main() {
   });
 
   group('what can go wrong', () {
-    Future<void> network(WidgetTester tester) async {
-      for (var i = 0; i < 4; i++) {
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.pump();
-      }
-      await tester.pumpAndSettle();
-    }
-
     testWidgets('a join that fails says so and keeps the room offered', (
       tester,
     ) async {
@@ -601,10 +590,7 @@ void main() {
           matching: find.text('Invite'),
         ),
       );
-      for (var i = 0; i < 4; i++) {
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.pump();
-      }
+      await pumpRealAsync(tester, rounds: 4);
     }
 
     testWidgets('sends the invitation to someone on this server', (
@@ -655,21 +641,7 @@ void main() {
   });
 
   testWidgets('a room you are in opens in the chat by default', (tester) async {
-    FlutterLocalNotificationsPlatform.instance =
-        AndroidFlutterLocalNotificationsPlugin();
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    for (final channel in const [
-      MethodChannel('dexterous.com/flutter/local_notifications'),
-      MethodChannel('zuno/calls'),
-      MethodChannel('com.llfbandit.record/messages'),
-    ]) {
-      messenger.setMockMethodCallHandler(
-        channel,
-        (call) async => call.method == 'initialize' ? true : null,
-      );
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    }
+    installRoomOpeningChannels();
     final gear = member('!gear:example.org', 'Gear swap')..partial = false;
     final container = ProviderContainer(overrides: await overrides());
     addTearDown(container.dispose);
@@ -710,10 +682,7 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(find.widgetWithText(FilledButton, 'Ask'));
-      for (var i = 0; i < 3; i++) {
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.pump();
-      }
+      await pumpRealAsync(tester, rounds: 3);
 
       expect(
         requests.map((r) => Uri.decodeComponent(r.url.path)),
@@ -730,10 +699,7 @@ void main() {
       ]);
       await tester.pump();
       await tester.tap(find.widgetWithText(FilledButton, 'Ask'));
-      for (var i = 0; i < 3; i++) {
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.pump();
-      }
+      await pumpRealAsync(tester, rounds: 3);
 
       await tester.tap(find.widgetWithText(OutlinedButton, 'Requested'));
       await tester.pumpAndSettle();
@@ -746,10 +712,7 @@ void main() {
       await tester.tap(find.widgetWithText(OutlinedButton, 'Requested'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Withdraw'));
-      for (var i = 0; i < 3; i++) {
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.pump();
-      }
+      await pumpRealAsync(tester, rounds: 3);
 
       expect(
         requests.map((r) => Uri.decodeComponent(r.url.path)),
@@ -767,19 +730,7 @@ void main() {
 
     Future<void> openMembers(WidgetTester tester) async {
       await tester.tap(find.text('24 members'));
-      for (var i = 0; i < 4; i++) {
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.pump();
-      }
-      await tester.pumpAndSettle();
-    }
-
-    Future<void> network(WidgetTester tester) async {
-      for (var i = 0; i < 3; i++) {
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.pump();
-      }
-      await tester.pumpAndSettle();
+      await network(tester);
     }
 
     setUp(() {
@@ -878,15 +829,6 @@ void main() {
       expect(find.text('Not removed. Try again.'), findsOneWidget);
     });
 
-    testWidgets('the member count opens the members', (tester) async {
-      await pump(tester);
-      more.complete(const []);
-
-      await openMembers(tester);
-
-      expect(find.text('Maya'), findsOneWidget);
-    });
-
     testWidgets('an admin gives someone a role', (tester) async {
       makeAdmin();
       await pump(tester);
@@ -945,10 +887,12 @@ void main() {
       expect(find.text('Maya'), findsOneWidget);
     });
 
-    testWidgets('a member cannot manage anyone', (tester) async {
+    testWidgets('the member count opens the members, whom a member cannot '
+        'manage', (tester) async {
       await pump(tester);
       more.complete(const []);
       await openMembers(tester);
+      expect(find.text('Maya'), findsOneWidget);
 
       await tester.tap(find.text('Maya'));
       await tester.pumpAndSettle();
@@ -958,62 +902,17 @@ void main() {
     });
   });
 
-  testWidgets('leaving asks first and names the rooms left with it', (
-    tester,
-  ) async {
-    member('!gear:example.org', 'Gear swap');
-    await pump(tester);
-    more.complete(const []);
+  testWidgets('leaving from the menu asks first, then leaves and closes the '
+      'page', (tester) async {
+    await pushPage(tester);
 
     await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Leave community'));
     await tester.pumpAndSettle();
-
     expect(find.text('Leave community?'), findsOneWidget);
-    expect(find.text('You also leave Gear swap.'), findsOneWidget);
-    expect(requests.where((r) => r.url.path.endsWith('/leave')), isEmpty);
-  });
-
-  testWidgets('confirming the leave leaves and closes the page', (
-    tester,
-  ) async {
-    final scope = await overrides();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: scope,
-        child: MaterialApp(
-          theme: zunoLightTheme,
-          home: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => CommunityPage(
-                    community: club,
-                    loadRooms: (_) async => const [],
-                    openRoom: (_, _) {},
-                  ),
-                ),
-              ),
-              child: const Text('open'),
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('open'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byTooltip('More'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Leave community'));
-    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Leave'));
-    for (var i = 0; i < 4; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
-    await tester.pumpAndSettle();
+    await network(tester);
 
     expect(requests.where((r) => r.url.path.endsWith('/leave')), isNotEmpty);
     expect(find.byType(CommunityPage), findsNothing);

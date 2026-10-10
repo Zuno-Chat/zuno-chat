@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/features/chat/data/message_row_data.dart';
-import 'package:zuno/features/chat/presentation/message_bubble.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -118,7 +117,7 @@ void main() {
     expect(a.hashCode, b.hashCode);
   });
 
-  test('status', () async {
+  test('a send status change changes the record and its meta', () async {
     final sending = await record(
       text(r'$m1', sender: me, status: EventStatus.sending),
     );
@@ -130,7 +129,7 @@ void main() {
     expect(sent.metaStatus, MetaStatus.none);
   });
 
-  test('type and messageType', () async {
+  test('the type and message type change with the content', () async {
     final encrypted = buildTestEvent(
       room,
       eventId: r'$m1',
@@ -146,7 +145,7 @@ void main() {
     expect(b.messageType, MessageTypes.Text);
   });
 
-  test('redacted', () async {
+  test('a redaction changes the record', () async {
     final event = text(r'$m1');
     final before = await record(event);
     event.setRedactionEvent(
@@ -199,7 +198,7 @@ void main() {
     );
   });
 
-  test('sender rename', () async {
+  test('a sender rename changes the record', () async {
     final event = text(r'$m1');
     final before = await record(event);
     room.setState(
@@ -211,7 +210,7 @@ void main() {
     expect(before, isNot(equals(after)));
   });
 
-  test('sender avatar', () async {
+  test('a new sender avatar changes the record', () async {
     final event = text(r'$m1');
     final before = await record(event);
     room.setState(
@@ -310,16 +309,6 @@ void main() {
     expect((await record(event, newer: hidden)).endsRun, isTrue);
   });
 
-  test('position maps the run flags', () async {
-    final a = text(r'$a', at: noon);
-    final b = text(r'$b', at: noon.add(const Duration(minutes: 1)));
-    final c = text(r'$c', at: noon.add(const Duration(minutes: 2)));
-    expect((await record(a)).position, RunPosition.single);
-    expect((await record(a, newer: b)).position, RunPosition.first);
-    expect((await record(b, older: a, newer: c)).position, RunPosition.middle);
-    expect((await record(c, older: b)).position, RunPosition.last);
-  });
-
   group('reply target', () {
     Event replyTo(String target) => text(
       r'$reply',
@@ -330,7 +319,7 @@ void main() {
       },
     );
 
-    test('not loaded, then loaded', () async {
+    test('the target loading changes the record', () async {
       final reply = replyTo(r'$m1');
       final missing = await record(reply);
       final loaded = await record(reply, events: [reply, text(r'$m1')]);
@@ -341,7 +330,7 @@ void main() {
       expect(missing, isNot(equals(loaded)));
     });
 
-    test('edited', () async {
+    test('an edit of the target changes the record', () async {
       final reply = replyTo(r'$m1');
       final target = text(r'$m1');
       final plain = await record(reply, events: [reply, target]);
@@ -353,7 +342,7 @@ void main() {
       expect(plain, isNot(equals(edited)));
     });
 
-    test('decrypted late', () async {
+    test('the target decrypting late changes the record', () async {
       final reply = replyTo(r'$m1');
       final encrypted = buildTestEvent(
         room,
@@ -370,7 +359,7 @@ void main() {
       expect(before, isNot(equals(after)));
     });
 
-    test('its sender is renamed', () async {
+    test('a rename of its sender changes the record', () async {
       final reply = replyTo(r'$m1');
       final target = text(r'$m1');
       final before = await record(reply, events: [reply, target]);
@@ -382,7 +371,7 @@ void main() {
       expect(before, isNot(equals(after)));
     });
 
-    test('deleted', () async {
+    test('deleting the target changes the record', () async {
       final reply = replyTo(r'$m1');
       final target = text(r'$m1');
       final before = await record(reply, events: [reply, target]);
@@ -483,7 +472,7 @@ void main() {
     );
   });
 
-  test('canReply and linkPreviews', () async {
+  test('canReply and linkPreviews change the record', () async {
     final event = text(r'$m1');
     expect(
       await record(event),

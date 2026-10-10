@@ -42,10 +42,10 @@ void main() {
       .widgetList<Badge>(find.byType(Badge))
       .where((badge) => badge.isLabelVisible);
 
-  testWidgets('both tabs are named and the selected one is filled and bold', (
-    tester,
-  ) async {
+  testWidgets('both tabs are named and the selected one is filled, bold and '
+      'on a lighter pill', (tester) async {
     await pump(tester, bar(selected: HomeTab.communities));
+    final colors = zunoLightTheme.colorScheme;
 
     expect(find.text('Chats'), findsOneWidget);
     expect(find.text('Communities'), findsOneWidget);
@@ -59,14 +59,6 @@ void main() {
       tester.widget<Text>(find.text('Chats')).style?.fontWeight,
       FontWeight.w500,
     );
-  });
-
-  testWidgets('the selected tab sits in a lighter pill inside the bar', (
-    tester,
-  ) async {
-    await pump(tester, bar(selected: HomeTab.communities));
-    final colors = zunoLightTheme.colorScheme;
-
     expect(pillOf(tester, 'Communities').color, colors.surfaceContainerLowest);
     expect(pillOf(tester, 'Chats').color, isNull);
   });

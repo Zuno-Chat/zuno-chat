@@ -1,6 +1,6 @@
 import 'package:matrix/matrix.dart';
 
-Map<String, Object?> _deviceKeysJson(
+Map<String, Object?> testDeviceKeysJson(
   String userId,
   String deviceId, {
   String? name,
@@ -21,8 +21,10 @@ DeviceKeys testDeviceKeys(
   String userId,
   String deviceId, {
   String? name,
-}) =>
-    DeviceKeys.fromJson(_deviceKeysJson(userId, deviceId, name: name), client);
+}) => DeviceKeys.fromJson(
+  testDeviceKeysJson(userId, deviceId, name: name),
+  client,
+);
 
 class SelfSignedTestDeviceKeys extends DeviceKeys {
   SelfSignedTestDeviceKeys(super.json, super.client) : super.fromJson();
@@ -54,7 +56,7 @@ DeviceKeysList setSelfSignedTestDevices(
   ..outdated = false
   ..deviceKeys = {
     for (final id in deviceIds)
-      id: SelfSignedTestDeviceKeys(_deviceKeysJson(userId, id), client),
+      id: SelfSignedTestDeviceKeys(testDeviceKeysJson(userId, id), client),
   };
 
 CrossSigningKey testMasterKey(Client client, String userId) {

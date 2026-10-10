@@ -26,6 +26,13 @@ void main() {
         },
       );
 
+  void syncBlockedList(String batch) => client.onSync.add(
+    SyncUpdate(
+      nextBatch: batch,
+      accountData: [BasicEvent(type: 'm.ignored_user_list', content: const {})],
+    ),
+  );
+
   Future<void> pumpPage(WidgetTester tester, {UnblockPerson? unblock}) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -84,14 +91,7 @@ void main() {
     expect(find.text('@ben'), findsNothing);
 
     setBlocked(['@ann:example.org', '@ben:example.org']);
-    client.onSync.add(
-      SyncUpdate(
-        nextBatch: 's1',
-        accountData: [
-          BasicEvent(type: 'm.ignored_user_list', content: const {}),
-        ],
-      ),
-    );
+    syncBlockedList('s1');
     await tester.pumpAndSettle();
 
     expect(find.text('@ben'), findsOneWidget);
@@ -106,14 +106,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('@ann'), findsNothing);
 
-    client.onSync.add(
-      SyncUpdate(
-        nextBatch: 's2',
-        accountData: [
-          BasicEvent(type: 'm.ignored_user_list', content: const {}),
-        ],
-      ),
-    );
+    syncBlockedList('s2');
     await tester.pumpAndSettle();
 
     expect(find.text('@ann'), findsOneWidget);

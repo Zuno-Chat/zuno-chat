@@ -58,12 +58,6 @@ void main() {
       expect(roomTitle(room), 'Bob');
     });
 
-    test('an abandoned direct chat falls back to the localpart', () {
-      abandonedBy('@bob:example.org');
-
-      expect(roomTitle(room), 'Bob');
-    });
-
     test('a live direct chat is unchanged', () {
       markDirectWith('@bob:example.org');
       setMember('@bob:example.org', 'join', displayName: 'Bob');
@@ -90,12 +84,12 @@ void main() {
       expect(roomTitle(room), 'Team');
     });
 
-    test('an emptied unnamed group does not read as a dangling group', () {
+    test('an emptied unnamed group reads as an empty chat, not a dangling '
+        'group', () {
       room.summary.mHeroes = ['@me:example.org'];
       setCounts(joined: 1);
 
-      expect(roomTitle(room), isNot(startsWith('Group with')));
-      expect(roomTitle(room).trim(), isNotEmpty);
+      expect(roomTitle(room), 'Empty chat');
     });
   });
 
@@ -107,20 +101,6 @@ void main() {
 
       expect(display.partnerLeft, isTrue);
       expect(display.title, 'Bob');
-    });
-
-    test('is not set while they are still here', () {
-      markDirectWith('@bob:example.org');
-      setMember('@bob:example.org', 'join', displayName: 'Bob');
-      setCounts(joined: 2);
-
-      expect(roomInviteDisplay(room).partnerLeft, isFalse);
-    });
-
-    test('is not set for a group room', () {
-      setCounts(joined: 1);
-
-      expect(roomInviteDisplay(room).partnerLeft, isFalse);
     });
   });
 

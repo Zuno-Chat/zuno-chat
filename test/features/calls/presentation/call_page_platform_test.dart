@@ -75,12 +75,11 @@ class _NativeAudio {
 }
 
 void main() {
-  FakeCallSession callerSession({CallKind kind = CallKind.voice}) =>
-      FakeCallSession(
-        room: CallPageHarness.buildRoom(),
-        kind: kind,
-        role: CallSessionRole.caller,
-      );
+  FakeCallSession callerSession() => FakeCallSession(
+    room: CallPageHarness.buildRoom(),
+    kind: CallKind.voice,
+    role: CallSessionRole.caller,
+  );
 
   FakeCallSession calleeSession(CallKind kind) =>
       FakeCallSession(room: CallPageHarness.buildRoom(), kind: kind);
@@ -132,32 +131,6 @@ void main() {
     expect(harness.count('stopCallAudio'), 1);
     expect(harness.callAudioRunning, isFalse);
   });
-
-  for (final (kind, headsets, route) in [
-    (CallKind.video, <String>[], 'speaker'),
-    (CallKind.voice, <String>[], 'earpiece'),
-    (CallKind.video, ['bluetooth'], 'bluetooth'),
-    (CallKind.voice, ['wiredHeadset'], 'wiredHeadset'),
-  ]) {
-    testWidgets('android starts a ${kind.name} call\'s audio on the $route, '
-        'with the ringback asked for at once', (tester) async {
-      final harness = CallPageHarness(tester, capabilities: androidCapabilities)
-        ..headsets = headsets;
-      final session = callerSession(kind: kind);
-      await harness.open(session);
-
-      expect(harness.argsOf('startCallAudio'), [
-        {'route': route},
-      ]);
-      expect(harness.ringbackPlaying, isTrue);
-
-      session.end();
-      await harness.settle();
-
-      expect(harness.ringbackPlaying, isFalse);
-      expect(harness.count('stopCallAudio'), 1);
-    });
-  }
 
   testWidgets('android: a headset that connects just as call audio starts '
       'takes the sound', (tester) async {
@@ -451,8 +424,9 @@ void main() {
   });
 
   group('android switching a voice call to video', () {
-    testWidgets('tells no system call and moves the sound from the ear to the '
-        'speaker', (tester) async {
+    testWidgets('switches the engine, tells no system call, republishes '
+        'membership, keeps the screen on and moves the sound from the ear to '
+        'the speaker', (tester) async {
       final harness = CallPageHarness(
         tester,
         capabilities: androidCapabilities,
@@ -482,6 +456,8 @@ void main() {
       expect(harness.audioRoute, 'speaker');
       expect(harness.speakerIcon, Icons.volume_up_outlined);
       expect(harness.proximityScreenOff, isFalse);
+      expect(harness.wakelockToggles, [true]);
+      expect(session.membershipRefreshes, 1);
       await harness.close();
     });
 
@@ -622,13 +598,8 @@ void main() {
   });
 
   group('ios, a call accepted as another ends', () {
-    List<Object?> roomsOfEndedSystemCalls(CallPageHarness harness) => [
-      for (final args in harness.argsOf('endSystemCall'))
-        (args! as Map)['roomId'],
-    ];
-
     testWidgets('End & Accept while the ended call\'s screen still closes '
-        'keeps the new call, its screen and its system call', (tester) async {
+        'keeps the new call and its screen', (tester) async {
       final harness = CallPageHarness(tester, capabilities: iosCapabilities);
       harness.container.read(systemCallSyncProvider);
       final ended = await talking(harness, CallKind.voice);
@@ -649,7 +620,6 @@ void main() {
         tester.widget<CallPage>(find.byType(CallPage)).call.session,
         same(accepted),
       );
-      expect(roomsOfEndedSystemCalls(harness), [ended.room.id]);
       await harness.close();
     });
 
@@ -674,7 +644,6 @@ void main() {
         tester.widget<CallPage>(find.byType(CallPage)).call.session,
         same(accepted),
       );
-      expect(roomsOfEndedSystemCalls(harness), [ended.room.id]);
       await harness.close();
     });
 

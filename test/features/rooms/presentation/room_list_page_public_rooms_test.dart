@@ -1,26 +1,21 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/room_access.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
-import 'package:zuno/features/rooms/presentation/room_list_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/public_rooms_fixture.dart';
+import '../../../helpers/room_list_page_harness.dart';
+import '../../../helpers/room_opening_channels.dart';
 
 void main() {
   late Client client;
@@ -34,28 +29,11 @@ void main() {
       requests.where((r) => r.url.pathSegments.contains('join'));
 
   setUp(() {
-    FlutterLocalNotificationsPlatform.instance =
-        AndroidFlutterLocalNotificationsPlugin();
-    const notificationsChannel = MethodChannel(
-      'dexterous.com/flutter/local_notifications',
-    );
-    const callsChannel = MethodChannel('zuno/calls');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(
-      notificationsChannel,
-      (call) async => call.method == 'initialize' ? true : null,
-    );
-    messenger.setMockMethodCallHandler(callsChannel, (_) async => null);
-    addTearDown(() {
-      messenger.setMockMethodCallHandler(notificationsChannel, null);
-      messenger.setMockMethodCallHandler(callsChannel, null);
-    });
-
+    installRoomOpeningChannels();
     requests = [];
     offline = false;
-    client = Client(
-      'test',
+    client = buildTestClient(
+      userId: '@me:example.org',
       database: TimelineCapableFakeDatabaseApi(),
       httpClient: MockClient((request) async {
         requests.add(request);
@@ -80,37 +58,23 @@ void main() {
         return http.Response('{}', 200);
       }),
     );
-    client.setUserId('@me:example.org');
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
   });
 
   Future<void> pumpRoomList(WidgetTester tester) async {
-    SharedPreferences.setMockInitialValues({
-      'onboarding.shown.@me:example.org': OnboardingStep.values
-          .map((step) => step.name)
-          .toList(),
-    });
-    final prefs = await SharedPreferences.getInstance();
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    final container = ProviderContainer(
-      overrides: [
-        matrixClientProvider.overrideWithValue(client),
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        firstSyncProvider.overrideWith((ref) async {}),
-      ],
-    );
-    addTearDown(container.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          scaffoldMessengerKey: globalScaffoldMessengerKey,
-          home: const RoomListPage(),
-        ),
-      ),
+    await pumpRoomListPage(
+      tester,
+      client,
+      stored: {
+        'onboarding.shown.@me:example.org': OnboardingStep.values
+            .map((step) => step.name)
+            .toList(),
+      },
+      overrides: [firstSyncProvider.overrideWith((ref) async {})],
     );
     await tester.pumpAndSettle();
   }
@@ -239,23 +203,14 @@ void main() {
     expect(find.text('Gardening'), findsNothing);
   });
 
-  testWidgets('tapping a room asks the server to join it', (tester) async {
+  testWidgets('tapping a room joins it, and it opens once the sync brings '
+      'it', (tester) async {
     await pumpRoomList(tester);
     await openPublicRooms(tester);
 
     await tester.tap(find.text('Gardening'));
     await settle(tester);
-
-    expect(joinRequests(), hasLength(1));
     expect(joinRequests().single.url.pathSegments.last, '!garden:example.org');
-  });
-
-  testWidgets('a joined room opens once the sync brings it', (tester) async {
-    await pumpRoomList(tester);
-    await openPublicRooms(tester);
-
-    await tester.tap(find.text('Gardening'));
-    await settle(tester);
     expect(find.byType(RoomPage), findsNothing);
 
     final garden = buildTestRoom(client, id: '!garden:example.org')

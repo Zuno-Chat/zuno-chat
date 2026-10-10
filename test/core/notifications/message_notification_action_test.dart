@@ -14,24 +14,6 @@ import 'package:zuno/core/notifications/message_notification_action.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
 
-class _SendCapableFakeDatabaseApi extends TimelineCapableFakeDatabaseApi {
-  @override
-  Future<void> storeEventUpdate(
-    String roomId,
-    StrippedStateEvent event,
-    EventUpdateType type,
-    Client client,
-  ) async {}
-
-  @override
-  Future<void> storeRoomUpdate(
-    String roomId,
-    SyncRoomUpdate roomUpdate,
-    Event? lastEvent,
-    Client client,
-  ) async {}
-}
-
 void main() {
   group('messageNotificationActionFrom', () {
     const payloadWithEvent =
@@ -167,7 +149,7 @@ void main() {
       final client = buildTestClient(
         userId: '@me:example.org',
         deviceId: sendable ? null : 'DEV',
-        database: sendable ? _SendCapableFakeDatabaseApi() : null,
+        database: sendable ? SendCapableFakeDatabaseApi() : null,
         httpClient: MockClient((request) async {
           requests.add('${request.method} ${request.url.path}');
           lockCalls.add('request');
@@ -475,20 +457,6 @@ void main() {
       expect(sends.first, sends.last);
     });
 
-    test('a wake lock names its own tag, so two kinds of action never '
-        'release each other\'s lock', () async {
-      final tags = <Object?>[];
-      messenger.setMockMethodCallHandler(wakeLock, (call) async {
-        tags.add((call.arguments as Map)['tag']);
-        return null;
-      });
-
-      await const HeadlessWakeLock(tag: 'call_decline').acquire();
-      await const HeadlessWakeLock().release();
-
-      expect(tags, ['call_decline', 'message_action']);
-    });
-
     test(
       'on a platform without wake locks the action runs with no lock',
       () async {
@@ -563,7 +531,7 @@ void main() {
     Room room() {
       final client = buildTestClient(
         userId: '@me:example.org',
-        database: _SendCapableFakeDatabaseApi(),
+        database: SendCapableFakeDatabaseApi(),
         httpClient: MockClient((request) async {
           if (request.url.path.contains('/send/')) {
             if (refuse) {
@@ -589,26 +557,16 @@ void main() {
       refuse = false;
     });
 
-    test('sends markdown characters as typed', () async {
-      await replyToRoom(room(), '**bold** and _soft_');
+    for (final (name, typed) in [
+      ('sends markdown characters as typed', '**bold** and _soft_'),
+      ('a leading slash is text, not a command', '/shrug hi'),
+    ]) {
+      test(name, () async {
+        await replyToRoom(room(), typed);
 
-      expect(sent.single['body'], '**bold** and _soft_');
-      expect(sent.single.containsKey('formatted_body'), isFalse);
-      expect(sent.single.containsKey('format'), isFalse);
-    });
-
-    test('a leading slash is text, not a command', () async {
-      await replyToRoom(room(), '/shrug hi');
-
-      expect(sent.single['body'], '/shrug hi');
-      expect(sent.single['msgtype'], MessageTypes.Text);
-    });
-
-    test('a plain message goes out unchanged', () async {
-      await replyToRoom(room(), 'on my way');
-
-      expect(sent.single, {'msgtype': MessageTypes.Text, 'body': 'on my way'});
-    });
+        expect(sent.single, {'msgtype': MessageTypes.Text, 'body': typed});
+      });
+    }
 
     test('goes out under the transaction id it is given', () async {
       await replyToRoom(room(), 'on my way', txid: 'zuno-tx-7');

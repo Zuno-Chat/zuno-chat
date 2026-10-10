@@ -11,7 +11,7 @@ class AttachmentActionButtons extends StatelessWidget {
   const AttachmentActionButtons({required this.event, this.color, super.key});
 
   Future<void> _save(BuildContext context) =>
-      saveAttachmentWithFeedback(ScaffoldMessenger.of(context), event);
+      saveAttachmentsWithFeedback(ScaffoldMessenger.of(context), [event]);
 
   Future<void> _share(BuildContext context) =>
       shareAttachmentsWithFeedback(ScaffoldMessenger.of(context), [event]);
@@ -38,15 +38,24 @@ class AttachmentActionButtons extends StatelessWidget {
   }
 }
 
-Future<void> saveAttachmentWithFeedback(
+Future<void> saveAttachmentsWithFeedback(
   ScaffoldMessengerState messenger,
-  Event event,
+  List<Event> events,
 ) async {
   try {
-    final message = await saveAttachment(event);
-    if (message != null) {
-      messenger.showSnackBar(SnackBar(content: Text(message)));
+    if (events.length == 1) {
+      final message = await saveAttachment(events.single);
+      if (message != null) {
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+      }
+      return;
     }
+    final saved = await saveAttachments(events);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(savedSummary(saved: saved, total: events.length)),
+      ),
+    );
   } catch (e) {
     logCaught('save attachment', e);
     messenger.showSnackBar(

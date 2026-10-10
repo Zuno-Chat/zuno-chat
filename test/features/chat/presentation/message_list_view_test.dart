@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +16,7 @@ import 'package:zuno/features/chat/presentation/message_tile.dart';
 import 'package:zuno/features/chat/presentation/reply_target_cache.dart';
 import 'package:zuno/features/chat/presentation/swipe_to_reply.dart';
 
+import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
 
 const me = '@me:example.org';
@@ -234,14 +233,7 @@ void main() {
     await pumpList(
       tester,
       () => timeline,
-      failedSends: [
-        FailedMediaSend(
-          gallery: null,
-          bytes: base64Decode(
-            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-          ),
-        ),
-      ],
+      failedSends: [FailedMediaSend(gallery: null, bytes: onePixelPng)],
     );
 
     expect(find.byType(FailedMediaTile), findsOneWidget);
@@ -291,12 +283,7 @@ void main() {
   testWidgets('a failed single photo or video gets its own tile, and a tap '
       'retries just that one', (tester) async {
     final timeline = await timelineOf(tester, [text(r'$m1')]);
-    final photo = FailedMediaSend(
-      gallery: null,
-      bytes: base64Decode(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-      ),
-    );
+    final photo = FailedMediaSend(gallery: null, bytes: onePixelPng);
     const video = FailedMediaSend(
       gallery: null,
       video: ComposedVideo(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
@@ -9,7 +11,10 @@ class FakeDatabaseApi implements DatabaseApi {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class SendCapableFakeDatabaseApi extends FakeDatabaseApi {
+class SendCapableFakeDatabaseApi extends FakeDatabaseApi
+    with SendCapableDatabase {}
+
+mixin SendCapableDatabase on FakeDatabaseApi {
   @override
   Future<void> transaction(Future<void> Function() action) => action();
 
@@ -62,6 +67,36 @@ class StoredEventsFakeDatabaseApi extends TimelineCapableFakeDatabaseApi {
   }) async => onlySending || start > 0 ? [] : events;
 }
 
+class ForgettingFakeDatabaseApi extends TimelineCapableFakeDatabaseApi {
+  @override
+  Future<void> forgetRoom(String roomId) async {}
+}
+
+class MediaCapableFakeDatabaseApi extends FakeDatabaseApi
+    with MediaCapableDatabase {}
+
+mixin MediaCapableDatabase on FakeDatabaseApi {
+  @override
+  int get maxFileSize => 0;
+
+  @override
+  Future<({Map<String, Object?> content, DateTime savedAt})?>
+  getCustomCacheObject(String cacheKey) async => null;
+
+  @override
+  Future<void> cacheCustomObject(
+    String cacheKey,
+    Map<String, Object?> content,
+  ) async {}
+}
+
+class UploadingFakeDatabaseApi extends MediaCapableFakeDatabaseApi {
+  @override
+  Future<({Map<String, Object?> content, DateTime savedAt})?>
+  getCustomCacheObject(String cacheKey) async =>
+      (content: const <String, Object?>{}, savedAt: DateTime.now());
+}
+
 Client buildTestClient({
   String? userId,
   String? deviceId,
@@ -84,6 +119,27 @@ class _TestClient extends Client {
 
   @override
   String? get deviceID => testDeviceId;
+}
+
+class ExpiringTokenClient extends Client {
+  ExpiringTokenClient({
+    this.expiresIn = const Duration(seconds: 30),
+    bool refreshStalls = false,
+  }) : super(
+         'test',
+         database: FakeDatabaseApi(),
+         onSoftLogout: refreshStalls
+             ? (_) => Completer<void>().future
+             : (client) async => client.accessToken = 'fresh',
+       );
+
+  final Duration expiresIn;
+
+  @override
+  DateTime? get accessTokenExpiresAt => DateTime.now().add(expiresIn);
+
+  @override
+  Future<void> dispose({bool closeDatabase = true}) async {}
 }
 
 Room buildTestRoom(

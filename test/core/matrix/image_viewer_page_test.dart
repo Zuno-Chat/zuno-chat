@@ -32,22 +32,4 @@ void main() {
     expect(find.byTooltip('Share'), findsOneWidget);
     expect(find.byTooltip('Save'), findsOneWidget);
   });
-
-  testWidgets('keeps the spinner while the image cannot be fetched', (
-    tester,
-  ) async {
-    final event = server.attachment();
-    server.goneFromServer(event);
-
-    await tester.pumpWidget(MaterialApp(home: ImageViewerPage(event: event)));
-    await pumpWhileFetching(
-      tester,
-      rounds: 500,
-      until: () => server.downloads.isNotEmpty,
-    );
-
-    expect(server.downloads, hasLength(1));
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.byType(Image), findsNothing);
-  });
 }

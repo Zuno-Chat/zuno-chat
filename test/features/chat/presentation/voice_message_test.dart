@@ -10,6 +10,7 @@ import 'package:zuno/features/chat/presentation/message_meta.dart';
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_audio_player.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/pump_until.dart';
 
 const _meta = MessageMeta(time: '09:41', own: false);
 
@@ -44,10 +45,11 @@ void main() {
       AttachmentCache.instance.put('${event.eventId}:audio', server.served);
 
   Future<void> settle(WidgetTester tester, {int rounds = 5}) async {
-    for (var i = 0; i < rounds; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump(const Duration(milliseconds: 20));
-    }
+    await pumpRealAsync(
+      tester,
+      rounds: rounds,
+      step: const Duration(milliseconds: 20),
+    );
   }
 
   Future<void> pumpVoice(WidgetTester tester, Event event) async {
@@ -123,14 +125,17 @@ void main() {
     await pumpVoice(tester, event);
 
     await tester.tap(find.byType(InkWell));
-    await pumpWhileFetching(
+    await pumpUntil(
       tester,
-      rounds: 20,
-      until: () => audio.named('resume').isNotEmpty,
+      () => audio.named('resume').isNotEmpty,
+      reason: 'the downloaded message to play',
     );
 
     expect(server.downloads, hasLength(1));
-    expect(AttachmentCache.instance.get('${event.eventId}:audio'), isNotNull);
+    expect(
+      AttachmentCache.instance.get('${event.eventId}:audio'),
+      server.served,
+    );
     expect(audio.methods, contains('resume'));
   });
 
@@ -155,10 +160,10 @@ void main() {
     await pumpVoice(tester, event);
 
     await tester.tap(find.byType(InkWell));
-    await pumpWhileFetching(
+    await pumpUntil(
       tester,
-      rounds: 20,
-      until: () => find.byType(SnackBar).evaluate().isNotEmpty,
+      () => find.byType(SnackBar).evaluate().isNotEmpty,
+      reason: 'the failure to be reported',
     );
 
     expect(find.text('Voice message did not load. Try again.'), findsOneWidget);
@@ -173,10 +178,10 @@ void main() {
     await pumpVoice(tester, event);
 
     await tester.tap(find.byType(InkWell));
-    await pumpWhileFetching(
+    await pumpUntil(
       tester,
-      rounds: 20,
-      until: () => find.byType(SnackBar).evaluate().isNotEmpty,
+      () => find.byType(SnackBar).evaluate().isNotEmpty,
+      reason: 'the failure to be reported',
     );
 
     expect(find.text('Voice message did not load. Try again.'), findsOneWidget);

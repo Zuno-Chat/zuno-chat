@@ -11,23 +11,44 @@ void joinCall(
   String callId = 'c1',
   String kind = 'voice',
   Duration expiresIn = const Duration(seconds: 30),
+  int createdAtMs = 0,
 }) => room.setState(
-  buildTestEvent(
+  callMemberEvent(
     room,
-    eventId: '\$member-$userId-$deviceId-$callId',
-    senderId: userId,
-    stateKey: userId,
-    type: callMemberEventType,
-    content: {
-      'memberships': [
-        RtcMembership(
-          callId: callId,
-          deviceId: deviceId,
-          kind: kind,
-          expiresAtMs: DateTime.now().add(expiresIn).millisecondsSinceEpoch,
-          fociActive: const {},
-        ).toJson(),
-      ],
-    },
+    userId: userId,
+    deviceId: deviceId,
+    callId: callId,
+    kind: kind,
+    expiresIn: expiresIn,
+    createdAtMs: createdAtMs,
   ),
+);
+
+Event callMemberEvent(
+  Room room, {
+  required String userId,
+  required String deviceId,
+  String callId = 'c1',
+  String kind = 'voice',
+  Duration expiresIn = const Duration(seconds: 30),
+  int createdAtMs = 0,
+  Map<String, Object?> fociActive = const {},
+}) => buildTestEvent(
+  room,
+  eventId: '\$member-$userId-$deviceId-$callId',
+  senderId: userId,
+  stateKey: userId,
+  type: callMemberEventType,
+  content: {
+    'memberships': [
+      RtcMembership(
+        callId: callId,
+        deviceId: deviceId,
+        kind: kind,
+        expiresAtMs: DateTime.now().add(expiresIn).millisecondsSinceEpoch,
+        createdAtMs: createdAtMs,
+        fociActive: fociActive,
+      ).toJson(),
+    ],
+  },
 );

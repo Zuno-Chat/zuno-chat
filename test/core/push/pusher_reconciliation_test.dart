@@ -7,18 +7,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/push/pusher_reconciliation.dart';
 
 import '../../helpers/fake_matrix.dart';
-
-Map<String, Object?> _pusher({
-  required String appId,
-  required String pushkey,
-}) => {
-  'app_id': appId,
-  'pushkey': pushkey,
-  'app_display_name': 'Zuno Chat',
-  'device_display_name': 'Phone',
-  'kind': 'http',
-  'lang': 'en',
-};
+import '../../helpers/pusher_recording_client.dart';
 
 http.Response _ok(Object? body) => http.Response(
   jsonEncode(body),
@@ -39,11 +28,11 @@ void main() {
     final client = clientAnswering(
       () async => _ok({
         'pushers': [
-          _pusher(
+          serverPusherJson(
             appId: 'im.zuno.chat.unifiedpush',
             pushkey: 'https://ntfy.sh/upOther',
           ),
-          _pusher(appId: appId, pushkey: pushkey),
+          serverPusherJson(appId: appId, pushkey: pushkey),
         ],
       }),
     );
@@ -57,7 +46,9 @@ void main() {
   test('false when the homeserver lists only other devices', () async {
     final client = clientAnswering(
       () async => _ok({
-        'pushers': [_pusher(appId: appId, pushkey: 'some-other-token')],
+        'pushers': [
+          serverPusherJson(appId: appId, pushkey: 'some-other-token'),
+        ],
       }),
     );
 
@@ -80,7 +71,9 @@ void main() {
   test('false when another app happens to share our pushkey', () async {
     final client = clientAnswering(
       () async => _ok({
-        'pushers': [_pusher(appId: 'org.example.other', pushkey: pushkey)],
+        'pushers': [
+          serverPusherJson(appId: 'org.example.other', pushkey: pushkey),
+        ],
       }),
     );
 
@@ -110,21 +103,18 @@ void main() {
     );
   });
 
-  test(
-    'fetchPushers parses what it can and returns null when it cannot',
-    () async {
-      final client = clientAnswering(
-        () async => _ok({
-          'pushers': [_pusher(appId: appId, pushkey: pushkey), 'not a pusher'],
-        }),
-      );
+  test('fetchPushers skips entries that are not pushers', () async {
+    final client = clientAnswering(
+      () async => _ok({
+        'pushers': [
+          serverPusherJson(appId: appId, pushkey: pushkey),
+          'not a pusher',
+        ],
+      }),
+    );
 
-      final pushers = await fetchPushers(client);
-      expect(pushers, hasLength(1));
-      expect(pushers!.single.pushkey, pushkey);
-
-      final broken = clientAnswering(() async => http.Response('<html>', 500));
-      expect(await fetchPushers(broken), isNull);
-    },
-  );
+    final pushers = await fetchPushers(client);
+    expect(pushers, hasLength(1));
+    expect(pushers!.single.pushkey, pushkey);
+  });
 }

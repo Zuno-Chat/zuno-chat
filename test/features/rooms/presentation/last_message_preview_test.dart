@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
@@ -12,44 +9,16 @@ import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/undecryptable_message.dart';
 import 'package:zuno/features/rooms/presentation/last_message_preview.dart';
 
+import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_matrix.dart';
-
-class _FakeEncryption extends Fake implements Encryption {
-  final decrypted = <Event>[];
-  int attempts = 0;
-
-  @override
-  Future<Event> decryptRoomEvent(
-    Event event, {
-    bool store = false,
-    EventUpdateType updateType = EventUpdateType.timeline,
-  }) async {
-    attempts++;
-    return decrypted.isEmpty ? event : decrypted.removeAt(0);
-  }
-}
-
-class _DecryptingClient extends Client {
-  _DecryptingClient(this.fakeEncryption)
-    : super(
-        'test',
-        database: TimelineCapableFakeDatabaseApi(),
-        httpClient: MockClient((_) async => http.Response('{}', 200)),
-      );
-
-  final _FakeEncryption fakeEncryption;
-
-  @override
-  Encryption? get encryption => fakeEncryption;
-}
 
 void main() {
   late Room room;
-  late _FakeEncryption encryption;
+  late FakeRoomDecryption encryption;
 
   setUp(() {
-    encryption = _FakeEncryption();
-    final client = _DecryptingClient(encryption);
+    encryption = FakeRoomDecryption();
+    final client = DecryptingTestClient(encryption);
     client.setUserId('@me:example.org');
     room = buildTestRoom(client)..partial = false;
   });

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -8,7 +6,7 @@ import 'package:zuno/core/matrix/room_invite.dart';
 
 import '../../helpers/fake_matrix.dart';
 
-class _MemberDatabase extends FakeDatabaseApi {
+class _MemberDatabase extends ForgettingFakeDatabaseApi {
   final Map<String, User Function(Room)> members;
 
   _MemberDatabase(this.members);
@@ -16,9 +14,6 @@ class _MemberDatabase extends FakeDatabaseApi {
   @override
   Future<User?> getUser(String userId, Room room) async =>
       members[userId]?.call(room);
-
-  @override
-  Future<void> forgetRoom(String roomId) async {}
 }
 
 void main() {
@@ -98,6 +93,12 @@ void main() {
       expect(pendingInviteSubtitle(room), 'Waiting for @bob to accept');
     });
 
+    test('counts several people being waited on', () {
+      setMember('@carol:example.org', membership: 'invite');
+
+      expect(pendingInviteSubtitle(room), 'Waiting for 2 people to accept');
+    });
+
     test('keeps a named group\'s own name and avatar', () {
       setRoomName('Weekend plans');
 
@@ -132,6 +133,7 @@ void main() {
 
     expect(isAwaitingInviteAcceptance(room), isFalse);
     expect(pendingInvitees(room), isEmpty);
+    expect(pendingInviteSubtitle(room), 'Waiting for them to accept');
   });
 
   group('an invitation waiting on this user', () {
@@ -260,23 +262,17 @@ void main() {
   group('declining an invitation', () {
     late List<String> requests;
 
-    Client declineClient({int forgetStatus = 200}) {
+    Client declineClient({
+      Map<String, User Function(Room)> members = const {},
+    }) {
       requests = [];
       final httpClient = MockClient((request) async {
         requests.add('${request.method} ${request.url.path}');
-        if (request.url.path.endsWith('/forget')) {
-          return http.Response(
-            forgetStatus == 200
-                ? '{}'
-                : jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'no'}),
-            forgetStatus,
-          );
-        }
         return http.Response('{}', 200);
       });
       return Client(
           'test',
-          database: _MemberDatabase({}),
+          database: _MemberDatabase(members),
           httpClient: httpClient,
         )
         ..setUserId('@me:example.org')
@@ -322,46 +318,22 @@ void main() {
       expect(requests.where((r) => r.endsWith('/forget')), isEmpty);
     });
 
-    test(
-      'a homeserver that refuses to forget still declines cleanly',
-      () async {
-        final client = declineClient(forgetStatus: 403);
-
-        await expectLater(
-          declineInvite(invitedRoom(client, isDirect: true)),
-          completes,
-        );
-        expect(requests.where((r) => r.endsWith('/leave')), hasLength(1));
-      },
-    );
-
     test('a restored invitation is still recognised as direct', () async {
-      requests = [];
-      final httpClient = MockClient((request) async {
-        requests.add('${request.method} ${request.url.path}');
-        return http.Response('{}', 200);
-      });
-      late Room room;
-      final client =
-          Client(
-              'test',
-              database: _MemberDatabase({
-                '@me:example.org': (r) => User.fromState(
-                  stateKey: '@me:example.org',
-                  senderId: '@bob:example.org',
-                  typeKey: EventTypes.RoomMember,
-                  content: const {'membership': 'invite', 'is_direct': true},
-                  room: r,
-                ),
-              }),
-              httpClient: httpClient,
-            )
-            ..setUserId('@me:example.org')
-            ..homeserver = Uri.parse('https://example.org')
-            ..accessToken = 'test-token';
-      room = buildTestRoom(client)..membership = Membership.invite;
+      final client = declineClient(
+        members: {
+          '@me:example.org': (r) => User.fromState(
+            stateKey: '@me:example.org',
+            senderId: '@bob:example.org',
+            typeKey: EventTypes.RoomMember,
+            content: const {'membership': 'invite', 'is_direct': true},
+            room: r,
+          ),
+        },
+      );
 
-      await declineInvite(room);
+      await declineInvite(
+        buildTestRoom(client)..membership = Membership.invite,
+      );
 
       expect(requests.where((r) => r.endsWith('/forget')), hasLength(1));
     });

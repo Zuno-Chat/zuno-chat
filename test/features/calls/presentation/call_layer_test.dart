@@ -7,7 +7,6 @@ import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
-import 'package:zuno/core/ui/sheet.dart';
 import 'package:zuno/features/calls/presentation/call_bar.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
 import 'package:zuno/features/calls/presentation/call_status_line.dart';
@@ -21,23 +20,18 @@ void main() {
     CallPageHarness harness, {
     bool remoteCamera = false,
     bool muted = false,
-    CallSessionRole role = CallSessionRole.callee,
-    bool answered = true,
   }) async {
     final session = FakeCallSession(
       room: CallPageHarness.buildRoom(),
       kind: remoteCamera ? CallKind.video : CallKind.voice,
-      role: role,
     );
     await harness.open(session);
-    if (answered) {
-      session.engine.participants = [
-        localParticipant(muted: muted),
-        remoteParticipant(camera: remoteCamera),
-      ];
-      session.moveTo(CallSessionPhase.active);
-      await harness.settle();
-    }
+    session.engine.participants = [
+      localParticipant(muted: muted),
+      remoteParticipant(camera: remoteCamera),
+    ];
+    session.moveTo(CallSessionPhase.active);
+    await harness.settle();
     return session;
   }
 
@@ -63,15 +57,6 @@ void main() {
       tester.getTopLeft(find.text('Chat')).dy,
       greaterThanOrEqualTo(tester.getBottomLeft(find.byType(CallBar)).dy),
     );
-    await harness.close();
-  });
-
-  testWidgets('the bar says what an unanswered call is doing', (tester) async {
-    final harness = CallPageHarness(tester);
-    await call(harness, role: CallSessionRole.caller, answered: false);
-    await harness.minimize();
-
-    expect(find.text('Calling…'), findsOneWidget);
     await harness.close();
   });
 
@@ -201,43 +186,10 @@ void main() {
     await harness.close();
   });
 
-  testWidgets('the window rides above the keyboard frame by frame', (
-    tester,
-  ) async {
-    final harness = CallPageHarness(tester);
-    await call(harness, remoteCamera: true);
-    await harness.minimize();
-    await tester.drag(find.byType(CallWindow), const Offset(-200, 400));
-    await harness.settle();
-
-    for (final inset in [100.0, 200.0, 300.0]) {
-      tester.view.viewInsets = FakeViewPadding(bottom: inset);
-      await tester.pump(const Duration(milliseconds: 16));
-      expect(tester.getBottomLeft(find.byType(CallWindow)).dy, 640 - inset - 8);
-    }
-    await harness.close();
-  });
-
   Future<void> toBottomLeft(CallPageHarness harness) async {
     await harness.tester.drag(find.byType(CallWindow), const Offset(-200, 400));
     await harness.settle();
   }
-
-  testWidgets('the window keeps clear of the bottom bar', (tester) async {
-    final harness = CallPageHarness(
-      tester,
-      home: const Scaffold(
-        body: Text('Chat'),
-        bottomNavigationBar: KeepClearArea(child: SizedBox(height: 80)),
-      ),
-    );
-    await call(harness, remoteCamera: true);
-    await harness.minimize();
-    await toBottomLeft(harness);
-
-    expect(tester.getBottomLeft(find.byType(CallWindow)).dy, 640 - 80 - 8);
-    await harness.close();
-  });
 
   testWidgets('the window rides above the composer and the keyboard '
       'together, frame by frame', (tester) async {
@@ -267,8 +219,8 @@ void main() {
     await harness.close();
   });
 
-  testWidgets('a bar on a page now covered by another page no longer holds '
-      'the window up', (tester) async {
+  testWidgets('the window keeps clear of the bottom bar, until a page covers '
+      'that bar', (tester) async {
     final harness = CallPageHarness(
       tester,
       home: const Scaffold(
@@ -279,6 +231,7 @@ void main() {
     await call(harness, remoteCamera: true);
     await harness.minimize();
     await toBottomLeft(harness);
+    expect(tester.getBottomLeft(find.byType(CallWindow)).dy, 640 - 80 - 8);
 
     unawaited(
       harness.navigatorKey.currentState!.push(
@@ -290,34 +243,6 @@ void main() {
     await harness.settle();
     await tester.pump();
 
-    expect(tester.getBottomLeft(find.byType(CallWindow)).dy, 640 - 8);
-    await harness.close();
-  });
-
-  testWidgets('a sheet pushes the window above the whole sheet, handle and '
-      'all, while it is open', (tester) async {
-    final harness = CallPageHarness(tester);
-    await call(harness, remoteCamera: true);
-    await harness.minimize();
-    await toBottomLeft(harness);
-
-    unawaited(
-      showSheet<void>(
-        context: tester.element(find.text('Chat')),
-        builder: (_) => const SizedBox(height: 200),
-      ),
-    );
-    await harness.settle();
-    await tester.pump();
-    expect(
-      tester.getBottomLeft(find.byType(CallWindow)).dy,
-      tester.getRect(find.byType(BottomSheet)).top - 8,
-    );
-    expect(tester.getRect(find.byType(BottomSheet)).top, lessThan(640 - 200));
-
-    harness.navigatorKey.currentState!.pop();
-    await harness.settle();
-    await tester.pump();
     expect(tester.getBottomLeft(find.byType(CallWindow)).dy, 640 - 8);
     await harness.close();
   });

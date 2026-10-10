@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/encryption/utils/ssss_cache.dart';
 import 'package:matrix/matrix.dart';
@@ -84,4 +87,35 @@ class EncryptedTestClient extends Client {
     EventTypes.CrossSigningUserSigning,
     EventTypes.MegolmBackup,
   ]);
+}
+
+class FakeRoomDecryption extends Fake implements Encryption {
+  final decrypted = <Event>[];
+  final storedAfterDecrypt = <bool>[];
+
+  int get attempts => storedAfterDecrypt.length;
+
+  @override
+  Future<Event> decryptRoomEvent(
+    Event event, {
+    bool store = false,
+    EventUpdateType updateType = EventUpdateType.timeline,
+  }) async {
+    storedAfterDecrypt.add(store);
+    return decrypted.isEmpty ? event : decrypted.removeAt(0);
+  }
+}
+
+class DecryptingTestClient extends Client {
+  DecryptingTestClient(this.decryption)
+    : super(
+        'test',
+        database: TimelineCapableFakeDatabaseApi(),
+        httpClient: MockClient((_) async => http.Response('{}', 200)),
+      );
+
+  final FakeRoomDecryption decryption;
+
+  @override
+  Encryption? get encryption => decryption;
 }

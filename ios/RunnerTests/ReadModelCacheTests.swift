@@ -148,25 +148,19 @@ final class NsePluginTests: XCTestCase {
     return (NsePlugin(cache: cache), cache)
   }
 
-  private func call(_ plugin: NsePlugin, _ method: String, _ arguments: [String: Any]? = nil)
-    -> Any?
-  {
-    var reply: Any?
-    plugin.handle(FlutterMethodCall(methodName: method, arguments: arguments)) { reply = $0 }
-    return reply
-  }
-
   func testWritesFromDartLandInTheReadModel() throws {
     let (plugin, cache) = try plugin()
 
     XCTAssertNil(
-      call(
-        plugin, "writeMeta",
-        ["json": #"{"v":1,"user":"@me:zuno.im","device":"D","ringtone":true,"heartbeat_ms":1}"#]))
+      immediateReply(
+        from: plugin, method: "writeMeta",
+        arguments: [
+          "json": #"{"v":1,"user":"@me:zuno.im","device":"D","ringtone":true,"heartbeat_ms":1}"#
+        ]))
     XCTAssertNil(
-      call(
-        plugin, "writeRoom",
-        [
+      immediateReply(
+        from: plugin, method: "writeRoom",
+        arguments: [
           "room_id": "!abc:zuno.im",
           "json": #"{"v":1,"room":"!abc:zuno.im","title":"Room","dm":false,"partner":""}"#,
         ]))
@@ -179,28 +173,34 @@ final class NsePluginTests: XCTestCase {
     let (plugin, cache) = try plugin()
 
     XCTAssertEqual(
-      call(plugin, "threadKey", ["room_id": "!abc:zuno.im"]) as? String,
+      immediateReply(from: plugin, method: "threadKey", arguments: ["room_id": "!abc:zuno.im"])
+        as? String,
       cache.roomToken("!abc:zuno.im"))
   }
 
   func testAWriteNativeCodeCannotReadIsRefused() throws {
     let (plugin, _) = try plugin()
 
-    XCTAssertEqual(
-      (call(plugin, "writeMeta", ["json": "{}"]) as? FlutterError)?.code, "write_failed")
-    XCTAssertEqual((call(plugin, "writeRoom", ["json": "{}"]) as? FlutterError)?.code, "bad_args")
+    let meta = immediateReply(from: plugin, method: "writeMeta", arguments: ["json": "{}"])
+    let room = immediateReply(from: plugin, method: "writeRoom", arguments: ["json": "{}"])
+
+    XCTAssertEqual((meta as? FlutterError)?.code, "write_failed")
+    XCTAssertEqual((room as? FlutterError)?.code, "bad_args")
   }
 
   func testDeleteAndWipeAnswerNothing() throws {
     let (plugin, _) = try plugin()
 
-    XCTAssertNil(call(plugin, "deleteRoom", ["room_id": "!abc:zuno.im"]))
-    XCTAssertNil(call(plugin, "wipe"))
+    XCTAssertNil(
+      immediateReply(from: plugin, method: "deleteRoom", arguments: ["room_id": "!abc:zuno.im"]))
+    XCTAssertNil(immediateReply(from: plugin, method: "wipe"))
   }
 
   func testAnUnknownMethodIsNotImplemented() throws {
     let (plugin, _) = try plugin()
 
-    XCTAssertTrue((call(plugin, "unknown") as AnyObject) === FlutterMethodNotImplemented)
+    let reply = immediateReply(from: plugin, method: "unknown")
+
+    XCTAssertTrue((reply as AnyObject) === FlutterMethodNotImplemented)
   }
 }

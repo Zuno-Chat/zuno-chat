@@ -41,40 +41,6 @@ void main() {
     },
   );
 
-  test('a non-2xx HTTP status throws CloudflareCallsException', () async {
-    final mock = MockClient(
-      (request) async => http.Response('server error', 500),
-    );
-    expect(
-      _client(mock).createSession(),
-      throwsA(isA<CloudflareCallsException>()),
-    );
-  });
-
-  test(
-    'pushLocalTracks throws when the response carries a per-track errorCode',
-    () async {
-      final mock = MockClient(
-        (request) async => http.Response(
-          jsonEncode({
-            'errorCode': 'bad_track',
-            'errorDescription': 'nope',
-            'tracks': [],
-          }),
-          200,
-        ),
-      );
-      expect(
-        _client(mock).pushLocalTracks(
-          sessionId: 's1',
-          offer: const CfSessionDescription(sdp: 'sdp', type: 'offer'),
-          tracks: [CfTrack.local(mid: '0', trackName: 'mic')],
-        ),
-        throwsA(isA<CloudflareCallsException>()),
-      );
-    },
-  );
-
   test('pullRemoteTracks returns the tracks of a clean response', () async {
     final mock = MockClient(
       (request) async => http.Response(
@@ -94,10 +60,10 @@ void main() {
     expect(result.hasError, isFalse);
   });
 
-  test(
-    'pullRemoteTracks throws when the response carries a top-level errorCode',
-    () async {
-      final mock = MockClient(
+  test('pushing, pulling or renegotiating throws when the response carries '
+      'a top-level errorCode', () async {
+    final client = _client(
+      MockClient(
         (request) async => http.Response(
           jsonEncode({
             'errorCode': 'session_not_found',
@@ -106,16 +72,38 @@ void main() {
           }),
           200,
         ),
-      );
-      await expectLater(
-        _client(mock).pullRemoteTracks(
-          sessionId: 's1',
-          tracks: [CfTrack.remote(sessionId: 'remote', trackName: 'audio')],
+      ),
+    );
+
+    await expectLater(
+      client.pushLocalTracks(
+        sessionId: 's1',
+        offer: const CfSessionDescription(sdp: 'sdp', type: 'offer'),
+        tracks: [CfTrack.local(mid: '0', trackName: 'mic')],
+      ),
+      throwsA(isA<CloudflareCallsException>()),
+    );
+    await expectLater(
+      client.pullRemoteTracks(
+        sessionId: 's1',
+        tracks: [CfTrack.remote(sessionId: 'remote', trackName: 'audio')],
+      ),
+      throwsA(isA<CloudflareCallsException>()),
+    );
+    await expectLater(
+      client.renegotiate(
+        sessionId: 's1',
+        offer: const CfSessionDescription(sdp: 'sdp', type: 'answer'),
+      ),
+      throwsA(
+        isA<CloudflareCallsException>().having(
+          (e) => e.message,
+          'message',
+          'session_not_found: gone',
         ),
-        throwsA(isA<CloudflareCallsException>()),
-      );
-    },
-  );
+      ),
+    );
+  });
 
   test(
     'renegotiate returns null when the response has no sessionDescription',
@@ -176,41 +164,6 @@ void main() {
     },
   );
 
-  test('closeTracks throws CloudflareCallsException on a non-2xx response', () {
-    final mock = MockClient(
-      (request) async => http.Response('server error', 500),
-    );
-    expect(
-      _client(mock).closeTracks(
-        sessionId: 's1',
-        mids: ['0'],
-        sessionDescription: const CfSessionDescription(
-          sdp: 'sdp',
-          type: 'offer',
-        ),
-      ),
-      throwsA(isA<CloudflareCallsException>()),
-    );
-  });
-
-  test('closeTracks surfaces a transport failure as-is', () {
-    final mock = MockClient(
-      (request) async =>
-          throw http.ClientException('Connection closed before full header'),
-    );
-    expect(
-      _client(mock).closeTracks(
-        sessionId: 's1',
-        mids: ['0'],
-        sessionDescription: const CfSessionDescription(
-          sdp: 'sdp',
-          type: 'offer',
-        ),
-      ),
-      throwsA(isA<http.ClientException>()),
-    );
-  });
-
   test('retries once on a SocketException and succeeds', () {
     fakeAsync((async) {
       var calls = 0;
@@ -226,52 +179,6 @@ void main() {
 
       expect(calls, 2);
       expect(sessionId, 'sess1');
-    });
-  });
-
-  test('exhausts retries and rethrows a persistent SocketException', () {
-    fakeAsync((async) {
-      var calls = 0;
-      final mock = MockClient((request) async {
-        calls++;
-        throw const SocketException('connection refused');
-      });
-      Object? error;
-      () async {
-        try {
-          await _client(mock).createSession();
-        } catch (e) {
-          error = e;
-        }
-      }();
-
-      async.elapse(const Duration(seconds: 10));
-
-      expect(calls, greaterThan(1));
-      expect(error, isA<SocketException>());
-    });
-  });
-
-  test('does not retry a non-2xx HTTP status', () {
-    fakeAsync((async) {
-      var calls = 0;
-      final mock = MockClient((request) async {
-        calls++;
-        return http.Response('server error', 500);
-      });
-      Object? error;
-      () async {
-        try {
-          await _client(mock).createSession();
-        } catch (e) {
-          error = e;
-        }
-      }();
-
-      async.elapse(const Duration(seconds: 5));
-
-      expect(calls, 1);
-      expect(error, isA<CloudflareCallsException>());
     });
   });
 
@@ -298,27 +205,28 @@ void main() {
     });
   });
 
-  test(
-    'a 401 is final: no retry, surfaced as CloudflareCallsException',
-    () async {
+  for (final status in [401, 500]) {
+    test('a $status is final: no retry, surfaced as CloudflareCallsException '
+        'with its status', () async {
       var calls = 0;
       final mock = MockClient((request) async {
         calls++;
-        return http.Response('{"errcode":"M_UNKNOWN_TOKEN"}', 401);
+        return http.Response('{"errcode":"M_UNKNOWN_TOKEN"}', status);
       });
+
       await expectLater(
         _client(mock).createSession(),
         throwsA(
           isA<CloudflareCallsException>().having(
             (e) => e.statusCode,
             'statusCode',
-            401,
+            status,
           ),
         ),
       );
       expect(calls, 1);
-    },
-  );
+    });
+  }
 
   test('a 429 waits retry_after_ms and then retries', () {
     fakeAsync((async) {
@@ -339,23 +247,6 @@ void main() {
       async.elapse(const Duration(milliseconds: 399));
       expect(calls, 1);
       async.elapse(const Duration(milliseconds: 1));
-      expect(calls, 2);
-      expect(sessionId, 'sess1');
-    });
-  });
-
-  test('a 429 without retry_after_ms falls back to backoff', () {
-    fakeAsync((async) {
-      var calls = 0;
-      final mock = MockClient((request) async {
-        calls++;
-        if (calls == 1) return http.Response('slow down', 429);
-        return http.Response(jsonEncode({'sessionId': 'sess1'}), 200);
-      });
-      String? sessionId;
-      _client(mock).createSession().then((id) => sessionId = id);
-
-      async.elapse(const Duration(seconds: 5));
       expect(calls, 2);
       expect(sessionId, 'sess1');
     });

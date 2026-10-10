@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
@@ -41,15 +43,18 @@ void main() {
     expect(result, isNull);
   });
 
-  test('returns null when the download exceeds the timeout', () async {
-    final result = await fetchCallerAvatarBytes(
-      client,
-      Uri.parse('mxc://example.org/avatar1'),
-      download: (uri) =>
-          Future.delayed(const Duration(milliseconds: 50), () => Uint8List(0)),
-      timeout: const Duration(milliseconds: 5),
-    );
+  test('returns null when the download exceeds the timeout', () {
+    fakeAsync((async) {
+      Object? result = 'unset';
+      fetchCallerAvatarBytes(
+        client,
+        Uri.parse('mxc://example.org/avatar1'),
+        download: (uri) => Completer<Uint8List>().future,
+      ).then((bytes) => result = bytes);
 
-    expect(result, isNull);
+      async.elapse(callerAvatarTimeout);
+
+      expect(result, isNull);
+    });
   });
 }

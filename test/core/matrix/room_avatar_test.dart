@@ -10,30 +10,15 @@ import 'package:zuno/core/matrix/room_avatar.dart';
 
 import '../../helpers/fake_matrix.dart';
 
-class _UploadCapableFakeDatabaseApi extends FakeDatabaseApi {
-  @override
-  int get maxFileSize => 0;
-
-  @override
-  Future<void> cacheCustomObject(
-    String cacheKey,
-    Map<String, Object?> object,
-  ) async {}
-
-  @override
-  Future<({Map<String, Object?> content, DateTime savedAt})?>
-  getCustomCacheObject(String cacheKey) async => null;
-}
-
 void main() {
   late List<http.Request> requests;
   late Room room;
 
   setUp(() {
     requests = [];
-    final client = Client(
-      'test',
-      database: _UploadCapableFakeDatabaseApi(),
+    final client = buildTestClient(
+      userId: '@me:example.org',
+      database: MediaCapableFakeDatabaseApi(),
       httpClient: MockClient((request) async {
         if (request.url.pathSegments.last == 'config') {
           return http.Response('{}', 200);
@@ -56,7 +41,6 @@ void main() {
         return http.Response(jsonEncode({'event_id': r'$evt'}), 200);
       }),
     );
-    client.setUserId('@me:example.org');
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
     room = buildTestRoom(client);

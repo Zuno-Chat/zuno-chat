@@ -14,6 +14,8 @@ struct MetricSummary: Codable, Equatable, Sendable {
 }
 
 enum MetricSummaries {
+  static let pushkitUnreported = "pushkit_unreported"
+
   static func make(kind: String, end: Date, counts: [String: Int]) -> MetricSummary? {
     let kept = counts.filter { $0.value > 0 }
     guard !kept.isEmpty else { return nil }
@@ -23,7 +25,7 @@ enum MetricSummaries {
 
   static func crashKey(terminationReason: String?) -> String? {
     guard let reason = terminationReason?.lowercased() else { return nil }
-    if reason.contains("baadca11") { return "pushkit_unreported" }
+    if reason.contains("baadca11") { return pushkitUnreported }
     if reason.contains("dead10cc") { return "locked_file" }
     if reason.contains("8badf00d") { return "watchdog" }
     return nil

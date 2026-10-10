@@ -74,8 +74,8 @@ void main() {
       notifications.shown.where((n) => n.id == roomNotificationId);
 
   Future<void> firstPost() async {
-    for (var i = 0; i < 500 && roomPosts().isEmpty; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+    for (var i = 0; i < 50 && roomPosts().isEmpty; i++) {
+      await pumpEventQueue();
     }
   }
 
@@ -225,15 +225,20 @@ void main() {
     });
   });
 
-  test('a placeholder never fetches anything', () async {
+  test('a placeholder never fetches an avatar or an image', () async {
     await postMessageNotification(
-      content(avatar: avatarUrl),
+      content(avatar: avatarUrl, photo: true),
       client: client,
       placeholder: true,
       fetchAvatar: (_, _) async {
         fetches++;
         return bytes;
       },
+      fetchImage: () async {
+        fetches++;
+        return NotificationImage(bytes: bytes, mimeType: 'image/jpeg');
+      },
+      publishImage: (_) async => 'content://zuno/thumb',
     );
 
     expect(roomPosts(), hasLength(1));
@@ -430,21 +435,6 @@ void main() {
       expect(fetches, 0);
       expect(published, 0);
       expect(roomPosts(), hasLength(1));
-    });
-
-    test('a placeholder never fetches an image', () async {
-      await postMessageNotification(
-        content(photo: true),
-        client: client,
-        placeholder: true,
-        fetchImage: () async {
-          fetches++;
-          return thumb;
-        },
-        publishImage: (_) async => 'content://zuno/thumb',
-      );
-
-      expect(fetches, 0);
     });
   });
 }

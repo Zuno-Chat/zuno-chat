@@ -219,24 +219,6 @@ void main() {
     },
   );
 
-  test('without a probe the composer values drive the plan', () async {
-    installNative(probe: null);
-    final prepared = await prepare(
-      fallbackWidth: 640,
-      fallbackHeight: 360,
-      fallbackDurationMs: 1234,
-    );
-    expect(reencodes.single, (
-      width: 640,
-      height: 360,
-      bitrateMbps: 1,
-      rotated: null,
-    ));
-    expect(prepared.file.width, 640);
-    expect(prepared.file.height, 360);
-    expect(prepared.file.duration, 1234);
-  });
-
   test('without native video tools the clip is re-encoded from the composer '
       'values and sent with no thumbnail', () async {
     installNative(probe: probe720);

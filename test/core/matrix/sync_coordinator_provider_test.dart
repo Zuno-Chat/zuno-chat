@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
@@ -18,13 +17,13 @@ import 'package:zuno/core/matrix/sync_coordinator_provider.dart';
 import 'package:zuno/core/matrix/sync_request_canceller.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/app_lifecycle.dart';
 import '../../helpers/fake_call_session.dart';
 import '../../helpers/fake_live_location.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
+import '../../helpers/preferences_container.dart';
 
 class _IdleClient extends Client {
   _IdleClient() : super('idle', database: FakeDatabaseApi());
@@ -42,25 +41,22 @@ void main() {
   late StreamController<bool> network;
 
   Future<ProviderContainer> wire({NotificationDeliveryMode? delivery}) async {
-    SharedPreferences.setMockInitialValues({
-      if (delivery != null)
-        'settings.notification_delivery_mode': delivery.name,
-    });
-    final prefs = await SharedPreferences.getInstance();
     live = LiveLocationHarness();
     network = StreamController<bool>.broadcast();
     addTearDown(network.close);
     sync = SyncCoordinator(_IdleClient(), SyncRequestCanceller(http.Client()));
     addTearDown(sync.dispose);
-    final container = ProviderContainer(
+    final container = await containerWithPreferences(
+      {
+        if (delivery != null)
+          'settings.notification_delivery_mode': delivery.name,
+      },
       overrides: [
         ...live.overrides,
-        sharedPreferencesProvider.overrideWithValue(prefs),
         syncCoordinatorProvider.overrideWithValue(sync),
         networkAvailabilityProvider.overrideWithValue(network.stream),
       ],
     );
-    addTearDown(container.dispose);
     container.listen(syncReasonsProvider, (_, _) {});
     return container;
   }

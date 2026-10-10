@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
@@ -10,6 +9,7 @@ import 'package:zuno/core/calls/models/voip_participant_id.dart';
 
 import 'fake_call_engine.dart';
 import 'fake_matrix.dart';
+import 'fake_webrtc.dart';
 
 class FakeCallSession implements CallSession {
   FakeCallSession({
@@ -95,13 +95,6 @@ class FakeCallSession implements CallSession {
     failedMessage = message;
     moveTo(CallSessionPhase.ended);
   }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class FakeMediaStream extends MediaStream {
-  FakeMediaStream(String id) : super(id, 'local');
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

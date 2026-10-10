@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:unifiedpush/unifiedpush.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
 import 'package:zuno/core/notifications/delivery_auto_fallback.dart';
@@ -12,50 +11,8 @@ import 'package:zuno/core/push/fcm_registration_store.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_matrix.dart';
-
-class _FakeUnifiedPush extends UnifiedPushPlatform {
-  List<String> installed = const [];
-
-  @override
-  Future<List<String>> getDistributors(List<String> features) async =>
-      installed;
-
-  @override
-  Future<String?> getDistributor() async => null;
-
-  @override
-  Future<bool> tryUseCurrentOrDefaultDistributor() async => false;
-
-  @override
-  Future<void> initializeCallback({
-    void Function(PushEndpoint endpoint, String instance)? onNewEndpoint,
-    void Function(FailedReason reason, String instance)? onRegistrationFailed,
-    void Function(String instance)? onUnregistered,
-    void Function(PushMessage message, String instance)? onMessage,
-  }) async {}
-
-  @override
-  Future<void> initializeOnTempUnavailable(
-    void Function(String instance)? onTempUnavailable,
-  ) async {}
-
-  @override
-  Future<void> register(
-    String instance,
-    List<String> features,
-    String? messageForDistributor,
-    String? vapid,
-  ) async {}
-
-  @override
-  Future<void> saveDistributor(String distributor) async {}
-
-  @override
-  Future<void> unregister(String instance) async {}
-
-  @override
-  void setLinuxOptions(LinuxOptions options) {}
-}
+import '../../helpers/fake_unified_push.dart';
+import '../../helpers/preferences_container.dart';
 
 void main() {
   group('autoFallbackFor', () {
@@ -168,23 +125,18 @@ void main() {
   });
 
   group('deliveryAutoFallbackProvider', () {
-    late _FakeUnifiedPush fake;
+    late FakeUnifiedPush fake;
     late ProviderContainer container;
 
     setUp(() async {
-      fake = _FakeUnifiedPush();
+      fake = FakeUnifiedPush();
       UnifiedPushPlatform.instance = fake;
       fcmDeliveryProvider.status.value = FcmStatus.idle;
       addTearDown(() => fcmDeliveryProvider.status.value = FcmStatus.idle);
     });
 
     Future<void> build() async {
-      SharedPreferences.setMockInitialValues(const <String, Object>{});
-      final prefs = await SharedPreferences.getInstance();
-      container = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-      );
-      addTearDown(container.dispose);
+      container = await containerWithPreferences(const <String, Object>{});
       container.read(deliveryAutoFallbackProvider);
     }
 

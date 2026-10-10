@@ -12,20 +12,9 @@ void main() {
   test(
     'reports failure, without throwing, when there is no encryption',
     () async {
-      final client = buildTestClient();
+      final client = buildTestClient(userId: '@a:x');
       expect(client.encryption, isNull);
 
-      await expectLater(restoreKeyBackupFromRecovery(client), completes);
-      expect(await restoreKeyBackupFromRecovery(client), isFalse);
-    },
-  );
-
-  test(
-    'a homeserver that has no key backup is a failure, not a crash',
-    () async {
-      final client = buildTestClient(userId: '@a:x');
-
-      await expectLater(restoreKeyBackupFromRecovery(client), completes);
       expect(await restoreKeyBackupFromRecovery(client), isFalse);
     },
   );

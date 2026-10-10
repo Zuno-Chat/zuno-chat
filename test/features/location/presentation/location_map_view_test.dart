@@ -60,9 +60,8 @@ void main() {
     expect(find.byType(SimpleAttributionWidget), findsNothing);
   });
 
-  testWidgets('the full map keeps the attribution, tucked top-right', (
-    tester,
-  ) async {
+  testWidgets('the full map credits whoever the server names, tucked '
+      'top-right', (tester) async {
     await tester.pumpWidget(_host(interactive: true));
     await tester.pump();
 
@@ -70,12 +69,6 @@ void main() {
       find.byType(SimpleAttributionWidget),
     );
     expect(attribution.alignment, Alignment.topRight);
-  });
-
-  testWidgets('the full map credits whoever the server names', (tester) async {
-    await tester.pumpWidget(_host(interactive: true));
-    await tester.pump();
-
     expect(find.text(_credit), findsOneWidget);
   });
 

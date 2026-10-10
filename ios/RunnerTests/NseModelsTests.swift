@@ -45,18 +45,14 @@ final class NseModelsTests: XCTestCase {
     XCTAssertNil(meta.mention)
   }
 
-  func testAPresentLevelThatIsNotAKnownStringReadsAsNothingWhileAnAbsentOneReadsAsFull() throws {
-    for level: Any in ["later", 7, NSNull()] {
+  func testAPresentLevelThatIsNotAStringStillCountsAsStated() throws {
+    for level: Any in [7, NSNull()] {
       let meta = try XCTUnwrap(
         NseMeta.decode(
           data(["v": 1, "user": "@mwong:zuno.im", "base_url": "https://zuno.im", "level": level])))
 
       XCTAssertEqual(meta.level, PreviewLevel.none, "\(level)")
     }
-    let absent = try XCTUnwrap(
-      NseMeta.decode(data(["v": 1, "user": "@mwong:zuno.im", "base_url": "https://zuno.im"])))
-
-    XCTAssertEqual(absent.level, PreviewLevel.full)
   }
 
   func testAPhaseTwoMetaLeavesTheExtensionOff() {

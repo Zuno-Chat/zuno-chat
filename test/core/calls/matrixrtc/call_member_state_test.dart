@@ -49,28 +49,24 @@ void main() {
     expect(parseRtcMemberships({'memberships': 'not a list'}), isEmpty);
   });
 
-  test('toJson/fromJson round-trips', () {
+  test('toJson/fromJson round-trips every field', () {
     final future = DateTime.now()
         .add(const Duration(minutes: 5))
         .millisecondsSinceEpoch;
-    final original = RtcMembership.fromJson(
-      _membershipJson(expiresAtMs: future),
-    );
-    final roundTripped = RtcMembership.fromJson(original.toJson());
-    expect(roundTripped.callId, original.callId);
-    expect(roundTripped.deviceId, original.deviceId);
-    expect(roundTripped.expiresAtMs, original.expiresAtMs);
-  });
-
-  test('the join time round-trips', () {
-    final future = DateTime.now()
-        .add(const Duration(minutes: 5))
-        .millisecondsSinceEpoch;
-    final membership = RtcMembership.fromJson({
-      ..._membershipJson(expiresAtMs: future),
+    final original = RtcMembership.fromJson({
+      ..._membershipJson(kind: 'video', expiresAtMs: future),
       'created_ts': 1234,
+      'foci_active': {'sessionId': 's1'},
     });
-    expect(RtcMembership.fromJson(membership.toJson()).createdAtMs, 1234);
+
+    final roundTripped = RtcMembership.fromJson(original.toJson());
+
+    expect(roundTripped.callId, 'call1');
+    expect(roundTripped.deviceId, 'device1');
+    expect(roundTripped.kind, 'video');
+    expect(roundTripped.expiresAtMs, future);
+    expect(roundTripped.createdAtMs, 1234);
+    expect(roundTripped.fociActive, {'sessionId': 's1'});
   });
 
   test('a membership without a join time reads as the earliest join', () {
@@ -98,15 +94,6 @@ void main() {
     }
 
     test(
-      'allows a plain member when the room has no power_levels event at all',
-      () {
-        final client = buildTestClient(userId: '@alice:example.org');
-        final room = buildTestRoom(client);
-        expect(canPublishCallMemberState(room), isTrue);
-      },
-    );
-
-    test(
       'denies a plain member in a room requiring moderator to send state',
       () {
         final client = buildTestClient(userId: '@member:example.org');
@@ -115,16 +102,6 @@ void main() {
         expect(canPublishCallMemberState(room), isFalse);
       },
     );
-
-    test('allows a member whose own power level meets state_default', () {
-      final client = buildTestClient(userId: '@mod:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'state_default': 50,
-        'users': {'@mod:example.org': 50},
-      });
-      expect(canPublishCallMemberState(room), isTrue);
-    });
 
     test(
       'an explicit events override for this event type wins over state_default',
@@ -167,11 +144,8 @@ void main() {
       expect(hasSomeoneToCall(roomWith(joined: 2)), isTrue);
     });
 
-    test('an invitation nobody has accepted yet cannot', () {
-      expect(hasSomeoneToCall(roomWith(joined: 1)), isFalse);
-    });
-
-    test('a group everyone else has left cannot', () {
+    test('a chat nobody else is in cannot, whether the invitation is still '
+        'pending or everyone else left', () {
       expect(hasSomeoneToCall(roomWith(joined: 1)), isFalse);
     });
 

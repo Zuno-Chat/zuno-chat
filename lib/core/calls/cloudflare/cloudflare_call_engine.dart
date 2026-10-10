@@ -15,10 +15,10 @@ import '../models/call_engine_status.dart';
 import '../models/call_kind.dart';
 import '../models/call_quality.dart';
 import '../models/voip_participant_id.dart';
+import '../serial_lock.dart';
 import 'call_quality_policy.dart';
 import 'cloudflare_api_client.dart';
 import 'local_media.dart';
-import 'negotiation_lock.dart';
 import 'opus_send_params.dart';
 import 'remote_track_plan.dart';
 import 'video_codec_preference.dart';
@@ -79,7 +79,7 @@ class CloudflareCallEngine implements CallEngine {
   final _classifier = CallQualityClassifier();
   final _localStateController = StreamController<void>.broadcast();
 
-  final _negotiationLock = NegotiationLock();
+  final _negotiationLock = SerialLock();
 
   bool _isLiveConnection(RTCPeerConnection pc) => !_left && identical(_pc, pc);
 

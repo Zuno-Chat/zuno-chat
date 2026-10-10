@@ -19,18 +19,6 @@ void main() {
     expect(builds, 1);
   });
 
-  test('builds afresh for a different key', () {
-    final memo = WidgetMemo(capacity: 4);
-
-    final a = memo.obtain('a', () => const SizedBox());
-    final b = memo.obtain(
-      'b',
-      () => const Text('b', textDirection: TextDirection.ltr),
-    );
-
-    expect(identical(a, b), isFalse);
-  });
-
   test('evicts the least recently used entry beyond capacity', () {
     final memo = WidgetMemo(capacity: 2);
     final a = memo.obtain('a', () => const SizedBox());

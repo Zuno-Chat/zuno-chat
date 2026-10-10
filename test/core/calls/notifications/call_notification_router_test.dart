@@ -3,8 +3,6 @@ import 'dart:convert';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -31,6 +29,8 @@ import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_permissions.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/recording_incoming_call_presenter.dart';
 
@@ -38,13 +38,6 @@ final legacyIos = capabilitiesLike(iosCapabilities, voipRing: false);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  FlutterLocalNotificationsPlatform.instance =
-      AndroidFlutterLocalNotificationsPlugin();
-  const notificationsChannel = MethodChannel(
-    'dexterous.com/flutter/local_notifications',
-  );
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   late Client client;
   late Room room;
@@ -83,10 +76,7 @@ void main() {
       container.read(callNotificationRouterProvider.notifier);
 
   Future<void> startNotificationService() async {
-    messenger.setMockMethodCallHandler(notificationsChannel, (call) async {
-      if (call.method == 'initialize') return true;
-      return null;
-    });
+    installFakeLocalNotifications();
     await CallNotificationService.instance.initialize(claimDeclinePort: false);
   }
 
@@ -122,44 +112,28 @@ void main() {
         ),
       );
 
-  List<Object?> callIdsSent(RecordedCallsChannel toNative, String method) => [
+  List<Object?> callIdsSent(RecordedMethodCalls toNative, String method) => [
     for (final args in toNative.argsOf(method)) (args! as Map)['callId'],
   ];
 
-  Future<void> pumpFor(WidgetTester tester, Duration total) async {
-    const step = Duration(milliseconds: 250);
-    for (var waited = Duration.zero; waited < total; waited += step) {
-      await tester.pump(step);
-    }
-  }
-
   void mockLaunchAction({required String action, required String callId}) {
-    messenger.setMockMethodCallHandler(notificationsChannel, (call) async {
-      if (call.method == 'initialize') return true;
-      if (call.method != 'getNotificationAppLaunchDetails') return null;
-      return <String, Object?>{
-        'notificationLaunchedApp': true,
-        'notificationResponse': <String, Object?>{
-          'notificationId': ringNotificationId,
-          'actionId': action,
-          'notificationResponseType': 1,
-          'payload': jsonEncode({
-            'roomId': room.id,
-            'callId': callId,
-            'callerId': '@bob:example.org',
-            'isVideo': false,
-          }),
-        },
-      };
-    });
+    installFakeLocalNotifications().launchDetails = {
+      'notificationLaunchedApp': true,
+      'notificationResponse': <String, Object?>{
+        'notificationId': ringNotificationId,
+        'actionId': action,
+        'notificationResponseType': 1,
+        'payload': jsonEncode({
+          'roomId': room.id,
+          'callId': callId,
+          'callerId': '@bob:example.org',
+          'isVideo': false,
+        }),
+      },
+    };
   }
 
-  void mockNoLaunchAction() {
-    messenger.setMockMethodCallHandler(
-      notificationsChannel,
-      (call) async => <String, Object?>{'notificationLaunchedApp': false},
-    );
-  }
+  void mockNoLaunchAction() => installFakeLocalNotifications();
 
   setUp(() async {
     installSilentNotificationSideChannels();
@@ -184,10 +158,6 @@ void main() {
 
     container = startRouter();
   });
-
-  tearDown(
-    () => messenger.setMockMethodCallHandler(notificationsChannel, null),
-  );
 
   test(
     'returns false and does nothing when there is no launch action',
@@ -253,15 +223,6 @@ void main() {
       expect(session.phase, CallSessionPhase.ended);
     });
 
-    test('is a no-op when there is no active call', () async {
-      container.read(activeCallProvider.notifier).set(null);
-
-      await sendHangUpFromPlatform();
-      await pumpEventQueue();
-
-      expect(container.read(activeCallProvider), isNull);
-    });
-
     test('a second hang up for an already-ended call is harmless', () async {
       final session = startOngoingCall('ongoing2');
 
@@ -318,7 +279,7 @@ void main() {
 
   group('when CallKit reports', () {
     late RecordingIncomingCallPresenter presenter;
-    late RecordedCallsChannel toNative;
+    late RecordedMethodCalls toNative;
 
     setUp(() async {
       await startNotificationService();
@@ -374,7 +335,7 @@ void main() {
   });
 
   group('End & Accept on iOS', () {
-    late RecordedCallsChannel toNative;
+    late RecordedMethodCalls toNative;
 
     setUp(() async {
       await startNotificationService();
@@ -455,14 +416,10 @@ void main() {
   });
 
   group('an accept the app cannot take', () {
-    const vibrationChannel = MethodChannel('zuno/vibration');
-    late RecordedCallsChannel toNative;
+    late RecordedMethodCalls toNative;
 
     setUp(() async {
-      messenger.setMockMethodCallHandler(vibrationChannel, (_) async => null);
-      addTearDown(
-        () => messenger.setMockMethodCallHandler(vibrationChannel, null),
-      );
+      silenceMethodChannels(const ['zuno/vibration']);
       await startNotificationService();
       toNative = installFakeCallsChannel();
     });
@@ -529,7 +486,7 @@ void main() {
 
       testWidgets('as failed when the room never arrives', (tester) async {
         final handling = router().handle(accept(roomId: '!gone:example.org'));
-        await pumpFor(tester, const Duration(seconds: 11));
+        await tester.pump(const Duration(seconds: 11));
         await handling;
 
         expect(toNative.argsOf('endSystemCall'), [
@@ -568,7 +525,7 @@ void main() {
 
       testWidgets('when the room never arrives', (tester) async {
         final handling = router().handle(accept(roomId: '!gone:example.org'));
-        await pumpFor(tester, const Duration(seconds: 11));
+        await tester.pump(const Duration(seconds: 11));
         await handling;
 
         expect(toNative.argsOf('endSystemCall'), isEmpty);
@@ -577,7 +534,7 @@ void main() {
   });
 
   group('with VoIP rings, the router leaves native call events alone', () {
-    late RecordedCallsChannel toNative;
+    late RecordedMethodCalls toNative;
     final voipRing = capabilitiesLike(iosCapabilities, voipRing: true);
 
     setUp(() async {
@@ -602,17 +559,7 @@ void main() {
 
     test('an accept with no screen to show starts the call anyway', () async {
       restartRouterOn(voipRing);
-      const permissions = MethodChannel(
-        'flutter.baseflow.com/permissions/methods',
-      );
-      final asked = <String>[];
-      messenger.setMockMethodCallHandler(permissions, (call) async {
-        asked.add(call.method);
-        if (call.method == 'checkPermissionStatus') return 1;
-        if (call.method != 'requestPermissions') return null;
-        return {for (final p in (call.arguments as List).cast<int>()) p: 0};
-      });
-      addTearDown(() => messenger.setMockMethodCallHandler(permissions, null));
+      final permissions = installFakePermissions(onRequest: permissionDenied);
       final started = <String>[];
       container.listen(activeCallProvider, (_, session) {
         if (session != null) started.add(session.callId);
@@ -623,7 +570,7 @@ void main() {
 
       expect(started, ['call1']);
       expect(callIdsSent(toNative, 'startSystemCall'), ['call1']);
-      expect(asked, contains('requestPermissions'));
+      expect(permissions.calls, contains('requestPermissions'));
     });
 
     test('without VoIP rings an accept with no screen gives up before it '
@@ -644,7 +591,7 @@ void main() {
   });
 
   group('starting the router', () {
-    late RecordedCallsChannel toNative;
+    late RecordedMethodCalls toNative;
 
     setUp(() {
       toNative = installFakeCallsChannel();
@@ -675,16 +622,6 @@ void main() {
       await pumpEventQueue();
 
       expect(callIdsSent(toNative, 'startSystemCall'), ['call1']);
-    });
-
-    test('on Android tells the system nothing of the call in '
-        'progress', () async {
-      restartRouterOn(androidCapabilities);
-
-      startOngoingCall('call1');
-      await pumpEventQueue();
-
-      expect(toNative.methods, isNot(contains('startSystemCall')));
     });
   });
 }

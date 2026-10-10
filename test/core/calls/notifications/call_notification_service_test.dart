@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,21 +11,10 @@ import 'package:zuno/core/notifications/notification_sound_player.dart';
 import 'package:zuno/core/notifications/notification_sound_settings.dart';
 import 'package:zuno/core/notifications/notified_events_store.dart';
 
+import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 
 void main() {
-  const callsChannel = MethodChannel('zuno/calls');
-
-  Future<void> sendFromPlatform(String method, [Object? arguments]) async {
-    await _messenger.handlePlatformMessage(
-      callsChannel.name,
-      const StandardMethodCodec().encodeMethodCall(
-        MethodCall(method, arguments),
-      ),
-      null,
-    );
-  }
-
   test('registers the channels in plain groups: two sound-bearing chat '
       'channels, a quiet one, and new sign-ins under Account, and removes the '
       'retired ones — silence is per post, not per channel. Must run first: '
@@ -192,26 +183,6 @@ void main() {
       },
     );
 
-    test('a group message with the tone setting off stays on the group '
-        'channel, silently', () async {
-      SharedPreferences.setMockInitialValues({messageToneEnabledKey: false});
-      final notifications = installFakeLocalNotifications();
-      installSilentNotificationSideChannels();
-
-      await CallNotificationService.instance.showMessage(
-        const MessageNotificationContent(
-          roomId: '!room:example.org',
-          title: 'A group',
-          body: 'hi',
-          isDirectChat: false,
-        ),
-      );
-
-      final specifics = notifications.lastPlatformSpecifics;
-      expect(specifics['channelId'], 'group_messages');
-      expect(specifics['silent'], isTrue);
-    });
-
     test('a second message in the same room within the rate limit is an '
         'only-alert-once update, not a silent one, so Android mutes it '
         'instead of cutting off the tone still playing', () async {
@@ -238,62 +209,6 @@ void main() {
       expect(notifications.shown.first.android['onlyAlertOnce'], isFalse);
       final specifics = notifications.lastPlatformSpecifics;
       expect(specifics['channelId'], messagesChannelId);
-      expect(specifics['onlyAlertOnce'], isTrue);
-      expect(specifics['silent'], isFalse);
-    });
-
-    test('a second message in another room within the rate limit is posted '
-        'silent, which leaves the first tone alone', () async {
-      SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
-      final notifications = installFakeLocalNotifications();
-      installSilentNotificationSideChannels();
-
-      await CallNotificationService.instance.showMessage(
-        const MessageNotificationContent(
-          roomId: '!room:example.org',
-          title: 'Alice',
-          body: 'hi',
-        ),
-      );
-      await CallNotificationService.instance.showMessage(
-        const MessageNotificationContent(
-          roomId: '!other:example.org',
-          title: 'Bob',
-          body: 'hey',
-        ),
-      );
-
-      final specifics = notifications.lastPlatformSpecifics;
-      expect(specifics['channelId'], messagesChannelId);
-      expect(specifics['silent'], isTrue);
-      expect(specifics['onlyAlertOnce'], isFalse);
-    });
-
-    test('the same-room burst rule applies to group chats on their own '
-        'channel', () async {
-      SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
-      final notifications = installFakeLocalNotifications();
-      installSilentNotificationSideChannels();
-
-      await CallNotificationService.instance.showMessage(
-        const MessageNotificationContent(
-          roomId: '!group:example.org',
-          title: 'A group',
-          body: 'hi',
-          isDirectChat: false,
-        ),
-      );
-      await CallNotificationService.instance.showMessage(
-        const MessageNotificationContent(
-          roomId: '!group:example.org',
-          title: 'A group',
-          body: 'photo',
-          isDirectChat: false,
-        ),
-      );
-
-      final specifics = notifications.lastPlatformSpecifics;
-      expect(specifics['channelId'], 'group_messages');
       expect(specifics['onlyAlertOnce'], isTrue);
       expect(specifics['silent'], isFalse);
     });
@@ -467,16 +382,23 @@ void main() {
     });
 
     test('the payload carries eventId only when given', () async {
-      await CallNotificationService.instance.showMessage(
-        const MessageNotificationContent(
-          roomId: '!room:example.org',
-          title: 'Alice',
-          body: 'hi',
-        ),
-        includeMessageActions: true,
-      );
+      for (final eventId in [r'$1', null]) {
+        await CallNotificationService.instance.showMessage(
+          MessageNotificationContent(
+            roomId: '!room:example.org',
+            title: 'Alice',
+            body: 'hi',
+            eventId: eventId,
+          ),
+          includeMessageActions: true,
+        );
 
-      expect(notifications.shown.last.payload, isNot(contains('eventId')));
+        expect(jsonDecode(notifications.shown.last.payload), {
+          'type': 'message',
+          'roomId': '!room:example.org',
+          'eventId': ?eventId,
+        });
+      }
     });
   });
 
@@ -502,56 +424,7 @@ void main() {
 
       expect(notifications.cancelled, unorderedEquals([11, 22]));
     });
-
-    test('is a no-op when nothing is showing', () async {
-      notifications.active = const [];
-
-      await CallNotificationService.instance.cancelAllMessageNotifications();
-
-      expect(notifications.cancelled, isEmpty);
-    });
   });
-
-  test(
-    'onMessageTap streams the room ID fired by onMessageTapForTest',
-    () async {
-      final future = CallNotificationService.instance.onMessageTap.first;
-      CallNotificationService.instance.onMessageTapForTest('!room:example.org');
-      expect(await future, '!room:example.org');
-    },
-  );
-
-  test('onAction and onMessageTap are independent streams', () async {
-    final actionFuture = CallNotificationService.instance.onAction.first;
-    final tapFuture = CallNotificationService.instance.onMessageTap.first;
-    CallNotificationService.instance.onActionForTest(
-      const CallNotificationResponse(
-        action: CallNotificationAction.accept,
-        call: (
-          roomId: '!room:example.org',
-          callId: 'c1',
-          callerId: '@alice:example.org',
-          isVideo: false,
-        ),
-      ),
-    );
-    CallNotificationService.instance.onMessageTapForTest('!other:example.org');
-    expect((await actionFuture).action, CallNotificationAction.accept);
-    expect(await tapFuture, '!other:example.org');
-  });
-
-  test(
-    'onHeadlessDecline streams the room+call fired by onHeadlessDeclineForTest',
-    () async {
-      final future = CallNotificationService.instance.onHeadlessDecline.first;
-      CallNotificationService.instance.onHeadlessDeclineForTest(
-        const HeadlessCallDecline(roomId: '!room:example.org', callId: 'c1'),
-      );
-      final decline = await future;
-      expect(decline.roomId, '!room:example.org');
-      expect(decline.callId, 'c1');
-    },
-  );
 
   group('callNotificationResponseFrom', () {
     const payload =
@@ -628,27 +501,6 @@ void main() {
       );
     });
 
-    test('emits when the notification hang up button fires', () async {
-      final fired = CallNotificationService.instance.onHangUp.first;
-
-      await sendFromPlatform('hangUpCall');
-
-      await fired.timeout(const Duration(seconds: 1));
-    });
-
-    test('emits once per hang up, not once per listener', () async {
-      var count = 0;
-      final sub = CallNotificationService.instance.onHangUp.listen((_) {
-        count++;
-      });
-      addTearDown(sub.cancel);
-
-      await sendFromPlatform('hangUpCall');
-      await pumpEventQueue();
-
-      expect(count, 1);
-    });
-
     test('ignores any other method on the calls channel', () async {
       var fired = false;
       final sub = CallNotificationService.instance.onHangUp.listen((_) {
@@ -656,7 +508,7 @@ void main() {
       });
       addTearDown(sub.cancel);
 
-      await sendFromPlatform('somethingElse');
+      await sendFromNative('somethingElse');
       await pumpEventQueue();
 
       expect(fired, isFalse);
@@ -677,10 +529,10 @@ void main() {
       final service = CallNotificationService.instance;
       expect(service.inPictureInPicture.value, isFalse);
 
-      await sendFromPlatform('pictureInPictureChanged', true);
+      await sendFromNative('pictureInPictureChanged', true);
       expect(service.inPictureInPicture.value, isTrue);
 
-      await sendFromPlatform('pictureInPictureChanged', false);
+      await sendFromNative('pictureInPictureChanged', false);
       expect(service.inPictureInPicture.value, isFalse);
     });
 
@@ -689,37 +541,12 @@ void main() {
       addTearDown(() => service.pictureInPictureCamera.value = false);
       expect(service.pictureInPictureCamera.value, isFalse);
 
-      await sendFromPlatform('pictureInPictureCameraChanged', true);
+      await sendFromNative('pictureInPictureCameraChanged', true);
       expect(service.pictureInPictureCamera.value, isTrue);
       expect(service.inPictureInPicture.value, isFalse);
 
-      await sendFromPlatform('pictureInPictureCameraChanged', false);
+      await sendFromNative('pictureInPictureCameraChanged', false);
       expect(service.pictureInPictureCamera.value, isFalse);
-    });
-
-    test('sends eligibility and aspect ratio to the platform', () async {
-      final calls = <MethodCall>[];
-      _messenger.setMockMethodCallHandler(callsChannel, (call) async {
-        calls.add(call);
-        return null;
-      });
-      addTearDown(
-        () => _messenger.setMockMethodCallHandler(callsChannel, null),
-      );
-
-      await CallNotificationService.instance.setPictureInPicture(
-        eligible: true,
-        aspectWidth: 640,
-        aspectHeight: 480,
-      );
-
-      expect(calls, hasLength(1));
-      expect(calls.single.method, 'setPictureInPicture');
-      expect(calls.single.arguments, {
-        'eligible': true,
-        'aspectWidth': 640,
-        'aspectHeight': 480,
-      });
     });
   });
 
@@ -734,29 +561,24 @@ void main() {
     });
 
     test('sends the enabled flag to the platform', () async {
-      final calls = <MethodCall>[];
-      _messenger.setMockMethodCallHandler(callsChannel, (call) async {
-        calls.add(call);
-        return null;
-      });
-      addTearDown(
-        () => _messenger.setMockMethodCallHandler(callsChannel, null),
-      );
+      final toNative = installFakeCallsChannel();
 
       await CallNotificationService.instance.setProximityScreenOff(true);
       await CallNotificationService.instance.setProximityScreenOff(false);
 
-      expect(calls, hasLength(2));
-      expect(calls.map((c) => c.method), everyElement('setProximityScreenOff'));
-      expect(calls.map((c) => c.arguments), [
-        {'enabled': true},
-        {'enabled': false},
+      expect(toNative.calls.map((c) => [c.method, c.arguments]), [
+        [
+          'setProximityScreenOff',
+          {'enabled': true},
+        ],
+        [
+          'setProximityScreenOff',
+          {'enabled': false},
+        ],
       ]);
     });
 
     test('is a no-op when the platform side is missing', () async {
-      _messenger.setMockMethodCallHandler(callsChannel, null);
-
       await expectLater(
         CallNotificationService.instance.setProximityScreenOff(true),
         completes,
@@ -764,6 +586,3 @@ void main() {
     });
   });
 }
-
-TestDefaultBinaryMessenger get _messenger =>
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;

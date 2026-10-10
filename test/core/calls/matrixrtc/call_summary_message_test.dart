@@ -6,34 +6,35 @@ import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import '../../../helpers/fake_matrix.dart';
 
 void main() {
-  test('displayBody for an ended call formats mm:ss', () {
-    const summary = CallSummary(
+  group('displayBody', () {
+    String bodyOf(
+      String kind,
+      CallSummaryStatus status, {
+      int durationMs = 0,
+    }) => CallSummary(
       callId: 'c1',
-      kind: 'video',
-      status: CallSummaryStatus.ended,
-      durationMs: 92000,
-    );
-    expect(summary.displayBody, 'Video call · 1:32');
-  });
+      kind: kind,
+      status: status,
+      durationMs: durationMs,
+    ).displayBody;
 
-  test('displayBody for a missed voice call', () {
-    const summary = CallSummary(
-      callId: 'c1',
-      kind: 'voice',
-      status: CallSummaryStatus.missed,
-      durationMs: 0,
-    );
-    expect(summary.displayBody, 'Missed Voice call');
-  });
+    test('an ended call shows its length as m:ss', () {
+      expect(
+        bodyOf('video', CallSummaryStatus.ended, durationMs: 92000),
+        'Video call · 1:32',
+      );
+    });
 
-  test('displayBody for a declined call', () {
-    const summary = CallSummary(
-      callId: 'c1',
-      kind: 'video',
-      status: CallSummaryStatus.declined,
-      durationMs: 0,
-    );
-    expect(summary.displayBody, 'Video call declined');
+    test('a missed voice call', () {
+      expect(bodyOf('voice', CallSummaryStatus.missed), 'Missed Voice call');
+    });
+
+    test('a declined call', () {
+      expect(
+        bodyOf('video', CallSummaryStatus.declined),
+        'Video call declined',
+      );
+    });
   });
 
   test('toJson/fromEvent round-trips through a real event', () {
@@ -99,7 +100,7 @@ void main() {
       room,
       eventId: r'$1',
       senderId: '@a:x',
-      content: {'msgtype': 'm.text', 'body': 'not a call summary'},
+      content: {'msgtype': 'm.text', 'body': 'Video call · 3:24'},
     );
     expect(CallSummary.fromEvent(event), isNull);
   });
@@ -115,29 +116,11 @@ void main() {
     expect(CallSummary.fromEvent(event), isNull);
   });
 
-  group('msgtype recognition', () {
-    test('isCallSummaryMessage recognizes the current msgtype', () {
-      expect(isCallSummaryMessage('im.zuno.call_summary'), isTrue);
-      expect(isCallSummaryMessage('m.text'), isFalse);
-      expect(isCallSummaryMessage(null), isFalse);
-    });
-
-    test('isCallInviteMessage recognizes the current msgtype', () {
-      expect(isCallInviteMessage('im.zuno.call_invite'), isTrue);
-      expect(isCallInviteMessage('im.zuno.call_decline'), isFalse);
-    });
-
-    test('isCallDeclineMessage recognizes the current msgtype', () {
-      expect(isCallDeclineMessage('im.zuno.call_decline'), isTrue);
-      expect(isCallDeclineMessage('im.zuno.call_invite'), isFalse);
-    });
-
-    test('isCallSignalingMessage covers invite and decline, not summary', () {
-      expect(isCallSignalingMessage('im.zuno.call_invite'), isTrue);
-      expect(isCallSignalingMessage('im.zuno.call_decline'), isTrue);
-      expect(isCallSignalingMessage('im.zuno.call_summary'), isFalse);
-      expect(isCallSignalingMessage('m.text'), isFalse);
-    });
+  test('isCallSignalingMessage covers invite and decline, not summary', () {
+    expect(isCallSignalingMessage('im.zuno.call_invite'), isTrue);
+    expect(isCallSignalingMessage('im.zuno.call_decline'), isTrue);
+    expect(isCallSignalingMessage('im.zuno.call_summary'), isFalse);
+    expect(isCallSignalingMessage('m.text'), isFalse);
   });
 
   group('isMissedCallSummary', () {
@@ -166,16 +149,6 @@ void main() {
         isMissedCallSummary(summaryEvent(CallSummaryStatus.declined)),
         isFalse,
       );
-    });
-
-    test('is false for anything that is not a call summary at all', () {
-      final event = buildTestEvent(
-        buildTestRoom(buildTestClient()),
-        eventId: r'$1',
-        senderId: '@a:x',
-        content: {'msgtype': 'm.text', 'body': 'Video call · 3:24'},
-      );
-      expect(isMissedCallSummary(event), isFalse);
     });
   });
 }

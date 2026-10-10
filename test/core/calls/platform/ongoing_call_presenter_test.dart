@@ -1,27 +1,18 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/calls/platform/ongoing_call_presenter.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('zuno/calls');
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-  late List<MethodCall> calls;
+  late RecordedMethodCalls native;
 
-  setUp(() {
-    calls = [];
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      calls.add(call);
-      return null;
-    });
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-  });
+  setUp(() => native = installFakeCallsChannel());
 
   test('android runs the call in its foreground service', () async {
     final presenter = ongoingCallPresenterFor(androidCapabilities);
@@ -30,7 +21,7 @@ void main() {
     await presenter.stop();
 
     expect(presenter, isA<AndroidOngoingCallPresenter>());
-    expect(calls.map((c) => [c.method, c.arguments]), [
+    expect(native.calls.map((c) => [c.method, c.arguments]), [
       [
         'startCallForegroundService',
         {
@@ -44,7 +35,7 @@ void main() {
   });
 
   test('a missing platform side is not an error', () async {
-    messenger.setMockMethodCallHandler(channel, null);
+    removeCallsChannel();
     const presenter = AndroidOngoingCallPresenter();
 
     await expectLater(
@@ -66,7 +57,7 @@ void main() {
 
       expect(presenter, isA<NoopOngoingCallPresenter>());
     }
-    expect(calls, isEmpty);
+    expect(native.calls, isEmpty);
   });
 
   test('the provider follows the platform capabilities', () {

@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -25,9 +24,12 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
+import '../../../helpers/fake_call_style_channel.dart';
+import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
-
-const _ringNotificationId = 4002;
+import '../../../helpers/fake_permissions.dart';
+import '../../../helpers/native_method_calls.dart';
 
 class _PushedRoutes extends NavigatorObserver {
   final routes = <Route<Object?>>[];
@@ -39,58 +41,31 @@ class _PushedRoutes extends NavigatorObserver {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  FlutterLocalNotificationsPlatform.instance =
-      AndroidFlutterLocalNotificationsPlugin();
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   late Client client;
   late Room room;
   late SharedPreferences prefs;
-  late List<MethodCall> calls;
-  late List<Map<String, Object?>> activeNotifications;
-  late Map<String, Object?> launchDetails;
+  late RecordedMethodCalls native;
+  late RecordedMethodCalls callStyle;
+  late RecordedNotifications notifications;
   late _PushedRoutes pushed;
 
-  void mock(String name, Future<Object?>? Function(MethodCall call) handle) {
-    final channel = MethodChannel(name);
-    messenger.setMockMethodCallHandler(channel, handle);
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-  }
-
   setUp(() async {
-    calls = [];
     pushed = _PushedRoutes();
-    activeNotifications = [];
-    launchDetails = {'notificationLaunchedApp': false};
-    mock('dexterous.com/flutter/local_notifications', (call) async {
-      return switch (call.method) {
-        'initialize' => true,
-        'getActiveNotifications' => activeNotifications,
-        'getNotificationAppLaunchDetails' => launchDetails,
-        _ => null,
-      };
-    });
-    for (final name in ['zuno/calls', 'zuno/call_style']) {
-      mock(name, (call) async {
-        calls.add(call);
-        return null;
-      });
-    }
-    mock('flutter.baseflow.com/permissions/methods', (call) async {
-      if (call.method != 'requestPermissions') return null;
-      return {for (final p in (call.arguments as List).cast<int>()) p: 0};
-    });
-    for (final name in [
+    notifications = installFakeLocalNotifications();
+    native = installFakeCallsChannel();
+    callStyle = installFakeCallStyleChannel();
+    installFakePermissions(onRequest: permissionDenied);
+    silenceMethodChannels(const [
       'zuno/vibration',
       'zuno/conversations',
       'xyz.luan/audioplayers',
       'xyz.luan/audioplayers.global',
       'FlutterWebRTC.Method',
       'FlutterWebRTC.Event',
-    ]) {
-      mock(name, (_) async => null);
-    }
+    ]);
     const wakelock =
         'dev.flutter.pigeon.wakelock_plus_platform_interface.WakelockPlusApi.toggle';
     messenger.setMockMessageHandler(
@@ -142,13 +117,6 @@ void main() {
     return container;
   }
 
-  Future<void> pumpFor(WidgetTester tester, Duration total) async {
-    const step = Duration(milliseconds: 250);
-    for (var waited = Duration.zero; waited < total; waited += step) {
-      await tester.pump(step);
-    }
-  }
-
   CallNotificationResponse response(
     CallNotificationAction action, {
     String callId = 'call1',
@@ -174,24 +142,11 @@ void main() {
       callerId: '@bob:example.org',
       isVideo: isVideo,
     ));
-    activeNotifications = [
-      {
-        'id': _ringNotificationId,
-        'channelId': 'calls_ringing',
-        'groupKey': null,
-        'tag': null,
-        'title': 'Incoming voice call',
-        'body': 'Bob',
-        'payload': null,
-        'bigText': null,
-      },
-    ];
+    notifications.active = [ringNotificationOnScreen()];
   }
 
   bool? lockscreenShown() {
-    final last = calls
-        .where((c) => c.method == 'setShowOverLockscreen')
-        .lastOrNull;
+    final last = native.named('setShowOverLockscreen').lastOrNull;
     return (last?.arguments as Map?)?['show'] as bool?;
   }
 
@@ -222,9 +177,9 @@ void main() {
       expect(opened, isA<CallPage>());
       expect((opened as CallPage).call.session, same(session));
       expect(RingingCall.instance.callId, 'call1');
-      expect(calls.map((c) => c.method), contains('cancelIncomingCallStyle'));
+      expect(callStyle.methods, contains('cancelIncomingCallStyle'));
 
-      await pumpFor(tester, const Duration(seconds: 6));
+      await tester.pump(const Duration(seconds: 6));
     });
 
     testWidgets('while already on a call leaves that call alone', (
@@ -267,7 +222,7 @@ void main() {
       await router(container).handle(response(CallNotificationAction.accept));
       await tester.pump();
 
-      expect(calls, isEmpty);
+      expect([...native.calls, ...callStyle.calls], isEmpty);
       expect(container.read(activeCallProvider), isNull);
     });
 
@@ -277,7 +232,7 @@ void main() {
       final handling = router(container).handle(
         response(CallNotificationAction.accept, roomId: '!gone:example.org'),
       );
-      await pumpFor(tester, const Duration(seconds: 11));
+      await tester.pump(const Duration(seconds: 11));
       await handling;
       await tester.pump();
 
@@ -347,21 +302,22 @@ void main() {
       await tester.pump();
       expect(lockscreenShown(), isFalse);
 
-      calls.clear();
+      native.clear();
+      callStyle.clear();
       await ringOnScreen();
       await router(container).handleLaunchAction();
       await tester.pump();
       expect(find.byType(IncomingCallPage), findsNothing);
-      expect(calls, isEmpty);
+      expect([...native.calls, ...callStyle.calls], isEmpty);
     });
 
     testWidgets('a Decline that launched the app declines without showing '
         'anything', (tester) async {
       final container = await pumpApp(tester);
-      launchDetails = {
+      notifications.launchDetails = {
         'notificationLaunchedApp': true,
         'notificationResponse': {
-          'notificationId': _ringNotificationId,
+          'notificationId': ringNotificationId,
           'actionId': 'decline',
           'notificationResponseType': 1,
           'payload': jsonEncode({

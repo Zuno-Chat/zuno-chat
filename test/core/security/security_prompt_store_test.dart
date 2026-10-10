@@ -17,11 +17,6 @@ void main() {
     store = SecurityPromptStore(await SharedPreferences.getInstance());
   });
 
-  test('nothing has been asked yet on a fresh install', () {
-    expect(store.lastPrompted(), isNull);
-    expect(store.promptInFlight, isFalse);
-  });
-
   test('markPrompted is visible before its write completes', () {
     final pending = store.markPrompted();
 

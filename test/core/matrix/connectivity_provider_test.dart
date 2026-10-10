@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
-import 'package:flutter/foundation.dart' show FlutterError, FlutterErrorDetails;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -148,27 +147,6 @@ void main() {
     });
   });
 
-  test('without a handler of its own, a test gets a silent network stream '
-      'instead of a plugin error', () async {
-    expect(ambientCapabilities.networkAvailabilityEvents, isTrue);
-    final errors = <FlutterErrorDetails>[];
-    final reportError = FlutterError.onError;
-    FlutterError.onError = errors.add;
-    addTearDown(() => FlutterError.onError = reportError);
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    final events = <bool>[];
-
-    final subscription = container
-        .read(networkAvailabilityProvider)
-        .listen(events.add);
-    await pumpEventQueue();
-    await subscription.cancel();
-
-    expect(events, isEmpty);
-    expect(errors, isEmpty);
-  });
-
   group('networkAvailabilityProvider', () {
     const networkChannel = EventChannel('zuno/network');
     final messenger =
@@ -192,31 +170,25 @@ void main() {
 
     tearDown(() => messenger.setMockStreamHandler(networkChannel, null));
 
-    test('with android capabilities it forwards the native events', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+    for (final (platform, capabilities) in [
+      ('Android', androidCapabilities),
+      ('iOS', iosCapabilities),
+    ]) {
+      test('on $platform it forwards the native events', () async {
+        final container = ProviderContainer(
+          overrides: [
+            platformCapabilitiesProvider.overrideWithValue(capabilities),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      expect(await container.read(networkAvailabilityProvider).toList(), [
-        false,
-        true,
-      ]);
-      expect(listens, 1);
-    });
-
-    test('with iOS capabilities it forwards the native events too', () async {
-      final container = ProviderContainer(
-        overrides: [
-          platformCapabilitiesProvider.overrideWithValue(iosCapabilities),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      expect(await container.read(networkAvailabilityProvider).toList(), [
-        false,
-        true,
-      ]);
-      expect(listens, 1);
-    });
+        expect(await container.read(networkAvailabilityProvider).toList(), [
+          false,
+          true,
+        ]);
+        expect(listens, 1);
+      });
+    }
 
     test('without network events it stays empty and never listens', () async {
       final container = ProviderContainer(
@@ -240,36 +212,17 @@ void main() {
   });
 
   group('becameOnline', () {
-    test('offline to online is the reconnect edge', () {
-      expect(
-        becameOnline(const AsyncData(true), const AsyncData(false)),
-        isTrue,
-      );
-    });
-
-    test('online to online is not a reconnect', () {
-      expect(
-        becameOnline(const AsyncData(false), const AsyncData(false)),
-        isFalse,
-      );
-    });
-
-    test('online to offline is not a reconnect', () {
-      expect(
-        becameOnline(const AsyncData(false), const AsyncData(true)),
-        isFalse,
-      );
-    });
-
-    test('offline to offline is not a reconnect', () {
-      expect(
-        becameOnline(const AsyncData(true), const AsyncData(true)),
-        isFalse,
-      );
-    });
-
-    test('no previous emission (first build) is never a reconnect', () {
-      expect(becameOnline(null, const AsyncData(false)), isFalse);
-    });
+    for (final (label, previous, next, reconnected)
+        in <(String, AsyncValue<bool>?, AsyncValue<bool>, bool)>[
+          ('offline to online', AsyncData(true), AsyncData(false), true),
+          ('online to online', AsyncData(false), AsyncData(false), false),
+          ('online to offline', AsyncData(false), AsyncData(true), false),
+          ('offline to offline', AsyncData(true), AsyncData(true), false),
+          ('a first build, with nothing before', null, AsyncData(false), false),
+        ]) {
+      test('$label is${reconnected ? '' : ' not'} the reconnect edge', () {
+        expect(becameOnline(previous, next), reconnected);
+      });
+    }
   });
 }

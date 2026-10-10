@@ -14,6 +14,7 @@ import 'package:zuno/core/push/voip/voip_registration.dart';
 import 'package:zuno/core/push/voip/voip_server.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_permissions.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 class _FakeServer implements VoipServer {
@@ -162,11 +163,10 @@ void main() {
   });
 
   test('registers whatever the notification permission says', () async {
-    const permissions = MethodChannel(
-      'flutter.baseflow.com/permissions/methods',
+    installFakePermissions(
+      onCheck: permissionDenied,
+      onRequest: permissionDenied,
     );
-    messenger.setMockMethodCallHandler(permissions, (_) async => 0);
-    addTearDown(() => messenger.setMockMethodCallHandler(permissions, null));
 
     await registration.start(client);
 

@@ -221,7 +221,7 @@ final class ReadModelFilesTests: XCTestCase {
         voipCurrent: true, heartbeatMs: 7, level: .full))
   }
 
-  func testALevelIsReadWhenPresentAndAnyOtherPresentValueReadsAsNothing() {
+  func testTheLevelIsReadFromTheMetaAndANonStringOneStillCountsAsStated() {
     let none = NotifyMeta.decoded(
       Data(
         #"{"v":1,"user":"@me:zuno.im","device":"D","ringtone":true,"heartbeat_ms":1,"level":"none"}"#
@@ -231,11 +231,28 @@ final class ReadModelFilesTests: XCTestCase {
     XCTAssertEqual(none?.level, PreviewLevel.none)
     XCTAssertNil(none?.serverOffsetMs)
     XCTAssertEqual(absent?.level, PreviewLevel.full)
-    for level in [#""later""#, "7", "null"] {
+    for level in ["7", "null"] {
       let odd = NotifyMeta.decoded(
         Data(#"{"v":1,"user":"@me:zuno.im","device":"D","level":\#(level)}"#.utf8))
 
       XCTAssertEqual(odd?.level, PreviewLevel.none, level)
+    }
+  }
+
+  func testAStatedLevelIsReadByNameAndAnythingElseStatedReadsAsNothing() {
+    XCTAssertEqual(PreviewLevel(meta: "full", stated: true), .full)
+    XCTAssertEqual(PreviewLevel(meta: "name", stated: true), .name)
+    XCTAssertEqual(PreviewLevel(meta: "none", stated: true), PreviewLevel.none)
+    for value in ["later", "", "Name", nil] {
+      XCTAssertEqual(
+        PreviewLevel(meta: value, stated: true), PreviewLevel.none, String(describing: value))
+    }
+  }
+
+  func testALevelTheMetaNeverStatedReadsAsFull() {
+    for value in ["none", nil] {
+      XCTAssertEqual(
+        PreviewLevel(meta: value, stated: false), .full, String(describing: value))
     }
   }
 

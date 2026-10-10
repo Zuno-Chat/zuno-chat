@@ -3,23 +3,18 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 
+import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('zuno/calls');
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   late List<MethodCall> calls;
 
   setUp(() {
-    calls = [];
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      calls.add(call);
-      return call.method == 'canUseFullScreenIntent' ? false : null;
-    });
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    calls = installFakeCallsChannel(
+      reply: (call) => call.method == 'canUseFullScreenIntent' ? false : null,
+    ).calls;
   });
 
   test('android keeps the call over the lock screen and asks about '

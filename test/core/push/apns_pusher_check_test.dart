@@ -4,6 +4,7 @@ import 'package:zuno/core/push/pusher_info.dart';
 
 const _appId = 'im.zuno.chat.ios';
 const _pushkey = 'obLD1A==';
+const _oldAddress = 'https://old.example.org/_matrix/push/v1/notify';
 final _gateway = Uri.parse('https://matrix.example.org/_matrix/push/v1/notify');
 
 PusherInfo _pusher({
@@ -30,79 +31,29 @@ ApnsPusherCheck _check(List<PusherInfo>? pushers) => checkApnsPusher(
 );
 
 void main() {
-  test('this device sending event ids to this server matches', () {
-    expect(_check([_pusher()]), ApnsPusherCheck.matches);
-  });
+  group('checkApnsPusher', () {
+    test('this device sending event ids to this server matches', () {
+      expect(_check([_pusher()]), ApnsPusherCheck.matches);
+    });
 
-  test('the same address in another case or with the default port still '
-      'matches', () {
-    expect(
-      _check([
-        _pusher(url: 'https://Matrix.Example.org:443/_matrix/push/v1/notify'),
-      ]),
-      ApnsPusherCheck.matches,
-    );
-  });
-
-  test('no pusher with this app id and push key is missing', () {
-    expect(_check([]), ApnsPusherCheck.missing);
-    expect(
-      _check([
-        _pusher(appId: 'im.zuno.chat.ios.dev'),
-        _pusher(pushkey: 'other'),
-      ]),
-      ApnsPusherCheck.missing,
-    );
-  });
-
-  test('a pusher sending to another address is outdated', () {
-    for (final url in [
-      'https://old.example.org/_matrix/push/v1/notify',
-      'https://matrix.example.org:8448/_matrix/push/v1/notify',
-      'http://matrix.example.org/_matrix/push/v1/notify',
-      '',
-      null,
-    ]) {
+    test('no pusher with this app id and push key is missing', () {
+      expect(_check([]), ApnsPusherCheck.missing);
       expect(
-        _check([_pusher(url: url)]),
-        ApnsPusherCheck.outdated,
-        reason: url,
+        _check([
+          _pusher(appId: 'im.zuno.chat.ios.dev'),
+          _pusher(pushkey: 'other'),
+        ]),
+        ApnsPusherCheck.missing,
       );
-    }
-  });
+    });
 
-  test('a pusher asking for full events is outdated', () {
-    for (final format in ['full', null]) {
-      expect(
-        _check([_pusher(format: format)]),
-        ApnsPusherCheck.outdated,
-        reason: format,
-      );
-    }
-  });
+    test('a pusher that misses the gateway or the format is outdated', () {
+      expect(_check([_pusher(url: _oldAddress)]), ApnsPusherCheck.outdated);
+      expect(_check([_pusher(format: 'full')]), ApnsPusherCheck.outdated);
+    });
 
-  test('without a known server only the format is checked', () {
-    expect(
-      checkApnsPusher(
-        [_pusher(url: 'https://old.example.org/_matrix/push/v1/notify')],
-        appId: _appId,
-        pushkey: _pushkey,
-        gatewayUrl: null,
-      ),
-      ApnsPusherCheck.matches,
-    );
-    expect(
-      checkApnsPusher(
-        [_pusher(format: 'full')],
-        appId: _appId,
-        pushkey: _pushkey,
-        gatewayUrl: null,
-      ),
-      ApnsPusherCheck.outdated,
-    );
-  });
-
-  test('a pusher list that could not be read is unknown', () {
-    expect(_check(null), ApnsPusherCheck.unknown);
+    test('a pusher list that could not be read is unknown', () {
+      expect(_check(null), ApnsPusherCheck.unknown);
+    });
   });
 }

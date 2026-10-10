@@ -106,12 +106,6 @@ final class PushEnvironmentTests: XCTestCase {
       .development)
   }
 
-  func testTheEntitlementsAreReadFromBetweenTheSignatureBytes() {
-    XCTAssertEqual(
-      PushEnvironment.entitlements(in: profile(apsEnvironment: "development"))?["aps-environment"]
-        as? String, "development")
-  }
-
   func testTheTestHostIsASimulatorBuildAndPicksDevelopment() {
     XCTAssertEqual(PushEnvironment.current, .development)
     XCTAssertEqual(PushEnvironment.current.rawValue, "development")

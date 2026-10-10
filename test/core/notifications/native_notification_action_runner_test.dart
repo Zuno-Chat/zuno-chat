@@ -13,6 +13,7 @@ import 'package:zuno/core/notifications/native_notification_actions.dart';
 import 'package:zuno/core/notifications/notification_action_target.dart';
 
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -118,9 +119,9 @@ void main() {
     await subject.drain();
   }
 
-  Future<void> until(bool Function() done, {int ticks = 500}) async {
-    for (var i = 0; i < ticks && !done(); i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+  Future<void> until(bool Function() done) async {
+    for (var i = 0; i < 50 && !done(); i++) {
+      await pumpEventQueue();
     }
   }
 
@@ -224,7 +225,7 @@ void main() {
     final drained = attachAndDrain(
       runner(markReadEvent: (room, action) async => r'$notified'),
     );
-    await until(() => finished.length == 2, ticks: 100);
+    await until(() => finished.length == 2);
 
     expect(finished, [
       {'id': 'a1', 'ok': true},
@@ -407,13 +408,7 @@ void main() {
       },
     ]);
 
-    await messenger.handlePlatformMessage(
-      channel.name,
-      const StandardMethodCodec().encodeMethodCall(
-        const MethodCall('actionsAvailable'),
-      ),
-      (_) {},
-    );
+    await callFromNative(channel, 'actionsAvailable');
     await subject.drain();
 
     expect(finished.last, {'id': 'm2', 'ok': true});

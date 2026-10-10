@@ -9,23 +9,8 @@ import 'package:zuno/core/matrix/reactions.dart';
 
 import '../../helpers/fake_matrix.dart';
 
-class _ReactionsDatabase extends StoredEventsFakeDatabaseApi {
-  @override
-  Future<void> storeEventUpdate(
-    String roomId,
-    StrippedStateEvent event,
-    EventUpdateType type,
-    Client client,
-  ) async {}
-
-  @override
-  Future<void> storeRoomUpdate(
-    String roomId,
-    SyncRoomUpdate roomUpdate,
-    Event? lastEvent,
-    Client client,
-  ) async {}
-}
+class _ReactionsDatabase extends StoredEventsFakeDatabaseApi
+    with SendCapableDatabase {}
 
 void main() {
   late _ReactionsDatabase db;

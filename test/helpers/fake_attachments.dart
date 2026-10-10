@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/attachment_cache.dart';
@@ -19,21 +19,6 @@ const _pathProvider = MethodChannel('plugins.flutter.io/path_provider');
 final onePixelPng = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
 );
-
-class _MediaDatabase extends FakeDatabaseApi {
-  @override
-  int get maxFileSize => 0;
-
-  @override
-  Future<({Map<String, Object?> content, DateTime savedAt})?>
-  getCustomCacheObject(String cacheKey) async => null;
-
-  @override
-  Future<void> cacheCustomObject(
-    String cacheKey,
-    Map<String, Object?> content,
-  ) async {}
-}
 
 class AttachmentServer {
   AttachmentServer._(this.root);
@@ -100,7 +85,7 @@ AttachmentServer installAttachmentServer() {
 
   server.client = buildTestClient(
     userId: '@me:example.org',
-    database: _MediaDatabase(),
+    database: MediaCapableFakeDatabaseApi(),
     httpClient: MockClient((request) async {
       if (request.url.path.endsWith('/versions')) {
         return http.Response(
@@ -185,10 +170,22 @@ final class FakePickedFile extends PlatformFile {
 class FakeFilePicker extends FilePickerPlatform {
   Uri? answer = Uri.parse('content://downloads/1');
   final saved = <({String fileName, Uint8List bytes, String mimeType})>[];
-  PlatformFile? picked;
+  Object? saveError;
+  List<PlatformFile> picked = [];
   Object? pickError;
   Completer<void>? copying;
   int picks = 0;
+
+  Future<void> _pick(Function(FilePickerStatus)? onFileLoading) async {
+    picks++;
+    final copying = this.copying;
+    if (copying != null) {
+      onFileLoading?.call(FilePickerStatus.picking);
+      await copying.future;
+    }
+    final error = pickError;
+    if (error != null) throw error;
+  }
 
   @override
   Future<PlatformFile?> pickFile({
@@ -204,14 +201,25 @@ class FakeFilePicker extends FilePickerPlatform {
     LinuxOptions linuxOptions = const LinuxOptions(),
     WebOptions webOptions = const WebOptions(),
   }) async {
-    picks++;
-    final copying = this.copying;
-    if (copying != null) {
-      onFileLoading?.call(FilePickerStatus.picking);
-      await copying.future;
-    }
-    final error = pickError;
-    if (error != null) throw error;
+    await _pick(onFileLoading);
+    return picked.firstOrNull;
+  }
+
+  @override
+  Future<List<PlatformFile>> pickFiles({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    int compressionQuality = 0,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async {
+    await _pick(onFileLoading);
     return picked;
   }
 
@@ -227,6 +235,8 @@ class FakeFilePicker extends FilePickerPlatform {
     LinuxOptions linuxOptions = const LinuxOptions(),
     WebOptions webOptions = const WebOptions(),
   }) async {
+    final error = saveError;
+    if (error != null) throw error;
     saved.add((fileName: fileName, bytes: bytes, mimeType: mimeType));
     return answer;
   }
@@ -237,6 +247,44 @@ FakeFilePicker installFakeFilePicker() {
   final original = FilePickerPlatform.instance;
   FilePickerPlatform.instance = picker;
   addTearDown(() => FilePickerPlatform.instance = original);
+  return picker;
+}
+
+class FakeImagePicker extends ImagePickerPlatform {
+  final calls = <String>[];
+  List<XFile> answer = [];
+  Object? error;
+
+  Future<T> _answer<T>(String call, T value) async {
+    calls.add(call);
+    final error = this.error;
+    if (error != null) throw error;
+    return value;
+  }
+
+  @override
+  Future<XFile?> getImageFromSource({
+    required ImageSource source,
+    ImagePickerOptions options = const ImagePickerOptions(),
+  }) => _answer('image:${source.name}', answer.firstOrNull);
+
+  @override
+  Future<List<XFile>> getMedia({required MediaOptions options}) =>
+      _answer('media', answer);
+
+  @override
+  Future<XFile?> getVideo({
+    required ImageSource source,
+    CameraDevice preferredCameraDevice = CameraDevice.rear,
+    Duration? maxDuration,
+  }) => _answer('video:${source.name}', answer.firstOrNull);
+}
+
+FakeImagePicker installFakeImagePicker() {
+  final picker = FakeImagePicker();
+  final original = ImagePickerPlatform.instance;
+  ImagePickerPlatform.instance = picker;
+  addTearDown(() => ImagePickerPlatform.instance = original);
   return picker;
 }
 

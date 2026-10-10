@@ -4,6 +4,15 @@ import XCTest
 let systemTimeout: TimeInterval = 60
 
 @MainActor
+func immediateReply(from plugin: any FlutterPlugin, method: String, arguments: Any? = nil)
+  -> Any?
+{
+  var reply: Any?
+  plugin.handle?(FlutterMethodCall(methodName: method, arguments: arguments)) { reply = $0 }
+  return reply
+}
+
+@MainActor
 extension XCTestCase {
   func channelReply(
     from plugin: any FlutterPlugin, method: String, arguments: Any? = nil

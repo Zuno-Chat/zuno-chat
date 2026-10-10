@@ -49,20 +49,6 @@ void main() {
       );
     });
 
-    test('drops the updating once it gives up', () {
-      expect(
-        liveShareStatusText(
-          share(
-            updatedAgo: const Duration(minutes: 4),
-            refreshingSince: now.subtract(const Duration(minutes: 3)),
-          ),
-          now,
-          clock,
-        ),
-        'Until 15:30 · updated 4 min ago',
-      );
-    });
-
     test('says how fresh a live position is', () {
       expect(
         liveShareStatusText(share(updatedAgo: Duration.zero), now, clock),

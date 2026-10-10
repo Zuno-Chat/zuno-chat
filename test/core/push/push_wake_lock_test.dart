@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/push/push_wake_lock.dart';
 
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -18,29 +19,19 @@ void main() {
     messenger.setMockMethodCallHandler(refinementChannel, null);
   });
 
-  test('releasing tells the native side to let the CPU sleep', () async {
-    final calls = <String>[];
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      calls.add(call.method);
-      return null;
-    });
-    await releasePushWakeLock();
-    expect(calls, ['release']);
-  });
-
-  test('releasing names the push the lock was held for', () async {
-    final arguments = <Object?>[];
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      arguments.add(call.arguments);
-      return null;
-    });
+  test('releasing tells the native side to let the CPU sleep, naming the '
+      'push the lock was held for', () async {
+    final lock = recordMethodChannel(channel.name);
 
     await releasePushWakeLock(key: r'$event');
     await releasePushWakeLock();
 
-    expect(arguments, [
-      {'key': r'$event'},
-      null,
+    expect(lock.calls.map((c) => [c.method, c.arguments]), [
+      [
+        'release',
+        {'key': r'$event'},
+      ],
+      ['release', null],
     ]);
   });
 

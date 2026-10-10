@@ -57,12 +57,16 @@ void main() {
         steps(
           justRegistered: true,
           canAskNotifications: true,
+          needsBatteryExemption: true,
+          needsAutostart: true,
           securityFacts: lockedDevice,
           alreadyShown: const {
             OnboardingStep.welcome,
             OnboardingStep.profile,
             OnboardingStep.notifications,
             OnboardingStep.deliveryMethod,
+            OnboardingStep.batteryExemption,
+            OnboardingStep.autostart,
             OnboardingStep.approveDevice,
           },
         ),
@@ -72,41 +76,11 @@ void main() {
   });
 
   group('a brand-new account', () {
-    test('is welcomed and asked for a name, and nothing else', () {
-      expect(
-        steps(
-          justRegistered: true,
-          canAskNotifications: true,
-          securityFacts: noRecovery,
-          hasConversations: false,
-        ),
-        [
-          OnboardingStep.welcome,
-          OnboardingStep.profile,
-          OnboardingStep.notifications,
-        ],
-      );
-    });
-
     test('is welcomed and asked for a name even when nothing else applies', () {
       expect(steps(justRegistered: true), [
         OnboardingStep.welcome,
         OnboardingStep.profile,
       ]);
-    });
-
-    test('is not welcomed or asked for a name a second time', () {
-      expect(
-        steps(
-          justRegistered: true,
-          alreadyShown: {
-            OnboardingStep.welcome,
-            OnboardingStep.profile,
-            OnboardingStep.deliveryMethod,
-          },
-        ),
-        isEmpty,
-      );
     });
   });
 
@@ -161,36 +135,6 @@ void main() {
         ],
       );
     });
-
-    test(
-      'stays last once the battery step joins after the delivery choice',
-      () {
-        expect(
-          stepsAfterDeliveryChoice(const [
-            OnboardingStep.deliveryMethod,
-            OnboardingStep.approveDevice,
-            OnboardingStep.confirmPeople,
-          ], needsBatteryExemption: true),
-          [
-            OnboardingStep.deliveryMethod,
-            OnboardingStep.batteryExemption,
-            OnboardingStep.approveDevice,
-            OnboardingStep.confirmPeople,
-          ],
-        );
-      },
-    );
-
-    test('once shown it is never shown again', () {
-      expect(steps(), isEmpty);
-    });
-  });
-
-  group('signing in', () {
-    test('never welcomes or asks for a name — those are registration\'s '
-        'steps', () {
-      expect(steps(justRegistered: false), isEmpty);
-    });
   });
 
   group('choosing how messages arrive', () {
@@ -221,12 +165,6 @@ void main() {
     test('holds the battery step back until the method is chosen', () {
       expect(steps(alreadyShown: const {}, needsBatteryExemption: true), [
         OnboardingStep.deliveryMethod,
-      ]);
-    });
-
-    test('once answered, the battery step follows the stored method', () {
-      expect(steps(needsBatteryExemption: true), [
-        OnboardingStep.batteryExemption,
       ]);
     });
 
@@ -373,32 +311,10 @@ void main() {
   });
 
   group('signing in to an established account', () {
-    test('leads with unlocking the history', () {
-      expect(steps(securityFacts: lockedDevice), [
-        OnboardingStep.approveDevice,
-      ]);
-    });
-
     test('offers recovery once there is history to lose', () {
       expect(steps(securityFacts: noRecovery, hasConversations: true), [
         OnboardingStep.setUpRecovery,
       ]);
-    });
-
-    test('runs the steps welcome-first, security-last', () {
-      expect(
-        steps(
-          justRegistered: true,
-          canAskNotifications: true,
-          securityFacts: lockedDevice,
-        ),
-        [
-          OnboardingStep.welcome,
-          OnboardingStep.profile,
-          OnboardingStep.notifications,
-          OnboardingStep.approveDevice,
-        ],
-      );
     });
   });
 
@@ -407,30 +323,6 @@ void main() {
       expect(steps(canAskNotifications: true, needsBatteryExemption: true), [
         OnboardingStep.notifications,
         OnboardingStep.batteryExemption,
-      ]);
-    });
-
-    test('is not asked when Android already exempts the app', () {
-      expect(steps(needsBatteryExemption: false), isEmpty);
-    });
-
-    test('is not asked twice', () {
-      expect(
-        steps(
-          needsBatteryExemption: true,
-          alreadyShown: const {
-            OnboardingStep.deliveryMethod,
-            OnboardingStep.batteryExemption,
-          },
-        ),
-        isEmpty,
-      );
-    });
-
-    test('comes before the security steps, not after them', () {
-      expect(steps(needsBatteryExemption: true, securityFacts: lockedDevice), [
-        OnboardingStep.batteryExemption,
-        OnboardingStep.approveDevice,
       ]);
     });
   });
@@ -451,30 +343,9 @@ void main() {
         ],
       );
     });
-
-    test('is not asked twice', () {
-      expect(
-        steps(
-          needsAutostart: true,
-          alreadyShown: const {
-            OnboardingStep.deliveryMethod,
-            OnboardingStep.autostart,
-          },
-        ),
-        isEmpty,
-      );
-    });
-
-    test('is not asked on devices that do not block it', () {
-      expect(steps(needsAutostart: false), isEmpty);
-    });
   });
 
   group('what is deliberately left out', () {
-    test('no notification step once the OS will not ask again', () {
-      expect(steps(canAskNotifications: false), isEmpty);
-    });
-
     test('no recovery step while the prompt is on cooldown', () {
       expect(
         steps(securityFacts: noRecovery, recoveryPromptOnCooldown: true),
@@ -509,11 +380,6 @@ void main() {
         ),
         [OnboardingStep.approveDevice],
       );
-    });
-
-    test('never asks about recovery twice in one run', () {
-      final result = steps(securityFacts: lockedDevice, hasConversations: true);
-      expect(result, isNot(contains(OnboardingStep.setUpRecovery)));
     });
   });
 

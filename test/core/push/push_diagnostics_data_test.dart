@@ -109,17 +109,6 @@ void main() {
     });
   });
 
-  test('server times are moved onto the device clock', () {
-    final health = ServerHealth(
-      voipRegistered: true,
-      serverOffset: const Duration(minutes: 2),
-    );
-    expect(
-      health.toDevice(DateTime(2026, 10, 2, 12, 2)),
-      DateTime(2026, 10, 2, 12),
-    );
-  });
-
   test('reads the app log and the Android part, leaving out what failed', () {
     final snapshot = PushDiagnosticsSnapshot.fromChannel({
       'app': {

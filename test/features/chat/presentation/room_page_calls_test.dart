@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/active_call_provider.dart';
-import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
@@ -15,6 +14,7 @@ import 'package:zuno/features/calls/presentation/call_page.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 
 import '../../../helpers/call_channel_mocks.dart';
+import '../../../helpers/call_membership.dart';
 import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_matrix.dart';
 import 'room_page_harness.dart';
@@ -51,28 +51,13 @@ void main() {
       ),
     );
     if (callInProgress != null) {
-      harness.room.setState(
-        buildTestEvent(
-          harness.room,
-          eventId: r'$bob-call',
-          senderId: '@bob:example.org',
-          stateKey: '@bob:example.org',
-          type: callMemberEventType,
-          content: {
-            'memberships': [
-              RtcMembership(
-                callId: callInProgress,
-                deviceId: 'BOBPHONE',
-                kind: callKind,
-                expiresAtMs: DateTime.now()
-                    .add(const Duration(minutes: 5))
-                    .millisecondsSinceEpoch,
-                createdAtMs: 0,
-                fociActive: const {},
-              ).toJson(),
-            ],
-          },
-        ),
+      joinCall(
+        harness.room,
+        userId: '@bob:example.org',
+        deviceId: 'BOBPHONE',
+        callId: callInProgress,
+        kind: callKind,
+        expiresIn: const Duration(minutes: 5),
       );
     }
     harness.db.events = [harness.message(r'$m1')];

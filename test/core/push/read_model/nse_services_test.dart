@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:matrix/encryption/utils/stored_inbound_group_session.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/notification_preview.dart';
@@ -18,42 +17,8 @@ import 'package:zuno/core/push/read_model/session_exporter.dart';
 import 'package:zuno/core/push/zuno_push_api.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_megolm_sessions.dart';
 import '../../../helpers/platform_capabilities.dart';
-
-class _Sessions extends FakeDatabaseApi {
-  final sessions = <String, StoredInboundGroupSession>{};
-
-  void put(String roomId, String sessionId) =>
-      sessions[sessionId] = StoredInboundGroupSession(
-        roomId: roomId,
-        sessionId: sessionId,
-        pickle: 'pickle-$sessionId',
-        content: '{}',
-        indexes: '{}',
-        allowedAtIndex: '{}',
-        senderKey: 'curve-a',
-        senderClaimedKeys: '{}',
-      );
-
-  @override
-  Future<StoredInboundGroupSession?> getInboundGroupSession(
-    String roomId,
-    String sessionId,
-  ) async => sessions[sessionId];
-
-  @override
-  Future<List<StoredInboundGroupSession>> getAllInboundGroupSessions() async =>
-      sessions.values.toList();
-}
-
-class _Trimmer implements MegolmTrimmer {
-  @override
-  TrimmedSession? trim({
-    required String pickle,
-    required String userId,
-    required int fromIndex,
-  }) => TrimmedSession(pickle: 'trimmed-$pickle', firstIndex: fromIndex);
-}
 
 const _meta = (
   user: '@mwong:zuno.im',
@@ -126,7 +91,7 @@ void main() {
     addTearDown(() => messenger.setMockMethodCallHandler(nseChannel, null));
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
-    final database = _Sessions()..put('!r:zuno.im', 's1');
+    final database = SessionStoreFakeDatabaseApi()..put('!r:zuno.im', 's1');
     client = buildTestClient(
       userId: '@mwong:zuno.im',
       deviceId: 'PHONE',
@@ -161,7 +126,7 @@ void main() {
         serverTs: 1,
       );
     },
-    exporter: SessionExporter(trimmer: _Trimmer()),
+    exporter: SessionExporter(trimmer: FakeMegolmTrimmer()),
     threadIds: threadIds,
     appVersion: () async => '2.1+40',
     displayName: () async => 'Mia',

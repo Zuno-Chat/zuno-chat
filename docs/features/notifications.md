@@ -110,7 +110,7 @@ FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart rea
 
 ### iOS: the notification service extension
 
-The target is `ios/NotificationService/`, with its logic in `ios/NotifyShared/` (`NsePipeline`), Swift only.
+The target is `ios/NotificationService/`, with its logic in `ios/NotifyShared/` (`NsePipeline`), Swift only. Every notification rule the app and the extension both apply, such as payload parsing, the preview level and which delivered lines a read clears, has one owner there, so the two sides never disagree.
 
 1. With no read model (before first unlock, or signed out), Apple's static alert passes through.
 2. A floor goes in first, the room's name and "New message", so a timeout still shows names. At preview Nothing it stops there, with no network call.
@@ -220,6 +220,7 @@ Both platforms show the permission, this device's registration and the module's 
 - **Message vibration is done by hand with notification usage**, because message channels have vibration off and Android 12+ drops background vibrations of other usages.
 - **A call or invitation push first gets the instant notice**, since `event_id_only` carries no event type, and Dart then replaces or retracts it.
 - **The FCM ack must not wait on a ring hold**, because the service handles one message at a time and the hang-up push would queue behind the hold.
+- **FCM and UnifiedPush share one push wake lock with a hold per push**: each hold needs its own release, matched by its push, and a release that matches no hold never lets go, because a redelivered event or a release replayed to a new engine would otherwise cut the lock mid-push.
 - **A plugin a push engine calls must be in `PushEnginePlugins`**, or its `MissingPluginException` is silently swallowed.
 - **Sound settings and the room-name cache are raw SharedPreferences keys**, because headless engines have no provider scope and native code reads the cache.
 - **Each maker's autostart package must be listed in the manifest's `<queries>`**, or Android 11+ hides it and the Autostart row never appears.

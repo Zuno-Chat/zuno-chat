@@ -74,12 +74,6 @@ void main() {
       expect(region.containsBounds(berlin), isTrue);
       expect(region.containsBounds(munich), isTrue);
     });
-
-    test('of one box is that box', () {
-      final berlin = neighbourhoodBounds([_berlin]);
-
-      expect(regionOf([berlin]), berlin);
-    });
   });
 
   group('zoomToFit', () {

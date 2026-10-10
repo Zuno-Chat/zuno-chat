@@ -1,5 +1,3 @@
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/platform/native_ring.dart';
@@ -7,14 +5,12 @@ import 'package:zuno/core/calls/platform/push_ring_bridge.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fake_local_notifications.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  FlutterLocalNotificationsPlatform.instance =
-      AndroidFlutterLocalNotificationsPlugin();
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   group('a native ring', () {
     test('reads a pushed ring with its room, call and source', () {
@@ -52,7 +48,7 @@ void main() {
   });
 
   group('the bridge to CallKit', () {
-    late RecordedCallsChannel native;
+    late RecordedMethodCalls native;
 
     setUp(() {
       native = installFakeCallsChannel(
@@ -135,10 +131,7 @@ void main() {
     });
 
     test('a binding native code cannot answer is not bound', () async {
-      messenger.setMockMethodCallHandler(
-        const MethodChannel('zuno/calls'),
-        null,
-      );
+      removeCallsChannel();
 
       expect(
         await const CallKitPushRingBridge().bindIncoming(
@@ -156,10 +149,7 @@ void main() {
 
   group('rings native code announces', () {
     setUp(() async {
-      messenger.setMockMethodCallHandler(
-        const MethodChannel('dexterous.com/flutter/local_notifications'),
-        (call) async => call.method == 'initialize' ? true : null,
-      );
+      installFakeLocalNotifications();
       installFakeCallsChannel();
       await CallNotificationService.instance.initialize(
         claimDeclinePort: false,

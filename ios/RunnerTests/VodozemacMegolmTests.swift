@@ -4,7 +4,7 @@ import XCTest
 
 final class VodozemacMegolmTests: XCTestCase {
   private var golden: NseJson!
-  private let megolm = NseFixtures.vodozemac()
+  private let megolm = VodozemacMegolm()
 
   override func setUpWithError() throws {
     golden = try NseFixtures.json("megolm_golden_v1.json")
@@ -20,10 +20,6 @@ final class VodozemacMegolmTests: XCTestCase {
 
   private func string(_ key: String) throws -> String {
     try XCTUnwrap(golden[key]?.string)
-  }
-
-  func testTheAppsEmbeddedLibraryExportsTheDecryptFunctions() {
-    XCTAssertTrue(megolm.isAvailable)
   }
 
   func testDecryptsTheDartPickledSessionFromItsTrimPoint() throws {

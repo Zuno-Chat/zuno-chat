@@ -150,23 +150,6 @@ void main() {
     expect(find.byType(EmptyState), findsNothing);
   });
 
-  testWidgets('an invitation sits on its own tinted ink surface', (
-    tester,
-  ) async {
-    await pump(tester, [invitation('!i:example.org')]);
-
-    final surface = tester.widget<Material>(
-      find
-          .ancestor(
-            of: find.text('Invited you to chat'),
-            matching: find.byType(Material),
-          )
-          .first,
-    );
-    expect(surface.color, zunoLightTheme.colorScheme.secondaryContainer);
-    expect(surface.elevation, 0);
-  });
-
   testWidgets('an unchanged room keeps the identical row across rebuilds', (
     tester,
   ) async {

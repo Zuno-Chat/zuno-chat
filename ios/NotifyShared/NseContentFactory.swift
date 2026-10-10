@@ -46,19 +46,13 @@ enum NseContentFactory {
     for key in ["t", "e", "o", "k", "f", "rg"] {
       if let value = content.userInfo[key] as? String { info[key] = value }
     }
-    var payloadEventId: String?
-    if let payload = content.userInfo["payload"] as? String,
-      let json = NseJson.parse(Data(payload.utf8))
-    {
-      payloadEventId = json["eventId"]?.string
-    }
     return NseDelivered(
       identifier: notification.request.identifier,
       dateMs: Int64(notification.date.timeIntervalSince1970 * 1000), title: content.title,
       body: content.body, threadId: content.threadIdentifier, userInfo: info,
-      payloadEventId: payloadEventId,
-      pushed: notification.request.trigger is UNPushNotificationTrigger
-        || CatchUpComposer.isCatchUp(notification.request.identifier))
+      payloadEventId: NotificationUserInfo.messagePayload(in: content.userInfo)?["eventId"]
+        as? String,
+      pushed: notification.isPushed)
   }
 }
 

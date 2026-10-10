@@ -32,7 +32,6 @@ void main() {
       NotificationPreview.nothing,
     );
     expect(prefs.getString(notificationPreviewKey), 'nothing');
-    expect(NotificationPreview.nothing.wire, 'none');
   });
 
   test('without the extension every platform reads Name and message', () async {

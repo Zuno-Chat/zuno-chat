@@ -124,7 +124,7 @@ void main() {
           status: UnifiedPushStatus.noDistributorFound,
           distributor: '',
         ),
-        contains('install'),
+        'None installed. Install one, such as ntfy, then refresh.',
       );
     });
 

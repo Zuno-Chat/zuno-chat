@@ -110,7 +110,14 @@ final class MarkReadTakeDownTests: XCTestCase {
     let identifiers = NotificationActionEffects.identifiersToTakeDown(
       request(eventSeconds: 100), delivered: delivered)
 
-    XCTAssertEqual(Set(identifiers), ["acted", "older"])
+    XCTAssertEqual(identifiers, ["acted", "older"])
+  }
+
+  func testTheNotificationActedOnGoesOnceWhenTheSweepLeavesIt() {
+    let identifiers = NotificationActionEffects.identifiersToTakeDown(
+      request(eventSeconds: 95), delivered: delivered)
+
+    XCTAssertEqual(identifiers, ["older", "acted"])
   }
 
   func testMarkingAsReadWithoutAnEventTimeTakesDownOnlyTheNotificationActedOn() {

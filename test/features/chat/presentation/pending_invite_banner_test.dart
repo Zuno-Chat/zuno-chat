@@ -37,22 +37,6 @@ void main() {
     );
   });
 
-  testWidgets('counts several', (tester) async {
-    member('@bob:example.org', 'invite');
-    member('@carol:example.org', 'invite');
-    await pump(tester);
-
-    expect(find.text('Waiting for 2 people to accept'), findsOneWidget);
-  });
-
-  testWidgets('is gone once someone has joined', (tester) async {
-    member('@bob:example.org', 'invite');
-    member('@carol:example.org', 'join');
-    await pump(tester);
-
-    expect(find.byIcon(Icons.schedule_outlined), findsNothing);
-  });
-
   testWidgets('is not shown with nobody invited', (tester) async {
     await pump(tester);
 

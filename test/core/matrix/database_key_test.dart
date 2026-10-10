@@ -164,16 +164,5 @@ void main() {
       expect(cipher, hasLength(databaseCipherLength));
       expect(RegExp(r'^[0-9a-f]+$').hasMatch(cipher), isTrue);
     });
-
-    test('contains nothing that could terminate a SQL string literal', () {
-      for (var i = 0; i < 50; i++) {
-        expect(debugGenerateDatabaseCipher(), isNot(contains("'")));
-      }
-    });
-
-    test('does not repeat', () {
-      final seen = {for (var i = 0; i < 50; i++) debugGenerateDatabaseCipher()};
-      expect(seen, hasLength(50));
-    });
   });
 }

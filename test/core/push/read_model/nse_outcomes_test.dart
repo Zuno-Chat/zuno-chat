@@ -49,18 +49,18 @@ void main() {
   );
 
   test('an invitation the extension showed is never announced again', () async {
+    final shownAt = DateTime.now().millisecondsSinceEpoch;
     replies['takeMarks'] = [
-      {
-        'kind': 'invite',
-        'room': room.id,
-        'ts': DateTime.now().millisecondsSinceEpoch,
-      },
+      {'kind': 'invite', 'room': room.id, 'ts': shownAt},
       {'kind': 'test', 'ts': 42},
     ];
 
     await reader().read(client);
 
-    expect(inviteAnnouncedAt(prefs, room.id), isNotNull);
+    expect(
+      inviteAnnouncedAt(prefs, room.id),
+      DateTime.fromMillisecondsSinceEpoch(shownAt),
+    );
     expect(prefs.getInt(NseOutcomeReader.testAckKey), 42);
   });
 

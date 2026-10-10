@@ -4,50 +4,44 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/features/calls/presentation/call_status_widgets.dart';
 
-void main() {
-  Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+import '../../../helpers/zuno_app.dart';
 
+void main() {
   testWidgets('good quality renders nothing', (tester) async {
     await tester.pumpWidget(
-      wrap(const ConnectionQualityPill(quality: CallQuality.good)),
+      inZunoApp(const ConnectionQualityPill(quality: CallQuality.good)),
     );
     expect(find.byType(Text), findsNothing);
   });
 
-  testWidgets('degraded says Weak connection', (tester) async {
+  testWidgets('degraded says Weak connection, to screen readers too', (
+    tester,
+  ) async {
     await tester.pumpWidget(
-      wrap(const ConnectionQualityPill(quality: CallQuality.degraded)),
+      inZunoApp(const ConnectionQualityPill(quality: CallQuality.degraded)),
     );
     expect(find.text('Weak connection'), findsOneWidget);
+    expect(find.bySemanticsLabel('Weak connection'), findsOneWidget);
   });
 
   testWidgets('poor says video is reduced', (tester) async {
     await tester.pumpWidget(
-      wrap(const ConnectionQualityPill(quality: CallQuality.poor)),
+      inZunoApp(const ConnectionQualityPill(quality: CallQuality.poor)),
     );
     expect(find.text('Poor connection, video reduced'), findsOneWidget);
   });
 
-  testWidgets('reconnecting notice shows the copy and a spinner', (
-    tester,
-  ) async {
-    await tester.pumpWidget(wrap(const ReconnectingNotice()));
+  testWidgets('reconnecting notice shows the copy and a spinner, and tells '
+      'screen readers', (tester) async {
+    await tester.pumpWidget(inZunoApp(const ReconnectingNotice()));
     expect(find.text('Reconnecting…'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-  });
-
-  testWidgets('pill and notice expose semantics labels', (tester) async {
-    await tester.pumpWidget(
-      wrap(const ConnectionQualityPill(quality: CallQuality.degraded)),
-    );
-    expect(find.bySemanticsLabel('Weak connection'), findsOneWidget);
-    await tester.pumpWidget(wrap(const ReconnectingNotice()));
     expect(find.bySemanticsLabel('Reconnecting…'), findsOneWidget);
   });
 
   testWidgets('encrypting label adds a hint after the delay', (tester) async {
     await tester.pumpWidget(
-      wrap(const EncryptingLabel(hintAfter: Duration(seconds: 8))),
+      inZunoApp(const EncryptingLabel(hintAfter: Duration(seconds: 8))),
     );
     expect(find.text('Encrypting…'), findsOneWidget);
     expect(find.textContaining('Still encrypting'), findsNothing);
@@ -62,7 +56,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      wrap(
+      inZunoApp(
         const SizedBox(
           width: 100,
           height: 140,

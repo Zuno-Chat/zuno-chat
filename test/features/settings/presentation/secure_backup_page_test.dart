@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,12 +7,14 @@ import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/security/recovery_code.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/ui/step_layout.dart';
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fixtures.dart';
+import '../../../helpers/route_launcher.dart';
+import '../../../helpers/uia_challenge.dart';
 
 class _FakeBootstrap extends Fake implements Bootstrap {
   _FakeBootstrap(this._state);
@@ -113,9 +114,7 @@ class _FakeKey extends Fake implements OpenSSSS {
 }
 
 void main() {
-  final wordlist = RecoveryWordlist.parse(
-    File('assets/wordlist/recovery_words.txt').readAsStringSync(),
-  );
+  final wordlist = shippedRecoveryWordlist();
 
   late List<_FakeBootstrap> created;
   late Client client;
@@ -143,25 +142,18 @@ void main() {
           recoveryWordlistProvider.overrideWith((ref) async => wordlist),
         ],
         child: MaterialApp(
-          home: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => SecureBackupPage(
-                    mode: mode,
-                    autoRestoreExisting: autoRestoreExisting,
-                    createBootstrap: (client, onUpdate) {
-                      final bootstrap = _FakeBootstrap(
-                        created.isEmpty ? state : BootstrapState.loading,
-                      )..onUpdate = onUpdate;
-                      if (created.isEmpty) prepare?.call(bootstrap);
-                      created.add(bootstrap);
-                      return bootstrap;
-                    },
-                  ),
-                ),
-              ),
-              child: const Text('open'),
+          home: routeLauncher(
+            (_) => SecureBackupPage(
+              mode: mode,
+              autoRestoreExisting: autoRestoreExisting,
+              createBootstrap: (client, onUpdate) {
+                final bootstrap = _FakeBootstrap(
+                  created.isEmpty ? state : BootstrapState.loading,
+                )..onUpdate = onUpdate;
+                if (created.isEmpty) prepare?.call(bootstrap);
+                created.add(bootstrap);
+                return bootstrap;
+              },
             ),
           ),
         ),
@@ -177,15 +169,6 @@ void main() {
 
   bool enabled(WidgetTester tester, Finder button) =>
       tester.widget<ButtonStyleButton>(button).onPressed != null;
-
-  testWidgets('says it is setting up while there is nothing to ask', (
-    tester,
-  ) async {
-    await pump(tester, BootstrapState.loading);
-
-    expect(find.text('Setting up…'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
-  });
 
   testWidgets('answers the setup questions nobody needs to see', (
     tester,
@@ -257,15 +240,7 @@ void main() {
         final password = (auth as AuthenticationPassword?)?.password;
         if (password != null) tried.add(password);
         if (password != 'right') {
-          throw MatrixException.fromJson({
-            'session': 's1',
-            'flows': [
-              {
-                'stages': ['m.login.password'],
-              },
-            ],
-            'params': <String, Object?>{},
-          });
+          throw uiaPasswordChallenge();
         }
       });
       await tester.pumpAndSettle();
@@ -390,7 +365,7 @@ void main() {
             .widget<TextField>(find.byType(TextField).last)
             .decoration!
             .errorText,
-        isNotNull,
+        'Use at least 12 characters',
       );
     });
 

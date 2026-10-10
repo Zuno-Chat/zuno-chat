@@ -1,49 +1,30 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/upload_progress_http_client.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/preferences_container.dart';
+import '../../../helpers/room_opening_channels.dart';
 
-class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi {
+class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi
+    with SendCapableDatabase, MediaCapableDatabase {
   final deletedTimelines = <String>[];
   Object? deleteTimelineError;
-
-  @override
-  int get maxFileSize => 0;
-
-  @override
-  Future<void> storeEventUpdate(
-    String roomId,
-    StrippedStateEvent event,
-    EventUpdateType type,
-    Client client,
-  ) async {}
-
-  @override
-  Future<void> storeRoomUpdate(
-    String roomId,
-    SyncRoomUpdate roomUpdate,
-    Event? lastEvent,
-    Client client,
-  ) async {}
 
   @override
   Future<void> removeEvent(String eventId, String roomId) async {}
@@ -53,16 +34,6 @@ class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi {
 
   @override
   Future<bool> deleteFile(Uri mxcUri) async => true;
-
-  @override
-  Future<({Map<String, Object?> content, DateTime savedAt})?>
-  getCustomCacheObject(String cacheKey) async => null;
-
-  @override
-  Future<void> cacheCustomObject(
-    String cacheKey,
-    Map<String, Object?> content,
-  ) async {}
 
   @override
   Future<void> deleteTimelineForRoom(String roomId) async {
@@ -105,26 +76,7 @@ class RoomPageHarness {
     this.overrides = const [],
     this.encrypting = false,
   }) : db = db ?? StoredEventsFakeDatabaseApi() {
-    FlutterLocalNotificationsPlatform.instance =
-        AndroidFlutterLocalNotificationsPlugin();
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    final channels = [
-      const MethodChannel('dexterous.com/flutter/local_notifications'),
-      const MethodChannel('zuno/calls'),
-      const MethodChannel('com.llfbandit.record/messages'),
-    ];
-    for (final channel in channels) {
-      messenger.setMockMethodCallHandler(
-        channel,
-        (call) async => call.method == 'initialize' ? true : null,
-      );
-    }
-    addTearDown(() {
-      for (final channel in channels) {
-        messenger.setMockMethodCallHandler(channel, null);
-      }
-    });
+    installRoomOpeningChannels();
 
     httpClient = UploadProgressHttpClient(
       MockClient((request) async {
@@ -187,19 +139,16 @@ class RoomPageHarness {
       );
 
   Future<Widget> app({required Widget home}) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
+    final container = await containerWithPreferences(
+      {},
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         uploadProgressHttpClientProvider.overrideWithValue(httpClient),
-        sharedPreferencesProvider.overrideWithValue(prefs),
         if (capabilities case final capabilities?)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
         ...overrides,
       ],
     );
-    addTearDown(container.dispose);
     return UncontrolledProviderScope(
       container: container,
       child: MaterialApp(

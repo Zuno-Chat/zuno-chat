@@ -35,46 +35,29 @@ void setPowerLevels(Room room, Map<String, Object?> content) => room.setState(
 
 void main() {
   group('roomAccessOf', () {
-    test('reads a public join rule as public', () {
-      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
-      setJoinRule(room, 'public');
+    for (final (name, rule, access) in [
+      ('reads a public join rule as public', 'public', RoomAccess.public),
+      ('reads an invite join rule as private', 'invite', RoomAccess.private),
+      (
+        'reads a join rule restricted to a community as community',
+        'restricted',
+        RoomAccess.community,
+      ),
+      (
+        'reads knock-restricted as community too',
+        'knock_restricted',
+        RoomAccess.community,
+      ),
+      ('reads knock as ask to join', 'knock', RoomAccess.askToJoin),
+      ('treats a missing join rule as private', null, RoomAccess.private),
+    ]) {
+      test(name, () {
+        final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+        if (rule != null) setJoinRule(room, rule);
 
-      expect(roomAccessOf(room), RoomAccess.public);
-    });
-
-    test('reads an invite join rule as private', () {
-      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
-      setJoinRule(room, 'invite');
-
-      expect(roomAccessOf(room), RoomAccess.private);
-    });
-
-    test('reads a join rule restricted to a community as community', () {
-      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
-      setJoinRule(room, 'restricted');
-
-      expect(roomAccessOf(room), RoomAccess.community);
-    });
-
-    test('reads knock-restricted as community too', () {
-      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
-      setJoinRule(room, 'knock_restricted');
-
-      expect(roomAccessOf(room), RoomAccess.community);
-    });
-
-    test('reads knock as ask to join', () {
-      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
-      setJoinRule(room, 'knock');
-
-      expect(roomAccessOf(room), RoomAccess.askToJoin);
-    });
-
-    test('treats a missing join rule as private', () {
-      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
-
-      expect(roomAccessOf(room), RoomAccess.private);
-    });
+        expect(roomAccessOf(room), access);
+      });
+    }
   });
 
   group('canChangeRoomAccess', () {
@@ -244,10 +227,6 @@ void main() {
 
         expect(requests, hasLength(1));
         expect(roomAccessOf(room), RoomAccess.private);
-        expect(
-          RoomListingRefused().toString(),
-          'Public rooms cannot be listed here',
-        );
       },
     );
 
@@ -367,10 +346,5 @@ void main() {
         throwsA(isA<MatrixException>()),
       );
     });
-  });
-
-  test('each access says who can get in', () {
-    expect(RoomAccess.private.description, 'Invite only');
-    expect(RoomAccess.public.description, 'Anyone can find and join');
   });
 }

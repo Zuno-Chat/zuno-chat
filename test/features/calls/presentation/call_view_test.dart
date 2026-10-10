@@ -78,6 +78,7 @@ void main() {
     bool calling = false,
     bool withLocal = true,
     bool localCamera = false,
+    bool localEncrypting = false,
     List<CallViewParticipant> remote = const [],
     bool reconnecting = false,
     CallQuality quality = CallQuality.good,
@@ -97,7 +98,12 @@ void main() {
           connecting: connecting,
           calling: calling,
           local: withLocal
-              ? person('Me', local: true, camera: localCamera)
+              ? person(
+                  'Me',
+                  local: true,
+                  camera: localCamera,
+                  encrypting: localEncrypting,
+                )
               : null,
           remote: remote,
           talkingSince: remote.isEmpty ? null : DateTime(2026, 9, 20),
@@ -124,11 +130,14 @@ void main() {
       tester.widget<CallStatusLine>(find.byType(CallStatusLine)).status;
 
   group('before anyone has joined', () {
-    testWidgets('the caller sees who is being called, and every button works '
-        'before the call connects', (tester) async {
+    testWidgets('the caller sees who is being called on the voice stage, not '
+        'an empty video, and every button works before the call connects', (
+      tester,
+    ) async {
       await pump(tester, kind: CallKind.video, connecting: true, calling: true);
 
       expect(find.byType(VoiceCallStage), findsOneWidget);
+      expect(find.byType(VideoCallHeader), findsNothing);
       expect(find.text('Weekend hike'), findsOneWidget);
       expect(find.text('Calling…'), findsOneWidget);
       for (final tooltip in [
@@ -167,26 +176,8 @@ void main() {
       expect(find.byTooltip('Switch camera'), findsOneWidget);
     });
 
-    testWidgets('the person answering sees Connecting', (tester) async {
-      await pump(tester, connecting: true);
-
-      expect(shownStatus(tester), CallStatus.connecting);
-    });
-
-    testWidgets('a video call waits on the same screen, not an empty video', (
-      tester,
-    ) async {
-      await pump(tester, kind: CallKind.video, connecting: true, calling: true);
-
-      expect(find.byType(VoiceCallStage), findsOneWidget);
-      expect(find.byType(VideoCallHeader), findsNothing);
-      for (final tile in find.byType(ParticipantTile).evaluate()) {
-        expect(tile.size, const Size(100, 140));
-      }
-    });
-
-    testWidgets('people the engine already lists do not show while still '
-        'connecting', (tester) async {
+    testWidgets('the person answering sees Connecting, and nobody the engine '
+        'already lists', (tester) async {
       await pump(tester, connecting: true, remote: [person('Ann')]);
 
       expect(shownStatus(tester), CallStatus.connecting);
@@ -313,31 +304,11 @@ void main() {
     testWidgets('your own missing keys also count as Encrypting', (
       tester,
     ) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(360, 640);
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: zunoDarkTheme,
-          home: CallView(
-            room: room,
-            kind: CallKind.video,
-            connecting: false,
-            calling: false,
-            local: person('Me', local: true, encrypting: true),
-            remote: [person('Ann')],
-            talkingSince: DateTime(2026, 9, 20),
-            reconnecting: false,
-            quality: CallQuality.good,
-            audioRoute: CallAudioRoute.speaker,
-            onToggleMute: () {},
-            onToggleCamera: () {},
-            onSwitchCamera: () {},
-            onToggleSpeaker: () {},
-            onHangUp: () {},
-            onMinimize: () {},
-          ),
-        ),
+      await pump(
+        tester,
+        kind: CallKind.video,
+        localEncrypting: true,
+        remote: [person('Ann')],
       );
 
       expect(
@@ -841,7 +812,10 @@ void main() {
       final button = tester.widget<IconButton>(
         find.ancestor(of: icon, matching: find.byType(IconButton)),
       );
-      expect(button.style?.backgroundColor?.resolve({}), isNotNull);
+      expect(
+        button.style?.backgroundColor?.resolve({}),
+        zunoDarkTheme.colorScheme.surfaceContainerHighest,
+      );
     });
   });
 }

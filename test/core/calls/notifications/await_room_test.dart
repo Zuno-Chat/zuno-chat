@@ -23,26 +23,6 @@ void main() {
     });
   });
 
-  test('waits for a room the client has not restored yet', () {
-    fakeAsync((async) {
-      Room? found;
-      var completed = false;
-      awaitRoom(client, '!room:example.org').then((r) {
-        found = r;
-        completed = true;
-      });
-
-      async.elapse(const Duration(milliseconds: 600));
-      expect(completed, isFalse, reason: 'nothing to find yet');
-
-      final room = buildTestRoom(client, id: '!room:example.org');
-      client.rooms.add(room);
-      async.elapse(const Duration(milliseconds: 300));
-
-      expect(found, same(room));
-    });
-  });
-
   test('gives up on a room that never appears', () {
     fakeAsync((async) {
       Object? found = 'unset';
@@ -57,14 +37,19 @@ void main() {
     });
   });
 
-  test('keeps looking for the whole timeout before giving up', () {
+  test('keeps looking for the whole timeout for a room the client has not '
+      'restored yet', () {
     fakeAsync((async) {
+      Room? found;
       var completed = false;
       awaitRoom(
         client,
         '!late:example.org',
         timeout: const Duration(seconds: 2),
-      ).then((_) => completed = true);
+      ).then((r) {
+        found = r;
+        completed = true;
+      });
 
       async.elapse(const Duration(milliseconds: 1500));
       expect(completed, isFalse);
@@ -72,7 +57,7 @@ void main() {
       final room = buildTestRoom(client, id: '!late:example.org');
       client.rooms.add(room);
       async.elapse(const Duration(milliseconds: 300));
-      expect(completed, isTrue);
+      expect(found, same(room));
     });
   });
 }

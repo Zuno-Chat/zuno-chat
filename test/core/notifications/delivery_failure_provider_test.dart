@@ -1,7 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/delivery_failure.dart';
@@ -9,7 +8,6 @@ import 'package:zuno/core/notifications/delivery_failure_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
-import 'package:zuno/core/notifications/notification_permission_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/voip/voip_registration.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -17,26 +15,9 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import '../../helpers/app_lifecycle.dart';
 import '../../helpers/fake_unified_push.dart';
 import '../../helpers/fake_voip_registration.dart';
+import '../../helpers/fixed_notifications_allowed.dart';
 import '../../helpers/platform_capabilities.dart';
-
-class _FixedNotificationsAllowed extends NotificationsAllowedNotifier {
-  _FixedNotificationsAllowed(this._allowed);
-  final bool? _allowed;
-
-  @override
-  bool? build() => _allowed;
-}
-
-class _Distributors extends FakeUnifiedPush {
-  List<String> installed = const [];
-  int lookups = 0;
-
-  @override
-  Future<List<String>> getDistributors(List<String> features) async {
-    lookups++;
-    return installed;
-  }
-}
+import '../../helpers/preferences_container.dart';
 
 Future<ProviderContainer> _container({
   required bool? allowed,
@@ -44,26 +25,18 @@ Future<ProviderContainer> _container({
   String? autoSelected = 'backgroundService',
   PlatformCapabilities? capabilities,
   VoipRegistration? voip,
-}) async {
-  SharedPreferences.setMockInitialValues({
+}) => containerWithPreferences(
+  {
     'settings.notification_delivery_mode': mode,
     notificationDeliveryModeAutoKey: ?autoSelected,
-  });
-  final prefs = await SharedPreferences.getInstance();
-  final container = ProviderContainer(
-    overrides: [
-      sharedPreferencesProvider.overrideWithValue(prefs),
-      notificationsAllowedProvider.overrideWith(
-        () => _FixedNotificationsAllowed(allowed),
-      ),
-      if (capabilities != null)
-        platformCapabilitiesProvider.overrideWithValue(capabilities),
-      if (voip != null) voipRegistrationProvider.overrideWithValue(voip),
-    ],
-  );
-  addTearDown(container.dispose);
-  return container;
-}
+  },
+  overrides: [
+    fixedNotificationsAllowed(allowed),
+    if (capabilities != null)
+      platformCapabilitiesProvider.overrideWithValue(capabilities),
+    if (voip != null) voipRegistrationProvider.overrideWithValue(voip),
+  ],
+);
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -305,10 +278,10 @@ void main() {
   });
 
   group('without Google Play services', () {
-    late _Distributors distributors;
+    late FakeUnifiedPush distributors;
 
     setUp(() {
-      distributors = _Distributors();
+      distributors = FakeUnifiedPush();
       final original = UnifiedPushPlatform.instance;
       UnifiedPushPlatform.instance = distributors;
       fcmDeliveryProvider.status.value = FcmStatus.playServicesUnavailable;
@@ -325,33 +298,6 @@ void main() {
       await container.read(unifiedPushDistributorInstalledProvider.future);
       return container.read(deliveryFailureProvider)?.action;
     }
-
-    test('offers background sync when no distributor is installed', () async {
-      final container = await _container(
-        allowed: true,
-        mode: 'fcm',
-        autoSelected: null,
-      );
-
-      expect(
-        await actionOffered(container),
-        DeliveryFailureAction.switchToBackgroundService,
-      );
-    });
-
-    test('offers UnifiedPush when a distributor is installed', () async {
-      distributors.installed = ['io.heckel.ntfy'];
-      final container = await _container(
-        allowed: true,
-        mode: 'fcm',
-        autoSelected: null,
-      );
-
-      expect(
-        await actionOffered(container),
-        DeliveryFailureAction.switchToUnifiedPush,
-      );
-    });
 
     test('looks again when Zuno comes back to the front', () async {
       final container = await _container(

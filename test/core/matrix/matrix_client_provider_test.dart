@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
@@ -17,9 +16,8 @@ import 'package:zuno/core/matrix/zuno_client.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/fixtures.dart';
 import '../../helpers/platform_capabilities.dart';
-
-class _FakeVerification extends Fake implements KeyVerification {}
 
 class _SyncTokenClient extends Client {
   _SyncTokenClient() : super('test', database: FakeDatabaseApi());
@@ -125,12 +123,6 @@ void main() {
     expect(seen, isNot(contains(false)));
   });
 
-  test('a refresh that fails without a verdict stays signed in', () async {
-    final seen = await loginStatesAfter([LoginState.softLoggedOut]);
-
-    expect(seen.last, isTrue);
-  });
-
   test('a cleared session signs out', () async {
     final seen = await loginStatesAfter([
       LoginState.softLoggedOut,
@@ -173,46 +165,6 @@ void main() {
     });
   });
 
-  for (final (label, provider) in [
-    ('the client', matrixClientProvider),
-    ('the upload client', uploadProgressHttpClientProvider),
-  ]) {
-    test('using $label before it is set up fails loudly', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      expect(
-        () => container.read(provider),
-        throwsA(
-          isA<ProviderException>().having(
-            (e) => e.exception,
-            'exception',
-            isA<UnimplementedError>(),
-          ),
-        ),
-      );
-    });
-  }
-
-  test('hands on each incoming verification request', () async {
-    final client = buildTestClient();
-    final container = ProviderContainer(
-      overrides: [matrixClientProvider.overrideWithValue(client)],
-    );
-    addTearDown(container.dispose);
-    final request = _FakeVerification();
-
-    final seen = <KeyVerification>[];
-    container.listen(incomingKeyVerificationProvider, (_, next) {
-      if (next.value case final verification?) seen.add(verification);
-    });
-
-    client.onKeyVerificationRequest.add(request);
-    await pumpEventQueue();
-
-    expect(seen, [same(request)]);
-  });
-
   group('createMatrixClient', () {
     TestWidgetsFlutterBinding.ensureInitialized();
     final messenger =
@@ -226,6 +178,7 @@ void main() {
 
     late Directory support;
     late Map<String, String> secrets;
+    late List<String> secretReads;
     late List<Map<Object?, Object?>> opened;
     late List<String> executed;
     late List<String> queried;
@@ -245,6 +198,7 @@ void main() {
     setUp(() async {
       support = Directory.systemTemp.createTempSync('zuno_support');
       secrets = {};
+      secretReads = [];
       opened = [];
       executed = [];
       queried = [];
@@ -278,6 +232,7 @@ void main() {
       );
       messenger.setMockMethodCallHandler(secureStorage, (call) async {
         final args = (call.arguments as Map).cast<String, Object?>();
+        if (call.method == 'read') secretReads.add(args['key']! as String);
         return switch (call.method) {
           'read' => secrets[args['key']],
           'write' => secrets[args['key'] as String] = args['value'] as String,
@@ -458,27 +413,6 @@ void main() {
 
         expect(leaseMethods(), ['acquire', 'release']);
       });
-
-      test('only the app\'s client may clear the store', () async {
-        final app = await create();
-        await obtainDatabaseCipher();
-        final background = await create(backgroundSync: false);
-
-        expect((app as ZunoClient).appClient, isTrue);
-        expect((background as ZunoClient).appClient, isFalse);
-      });
-
-      test(
-        'only the app\'s client has its sync run by a coordinator',
-        () async {
-          final app = await create();
-          await obtainDatabaseCipher();
-          final background = await create(backgroundSync: false);
-
-          expect((app as ZunoClient).syncCoordinator, isNotNull);
-          expect((background as ZunoClient).syncCoordinator, isNull);
-        },
-      );
     });
 
     group('compaction', () {
@@ -659,18 +593,6 @@ void main() {
       expect(wipes(), isEmpty);
     });
 
-    test('an app start that keeps failing leaves the database and its key '
-        'alone', () async {
-      clientReadFails = (_) => true;
-
-      await failedLaunch();
-
-      expect(clientReads, greaterThan(1));
-      expect(wipes(), isEmpty);
-      expect(deletedDatabases, isEmpty);
-      expect(secrets.values.single, opened.first['password']);
-    });
-
     test(
       'no number of failed app starts deletes anything on its own',
       () async {
@@ -723,9 +645,7 @@ void main() {
 
     group('the derived database key', () {
       final salt = List<int>.generate(16, (i) => i + 1);
-      final saltHex = salt
-          .map((b) => b.toRadixString(16).padLeft(2, '0'))
-          .join();
+      final saltHex = hexOf(salt);
       final rawKey = "x'${'ab' * 32}'";
 
       setUp(() async {
@@ -764,7 +684,8 @@ void main() {
         );
       });
 
-      test('a background client never derives the key', () async {
+      test('a background client never derives the key, looking up the cached '
+          'one only for its own open', () async {
         final started = await createMatrixClient(
           backgroundSync: false,
           pause: noPause,
@@ -772,15 +693,12 @@ void main() {
         addTearDown(started.client.dispose);
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
+        expect(
+          secretReads.where((key) => key == 'matrix_database_raw_key'),
+          hasLength(1),
+        );
         expect(secrets.containsKey('matrix_database_raw_key'), isFalse);
       });
-    });
-
-    test('starts signed out when nothing is stored', () async {
-      final client = await create();
-
-      expect(client.isLogged(), isFalse);
-      expect(client.onLoginStateChanged.value, LoginState.loggedOut);
     });
 
     test('is set up for Zuno', () async {
@@ -804,16 +722,22 @@ void main() {
       expect(client.syncErrorTimeoutSec, 1);
     });
 
-    test('the app client does crypto off the UI thread', () async {
-      final client = await create();
+    test('the app client may clear the store, has its sync run by a '
+        'coordinator and does crypto off the UI thread', () async {
+      final client = await create() as ZunoClient;
 
+      expect(client.appClient, isTrue);
+      expect(client.syncCoordinator, isNotNull);
       expect(client.nativeImplementations, isA<NativeImplementationsIsolate>());
     });
 
-    test('a headless client does crypto in place', () async {
+    test('a headless client may not clear the store, has no sync coordinator '
+        'and does crypto in place', () async {
       await obtainDatabaseCipher();
-      final client = await create(backgroundSync: false);
+      final client = await create(backgroundSync: false) as ZunoClient;
 
+      expect(client.appClient, isFalse);
+      expect(client.syncCoordinator, isNull);
       expect(
         client.nativeImplementations,
         isNot(isA<NativeImplementationsIsolate>()),

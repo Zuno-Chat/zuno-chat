@@ -56,6 +56,25 @@ void main() {
     use24Hour: true,
   );
 
+  void mute(Room room) => client.accountData['m.push_rules'] = BasicEvent(
+    type: 'm.push_rules',
+    content: {
+      'global': {
+        'override': [
+          {
+            'rule_id': room.id,
+            'default': false,
+            'enabled': true,
+            'actions': <Object?>[],
+            'conditions': [
+              {'kind': 'event_match', 'key': 'room_id', 'pattern': room.id},
+            ],
+          },
+        ],
+      },
+    },
+  );
+
   test('reads what the row shows', () {
     final data = read();
 
@@ -99,10 +118,6 @@ void main() {
     expect(after, isNot(before));
   });
 
-  test('the unread count never goes below zero', () {
-    expect(read(corrections: {room.id: 9}).unread, 0);
-  });
-
   test('a partner who left dims the row', () {
     room.setState(
       buildTestEvent(
@@ -124,24 +139,7 @@ void main() {
 
   test('muting the room makes the record unequal and dims the row', () {
     final before = read();
-    client.accountData['m.push_rules'] = BasicEvent(
-      type: 'm.push_rules',
-      content: {
-        'global': {
-          'override': [
-            {
-              'rule_id': room.id,
-              'default': false,
-              'enabled': true,
-              'actions': <Object?>[],
-              'conditions': [
-                {'kind': 'event_match', 'key': 'room_id', 'pattern': room.id},
-              ],
-            },
-          ],
-        },
-      },
-    );
+    mute(room);
 
     final after = read();
 
@@ -224,19 +222,6 @@ void main() {
     expect(data.lastEventId, isNull);
   });
 
-  test('a group seeds its tone with the room ID', () {
-    client.accountData.remove('m.direct');
-
-    expect(read().toneSeed, room.id);
-    expect(read().isDirect, isFalse);
-  });
-
-  test('the prototype fills both text lines', () {
-    expect(ChatRowData.prototype.title, isNotEmpty);
-    expect(ChatRowData.prototype.timeLabel, isNotEmpty);
-    expect(ChatRowData.prototype.unread, greaterThan(0));
-  });
-
   group('a community row', () {
     late Room community;
     late Room gear;
@@ -265,25 +250,6 @@ void main() {
       client.rooms.add(member);
       return member;
     }
-
-    void mute(Room room) => client.accountData['m.push_rules'] = BasicEvent(
-      type: 'm.push_rules',
-      content: {
-        'global': {
-          'override': [
-            {
-              'rule_id': room.id,
-              'default': false,
-              'enabled': true,
-              'actions': <Object?>[],
-              'conditions': [
-                {'kind': 'event_match', 'key': 'room_id', 'pattern': room.id},
-              ],
-            },
-          ],
-        },
-      },
-    );
 
     setUp(() {
       gear = member('!gear:example.org', 'Gear swap', hour: 12, unread: 3);

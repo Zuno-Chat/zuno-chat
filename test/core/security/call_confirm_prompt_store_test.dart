@@ -11,10 +11,6 @@ void main() {
     store = CallConfirmPromptStore(await SharedPreferences.getInstance());
   });
 
-  test('nobody is declined to begin with', () {
-    expect(store.declined('@sam:example.org'), isFalse);
-  });
-
   test('declining is remembered for that person only', () async {
     await store.decline('@sam:example.org');
 

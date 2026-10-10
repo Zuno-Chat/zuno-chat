@@ -17,20 +17,24 @@ void main() {
     home: Scaffold(body: SizedBox(width: 240, height: 240, child: child)),
   );
 
-  testWidgets('shows Encrypting while key state is mismatched', (tester) async {
-    await tester.pumpWidget(
-      wrap(
-        const ParticipantTile(
-          participant: CallEngineParticipant(id: id, isLocal: false),
-          renderer: null,
-          encrypting: true,
+  for (final isLocal in [false, true]) {
+    testWidgets('shows Encrypting on the ${isLocal ? 'local' : 'remote'} tile '
+        'while its keys are not in step', (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          ParticipantTile(
+            participant: CallEngineParticipant(id: id, isLocal: isLocal),
+            renderer: null,
+            encrypting: true,
+          ),
         ),
-      ),
-    );
-    expect(find.text('Encrypting…'), findsOneWidget);
-  });
+      );
+      expect(find.text('Encrypting…'), findsOneWidget);
+    });
+  }
 
-  testWidgets('labels a remote on a weak connection', (tester) async {
+  testWidgets('labels a remote on a weak connection, to screen readers '
+      'too', (tester) async {
     await tester.pumpWidget(
       wrap(
         const ParticipantTile(
@@ -45,6 +49,7 @@ void main() {
       ),
     );
     expect(find.text('Weak connection'), findsOneWidget);
+    expect(find.bySemanticsLabel('Weak connection'), findsOneWidget);
   });
 
   testWidgets('a healthy remote has no label', (tester) async {
@@ -79,36 +84,6 @@ void main() {
       ),
     );
     expect(find.text('Weak connection'), findsNothing);
-  });
-
-  testWidgets('the local tile shows Encrypting while unkeyed', (tester) async {
-    await tester.pumpWidget(
-      wrap(
-        const ParticipantTile(
-          participant: CallEngineParticipant(id: id, isLocal: true),
-          renderer: null,
-          encrypting: true,
-        ),
-      ),
-    );
-    expect(find.text('Encrypting…'), findsOneWidget);
-  });
-
-  testWidgets('the tile label is exposed to semantics', (tester) async {
-    await tester.pumpWidget(
-      wrap(
-        const ParticipantTile(
-          participant: CallEngineParticipant(
-            id: id,
-            isLocal: false,
-            encrypted: true,
-            lowBandwidth: true,
-          ),
-          renderer: null,
-        ),
-      ),
-    );
-    expect(find.bySemanticsLabel('Weak connection'), findsOneWidget);
   });
 
   group('self-view mirroring', () {

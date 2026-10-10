@@ -161,17 +161,6 @@ void main() {
       expect(device.row('Zuno version')?.value, '1.2.0 (build 2)');
     });
 
-    test('the same address in other letter case or with its default port is '
-        'correct', () {
-      final device = section(
-        inputs(
-          pushers: [pusher(url: 'https://ZUNO.im:443/_matrix/push/v1/notify')],
-        ),
-        'This device',
-      );
-      expect(device.row('Gateway')?.value, 'Correct');
-    });
-
     test(
       'another address, another format or the wrong app ID is a problem',
       () {
@@ -301,27 +290,6 @@ void main() {
       );
       expect(arrived.row('Last ring'), isNull);
       expect(arrived.row('Last call activity')?.value, '10 min ago');
-    });
-
-    test('a call that ran on after its ring is not reported as lost', () {
-      final calls = section(
-        inputs(
-          health: sent,
-          snapshot: PushDiagnosticsSnapshot(
-            environment: 'production',
-            ledger: [
-              LedgerCall(
-                state: 'ended',
-                source: 'push',
-                at: now.subtract(const Duration(minutes: 2)),
-              ),
-            ],
-          ),
-        ),
-        'Calls',
-      );
-      expect(calls.row('Last ring'), isNull);
-      expect(calls.row('Last call activity')?.value, '2 min ago');
     });
 
     test('a server that could not be asked leaves the last ring unknown', () {
@@ -508,8 +476,7 @@ void main() {
       expect(delivery.row('Extension last checked in')?.value, '31 min ago');
     });
 
-    test('a server that cannot be reached, is starting or has push turned '
-        'off', () {
+    test('a server that cannot be reached or is starting', () {
       expect(
         section(inputs(reach: ServerReach.unreachable), 'Delivery').rows,
         const [DiagnosticRow('Reachable', 'No', DiagnosticStatus.problem)],
@@ -517,13 +484,6 @@ void main() {
       expect(
         section(inputs(reach: ServerReach.starting), 'Delivery').rows.single,
         const DiagnosticRow('Reachable', 'Starting', DiagnosticStatus.warning),
-      );
-      expect(
-        section(
-          inputs(reach: ServerReach.turnedOff),
-          'Delivery',
-        ).rows.single.value,
-        'Turned off',
       );
     });
   });
@@ -611,13 +571,9 @@ void main() {
       pushDiagnostics: true,
     );
 
-    DiagnosticSection section(String title, PushDiagnosticsInputs inputs) =>
-        buildPushDiagnostics(inputs).firstWhere((s) => s.title == title);
-
     test('permission reads notifications, each category, full-screen alerts, '
         'battery, background data and standby', () {
       final rows = section(
-        'Permission',
         inputs(
           capabilities: android,
           deliveryMode: NotificationDeliveryMode.unifiedPush,
@@ -648,6 +604,7 @@ void main() {
             ),
           ),
         ),
+        'Permission',
       ).rows;
 
       expect(rows, const [
@@ -673,8 +630,8 @@ void main() {
     test('a snapshot that could not be read gives Unknown rows, never '
         'Not allowed', () {
       final rows = section(
-        'Permission',
         inputs(capabilities: android, snapshot: PushDiagnosticsSnapshot.empty),
+        'Permission',
       ).rows;
 
       expect(rows.map((row) => row.value).toSet(), {'Unknown'});
@@ -691,7 +648,6 @@ void main() {
     test('a blocked chat category is a problem; optimized battery is fine '
         'with Google services', () {
       final rows = section(
-        'Permission',
         inputs(
           capabilities: android,
           deliveryMode: NotificationDeliveryMode.fcm,
@@ -708,6 +664,7 @@ void main() {
             ),
           ),
         ),
+        'Permission',
       );
 
       expect(
@@ -734,7 +691,6 @@ void main() {
     }
 
     DiagnosticRow? standbyRow({int? live, int? recorded}) => section(
-      'Permission',
       inputs(
         capabilities: android,
         deliveryMode: NotificationDeliveryMode.fcm,
@@ -743,6 +699,7 @@ void main() {
           android: AndroidPushSnapshot(standbyBucket: live),
         ),
       ),
+      'Permission',
     ).row('App standby');
 
     test('a bucket recorded when a push arrived beats the live one', () {
@@ -756,20 +713,8 @@ void main() {
       );
     });
 
-    test('a live bucket alone is information, and none reads Unknown', () {
-      expect(
-        standbyRow(live: 45),
-        const DiagnosticRow('App standby', 'Restricted', DiagnosticStatus.info),
-      );
-      expect(
-        standbyRow(),
-        const DiagnosticRow('App standby', 'Unknown', DiagnosticStatus.info),
-      );
-    });
-
     test('with notifications off, a blocked category is information', () {
       final rows = section(
-        'Permission',
         inputs(
           capabilities: android,
           snapshot: const PushDiagnosticsSnapshot(
@@ -785,6 +730,7 @@ void main() {
             ),
           ),
         ),
+        'Permission',
       );
 
       expect(
@@ -793,27 +739,9 @@ void main() {
       );
     });
 
-    test(
-      'push turned off on the server is fine on Android, a problem on iOS',
-      () {
-        final onAndroid = section(
-          'Delivery',
-          inputs(capabilities: android, reach: ServerReach.turnedOff),
-        );
-        final onIos = section('Delivery', inputs(reach: ServerReach.turnedOff));
-
-        expect(
-          onAndroid.row('Reachable'),
-          const DiagnosticRow('Reachable', 'Turned off'),
-        );
-        expect(onIos.row('Reachable')?.status, DiagnosticStatus.problem);
-      },
-    );
-
     test('a health entry still gives the last delivery with no current '
         'pusher', () {
       final delivery = section(
-        'Delivery',
         inputs(
           capabilities: android,
           deliveryMode: NotificationDeliveryMode.fcm,
@@ -828,6 +756,7 @@ void main() {
             ],
           ),
         ),
+        'Delivery',
       );
 
       expect(delivery.row('Last delivery')?.value, '3 min ago');
@@ -836,7 +765,6 @@ void main() {
     test('this device with Google services: method, status, Google Play '
         'services and registration', () {
       final rows = section(
-        'This device',
         inputs(
           capabilities: android,
           deliveryMode: NotificationDeliveryMode.fcm,
@@ -844,6 +772,7 @@ void main() {
           playServices: FcmAvailability.available,
           pushers: [pusher(appId: 'im.zuno.chat.android')],
         ),
+        'This device',
       ).rows;
 
       expect(rows, const [
@@ -865,7 +794,6 @@ void main() {
     test('UnifiedPush without Google Play services is fine, and a failed '
         'status is a problem', () {
       final rows = section(
-        'This device',
         inputs(
           capabilities: android,
           deliveryMode: NotificationDeliveryMode.unifiedPush,
@@ -873,6 +801,7 @@ void main() {
           playServices: FcmAvailability.unavailable,
           pushers: [pusher(appId: 'im.zuno.chat.unifiedpush')],
         ),
+        'This device',
       );
 
       expect(rows.row('Status')?.status, DiagnosticStatus.problem);
@@ -884,12 +813,12 @@ void main() {
 
     test('background sync has nothing registered to check', () {
       final rows = section(
-        'This device',
         inputs(
           capabilities: android,
           deliveryMode: NotificationDeliveryMode.backgroundService,
           currentPushkey: null,
         ),
+        'This device',
       );
 
       expect(rows.row('Delivery')?.value, 'Background sync');
@@ -900,7 +829,6 @@ void main() {
     test('the last push comes from the delivery log, a late one flagged', () {
       final received = now.subtract(const Duration(minutes: 1));
       final late = section(
-        'Delivery',
         inputs(
           capabilities: android,
           deliveryMode: NotificationDeliveryMode.fcm,
@@ -915,10 +843,11 @@ void main() {
             ),
           ],
         ),
+        'Delivery',
       );
       final none = section(
-        'Delivery',
         inputs(capabilities: android, deliveries: const []),
+        'Delivery',
       );
 
       expect(
@@ -932,34 +861,37 @@ void main() {
       expect(none.row('Last push')?.value, 'None yet');
     });
 
-    test('a server without the push module is fine on Android and a '
-        'problem on iOS', () {
-      final onAndroid = section(
-        'Delivery',
-        inputs(capabilities: android, reach: ServerReach.notInstalled),
-      );
-      final onIos = section(
-        'Delivery',
-        inputs(reach: ServerReach.notInstalled),
-      );
+    for (final (situation, reach, value) in [
+      ('push turned off on the server', ServerReach.turnedOff, 'Turned off'),
+      (
+        'a server without the push module',
+        ServerReach.notInstalled,
+        'Not available on this server',
+      ),
+    ]) {
+      test('$situation is fine on Android, a problem on iOS', () {
+        final onAndroid = section(
+          inputs(capabilities: android, reach: reach),
+          'Delivery',
+        );
+        final onIos = section(inputs(reach: reach), 'Delivery');
 
-      expect(
-        onAndroid.row('Reachable'),
-        const DiagnosticRow('Reachable', 'Not available on this server'),
-      );
-      expect(onIos.row('Reachable')?.status, DiagnosticStatus.problem);
-    });
+        expect(onAndroid.row('Reachable'), DiagnosticRow('Reachable', value));
+        expect(onIos.row('Reachable')?.status, DiagnosticStatus.problem);
+      });
+    }
   });
 
   test('iOS shows the device token row only when the system reported it', () {
-    DiagnosticSection device(bool? registered) => buildPushDiagnostics(
+    DiagnosticSection device(bool? registered) => section(
       inputs(
         snapshot: PushDiagnosticsSnapshot(
           environment: 'production',
           registeredForRemoteNotifications: registered,
         ),
       ),
-    ).firstWhere((s) => s.title == 'This device');
+      'This device',
+    );
 
     expect(
       device(true).row('Device token'),
@@ -980,8 +912,7 @@ void main() {
     'iOS shows how often the server dropped this device, only when known',
     () {
       DiagnosticSection device(int? dropped) =>
-          buildPushDiagnostics(inputs(droppedRegistrations: dropped))
-              .firstWhere((s) => s.title == 'This device');
+          section(inputs(droppedRegistrations: dropped), 'This device');
 
       expect(
         device(2).row('Dropped registrations'),

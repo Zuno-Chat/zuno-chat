@@ -13,6 +13,7 @@ import 'package:zuno/features/chat/presentation/message_contents/media_message.d
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/pump_until.dart';
 import 'room_page_harness.dart';
 
 void main() {
@@ -365,7 +366,7 @@ void main() {
       expect(relates['key'], '😀');
     });
 
-    testWidgets('More reactions opens the full picker', (tester) async {
+    testWidgets('closing the full picker reacts with nothing', (tester) async {
       await openRoom(tester, () => [harness.message(r'$m1', body: 'hello')]);
 
       await openActions(tester, 'hello');
@@ -514,7 +515,11 @@ void main() {
 
       await openPhotoActions(tester);
       await tapAction(tester, 'Save');
-      await harness.drive(tester, turns: 8);
+      await pumpUntil(
+        tester,
+        () => shows('Could not save. Try again.'),
+        reason: 'the failed save to be reported',
+      );
 
       expect(find.text('Could not save. Try again.'), findsOneWidget);
     });
@@ -526,7 +531,11 @@ void main() {
 
       await openPhotoActions(tester);
       await tapAction(tester, 'Share');
-      await harness.drive(tester, turns: 8);
+      await pumpUntil(
+        tester,
+        () => shows('Could not share. Try again.'),
+        reason: 'the failed share to be reported',
+      );
 
       expect(find.text('Could not share. Try again.'), findsOneWidget);
     });
@@ -542,7 +551,11 @@ void main() {
       await openPhotoActions(tester);
       expect(find.widgetWithText(ListTile, 'Save all (2)'), findsOneWidget);
       await tapAction(tester, 'Save all (2)');
-      await harness.drive(tester, turns: 8);
+      await pumpUntil(
+        tester,
+        () => shows('Could not save'),
+        reason: 'the failed gallery save to be counted',
+      );
 
       expect(find.text('Could not save'), findsOneWidget);
     });

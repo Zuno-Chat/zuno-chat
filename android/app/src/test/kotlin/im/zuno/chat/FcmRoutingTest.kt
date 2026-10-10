@@ -233,23 +233,13 @@ class FcmRoutingTest {
     }
 
     @Test
-    fun `after giving up, no engine is booted until the cool-down passes`() {
+    fun `a failed boot is retried, then the pushes are let go until the cool-down passes`() {
         val first = bootedHeadless(routing.submit("p1", 0))
         val second = bootedHeadless(routing.bootFailed(first, 10))
-        routing.bootFailed(second, 20)
 
+        assertEquals(listOf(Finish("p1")), routing.bootFailed(second, 20))
         assertEquals(listOf(Finish("p2")), routing.submit("p2", 1_000))
         assertTrue(routing.submit("p3", 300_020).any { it is BootHeadless })
-    }
-
-    @Test
-    fun `a failed boot is retried, then the pushes are let go`() {
-        val first = bootedHeadless(routing.submit("p1", 0))
-
-        val second = bootedHeadless(routing.bootFailed(first, 10))
-        val giveUp = routing.bootFailed(second, 20)
-
-        assertEquals(listOf(Finish("p1")), giveUp)
     }
 
     @Test

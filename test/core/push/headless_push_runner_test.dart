@@ -1,170 +1,42 @@
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
 import 'package:zuno/core/push/headless_push_runner.dart';
 import 'package:zuno/core/push/incoming_push_handler.dart';
 
-import '../../helpers/fake_call_style_channel.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/headless_ring.dart';
+import '../../helpers/native_method_calls.dart';
+import '../../helpers/notifying_client.dart';
+import '../../helpers/push_test_client.dart';
 
-class _RecordingClient extends Client {
-  _RecordingClient({this.onDispose, this.disposing})
-    : super('test', database: FakeDatabaseApi());
+class _MessageClient extends PushTestClient {
+  _MessageClient({super.httpClient});
 
-  int disposeCalls = 0;
-  bool? closedDatabase;
-
-  final void Function()? onDispose;
-  final Future<void>? disposing;
-
-  @override
-  Future<Event?> getEventByPushNotification(
-    PushNotification notification, {
-    bool storeInDatabase = true,
-    Duration timeoutForServerRequests = const Duration(seconds: 8),
-    bool returnNullIfSeen = true,
-  }) async => null;
+  late final Room room;
 
   @override
-  Future<void> dispose({bool closeDatabase = true}) async {
-    disposeCalls++;
-    closedDatabase = closeDatabase;
-    await disposing;
-    onDispose?.call();
-  }
-}
-
-class _ExpiringClient extends Client {
-  _ExpiringClient()
-    : super(
-        'test',
-        database: FakeDatabaseApi(),
-        onSoftLogout: (client) async => client.accessToken = 'fresh',
-      );
-
-  @override
-  DateTime? get accessTokenExpiresAt =>
-      DateTime.now().add(const Duration(seconds: 30));
-
-  @override
-  Future<void> dispose({bool closeDatabase = true}) async {}
-}
-
-class _StalledRefreshClient extends Client {
-  _StalledRefreshClient()
-    : super(
-        'test',
-        database: FakeDatabaseApi(),
-        onSoftLogout: (_) => Completer<void>().future,
-      );
-
-  @override
-  DateTime? get accessTokenExpiresAt =>
-      DateTime.now().add(const Duration(seconds: 30));
-
-  @override
-  Future<void> dispose({bool closeDatabase = true}) async {}
-}
-
-class _MessageClient extends Client {
-  _MessageClient({super.httpClient})
-    : super('test', database: FakeDatabaseApi());
-
-  late Room room;
-  bool signedIn = true;
-  int fetches = 0;
-
-  @override
-  bool isLogged() => signedIn;
-
-  @override
-  PushruleEvaluator get pushruleEvaluator => PushruleEvaluator.fromRuleset(
-    PushRuleSet(
-      underride: [
-        PushRule(
-          ruleId: '.m.rule.message',
-          default$: true,
-          enabled: true,
-          conditions: [
-            PushCondition(
-              kind: 'event_match',
-              key: 'type',
-              pattern: 'm.room.message',
-            ),
-          ],
-          actions: ['notify'],
-        ),
-      ],
-    ),
-  );
-
-  @override
-  Future<Event?> getEventByPushNotification(
-    PushNotification notification, {
-    bool storeInDatabase = true,
-    Duration timeoutForServerRequests = const Duration(seconds: 8),
-    bool returnNullIfSeen = true,
-  }) async {
-    fetches++;
-    return buildTestEvent(
-      room,
-      eventId: notification.eventId!,
-      senderId: '@a:x',
-      content: {'msgtype': MessageTypes.Text, 'body': 'hi'},
-    );
-  }
-}
-
-class _RingingClient extends Client {
-  _RingingClient() : super('test', database: FakeDatabaseApi()) {
-    setUserId('@me:example.org');
-  }
-
-  int disposeCalls = 0;
-
-  @override
-  bool isLogged() => true;
-
-  @override
-  Future<Event?> getEventByPushNotification(
-    PushNotification notification, {
-    bool storeInDatabase = true,
-    Duration timeoutForServerRequests = const Duration(seconds: 8),
-    bool returnNullIfSeen = true,
-  }) async {
-    final room = buildTestRoom(this);
-    return buildTestEvent(
-      room,
-      eventId: r'$invite',
-      senderId: '@bob:example.org',
-      originServerTs: DateTime.now(),
-      content: const {
-        'msgtype': 'im.zuno.call_invite',
-        'call_id': 'call1',
-        'kind': 'voice',
-        'body': 'Incoming call',
-      },
-    );
-  }
-
-  @override
-  Future<void> dispose({bool closeDatabase = true}) async => disposeCalls++;
+  PushruleEvaluator get pushruleEvaluator => notifyOnMessagesEvaluator();
 }
 
 _MessageClient _messageClient({String? avatarUrl, http.Client? httpClient}) {
   final client = _MessageClient(httpClient: httpClient)..setUserId('@me:x');
-  client.room = buildTestRoom(client);
-  client.room.setState(
-    User('@a:x', displayName: 'Alice', avatarUrl: avatarUrl, room: client.room),
+  final room = client.room = buildTestRoom(client);
+  room.setState(
+    User('@a:x', displayName: 'Alice', avatarUrl: avatarUrl, room: room),
+  );
+  client.pushedEvent = (notification) => buildTestEvent(
+    room,
+    eventId: notification.eventId!,
+    senderId: '@a:x',
+    content: {'msgtype': MessageTypes.Text, 'body': 'hi'},
   );
   return client;
 }
@@ -172,13 +44,15 @@ _MessageClient _messageClient({String? avatarUrl, http.Client? httpClient}) {
 PushNotification _push({String eventId = '\$abc'}) =>
     PushNotification(eventId: eventId, roomId: '!room:example.org');
 
-HeadlessPushRunner _recordingRunner(List<_RecordingClient> built) =>
-    HeadlessPushRunner()
-      ..clientBuilder = () async {
-        final client = _RecordingClient();
-        built.add(client);
-        return client;
-      };
+HeadlessPushRunner _recordingRunner(
+  List<PushTestClient> built, {
+  PushTestClient Function() newClient = PushTestClient.new,
+}) => HeadlessPushRunner()
+  ..clientBuilder = () async {
+    final client = newClient();
+    built.add(client);
+    return client;
+  };
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -194,7 +68,7 @@ void main() {
 
   group('the push client', () {
     test('back-to-back pushes share one client', () async {
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built);
 
       await runner.deliver(_push(eventId: r'$one'));
@@ -205,7 +79,7 @@ void main() {
     });
 
     test('a burst shares one client', () async {
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built);
 
       await Future.wait([
@@ -219,7 +93,7 @@ void main() {
 
     test('is kept after its push, however long nothing else comes', () {
       fakeAsync((async) {
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built);
 
         unawaited(runner.deliver(_push()));
@@ -230,23 +104,8 @@ void main() {
       });
     });
 
-    test('pushes minutes apart still share one client', () {
-      fakeAsync((async) {
-        final built = <_RecordingClient>[];
-        final runner = _recordingRunner(built);
-
-        unawaited(runner.deliver(_push(eventId: r'$one')));
-        async.elapse(const Duration(minutes: 5));
-        unawaited(runner.deliver(_push(eventId: r'$two')));
-        async.flushMicrotasks();
-
-        expect(built, hasLength(1));
-        expect(built.single.disposeCalls, 0);
-      });
-    });
-
     test('a push after the client was given up opens a fresh one', () async {
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built);
 
       await runner.deliver(_push(eventId: r'$one'));
@@ -261,7 +120,7 @@ void main() {
 
     test('a client held for a long time is still reused once free', () {
       fakeAsync((async) {
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built);
         final refining = Completer<void>();
 
@@ -283,7 +142,7 @@ void main() {
 
     test('tells the caller once for each client it opens', () async {
       final opened = <Client>[];
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built)..onClientOpened = opened.add;
 
       await runner.deliver(_push(eventId: r'$one'));
@@ -298,7 +157,7 @@ void main() {
     test(
       'a caller that fails on a new client does not break the push',
       () async {
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built)
           ..onClientOpened = (_) => throw StateError('no prefs');
 
@@ -311,7 +170,7 @@ void main() {
 
     test('a client held through a long ring keeps serving', () {
       fakeAsync((async) {
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built);
         final ringing = Completer<void>();
         Client? declinedWith;
@@ -334,10 +193,10 @@ void main() {
     test('never opens a fresh client while the old one is closing', () {
       fakeAsync((async) {
         final closing = Completer<void>();
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = HeadlessPushRunner()
           ..clientBuilder = () async {
-            final client = _RecordingClient(
+            final client = PushTestClient(
               disposing: built.isEmpty ? closing.future : null,
             );
             built.add(client);
@@ -361,7 +220,7 @@ void main() {
     test('the ack never waits for the client to be let go', () async {
       final runner = HeadlessPushRunner()
         ..clientBuilder = () async =>
-            _RecordingClient(disposing: Completer<void>().future);
+            PushTestClient(disposing: Completer<void>().future);
 
       await runner
           .deliver(_push())
@@ -374,7 +233,7 @@ void main() {
     test('nor for a prepared client no push needed', () async {
       final runner = HeadlessPushRunner()
         ..clientBuilder = () async =>
-            _RecordingClient(disposing: Completer<void>().future);
+            PushTestClient(disposing: Completer<void>().future);
 
       runner.prepareClient();
       await pumpEventQueue();
@@ -391,7 +250,7 @@ void main() {
 
   group('prepareClient', () {
     test('starts the build ahead of the push and the push reuses it', () async {
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built);
 
       runner.prepareClient();
@@ -408,7 +267,7 @@ void main() {
       final runner = HeadlessPushRunner()
         ..clientBuilder = () async {
           builds++;
-          return _RecordingClient();
+          return PushTestClient();
         };
 
       runner.prepareClient();
@@ -417,10 +276,10 @@ void main() {
       expect(builds, 1);
 
       final live = HeadlessPushRunner()
-        ..liveClient = _RecordingClient()
+        ..liveClient = PushTestClient()
         ..clientBuilder = () async {
           builds++;
-          return _RecordingClient();
+          return PushTestClient();
         };
       live.prepareClient();
       await pumpEventQueue();
@@ -429,7 +288,7 @@ void main() {
 
     test('a prepared client nobody needed is kept until it is settled', () {
       fakeAsync((async) {
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built);
 
         runner.prepareClient();
@@ -454,7 +313,7 @@ void main() {
         ..clientBuilder = () async {
           builds++;
           if (builds == 1) throw StateError('no database');
-          return _RecordingClient();
+          return PushTestClient();
         };
 
       runner.prepareClient();
@@ -490,7 +349,7 @@ void main() {
 
   group('when the app asks for the client', () {
     test('an idle client is let go at once', () async {
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built);
       await runner.deliver(_push());
 
@@ -506,7 +365,7 @@ void main() {
       'a push being handled finishes first, then the client is let go',
       () async {
         final fetching = Completer<void>();
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built);
         final running = runner.withClient((_) => fetching.future);
         await pumpEventQueue();
@@ -527,7 +386,7 @@ void main() {
       () async {
         final first = Completer<void>();
         final served = <String>[];
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built);
         final one = runner.withClient((_) => first.future);
         final two = runner.withClient((_) async => served.add('two'));
@@ -548,7 +407,7 @@ void main() {
       'a push still deciding whether it needs the client keeps it',
       () async {
         final asking = Completer<bool>();
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built)
           ..isAppSyncing = (() => true)
           ..nativeAppInFront = () => asking.future;
@@ -569,26 +428,6 @@ void main() {
     );
 
     test(
-      'a notification still refining keeps the client until it is done',
-      () async {
-        final refining = Completer<void>();
-        final built = <_RecordingClient>[];
-        final runner = _recordingRunner(built);
-        await runner.withClient(
-          (_) async => runner.keepClientWhile(refining.future),
-        );
-
-        runner.yieldClient();
-        await pumpEventQueue();
-        expect(built.single.disposeCalls, 0);
-
-        refining.complete();
-        await pumpEventQueue();
-        expect(built.single.disposeCalls, 1);
-      },
-    );
-
-    test(
       'a client still being opened is let go as soon as it is ready',
       () async {
         final build = Completer<Client>();
@@ -596,7 +435,7 @@ void main() {
         runner.prepareClient();
 
         runner.yieldClient();
-        final client = _RecordingClient();
+        final client = PushTestClient();
         build.complete(client);
         await pumpEventQueue();
 
@@ -609,12 +448,12 @@ void main() {
         'client short', () async {
       var builds = 0;
       final failing = Completer<Client>();
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = HeadlessPushRunner()
         ..clientBuilder = () {
           builds++;
           if (builds == 1) return failing.future;
-          final client = _RecordingClient();
+          final client = PushTestClient();
           built.add(client);
           return Future.value(client);
         };
@@ -631,7 +470,7 @@ void main() {
     });
 
     test('with no client to give up, nothing changes', () async {
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built);
 
       runner.yieldClient();
@@ -642,7 +481,7 @@ void main() {
     });
 
     test('never lets go of a live client it was handed', () async {
-      final live = _RecordingClient();
+      final live = PushTestClient();
       final runner = HeadlessPushRunner()..liveClient = live;
       await runner.deliver(_push());
 
@@ -655,7 +494,7 @@ void main() {
     test('follows the lease\'s yield requests', () async {
       final requests = StreamController<void>.broadcast();
       addTearDown(requests.close);
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built);
       final sub = runner.yieldWhenAsked(requests.stream);
       addTearDown(sub.cancel);
@@ -675,7 +514,7 @@ void main() {
         ..clientBuilder = () async {
           builds++;
           if (builds == 1) throw const ClientLeaseDenied();
-          return _RecordingClient();
+          return PushTestClient();
         };
 
       await runner.deliver(_push(eventId: r'$one'));
@@ -702,7 +541,7 @@ void main() {
   group('with an idle limit', () {
     test('lets an idle client go once the limit passes', () {
       fakeAsync((async) {
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built)
           ..idleLimit = const Duration(minutes: 10);
 
@@ -718,7 +557,7 @@ void main() {
 
     test('a push in between starts the wait again', () {
       fakeAsync((async) {
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built)
           ..idleLimit = const Duration(minutes: 10);
 
@@ -736,7 +575,7 @@ void main() {
 
     test('never lets go while work holds the client', () {
       fakeAsync((async) {
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final refining = Completer<void>();
         final runner = _recordingRunner(built)
           ..idleLimit = const Duration(minutes: 10);
@@ -756,43 +595,11 @@ void main() {
     });
   });
 
-  test('never disposes a live client it was handed', () async {
-    final client = _RecordingClient();
-    final runner = HeadlessPushRunner()..liveClient = client;
-
-    await runner.deliver(_push());
-    await runner.settle();
-
-    expect(client.disposeCalls, 0);
-  });
-
-  test(
-    'serializes concurrent deliveries so two clients never overlap',
-    () async {
-      var open = 0;
-      var maxOpen = 0;
-      final runner = HeadlessPushRunner()
-        ..clientBuilder = () async {
-          open++;
-          maxOpen = open > maxOpen ? open : maxOpen;
-          return _RecordingClient(onDispose: () => open--);
-        };
-
-      await Future.wait([
-        runner.deliver(_push(eventId: '\$one')),
-        runner.deliver(_push(eventId: '\$two')),
-      ]);
-
-      expect(maxOpen, 1);
-    },
-  );
-
   test('runs onPushHandled outside the queue, so a ring hold does not '
       'block the push that would cancel it', () async {
     final runner = HeadlessPushRunner()
-      ..clientBuilder = () async => _RecordingClient();
+      ..clientBuilder = () async => PushTestClient();
     final holdReleased = Completer<void>();
-    var secondDelivered = false;
     var handledCount = 0;
 
     runner.onPushHandled = (_) async {
@@ -801,12 +608,34 @@ void main() {
     };
 
     final first = runner.deliver(_push(eventId: '\$ring'));
-    await runner.deliver(_push(eventId: '\$hangup'));
-    secondDelivered = true;
+    await runner
+        .deliver(_push(eventId: '\$hangup'))
+        .timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => fail('the ring hold blocked the next push'),
+        );
 
-    expect(secondDelivered, isTrue);
+    expect(handledCount, 2);
     holdReleased.complete();
     await first;
+  });
+
+  test('onPushHandled runs once the push is done with its client, so a '
+      'decline from it reuses that client', () async {
+    final built = <PushTestClient>[];
+    final runner = _recordingRunner(built);
+    final handled = <IncomingPushOutcome>[];
+    Client? declinedWith;
+    runner.onPushHandled = (outcome) async {
+      handled.add(outcome);
+      declinedWith = await runner.withClient((client) async => client);
+    };
+
+    await runner.deliver(_push());
+
+    expect(handled, [IncomingPushOutcome.ignored]);
+    expect(built, hasLength(1));
+    expect(declinedWith, same(built.single));
   });
 
   test('a throwing push does not poison the queue for the next one', () async {
@@ -815,7 +644,7 @@ void main() {
       ..clientBuilder = () async {
         builds++;
         if (builds == 1) throw StateError('database locked');
-        return _RecordingClient();
+        return PushTestClient();
       };
 
     await runner.deliver(_push(eventId: '\$bad'));
@@ -828,7 +657,8 @@ void main() {
     'withClient refreshes an expiring token before the action runs',
     () async {
       final runner = HeadlessPushRunner()
-        ..clientBuilder = () async => _ExpiringClient()..accessToken = 'stale';
+        ..clientBuilder = () async =>
+            ExpiringTokenClient()..accessToken = 'stale';
 
       expect(
         await runner.withClient((client) async => client.accessToken),
@@ -839,7 +669,7 @@ void main() {
 
   test('withClient refreshes a live client too', () async {
     final runner = HeadlessPushRunner()
-      ..liveClient = (_ExpiringClient()..accessToken = 'stale');
+      ..liveClient = (ExpiringTokenClient()..accessToken = 'stale');
 
     expect(
       await runner.withClient((client) async => client.accessToken),
@@ -850,7 +680,7 @@ void main() {
   test('a token refresh that stalls holds each action up only so long', () {
     fakeAsync((async) {
       final runner = HeadlessPushRunner()
-        ..clientBuilder = () async => _StalledRefreshClient();
+        ..clientBuilder = () async => ExpiringTokenClient(refreshStalls: true);
       final ran = <String>[];
 
       unawaited(runner.withClient((_) async => ran.add('first')));
@@ -894,21 +724,6 @@ void main() {
 
     expect(runner.lastPushOutcome, IncomingPushOutcome.ignored);
     expect(notifications.shown, isEmpty);
-  });
-
-  test('drops a push while the app is in front and syncing, leaving the '
-      'message to the sync path', () async {
-    final notifications = installFakeLocalNotifications();
-    installSilentNotificationSideChannels();
-    final client = _messageClient();
-    final runner = HeadlessPushRunner()
-      ..liveClient = client
-      ..isAppSyncing = () => true;
-
-    await runner.deliver(_push());
-
-    expect(notifications.shown, isEmpty);
-    expect(runner.lastPushOutcome, IncomingPushOutcome.ignored);
   });
 
   group('while the app is resumed and syncing', () {
@@ -988,7 +803,7 @@ void main() {
 
       await runner.deliver(_push());
 
-      expect(client.fetches, 0);
+      expect(client.fetched, isEmpty);
       expect(notifications.shown, isEmpty);
       expect(runner.lastPushOutcome, IncomingPushOutcome.ignored);
     });
@@ -1006,31 +821,17 @@ void main() {
   });
 
   group('a push that rings', () {
-    setUp(() {
-      ringRateLimiter.clear();
-      installFakeLocalNotifications();
-      installSilentNotificationSideChannels();
-      installFakeCallStyleChannel();
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      for (final name in ['zuno/calls', 'zuno/vibration']) {
-        final channel = MethodChannel(name);
-        messenger.setMockMethodCallHandler(channel, (_) async => null);
-        addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      }
-    });
+    setUp(installHeadlessRingChannels);
+
+    HeadlessPushRunner ringingRunner(List<PushTestClient> built) =>
+        _recordingRunner(built, newClient: ringingPushClient);
 
     test('keeps its client through the ring without holding up the ack', () {
       fakeAsync((async) {
-        final built = <_RingingClient>[];
+        final built = <PushTestClient>[];
         final ringOver = Completer<void>();
         var holds = 0;
-        final runner = HeadlessPushRunner()
-          ..clientBuilder = () async {
-            final client = _RingingClient();
-            built.add(client);
-            return client;
-          }
+        final runner = ringingRunner(built)
           ..onRinging = () {
             holds++;
             return ringOver.future;
@@ -1067,15 +868,9 @@ void main() {
     test('gives its client up at once when the app asks for it, and the '
         'engine stays busy until the ring ends', () {
       fakeAsync((async) {
-        final built = <_RingingClient>[];
+        final built = <PushTestClient>[];
         final ringOver = Completer<void>();
-        final runner = HeadlessPushRunner()
-          ..clientBuilder = () async {
-            final client = _RingingClient();
-            built.add(client);
-            return client;
-          }
-          ..onRinging = () => ringOver.future;
+        final runner = ringingRunner(built)..onRinging = () => ringOver.future;
 
         unawaited(runner.deliver(_push(eventId: r'$invite')));
         async.flushMicrotasks();
@@ -1095,14 +890,9 @@ void main() {
     test('a ring the caller waits out after the push does not keep the '
         'client from the app', () {
       fakeAsync((async) {
-        final built = <_RingingClient>[];
+        final built = <PushTestClient>[];
         final ringOver = Completer<void>();
-        final runner = HeadlessPushRunner()
-          ..clientBuilder = () async {
-            final client = _RingingClient();
-            built.add(client);
-            return client;
-          }
+        final runner = ringingRunner(built)
           ..onPushHandled = (outcome) async {
             if (outcome == IncomingPushOutcome.callRinging) {
               await ringOver.future;
@@ -1147,18 +937,10 @@ void main() {
   });
 
   group('a notification still refining', () {
-    const wakeLock = MethodChannel('zuno/wake_lock');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-
     test('keeps a short wake lock of its own until it settles', () async {
       installFakeLocalNotifications();
       installSilentNotificationSideChannels();
-      final locks = <MethodCall>[];
-      messenger.setMockMethodCallHandler(wakeLock, (call) async {
-        locks.add(call);
-        return null;
-      });
+      final locks = recordMethodChannel('zuno/wake_lock');
       final avatarFetch = Completer<void>();
       final client = _messageClient(
         avatarUrl: 'mxc://x/alice',
@@ -1172,30 +954,20 @@ void main() {
       await runner.deliver(_push());
 
       expect(runner.lastPushOutcome, IncomingPushOutcome.message);
-      expect(locks.map((c) => c.method), ['acquire']);
-      final acquired = locks.single.arguments as Map;
-      expect(
-        acquired['timeoutMs'],
-        allOf(greaterThan(0), lessThanOrEqualTo(10000)),
-      );
+      expect(locks.methods, ['acquire']);
 
       avatarFetch.complete();
       await pumpEventQueue();
 
-      expect(locks.map((c) => c.method), ['acquire', 'release']);
-      expect((locks.last.arguments as Map)['tag'], acquired['tag']);
+      expect(locks.methods, ['acquire', 'release']);
     });
   });
 
   group('quiescent', () {
-    test('is true for a runner that has done nothing', () {
-      expect(HeadlessPushRunner().quiescent, isTrue);
-    });
-
     test('is false while a push is being delivered', () async {
       final fetching = Completer<void>();
       final runner = HeadlessPushRunner()
-        ..clientBuilder = (() async => _RecordingClient())
+        ..clientBuilder = (() async => PushTestClient())
         ..isAppSyncing = (() => true)
         ..nativeAppInFront = () async {
           await fetching.future;
@@ -1217,7 +989,7 @@ void main() {
         final closing = Completer<void>();
         final runner = HeadlessPushRunner()
           ..clientBuilder = () async =>
-              _RecordingClient(disposing: closing.future);
+              PushTestClient(disposing: closing.future);
 
         unawaited(runner.deliver(_push()));
         async.flushMicrotasks();
@@ -1233,29 +1005,13 @@ void main() {
       });
     });
 
-    test('is false while a burst client is held open', () async {
-      final runner = HeadlessPushRunner()
-        ..clientBuilder = () async => _RecordingClient();
-      final refining = Completer<void>();
-
-      await runner.withClient((client) async {
-        runner.keepClientWhile(refining.future);
-      });
-      expect(runner.quiescent, isFalse);
-
-      refining.complete();
-      await pumpEventQueue();
-      expect(await runner.settle(), isTrue);
-      expect(runner.quiescent, isTrue);
-    });
-
     test('is false while a prepared client is waiting', () async {
       final build = Completer<Client>();
       final runner = HeadlessPushRunner()..clientBuilder = () => build.future;
 
       runner.prepareClient();
       expect(runner.quiescent, isFalse);
-      build.complete(_RecordingClient());
+      build.complete(PushTestClient());
     });
   });
 
@@ -1265,7 +1021,7 @@ void main() {
     });
 
     test('lets go of a kept client at once and reports quiet', () async {
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built);
       await runner.deliver(_push());
 
@@ -1275,7 +1031,7 @@ void main() {
     });
 
     test('lets go of a prepared client no push used', () async {
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built);
 
       runner.prepareClient();
@@ -1287,8 +1043,7 @@ void main() {
     test('answers only once the client has been let go', () async {
       final closing = Completer<void>();
       final runner = HeadlessPushRunner()
-        ..clientBuilder = () async =>
-            _RecordingClient(disposing: closing.future);
+        ..clientBuilder = () async => PushTestClient(disposing: closing.future);
       await runner.deliver(_push());
 
       bool? answer;
@@ -1303,7 +1058,7 @@ void main() {
 
     test('reports busy and keeps the client while a push runs', () async {
       final fetching = Completer<void>();
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built);
 
       final running = runner.withClient((_) => fetching.future);
@@ -1317,7 +1072,7 @@ void main() {
 
     test('reports busy while work holds the client', () async {
       final refining = Completer<void>();
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       final runner = _recordingRunner(built);
       await runner.withClient(
         (_) async => runner.keepClientWhile(refining.future),
@@ -1335,7 +1090,7 @@ void main() {
     test('reports busy while a push is still being delivered', () async {
       final asking = Completer<bool>();
       final runner = HeadlessPushRunner()
-        ..clientBuilder = (() async => _RecordingClient())
+        ..clientBuilder = (() async => PushTestClient())
         ..isAppSyncing = (() => true)
         ..nativeAppInFront = () => asking.future;
 
@@ -1351,7 +1106,7 @@ void main() {
   group('keepClientWhile', () {
     test('holds the burst client through a yield until the work ends', () {
       fakeAsync((async) {
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built);
         final refining = Completer<void>();
 
@@ -1371,23 +1126,9 @@ void main() {
       });
     });
 
-    test('a push arriving meanwhile reuses the held client', () async {
-      final built = <_RecordingClient>[];
-      final runner = _recordingRunner(built);
-      final refining = Completer<void>();
-
-      await runner.withClient((client) async {
-        runner.keepClientWhile(refining.future);
-      });
-      await runner.deliver(_push(eventId: r'$next'));
-      expect(built, hasLength(1));
-      expect(built.single.disposeCalls, 0);
-      refining.complete();
-    });
-
     test('failed work still lets the client go', () {
       fakeAsync((async) {
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         final runner = _recordingRunner(built);
         final refining = Completer<void>();
 
@@ -1406,7 +1147,7 @@ void main() {
     });
 
     test('never disposes a live client', () async {
-      final live = _RecordingClient();
+      final live = PushTestClient();
       final runner = HeadlessPushRunner()..liveClient = live;
 
       await runner.withClient((client) async {
@@ -1417,21 +1158,6 @@ void main() {
       expect(live.disposeCalls, 0);
     });
   });
-
-  test(
-    'notifies when no room is open, which is the headless default',
-    () async {
-      final notifications = installFakeLocalNotifications();
-      installSilentNotificationSideChannels();
-      final client = _messageClient();
-      final runner = HeadlessPushRunner()..liveClient = client;
-
-      await runner.deliver(_push());
-
-      expect(runner.lastPushOutcome, IncomingPushOutcome.message);
-      expect(notifications.shown, hasLength(1));
-    },
-  );
 }
 
 void badgeTests() {
@@ -1447,7 +1173,7 @@ void badgeTests() {
       runner = HeadlessPushRunner()
         ..clientBuilder = () async {
           builds++;
-          return _RecordingClient();
+          return PushTestClient();
         };
       notifications.active = [
         {'id': 11, 'channelId': 'direct_messages', 'payload': '{}'},

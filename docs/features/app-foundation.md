@@ -224,7 +224,7 @@ flowchart TD
   F --> H["iOS: wipe everything but the open database, clear the marker"]
 ```
 
-- The marker separates a sign-out from a device that never signed in, and it catches a remote sign-out at the next launch. A wipe that fails keeps the marker, so the next launch retries.
+- The marker separates a sign-out from a device that never signed in, and it catches a remote sign-out at the next launch. A wipe that fails keeps the marker, so the next sign-out or launch retries.
 - **Android** drops files, preferences, keys, notifications, channels, shortcuts and permissions, so the next launch is a fresh install.
 - **iOS keeps the process, so it keeps the open database** (`signOutWipeKeepsProcess`). An iOS app cannot quit itself, and deleting the live SQLCipher file or its key would strand a same-session sign-in. The SDK has already emptied the database, so Dart `VACUUM`s it, the native wipe empties everything else the app owns, and Dart reloads `SharedPreferences`.
 - **A same-session sign-in must start clean**, so a provider that keeps session state in memory watches `isLoggedInProvider`.
@@ -326,7 +326,7 @@ stateDiagram-v2
 - **Changing the Team ID strands the App Group containers and the Keychain items**, because their identifiers carry it.
 - **Never call the AppDelegate's `registrar(forPlugin:)`, `hasPlugin` or `valuePublishedByPlugin`**, including a plugin README's `GeneratedPluginRegistrant.register(with: self)`: they silently start Flutter's `LaunchEngine`, a second engine with a second Matrix client.
 - **A headless engine's display links do not tick in the background**, so a ring or action wake must not wait on frames.
-- **Edit `project.pbxproj` only with CocoaPods' bundled xcodeproj gem** (`tool/xcode/add_sources.rb`), because Xcode 27 saves it at an `objectVersion` CocoaPods cannot read. Keep "Embed Foundation Extensions" above "Run Script" in Runner, or Thin Binary forms a build cycle.
+- **Edit `project.pbxproj` only with CocoaPods' bundled xcodeproj gem** (`tool/xcode/add_sources.rb`, `remove_sources.rb`), because Xcode 27 saves it at an `objectVersion` CocoaPods cannot read. Keep "Embed Foundation Extensions" above "Run Script" in Runner, or Thin Binary forms a build cycle.
 - **Every target compiles in Swift 6 mode**, so a channel handler copies the `@MainActor` shape of those in `ios/Runner/`, and one run off the main thread crashes instead of racing.
 - **A missing usage-description key crashes on first use**, and permission_handler compiles out any permission whose key it cannot find, so builds from Xcode.app need `PERMISSION_HANDLER_INFO_PLIST` in launchd's environment, which a reboot clears.
 
@@ -344,5 +344,5 @@ stateDiagram-v2
 ## Testing
 
 - `buildTestClient` never syncs, so a test that reaches `firstSyncProvider` overrides it.
-- A logged-in `ZunoApp` test mocks `zuno/shortcuts` and `zuno/share`, or the launch checks never finish (`test/app_launch_target_test.dart`).
+- A logged-in `ZunoApp` test mocks `zuno/shortcuts` and `zuno/share`, or the launch checks never finish (`test/app_auth_gate_test.dart`).
 - A new layout passes `expectSurvivesLayoutMatrix` (`test/helpers/layout_matrix.dart`), and a does-it-fit assertion loads the real font with `loadRealRoboto`, since the test font is about twice as wide.

@@ -30,11 +30,12 @@ void main() {
     final mocks = CallChannelMocks();
     final container = containerWithControllers();
 
-    container.read(activeCallProvider.notifier).set(voiceCall());
+    final call = voiceCall();
+    container.read(activeCallProvider.notifier).set(call);
     await pumpEventQueue();
 
     expect(mocks.count('startCallForegroundService'), 1);
-    expect(container.read(activeCallControllerProvider), isNotNull);
+    expect(container.read(activeCallControllerProvider)?.session, same(call));
   });
 
   test('a call cleared before it ends gives back the notice it took', () async {

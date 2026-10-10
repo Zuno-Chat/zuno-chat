@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/misc.dart';
@@ -21,10 +20,12 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
+import 'package:zuno/features/chat/presentation/caption_bar.dart';
 import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/message_composer.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
+import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
 
@@ -34,67 +35,8 @@ import '../../../helpers/fake_live_location.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_video_player.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/pump_until.dart';
 import 'room_page_harness.dart';
-
-class _FakeImagePicker extends ImagePickerPlatform {
-  final calls = <String>[];
-  List<XFile> answer = [];
-  Object? error;
-
-  Future<T> _answer<T>(String call, T value) async {
-    calls.add(call);
-    final error = this.error;
-    if (error != null) throw error;
-    return value;
-  }
-
-  @override
-  Future<XFile?> getImageFromSource({
-    required ImageSource source,
-    ImagePickerOptions options = const ImagePickerOptions(),
-  }) => _answer('image:${source.name}', answer.firstOrNull);
-
-  @override
-  Future<List<XFile>> getMedia({required MediaOptions options}) =>
-      _answer('media', answer);
-
-  @override
-  Future<XFile?> getVideo({
-    required ImageSource source,
-    CameraDevice preferredCameraDevice = CameraDevice.rear,
-    Duration? maxDuration,
-  }) => _answer('video:${source.name}', answer.firstOrNull);
-}
-
-class _FakeFilePicker extends FilePickerPlatform {
-  List<PlatformFile> answer = [];
-  Object? error;
-  Completer<void>? copying;
-
-  @override
-  Future<List<PlatformFile>> pickFiles({
-    String? dialogTitle,
-    String? initialDirectory,
-    FileType type = FileType.any,
-    List<String>? allowedExtensions,
-    Function(FilePickerStatus)? onFileLoading,
-    int compressionQuality = 0,
-    AndroidOptions androidOptions = const AndroidOptions(),
-    DarwinOptions darwinOptions = const DarwinOptions(),
-    WindowsOptions windowsOptions = const WindowsOptions(),
-    LinuxOptions linuxOptions = const LinuxOptions(),
-    WebOptions webOptions = const WebOptions(),
-  }) async {
-    final copying = this.copying;
-    if (copying != null) {
-      onFileLoading?.call(FilePickerStatus.picking);
-      await copying.future;
-    }
-    final error = this.error;
-    if (error != null) throw error;
-    return answer;
-  }
-}
 
 XFile _photo(String name) => XFile.fromData(
   img.encodeJpg(img.Image(width: 64, height: 48)),
@@ -107,24 +49,20 @@ XFile _video(String name) =>
 
 void main() {
   late RoomPageHarness harness;
-  late _FakeImagePicker picker;
-  late _FakeFilePicker files;
+  late FakeImagePicker picker;
+  late FakeFilePicker files;
   late Directory temp;
   late bool uploadsFail;
   late int? uploadLimit;
   late bool locationFails;
 
   setUp(() {
-    picker = _FakeImagePicker();
-    files = _FakeFilePicker();
+    picker = installFakeImagePicker();
+    files = installFakeFilePicker();
     uploadsFail = false;
     uploadLimit = null;
     locationFails = false;
-    final originalPicker = ImagePickerPlatform.instance;
-    final originalFiles = FilePickerPlatform.instance;
     final originalGeolocator = GeolocatorPlatform.instance;
-    ImagePickerPlatform.instance = picker;
-    FilePickerPlatform.instance = files;
     GeolocatorPlatform.instance = FakeGeolocator()
       ..position = fakePosition(latitude: 52.37, longitude: 4.89, accuracy: 12);
     installFakeVideoPlayer();
@@ -162,8 +100,6 @@ void main() {
     });
     messenger.setMockMethodCallHandler(pathProvider, (call) async => temp.path);
     addTearDown(() {
-      ImagePickerPlatform.instance = originalPicker;
-      FilePickerPlatform.instance = originalFiles;
       GeolocatorPlatform.instance = originalGeolocator;
       messenger.setMockMethodCallHandler(video, null);
       messenger.setMockMethodCallHandler(pathProvider, null);
@@ -194,6 +130,13 @@ void main() {
       if (path.endsWith('/media/config') && uploadLimit != null) {
         return http.Response(jsonEncode({'m.upload.size': uploadLimit}), 200);
       }
+      if (path.contains('/download/') || path.contains('/thumbnail/')) {
+        return http.Response.bytes(
+          img.encodeJpg(img.Image(width: 48, height: 27)),
+          200,
+          headers: {'content-type': 'image/jpeg'},
+        );
+      }
       if (path.contains('/upload')) {
         return uploadsFail
             ? http.Response(
@@ -217,17 +160,33 @@ void main() {
     await harness.pumpRoomPage(tester);
   }
 
-  Future<void> choose(WidgetTester tester, String option) async {
+  Future<void> openAttachMenu(WidgetTester tester) async {
     await tester.tap(find.byIcon(Icons.attach_file_outlined));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+  }
+
+  Future<void> choose(WidgetTester tester, String option) async {
+    await openAttachMenu(tester);
     await tester.tap(find.text(option));
     await harness.drive(tester, turns: 4);
   }
 
-  Future<void> sendFromComposer(WidgetTester tester, {String? tooltip}) async {
-    await tester.tap(find.byTooltip(tooltip ?? 'Send'));
-    await harness.drive(tester);
+  int failedTiles() => find.byType(GalleryFailedThumbnail).evaluate().length;
+
+  Future<void> sendFromComposer(
+    WidgetTester tester, {
+    String tooltip = 'Send',
+    required String awaiting,
+    required bool Function() until,
+  }) async {
+    await tester.tap(find.byTooltip(tooltip));
+    await pumpUntil(
+      tester,
+      () => find.byType(CaptionBar).evaluate().isEmpty,
+      reason: 'the caption screen to close',
+    );
+    await pumpUntil(tester, until, reason: awaiting);
   }
 
   Map<String, Object?>? galleryOf(Map<String, Object?> content) =>
@@ -238,9 +197,7 @@ void main() {
         'sheet', (tester) async {
       await openRoom(tester);
 
-      await tester.tap(find.byIcon(Icons.attach_file_outlined));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await openAttachMenu(tester);
 
       expect(
         find.ancestor(
@@ -260,7 +217,11 @@ void main() {
       expect(find.byType(ImageCaptionComposerPage), findsOneWidget);
 
       await tester.enterText(find.byType(TextField).last, 'at the lake');
-      await sendFromComposer(tester);
+      await sendFromComposer(
+        tester,
+        awaiting: 'the photo to be sent',
+        until: () => harness.sent.isNotEmpty,
+      );
 
       final sent = harness.sent.single;
       expect(sent['msgtype'], 'm.image');
@@ -298,8 +259,12 @@ void main() {
       await choose(tester, 'Choose from gallery');
       expect(picker.calls, ['media']);
       expect(find.text('1 of 2'), findsOneWidget);
-      await sendFromComposer(tester, tooltip: 'Send all');
-      await harness.drive(tester);
+      await sendFromComposer(
+        tester,
+        tooltip: 'Send all',
+        awaiting: 'both photos to be sent',
+        until: () => harness.sent.length == 2,
+      );
 
       expect(harness.sent, hasLength(2));
       final first = galleryOf(harness.sent[0])!;
@@ -321,7 +286,11 @@ void main() {
 
       await choose(tester, 'Take photo');
       expect(find.byIcon(Icons.broken_image_outlined), findsOneWidget);
-      await sendFromComposer(tester);
+      await sendFromComposer(
+        tester,
+        awaiting: 'the photo to be refused',
+        until: () => shows('Cannot send this photo'),
+      );
       expect(tester.takeException(), isA<Exception>());
 
       expect(harness.sent, isEmpty);
@@ -348,8 +317,11 @@ void main() {
       await openRoom(tester);
 
       await choose(tester, 'Take photo');
-      await sendFromComposer(tester);
-      await harness.drive(tester, turns: 20);
+      await sendFromComposer(
+        tester,
+        awaiting: 'the upload limit to be named',
+        until: () => shows('Too large to send. The limit is 1 MB.'),
+      );
 
       expect(harness.sent, isEmpty);
       expect(
@@ -366,8 +338,12 @@ void main() {
       await openRoom(tester);
 
       await choose(tester, 'Choose from gallery');
-      await sendFromComposer(tester, tooltip: 'Send all');
-      await harness.drive(tester);
+      await sendFromComposer(
+        tester,
+        tooltip: 'Send all',
+        awaiting: 'both photos to fail',
+        until: () => shows('Not sent. Tap an item to try again.'),
+      );
 
       expect(harness.sent, isEmpty);
       expect(find.byType(SnackBar), findsNothing);
@@ -375,7 +351,11 @@ void main() {
 
       uploadsFail = false;
       await tester.tap(find.byType(GalleryFailedThumbnail).first);
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty,
+        reason: 'the retried photo to be sent',
+      );
 
       expect(harness.sent, hasLength(1));
       expect(galleryOf(harness.sent.single)!['index'], 0);
@@ -398,12 +378,21 @@ void main() {
       };
 
       await choose(tester, 'Take photo');
-      await sendFromComposer(tester);
+      await sendFromComposer(
+        tester,
+        awaiting: 'the upload to start',
+        until: () =>
+            harness.httpRequests.any((r) => r.url.path.contains('/upload')),
+      );
       await tester.pumpWidget(
         await harness.app(home: const Scaffold(body: SizedBox())),
       );
       upload.complete();
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => shows('Not sent. Try again.'),
+        reason: 'the failure to be reported',
+      );
 
       expect(find.byType(RoomPage), findsNothing);
       expect(find.text('Not sent. Try again.'), findsOneWidget);
@@ -417,12 +406,20 @@ void main() {
       await openRoom(tester);
 
       await choose(tester, 'Take photo');
-      await sendFromComposer(tester);
+      await sendFromComposer(
+        tester,
+        awaiting: 'the photo to fail',
+        until: () => failedTiles() == 1,
+      );
       expect(harness.sent, isEmpty);
 
       uploadsFail = false;
       await tester.tap(find.byType(GalleryFailedThumbnail));
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty,
+        reason: 'the retried photo to be sent',
+      );
 
       expect(harness.sent.single['msgtype'], 'm.image');
       expect(find.text('Not sent. Tap to try again.'), findsNothing);
@@ -444,7 +441,11 @@ void main() {
       await harness.drive(tester, turns: 2);
 
       await choose(tester, 'Take photo');
-      await sendFromComposer(tester);
+      await sendFromComposer(
+        tester,
+        awaiting: 'the photo to fail',
+        until: () => shows('Not sent. Tap to try again.'),
+      );
 
       expect(harness.sent, isEmpty);
       expect(find.text('Not sent. Tap to try again.'), findsOneWidget);
@@ -455,7 +456,11 @@ void main() {
       await harness.drive(tester, turns: 2);
       expect(harness.sent, isEmpty);
       status.add(ConnectionStatus.online);
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty,
+        reason: 'the photo to go again once online',
+      );
 
       expect(harness.sent.single['msgtype'], 'm.image');
     });
@@ -497,7 +502,7 @@ void main() {
     }
 
     testWidgets('a file picker that fails says so', (tester) async {
-      files.error = PlatformException(code: 'unknown_path');
+      files.pickError = PlatformException(code: 'unknown_path');
       await openRoom(tester);
 
       await choose(tester, 'Choose file');
@@ -517,8 +522,11 @@ void main() {
       await choose(tester, 'Choose from gallery');
       expect(find.byType(VideoCaptionComposerPage), findsOneWidget);
       await tester.enterText(find.byType(TextField).last, 'waves');
-      await sendFromComposer(tester);
-      await harness.drive(tester);
+      await sendFromComposer(
+        tester,
+        awaiting: 'the video to be sent',
+        until: () => harness.sent.isNotEmpty,
+      );
 
       final sent = harness.sent.single;
       expect(sent['msgtype'], 'm.video');
@@ -534,8 +542,11 @@ void main() {
 
       await choose(tester, 'Record video');
       expect(picker.calls, ['video:camera']);
-      await sendFromComposer(tester);
-      await harness.drive(tester);
+      await sendFromComposer(
+        tester,
+        awaiting: 'the video to be sent',
+        until: () => harness.sent.isNotEmpty,
+      );
 
       expect(harness.sent.single['msgtype'], 'm.video');
     });
@@ -556,8 +567,12 @@ void main() {
 
       await choose(tester, 'Choose from gallery');
       expect(find.byType(MediaCaptionComposerPage), findsOneWidget);
-      await sendFromComposer(tester, tooltip: 'Send all');
-      await harness.drive(tester);
+      await sendFromComposer(
+        tester,
+        tooltip: 'Send all',
+        awaiting: 'the photo and the video to be sent',
+        until: () => harness.sent.length == 2,
+      );
 
       expect(
         [for (final s in harness.sent) s['msgtype']],
@@ -574,14 +589,21 @@ void main() {
       await openRoom(tester);
 
       await choose(tester, 'Choose from gallery');
-      await sendFromComposer(tester, tooltip: 'Send all');
-      await harness.drive(tester);
+      await sendFromComposer(
+        tester,
+        tooltip: 'Send all',
+        awaiting: 'the photo and the video to fail',
+        until: () => failedTiles() == 2,
+      );
       expect(find.byType(GalleryFailedThumbnail), findsNWidgets(2));
 
       uploadsFail = false;
       await tester.tap(find.byType(GalleryFailedThumbnail).last);
-      await harness.drive(tester);
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty,
+        reason: 'the retried video to be sent',
+      );
 
       expect(harness.sent.single['msgtype'], 'm.video');
       expect(galleryOf(harness.sent.single)!['index'], 1);
@@ -605,34 +627,42 @@ void main() {
     );
 
     testWidgets('a file is sent under its name', (tester) async {
-      files.answer = [
+      files.picked = [
         FakePickedFile('notes.pdf', Uint8List.fromList([1, 2])),
       ];
       await openRoom(tester);
 
       await choose(tester, 'Choose file');
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty,
+        reason: 'the file to be sent',
+      );
 
       expect(harness.sent.single['msgtype'], 'm.file');
       expect(harness.sent.single['body'], 'notes.pdf');
     });
 
     testWidgets('every picked file is sent, not just one', (tester) async {
-      files.answer = [
+      files.picked = [
         FakePickedFile('a.pdf', Uint8List.fromList([1])),
         FakePickedFile('b.txt', Uint8List.fromList([2])),
       ];
       await openRoom(tester);
 
       await choose(tester, 'Choose file');
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => harness.sent.length == 2,
+        reason: 'both files to be sent',
+      );
 
       expect([for (final s in harness.sent) s['body']], ['a.pdf', 'b.txt']);
     });
 
     testWidgets('a sent file leaves no picker copy behind', (tester) async {
       final copy = File('${temp.path}/notes.pdf')..writeAsBytesSync([1, 2]);
-      files.answer = [
+      files.picked = [
         FakePickedFile(
           'notes.pdf',
           Uint8List.fromList([1, 2]),
@@ -642,7 +672,11 @@ void main() {
       await openRoom(tester);
 
       await choose(tester, 'Choose file');
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty && !copy.existsSync(),
+        reason: 'the file to be sent and its copy removed',
+      );
 
       expect(harness.sent.single['body'], 'notes.pdf');
       expect(copy.existsSync(), isFalse);
@@ -652,7 +686,7 @@ void main() {
       tester,
     ) async {
       files.copying = Completer<void>();
-      files.answer = [
+      files.picked = [
         FakePickedFile('notes.pdf', Uint8List.fromList([1])),
       ];
       await openRoom(tester);
@@ -663,7 +697,11 @@ void main() {
       expect(harness.sent, isEmpty);
 
       files.copying!.complete();
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty,
+        reason: 'the file to be sent',
+      );
 
       expect(attachSpinner(), findsNothing);
       expect(harness.sent.single['body'], 'notes.pdf');
@@ -673,12 +711,16 @@ void main() {
       tester,
     ) async {
       files.copying = Completer<void>();
-      files.error = PlatformException(code: 'unknown_path');
+      files.pickError = PlatformException(code: 'unknown_path');
       await openRoom(tester);
 
       await choose(tester, 'Choose file');
       files.copying!.complete();
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => shows('Files did not open. Try again.'),
+        reason: 'the failed pick to be reported',
+      );
 
       expect(attachSpinner(), findsNothing);
       expect(find.text('Files did not open. Try again.'), findsOneWidget);
@@ -695,25 +737,41 @@ void main() {
 
     testWidgets('a failed upload says so', (tester) async {
       uploadsFail = true;
-      files.answer = [
+      files.picked = [
         FakePickedFile('a.pdf', Uint8List.fromList([1])),
       ];
       await openRoom(tester);
 
       await choose(tester, 'Choose file');
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => shows('Not sent. Try again.'),
+        reason: 'the failed upload to be reported',
+      );
 
       expect(find.text('Not sent. Try again.'), findsOneWidget);
-      expect(find.text('Not sent · Tap to retry'), findsNothing);
+      expect(find.byType(NotSentRow), findsNothing);
     });
   });
 
   group('location', () {
-    Future<void> shareLocation(WidgetTester tester) async {
+    Future<void> chooseLocation(WidgetTester tester) async {
       await choose(tester, 'Location');
-      await harness.drive(tester, turns: 4);
+      await pumpUntil(
+        tester,
+        () => shows('Send location'),
+        reason: 'the location to be found',
+      );
+    }
+
+    Future<void> shareLocation(
+      WidgetTester tester, {
+      required String awaiting,
+      required bool Function() until,
+    }) async {
+      await chooseLocation(tester);
       await tester.tap(find.text('Send location'));
-      await harness.drive(tester);
+      await pumpUntil(tester, until, reason: awaiting);
     }
 
     Future<void> openRoomForLocation(WidgetTester tester) => openRoom(
@@ -726,7 +784,11 @@ void main() {
     ) async {
       await openRoomForLocation(tester);
 
-      await shareLocation(tester);
+      await shareLocation(
+        tester,
+        awaiting: 'the pin to be sent',
+        until: () => harness.sent.isNotEmpty,
+      );
 
       final sent = harness.sent.single;
       expect(sent['msgtype'], 'm.location');
@@ -741,9 +803,30 @@ void main() {
       locationFails = true;
       await openRoomForLocation(tester);
 
-      await shareLocation(tester);
+      await shareLocation(
+        tester,
+        awaiting: 'the refusal to be reported',
+        until: () => shows('Location not sent. Try again.'),
+      );
 
       expect(find.text('Location not sent. Try again.'), findsOneWidget);
+    });
+
+    testWidgets('alone in the chat, the menu still offers Location', (
+      tester,
+    ) async {
+      await openRoom(
+        tester,
+        prepare: (room) => room.setState(
+          User('@bob:example.org', membership: 'leave', room: room),
+        ),
+      );
+
+      await openAttachMenu(tester);
+
+      expect(find.text('Take photo'), findsOneWidget);
+      expect(find.text('Location'), findsOneWidget);
+      expect(find.byTooltip('Voice call'), findsNothing);
     });
 
     group('live', () {
@@ -786,13 +869,20 @@ void main() {
         },
       );
 
-      Future<void> startLive(WidgetTester tester) async {
-        await choose(tester, 'Location');
-        await harness.drive(tester, turns: 4);
+      Future<void> startLive(
+        WidgetTester tester, {
+        required String awaiting,
+        required bool Function() until,
+      }) async {
+        await chooseLocation(tester);
         await tester.tap(find.text('Share live location'));
-        await harness.drive(tester, turns: 4);
+        await pumpUntil(
+          tester,
+          () => shows('Start sharing'),
+          reason: 'the share length to be offered',
+        );
         await tester.tap(find.text('Start sharing'));
-        await harness.drive(tester);
+        await pumpUntil(tester, until, reason: awaiting);
       }
 
       testWidgets('shares the found location for the chosen time', (
@@ -800,7 +890,11 @@ void main() {
       ) async {
         await openEncryptedRoom(tester);
 
-        await startLive(tester);
+        await startLive(
+          tester,
+          awaiting: 'the share to start',
+          until: () => sharing.started.isNotEmpty,
+        );
 
         final started = sharing.started.single;
         expect(started.roomId, harness.room.id);
@@ -812,16 +906,17 @@ void main() {
       testWidgets('a share that cannot start says why', (tester) async {
         await openEncryptedRoom(tester);
         sharing.refusal = LiveShareStartFailure.captureUnavailable;
-
-        await startLive(tester);
-
-        expect(
-          find.text(
+        const refusal =
             'Live location could not start. Check that location is on, '
-            'then try again.',
-          ),
-          findsOneWidget,
+            'then try again.';
+
+        await startLive(
+          tester,
+          awaiting: 'the refusal to be explained',
+          until: () => shows(refusal),
         );
+
+        expect(find.text(refusal), findsOneWidget);
       });
     });
   });
@@ -854,7 +949,11 @@ void main() {
     expect(harness.sent, isEmpty);
 
     status.add(ConnectionStatus.online);
-    await harness.drive(tester);
+    await pumpUntil(
+      tester,
+      () => harness.sent.isNotEmpty,
+      reason: 'the message to go again once online',
+    );
 
     expect(harness.sent.single['body'], 'still there?');
   });

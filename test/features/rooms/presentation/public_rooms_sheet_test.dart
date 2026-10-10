@@ -240,12 +240,6 @@ void main() {
     );
   });
 
-  testWidgets('no community found says so', (tester) async {
-    await _open(tester, ({term, since}) async => _page([]), communities: true);
-
-    expect(find.text('No communities found'), findsOneWidget);
-  });
-
   testWidgets('communities that fail to load say so', (tester) async {
     await _open(
       tester,
@@ -256,11 +250,20 @@ void main() {
     expect(find.text('Could not load communities'), findsOneWidget);
   });
 
-  testWidgets('says so when nothing matches', (tester) async {
-    await _open(tester, ({term, since}) async => _page([]));
+  for (final (communities, empty) in [
+    (false, 'No rooms found'),
+    (true, 'No communities found'),
+  ]) {
+    testWidgets('says $empty when nothing matches', (tester) async {
+      await _open(
+        tester,
+        ({term, since}) async => _page([]),
+        communities: communities,
+      );
 
-    expect(find.text('No rooms found'), findsOneWidget);
-  });
+      expect(find.text(empty), findsOneWidget);
+    });
+  }
 
   testWidgets('offers a retry when loading fails', (tester) async {
     var failing = true;

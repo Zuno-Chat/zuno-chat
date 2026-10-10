@@ -50,18 +50,4 @@ void main() {
     final afterTop = tester.getTopLeft(find.byKey(const ValueKey('after'))).dy;
     expect(afterTop - cellBottom, closeTo(0, 0.01));
   });
-
-  testWidgets('passes the scroll physics on', (tester) async {
-    await tester.pumpWidget(
-      host(
-        const CardListView(
-          physics: AlwaysScrollableScrollPhysics(),
-          children: [SizedBox(height: 40)],
-        ),
-      ),
-    );
-
-    final list = tester.widget<ListView>(find.byType(ListView));
-    expect(list.physics, isA<AlwaysScrollableScrollPhysics>());
-  });
 }

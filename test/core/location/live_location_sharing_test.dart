@@ -131,6 +131,30 @@ void main() {
     content: content,
   );
 
+  void ownShareFrom(
+    String deviceId, {
+    String shareId = 'old',
+    Duration lasting = const Duration(hours: 1),
+  }) {
+    final content = LiveShareState(
+      shareId: shareId,
+      deviceId: deviceId,
+      endsAt: now.add(lasting),
+    ).toContent();
+    client.serverState[room.id] = content;
+    room.setState(
+      Event(
+        type: liveLocationStateType,
+        stateKey: '@me:x',
+        senderId: '@me:x',
+        eventId: '\$own-$shareId',
+        originServerTs: now,
+        content: content,
+        room: room,
+      ),
+    );
+  }
+
   Future<void> startSharing({
     LiveLocationTestRoom? into,
     LiveLocationDuration duration = LiveLocationDuration.hour,
@@ -753,21 +777,7 @@ void main() {
     });
 
     test('ends a share this account runs on another device', () async {
-      room.setState(
-        Event(
-          type: liveLocationStateType,
-          stateKey: '@me:x',
-          senderId: '@me:x',
-          eventId: r'$laptop',
-          originServerTs: now,
-          content: LiveShareState(
-            shareId: 'elsewhere',
-            deviceId: 'LAPTOP',
-            endsAt: now.add(const Duration(hours: 1)),
-          ).toContent(),
-          room: room,
-        ),
-      );
+      ownShareFrom('LAPTOP', shareId: 'elsewhere');
 
       await sharing.stopIn('!family:x');
 
@@ -800,21 +810,7 @@ void main() {
     });
 
     test('ends the share this account runs on another device', () async {
-      room.setState(
-        Event(
-          type: liveLocationStateType,
-          stateKey: '@me:x',
-          senderId: '@me:x',
-          eventId: r'$laptop',
-          originServerTs: now,
-          content: LiveShareState(
-            shareId: 'elsewhere',
-            deviceId: 'LAPTOP',
-            endsAt: now.add(const Duration(hours: 1)),
-          ).toContent(),
-          room: room,
-        ),
-      );
+      ownShareFrom('LAPTOP', shareId: 'elsewhere');
 
       await sharing.stopShareStartedBy(startMessage(shareId: 'elsewhere'));
 
@@ -843,33 +839,9 @@ void main() {
   });
 
   group('leftovers from an earlier run', () {
-    void setOwnState(
-      LiveLocationTestRoom target,
-      String deviceId, {
-      Duration lasting = const Duration(hours: 1),
-    }) {
-      final content = {
-        'share_id': 'old',
-        'device_id': deviceId,
-        'ends_ts': now.add(lasting).millisecondsSinceEpoch,
-      };
-      client.serverState[target.id] = content;
-      target.setState(
-        Event(
-          type: liveLocationStateType,
-          stateKey: '@me:x',
-          senderId: '@me:x',
-          eventId: r'$old',
-          originServerTs: now,
-          content: content,
-          room: target,
-        ),
-      );
-    }
-
     test('an open share naming this device is cleared once', () async {
       sharing.dispose();
-      setOwnState(room, 'MINE');
+      ownShareFrom('MINE');
 
       sharing = build();
       await pumpEventQueue();
@@ -882,7 +854,7 @@ void main() {
 
     test('an expired leftover is left alone', () async {
       sharing.dispose();
-      setOwnState(room, 'MINE', lasting: const Duration(minutes: -1));
+      ownShareFrom('MINE', lasting: const Duration(minutes: -1));
 
       sharing = build();
       await pumpEventQueue();
@@ -892,7 +864,7 @@ void main() {
 
     test('a refused clear is not retried until permissions change', () async {
       sharing.dispose();
-      setOwnState(room, 'MINE');
+      ownShareFrom('MINE');
       client.stateWriteError = MatrixException.fromJson({
         'errcode': 'M_FORBIDDEN',
         'error': 'no',
@@ -924,7 +896,7 @@ void main() {
 
     test('a share from another of my devices is left alone', () async {
       sharing.dispose();
-      setOwnState(room, 'LAPTOP');
+      ownShareFrom('LAPTOP');
 
       sharing = build();
       await pumpEventQueue();
@@ -933,7 +905,7 @@ void main() {
     });
 
     test('after rejoining, a share left over from before is cleared', () async {
-      setOwnState(room, 'LAPTOP');
+      ownShareFrom('LAPTOP');
 
       sync(
         roomId: '!family:x',
@@ -957,7 +929,7 @@ void main() {
     });
 
     test('a profile change while joined is not taken for a rejoin', () async {
-      setOwnState(room, 'LAPTOP');
+      ownShareFrom('LAPTOP');
 
       sync(
         roomId: '!family:x',

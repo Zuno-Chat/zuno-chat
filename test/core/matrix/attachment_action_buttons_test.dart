@@ -58,6 +58,25 @@ void main() {
     expect(find.text('Could not save. Try again.'), findsOneWidget);
   });
 
+  testWidgets('saving several says how many made it', (tester) async {
+    final gone = server.attachment(eventId: r'$gone');
+    server.goneFromServer(gone);
+    await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+    final messenger = tester.state<ScaffoldMessengerState>(
+      find.byType(ScaffoldMessenger),
+    );
+
+    await tester.runAsync(
+      () => saveAttachmentsWithFeedback(messenger, [
+        server.attachment(eventId: r'$kept'),
+        gone,
+      ]),
+    );
+    await tester.pump();
+
+    expect(find.text('Saved 1 of 2'), findsOneWidget);
+  });
+
   testWidgets('closing the save dialog shows nothing', (tester) async {
     device.picker.answer = null;
     await pumpButtons(tester, document());

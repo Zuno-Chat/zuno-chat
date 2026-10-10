@@ -380,7 +380,7 @@ void main() {
       );
 
       expect(find.byType(AspectRatioPlaceholder), findsNothing);
-      expect(find.byType(CircularProgressIndicator), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
   });
 
@@ -505,7 +505,7 @@ void main() {
       final spinner = tester.widget<CircularProgressIndicator>(
         find.byType(CircularProgressIndicator).first,
       );
-      expect(spinner.value, isNotNull);
+      expect(spinner.value, 0.75);
       expect(pushes.routes, isEmpty);
     });
   });

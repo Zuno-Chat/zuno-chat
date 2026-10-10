@@ -1,13 +1,10 @@
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:math' show Random, min;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/security/recovery_code.dart';
 
-RecoveryWordlist _shippedWordlist() => RecoveryWordlist.parse(
-  File('assets/wordlist/recovery_words.txt').readAsStringSync(),
-);
+import '../../helpers/fixtures.dart';
 
 int _distance(String a, String b) {
   var prev = List<int>.generate(b.length + 1, (i) => i);
@@ -29,13 +26,6 @@ int _distance(String a, String b) {
 
 void main() {
   group('normalizeRecoveryPhrase', () {
-    test('leaves an already-clean code untouched', () {
-      expect(
-        normalizeRecoveryPhrase('acorn blew celery diesel elbow fever glow'),
-        'acorn blew celery diesel elbow fever glow',
-      );
-    });
-
     test('survives what a phone keyboard and a notes app actually do', () {
       const messy = 'Acorn  blew celery​diesel elbow fever glow\n';
       expect(
@@ -66,16 +56,16 @@ void main() {
 
   group('the shipped wordlist', () {
     test('has exactly the number of words the entropy claim assumes', () {
-      expect(_shippedWordlist().words.length, recoveryWordlistLength);
+      expect(shippedRecoveryWordlist().words.length, recoveryWordlistLength);
     });
 
     test('identifies every word by its first three characters', () {
-      final words = _shippedWordlist().words;
+      final words = shippedRecoveryWordlist().words;
       expect(words.map((w) => w.substring(0, 3)).toSet().length, words.length);
     });
 
     test('keeps every pair at least two edits apart', () {
-      final words = _shippedWordlist().words;
+      final words = shippedRecoveryWordlist().words;
       for (var i = 0; i < words.length; i++) {
         for (var j = i + 1; j < words.length; j++) {
           if ((words[i].length - words[j].length).abs() >= 2) continue;
@@ -89,7 +79,7 @@ void main() {
     });
 
     test('contains only lowercase ascii letters', () {
-      for (final word in _shippedWordlist().words) {
+      for (final word in shippedRecoveryWordlist().words) {
         expect(RegExp(r'^[a-z]+$').hasMatch(word), isTrue, reason: word);
       }
     });
@@ -97,7 +87,7 @@ void main() {
 
   group('generateRecoveryCode', () {
     test('produces the right number of words, all from the list', () {
-      final list = _shippedWordlist();
+      final list = shippedRecoveryWordlist();
       final code = generateRecoveryCode(list);
       final words = code.split(' ');
       expect(words, hasLength(recoveryCodeWordCount));
@@ -107,7 +97,7 @@ void main() {
     });
 
     test('output survives normalisation unchanged', () {
-      final list = _shippedWordlist();
+      final list = shippedRecoveryWordlist();
       for (var i = 0; i < 50; i++) {
         final code = generateRecoveryCode(list);
         expect(normalizeRecoveryPhrase(code), code);
@@ -130,7 +120,7 @@ void main() {
 
   group('checkRecoveryCode', () {
     late RecoveryWordlist list;
-    setUp(() => list = _shippedWordlist());
+    setUp(() => list = shippedRecoveryWordlist());
 
     String validCode() => generateRecoveryCode(list);
 
@@ -177,7 +167,7 @@ void main() {
 
   group('suggestionsFor', () {
     test('offers the intended word for a single-character typo', () {
-      final list = _shippedWordlist();
+      final list = shippedRecoveryWordlist();
       final word = list.words.firstWhere((w) => w.length >= 5);
       final typo = word.replaceRange(2, 3, 'q');
       if (list.contains(typo)) return;
@@ -185,12 +175,12 @@ void main() {
     });
 
     test('offers nothing for a word that is already valid', () {
-      final list = _shippedWordlist();
+      final list = shippedRecoveryWordlist();
       expect(list.suggestionsFor(list.words.first), isEmpty);
     });
 
     test('offers nothing for input nowhere near the list', () {
-      expect(_shippedWordlist().suggestionsFor('qqqqqqqq'), isEmpty);
+      expect(shippedRecoveryWordlist().suggestionsFor('qqqqqqqq'), isEmpty);
     });
   });
 
@@ -222,13 +212,13 @@ void main() {
 
   group('completeUnique', () {
     test('resolves a three-character prefix to exactly one word', () {
-      final list = _shippedWordlist();
+      final list = shippedRecoveryWordlist();
       final word = list.words[100];
       expect(list.completeUnique(word.substring(0, 3)), word);
     });
 
     test('returns null when a longer prefix contradicts the match', () {
-      final list = _shippedWordlist();
+      final list = shippedRecoveryWordlist();
       final word = list.words[100];
       expect(list.completeUnique('${word.substring(0, 3)}zzz'), isNull);
     });
@@ -270,16 +260,13 @@ void main() {
 
   group('recoveryUnlockInput', () {
     late RecoveryWordlist list;
-    setUp(() => list = _shippedWordlist());
+    setUp(() => list = shippedRecoveryWordlist());
 
-    test('normalises a word code, so a stray capital still unlocks', () {
+    test('normalises a word code, so a stray capital or the double spaces a '
+        'hand transcription produces still unlock', () {
       final code = generateRecoveryCode(list);
       final typed = '  ${code[0].toUpperCase()}${code.substring(1)}  ';
       expect(recoveryUnlockInput(typed, list), code);
-    });
-
-    test('collapses the double spaces a hand transcription produces', () {
-      final code = generateRecoveryCode(list);
       expect(recoveryUnlockInput(code.replaceAll(' ', '  '), list), code);
     });
 

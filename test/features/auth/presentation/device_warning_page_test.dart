@@ -29,30 +29,29 @@ void main() {
     );
   }
 
-  testWidgets('names an unlocked bootloader and nothing else', (tester) async {
-    await pumpPage(tester, risks: {DeviceRisk.unlockedBootloader});
+  const named = {
+    DeviceRisk.unlockedBootloader: 'The bootloader is unlocked',
+    DeviceRisk.rooted: 'This device is rooted',
+  };
 
-    expect(find.text('This device may not be safe'), findsOneWidget);
-    expect(find.text('The bootloader is unlocked'), findsOneWidget);
-    expect(find.text('This device is rooted'), findsNothing);
-  });
+  for (final (name, risks) in [
+    ('an unlocked bootloader', {DeviceRisk.unlockedBootloader}),
+    ('root access', {DeviceRisk.rooted}),
+    ('both risks', {DeviceRisk.unlockedBootloader, DeviceRisk.rooted}),
+  ]) {
+    testWidgets('names $name and nothing else', (tester) async {
+      await pumpPage(tester, risks: risks);
 
-  testWidgets('names root access and nothing else', (tester) async {
-    await pumpPage(tester, risks: {DeviceRisk.rooted});
-
-    expect(find.text('This device is rooted'), findsOneWidget);
-    expect(find.text('The bootloader is unlocked'), findsNothing);
-  });
-
-  testWidgets('names both risks when both were found', (tester) async {
-    await pumpPage(
-      tester,
-      risks: {DeviceRisk.unlockedBootloader, DeviceRisk.rooted},
-    );
-
-    expect(find.text('The bootloader is unlocked'), findsOneWidget);
-    expect(find.text('This device is rooted'), findsOneWidget);
-  });
+      expect(find.text('This device may not be safe'), findsOneWidget);
+      for (final MapEntry(key: risk, value: title) in named.entries) {
+        expect(
+          find.text(title),
+          risks.contains(risk) ? findsOneWidget : findsNothing,
+          reason: title,
+        );
+      }
+    });
+  }
 
   testWidgets('continue anyway hands control back', (tester) async {
     var continued = 0;

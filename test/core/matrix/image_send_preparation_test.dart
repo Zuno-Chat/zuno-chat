@@ -177,12 +177,10 @@ void main() {
 
     test('the photo is sent as picked, with no thumbnail', () async {
       final picked = _jpeg(1600, 1200);
-      final progress = <double>[];
       final prepared = await prepareImageForSend(
         picked,
         reduceMediaSize: false,
         resizer: resizer,
-        onProgress: progress.add,
       );
       expect(calls, isEmpty);
       expect(prepared.file.bytes, picked);
@@ -192,25 +190,6 @@ void main() {
       expect(prepared.file.height, 1200);
       expect(prepared.file.blurhash, isNotNull);
       expect(prepared.thumbnail, isNull);
-      expect(progress, [0, 0.5, 1]);
-    });
-
-    test('a PNG is sent as a PNG', () async {
-      final prepared = await prepareImageForSend(
-        _png(300, 200),
-        reduceMediaSize: true,
-        resizer: resizer,
-      );
-      expect(prepared.file.name, 'photo.png');
-      expect(prepared.file.mimeType, 'image/png');
-    });
-
-    test('bytes that are not a photo are still refused', () async {
-      await expectLater(
-        prepareImageForSend(source, reduceMediaSize: false, resizer: resizer),
-        throwsA(isA<MediaProcessingException>()),
-      );
-      expect(calls, isEmpty);
     });
   });
 

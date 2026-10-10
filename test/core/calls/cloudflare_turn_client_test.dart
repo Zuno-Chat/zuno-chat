@@ -56,24 +56,32 @@ void main() {
     expect(servers[1]['credential'], 'c1');
   });
 
-  test('a 401 is final and surfaces as CloudflareTurnException', () async {
-    var calls = 0;
-    final mock = MockClient((request) async {
-      calls++;
-      return http.Response('{"errcode":"M_UNKNOWN_TOKEN"}', 401);
-    });
-    await expectLater(
-      _fetch(mock),
-      throwsA(
-        isA<CloudflareTurnException>().having(
-          (e) => e.statusCode,
-          'statusCode',
-          401,
+  const finalStatuses = {
+    401: 'a 401 is final and surfaces as CloudflareTurnException',
+    403: 'does not retry a 4xx response',
+    502: 'a 5xx is final: the module already retried Cloudflare',
+  };
+  for (final MapEntry(key: status, value: name) in finalStatuses.entries) {
+    test(name, () async {
+      var calls = 0;
+      final mock = MockClient((request) async {
+        calls++;
+        return http.Response('{"errcode":"M_UNKNOWN"}', status);
+      });
+
+      await expectLater(
+        _fetch(mock),
+        throwsA(
+          isA<CloudflareTurnException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            status,
+          ),
         ),
-      ),
-    );
-    expect(calls, 1);
-  });
+      );
+      expect(calls, 1);
+    });
+  }
 
   test(
     'throws CloudflareTurnException when the response has no iceServers field',
@@ -85,14 +93,17 @@ void main() {
     },
   );
 
-  test(
-    'retries a SocketException and returns the servers once it succeeds',
-    () {
+  for (final dropped in <Exception>[
+    const SocketException('connection refused'),
+    http.ClientException('connection closed before full header was received'),
+  ]) {
+    test('retries a ${dropped.runtimeType} and returns the servers once it '
+        'succeeds', () {
       fakeAsync((async) {
         var calls = 0;
         final mock = MockClient((request) async {
           calls++;
-          if (calls == 1) throw const SocketException('connection refused');
+          if (calls == 1) throw dropped;
           return _servers();
         });
         List<Map<String, Object?>>? servers;
@@ -103,31 +114,8 @@ void main() {
         expect(calls, 2);
         expect(servers, isEmpty);
       });
-    },
-  );
-
-  test('a 5xx is final: the module already retried Cloudflare', () {
-    fakeAsync((async) {
-      var calls = 0;
-      final mock = MockClient((request) async {
-        calls++;
-        return http.Response('{"errcode":"M_UNKNOWN"}', 502);
-      });
-      Object? error;
-      () async {
-        try {
-          await _fetch(mock);
-        } catch (e) {
-          error = e;
-        }
-      }();
-
-      async.elapse(const Duration(seconds: 5));
-
-      expect(calls, 1);
-      expect(error, isA<CloudflareTurnException>());
     });
-  });
+  }
 
   test('a 429 waits retry_after_ms and then retries', () {
     fakeAsync((async) {
@@ -150,29 +138,6 @@ void main() {
       async.elapse(const Duration(milliseconds: 1));
       expect(calls, 2);
       expect(servers, isEmpty);
-    });
-  });
-
-  test('does not retry a 4xx response', () {
-    fakeAsync((async) {
-      var calls = 0;
-      final mock = MockClient((request) async {
-        calls++;
-        return http.Response('forbidden', 403);
-      });
-      Object? error;
-      () async {
-        try {
-          await _fetch(mock);
-        } catch (e) {
-          error = e;
-        }
-      }();
-
-      async.elapse(const Duration(seconds: 5));
-
-      expect(calls, 1);
-      expect(error, isA<CloudflareTurnException>());
     });
   });
 

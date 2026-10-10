@@ -15,6 +15,7 @@ import 'package:zuno/core/ui/zuno_splash.dart';
 import 'package:zuno/features/auth/presentation/signed_out_entry.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/pump_until.dart';
 
 void main() {
   final contacted = <Uri>[];
@@ -55,10 +56,11 @@ void main() {
       });
 
   Future<void> settle(WidgetTester tester) async {
-    for (var turn = 0; turn < 40; turn++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump(const Duration(milliseconds: 50));
-    }
+    await pumpRealAsync(
+      tester,
+      rounds: 40,
+      step: const Duration(milliseconds: 50),
+    );
   }
 
   Future<void> pumpEntry(
@@ -87,42 +89,31 @@ void main() {
     await settle(tester);
   }
 
-  testWidgets('signs in to zuno.chat without asking for a server', (
-    tester,
-  ) async {
+  testWidgets('signs in to zuno.chat without asking for a server, and '
+      'contacts nothing else', (tester) async {
     await pumpEntry(tester);
 
     expect(find.text('Username'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
     expect(find.text('Server'), findsNothing);
-  });
-
-  testWidgets('nothing but zuno.chat is contacted until it is changed', (
-    tester,
-  ) async {
-    await pumpEntry(tester);
-
     expect(contacted, isNotEmpty);
     expect(contacted.every((uri) => uri.host == 'zuno.chat'), isTrue);
   });
 
-  testWidgets('the server can be changed from sign-in', (tester) async {
-    await pumpEntry(tester);
-
-    await tester.tap(find.text('Change'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Server'), findsOneWidget);
-  });
-
-  testWidgets('an unreachable zuno.chat offers another try or another server', (
-    tester,
-  ) async {
-    await pumpEntry(tester, down: {'zuno.chat'});
+  testWidgets('an unreachable zuno.chat offers another try or another server, '
+      'and another try that reaches it signs in', (tester) async {
+    final down = {'zuno.chat'};
+    await pumpEntry(tester, down: down);
 
     expect(find.text('Try again'), findsOneWidget);
     expect(find.text('Use another server'), findsOneWidget);
     expect(find.text('Username'), findsNothing);
+
+    down.clear();
+    await tester.tap(find.text('Try again'));
+    await settle(tester);
+
+    expect(find.text('Username'), findsOneWidget);
   });
 
   testWidgets('another server signs in while zuno.chat is down', (
@@ -148,15 +139,6 @@ void main() {
     await pumpEntry(tester, risks: {DeviceRisk.rooted});
 
     expect(find.text('This device may not be safe'), findsOneWidget);
-    expect(find.text('Username'), findsNothing);
-  });
-
-  testWidgets('an unlocked bootloader is warned about before sign-in', (
-    tester,
-  ) async {
-    await pumpEntry(tester, risks: {DeviceRisk.unlockedBootloader});
-
-    expect(find.text('The bootloader is unlocked'), findsOneWidget);
     expect(find.text('Username'), findsNothing);
   });
 

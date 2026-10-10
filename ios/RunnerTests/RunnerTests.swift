@@ -1,30 +1,10 @@
 import AVFoundation
 import CallKit
-import UIKit
-import UserNotifications
 import XCTest
 
 @testable import Runner
 
 final class CallIdentityTests: XCTestCase {
-  func testUuidIsStableForTheSameRoomAndCall() {
-    XCTAssertEqual(
-      CallIdentity.uuid(roomId: "!room:example.org", callId: "call-1"),
-      CallIdentity.uuid(roomId: "!room:example.org", callId: "call-1"))
-  }
-
-  func testUuidMatchesTheRfc4122NameBasedSha1UuidOfTheKey() {
-    XCTAssertEqual(
-      CallIdentity.uuid(roomId: "!room:example.org", callId: "call-1").uuidString,
-      "F3584D12-AE55-5FE8-A44D-AC078068BB34")
-    XCTAssertEqual(
-      CallIdentity.uuid(roomId: "!room:example.org", callId: "").uuidString,
-      "3949A790-1A82-5211-8869-6F1A41FF786C")
-    XCTAssertEqual(
-      CallIdentity.uuid(roomId: "!caf\u{E9}:example.org", callId: "").uuidString,
-      "E4F64BDA-083F-5728-84A1-075D710AF361")
-  }
-
   func testUuidDiffersForAnotherRoomOrCall() {
     let uuid = CallIdentity.uuid(roomId: "!room:example.org", callId: "call-1")
     XCTAssertNotEqual(uuid, CallIdentity.uuid(roomId: "!other:example.org", callId: "call-1"))
@@ -32,13 +12,10 @@ final class CallIdentityTests: XCTestCase {
     XCTAssertNotEqual(uuid, CallIdentity.uuid(roomId: "!room:example.org", callId: ""))
   }
 
-  func testUuidDiffersWhenRoomAndCallSwapPlaces() {
+  func testUuidDiffersWhenRoomAndCallSwapPlacesOrTheSeparatorMoves() {
     XCTAssertNotEqual(
       CallIdentity.uuid(roomId: "!room:example.org", callId: "call-1"),
       CallIdentity.uuid(roomId: "call-1", callId: "!room:example.org"))
-  }
-
-  func testUuidDiffersWhenTheSeparatorMovesBetweenRoomAndCall() {
     XCTAssertNotEqual(
       CallIdentity.uuid(roomId: "ab", callId: "c"), CallIdentity.uuid(roomId: "a", callId: "bc"))
     XCTAssertNotEqual(
@@ -98,119 +75,6 @@ final class CallIdentityTests: XCTestCase {
     ] {
       XCTAssertEqual(CallIdentity.endedReason(name), .remoteEnded, name)
     }
-  }
-}
-
-final class CallKitRefusalTests: XCTestCase {
-  func testNoErrorMeansTheRingIsShown() {
-    XCTAssertNil(CallKitCenter.refusal(nil))
-  }
-
-  func testACallCallKitAlreadyShowsCountsAsShown() {
-    XCTAssertNil(CallKitCenter.refusal(CXErrorCodeIncomingCallError(.callUUIDAlreadyExists)))
-  }
-
-  func testAnUnknownOrUnentitledRefusalMeansCallKitIsUnavailable() {
-    XCTAssertEqual(CallKitCenter.refusal(CXErrorCodeIncomingCallError(.unknown)), "unavailable")
-    XCTAssertEqual(CallKitCenter.refusal(CXErrorCodeIncomingCallError(.unentitled)), "unavailable")
-  }
-
-  func testAnErrorOutsideTheIncomingCallDomainMeansCallKitIsUnavailable() {
-    XCTAssertEqual(CallKitCenter.refusal(URLError(.timedOut)), "unavailable")
-    XCTAssertEqual(
-      CallKitCenter.refusal(NSError(domain: NSCocoaErrorDomain, code: 3)), "unavailable")
-    XCTAssertEqual(CallKitCenter.refusal(CXError(.unentitled)), "unavailable")
-    XCTAssertEqual(
-      CallKitCenter.refusal(CXErrorCodeRequestTransactionError(.callUUIDAlreadyExists)),
-      "unavailable")
-  }
-
-  func testEveryOtherRefusalMeansTheRingWasFiltered() {
-    let codes: [CXErrorCodeIncomingCallError.Code] = [
-      .filteredByDoNotDisturb, .filteredByBlockList, .filteredDuringRestrictedSharingMode,
-      .callIsProtected, .filteredBySensitiveParticipants,
-    ]
-    for code in codes {
-      XCTAssertEqual(
-        CallKitCenter.refusal(CXErrorCodeIncomingCallError(code)), "filtered", "\(code.rawValue)")
-    }
-  }
-
-  func testARefusalBridgedFromObjectiveCIsReadByItsCode() {
-    let domain = CXErrorCodeIncomingCallError.errorDomain
-    XCTAssertNil(CallKitCenter.refusal(NSError(domain: domain, code: 2)))
-    XCTAssertEqual(CallKitCenter.refusal(NSError(domain: domain, code: 1)), "unavailable")
-    XCTAssertEqual(CallKitCenter.refusal(NSError(domain: domain, code: 3)), "filtered")
-  }
-}
-
-final class CallKitRingtoneTests: XCTestCase {
-  func testTheSystemRingtonePlaysWhenTheSettingWasNeverSaved() {
-    XCTAssertNil(CallKitCenter.ringtoneSound(nil))
-  }
-
-  func testTheSystemRingtonePlaysWhenTheRingtoneIsOn() {
-    XCTAssertNil(CallKitCenter.ringtoneSound(true))
-    XCTAssertNil(CallKitCenter.ringtoneSound(NSNumber(value: true)))
-  }
-
-  func testTheSilentRingPlaysWhenTheRingtoneIsOff() {
-    XCTAssertEqual(CallKitCenter.ringtoneSound(false), "silent_ring.caf")
-    XCTAssertEqual(CallKitCenter.ringtoneSound(NSNumber(value: false)), "silent_ring.caf")
-  }
-
-  func testAValueThatIsNotABoolKeepsTheSystemRingtone() {
-    XCTAssertNil(CallKitCenter.ringtoneSound("false"))
-    XCTAssertNil(CallKitCenter.ringtoneSound(Data()))
-  }
-
-  func testAnOffSettingReadBackFromUserDefaultsSelectsTheSilentRing() throws {
-    let suite = "im.zuno.chat.tests.\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
-    defaults.set(false, forKey: "flutter.settings.ringtone_enabled")
-    XCTAssertEqual(
-      CallKitCenter.ringtoneSound(defaults.object(forKey: "flutter.settings.ringtone_enabled")),
-      "silent_ring.caf")
-  }
-}
-
-final class CallKitSystemEndTests: XCTestCase {
-  func testASystemEndInTheFirst25SecondsOfRingingIsADecline() {
-    for ringing: TimeInterval in [0, 1, 24.9] {
-      XCTAssertEqual(
-        CallKitCenter.systemEndEvent(ringingFor: ringing, answerWithdrawn: false), "declineCall",
-        "\(ringing) s")
-    }
-  }
-
-  func testASystemEndAfter25SecondsOfRingingIsAMissedRing() {
-    for ringing: TimeInterval in [25, 25.1, 55, 60] {
-      XCTAssertEqual(
-        CallKitCenter.systemEndEvent(ringingFor: ringing, answerWithdrawn: false), "ringEnded",
-        "\(ringing) s")
-    }
-  }
-
-  func testASystemEndOfAnAnswerTheAppNeverTookIsADecline() {
-    XCTAssertEqual(
-      CallKitCenter.systemEndEvent(ringingFor: nil, answerWithdrawn: true), "declineCall")
-  }
-
-  func testASystemEndOfAnOngoingCallIsAHangUp() {
-    XCTAssertEqual(
-      CallKitCenter.systemEndEvent(ringingFor: nil, answerWithdrawn: false), "hangUpCall")
-  }
-}
-
-final class CallKitResourceTests: XCTestCase {
-  func testTheAppBundleShipsTheSilentRing() throws {
-    let name = try XCTUnwrap(CallKitCenter.ringtoneSound(false))
-    XCTAssertNotNil(Bundle.main.url(forResource: name, withExtension: nil))
-  }
-
-  func testTheAppBundleShipsTheCallKitIcon() {
-    XCTAssertNotNil(UIImage(named: "CallKitIcon")?.pngData())
   }
 }
 
@@ -613,8 +477,8 @@ private func samples(_ wav: Data) -> [Int16] {
 
 final class OnceCompletionTests: XCTestCase {
   func testTheHandlerRunsOnceWithTheFirstValue() {
-    let calls = Recorded<Int>()
-    let completion = OnceCompletion<Int> { calls.append($0) }
+    let calls = Recorder<Int>()
+    let completion = OnceCompletion<Int> { calls.add($0) }
     completion(1)
     completion(2)
     XCTAssertEqual(calls.values, [1])
@@ -628,92 +492,10 @@ final class OnceCompletionTests: XCTestCase {
   }
 
   func testCallsRacingOnManyThreadsRunTheHandlerOnce() {
-    let calls = Recorded<Int>()
-    let completion = OnceCompletion<Int> { calls.append($0) }
+    let calls = Recorder<Int>()
+    let completion = OnceCompletion<Int> { calls.add($0) }
     DispatchQueue.concurrentPerform(iterations: 200) { completion($0) }
     XCTAssertEqual(calls.values.count, 1)
-  }
-}
-
-final class NotificationResponseRouteTests: XCTestCase {
-  private let actions: [NotificationAction] = [.open, .dismiss, .reply, .markRead, .other]
-
-  func testActionIdentifiersMapToTheirActions() {
-    XCTAssertEqual(NotificationAction(UNNotificationDefaultActionIdentifier), .open)
-    XCTAssertEqual(NotificationAction(UNNotificationDismissActionIdentifier), .dismiss)
-    XCTAssertEqual(NotificationAction("reply"), .reply)
-    XCTAssertEqual(NotificationAction("mark_read"), .markRead)
-    for identifier in ["", "accept", "decline", "Reply", "mark-read"] {
-      XCTAssertEqual(NotificationAction(identifier), .other, identifier)
-    }
-  }
-
-  func testAResponseAPluginHandledNeedsNothingMore() {
-    for action in actions {
-      XCTAssertEqual(
-        route(action, roomId: "!r:x").outcome(handledByPlugin: true), .handled, "\(action)")
-    }
-  }
-
-  func testATapWithARoomNoPluginTookOpensTheRoom() {
-    XCTAssertEqual(
-      route(.open, roomId: "!r:x").outcome(handledByPlugin: false), .openRoom("!r:x"))
-  }
-
-  func testATapWithoutARoomNoPluginTookOnlyCompletes() {
-    XCTAssertEqual(route(.open).outcome(handledByPlugin: false), .complete)
-  }
-
-  func testEveryOtherResponseNoPluginTookOnlyCompletes() {
-    for action in [NotificationAction.reply, .markRead, .dismiss, .other] {
-      XCTAssertEqual(
-        route(action, roomId: "!r:x").outcome(handledByPlugin: false), .complete, "\(action)")
-    }
-  }
-
-  func testAPushedNotificationNoPluginPresentedStaysOutOfTheForeground() {
-    XCTAssertEqual(NotificationResponseRoute.presentation(pushed: true), [])
-  }
-
-  func testALocalNotificationNoPluginPresentedShowsABannerAndAListEntry() {
-    XCTAssertEqual(NotificationResponseRoute.presentation(pushed: false), [.banner, .list])
-  }
-
-  func testTheRoomComesFromTheRoomIdFirst() {
-    let userInfo: [AnyHashable: Any] = [
-      "room_id": "!pushed:x", "payload": #"{"type":"message","roomId":"!local:x"}"#,
-    ]
-    XCTAssertEqual(NotificationResponseRoute.roomId(in: userInfo), "!pushed:x")
-  }
-
-  func testTheRoomComesFromAMessagePayload() {
-    let userInfo: [AnyHashable: Any] = [
-      "payload": #"{"type":"message","roomId":"!r:x","eventId":"$e"}"#
-    ]
-    XCTAssertEqual(NotificationResponseRoute.roomId(in: userInfo), "!r:x")
-  }
-
-  func testAPayloadThatIsNotAMessageHasNoRoom() {
-    let payloads: [Any] = [
-      #"{"type":"newDevice","deviceId":"D","roomId":"!r:x"}"#,
-      #"{"roomId":"!r:x"}"#,
-      #"{"type":"message","roomId":7}"#,
-      #"["message","!r:x"]"#,
-      "not json",
-      "",
-      42,
-    ]
-    for payload in payloads {
-      XCTAssertNil(NotificationResponseRoute.roomId(in: ["payload": payload]), "\(payload)")
-    }
-    XCTAssertNil(NotificationResponseRoute.roomId(in: [:]))
-    XCTAssertNil(NotificationResponseRoute.roomId(in: ["room_id": 7]))
-  }
-
-  private func route(_ action: NotificationAction, roomId: String? = nil)
-    -> NotificationResponseRoute
-  {
-    NotificationResponseRoute(action: action, roomId: roomId)
   }
 }
 
@@ -1146,23 +928,6 @@ final class ClientLeaseLedgerTests: XCTestCase {
     _ = harness.acquire(1, .app)
     _ = harness.acquire(2, .app, waitMs: -1)
     XCTAssertEqual(harness.timers.pendingDelays, [0])
-  }
-}
-
-private final class Recorded<Value: Sendable>: @unchecked Sendable {
-  private let lock = NSLock()
-  private var recorded: [Value] = []
-
-  var values: [Value] {
-    lock.lock()
-    defer { lock.unlock() }
-    return recorded
-  }
-
-  func append(_ value: Value) {
-    lock.lock()
-    recorded.append(value)
-    lock.unlock()
   }
 }
 

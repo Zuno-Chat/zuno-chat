@@ -40,14 +40,6 @@ class PushDeliveryLogTest {
     }
 
     @Test
-    fun `the timings follow the six columns the Recent pushes page reads`() {
-        val columns = PushDeliveryLog.lineFor(received).split('\t')
-
-        assertEquals(listOf("2000", "1500", "high", "normal", "1", "10"), columns.take(6))
-        assertEquals(listOf("12", "1", "", "", ""), columns.drop(6))
-    }
-
-    @Test
     fun `a notice the receiver did not post reads 0, an unknown one stays empty`() {
         val notPosted = PushDeliveryLog.lineFor(received.copy(noticePosted = false))
         val unknown = PushDeliveryLog.lineFor(received.copy(noticePosted = null))

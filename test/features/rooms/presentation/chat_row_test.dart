@@ -67,9 +67,8 @@ void main() {
 
   Text nameText(WidgetTester tester) => tester.widget<Text>(find.text('Maya'));
 
-  testWidgets('shows the name, the preview, the time and the count', (
-    tester,
-  ) async {
+  testWidgets('shows the name, the preview, the time and the count, '
+      'which is the amber fill', (tester) async {
     await pump(tester, data(unread: 2));
 
     expect(nameText(tester).style!.color, scheme.onSurface);
@@ -78,6 +77,10 @@ void main() {
     final time = tester.widget<Text>(find.text('09:41'));
     expect(time.style!.fontWeight, FontWeight.w700);
     expect(time.style!.color, scheme.onSurface);
+    final pill = tester.widget<Container>(
+      find.ancestor(of: find.text('2'), matching: find.byType(Container)).first,
+    );
+    expect((pill.decoration! as BoxDecoration).color, scheme.primaryContainer);
   });
 
   testWidgets('without unread, the time is quiet and there is no count', (
@@ -109,15 +112,6 @@ void main() {
     expect(find.byType(Opacity), findsNothing);
   });
 
-  testWidgets('an unmuted count is the amber fill', (tester) async {
-    await pump(tester, data(unread: 5));
-
-    final pill = tester.widget<Container>(
-      find.ancestor(of: find.text('5'), matching: find.byType(Container)).first,
-    );
-    expect((pill.decoration! as BoxDecoration).color, scheme.primaryContainer);
-  });
-
   testWidgets('typing replaces the preview, in amber italic', (tester) async {
     await pump(tester, data(typingText: 'typing…'));
 
@@ -142,6 +136,7 @@ void main() {
     await pump(tester, data(partnerLeft: true));
 
     expect(find.text('Left the chat'), findsOneWidget);
+    expect(find.text('See you at seven'), findsNothing);
     expect(find.byIcon(Icons.person_off_outlined), findsOneWidget);
     expect(nameText(tester).style!.color, scheme.onSurfaceVariant);
   });

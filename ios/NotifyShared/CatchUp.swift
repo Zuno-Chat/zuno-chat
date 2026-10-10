@@ -43,7 +43,7 @@ enum CatchUp {
     let reads = reply.readRooms.compactMap { read in
       platform.roomToken(read.roomId).map { ThreadRead(token: $0, upToMs: read.receiptTs) }
     }
-    outcome.readRoomTokens = Set(reads.map(\.token))
+    outcome.readRoomTokens = Set(reads.compactMap(\.token))
     if !reads.isEmpty {
       let delivered = await platform.delivered()
       let identifiers = DeliveredSweep.identifiersToRemove(delivered, reads: reads)

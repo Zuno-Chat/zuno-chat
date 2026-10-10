@@ -43,13 +43,16 @@ void main() {
     );
   });
 
-  test('the import check sees package:sqlite3 imports where they exist', () {
-    expect(_importsSqlite3(_packageLibs()['sqlite3']!), isTrue);
-  });
-
   test('no package imports package:sqlite3, so Android never needs it', () {
+    final libs = _packageLibs();
+    expect(
+      _importsSqlite3(libs['sqlite3']!),
+      isTrue,
+      reason: 'the import check must see the imports sqlite3 itself has',
+    );
+
     final importers = [
-      for (final MapEntry(key: name, value: lib) in _packageLibs().entries)
+      for (final MapEntry(key: name, value: lib) in libs.entries)
         if (name != 'sqlite3' && _mayUseSqlite3(lib) && _importsSqlite3(lib))
           name,
     ];

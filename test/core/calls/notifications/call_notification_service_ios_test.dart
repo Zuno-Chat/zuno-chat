@@ -123,41 +123,6 @@ void main() {
       expect(ios['categoryIdentifier'], 'message');
     });
 
-    test('without an event to mark read, only Reply is offered', () async {
-      await service.showMessage(
-        const MessageNotificationContent(
-          roomId: _roomId,
-          title: 'New message',
-          body: 'Tap to open',
-        ),
-        includeMessageActions: true,
-      );
-
-      expect(
-        notifications.lastPlatformSpecifics['categoryIdentifier'],
-        'reply',
-      );
-    });
-
-    test(
-      'without message actions, as for an invite, no action is offered',
-      () async {
-        await service.showMessage(
-          const MessageNotificationContent(
-            roomId: _roomId,
-            title: 'Alice',
-            body: 'invited you',
-            eventId: r'$1',
-          ),
-        );
-
-        expect(
-          notifications.lastPlatformSpecifics['categoryIdentifier'],
-          isNull,
-        );
-      },
-    );
-
     group('alerting', () {
       var fakeNow = DateTime(2031);
 
@@ -175,8 +140,9 @@ void main() {
         eventId: r'$1',
       );
 
-      test('with the message tone on, a new message sounds and lights the '
-          'screen', () async {
+      test('with the message tone on, a new message sounds, lights the '
+          'screen and shows its banner while Zuno is open, and stays in the '
+          'list', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
 
         await service.showMessage(message);
@@ -185,22 +151,13 @@ void main() {
         expect(ios['presentSound'], isTrue);
         expect(ios['sound'], 'message_tone.caf');
         expect(ios['interruptionLevel'], 1);
-      });
-
-      test('a new message shows its banner while Zuno is open, and stays in '
-          'the list', () async {
-        SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
-
-        await service.showMessage(message);
-
-        final ios = notifications.lastPlatformSpecifics;
         expect(ios['presentBanner'], isTrue);
         expect(ios['presentAlert'], isTrue);
         expect(ios['presentList'], isTrue);
       });
 
-      test('a quiet message never shows a banner while Zuno is open, but '
-          'stays in the list', () async {
+      test('a quiet message goes to the list without a banner, sound or '
+          'lighting the screen', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
 
         await service.showMessage(
@@ -218,6 +175,7 @@ void main() {
         expect(ios['presentAlert'], isFalse);
         expect(ios['presentSound'], isFalse);
         expect(ios['sound'], isNull);
+        expect(ios['interruptionLevel'], 0);
         expect(ios['presentList'], isTrue);
       });
 
@@ -258,26 +216,6 @@ void main() {
         expect(ios['presentSound'], isFalse);
         expect(ios['sound'], isNull);
         expect(ios['interruptionLevel'], 1);
-      });
-
-      test('a quiet message goes to the list without sound or lighting the '
-          'screen', () async {
-        SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
-
-        await service.showMessage(
-          const MessageNotificationContent(
-            roomId: _roomId,
-            title: 'Alice',
-            body: 'hi',
-            eventId: r'$1',
-            quiet: true,
-          ),
-        );
-
-        final ios = notifications.lastPlatformSpecifics;
-        expect(ios['presentSound'], isFalse);
-        expect(ios['sound'], isNull);
-        expect(ios['interruptionLevel'], 0);
       });
 
       test(

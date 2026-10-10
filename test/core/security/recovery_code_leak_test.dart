@@ -1,18 +1,14 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/security/recovery_code.dart';
 import 'package:zuno/core/security/recovery_code_leak.dart';
 
-RecoveryWordlist _shippedWordlist() => RecoveryWordlist.parse(
-  File('assets/wordlist/recovery_words.txt').readAsStringSync(),
-);
+import '../../helpers/fixtures.dart';
 
 void main() {
   late RecoveryWordlist list;
 
-  setUp(() => list = _shippedWordlist());
+  setUp(() => list = shippedRecoveryWordlist());
 
   String code() => list.words.take(recoveryCodeWordCount).join(' ');
 

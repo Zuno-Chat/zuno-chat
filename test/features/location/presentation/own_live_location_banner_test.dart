@@ -32,14 +32,11 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('is hidden while this device shares nothing', (tester) async {
+  testWidgets('shows only while this device shares, says where, and stops it '
+      'all', (tester) async {
     await pumpBanner(tester);
-
     expect(find.text('Sharing live location'), findsNothing);
-  });
 
-  testWidgets('says where this device shares and stops it all', (tester) async {
-    await pumpBanner(tester);
     await harness.startSharing();
     await tester.pump();
 

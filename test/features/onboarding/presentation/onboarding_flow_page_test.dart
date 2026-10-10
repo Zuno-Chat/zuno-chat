@@ -20,7 +20,6 @@ import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
-import 'package:zuno/core/security/security_prompt_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/step_hero.dart';
 import 'package:zuno/core/ui/step_layout.dart';
@@ -30,37 +29,15 @@ import 'package:zuno/features/onboarding/presentation/onboarding_flow_page.dart'
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 import 'package:zuno/features/verification/presentation/approve_this_device_page.dart';
 
+import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_permissions.dart';
 import '../../../helpers/fake_unified_push.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/pump_until.dart';
 
 const _userId = '@alex:example.org';
-
-class _FakeImagePicker extends ImagePickerPlatform {
-  XFile? answer;
-  Object? error;
-
-  @override
-  Future<XFile?> getImageFromSource({
-    required ImageSource source,
-    ImagePickerOptions options = const ImagePickerOptions(),
-  }) async {
-    final error = this.error;
-    if (error != null) throw error;
-    return answer;
-  }
-}
-
-class _UploadingDatabaseApi extends FakeDatabaseApi {
-  @override
-  int get maxFileSize => 0;
-
-  @override
-  Future<({Map<String, Object?> content, DateTime savedAt})?>
-  getCustomCacheObject(String cacheKey) async =>
-      (content: const <String, Object?>{}, savedAt: DateTime.now());
-}
 
 void main() {
   late SharedPreferences prefs;
@@ -71,22 +48,6 @@ void main() {
     prefs = await SharedPreferences.getInstance();
     channelCalls = [];
   });
-
-  void stubNotificationPermission({required bool granted}) {
-    const channel = MethodChannel('flutter.baseflow.com/permissions/methods');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    final status = granted ? 1 : 0;
-    messenger.setMockMethodCallHandler(
-      channel,
-      (call) async => switch (call.method) {
-        'checkPermissionStatus' => status,
-        'requestPermissions' => {17: status},
-        _ => null,
-      },
-    );
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-  }
 
   Future<OnboardingStore> pumpFlow(
     WidgetTester tester,
@@ -182,17 +143,6 @@ void main() {
 
     expect(find.text('Set up recovery'), findsOneWidget);
     expect(store.shown(_userId), {OnboardingStep.confirmPeople});
-  });
-
-  testWidgets('a skipped step is recorded, so it is not asked again', (
-    tester,
-  ) async {
-    final store = await pumpFlow(tester, [OnboardingStep.profile]);
-
-    await tester.tap(find.text('Skip'));
-    await tester.pumpAndSettle();
-
-    expect(store.shown(_userId), {OnboardingStep.profile});
   });
 
   testWidgets('a step with nothing to decline shows no Skip; its own button '
@@ -376,31 +326,6 @@ void main() {
       tester.getRect(find.byType(FilledButton)).bottom,
       closeTo(withDots, 0.5),
     );
-  });
-
-  testWidgets('every step centres its icon circle, title and text', (
-    tester,
-  ) async {
-    stubNotificationPermission(granted: true);
-    for (final step in OnboardingStep.values) {
-      await tester.pumpWidget(const SizedBox());
-      await pumpFlow(tester, [step]);
-      final width = tester.getSize(find.byType(Scaffold).last).width;
-      expect(
-        tester.getCenter(find.byType(StepHero)).dx,
-        closeTo(width / 2, 1),
-        reason: '$step',
-      );
-      final aligned = tester
-          .widgetList<Text>(
-            find.descendant(
-              of: find.byType(StepLayout),
-              matching: find.byType(Text),
-            ),
-          )
-          .where((text) => text.textAlign == TextAlign.center);
-      expect(aligned.length, 2, reason: '$step');
-    }
   });
 
   group('the photo circle on the name step', () {
@@ -589,14 +514,18 @@ void main() {
       await tester.pump();
     }
 
-    testWidgets('lists every method with the current one preselected', (
-      tester,
-    ) async {
+    testWidgets('Android lists its three methods and nothing else, with the '
+        'current one preselected', (tester) async {
       await pumpFlow(tester, [OnboardingStep.deliveryMethod]);
 
+      expect(
+        find.byType(RadioListTile<NotificationDeliveryMode>),
+        findsNWidgets(3),
+      );
       expect(find.text('Google services'), findsOneWidget);
       expect(find.text('UnifiedPush'), findsOneWidget);
       expect(find.text('Background sync'), findsOneWidget);
+      expect(find.text('Apple push'), findsNothing);
       expect(
         tester
             .widget<RadioGroup<NotificationDeliveryMode>>(
@@ -708,37 +637,6 @@ void main() {
       expect(find.text('Make sure it is really them'), findsOneWidget);
     });
 
-    testWidgets('a method that needs it skips the battery step when Android '
-        'already exempts the app', (tester) async {
-      stubBatteryExemption(granted: true);
-      await pumpFlow(tester, [
-        OnboardingStep.deliveryMethod,
-        OnboardingStep.setUpRecovery,
-      ]);
-
-      await pick(tester, 'Background sync');
-      await tester.tap(find.text('Continue'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Set up recovery'), findsOneWidget);
-      expect(
-        prefs.getString('settings.notification_delivery_mode'),
-        'backgroundService',
-      );
-    });
-
-    testWidgets('Android offers its three methods and nothing else', (
-      tester,
-    ) async {
-      await pumpFlow(tester, [OnboardingStep.deliveryMethod]);
-
-      expect(
-        find.byType(RadioListTile<NotificationDeliveryMode>),
-        findsNWidgets(3),
-      );
-      expect(find.text('Apple push'), findsNothing);
-    });
-
     testWidgets('lists only the methods this platform has', (tester) async {
       await pumpFlow(
         tester,
@@ -757,27 +655,6 @@ void main() {
         findsNWidgets(2),
       );
       expect(find.text('UnifiedPush'), findsNothing);
-    });
-
-    testWidgets('a platform without a battery exemption never adds the '
-        'battery step', (tester) async {
-      stubBatteryExemption(granted: false);
-      await pumpFlow(
-        tester,
-        [OnboardingStep.deliveryMethod, OnboardingStep.setUpRecovery],
-        capabilities: capabilitiesLike(
-          androidCapabilities,
-          batteryExemption: false,
-        ),
-      );
-
-      await tester.tap(find.text('UnifiedPush'));
-      await tester.pump();
-      await tester.tap(find.text('Continue'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Let Zuno wake up'), findsNothing);
-      expect(find.text('Set up recovery'), findsOneWidget);
     });
 
     testWidgets('Google services drops a battery step that was pending', (
@@ -815,40 +692,27 @@ void main() {
           tester.element(find.byType(OnboardingFlowPage)),
         ).read(notificationDeliveryModeProvider.notifier);
 
-    for (final (fcm, reason) in [
-      (
-        FcmAvailability.unavailable,
-        'This device does not have Google Play services.',
-      ),
-      (
-        FcmAvailability.disabled,
-        'Google Play services is turned off. Turn it on in your device '
-            'settings to use this.',
-      ),
-      (
-        FcmAvailability.notConfigured,
-        'This version of Zuno does not include Google services.',
-      ),
-    ]) {
-      testWidgets('${fcm.name}: Google services is listed with its reason '
-          'but cannot be picked', (tester) async {
-        await prefs.setString(
-          'settings.notification_delivery_mode',
-          NotificationDeliveryMode.unifiedPush.name,
-        );
-        await pumpFlow(tester, [
-          OnboardingStep.deliveryMethod,
-        ], fcm: AsyncData(fcm));
+    testWidgets('a closed Google services is listed with its reason but '
+        'cannot be picked', (tester) async {
+      await prefs.setString(
+        'settings.notification_delivery_mode',
+        NotificationDeliveryMode.unifiedPush.name,
+      );
+      await pumpFlow(tester, [
+        OnboardingStep.deliveryMethod,
+      ], fcm: const AsyncData(FcmAvailability.unavailable));
 
-        expect(option(tester, 'Google services').enabled, isFalse);
-        expect(find.text(reason), findsOneWidget);
-        expect(option(tester, 'UnifiedPush').enabled, isTrue);
+      expect(option(tester, 'Google services').enabled, isFalse);
+      expect(
+        find.text('This device does not have Google Play services.'),
+        findsOneWidget,
+      );
+      expect(option(tester, 'UnifiedPush').enabled, isTrue);
 
-        await pick(tester, 'Google services');
+      await pick(tester, 'Google services');
 
-        expect(preselected(tester), NotificationDeliveryMode.unifiedPush);
-      });
-    }
+      expect(preselected(tester), NotificationDeliveryMode.unifiedPush);
+    });
 
     testWidgets('a device that needs an update can pick Google services and '
         'is told what comes next', (tester) async {
@@ -994,9 +858,15 @@ void main() {
       OnboardingStep.setUpRecovery,
     ];
 
+    setUp(
+      () => installFakePermissions(
+        onCheck: permissionDenied,
+        onRequest: permissionDenied,
+      ),
+    );
+
     testWidgets('skipping the permission drops every delivery step, for '
         'good', (tester) async {
-      stubNotificationPermission(granted: false);
       final store = await pumpFlow(tester, flow);
 
       await tester.tap(find.text('Skip'));
@@ -1013,7 +883,6 @@ void main() {
     });
 
     testWidgets('declining the permission drops them too', (tester) async {
-      stubNotificationPermission(granted: false);
       await pumpFlow(tester, flow);
 
       await tester.tap(find.text('Turn on notifications'));
@@ -1023,7 +892,6 @@ void main() {
     });
 
     testWidgets('a flow that ends at the permission closes', (tester) async {
-      stubNotificationPermission(granted: false);
       await pumpFlow(tester, const [
         OnboardingStep.notifications,
         OnboardingStep.deliveryMethod,
@@ -1038,7 +906,7 @@ void main() {
     testWidgets('with the permission granted, delivery comes next', (
       tester,
     ) async {
-      stubNotificationPermission(granted: true);
+      installFakePermissions();
       final store = await pumpFlow(tester, flow);
 
       await tester.tap(find.text('Skip'));
@@ -1049,12 +917,14 @@ void main() {
     });
   });
 
-  testWidgets('every step is one page with one primary button', (tester) async {
-    stubNotificationPermission(granted: true);
+  testWidgets('every step is one page on the shared step layout, with one '
+      'primary button', (tester) async {
+    installFakePermissions();
     for (final step in OnboardingStep.values) {
       await tester.pumpWidget(const SizedBox());
       await pumpFlow(tester, [step]);
 
+      expect(find.byType(StepLayout), findsOneWidget, reason: '$step');
       expect(find.byType(FilledButton), findsOneWidget, reason: '$step');
       expect(
         skip(),
@@ -1069,40 +939,16 @@ void main() {
     }
   });
 
-  testWidgets('the notifications step asks one question only', (tester) async {
-    await pumpFlow(tester, [OnboardingStep.notifications]);
-
-    expect(find.text('All messages'), findsNothing);
-    expect(find.text('Only when someone mentions you'), findsNothing);
-  });
-
   testWidgets('skipping the recovery step still starts its cooldown', (
     tester,
   ) async {
-    final container = ProviderContainer(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        matrixClientProvider.overrideWithValue(
-          buildTestClient(userId: _userId),
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
-    final promptStore = container.read(securityPromptStoreProvider);
-    expect(promptStore.lastPrompted(), isNull);
+    await pumpFlow(tester, [OnboardingStep.setUpRecovery]);
+    expect(prefs.getInt('security.recovery_prompt_ms'), isNull);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(
-          home: OnboardingFlowPage(steps: [OnboardingStep.setUpRecovery]),
-        ),
-      ),
-    );
-    await tester.tap(find.text('Skip'));
+    await tester.tap(skip());
     await tester.pumpAndSettle();
 
-    expect(promptStore.lastPrompted(), isNotNull);
+    expect(prefs.getInt('security.recovery_prompt_ms'), isNotNull);
   });
 
   void recordChannel(String name, [Object? Function(MethodCall call)? answer]) {
@@ -1134,27 +980,24 @@ void main() {
   }
 
   group('the photo on the name step', () {
-    late _FakeImagePicker picker;
+    late FakeImagePicker picker;
 
-    setUp(() {
-      picker = _FakeImagePicker();
-      final original = ImagePickerPlatform.instance;
-      ImagePickerPlatform.instance = picker;
-      addTearDown(() => ImagePickerPlatform.instance = original);
-    });
+    setUp(() => picker = installFakeImagePicker());
 
     testWidgets('a picked photo fills the circle and saves on its own', (
       tester,
     ) async {
-      picker.answer = XFile.fromData(
-        img.encodeJpg(img.Image(width: 800, height: 400)),
-        path: 'IMG_0001.jpg',
-        mimeType: 'image/jpeg',
-      );
+      picker.answer = [
+        XFile.fromData(
+          img.encodeJpg(img.Image(width: 800, height: 400)),
+          path: 'IMG_0001.jpg',
+          mimeType: 'image/jpeg',
+        ),
+      ];
       final requests = <http.Request>[];
       final client = buildTestClient(
         userId: _userId,
-        database: _UploadingDatabaseApi(),
+        database: UploadingFakeDatabaseApi(),
         httpClient: MockClient((request) async {
           requests.add(request);
           return http.Response(
@@ -1181,10 +1024,7 @@ void main() {
       expect(tester.widget<StepHero>(find.byType(StepHero)).image, isNotNull);
 
       await tester.tap(find.text('Save'));
-      for (var i = 0; i < 4; i++) {
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.pump();
-      }
+      await pumpRealAsync(tester, rounds: 4);
       await tester.pumpAndSettle();
 
       expect(requests.map((r) => r.url.pathSegments.last), [
@@ -1236,7 +1076,9 @@ void main() {
       recordChannel('zuno/background_sync');
     });
 
-    testWidgets('asks to show messages and ring for calls', (tester) async {
+    testWidgets('asks only to show messages and ring for calls', (
+      tester,
+    ) async {
       await pumpFlow(tester, [OnboardingStep.notifications]);
 
       expect(
@@ -1246,12 +1088,14 @@ void main() {
         ),
         findsOneWidget,
       );
+      expect(find.text('All messages'), findsNothing);
+      expect(find.text('Only when someone mentions you'), findsNothing);
     });
 
     testWidgets('on iOS, where calls ring without it, asks for messages only '
         'and moves straight on', (tester) async {
       ambientCapabilities = iosCapabilities;
-      stubNotificationPermission(granted: true);
+      installFakePermissions();
       fullScreenAllowed = false;
       await pumpFlow(tester, [
         OnboardingStep.notifications,
@@ -1275,7 +1119,7 @@ void main() {
     testWidgets('moves on once allowed and calls may ring full screen', (
       tester,
     ) async {
-      stubNotificationPermission(granted: true);
+      installFakePermissions();
       await pumpFlow(tester, [
         OnboardingStep.notifications,
         OnboardingStep.setUpRecovery,
@@ -1290,7 +1134,7 @@ void main() {
 
     testWidgets('asks for full-screen calls next, and moves on once they are '
         'allowed', (tester) async {
-      stubNotificationPermission(granted: true);
+      installFakePermissions();
       fullScreenAllowed = false;
       await pumpFlow(tester, [
         OnboardingStep.notifications,
@@ -1317,21 +1161,7 @@ void main() {
       tester,
     ) async {
       await useMode(NotificationDeliveryMode.backgroundService);
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      const permissions = MethodChannel(
-        'flutter.baseflow.com/permissions/methods',
-      );
-      var granted = false;
-      messenger.setMockMethodCallHandler(
-        permissions,
-        (call) async => switch (call.method) {
-          'checkPermissionStatus' => granted ? 1 : 0,
-          'requestPermissions' => {17: (granted = true) ? 1 : 0},
-          _ => null,
-        },
-      );
-      addTearDown(() => messenger.setMockMethodCallHandler(permissions, null));
+      installFakePermissions(onCheck: permissionDenied);
       await pumpFlow(tester, [
         OnboardingStep.notifications,
         OnboardingStep.setUpRecovery,

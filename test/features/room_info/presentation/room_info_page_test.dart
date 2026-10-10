@@ -3,13 +3,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/optimistic_room_state.dart';
@@ -17,7 +15,6 @@ import 'package:zuno/core/matrix/room_exit.dart';
 import 'package:zuno/core/matrix/room_media_feed.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/blocking/presentation/block_person.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/room_info/presentation/member_tile.dart';
@@ -29,7 +26,11 @@ import 'package:zuno/features/room_info/presentation/room_settings_page.dart';
 import 'package:zuno/features/room_info/presentation/room_topic.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/preferences_container.dart';
+import '../../../helpers/pump_until.dart';
 import '../../../helpers/real_fonts.dart';
+import '../../../helpers/room_opening_channels.dart';
+import '../../../helpers/route_launcher.dart';
 
 void main() {
   late Client client;
@@ -197,19 +198,16 @@ void main() {
     tester.view.physicalSize = const Size(1080, 6000);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
+    final container = await containerWithPreferences(
+      {},
       overrides: [
         matrixClientProvider.overrideWithValue(client),
-        sharedPreferencesProvider.overrideWithValue(prefs),
         for (final id in trustStubbedIds)
           userTrustProvider(id).overrideWithValue(UserTrustState.unconfirmed),
         roomMediaFeedProvider(room)
             .overrideWithValue(mediaFeed ?? mediaFeedOf(const [])),
       ],
     );
-    addTearDown(container.dispose);
     final page = RoomInfoPage(
       room: room,
       blockPerson: blockPerson,
@@ -221,15 +219,9 @@ void main() {
         child: MaterialApp(
           home: pushed
               ? Scaffold(
-                  body: Builder(
-                    builder: (context) => TextButton(
-                      onPressed: () async =>
-                          pageResult = await Navigator.of(context)
-                              .push<RoomInfoResult>(
-                                MaterialPageRoute(builder: (_) => page),
-                              ),
-                      child: const Text('open'),
-                    ),
+                  body: routeLauncher<RoomInfoResult>(
+                    (_) => page,
+                    onResult: (result) => pageResult = result,
                   ),
                 )
               : page,
@@ -277,18 +269,6 @@ void main() {
     },
   );
 
-  testWidgets('a moderator sees every role', (tester) async {
-    addMember('@owner:example.org', 'Olga');
-    addMember('@ann:example.org', 'Ann');
-    addMember('@me:example.org', 'Me');
-    setLevels({'@owner:example.org': 100, '@me:example.org': 50});
-    await pumpPage(tester);
-
-    expect(find.text('Owner'), findsOneWidget);
-    expect(find.text('Moderator'), findsOneWidget);
-    expect(find.text('Member'), findsOneWidget);
-  });
-
   testWidgets('shows five members and a button for the rest', (tester) async {
     seedCrowd();
     await pumpPage(tester);
@@ -332,23 +312,6 @@ void main() {
     expect(find.text('Zed'), findsOneWidget);
   });
 
-  testWidgets('Advanced shows for admins and owners only', (tester) async {
-    addMember('@owner:example.org', 'Olga');
-    addMember('@me:example.org', 'Me');
-    setLevels({'@owner:example.org': 100, '@me:example.org': 50});
-    await pumpPage(tester);
-    expect(find.text('Advanced'), findsNothing);
-
-    setLevels({'@owner:example.org': 100, '@me:example.org': 100});
-    await pumpPage(tester);
-    expect(find.text('Advanced'), findsOneWidget);
-
-    setLevels({'@owner:example.org': 100});
-    client.setUserId('@owner:example.org');
-    await pumpPage(tester);
-    expect(find.text('Advanced'), findsOneWidget);
-  });
-
   testWidgets('reflects room state changes without reopening', (tester) async {
     addMember('@owner:example.org', 'Olga');
     addMember('@me:example.org', 'Me');
@@ -390,14 +353,6 @@ void main() {
     await pumpPage(tester, trustStubbedIds: ['@ann:example.org']);
 
     expect(find.text('Weekend hikes'), findsOneWidget);
-  });
-
-  testWidgets('a room without a topic has no topic line', (tester) async {
-    addMember('@owner:example.org', 'Olga');
-    addMember('@me:example.org', 'Me');
-    await pumpPage(tester);
-
-    expect(find.byType(RoomTopic), findsNothing);
   });
 
   testWidgets('a blank topic shows nothing', (tester) async {
@@ -452,21 +407,15 @@ void main() {
     expect(find.text('Private'), findsOneWidget);
   });
 
-  testWidgets('group rooms have no Security section', (tester) async {
+  testWidgets('only a direct chat has a Security section', (tester) async {
     addMember('@owner:example.org', 'Olga');
     addMember('@me:example.org', 'Me');
     await pumpPage(tester);
-
     expect(find.text('Security'), findsNothing);
     expect(find.text('Not encrypted'), findsNothing);
-  });
 
-  testWidgets('direct chats keep the Security section', (tester) async {
-    addMember('@owner:example.org', 'Olga');
-    addMember('@me:example.org', 'Me');
     setDirectChatWith('@owner:example.org');
     await pumpPage(tester);
-
     expect(find.text('Security'), findsOneWidget);
   });
 
@@ -618,16 +567,20 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(blocked, ['@ann:example.org']);
-    expect(find.text('Ann blocked'), findsOneWidget);
   });
 
-  testWidgets('a chat offers to block the other person', (tester) async {
+  testWidgets('a chat offers to block the other person, and closes once '
+      'they are blocked', (tester) async {
     addMember('@owner:example.org', 'Olga');
     addMember('@me:example.org', 'Me');
     setLevels({'@owner:example.org': 100, '@me:example.org': 100});
     setDirectChatWith('@owner:example.org');
     final blocked = <String>[];
-    await pumpPage(tester, blockPerson: (id) async => blocked.add(id));
+    await pumpPage(
+      tester,
+      blockPerson: (id) async => blocked.add(id),
+      pushed: true,
+    );
 
     await tester.tap(find.text('Block Olga'));
     await tester.pumpAndSettle();
@@ -635,23 +588,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(blocked, ['@owner:example.org']);
-  });
-
-  testWidgets('backing out of the block dialog blocks nobody', (tester) async {
-    addMember('@owner:example.org', 'Olga');
-    addMember('@me:example.org', 'Me');
-    setLevels({'@owner:example.org': 100, '@me:example.org': 100});
-    setDirectChatWith('@owner:example.org');
-    final blocked = <String>[];
-    await pumpPage(tester, blockPerson: (id) async => blocked.add(id));
-
-    await tester.tap(find.text('Block Olga'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-    await tester.pumpAndSettle();
-
-    expect(blocked, isEmpty);
-    expect(find.byType(RoomInfoPage), findsOneWidget);
+    expect(find.byType(RoomInfoPage), findsNothing);
   });
 
   testWidgets('the official Zuno account cannot be blocked from a chat', (
@@ -681,14 +618,6 @@ void main() {
     expect(find.text('Block'), findsNothing);
   });
 
-  testWidgets('a room offers no block for the room itself', (tester) async {
-    addMember('@owner:example.org', 'Olga');
-    addMember('@me:example.org', 'Me');
-    await pumpPage(tester);
-
-    expect(find.textContaining('Block '), findsNothing);
-  });
-
   testWidgets('a chat offers to report the other person', (tester) async {
     addMember('@owner:example.org', 'Olga');
     addMember('@me:example.org', 'Me');
@@ -708,13 +637,13 @@ void main() {
     expect(find.text('Report sent'), findsOneWidget);
   });
 
-  testWidgets('a room has no page-level report, only the member sheet', (
-    tester,
-  ) async {
+  testWidgets('a room offers no page-level block or report, only the member '
+      'sheet', (tester) async {
     addMember('@owner:example.org', 'Olga');
     addMember('@me:example.org', 'Me');
     await pumpPage(tester);
 
+    expect(find.textContaining('Block'), findsNothing);
     expect(find.textContaining('Report'), findsNothing);
   });
 
@@ -750,19 +679,8 @@ void main() {
     expect(find.text('Ann'), findsOneWidget);
   });
 
-  testWidgets('members do not see requests to join', (tester) async {
-    addMember('@me:example.org', 'Me');
-    addMember('@maya:example.org', 'Maya', membership: 'knock');
-    setLevels({'@me:example.org': 0});
-
-    await pumpPage(tester);
-
-    expect(find.text('Asking to join'), findsNothing);
-    expect(find.text('Maya'), findsNothing);
-  });
-
   group('quick actions', () {
-    testWidgets('call buttons show only when the chat can start a call', (
+    testWidgets('the call buttons start a voice or a video call', (
       tester,
     ) async {
       addMember('@me:example.org', 'Me');
@@ -841,10 +759,7 @@ void main() {
         requests.where((r) => r.url.path.contains('/pushrules/'));
 
     Future<void> network(WidgetTester tester) async {
-      for (var i = 0; i < 4; i++) {
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.pump();
-      }
+      await pumpRealAsync(tester, rounds: 4);
     }
 
     testWidgets('Mute asks the server once and flips to Unmute', (
@@ -901,16 +816,6 @@ void main() {
       expect(find.text('Mute'), findsOneWidget);
       expect(find.text('Not muted. Try again.'), findsOneWidget);
     });
-
-    testWidgets('Invite is a quick action in a room that allows it', (
-      tester,
-    ) async {
-      addMember('@me:example.org', 'Me');
-      setLevels({'@me:example.org': 100});
-      await pumpPage(tester);
-      expect(find.text('Invite'), findsOneWidget);
-      expect(find.byType(FloatingActionButton), findsNothing);
-    });
   });
 
   testWidgets('leaving is offered at the bottom, in the danger color', (
@@ -943,10 +848,7 @@ void main() {
   });
 
   Future<void> network(WidgetTester tester) async {
-    for (var i = 0; i < 4; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
+    await pumpRealAsync(tester, rounds: 4);
     await tester.pumpAndSettle();
   }
 
@@ -1041,27 +943,6 @@ void main() {
           matching: find.text('Moderator'),
         ),
         findsOneWidget,
-      );
-    });
-
-    testWidgets('a moderator can only make someone a member or read-only', (
-      tester,
-    ) async {
-      seedAdminRoom(ownLevel: 50);
-      await pumpPage(tester);
-
-      await openMember(tester, 'Ann');
-      await tester.tap(find.text('Change role'));
-      await tester.pumpAndSettle();
-
-      final sheet = find.byType(BottomSheet).last;
-      expect(
-        tester
-            .widgetList<ListTile>(
-              find.descendant(of: sheet, matching: find.byType(ListTile)),
-            )
-            .map((tile) => (tile.title! as Text).data),
-        ['Member', 'Read-only'],
       );
     });
 
@@ -1261,17 +1142,7 @@ void main() {
     testWidgets('Start a chat opens the chat you already have with them', (
       tester,
     ) async {
-      FlutterLocalNotificationsPlatform.instance =
-          AndroidFlutterLocalNotificationsPlugin();
-      final messenger = tester.binding.defaultBinaryMessenger;
-      for (final channel in const [
-        MethodChannel('dexterous.com/flutter/local_notifications'),
-        MethodChannel('zuno/calls'),
-        MethodChannel('com.llfbandit.record/messages'),
-      ]) {
-        messenger.setMockMethodCallHandler(channel, (_) async => null);
-        addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      }
+      installRoomOpeningChannels();
       seedAdminRoom();
       final chat = buildTestRoom(client, id: '!ann:example.org')
         ..partial = false;

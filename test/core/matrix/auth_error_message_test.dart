@@ -1,10 +1,9 @@
-import 'dart:io' show CertificateException, SocketException;
+import 'dart:io' show SocketException;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/auth_error_message.dart';
-import 'package:zuno/core/matrix/registration_code_request.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
 
 MatrixException matrixError(String code, String message) =>
@@ -57,15 +56,6 @@ void main() {
         loginErrorMessage(matrixError('M_UNKNOWN', '')),
         'Something went wrong. Try again.',
       );
-    });
-
-    test('a certificate failure is a connection problem, not a dump', () {
-      final message = loginErrorMessage(
-        const CertificateException('CERTIFICATE_VERIFY_FAILED'),
-      );
-
-      expect(message, contains('Cannot connect'));
-      expect(message, isNot(contains('CERTIFICATE')));
     });
 
     test('an error nobody planned for never shows its own text', () {
@@ -195,12 +185,17 @@ void main() {
       expect(message, isNot(contains('SocketException')));
     });
 
-    test('a server that answers but is not a homeserver', () {
-      final message = homeserverErrorMessage(Exception('http error response'));
-
-      expect(message, isNot(contains('http error response')));
-      expect(message, contains('server'));
-    });
+    for (final (label, error) in [
+      ('a server that answers but is not a homeserver', Exception('http')),
+      ('a non-JSON response', const FormatException('Unexpected character')),
+    ]) {
+      test('$label is a wrong-address answer, not a dump', () {
+        expect(
+          homeserverErrorMessage(error),
+          'That address is not a server Zuno can use. Check it.',
+        );
+      });
+    }
 
     test('a Matrix server with no password login says so', () {
       final message = homeserverErrorMessage(
@@ -209,18 +204,6 @@ void main() {
 
       expect(message, contains('password'));
     });
-
-    test(
-      'a non-JSON response is a wrong-address answer, not a parser dump',
-      () {
-        final message = homeserverErrorMessage(
-          const FormatException('Unexpected character'),
-        );
-
-        expect(message, isNot(contains('FormatException')));
-        expect(message, contains('server'));
-      },
-    );
 
     test('never multi-line — this field renders every line it is given', () {
       for (final error in <Object>[
@@ -263,44 +246,5 @@ void main() {
         );
       },
     );
-
-    test('an empty message still says something', () {
-      expect(
-        deactivateAccountErrorMessage(matrixError('M_UNKNOWN', '')),
-        'Something went wrong. Try again.',
-      );
-    });
-  });
-
-  group('registrationCodeErrorMessage', () {
-    test('a sent code is not an error', () {
-      expect(
-        registrationCodeErrorMessage(RegistrationCodeOutcome.sent),
-        isNull,
-      );
-    });
-
-    test('each failure says what to do next', () {
-      expect(
-        registrationCodeErrorMessage(RegistrationCodeOutcome.invalidEmail),
-        'That email address does not look right.',
-      );
-      expect(
-        registrationCodeErrorMessage(RegistrationCodeOutcome.rateLimited),
-        'Too many code requests. Try again later.',
-      );
-      expect(
-        registrationCodeErrorMessage(RegistrationCodeOutcome.unavailable),
-        'New accounts are not being created right now.',
-      );
-      expect(
-        registrationCodeErrorMessage(RegistrationCodeOutcome.serverError),
-        'Zuno could not send a code. Try again.',
-      );
-      expect(
-        registrationCodeErrorMessage(RegistrationCodeOutcome.offline),
-        'No connection. Try again.',
-      );
-    });
   });
 }

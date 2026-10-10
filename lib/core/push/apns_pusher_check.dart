@@ -1,7 +1,5 @@
-import 'apns_pusher.dart' show apnsPusherFormat;
+import 'pusher_format.dart';
 import 'pusher_info.dart';
-
-export 'apns_pusher.dart' show apnsPusherFormat;
 
 enum ApnsPusherCheck { matches, missing, outdated, unknown }
 
@@ -16,9 +14,8 @@ ApnsPusherCheck checkApnsPusher(
       .where((pusher) => pusher.appId == appId && pusher.pushkey == pushkey)
       .firstOrNull;
   if (own == null) return ApnsPusherCheck.missing;
-  if (own.format != apnsPusherFormat) return ApnsPusherCheck.outdated;
-  if (gatewayUrl != null && Uri.tryParse(own.url ?? '') != gatewayUrl) {
-    return ApnsPusherCheck.outdated;
-  }
-  return ApnsPusherCheck.matches;
+  final fit = pusherFit(own, gatewayUrl: gatewayUrl);
+  return fit.gateway && fit.format
+      ? ApnsPusherCheck.matches
+      : ApnsPusherCheck.outdated;
 }

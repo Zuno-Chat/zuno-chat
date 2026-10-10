@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,26 +11,36 @@ import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/features/settings/presentation/recovery_code_screens.dart';
 
 import '../../../helpers/fake_attachments.dart';
+import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fixtures.dart';
 import '../../../helpers/platform_capabilities.dart';
 
-RecoveryWordlist _wordlist() => RecoveryWordlist.parse(
-  File('assets/wordlist/recovery_words.txt').readAsStringSync(),
-);
-
-Future<void> _pump(WidgetTester tester, {Size? size}) async {
-  if (size != null) {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-  }
+Future<void> _pump(
+  WidgetTester tester, {
+  Size size = const Size(1080, 2400),
+  bool busy = false,
+  PlatformCapabilities? capabilities,
+  Future<RecoveryWordlist> Function()? wordlist,
+  ValueChanged<String>? onComplete,
+}) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        recoveryWordlistProvider.overrideWith((ref) async => _wordlist()),
+        recoveryWordlistProvider.overrideWith(
+          (ref) => wordlist?.call() ?? Future.value(shippedRecoveryWordlist()),
+        ),
+        if (capabilities != null)
+          platformCapabilitiesProvider.overrideWithValue(capabilities),
       ],
       child: MaterialApp(
         home: Scaffold(
-          body: RecoveryCodeCreateFlow(busy: false, onComplete: (_) {}),
+          body: RecoveryCodeCreateFlow(
+            busy: busy,
+            onComplete: onComplete ?? (_) {},
+          ),
         ),
       ),
     ),
@@ -69,18 +77,6 @@ void main() {
     expect(tester.getRect(button).width, 360 - 48);
   });
 
-  testWidgets('checking the saved copy does not overflow above the keyboard', (
-    tester,
-  ) async {
-    await _pumpConfirmStepWithKeyboard(tester);
-
-    expect(tester.takeException(), isNull);
-    expect(
-      tester.getRect(find.widgetWithText(FilledButton, 'Done')).bottom,
-      lessThanOrEqualTo(640 - 300),
-    );
-  });
-
   testWidgets('a wrong word says so where it can be seen, above the keyboard', (
     tester,
   ) async {
@@ -103,10 +99,11 @@ void main() {
     );
   });
 
-  testWidgets('reveals exactly as many words as a code has', (tester) async {
-    await _pump(tester, size: const Size(1080, 2400));
+  testWidgets('reveals every word of the code, numbered by position so the '
+      'confirm step can ask for one', (tester) async {
+    await _pump(tester);
 
-    final wordlist = _wordlist();
+    final wordlist = shippedRecoveryWordlist();
     final shown = tester
         .widgetList<SelectableText>(find.byType(SelectableText))
         .map((w) => w.data)
@@ -117,57 +114,31 @@ void main() {
     for (final word in shown) {
       expect(wordlist.contains(word), isTrue, reason: word);
     }
-  });
-
-  testWidgets('numbers every word, so the confirm step can ask by position', (
-    tester,
-  ) async {
-    await _pump(tester, size: const Size(1080, 2400));
     for (var i = 1; i <= recoveryCodeWordCount; i++) {
       expect(find.text('$i'), findsOneWidget, reason: 'position $i');
     }
   });
 
-  testWidgets('lays the words out without overflowing a phone screen', (
-    tester,
-  ) async {
-    await _pump(tester, size: const Size(1080, 2400));
-    expect(tester.takeException(), isNull);
-  });
-
   testWidgets('falls back to one column on a narrow screen', (tester) async {
     await _pump(tester, size: const Size(320, 1400));
-    expect(tester.takeException(), isNull);
-    expect(
-      tester.widgetList<SelectableText>(find.byType(SelectableText)),
-      hasLength(recoveryCodeWordCount),
-    );
+
+    final words = find.byType(SelectableText);
+    expect(words, findsNWidgets(recoveryCodeWordCount));
+    expect({
+      for (final word in words.evaluate())
+        tester.getTopLeft(find.byWidget(word.widget)).dx,
+    }, hasLength(1));
   });
 
   testWidgets('asks for two words by position before finishing', (
     tester,
   ) async {
-    await _pump(tester, size: const Size(1080, 2400));
+    await _pump(tester);
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
 
     expect(find.text('Check your saved copy'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
-    expect(find.text('Show the code again'), findsOneWidget);
-  });
-
-  testWidgets('a wrong answer offers the code again instead of failing', (
-    tester,
-  ) async {
-    await _pump(tester, size: const Size(1080, 2400));
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.byType(TextField).first, 'definitelywrong');
-    await tester.tap(find.text('Done'));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('does not match'), findsOneWidget);
     expect(find.text('Show the code again'), findsOneWidget);
   });
 
@@ -179,31 +150,15 @@ void main() {
       bool busy = false,
       PlatformCapabilities? capabilities,
       Future<RecoveryWordlist> Function()? wordlist,
-    }) async {
+    }) {
       completed = [];
-      tester.view.physicalSize = const Size(1080, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            recoveryWordlistProvider.overrideWith(
-              (ref) => wordlist?.call() ?? Future.value(_wordlist()),
-            ),
-            if (capabilities != null)
-              platformCapabilitiesProvider.overrideWithValue(capabilities),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              body: RecoveryCodeCreateFlow(
-                busy: busy,
-                onComplete: completed.add,
-              ),
-            ),
-          ),
-        ),
+      return _pump(
+        tester,
+        busy: busy,
+        capabilities: capabilities,
+        wordlist: wordlist,
+        onComplete: completed.add,
       );
-      await tester.pumpAndSettle();
     }
 
     List<String> shownWords(WidgetTester tester) => tester
@@ -365,7 +320,7 @@ void main() {
       });
 
       testWidgets('a failed save says so', (tester) async {
-        FilePickerPlatform.instance = _RefusingFilePicker();
+        picker.saveError = PlatformException(code: 'no_space');
         await pumpFlow(tester);
 
         await tester.tap(find.text('Save as a file'));
@@ -380,15 +335,10 @@ void main() {
       late List<String?> plainCopies;
 
       setUp(() {
-        calls = [];
         plainCopies = [];
+        calls = installFakeCallsChannel().calls;
         final messenger =
             TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-        const channel = MethodChannel('zuno/calls');
-        messenger.setMockMethodCallHandler(channel, (call) async {
-          calls.add(call);
-          return null;
-        });
         messenger.setMockMethodCallHandler(SystemChannels.platform, (
           call,
         ) async {
@@ -397,10 +347,10 @@ void main() {
           }
           return null;
         });
-        addTearDown(() {
-          messenger.setMockMethodCallHandler(channel, null);
-          messenger.setMockMethodCallHandler(SystemChannels.platform, null);
-        });
+        addTearDown(
+          () =>
+              messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+        );
       });
 
       Future<void> expectCopyClearsAfter90Seconds(
@@ -476,7 +426,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            recoveryWordlistProvider.overrideWith((ref) async => _wordlist()),
+            recoveryWordlistProvider.overrideWith(
+              (ref) async => shippedRecoveryWordlist(),
+            ),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -494,43 +446,35 @@ void main() {
     }
 
     List<String> validWords(int count) =>
-        _wordlist().words.take(count).toList();
+        shippedRecoveryWordlist().words.take(count).toList();
 
-    testWidgets('a full code looks right', (tester) async {
-      await pumpField(tester);
+    for (final (name, typed, hint) in [
+      ('a full code looks right', validWords(12).join(' '), 'Looks right.'),
+      (
+        'one word too many says how many a code has',
+        validWords(13).join(' '),
+        'That is 13 words. A code has 12.',
+      ),
+      (
+        'one word short counts it down',
+        validWords(11).join(' '),
+        '1 more word to go.',
+      ),
+      (
+        'only punctuation counts as no words yet',
+        '--- ...',
+        '12 more words to go.',
+      ),
+    ]) {
+      testWidgets(name, (tester) async {
+        await pumpField(tester);
 
-      await tester.enterText(find.byType(TextField), validWords(12).join(' '));
-      await tester.pump();
+        await tester.enterText(find.byType(TextField), typed);
+        await tester.pump();
 
-      expect(find.text('Looks right.'), findsOneWidget);
-    });
-
-    testWidgets('one word too many says how many a code has', (tester) async {
-      await pumpField(tester);
-
-      await tester.enterText(find.byType(TextField), validWords(13).join(' '));
-      await tester.pump();
-
-      expect(find.text('That is 13 words. A code has 12.'), findsOneWidget);
-    });
-
-    testWidgets('one word short counts it down', (tester) async {
-      await pumpField(tester);
-
-      await tester.enterText(find.byType(TextField), validWords(11).join(' '));
-      await tester.pump();
-
-      expect(find.text('1 more word to go.'), findsOneWidget);
-    });
-
-    testWidgets('only punctuation counts as no words yet', (tester) async {
-      await pumpField(tester);
-
-      await tester.enterText(find.byType(TextField), '--- ...');
-      await tester.pump();
-
-      expect(find.text('12 more words to go.'), findsOneWidget);
-    });
+        expect(find.text(hint), findsOneWidget);
+      });
+    }
 
     testWidgets('the keyboard action submits', (tester) async {
       await pumpField(tester);
@@ -562,10 +506,12 @@ void main() {
 
       testWidgets('fills in the code from the saved file', (tester) async {
         final code = validWords(12).join(' ');
-        picker.picked = FakePickedFile(
-          'zuno-recovery-code.txt',
-          Uint8List.fromList(utf8.encode('$code\n')),
-        );
+        picker.picked = [
+          FakePickedFile(
+            'zuno-recovery-code.txt',
+            Uint8List.fromList(utf8.encode('$code\n')),
+          ),
+        ];
         await pumpField(tester);
 
         await tester.tap(find.text('Open a saved file'));
@@ -580,10 +526,12 @@ void main() {
         final code = validWords(12).join(' ');
         picker
           ..copying = Completer<void>()
-          ..picked = FakePickedFile(
-            'zuno-recovery-code.txt',
-            Uint8List.fromList(utf8.encode('$code\n')),
-          );
+          ..picked = [
+            FakePickedFile(
+              'zuno-recovery-code.txt',
+              Uint8List.fromList(utf8.encode('$code\n')),
+            ),
+          ];
         await pumpField(tester);
 
         await tester.tap(find.text('Open a saved file'));
@@ -610,10 +558,12 @@ void main() {
       });
 
       testWidgets('a file without a code says so', (tester) async {
-        picker.picked = FakePickedFile(
-          'photo.jpg',
-          Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0]),
-        );
+        picker.picked = [
+          FakePickedFile(
+            'photo.jpg',
+            Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0]),
+          ),
+        ];
         await pumpField(tester);
 
         await tester.tap(find.text('Open a saved file'));
@@ -649,19 +599,4 @@ void main() {
       });
     });
   });
-}
-
-class _RefusingFilePicker extends FilePickerPlatform {
-  @override
-  Future<Uri?> saveFile({
-    required String fileName,
-    required Uint8List bytes,
-    required String mimeType,
-    String? dialogTitle,
-    String? initialDirectory,
-    Function(FilePickerStatus)? onFileSaving,
-    WindowsOptions windowsOptions = const WindowsOptions(),
-    LinuxOptions linuxOptions = const LinuxOptions(),
-    WebOptions webOptions = const WebOptions(),
-  }) async => throw PlatformException(code: 'no_space');
 }

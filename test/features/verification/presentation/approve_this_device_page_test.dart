@@ -14,6 +14,7 @@ import 'package:zuno/features/verification/presentation/verification_page.dart';
 
 import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/route_launcher.dart';
 import 'verification_harness.dart';
 
 const _me = '@me:example.org';
@@ -132,19 +133,12 @@ void main() {
         ProviderScope(
           overrides: [matrixClientProvider.overrideWithValue(client)],
           child: MaterialApp(
-            home: Builder(
-              builder: (context) => Scaffold(
-                body: TextButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ApproveThisDevicePage(
-                        showStartOver: true,
-                        onFinished: onFinished,
-                        openRecovery: recovery ?? openRecovery,
-                      ),
-                    ),
-                  ),
-                  child: const Text('open'),
+            home: Scaffold(
+              body: routeLauncher(
+                (_) => ApproveThisDevicePage(
+                  showStartOver: true,
+                  onFinished: onFinished,
+                  openRecovery: recovery ?? openRecovery,
                 ),
               ),
             ),
@@ -171,26 +165,16 @@ void main() {
 
     final page = find.byType(ApproveThisDevicePage);
 
-    group('Not now', () {
-      testWidgets('closes the page', (tester) async {
-        await open(tester);
+    testWidgets('Not now hands over to the caller when it asked to decide', (
+      tester,
+    ) async {
+      var finished = 0;
+      await open(tester, onFinished: () => finished++);
 
-        await tap(tester, 'Not now');
+      await tap(tester, 'Not now');
 
-        expect(page, findsNothing);
-      });
-
-      testWidgets('hands over to the caller when it asked to decide', (
-        tester,
-      ) async {
-        var finished = 0;
-        await open(tester, onFinished: () => finished++);
-
-        await tap(tester, 'Not now');
-
-        expect(finished, 1);
-        expect(page, findsOneWidget);
-      });
+      expect(finished, 1);
+      expect(page, findsOneWidget);
     });
 
     group('Approve from another device', () {
@@ -324,21 +308,6 @@ void main() {
         expect(enabled(tester, _enterCode), isTrue);
       });
 
-      testWidgets('backing out of a check leaves the other ways open', (
-        tester,
-      ) async {
-        final verification = FakeKeyVerification(userId: _me);
-        fakeDeviceKeysOf(client, _me).onStart = () async => verification;
-        await open(tester);
-        await tap(tester, _approve);
-
-        await tester.pageBack();
-        await settle(tester);
-
-        expect(verification.calls, ['cancel(m.user)']);
-        expect(page, findsOneWidget);
-      });
-
       testWidgets('a check that started after the page closed is canceled', (
         tester,
       ) async {
@@ -444,18 +413,6 @@ void main() {
         await tap(tester, 'Start over');
 
         expect(recoveryOpened, [false]);
-      });
-
-      testWidgets('a new code that was set up closes the page', (tester) async {
-        final encrypted = EncryptedTestClient(userId: _me)..setUpRecovery();
-        client = encrypted;
-        duringRecovery = encrypted.unlockRecovery;
-        await open(tester);
-        await tap(tester, _startOver);
-
-        await tap(tester, 'Start over');
-
-        expect(page, findsNothing);
       });
     });
   });

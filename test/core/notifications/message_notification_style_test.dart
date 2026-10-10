@@ -15,6 +15,7 @@ import 'package:zuno/core/notifications/notification_thread_store.dart';
 import 'package:zuno/core/notifications/notified_events_store.dart';
 
 import '../../helpers/fake_local_notifications.dart';
+import '../../helpers/native_method_calls.dart';
 
 void main() {
   const roomId = '!room:example.org';
@@ -285,13 +286,7 @@ void main() {
 
   test('a message right after an instant notice in the same room does not '
       'chime a second time', () async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('zuno/conversations'), (
-          call,
-        ) async {
-          if (call.method != 'takePushNotice') return null;
-          return (call.arguments as Map)['eventId'] == r'$1';
-        });
+    installFakeConversationsChannel(noticed: {roomId: r'$1'});
     showing();
 
     await post(eventId: r'$1');
@@ -465,19 +460,8 @@ void main() {
     List<String?> linesOfLastPost() =>
         messagesOf(lastRoomPost()).map((m) => m['text'] as String?).toList();
 
-    void noticePendingFor(String eventId) {
-      var pending = true;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(const MethodChannel('zuno/conversations'), (
-            call,
-          ) async {
-            if (call.method != 'takePushNotice') return null;
-            final args = (call.arguments as Map).cast<String, Object?>();
-            if (!pending || args['eventId'] != eventId) return false;
-            pending = false;
-            return true;
-          });
-    }
+    void noticePendingFor(String eventId) =>
+        installFakeConversationsChannel(noticed: {roomId: eventId});
 
     test('two posts at once both keep their line', () async {
       showing();

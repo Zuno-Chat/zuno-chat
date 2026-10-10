@@ -19,6 +19,7 @@ import '../../helpers/fake_call_session.dart';
 import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 
 const _roomId = '!room:example.org';
@@ -57,7 +58,7 @@ Event _summaryOf(Room room, {String callId = _callId}) => buildTestEvent(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late RecordedCallsChannel native;
+  late RecordedMethodCalls native;
   late Map<String, Object?> startReply;
   Completer<void>? startGate;
 
@@ -178,18 +179,6 @@ void main() {
 
       expect(SystemRing.instance.ringing.value, isNull);
     });
-
-    test('a system ring for another call stays up', () async {
-      SystemRing.instance.set(roomId: _otherRoomId, callId: 'call-2');
-      final container = syncing(iosCapabilities);
-
-      await start(container);
-
-      expect(SystemRing.instance.ringing.value, (
-        roomId: _otherRoomId,
-        callId: 'call-2',
-      ));
-    });
   });
 
   group('connecting', () {
@@ -237,20 +226,23 @@ void main() {
       ]);
     });
 
-    test('a mute from the system call screen reaches the live call and is '
-        'not echoed back', () async {
-      final container = syncing(iosCapabilities);
-      final session = await start(container);
-      await goLive(session);
+    for (final live in [true, false]) {
+      test('a mute from the system call screen reaches the engine at once '
+          '${live ? 'on a live call' : 'before the call connects'}, leaves '
+          'publishing to the call, and is not echoed back', () async {
+        final container = syncing(iosCapabilities);
+        final session = await start(container);
+        if (live) await goLive(session);
 
-      await sendFromNative('setMuted', {..._call, 'muted': true});
-      await pumpEventQueue();
-      await show(session, [localParticipant(muted: true)]);
+        await sendFromNative('setMuted', {..._call, 'muted': true});
+        await pumpEventQueue();
+        await show(session, [localParticipant(muted: true)]);
 
-      expect(session.engine.microphoneMutedRequests, [true]);
-      expect(session.membershipRefreshes, 1);
-      expect(native.argsOf('setCallMuted'), isEmpty);
-    });
+        expect(session.engine.microphoneMutedRequests, [true]);
+        expect(session.membershipRefreshes, 1);
+        expect(native.argsOf('setCallMuted'), isEmpty);
+      });
+    }
 
     test('an unmute from the system call screen after muting in the app is '
         'not echoed back', () async {
@@ -267,20 +259,6 @@ void main() {
       expect(native.argsOf('setCallMuted'), [
         {..._call, 'muted': true},
       ]);
-    });
-
-    test('a system mute before the call connects reaches the engine at once, '
-        'leaves publishing to the call, and is not echoed back', () async {
-      final container = syncing(iosCapabilities);
-      final session = await start(container);
-
-      await sendFromNative('setMuted', {..._call, 'muted': true});
-      await pumpEventQueue();
-      await show(session, [localParticipant(muted: true)]);
-
-      expect(session.engine.microphoneMutedRequests, [true]);
-      expect(session.membershipRefreshes, 1);
-      expect(native.argsOf('setCallMuted'), isEmpty);
     });
 
     test('the app mute before the call connects reaches the system call '
@@ -576,23 +554,6 @@ void main() {
         ]);
       });
     }
-
-    test(
-      'a call cleared before it ended closes its system call as failed, once',
-      () async {
-        final container = syncing(iosCapabilities);
-        final session = await start(container);
-
-        container.read(activeCallProvider.notifier).set(null);
-        await pumpEventQueue();
-        session.end();
-        await pumpEventQueue();
-
-        expect(native.argsOf('endSystemCall'), [
-          {..._call, 'reason': 'failed', 'byUser': false},
-        ]);
-      },
-    );
 
     test('a call cleared while its system call is still starting ignores the '
         'late start reply', () async {

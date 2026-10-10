@@ -34,12 +34,7 @@ final class NseCatchUpPlatform: CatchUpPlatform {
   }
 
   func delivered() async -> [DeliveredNote] {
-    await center().deliveredNotifications().map {
-      DeliveredNote(
-        identifier: $0.request.identifier, thread: $0.request.content.threadIdentifier,
-        userInfo: $0.request.content.userInfo,
-        pushed: $0.request.trigger is UNPushNotificationTrigger)
-    }
+    await center().deliveredNotifications().map(DeliveredNote.init)
   }
 
   func remove(_ identifiers: [String]) {

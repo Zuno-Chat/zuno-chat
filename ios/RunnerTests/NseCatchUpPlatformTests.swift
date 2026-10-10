@@ -42,14 +42,4 @@ final class NseCatchUpPlatformTests: XCTestCase {
     XCTAssertEqual(calls.renders.map { $0.1 }, [false])
     XCTAssertEqual(calls.recorded, [["e$e"]])
   }
-
-  func testFreeMemoryComesFromTheInjectedReader() {
-    XCTAssertEqual(platform(Calls()).availableMemory(), 7)
-  }
-
-  func testTheClockIsTheDevicesClock() {
-    let before = Date()
-    let now = platform(Calls()).now()
-    XCTAssertGreaterThanOrEqual(now, before)
-  }
 }

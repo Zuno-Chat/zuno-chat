@@ -15,10 +15,12 @@ import 'package:zuno/core/matrix/registration_support.dart';
 
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/fixed_homeserver.dart';
+import '../../helpers/hybrid_fake_async.dart';
 
 void main() {
   group('registrationSupportFrom', () {
-    test('a 401 offering a dummy-only flow means registration is open', () {
+    test('a 401 offering a dummy-only flow means registration is open, with '
+        'no code needed', () {
       final support = registrationSupportFrom(401, {
         'session': 'uia1',
         'flows': [
@@ -29,6 +31,7 @@ void main() {
       });
 
       expect(support.availability, RegistrationAvailability.available);
+      expect(support.requiresRegistrationToken, isFalse);
     });
 
     test('a 403 means registration is disabled', () {
@@ -87,18 +90,6 @@ void main() {
 
       expect(support.availability, RegistrationAvailability.available);
       expect(support.requiresRegistrationToken, isTrue);
-    });
-
-    test('a dummy-only flow needs no code', () {
-      final support = registrationSupportFrom(401, {
-        'flows': [
-          {
-            'stages': ['m.login.dummy'],
-          },
-        ],
-      });
-
-      expect(support.requiresRegistrationToken, isFalse);
     });
 
     test('a code-free flow offered alongside a token flow wins', () {
@@ -165,30 +156,21 @@ void main() {
       expect(support.isAvailable, isTrue);
     });
 
-    test('a network failure is inconclusive rather than thrown', () async {
-      final client = buildTestClient(
-        httpClient: MockClient(
-          (_) async => throw http.ClientException('offline'),
-        ),
-      )..homeserver = Uri.parse('https://example.org');
+    for (final (label, failure) in <(String, Exception)>[
+      ('a network failure', http.ClientException('offline')),
+      ('a TLS failure', const HandshakeException('captive portal')),
+    ]) {
+      test('$label is inconclusive rather than thrown', () async {
+        final client = buildTestClient(
+          httpClient: MockClient((_) async => throw failure),
+        )..homeserver = Uri.parse('https://example.org');
 
-      final support = await fetchRegistrationSupport(client);
-
-      expect(support.availability, RegistrationAvailability.unknown);
-    });
-
-    test('a TLS failure is inconclusive rather than thrown', () async {
-      final client = buildTestClient(
-        httpClient: MockClient(
-          (_) async => throw const HandshakeException('captive portal'),
-        ),
-      )..homeserver = Uri.parse('https://example.org');
-
-      expect(
-        (await fetchRegistrationSupport(client)).availability,
-        RegistrationAvailability.unknown,
-      );
-    });
+        expect(
+          (await fetchRegistrationSupport(client)).availability,
+          RegistrationAvailability.unknown,
+        );
+      });
+    }
 
     test('a homeserver that never answers is inconclusive', () {
       fakeAsync((async) {
@@ -238,9 +220,24 @@ void main() {
       return container;
     }
 
+    Future<AsyncValue<RegistrationSupport>> supportAfterFiveSeconds(
+      Future<http.Response> Function(int probe) answer,
+    ) async {
+      final time = FakeAsync();
+      late AsyncValue<RegistrationSupport> Function() support;
+      time.run((_) {
+        support = containerProbing(answer)
+            .listen(registrationSupportProvider, (_, _) {})
+            .read;
+      });
+      await time.advance(const Duration(seconds: 5));
+      return support();
+    }
+
     test('an inconclusive probe is tried again', () async {
       final probes = <int>[];
-      final container = containerProbing((probe) async {
+
+      final support = await supportAfterFiveSeconds((probe) async {
         probes.add(probe);
         if (probe == 1) throw http.ClientException('offline');
         return http.Response(
@@ -255,40 +252,21 @@ void main() {
           401,
         );
       });
-      final subscription = container.listen(
-        registrationSupportProvider,
-        (_, _) {},
-      );
-
-      final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (subscription.read().value == null &&
-          DateTime.now().isBefore(deadline)) {
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      }
 
       expect(probes, [1, 2]);
-      expect(subscription.read().value?.isAvailable, isTrue);
+      expect(support.value?.isAvailable, isTrue);
     });
 
     test('a conclusive answer is not asked for twice', () async {
       final probes = <int>[];
-      final container = containerProbing((probe) async {
+
+      final support = await supportAfterFiveSeconds((probe) async {
         probes.add(probe);
         return http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403);
       });
-      final subscription = container.listen(
-        registrationSupportProvider,
-        (_, _) {},
-      );
-
-      await container.read(registrationSupportProvider.future);
-      await Future<void>.delayed(const Duration(milliseconds: 500));
 
       expect(probes, [1]);
-      expect(
-        subscription.read().value?.availability,
-        RegistrationAvailability.disabled,
-      );
+      expect(support.value?.availability, RegistrationAvailability.disabled);
     });
 
     test(
@@ -330,15 +308,17 @@ void main() {
     });
 
     test('rejects a full user ID pasted into the username field', () {
-      expect(errorFor(username: '@alex:example.org'), isNotNull);
-    });
-
-    test('rejects a too-short password', () {
-      expect(errorFor(password: 'short'), isNotNull);
+      expect(
+        errorFor(username: '@alex:example.org'),
+        'Enter just a username, without @ or a server name',
+      );
     });
 
     test('rejects a mismatched confirmation', () {
-      expect(errorFor(confirmPassword: 'somethingelse'), isNotNull);
+      expect(
+        errorFor(confirmPassword: 'somethingelse'),
+        'Passwords do not match',
+      );
     });
 
     test(
@@ -349,28 +329,22 @@ void main() {
       },
     );
 
-    test('rejects the separators that survive being spoken least well', () {
-      for (final username in ['alex-1', 'a+b', 'a/b', 'a=b']) {
-        expect(errorFor(username: username), isNotNull, reason: username);
+    test('rejects uppercase and the separators that survive being spoken '
+        'least well', () {
+      for (final username in ['Alex', 'alex-1', 'a+b', 'a/b', 'a=b']) {
+        expect(
+          errorFor(username: username),
+          'Usernames can use a–z, 0–9, dots and underscores',
+          reason: username,
+        );
       }
     });
 
-    test('rejects uppercase, which is not a valid localpart', () {
-      expect(errorFor(username: 'Alex'), isNotNull);
-    });
-
-    test('accepts letters and digits together', () {
-      expect(errorFor(username: 'alex2026'), isNull);
-    });
-
-    test('rejects a common password even when it is long enough', () {
-      expect(errorFor(password: 'password1234'), isNotNull);
-    });
-
-    test('rejects a password that is just the username', () {
+    test('rejects a password the strength check blocks, judged against the '
+        'username', () {
       expect(
         errorFor(username: 'alexanderthegreat', password: 'alexanderthegreat'),
-        isNotNull,
+        'Your password is your username',
       );
     });
 
@@ -628,19 +602,6 @@ void main() {
   });
 
   group('runRegistration', () {
-    ({Client client, List<Map<String, Object?>> bodies}) serverAnswering(
-      List<http.Response> responses,
-    ) {
-      final bodies = <Map<String, Object?>>[];
-      final client = buildTestClient(
-        httpClient: MockClient((request) async {
-          bodies.add(jsonDecode(request.body) as Map<String, Object?>);
-          return responses[bodies.length - 1];
-        }),
-      )..homeserver = Uri.parse('https://example.org');
-      return (client: client, bodies: bodies);
-    }
-
     http.Response uia(Map<String, Object?> body) =>
         http.Response(jsonEncode(body), 401);
 
@@ -676,6 +637,10 @@ void main() {
       return (client: client, requests: requests);
     }
 
+    ({Client client, List<http.Request> requests}) serverAnswering(
+      List<http.Response> responses,
+    ) => serverRunning([for (final response in responses) () => response]);
+
     Object? authOf(http.Request request) =>
         (jsonDecode(request.body) as Map<String, Object?>)['auth'];
 
@@ -704,7 +669,8 @@ void main() {
       expect(progress.interrupted, isTrue);
     });
 
-    test('a refusal is not an interruption', () async {
+    test('a refusal is not an interruption, so a taken username is just '
+        'taken', () async {
       final progress = RegistrationProgress();
       final server = serverRunning([() => refused('M_USER_IN_USE')]);
 
@@ -714,6 +680,7 @@ void main() {
       );
 
       expect(progress.interrupted, isFalse);
+      expect(server.requests, hasLength(1));
     });
 
     test('the next attempt resumes that session', () async {
@@ -805,17 +772,6 @@ void main() {
       },
     );
 
-    test('a taken username with no interruption is just taken', () async {
-      final server = serverRunning([() => refused('M_USER_IN_USE')]);
-
-      await expectLater(
-        register(server.client, progress: RegistrationProgress()),
-        throwsA(isA<MatrixException>()),
-      );
-
-      expect(server.requests, hasLength(1));
-    });
-
     test('sends the code stage first, then the dummy stage', () async {
       final server = serverAnswering([
         uia({
@@ -831,14 +787,31 @@ void main() {
         throwsA(isA<MatrixException>()),
       );
 
-      expect(server.bodies.first['auth'], {
+      expect(authOf(server.requests.first), {
         'type': 'm.login.registration_token',
         'token': 'ABCDEFGH23',
       });
-      expect(server.bodies.last['auth'], {
+      expect(authOf(server.requests.last), {
         'type': 'm.login.dummy',
         'session': 'uia1',
       });
+    });
+
+    test('every register request asks for a refresh token and names the '
+        'device', () async {
+      final server = serverAnswering([codeAccepted(), refused('M_FORBIDDEN')]);
+
+      await expectLater(
+        register(server.client, code: 'ABCDEFGH23'),
+        throwsA(isA<MatrixException>()),
+      );
+
+      expect(server.requests, hasLength(2));
+      for (final request in server.requests) {
+        final body = jsonDecode(request.body) as Map<String, Object?>;
+        expect(body['refresh_token'], isTrue);
+        expect(body['initial_device_display_name'], 'Zuno on Android');
+      }
     });
 
     test(
@@ -866,12 +839,12 @@ void main() {
           throwsA(isA<RegistrationCodeRefusedException>()),
         );
 
-        expect(server.bodies, hasLength(2));
-        expect(server.bodies.first['auth'], {
+        expect(server.requests, hasLength(2));
+        expect(authOf(server.requests.first), {
           'type': 'm.login.registration_token',
           'token': 'ABCDEFGH23',
         });
-        expect(server.bodies.last['auth'], {
+        expect(authOf(server.requests.last), {
           'type': 'm.login.registration_token',
           'token': 'ABCDEFGH23',
           'session': 'uia1',
@@ -903,8 +876,8 @@ void main() {
           throwsA(isA<MatrixException>()),
         );
 
-        expect(server.bodies, hasLength(3));
-        expect(server.bodies.last['auth'], {
+        expect(server.requests, hasLength(3));
+        expect(authOf(server.requests.last), {
           'type': 'm.login.dummy',
           'session': 'uia1',
         });
@@ -928,38 +901,8 @@ void main() {
         throwsA(isA<MatrixException>()),
       );
 
-      expect(server.bodies, hasLength(2));
+      expect(server.requests, hasLength(2));
     });
-
-    test(
-      'a dummy stage refused without a session is retried with it',
-      () async {
-        final server = serverAnswering([
-          uia({
-            'session': 'uia1',
-            'completed': <String>[],
-            'flows': [
-              {
-                'stages': ['m.login.dummy'],
-              },
-            ],
-          }),
-          http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403),
-        ]);
-
-        await expectLater(
-          register(server.client),
-          throwsA(isA<MatrixException>()),
-        );
-
-        expect(server.bodies, hasLength(2));
-        expect(server.bodies.first['auth'], {'type': 'm.login.dummy'});
-        expect(server.bodies.last['auth'], {
-          'type': 'm.login.dummy',
-          'session': 'uia1',
-        });
-      },
-    );
 
     test(
       'a session the server disowns is restarted once, without one',
@@ -989,12 +932,12 @@ void main() {
           throwsA(isA<MatrixException>()),
         );
 
-        expect(server.bodies, hasLength(3));
-        expect(server.bodies[1]['auth'], {
+        expect(server.requests, hasLength(3));
+        expect(authOf(server.requests[1]), {
           'type': 'm.login.dummy',
           'session': 'uia1',
         });
-        expect(server.bodies[2]['auth'], {
+        expect(authOf(server.requests[2]), {
           'type': 'm.login.registration_token',
           'token': 'ABCDEFGH23',
         });

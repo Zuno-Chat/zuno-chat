@@ -44,6 +44,13 @@ final class NseContentFactoryTests: XCTestCase {
     XCTAssertEqual(content.userInfo["room_id"] as? String, "!abc:zuno.im")
   }
 
+  func testTheCategoryReachesTheNotificationOnlyOnceActionsAreRoutedNatively() {
+    var delivery = NseComposer.test()
+    delivery.category = "message"
+    let content = NseContentFactory.content(for: delivery, original: UNNotificationContent())
+    XCTAssertEqual(content.categoryIdentifier, NotificationCategories.shown("message"))
+  }
+
   func testRingsUseTheBundledSounds() {
     XCTAssertNotNil(NseContentFactory.sound(.ring, original: nil))
     XCTAssertNotNil(NseContentFactory.sound(.silentRing, original: nil))
@@ -51,8 +58,8 @@ final class NseContentFactoryTests: XCTestCase {
   }
 
   func testTheSinkDeliversOnceAndFallsBackToTheBestAttempt() {
-    let removed = NseRecorder<[String]>()
-    let delivered = NseRecorder<UNNotificationContent>()
+    let removed = Recorder<[String]>()
+    let delivered = Recorder<UNNotificationContent>()
     let sink = NseContentSink(
       original: original(), remove: { removed.add($0) }, handler: { delivered.add($0) })
     var floor = NseDelivery.passthrough
@@ -69,45 +76,23 @@ final class NseContentFactoryTests: XCTestCase {
     XCTAssertEqual(removed.values, [["old"]])
   }
 
-  func testACatchUpLineIsReadAsPushedWhileTheAppsOwnLocalLineIsNot() throws {
-    let info: [AnyHashable: Any] = ["t": "ta", "e": "e1", "o": "100", "k": "msg"]
-    let catchUp = try notification("zuno.catchup.e1", userInfo: info, trigger: nil)
-    let own = try notification("42", userInfo: info, trigger: nil)
+  func testADeliveredLineKeepsItsTokensTheAppsEventAndWhetherItWasPushed() throws {
+    let own = try NseTestData.notification(
+      "42",
+      userInfo: [
+        "t": "ta", "o": "100", "k": "msg", "room_id": "!r:x",
+        "payload": #"{"type":"message","roomId":"!r:x","eventId":"$e"}"#,
+      ],
+      trigger: nil, thread: "ta")
+    let pushed = try NseTestData.notification(
+      "push-a", userInfo: ["t": "ta"], trigger: NseTestData.pushTrigger())
 
-    XCTAssertTrue(NseContentFactory.delivered(catchUp).pushed)
-    XCTAssertFalse(NseContentFactory.delivered(own).pushed)
-  }
+    let delivered = NseContentFactory.delivered(own)
 
-  private func notification(
-    _ identifier: String, userInfo: [AnyHashable: Any], trigger: UNNotificationTrigger?
-  ) throws -> UNNotification {
-    let content = UNMutableNotificationContent()
-    content.userInfo = userInfo
-    let archiver = NSKeyedArchiver(requiringSecureCoding: false)
-    archiver.encode(
-      UNNotificationRequest(identifier: identifier, content: content, trigger: trigger),
-      forKey: "request")
-    archiver.encode(Date(), forKey: "date")
-    archiver.finishEncoding()
-    let coder = try NSKeyedUnarchiver(forReadingFrom: archiver.encodedData)
-    coder.requiresSecureCoding = false
-    return try XCTUnwrap(UNNotification(coder: coder))
-  }
-}
-
-final class NseRecorder<Value>: @unchecked Sendable {
-  private let lock = NSLock()
-  private var recorded: [Value] = []
-
-  var values: [Value] {
-    lock.lock()
-    defer { lock.unlock() }
-    return recorded
-  }
-
-  func add(_ value: Value) {
-    lock.lock()
-    recorded.append(value)
-    lock.unlock()
+    XCTAssertEqual(delivered.userInfo, ["t": "ta", "o": "100", "k": "msg"])
+    XCTAssertEqual(delivered.threadId, "ta")
+    XCTAssertEqual(delivered.payloadEventId, "$e")
+    XCTAssertFalse(delivered.pushed)
+    XCTAssertTrue(NseContentFactory.delivered(pushed).pushed)
   }
 }

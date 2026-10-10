@@ -1,4 +1,5 @@
 @preconcurrency import CallKit
+import UIKit
 import XCTest
 
 @testable import Runner
@@ -111,22 +112,6 @@ final class CallKitCenterSyncTests: XCTestCase {
     XCTAssertEqual(harness.center.snapshot().identities[outgoing], outgoing)
   }
 
-  func testEveryCallKitRefusalCodeMapsAsPlanned() {
-    XCTAssertNil(CallKitCenter.refusal(CXErrorCodeIncomingCallError(.callUUIDAlreadyExists)))
-    XCTAssertEqual(CallKitCenter.refusal(CXErrorCodeIncomingCallError(.unentitled)), "unavailable")
-    for raw in [3, 4, 5, 6, 7] {
-      let code = CXErrorCodeIncomingCallError.Code(rawValue: raw)!
-      XCTAssertEqual(
-        CallKitCenter.refusal(CXErrorCodeIncomingCallError(code)), "filtered", "\(raw)")
-    }
-  }
-
-  func testTheRingtoneSettingWinsAndTheRingFlagCoversItBeforeFirstUnlock() {
-    XCTAssertNil(CallKitCenter.ringtoneSound(stored: true, flag: false))
-    XCTAssertEqual(CallKitCenter.ringtoneSound(stored: false, flag: true), "silent_ring.caf")
-    XCTAssertEqual(CallKitCenter.ringtoneSound(stored: nil, flag: false), "silent_ring.caf")
-    XCTAssertNil(CallKitCenter.ringtoneSound(stored: nil, flag: nil))
-  }
 }
 
 @MainActor
@@ -510,5 +495,121 @@ final class CallKitCenterPushTests: XCTestCase {
 
     XCTAssertEqual(harness.provider.ended.map(\.0), [uuid])
     XCTAssertNil(harness.center.snapshot().ringing)
+  }
+}
+
+final class CallKitRefusalTests: XCTestCase {
+  func testNoErrorMeansTheRingIsShown() {
+    XCTAssertNil(CallKitCenter.refusal(nil))
+  }
+
+  func testACallCallKitAlreadyShowsCountsAsShown() {
+    XCTAssertNil(CallKitCenter.refusal(CXErrorCodeIncomingCallError(.callUUIDAlreadyExists)))
+  }
+
+  func testAnUnknownOrUnentitledRefusalMeansCallKitIsUnavailable() {
+    XCTAssertEqual(CallKitCenter.refusal(CXErrorCodeIncomingCallError(.unknown)), "unavailable")
+    XCTAssertEqual(CallKitCenter.refusal(CXErrorCodeIncomingCallError(.unentitled)), "unavailable")
+  }
+
+  func testAnErrorOutsideTheIncomingCallDomainMeansCallKitIsUnavailable() {
+    XCTAssertEqual(CallKitCenter.refusal(URLError(.timedOut)), "unavailable")
+    XCTAssertEqual(
+      CallKitCenter.refusal(NSError(domain: NSCocoaErrorDomain, code: 3)), "unavailable")
+    XCTAssertEqual(CallKitCenter.refusal(CXError(.unentitled)), "unavailable")
+    XCTAssertEqual(
+      CallKitCenter.refusal(CXErrorCodeRequestTransactionError(.callUUIDAlreadyExists)),
+      "unavailable")
+  }
+
+  func testEveryOtherRefusalMeansTheRingWasFiltered() {
+    let codes: [CXErrorCodeIncomingCallError.Code] = [
+      .filteredByDoNotDisturb, .filteredByBlockList, .filteredDuringRestrictedSharingMode,
+      .callIsProtected, .filteredBySensitiveParticipants,
+    ]
+    for code in codes {
+      XCTAssertEqual(
+        CallKitCenter.refusal(CXErrorCodeIncomingCallError(code)), "filtered", "\(code.rawValue)")
+    }
+  }
+
+  func testARefusalBridgedFromObjectiveCIsReadByItsCode() {
+    let domain = CXErrorCodeIncomingCallError.errorDomain
+    XCTAssertNil(CallKitCenter.refusal(NSError(domain: domain, code: 2)))
+    XCTAssertEqual(CallKitCenter.refusal(NSError(domain: domain, code: 1)), "unavailable")
+    XCTAssertEqual(CallKitCenter.refusal(NSError(domain: domain, code: 3)), "filtered")
+  }
+}
+
+final class CallKitRingtoneTests: XCTestCase {
+  func testTheRingtoneSettingWinsAndTheRingFlagCoversItBeforeFirstUnlock() {
+    XCTAssertNil(CallKitCenter.ringtoneSound(stored: true, flag: false))
+    XCTAssertEqual(CallKitCenter.ringtoneSound(stored: false, flag: true), "silent_ring.caf")
+    XCTAssertEqual(CallKitCenter.ringtoneSound(stored: nil, flag: false), "silent_ring.caf")
+    XCTAssertNil(CallKitCenter.ringtoneSound(stored: nil, flag: nil))
+  }
+
+  func testAStoredNumberReadsAsTheSetting() {
+    XCTAssertNil(CallKitCenter.ringtoneSound(stored: NSNumber(value: true), flag: false))
+    XCTAssertEqual(
+      CallKitCenter.ringtoneSound(stored: NSNumber(value: false), flag: nil), "silent_ring.caf")
+  }
+
+  func testAStoredValueThatIsNotABoolLeavesItToTheRingFlag() {
+    for stored: Any in ["false", Data()] {
+      XCTAssertNil(CallKitCenter.ringtoneSound(stored: stored, flag: nil), "\(stored)")
+      XCTAssertEqual(
+        CallKitCenter.ringtoneSound(stored: stored, flag: false), "silent_ring.caf", "\(stored)")
+    }
+  }
+
+  func testAnOffSettingReadBackFromUserDefaultsSelectsTheSilentRing() throws {
+    let suite = "im.zuno.chat.tests.\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(false, forKey: "flutter.settings.ringtone_enabled")
+    XCTAssertEqual(
+      CallKitCenter.ringtoneSound(
+        stored: defaults.object(forKey: "flutter.settings.ringtone_enabled"), flag: true),
+      "silent_ring.caf")
+  }
+}
+
+final class CallKitSystemEndTests: XCTestCase {
+  func testASystemEndInTheFirst25SecondsOfRingingIsADecline() {
+    for ringing: TimeInterval in [0, 1, 24.9] {
+      XCTAssertEqual(
+        CallKitCenter.systemEndEvent(ringingFor: ringing, answerWithdrawn: false), "declineCall",
+        "\(ringing) s")
+    }
+  }
+
+  func testASystemEndAfter25SecondsOfRingingIsAMissedRing() {
+    for ringing: TimeInterval in [25, 25.1, 55, 60] {
+      XCTAssertEqual(
+        CallKitCenter.systemEndEvent(ringingFor: ringing, answerWithdrawn: false), "ringEnded",
+        "\(ringing) s")
+    }
+  }
+
+  func testASystemEndOfAnAnswerTheAppNeverTookIsADecline() {
+    XCTAssertEqual(
+      CallKitCenter.systemEndEvent(ringingFor: nil, answerWithdrawn: true), "declineCall")
+  }
+
+  func testASystemEndOfAnOngoingCallIsAHangUp() {
+    XCTAssertEqual(
+      CallKitCenter.systemEndEvent(ringingFor: nil, answerWithdrawn: false), "hangUpCall")
+  }
+}
+
+final class CallKitResourceTests: XCTestCase {
+  func testTheAppBundleShipsTheSilentRing() throws {
+    let name = try XCTUnwrap(CallKitCenter.ringtoneSound(stored: false, flag: nil))
+    XCTAssertNotNil(Bundle.main.url(forResource: name, withExtension: nil))
+  }
+
+  func testTheAppBundleShipsTheCallKitIcon() {
+    XCTAssertNotNil(UIImage(named: "CallKitIcon")?.pngData())
   }
 }

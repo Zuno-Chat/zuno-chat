@@ -6,7 +6,7 @@ import 'package:zuno/core/matrix/official_room.dart';
 
 import '../../helpers/fake_matrix.dart';
 
-Room _room({String? creator, bool tagged = true}) {
+Room _room({required String creator, bool tagged = true}) {
   final client = buildTestClient(userId: '@alice:zuno.chat');
   final room = Room(
     id: '!room:zuno.chat',
@@ -22,19 +22,17 @@ Room _room({String? creator, bool tagged = true}) {
           }
         : {},
   );
-  if (creator != null) {
-    room.setState(
-      Event(
-        eventId: '\$create',
-        type: EventTypes.RoomCreate,
-        senderId: creator,
-        originServerTs: DateTime.now(),
-        content: {'creator': creator},
-        room: room,
-        stateKey: '',
-      ),
-    );
-  }
+  room.setState(
+    Event(
+      eventId: '\$create',
+      type: EventTypes.RoomCreate,
+      senderId: creator,
+      originServerTs: DateTime.now(),
+      content: {'creator': creator},
+      room: room,
+      stateKey: '',
+    ),
+  );
   return room;
 }
 
@@ -52,10 +50,6 @@ void main() {
       isOfficialZunoRoom(_room(creator: officialNoticesUserId, tagged: false)),
       isFalse,
     );
-  });
-
-  test('an ordinary chat is not', () {
-    expect(isOfficialZunoRoom(_room(tagged: false)), isFalse);
   });
 
   testWidgets('the badge names Zuno as the sender', (tester) async {

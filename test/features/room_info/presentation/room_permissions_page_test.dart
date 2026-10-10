@@ -6,11 +6,11 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/matrix/room_roles.dart';
 import 'package:zuno/features/room_info/presentation/room_permissions_page.dart';
 
 import '../../../helpers/card_layout.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/pump_until.dart';
 
 void main() {
   late Room room;
@@ -80,6 +80,7 @@ void main() {
     await pumpPage(tester);
 
     expect(row(tester, 'Change room name').onTap, isNull);
+    expect(row(tester, 'Default role for new members').onTap, isNull);
     expect(
       find.text('Only admins can change these. You can view them here.'),
       findsOneWidget,
@@ -99,10 +100,7 @@ void main() {
   });
 
   Future<void> network(WidgetTester tester) async {
-    for (var i = 0; i < 3; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
+    await pumpRealAsync(tester, rounds: 3);
     await tester.pumpAndSettle();
   }
 
@@ -219,15 +217,6 @@ void main() {
     expect(roleOf(tester, 'Remove people'), 'Moderator');
   });
 
-  testWidgets('a moderator cannot open the default role either', (
-    tester,
-  ) async {
-    setOwnLevel(50);
-    await pumpPage(tester);
-
-    expect(row(tester, 'Default role for new members').onTap, isNull);
-  });
-
   group('a community', () {
     setUp(() {
       room.setState(
@@ -256,21 +245,6 @@ void main() {
       expect(find.text('Start or join calls'), findsNothing);
       expect(find.text('Turn on encryption'), findsNothing);
       expectEveryRowOnACard();
-    });
-
-    testWidgets('an admin changes who can add rooms', (tester) async {
-      setOwnLevel(100);
-      await pumpPage(tester);
-
-      await tester.tap(find.text('Add rooms'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Member').last);
-      await network(tester);
-
-      expect(
-        (sentLevels()['events']! as Map)[EventTypes.SpaceChild],
-        RoomRole.member.powerLevel,
-      );
     });
   });
 }

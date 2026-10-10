@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/location/live_location_viewing.dart';
 import 'package:zuno/features/location/presentation/live_location_tile.dart';
+import 'package:zuno/features/location/presentation/location_map_view.dart';
 
 import '../../../helpers/fake_device_keys.dart';
 import '../../../helpers/fake_live_location.dart';
@@ -62,6 +63,7 @@ void main() {
     await pumpTile(tester, '@alex:x');
 
     expect(find.text('Live location'), findsOneWidget);
+    expect(find.byType(LocationMapView), findsOneWidget);
     expect(find.textContaining('updated just now'), findsOneWidget);
     expect(find.text('12:00'), findsOneWidget);
     expect(find.text('Stop sharing'), findsNothing);
@@ -69,26 +71,13 @@ void main() {
     expect(opened, 1);
   });
 
-  testWidgets('waits for a first position', (tester) async {
+  testWidgets('shows no map until a first position', (tester) async {
     harness.shareFrom('@alex:x');
 
     await pumpTile(tester, '@alex:x');
 
+    expect(find.byType(LocationMapView), findsNothing);
     expect(find.textContaining('waiting for location'), findsOneWidget);
-  });
-
-  testWidgets('says since when a quiet share has not updated', (tester) async {
-    harness.shareFrom('@alex:x');
-    harness.positionFrom(
-      '@alex:x',
-      deviceId: 'PHONE',
-      at: DateTime.now().subtract(const Duration(minutes: 20)),
-    );
-    await tester.pump();
-
-    await pumpTile(tester, '@alex:x');
-
-    expect(find.textContaining('not updated since'), findsOneWidget);
   });
 
   testWidgets('offers Stop on this device\'s own share', (tester) async {

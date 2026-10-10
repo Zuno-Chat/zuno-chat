@@ -7,9 +7,9 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/push_diagnostics_report.dart';
 import 'package:zuno/core/push/push_diagnostics_source.dart';
 import 'package:zuno/core/push/recent_pushes.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/recent_pushes_page.dart';
 
+import '../../../helpers/fixed_delivery_mode.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 class _Source implements PushDiagnosticsSource {
@@ -37,11 +37,6 @@ class _Source implements PushDiagnosticsSource {
   Future<PushTestOutcome> sendTest() => throw UnimplementedError();
 }
 
-class _FixedMode extends NotificationDeliveryModeNotifier {
-  @override
-  NotificationDeliveryMode build() => NotificationDeliveryMode.apns;
-}
-
 Future<void> _pump(WidgetTester tester, _Source source) async {
   await tester.binding.setSurfaceSize(const Size(800, 3000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -50,7 +45,7 @@ Future<void> _pump(WidgetTester tester, _Source source) async {
       overrides: [
         pushDiagnosticsSourceProvider.overrideWithValue(source),
         platformCapabilitiesProvider.overrideWithValue(iosCapabilities),
-        notificationDeliveryModeProvider.overrideWith(_FixedMode.new),
+        fixedDeliveryMode(NotificationDeliveryMode.apns),
       ],
       child: const MaterialApp(home: RecentPushesPage()),
     ),

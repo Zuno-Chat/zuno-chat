@@ -128,10 +128,13 @@ void main() {
       mimetype: 'video/mp4',
     );
 
-    Event document({String mimetype = 'application/pdf'}) => server.attachment(
+    Event document({
+      String mimetype = 'application/pdf',
+      String body = 'report.pdf',
+    }) => server.attachment(
       eventId: r'$document',
       msgtype: MessageTypes.File,
-      body: 'report.pdf',
+      body: body,
       mimetype: mimetype,
     );
 
@@ -188,6 +191,23 @@ void main() {
         expect(saved.mimeType, 'application/pdf');
         expect(saved.bytes, server.served);
       });
+
+      test('a file saved twice is downloaded once', () async {
+        await saveAttachment(document());
+        await saveAttachment(document());
+
+        expect(device.picker.saved, hasLength(2));
+        expect(server.downloads, hasLength(1));
+      });
+
+      test(
+        'a file named to leave its folder is saved as just the name',
+        () async {
+          await saveAttachment(document(body: '../../../etc/report.pdf'));
+
+          expect(device.picker.saved.single.fileName, 'report.pdf');
+        },
+      );
 
       test('a file without a type is saved as plain bytes', () async {
         await saveAttachment(document(mimetype: ''));

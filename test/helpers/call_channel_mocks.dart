@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 
 import 'fake_calls_channel.dart';
+import 'native_method_calls.dart';
 
 const _wakelockChannel =
     'dev.flutter.pigeon.wakelock_plus_platform_interface.WakelockPlusApi.toggle';
@@ -19,23 +20,16 @@ class CallChannelMocks {
         return await callsReply?.call(call) ?? _nativeCallAudio(call);
       },
     );
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    void mock(String name, Future<Object?>? Function(MethodCall call) handle) {
-      final channel = MethodChannel(name);
-      messenger.setMockMethodCallHandler(channel, handle);
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    }
-
-    mock('FlutterWebRTC.Method', (call) async {
-      webrtc.add(call);
-      return switch (call.method) {
+    webrtc = recordMethodChannel(
+      'FlutterWebRTC.Method',
+      reply: (call) => switch (call.method) {
         'createVideoRenderer' => _createRenderer(),
         _ => null,
-      };
-    });
-    mock('FlutterWebRTC.Event', (_) async => null);
-
+      },
+    ).calls;
+    silenceMethodChannels(const ['FlutterWebRTC.Event']);
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMessageHandler(_wakelockChannel, (message) async {
       final args = const _PigeonReader().decodeMessage(message) as List;
       wakelockToggles.add((args.single as List).single as bool);
@@ -49,8 +43,8 @@ class CallChannelMocks {
     addTearDown(() => messenger.setMockMessageHandler(_wakelockChannel, null));
   }
 
-  late final RecordedCallsChannel _native;
-  final webrtc = <MethodCall>[];
+  late final RecordedMethodCalls _native;
+  late final List<MethodCall> webrtc;
   final wakelockToggles = <bool>[];
   final nativeEvents = <Map<String, Object?>>[];
   FutureOr<Object?> Function(MethodCall call)? callsReply;
@@ -74,11 +68,7 @@ class CallChannelMocks {
 
   int _textureFor() {
     final id = ++_nextTexture;
-    final channel = MethodChannel('FlutterWebRTC/Texture$id');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (_) async => null);
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    silenceMethodChannels(['FlutterWebRTC/Texture$id']);
     return id;
   }
 

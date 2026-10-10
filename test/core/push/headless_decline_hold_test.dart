@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -22,16 +23,20 @@ import '../../helpers/fake_call_style_channel.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/hybrid_fake_async.dart';
+import '../../helpers/native_method_calls.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late RecordedNotifications notifications;
+  Map<String, Object?>? initializeArguments;
 
-  setUp(() {
+  setUp(() async {
     SharedPreferences.setMockInitialValues({});
     notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
+    await CallNotificationService.instance.initialize(claimDeclinePort: false);
+    initializeArguments ??= notifications.initializeArguments;
   });
 
   tearDown(() {
@@ -39,12 +44,20 @@ void main() {
     IsolateNameServer.removePortNameMapping(declinePortName);
   });
 
+  Future<void> ringFor(String callId) async {
+    await const AndroidIncomingCallPresenter().showIncoming(
+      callerName: 'Bob',
+      callerId: '@bob:example.org',
+      isVideo: false,
+      roomId: '!room:example.org',
+      callId: callId,
+    );
+    notifications.active = [ringNotificationOnScreen()];
+  }
+
   test(
     'returns immediately when another isolate already holds the port',
     () async {
-      await CallNotificationService.instance.initialize(
-        claimDeclinePort: false,
-      );
       expect(
         await CallNotificationService.instance.claimDeclinePortUnlessLive(),
         isTrue,
@@ -62,17 +75,7 @@ void main() {
   test(
     'keeps waiting while the ring is up, then ends once it is taken down',
     () async {
-      await CallNotificationService.instance.initialize(
-        claimDeclinePort: false,
-      );
-      await const AndroidIncomingCallPresenter().showIncoming(
-        callerName: 'Bob',
-        callerId: '@bob:example.org',
-        isVideo: false,
-        roomId: '!room:example.org',
-        callId: 'call1',
-      );
-      notifications.active = [ringNotificationOnScreen()];
+      await ringFor('call1');
       final runner = HeadlessPushRunner();
       final time = FakeAsync();
 
@@ -104,7 +107,6 @@ void main() {
 
   test('takes over a decline route its isolate left behind when it went '
       'away, so a Decline still reaches a client', () async {
-    await CallNotificationService.instance.initialize(claimDeclinePort: false);
     final gone = ReceivePort();
     addTearDown(gone.close);
     IsolateNameServer.removePortNameMapping(declinePortName);
@@ -114,7 +116,7 @@ void main() {
     time.run((_) {
       awaitHeadlessDecline(
         HeadlessPushRunner(),
-        presenter: _CountingPresenter(),
+        presenter: _ScriptedPresenter(ringing: _bobRinging),
       );
     });
     await time.advance(const Duration(seconds: 3));
@@ -123,8 +125,7 @@ void main() {
   });
 
   test('looks at the ring every few seconds, not every second', () async {
-    await CallNotificationService.instance.initialize(claimDeclinePort: false);
-    final presenter = _CountingPresenter();
+    final presenter = _ScriptedPresenter(ringing: _bobRinging);
     final time = FakeAsync();
 
     time.run((_) {
@@ -140,15 +141,7 @@ void main() {
       'declined, since the notification goes before its action engine '
       'boots', () async {
     final sent = <Map<String, Object?>>[];
-    await CallNotificationService.instance.initialize(claimDeclinePort: false);
-    await const AndroidIncomingCallPresenter().showIncoming(
-      callerName: 'Bob',
-      callerId: '@bob:example.org',
-      isVideo: false,
-      roomId: '!room:example.org',
-      callId: 'call1',
-    );
-    notifications.active = [ringNotificationOnScreen()];
+    await ringFor('call1');
     final runner = HeadlessPushRunner()..liveClient = _clientSending(sent);
     final time = FakeAsync();
 
@@ -173,7 +166,6 @@ void main() {
   });
 
   test('a ring that comes back during the grace keeps the hold', () async {
-    await CallNotificationService.instance.initialize(claimDeclinePort: false);
     notifications.active = const [];
     final time = FakeAsync();
 
@@ -183,14 +175,7 @@ void main() {
           .whenComplete(() => completed = true);
     });
     await time.advance(const Duration(seconds: 3));
-    await const AndroidIncomingCallPresenter().showIncoming(
-      callerName: 'Bob',
-      callerId: '@bob:example.org',
-      isVideo: false,
-      roomId: '!room:example.org',
-      callId: 'call1',
-    );
-    notifications.active = [ringNotificationOnScreen()];
+    await ringFor('call1');
     await time.advance(const Duration(seconds: 10));
 
     expect(completed, isFalse);
@@ -202,15 +187,7 @@ void main() {
   test('a decline handed to the hold is reported done once it went out, so '
       'the action engine never declines it twice', () async {
     final sent = <Map<String, Object?>>[];
-    await CallNotificationService.instance.initialize(claimDeclinePort: false);
-    await const AndroidIncomingCallPresenter().showIncoming(
-      callerName: 'Bob',
-      callerId: '@bob:example.org',
-      isVideo: false,
-      roomId: '!room:example.org',
-      callId: 'call1',
-    );
-    notifications.active = [ringNotificationOnScreen()];
+    await ringFor('call1');
     final runner = HeadlessPushRunner()..liveClient = _clientSending(sent);
 
     final hold = awaitHeadlessDecline(runner);
@@ -226,7 +203,6 @@ void main() {
 
   test('a decline the hold cannot send because the app took the client goes '
       'to the app, and is reported done only then', () async {
-    await CallNotificationService.instance.initialize(claimDeclinePort: false);
     final runner = HeadlessPushRunner()
       ..clientBuilder = () async => throw const ClientLeaseDenied();
     final hold = awaitHeadlessDecline(runner);
@@ -265,25 +241,9 @@ void main() {
   });
 
   group('once Decline is tapped', () {
-    late RecordedCallStyleCalls callStyle;
+    late RecordedMethodCalls callStyle;
 
-    setUp(() async {
-      callStyle = installFakeCallStyleChannel();
-      await CallNotificationService.instance.initialize(
-        claimDeclinePort: false,
-      );
-    });
-
-    Future<void> ringFor(String callId) async {
-      await const AndroidIncomingCallPresenter().showIncoming(
-        callerName: 'Bob',
-        callerId: '@bob:example.org',
-        isVideo: false,
-        roomId: '!room:example.org',
-        callId: callId,
-      );
-      notifications.active = [ringNotificationOnScreen()];
-    }
+    setUp(() => callStyle = installFakeCallStyleChannel());
 
     Future<void> declineWhileHolding(
       String callId, {
@@ -333,10 +293,36 @@ void main() {
       );
       expect(await rememberedCallId(), 'call2');
     });
+
+    test('from the notification, while the hold waits out a ring its '
+        'presenter still shows, sends the decline and has that presenter '
+        'take the ring down', () async {
+      final sent = <Map<String, Object?>>[];
+      final presenter = _ScriptedPresenter(ringing: _bobRinging);
+      final runner = HeadlessPushRunner()..liveClient = _clientSending(sent);
+      final time = FakeAsync();
+
+      var held = true;
+      time.run((_) {
+        awaitHeadlessDecline(
+          runner,
+          presenter: presenter,
+        ).whenComplete(() => held = false);
+      });
+      await time.advance(const Duration(seconds: 5));
+      expect(held, isTrue);
+      expect(CallNotificationService.instance.stillHoldsDeclinePort(), isTrue);
+      _tapDeclineWhileHeadless(initializeArguments!);
+      await time.settle();
+
+      expect(held, isFalse);
+      expect(sent.single['call_id'], 'call1');
+      expect(presenter.cancels, 1);
+      expect(CallNotificationService.instance.stillHoldsDeclinePort(), isFalse);
+    });
   });
 
   test('opens no client unless Decline is actually tapped', () async {
-    await CallNotificationService.instance.initialize(claimDeclinePort: false);
     var builds = 0;
     final runner = HeadlessPushRunner()
       ..clientBuilder = () async {
@@ -356,8 +342,19 @@ void main() {
   });
 }
 
-class _CountingPresenter implements IncomingCallPresenter {
-  int looks = 0;
+const RingingCallInfo _bobRinging = (
+  roomId: '!room:example.org',
+  callId: 'call1',
+  callerId: '@bob:example.org',
+  isVideo: false,
+);
+
+class _ScriptedPresenter implements IncomingCallPresenter {
+  _ScriptedPresenter({this.ringing});
+
+  RingingCallInfo? ringing;
+  var looks = 0;
+  var cancels = 0;
 
   @override
   Future<RingOutcome> showIncoming({
@@ -370,25 +367,53 @@ class _CountingPresenter implements IncomingCallPresenter {
     String? roomName,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
-  }) async => RingOutcome.shown;
+  }) async {
+    ringing = (
+      roomId: roomId,
+      callId: callId,
+      callerId: callerId,
+      isVideo: isVideo,
+    );
+    return RingOutcome.shown;
+  }
 
   @override
   Future<void> cancelIncoming({
     String? roomId,
     String? callId,
     RingEnd end = RingEnd.remoteEnded,
-  }) async {}
+  }) async {
+    cancels++;
+    ringing = null;
+  }
 
   @override
   Future<RingingCallInfo?> activeRing() async {
     looks++;
-    return (
-      roomId: '!room:example.org',
-      callId: 'call1',
-      callerId: '@bob:example.org',
-      isVideo: false,
-    );
+    return ringing;
   }
+}
+
+void _tapDeclineWhileHeadless(Map<String, Object?> initializeArguments) {
+  final handle = initializeArguments['callback_handle']! as int;
+  final handler =
+      PluginUtilities.getCallbackFromHandle(
+            CallbackHandle.fromRawHandle(handle),
+          )!
+          as void Function(NotificationResponse);
+  handler(
+    NotificationResponse(
+      notificationResponseType:
+          NotificationResponseType.selectedNotificationAction,
+      actionId: 'decline',
+      payload: jsonEncode({
+        'roomId': '!room:example.org',
+        'callId': 'call1',
+        'callerId': '@bob:example.org',
+        'isVideo': false,
+      }),
+    ),
+  );
 }
 
 Client _clientSending(List<Map<String, Object?>> sent) {

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
 
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -32,18 +33,6 @@ void main() {
   });
 
   Iterable<String> methods() => calls.map((c) => c.method);
-
-  Future<Object?> fromNative(String method) {
-    final replied = Completer<Object?>();
-    messenger.handlePlatformMessage(
-      channel.name,
-      channel.codec.encodeMethodCall(MethodCall(method)),
-      (data) => replied.complete(
-        data == null ? null : channel.codec.decodeEnvelope(data),
-      ),
-    );
-    return replied.future;
-  }
 
   test('the app asks for its lease and waits at most five seconds', () async {
     final lease = await leases.acquire(ClientLeaseKind.app);
@@ -173,7 +162,7 @@ void main() {
       final sub = leases.yieldRequests.listen((_) => yields++);
       addTearDown(sub.cancel);
 
-      expect(await fromNative('yield'), isNull);
+      expect(await callFromNative(channel, 'yield'), isNull);
       await pumpEventQueue();
 
       expect(yields, 1);

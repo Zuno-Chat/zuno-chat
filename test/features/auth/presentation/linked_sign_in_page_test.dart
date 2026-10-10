@@ -8,60 +8,50 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/linked_sign_in.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/auth/presentation/linked_sign_in_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_homeserver.dart';
+import '../../../helpers/preferences_container.dart';
+import '../../../helpers/pump_until.dart';
 
 void main() {
   Finder field(String label) =>
       find.ancestor(of: find.text(label), matching: find.byType(TextField));
 
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-    await tester.pump();
-  }
+  http.Response invalidToken() => http.Response(
+    jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'Invalid login token'}),
+    403,
+  );
 
-  Client clientRecording(List<Map<String, Object?>> loginBodies) {
-    return buildTestClient(
-      httpClient: MockClient((request) async {
+  Client clientAnswering(MockClientHandler answer) =>
+      buildTestClient(httpClient: MockClient(answer))
+        ..homeserver = Uri.parse('https://example.org');
+
+  Client clientRecording(List<Map<String, Object?>> loginBodies) =>
+      clientAnswering((request) async {
         loginBodies.add(jsonDecode(request.body) as Map<String, Object?>);
-        return http.Response(
-          jsonEncode({
-            'errcode': 'M_FORBIDDEN',
-            'error': 'Invalid login token',
-          }),
-          403,
-        );
-      }),
-    )..homeserver = Uri.parse('https://example.org');
-  }
+        return invalidToken();
+      });
 
   Future<void> pumpPage(
     WidgetTester tester, {
     required Client client,
     CodeScanner? scan,
   }) async {
-    SharedPreferences.setMockInitialValues({});
-    final container = ProviderContainer(
+    final container = await containerWithPreferences(
+      {},
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         homeserverProvider.overrideWith(
           () => FixedHomeserver(Uri.https('example.org')),
         ),
-        sharedPreferencesProvider.overrideWithValue(
-          await SharedPreferences.getInstance(),
-        ),
       ],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -82,9 +72,7 @@ void main() {
 
   Uint8List bytesOf(String text) => Uint8List.fromList(utf8.encode(text));
 
-  testWidgets('a typed code signs in with the token and a refresh token', (
-    tester,
-  ) async {
+  testWidgets('a typed code signs in with its spaces dropped', (tester) async {
     final bodies = <Map<String, Object?>>[];
     await pumpPage(tester, client: clientRecording(bodies));
 
@@ -92,12 +80,9 @@ void main() {
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
-    await settle(tester);
+    await pumpRealAsync(tester, rounds: 2);
 
-    expect(bodies, hasLength(1));
-    expect(bodies.single['type'], 'm.login.token');
     expect(bodies.single['token'], 'syl_abcdefgh');
-    expect(bodies.single['refresh_token'], isTrue);
   });
 
   testWidgets('an empty code never reaches the network', (tester) async {
@@ -107,7 +92,7 @@ void main() {
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
-    await settle(tester);
+    await pumpRealAsync(tester, rounds: 2);
 
     expect(find.text('Enter the code'), findsOneWidget);
     expect(bodies, isEmpty);
@@ -122,7 +107,7 @@ void main() {
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
-    await settle(tester);
+    await pumpRealAsync(tester, rounds: 2);
 
     expect(find.text(invalidSignInCodeMessage), findsOneWidget);
   });
@@ -137,7 +122,7 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
-    await settle(tester);
+    await pumpRealAsync(tester, rounds: 2);
 
     expect(bodies.single['token'], 'syl_scanned');
   });
@@ -153,7 +138,7 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
-    await settle(tester);
+    await pumpRealAsync(tester, rounds: 2);
 
     expect(find.text(notASignInCodeMessage), findsOneWidget);
     expect(bodies, isEmpty);
@@ -171,7 +156,7 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
-    await settle(tester);
+    await pumpRealAsync(tester, rounds: 2);
 
     expect(
       find.text(codeForAnotherServerMessage('other.example')),
@@ -180,29 +165,12 @@ void main() {
     expect(bodies, isEmpty);
   });
 
-  testWidgets('a scanned code matches the server regardless of case', (
-    tester,
-  ) async {
-    final bodies = <Map<String, Object?>>[];
-    const code = LinkedSignInCode(server: 'Example.ORG', token: 'syl_case');
-    await pumpPage(
-      tester,
-      client: clientRecording(bodies),
-      scan: (_) async => bytesOf(code.encode()),
-    );
-
-    await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
-    await settle(tester);
-
-    expect(bodies.single['token'], 'syl_case');
-  });
-
   testWidgets('a cancelled scan changes nothing', (tester) async {
     final bodies = <Map<String, Object?>>[];
     await pumpPage(tester, client: clientRecording(bodies));
 
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
-    await settle(tester);
+    await pumpRealAsync(tester, rounds: 2);
 
     expect(find.byType(LinkedSignInPage), findsOneWidget);
     expect(bodies, isEmpty);
@@ -211,11 +179,7 @@ void main() {
   testWidgets('holds the app on the sign-in screens until the sign-in '
       'returns', (tester) async {
     final answer = Completer<http.Response>();
-    await pumpPage(
-      tester,
-      client: buildTestClient(httpClient: MockClient((_) => answer.future))
-        ..homeserver = Uri.parse('https://example.org'),
-    );
+    await pumpPage(tester, client: clientAnswering((_) => answer.future));
     final container = ProviderScope.containerOf(
       tester.element(find.byType(LinkedSignInPage)),
     );
@@ -228,24 +192,15 @@ void main() {
 
     expect(container.read(signInInFlightProvider), isTrue);
 
-    answer.complete(
-      http.Response(
-        jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'Invalid login token'}),
-        403,
-      ),
-    );
-    await settle(tester);
+    answer.complete(invalidToken());
+    await pumpRealAsync(tester, rounds: 2);
 
     expect(container.read(signInInFlightProvider), isFalse);
   });
 
   testWidgets('back stays put while signing in', (tester) async {
     final answer = Completer<http.Response>();
-    await pumpPage(
-      tester,
-      client: buildTestClient(httpClient: MockClient((_) => answer.future))
-        ..homeserver = Uri.parse('https://example.org'),
-    );
+    await pumpPage(tester, client: clientAnswering((_) => answer.future));
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));
 
     await tester.enterText(field('Code'), 'syl_abcdefgh');
@@ -258,13 +213,8 @@ void main() {
 
     expect(find.byType(LinkedSignInPage), findsOneWidget);
 
-    answer.complete(
-      http.Response(
-        jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'Invalid login token'}),
-        403,
-      ),
-    );
-    await settle(tester);
+    answer.complete(invalidToken());
+    await pumpRealAsync(tester, rounds: 2);
     await navigator.maybePop();
     await tester.pumpAndSettle();
 

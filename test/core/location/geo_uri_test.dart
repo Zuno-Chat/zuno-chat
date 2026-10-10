@@ -62,10 +62,13 @@ void main() {
       expect(GeoUri.tryParse(geo.toUriString()), geo);
     });
 
-    test('omits uncertainty when unknown and trims float noise', () {
+    test('omits uncertainty when unknown, trims float noise and rounds to six '
+        'decimals', () {
       const geo = GeoUri(latitude: 1.0, longitude: -2.5);
+      const precise = GeoUri(latitude: 52.5, longitude: -0.123456789);
 
       expect(geo.toUriString(), 'geo:1,-2.5');
+      expect(precise.point, '52.5,-0.123457');
     });
 
     test('labels coordinates to four decimals', () {

@@ -36,32 +36,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('builds the user ID on the server name, not the API host', (
+  testWidgets('builds the user ID on the server name, not the API host, from '
+      'the sign-up character set, so a typed sigil is not doubled up', (
     tester,
   ) async {
     await openDialog(tester);
 
-    await tester.enterText(find.byType(TextField), 'bob');
-    await tester.tap(find.widgetWithText(TextButton, 'Invite'));
-    await tester.pumpAndSettle();
-
-    expect(userId, '@bob:zuno.chat');
-  });
-
-  testWidgets('a leading sigil in the field is not doubled up', (tester) async {
-    await openDialog(tester);
-
-    await tester.enterText(find.byType(TextField), '@bob');
-    await tester.tap(find.widgetWithText(TextButton, 'Invite'));
-    await tester.pumpAndSettle();
-
-    expect(userId, '@bob:zuno.chat');
-  });
-
-  testWidgets('the field holds to the sign-up character set', (tester) async {
-    await openDialog(tester);
-
-    await tester.enterText(find.byType(TextField), 'Bob-Smith_1');
+    await tester.enterText(find.byType(TextField), '@Bob-Smith_1');
     await tester.tap(find.widgetWithText(TextButton, 'Invite'));
     await tester.pumpAndSettle();
 

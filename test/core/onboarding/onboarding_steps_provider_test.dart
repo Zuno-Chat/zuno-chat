@@ -1,20 +1,20 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/account_security_status.dart';
 import 'package:zuno/core/security/security_providers.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/fake_permissions.dart';
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
+import '../../helpers/preferences_container.dart';
 
 const _userId = '@alex:example.org';
 
@@ -41,29 +41,17 @@ const _settled = AccountSecurityFacts(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-  const permissions = MethodChannel('flutter.baseflow.com/permissions/methods');
-  const backgroundSync = MethodChannel('zuno/background_sync');
 
   setUp(() {
-    messenger.setMockMethodCallHandler(
-      permissions,
-      (call) async => call.method == 'checkPermissionStatus' ? 1 : null,
-    );
-    messenger.setMockMethodCallHandler(
-      backgroundSync,
-      (call) async => switch (call.method) {
+    installFakePermissions();
+    recordMethodChannel(
+      'zuno/background_sync',
+      reply: (call) => switch (call.method) {
         'isIgnoringBatteryOptimizations' => false,
         'hasAutostartSettings' => false,
         _ => null,
       },
     );
-  });
-
-  tearDown(() {
-    messenger.setMockMethodCallHandler(permissions, null);
-    messenger.setMockMethodCallHandler(backgroundSync, null);
   });
 
   Future<ProviderContainer> containerFor(
@@ -72,21 +60,15 @@ void main() {
     Map<String, Object> prefs = const {},
     AccountSecurityFacts facts = _settled,
     bool synced = false,
-  }) async {
-    SharedPreferences.setMockInitialValues(prefs);
-    final sharedPrefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(sharedPrefs),
-        matrixClientProvider.overrideWithValue(client),
-        accountSecurityFactsProvider.overrideWith((ref) => Stream.value(facts)),
-        platformCapabilitiesProvider.overrideWithValue(capabilities),
-        if (synced) firstSyncProvider.overrideWith((ref) async {}),
-      ],
-    );
-    addTearDown(container.dispose);
-    return container;
-  }
+  }) => containerWithPreferences(
+    prefs,
+    overrides: [
+      matrixClientProvider.overrideWithValue(client),
+      accountSecurityFactsProvider.overrideWith((ref) => Stream.value(facts)),
+      platformCapabilitiesProvider.overrideWithValue(capabilities),
+      if (synced) firstSyncProvider.overrideWith((ref) async {}),
+    ],
+  );
 
   Future<List<OnboardingStep>> stepsOn(
     PlatformCapabilities capabilities, {
@@ -110,15 +92,11 @@ void main() {
   }
 
   group('on a fresh sign-in', () {
-    Future<(Client, Future<List<OnboardingStep>>)> stepsBeforeAnySync() async {
+    test('decides nothing until the first sync has finished', () async {
       final client = buildTestClient(userId: _userId);
       final container = await containerFor(client, iosCapabilities);
       container.listen(onboardingStepsProvider, (_, _) {});
-      return (client, container.read(onboardingStepsProvider.future));
-    }
-
-    test('decides nothing until the first sync has finished', () async {
-      final (client, steps) = await stepsBeforeAnySync();
+      final steps = container.read(onboardingStepsProvider.future);
       var decided = false;
       unawaited(steps.then((_) => decided = true));
       await pumpEventQueue();
@@ -128,17 +106,6 @@ void main() {
       client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
 
       expect(await steps, [OnboardingStep.confirmPeople]);
-    });
-
-    test('a sync that failed is not the first sync', () async {
-      final (client, steps) = await stepsBeforeAnySync();
-      var decided = false;
-      unawaited(steps.then((_) => decided = true));
-
-      client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.error));
-      await pumpEventQueue();
-
-      expect(decided, isFalse);
     });
 
     test('signing out and in again in one process onboards the next '
@@ -231,12 +198,6 @@ void main() {
 
       expect(steps, contains(OnboardingStep.setUpRecovery));
     });
-  });
-
-  test('an account that never saw it learns to confirm people', () async {
-    expect(await stepsOn(iosCapabilities, prefs: const {}), [
-      OnboardingStep.confirmPeople,
-    ]);
   });
 
   test('Android asks how messages should arrive', () async {

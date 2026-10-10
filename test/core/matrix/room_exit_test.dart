@@ -9,11 +9,6 @@ import 'package:zuno/core/matrix/room_exit.dart';
 
 import '../../helpers/fake_matrix.dart';
 
-class _ForgettableDatabase extends FakeDatabaseApi {
-  @override
-  Future<void> forgetRoom(String roomId) async {}
-}
-
 void main() {
   late List<String> requests;
 
@@ -46,7 +41,7 @@ void main() {
     });
     return Client(
         'test',
-        database: _ForgettableDatabase(),
+        database: ForgettingFakeDatabaseApi(),
         httpClient: httpClient,
       )
       ..setUserId('@me:example.org')
@@ -65,6 +60,34 @@ void main() {
 
   Iterable<String> forgetRequests() =>
       requests.where((r) => r.endsWith('/forget'));
+
+  Room direct(Room room) {
+    room.client.accountData['m.direct'] = BasicEvent(
+      type: 'm.direct',
+      content: {
+        '@bob:example.org': [room.id],
+      },
+    );
+    return room;
+  }
+
+  Future<void> tapExit(WidgetTester tester, Room room) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () =>
+                  confirmAndExitRoom(context, room, endCallsIn: endCallsIn),
+              child: const Text('go'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+  }
 
   test('a direct chat is left and then forgotten', () async {
     await exitRoom(joinedRoom(exitClient()), isDirect: true);
@@ -110,24 +133,6 @@ void main() {
   });
 
   group('confirming', () {
-    Future<void> tapExit(WidgetTester tester, Room room) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
-                onPressed: () =>
-                    confirmAndExitRoom(context, room, endCallsIn: endCallsIn),
-                child: const Text('go'),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
-    }
-
     testWidgets('a room is not left until the prompt is confirmed', (
       tester,
     ) async {
@@ -138,7 +143,8 @@ void main() {
       expect(leaveRequests(), isEmpty);
     });
 
-    testWidgets('cancelling the prompt leaves the room alone', (tester) async {
+    testWidgets('cancelling the prompt leaves the room alone and ends no '
+        'call', (tester) async {
       await tapExit(tester, joinedRoom(exitClient()));
 
       await tester.tap(find.text('Cancel'));
@@ -147,6 +153,7 @@ void main() {
       expect(find.text('Leave room?'), findsNothing);
       expect(leaveRequests(), isEmpty);
       expect(forgetRequests(), isEmpty);
+      expect(requests.where((r) => r.startsWith('END')), isEmpty);
     });
 
     testWidgets('confirming ends a call in the room before leaving it', (
@@ -158,24 +165,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(requests.first, 'END !room:example.org');
-      expect(leaveRequests(), hasLength(1));
-    });
-
-    testWidgets('cancelling the prompt ends no call', (tester) async {
-      await tapExit(tester, joinedRoom(exitClient()));
-
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-
-      expect(requests.where((r) => r.startsWith('END')), isEmpty);
-    });
-
-    testWidgets('confirming the prompt leaves the room', (tester) async {
-      await tapExit(tester, joinedRoom(exitClient()));
-
-      await tester.tap(find.widgetWithText(TextButton, 'Leave'));
-      await tester.pumpAndSettle();
-
       expect(leaveRequests(), hasLength(1));
     });
 
@@ -227,14 +216,7 @@ void main() {
     testWidgets('deleting a chat while offline says it was not deleted', (
       tester,
     ) async {
-      final room = joinedRoom(exitClient(offline: true));
-      room.client.accountData['m.direct'] = BasicEvent(
-        type: 'm.direct',
-        content: {
-          '@bob:example.org': [room.id],
-        },
-      );
-      await tapExit(tester, room);
+      await tapExit(tester, direct(joinedRoom(exitClient(offline: true))));
 
       await tester.tap(find.widgetWithText(TextButton, 'Delete'));
       await tester.pumpAndSettle();
@@ -247,33 +229,11 @@ void main() {
       );
       expect(find.textContaining('Exception'), findsNothing);
     });
-
-    testWidgets('a direct chat is prompted as a deletion', (tester) async {
-      final room = joinedRoom(exitClient());
-      room.client.accountData['m.direct'] = BasicEvent(
-        type: 'm.direct',
-        content: {
-          '@bob:example.org': [room.id],
-        },
-      );
-
-      await tapExit(tester, room);
-
-      expect(find.text('Delete chat?'), findsOneWidget);
-      expect(find.widgetWithText(TextButton, 'Delete'), findsOneWidget);
-      expect(find.text('Leave room?'), findsNothing);
-    });
   });
 
   group('labels', () {
     test('a direct chat reads as deleting', () {
-      final room = joinedRoom(exitClient());
-      room.client.accountData['m.direct'] = BasicEvent(
-        type: 'm.direct',
-        content: {
-          '@bob:example.org': [room.id],
-        },
-      );
+      final room = direct(joinedRoom(exitClient()));
 
       expect(roomExitLabel(room), 'Delete chat');
       expect(roomExitConfirmLabel(room), 'Delete');
@@ -378,21 +338,7 @@ void main() {
       final client = exitClient();
       final gear = member(client, '!gear:example.org', 'Gear swap');
       final space = community(client, rooms: [gear]);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
-                onPressed: () =>
-                    confirmAndExitRoom(context, space, endCallsIn: endCallsIn),
-                child: const Text('go'),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
+      await tapExit(tester, space);
 
       await tester.tap(find.widgetWithText(TextButton, 'Leave'));
       await tester.pumpAndSettle();
@@ -404,22 +350,7 @@ void main() {
     testWidgets('leaving a community while offline says it was not left', (
       tester,
     ) async {
-      final space = community(exitClient(offline: true));
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
-                onPressed: () =>
-                    confirmAndExitRoom(context, space, endCallsIn: endCallsIn),
-                child: const Text('go'),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('go'));
-      await tester.pumpAndSettle();
+      await tapExit(tester, community(exitClient(offline: true)));
       expect(find.text('Leave community?'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(TextButton, 'Leave'));

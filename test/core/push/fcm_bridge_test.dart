@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
 
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -31,23 +32,8 @@ void main() {
     channel.setMethodCallHandler(null);
   });
 
-  Future<Object?> fromNative(String method, Object? arguments) {
-    final replied = Completer<Object?>();
-    messenger.handlePlatformMessage(
-      channel.name,
-      channel.codec.encodeMethodCall(MethodCall(method, arguments)),
-      (data) {
-        try {
-          replied.complete(
-            data == null ? null : channel.codec.decodeEnvelope(data),
-          );
-        } catch (error) {
-          replied.completeError(error);
-        }
-      },
-    );
-    return replied.future;
-  }
+  Future<Object?> fromNative(String method, Object? arguments) =>
+      callFromNative(channel, method, arguments);
 
   group('availability', () {
     test('parses each answer the native side gives', () async {
@@ -167,15 +153,15 @@ void main() {
       expect(calls, ['ready']);
     });
 
-    test('reports an engine the native side passed over', () async {
-      answer = false;
-      expect(await FcmBridge().ready(), isFalse);
-    });
-
-    test('counts an answer that is not a yes as passed over', () async {
-      answer = null;
-      expect(await FcmBridge().ready(), isFalse);
-    });
+    test(
+      'counts a no, or an answer that is not a yes, as passed over',
+      () async {
+        for (final reply in [false, null]) {
+          answer = reply;
+          expect(await FcmBridge().ready(), isFalse, reason: '$reply');
+        }
+      },
+    );
 
     test('survives a failure, which counts as passed over', () async {
       answer = PlatformException(code: 'error');

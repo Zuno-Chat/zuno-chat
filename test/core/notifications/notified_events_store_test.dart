@@ -43,9 +43,6 @@ void main() {
   );
 
   test('a placeholder marker is kept apart from a real notification', () async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-
     await markPlaceholderShownOnDisk(prefs, r'$p');
 
     expect(wasPlaceholderShown(prefs, r'$p'), isTrue);

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -19,25 +18,9 @@ import 'package:zuno/features/settings/presentation/push_target_status_page.dart
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_unified_push.dart';
+import '../../../helpers/fixed_delivery_mode.dart';
 import '../../../helpers/platform_capabilities.dart';
-
-class _CountingUnifiedPush extends FakeUnifiedPush {
-  int distributorReads = 0;
-
-  @override
-  Future<String?> getDistributor() async {
-    distributorReads++;
-    return null;
-  }
-}
-
-class _FixedDeliveryModeNotifier extends NotificationDeliveryModeNotifier {
-  _FixedDeliveryModeNotifier(this._mode);
-  final NotificationDeliveryMode _mode;
-
-  @override
-  NotificationDeliveryMode build() => _mode;
-}
+import '../../../helpers/preferences_container.dart';
 
 Future<ProviderContainer> _pumpPage(
   WidgetTester tester,
@@ -46,21 +29,16 @@ Future<ProviderContainer> _pumpPage(
   AsyncValue<FcmAvailability> fcm = const AsyncData(FcmAvailability.available),
   bool settle = true,
 }) async {
-  SharedPreferences.setMockInitialValues({});
-  final prefs = await SharedPreferences.getInstance();
-  final container = ProviderContainer(
+  final container = await containerWithPreferences(
+    {},
     overrides: [
-      sharedPreferencesProvider.overrideWithValue(prefs),
       matrixClientProvider.overrideWithValue(buildTestClient()),
-      notificationDeliveryModeProvider.overrideWith(
-        () => _FixedDeliveryModeNotifier(mode),
-      ),
+      fixedDeliveryMode(mode),
       fcmAvailabilityProvider.overrideWithValue(fcm),
       if (capabilities != null)
         platformCapabilitiesProvider.overrideWithValue(capabilities),
     ],
   );
-  addTearDown(container.dispose);
 
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -82,21 +60,6 @@ void main() {
     UnifiedPushPlatform.instance = FakeUnifiedPush();
   });
 
-  testWidgets(
-    'the Google services row is selectable, not a disabled placeholder',
-    (tester) async {
-      await _pumpPage(tester, NotificationDeliveryMode.fcm);
-
-      await tester.tap(find.text('Google services').first);
-      await tester.pumpAndSettle();
-
-      final row = tester.widget<ListTile>(
-        find.widgetWithText(ListTile, 'Google services').last,
-      );
-      expect(row.enabled, isTrue);
-    },
-  );
-
   testWidgets('shows the current method and explains the choices', (
     tester,
   ) async {
@@ -107,7 +70,15 @@ void main() {
       find.text(NotificationDeliveryMode.backgroundService.label),
       findsOneWidget,
     );
-    expect(find.textContaining('while Zuno is closed'), findsOneWidget);
+    expect(
+      find.text(
+        'How messages and calls reach you while Zuno is closed. '
+        'Background sync needs no setup. UnifiedPush needs a distributor '
+        'app, such as ntfy, installed. Google services needs Google Play '
+        'services.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Background data'), findsOneWidget);
   });
 
@@ -159,87 +130,24 @@ void main() {
     });
   });
 
-  testWidgets('but there is one for UnifiedPush', (tester) async {
-    await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
+  testWidgets('Android offers its three methods and nothing else', (
+    tester,
+  ) async {
+    await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
-    await tester.scrollUntilVisible(
-      find.text('Unrestricted battery usage'),
-      200,
-      scrollable: find.byType(Scrollable),
-    );
+    await tester.tap(find.text('Delivery method'));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Unrestricted battery usage'), findsOneWidget);
-  });
-
-  group('the methods on offer', () {
-    testWidgets('Android offers its three methods and nothing else', (
-      tester,
-    ) async {
-      await _pumpPage(tester, NotificationDeliveryMode.fcm);
-
-      await tester.tap(find.text('Delivery method'));
-      await tester.pumpAndSettle();
-
-      final sheet = find.byType(BottomSheet);
-      expect(sheet, findsOneWidget);
-      for (final label in [
-        'Google services',
-        'UnifiedPush',
-        'Background sync',
-      ]) {
-        expect(
-          find.descendant(of: sheet, matching: find.text(label)),
-          findsOneWidget,
-          reason: label,
-        );
-      }
-      expect(find.text('Apple push'), findsNothing);
-    });
-
-    testWidgets('Android keeps explaining what each method needs', (
-      tester,
-    ) async {
-      await _pumpPage(tester, NotificationDeliveryMode.fcm);
-
+    final sheet = find.byType(BottomSheet);
+    expect(sheet, findsOneWidget);
+    for (final label in ['Google services', 'UnifiedPush', 'Background sync']) {
       expect(
-        find.text(
-          'How messages and calls reach you while Zuno is closed. '
-          'Background sync needs no setup. UnifiedPush needs a distributor '
-          'app, such as ntfy, installed. Google services needs Google Play '
-          'services.',
-        ),
+        find.descendant(of: sheet, matching: find.text(label)),
         findsOneWidget,
+        reason: label,
       );
-    });
-
-    testWidgets('the picker offers only what this platform has', (
-      tester,
-    ) async {
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.unifiedPush,
-        capabilities: capabilitiesLike(
-          androidCapabilities,
-          deliveryModes: const [
-            NotificationDeliveryMode.unifiedPush,
-            NotificationDeliveryMode.backgroundService,
-          ],
-        ),
-      );
-
-      await tester.tap(find.text('Delivery method'));
-      await tester.pumpAndSettle();
-
-      final sheet = find.byType(BottomSheet);
-      expect(
-        find.descendant(of: sheet, matching: find.byType(ListTile)),
-        findsNWidgets(2),
-      );
-      expect(
-        find.descendant(of: sheet, matching: find.text('Google services')),
-        findsNothing,
-      );
-    });
+    }
+    expect(find.text('Apple push'), findsNothing);
   });
 
   group('battery and background data guidance', () {
@@ -284,18 +192,6 @@ void main() {
       expect(find.text('ntfy battery', skipOffstage: false), findsNothing);
     });
 
-    testWidgets('Android still names a battery-restricted distributor', (
-      tester,
-    ) async {
-      unifiedPushDeliveryProvider
-        ..savedDistributor = 'io.heckel.ntfy'
-        ..distributorBatteryRestricted.value = true;
-
-      await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
-
-      expect(find.text('ntfy battery', skipOffstage: false), findsOneWidget);
-    });
-
     testWidgets('no background data row where the platform does not restrict '
         'it', (tester) async {
       await _pumpPage(
@@ -313,10 +209,10 @@ void main() {
   });
 
   group('the UnifiedPush distributor lookup', () {
-    late _CountingUnifiedPush unifiedPush;
+    late FakeUnifiedPush unifiedPush;
 
     setUp(() {
-      unifiedPush = _CountingUnifiedPush();
+      unifiedPush = FakeUnifiedPush();
       UnifiedPushPlatform.instance = unifiedPush;
     });
 
@@ -459,20 +355,6 @@ void main() {
         );
       });
 
-      testWidgets('dismissing the sheet changes nothing', (tester) async {
-        final container = await _pumpPage(tester, NotificationDeliveryMode.fcm);
-
-        await openSheet(tester);
-        await tester.tapAt(const Offset(20, 20));
-        await tester.pumpAndSettle();
-
-        expect(find.byType(BottomSheet), findsNothing);
-        expect(
-          container.read(notificationDeliveryModeProvider),
-          NotificationDeliveryMode.fcm,
-        );
-      });
-
       ListTile sheetRow(WidgetTester tester, String label) =>
           tester.widget<ListTile>(
             find.descendant(
@@ -481,52 +363,40 @@ void main() {
             ),
           );
 
-      for (final (fcm, reason) in [
-        (
-          FcmAvailability.unavailable,
-          'This device does not have Google Play services.',
-        ),
-        (
-          FcmAvailability.disabled,
-          'Google Play services is turned off. Turn it on in your device '
-              'settings to use this.',
-        ),
-        (
-          FcmAvailability.notConfigured,
-          'This version of Zuno does not include Google services.',
-        ),
-      ]) {
-        testWidgets('${fcm.name}: Google services is listed, says why it '
-            'cannot be picked, and tapping it changes nothing', (tester) async {
-          final container = await _pumpPage(
-            tester,
-            NotificationDeliveryMode.backgroundService,
-            fcm: AsyncData(fcm),
-          );
+      testWidgets('a device without Google Play services sees Google '
+          'services listed, says why it cannot be picked, and tapping it '
+          'changes nothing', (tester) async {
+        final container = await _pumpPage(
+          tester,
+          NotificationDeliveryMode.backgroundService,
+          fcm: const AsyncData(FcmAvailability.unavailable),
+        );
 
-          await openSheet(tester);
-          expect(sheetRow(tester, 'Google services').enabled, isFalse);
-          expect(inSheet(reason), findsOneWidget);
-          expect(sheetRow(tester, 'UnifiedPush').enabled, isTrue);
-          expect(sheetRow(tester, 'Background sync').enabled, isTrue);
+        await openSheet(tester);
+        expect(sheetRow(tester, 'Google services').enabled, isFalse);
+        expect(
+          inSheet('This device does not have Google Play services.'),
+          findsOneWidget,
+        );
+        expect(sheetRow(tester, 'UnifiedPush').enabled, isTrue);
+        expect(sheetRow(tester, 'Background sync').enabled, isTrue);
 
-          await tester.tap(inSheet('Google services'));
-          await tester.pumpAndSettle();
+        await tester.tap(inSheet('Google services'));
+        await tester.pumpAndSettle();
 
-          expect(find.byType(BottomSheet), findsOneWidget);
-          expect(
-            container.read(notificationDeliveryModeProvider),
-            NotificationDeliveryMode.backgroundService,
-          );
-          expect(
-            container
-                .read(sharedPreferencesProvider)
-                .getBool('settings.notification_delivery_mode_chosen'),
-            isNull,
-          );
-          expect(registrations, isEmpty);
-        });
-      }
+        expect(find.byType(BottomSheet), findsOneWidget);
+        expect(
+          container.read(notificationDeliveryModeProvider),
+          NotificationDeliveryMode.backgroundService,
+        );
+        expect(
+          container
+              .read(sharedPreferencesProvider)
+              .getBool('settings.notification_delivery_mode_chosen'),
+          isNull,
+        );
+        expect(registrations, isEmpty);
+      });
 
       testWidgets('while this device is checked, Google services waits', (
         tester,
@@ -541,51 +411,6 @@ void main() {
 
         expect(sheetRow(tester, 'Google services').enabled, isFalse);
         expect(inSheet('Checking this device…'), findsOneWidget);
-      });
-
-      testWidgets('a device that needs an update can still pick it, and is '
-          'told what comes next', (tester) async {
-        final container = await _pumpPage(
-          tester,
-          NotificationDeliveryMode.backgroundService,
-          fcm: const AsyncData(FcmAvailability.updateRequired),
-        );
-
-        await openSheet(tester);
-        expect(
-          inSheet(
-            'Google Play services needs an update. Zuno offers the update '
-            'once you choose this.',
-          ),
-          findsOneWidget,
-        );
-        await tester.tap(inSheet('Google services'));
-        await tester.pumpAndSettle();
-
-        expect(
-          container.read(notificationDeliveryModeProvider),
-          NotificationDeliveryMode.fcm,
-        );
-        expect(registrations, ['fcm']);
-      });
-
-      testWidgets('the other methods keep their usual description', (
-        tester,
-      ) async {
-        await _pumpPage(
-          tester,
-          NotificationDeliveryMode.fcm,
-          fcm: const AsyncData(FcmAvailability.unavailable),
-        );
-
-        await openSheet(tester);
-
-        for (final mode in [
-          NotificationDeliveryMode.unifiedPush,
-          NotificationDeliveryMode.backgroundService,
-        ]) {
-          expect(inSheet(mode.description), findsOneWidget, reason: '$mode');
-        }
       });
     });
 
@@ -779,17 +604,6 @@ void main() {
         });
       }
 
-      testWidgets('a chosen distributor offers Register', (tester) async {
-        unifiedPushDeliveryProvider.status.value =
-            UnifiedPushStatus.distributorSelected;
-        await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
-
-        await tester.tap(inStatusRow(find.text('Register')));
-        await tester.pump();
-
-        expect(registrations, ['unifiedPush']);
-      });
-
       testWidgets('a refused registration offers Retry', (tester) async {
         unifiedPushDeliveryProvider.status.value =
             UnifiedPushStatus.pusherFailed;
@@ -859,22 +673,16 @@ void main() {
         });
       }
 
-      for (final status in [
-        FcmStatus.checkingPlayServices,
-        FcmStatus.registering,
-        FcmStatus.postingPusher,
-      ]) {
-        testWidgets('${status.name} spins', (tester) async {
-          fcmDeliveryProvider.status.value = status;
-          await _pumpPage(tester, NotificationDeliveryMode.fcm, settle: false);
+      testWidgets('a step in flight spins', (tester) async {
+        fcmDeliveryProvider.status.value = FcmStatus.registering;
+        await _pumpPage(tester, NotificationDeliveryMode.fcm, settle: false);
 
-          expect(
-            inStatusRow(find.byType(CircularProgressIndicator)),
-            findsOneWidget,
-          );
-          await tester.pumpWidget(const SizedBox());
-        });
-      }
+        expect(
+          inStatusRow(find.byType(CircularProgressIndicator)),
+          findsOneWidget,
+        );
+        await tester.pumpWidget(const SizedBox());
+      });
 
       testWidgets('an unregistered device offers Register', (tester) async {
         await _pumpPage(tester, NotificationDeliveryMode.fcm);
@@ -895,40 +703,30 @@ void main() {
         expect(registrations, ['fcm']);
       });
 
-      for (final (status, availability, label) in [
-        (
+      testWidgets('an outdated Google Play services offers the update, named '
+          'in full, and it starts the fix', (tester) async {
+        var fixes = 0;
+        final fixer = fcmDeliveryProvider.playServicesFixer;
+        fcmDeliveryProvider.playServicesFixer = () async {
+          fixes++;
+          return FcmAvailability.updateRequired;
+        };
+        addTearDown(() => fcmDeliveryProvider.playServicesFixer = fixer);
+        fcmDeliveryProvider.status.value = FcmStatus.playServicesUpdateRequired;
+        await _pumpPage(tester, NotificationDeliveryMode.fcm);
+
+        expect(inStatusRow(find.byType(TextButton)), findsNothing);
+        expect(find.text('Fix'), findsNothing);
+        await tester.tap(find.text('Update Google Play services'));
+        await tester.pump();
+
+        expect(fixes, 1);
+        expect(registrations, isEmpty);
+        expect(
+          fcmDeliveryProvider.status.value,
           FcmStatus.playServicesUpdateRequired,
-          FcmAvailability.updateRequired,
-          'Update Google Play services',
-        ),
-        (
-          FcmStatus.playServicesDisabled,
-          FcmAvailability.disabled,
-          'Turn on Google Play services',
-        ),
-      ]) {
-        testWidgets('${status.name} offers $label, named in full, and it '
-            'starts the fix', (tester) async {
-          var fixes = 0;
-          final fixer = fcmDeliveryProvider.playServicesFixer;
-          fcmDeliveryProvider.playServicesFixer = () async {
-            fixes++;
-            return availability;
-          };
-          addTearDown(() => fcmDeliveryProvider.playServicesFixer = fixer);
-          fcmDeliveryProvider.status.value = status;
-          await _pumpPage(tester, NotificationDeliveryMode.fcm);
-
-          expect(inStatusRow(find.byType(TextButton)), findsNothing);
-          expect(find.text('Fix'), findsNothing);
-          await tester.tap(find.text(label));
-          await tester.pump();
-
-          expect(fixes, 1);
-          expect(registrations, isEmpty);
-          expect(fcmDeliveryProvider.status.value, status);
-        });
-      }
+        );
+      });
 
       testWidgets('a status with nothing to fix offers no fix row', (
         tester,

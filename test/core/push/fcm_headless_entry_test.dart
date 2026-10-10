@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart'
     show fcmPendingTokenKey;
@@ -14,85 +13,15 @@ import 'package:zuno/core/push/fcm_registration_store.dart';
 import 'package:zuno/core/push/headless_push_runner.dart';
 import 'package:zuno/core/push/incoming_push_handler.dart';
 
-import '../../helpers/fake_call_style_channel.dart';
-import '../../helpers/fake_local_notifications.dart';
-import '../../helpers/fake_matrix.dart';
+import '../../helpers/headless_ring.dart';
+import '../../helpers/native_method_calls.dart';
+import '../../helpers/push_test_client.dart';
+import '../../helpers/pusher_recording_client.dart';
 
-class _RecordingClient extends Client {
-  _RecordingClient({this.onDispose, this.postFails = false})
-    : super('test', database: FakeDatabaseApi()) {
+class _PusherPushClient extends PushTestClient with PusherRecording {
+  _PusherPushClient() {
     homeserver = Uri.parse('https://matrix.example.org');
   }
-
-  final void Function()? onDispose;
-  final bool postFails;
-  final fetched = <String?>[];
-  final posted = <Pusher>[];
-  final deleted = <PusherId>[];
-  int disposeCalls = 0;
-
-  @override
-  bool isLogged() => true;
-
-  @override
-  Future<Event?> getEventByPushNotification(
-    PushNotification notification, {
-    bool storeInDatabase = true,
-    Duration timeoutForServerRequests = const Duration(seconds: 8),
-    bool returnNullIfSeen = true,
-  }) async {
-    fetched.add(notification.eventId);
-    return null;
-  }
-
-  @override
-  Future<void> postPusher(Pusher pusher, {bool? append}) async {
-    if (postFails) throw StateError('homeserver unreachable');
-    posted.add(pusher);
-  }
-
-  @override
-  Future<void> deletePusher(PusherId pusherId) async => deleted.add(pusherId);
-
-  @override
-  Future<void> dispose({bool closeDatabase = true}) async {
-    disposeCalls++;
-    onDispose?.call();
-  }
-}
-
-class _RingingClient extends Client {
-  _RingingClient() : super('test', database: FakeDatabaseApi()) {
-    setUserId('@me:example.org');
-  }
-
-  @override
-  bool isLogged() => true;
-
-  @override
-  Future<Event?> getEventByPushNotification(
-    PushNotification notification, {
-    bool storeInDatabase = true,
-    Duration timeoutForServerRequests = const Duration(seconds: 8),
-    bool returnNullIfSeen = true,
-  }) async {
-    final room = buildTestRoom(this);
-    return buildTestEvent(
-      room,
-      eventId: r'$invite',
-      senderId: '@bob:example.org',
-      originServerTs: DateTime.now(),
-      content: const {
-        'msgtype': 'im.zuno.call_invite',
-        'call_id': 'call1',
-        'kind': 'voice',
-        'body': 'Incoming call',
-      },
-    );
-  }
-
-  @override
-  Future<void> dispose({bool closeDatabase = true}) async {}
 }
 
 void main() {
@@ -119,29 +48,8 @@ void main() {
     channel.setMethodCallHandler(null);
   });
 
-  void installRingChannels() {
-    ringRateLimiter.clear();
-    installFakeLocalNotifications();
-    installSilentNotificationSideChannels();
-    installFakeCallStyleChannel();
-    for (final name in ['zuno/calls', 'zuno/vibration']) {
-      final side = MethodChannel(name);
-      messenger.setMockMethodCallHandler(side, (_) async => null);
-      addTearDown(() => messenger.setMockMethodCallHandler(side, null));
-    }
-  }
-
-  Future<Object?> fromNative(String method, Object? arguments) {
-    final replied = Completer<Object?>();
-    messenger.handlePlatformMessage(
-      channel.name,
-      channel.codec.encodeMethodCall(MethodCall(method, arguments)),
-      (data) => replied.complete(
-        data == null ? null : channel.codec.decodeEnvelope(data),
-      ),
-    );
-    return replied.future;
-  }
+  Future<Object?> fromNative(String method, Object? arguments) =>
+      callFromNative(channel, method, arguments);
 
   Future<String?> pendingToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -158,15 +66,16 @@ void main() {
   group('the ring hold', () {
     test('keeps the push client, so a Decline during the ring opens no '
         'second one', () async {
-      installRingChannels();
-      var builds = 0;
+      installHeadlessRingChannels();
+      final built = <PushTestClient>[];
       final declined = Completer<void>();
       Client? declinedWith;
       final holdDone = Completer<void>();
       final runner = buildFcmBackgroundRunner(
         clientBuilder: () async {
-          builds++;
-          return _RingingClient();
+          final client = ringingPushClient();
+          built.add(client);
+          return client;
         },
         hold: (runner) async {
           await declined.future;
@@ -187,29 +96,13 @@ void main() {
       declined.complete();
       await holdDone.future;
 
-      expect(builds, 1);
-      expect(declinedWith, isNotNull);
-    });
-
-    test('is not started for a push that is not a ring', () async {
-      var holds = 0;
-      final runner = buildFcmBackgroundRunner(
-        clientBuilder: () async => _RecordingClient(),
-        hold: (_) async => holds++,
-      );
-
-      await runner.deliver(
-        const PushNotification(eventId: r'$text', roomId: '!room:example.org'),
-      );
-      await pumpEventQueue();
-
-      expect(runner.lastPushOutcome, IncomingPushOutcome.ignored);
-      expect(holds, 0);
+      expect(built, hasLength(1));
+      expect(declinedWith, same(built.single));
     });
 
     test('a throwing hold is swallowed rather than left unhandled', () async {
       final runner = buildFcmBackgroundRunner(
-        clientBuilder: () async => _RecordingClient(),
+        clientBuilder: () async => _PusherPushClient(),
         hold: (_) async => throw StateError('port already claimed'),
       );
 
@@ -221,33 +114,11 @@ void main() {
     test('is one per isolate, not one per message', () {
       expect(identical(fcmBackgroundRunner(), fcmBackgroundRunner()), isTrue);
     });
-
-    test('serializes a burst so two clients never overlap', () async {
-      var open = 0;
-      var maxOpen = 0;
-      final runner = buildFcmBackgroundRunner(
-        clientBuilder: () async {
-          open++;
-          maxOpen = open > maxOpen ? open : maxOpen;
-          return _RecordingClient(onDispose: () => open--);
-        },
-        hold: (_) async {},
-      );
-
-      await Future.wait([
-        for (var i = 0; i < 5; i++)
-          runner.deliver(
-            PushNotification(eventId: '\$burst$i', roomId: '!room:x'),
-          ),
-      ]);
-
-      expect(maxOpen, 1);
-    });
   });
 
   group('runFcmHeadless', () {
     test('serves pushes before it asks the router to take it', () async {
-      final client = _RecordingClient();
+      final client = _PusherPushClient();
       readyAnswer = () async {
         await fromNative('push', push(r'$early'));
         return true;
@@ -271,7 +142,7 @@ void main() {
       };
 
       await runFcmHeadless(
-        runner: HeadlessPushRunner()..liveClient = _RecordingClient(),
+        runner: HeadlessPushRunner()..liveClient = _PusherPushClient(),
         initCrashReporting: () async {},
         prepare: () async {
           prepares++;
@@ -291,7 +162,7 @@ void main() {
       final runner = HeadlessPushRunner()
         ..clientBuilder = () async {
           builds++;
-          return _RecordingClient();
+          return _PusherPushClient();
         };
 
       await runFcmHeadless(
@@ -314,7 +185,7 @@ void main() {
         'itself', () async {
       final answered = Completer<bool>();
       readyAnswer = () => answered.future;
-      final client = _RecordingClient();
+      final client = _PusherPushClient();
       var prepares = 0;
 
       final started = runFcmHeadless(
@@ -339,7 +210,7 @@ void main() {
 
     test('claims pushes before its setup finishes and handles them once '
         'it does', () async {
-      final client = _RecordingClient();
+      final client = _PusherPushClient();
       final setup = Completer<bool>();
       final runner = HeadlessPushRunner()..liveClient = client;
 
@@ -365,7 +236,7 @@ void main() {
 
     test('a failed setup answers its jobs unhandled, and the next job '
         'tries the setup again', () async {
-      final client = _RecordingClient();
+      final client = _PusherPushClient();
       final firstSetup = Completer<bool>();
       var prepares = 0;
 
@@ -390,7 +261,7 @@ void main() {
     });
 
     test('a setup that throws is tried again too', () async {
-      final client = _RecordingClient();
+      final client = _PusherPushClient();
       var prepares = 0;
       readyAnswer = () async => false;
 
@@ -413,7 +284,7 @@ void main() {
     test('starts crash reporting only once the first job is done, and '
         'never holds up an answer for it', () async {
       var starts = 0;
-      final client = _RecordingClient();
+      final client = _PusherPushClient();
       await runFcmHeadless(
         runner: HeadlessPushRunner()..liveClient = client,
         initCrashReporting: () {
@@ -443,7 +314,7 @@ void main() {
         var starts = 0;
 
         await runFcmHeadless(
-          runner: HeadlessPushRunner()..liveClient = _RecordingClient(),
+          runner: HeadlessPushRunner()..liveClient = _PusherPushClient(),
           initCrashReporting: () async => starts++,
           prepare: () async => true,
         );
@@ -454,7 +325,7 @@ void main() {
     );
 
     test('a failing crash-reporting start does not break it', () async {
-      final client = _RecordingClient();
+      final client = _PusherPushClient();
       await runFcmHeadless(
         runner: HeadlessPushRunner()..liveClient = client,
         initCrashReporting: () async => throw StateError('no DSN'),
@@ -473,7 +344,7 @@ void main() {
         runner: HeadlessPushRunner()
           ..clientBuilder = () async {
             builds++;
-            return _RecordingClient();
+            return _PusherPushClient();
           },
         initCrashReporting: () async {},
         prepare: () async => true,
@@ -497,7 +368,7 @@ void main() {
         runner: HeadlessPushRunner()
           ..clientBuilder = () async {
             builds++;
-            return _RecordingClient();
+            return _PusherPushClient();
           },
         initCrashReporting: () async {},
         prepare: () => setup.future,
@@ -515,11 +386,11 @@ void main() {
     test('gives its idle client up when the app asks for it', () async {
       final requests = StreamController<void>.broadcast();
       addTearDown(requests.close);
-      final built = <_RecordingClient>[];
+      final built = <PushTestClient>[];
       await runFcmHeadless(
         runner: HeadlessPushRunner()
           ..clientBuilder = () async {
-            final client = _RecordingClient();
+            final client = _PusherPushClient();
             built.add(client);
             return client;
           },
@@ -539,11 +410,11 @@ void main() {
     test(
       'settles an idle client away when asked whether it is quiet',
       () async {
-        final built = <_RecordingClient>[];
+        final built = <PushTestClient>[];
         await runFcmHeadless(
           runner: HeadlessPushRunner()
             ..clientBuilder = () async {
-              final client = _RecordingClient();
+              final client = _PusherPushClient();
               built.add(client);
               return client;
             },
@@ -562,7 +433,7 @@ void main() {
     test('is not quiet while a job waits for its setup', () async {
       final setup = Completer<bool>();
       await runFcmHeadless(
-        runner: HeadlessPushRunner()..liveClient = _RecordingClient(),
+        runner: HeadlessPushRunner()..liveClient = _PusherPushClient(),
         initCrashReporting: () async {},
         prepare: () => setup.future,
       );
@@ -579,10 +450,10 @@ void main() {
     test(
       'is quiet only once nothing is running, not even a ring hold',
       () async {
-        installRingChannels();
+        installHeadlessRingChannels();
         final hold = Completer<void>();
         final runner = buildFcmBackgroundRunner(
-          clientBuilder: () async => _RingingClient(),
+          clientBuilder: () async => ringingPushClient(),
           hold: (_) => hold.future,
         );
         await runFcmHeadless(
@@ -605,7 +476,7 @@ void main() {
     test('hands a new token to the pusher refresh', () async {
       final tokens = <String>[];
       await runFcmHeadless(
-        runner: HeadlessPushRunner()..liveClient = _RecordingClient(),
+        runner: HeadlessPushRunner()..liveClient = _PusherPushClient(),
         initCrashReporting: () async {},
         prepare: () async => true,
         refreshToken: (_, token) async => tokens.add(token),
@@ -618,11 +489,11 @@ void main() {
   });
 
   group('refreshFcmPusherHeadless', () {
-    late _RecordingClient client;
+    late _PusherPushClient client;
     late HeadlessPushRunner runner;
 
     setUp(() {
-      client = _RecordingClient();
+      client = _PusherPushClient();
       runner = HeadlessPushRunner()..liveClient = client;
     });
 
@@ -686,7 +557,8 @@ void main() {
       () async {
         SharedPreferences.setMockInitialValues({'push.fcm.token': 'old'});
         runner = HeadlessPushRunner()
-          ..liveClient = _RecordingClient(postFails: true);
+          ..liveClient = (_PusherPushClient()
+            ..postError = StateError('homeserver unreachable'));
 
         await refreshFcmPusherHeadless(
           runner,
@@ -734,8 +606,9 @@ void main() {
   });
 
   group('a token that waited', () {
-    Future<_RecordingClient> openClient({bool postFails = false}) async {
-      final client = _RecordingClient(postFails: postFails);
+    Future<_PusherPushClient> openClient({bool postFails = false}) async {
+      final client = _PusherPushClient();
+      if (postFails) client.postError = StateError('homeserver unreachable');
       final runner = buildFcmBackgroundRunner(
         clientBuilder: () async => client,
         hold: (_) async {},

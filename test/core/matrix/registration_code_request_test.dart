@@ -70,19 +70,9 @@ void main() {
     );
   });
 
-  test('an unreachable homeserver reads as offline', () async {
-    final client = buildTestClient(
-      httpClient: MockClient((_) async => throw http.ClientException('down')),
-    )..homeserver = Uri.parse('https://example.org');
-
-    expect(
-      await requestRegistrationCode(client, 'alex@example.org'),
-      RegistrationCodeOutcome.offline,
-    );
-  });
-
   test('every way a connection fails reads as offline', () async {
     for (final failure in <Object>[
+      http.ClientException('down'),
       const SocketException('no route'),
       const HandshakeException('captive portal'),
       TimeoutException('slow'),

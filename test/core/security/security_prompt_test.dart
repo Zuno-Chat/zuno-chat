@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/security/account_security_status.dart';
 import 'package:zuno/core/security/security_prompt.dart';
 
@@ -43,14 +44,6 @@ void main() {
       );
     });
 
-    test("an empty account doesn't burn its cooldown either", () {
-      expect(
-        _decide(deviceCount: 2, hasConversations: false),
-        SecurityPromptDecision.none,
-      );
-      expect(_decide(deviceCount: 2), SecurityPromptDecision.setUpRecovery);
-    });
-
     test('a brand new single-device account is left alone', () {
       expect(_decide(), SecurityPromptDecision.none);
     });
@@ -81,6 +74,45 @@ void main() {
       expect(
         _decide(deviceCount: 2, promptedAgo: securityPromptCooldown),
         SecurityPromptDecision.setUpRecovery,
+      );
+    });
+  });
+
+  group('recoveryPromptDefersToOnboarding', () {
+    test('the dialog steps aside while onboarding still has steps to ask', () {
+      expect(
+        recoveryPromptDefersToOnboarding(
+          flowInProgress: false,
+          pendingSteps: const [OnboardingStep.setUpRecovery],
+        ),
+        isTrue,
+      );
+      expect(
+        recoveryPromptDefersToOnboarding(
+          flowInProgress: false,
+          pendingSteps: const [OnboardingStep.notifications],
+        ),
+        isTrue,
+      );
+    });
+
+    test('the dialog steps aside while the flow is open', () {
+      expect(
+        recoveryPromptDefersToOnboarding(
+          flowInProgress: true,
+          pendingSteps: const [],
+        ),
+        isTrue,
+      );
+    });
+
+    test('the dialog goes ahead once onboarding has nothing left', () {
+      expect(
+        recoveryPromptDefersToOnboarding(
+          flowInProgress: false,
+          pendingSteps: const [],
+        ),
+        isFalse,
       );
     });
   });

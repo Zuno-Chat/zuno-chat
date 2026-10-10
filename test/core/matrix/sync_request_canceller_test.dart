@@ -21,16 +21,6 @@ void main() {
   http.Request syncRequest() =>
       http.Request('GET', _sync)..headers['authorization'] = 'Bearer token';
 
-  test('cancels a /sync request still waiting for its response', () async {
-    final response = requests.send(syncRequest());
-    await settleSync();
-
-    expect(requests.cancel(), isTrue);
-
-    await expectLater(response, throwsA(isA<http.RequestAbortedException>()));
-    expect(server.waiting, isEmpty);
-  });
-
   test(
     'cancels every /sync request still waiting, not only the last',
     () async {

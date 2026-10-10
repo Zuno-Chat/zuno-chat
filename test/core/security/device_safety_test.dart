@@ -1,10 +1,14 @@
+import 'dart:async';
+
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/device_safety.dart';
+
+import '../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -50,21 +54,24 @@ void main() {
     expect(await checkDeviceSafety(), isEmpty);
   });
 
-  test('a platform without the check reports nothing', () async {
-    expect(await checkDeviceSafety(), isEmpty);
-  });
+  test('a check that never answers reports nothing once its budget is up', () {
+    fakeAsync((async) {
+      answer((call) => Completer<Object?>().future);
+      Set<DeviceRisk>? risks;
 
-  test('a check that never answers reports nothing', () async {
-    answer((call) => Future<Object?>.delayed(const Duration(minutes: 1)));
+      unawaited(
+        checkDeviceSafety(budget: const Duration(seconds: 5))
+            .then((found) => risks = found),
+      );
+      async.elapse(const Duration(seconds: 4));
+      expect(risks, isNull);
+      async.elapse(const Duration(seconds: 1));
 
-    expect(
-      await checkDeviceSafety(budget: const Duration(milliseconds: 10)),
-      isEmpty,
-    );
+      expect(risks, isEmpty);
+    });
   });
 
   group('on a platform without the device check', () {
-    final ios = capabilitiesFor(AppPlatform.ios);
     late List<String> calls;
 
     setUp(() {
@@ -76,13 +83,15 @@ void main() {
     });
 
     test('reports nothing and never asks the native side', () async {
-      expect(await checkDeviceSafety(capabilities: ios), isEmpty);
+      expect(await checkDeviceSafety(capabilities: iosCapabilities), isEmpty);
       expect(calls, isEmpty);
     });
 
     test('the risks provider reports nothing', () async {
       final container = ProviderContainer(
-        overrides: [platformCapabilitiesProvider.overrideWithValue(ios)],
+        overrides: [
+          platformCapabilitiesProvider.overrideWithValue(iosCapabilities),
+        ],
       );
       addTearDown(container.dispose);
 

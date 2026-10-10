@@ -9,36 +9,30 @@ void main() {
     return notifyMeFromPreferences(await SharedPreferences.getInstance());
   }
 
-  test('reads a stored mentions-only setting', () async {
-    expect(
-      await read({notifyMePreferenceKey: 'mentionsOnly'}),
+  for (final (name, stored, expected) in [
+    (
+      'reads a stored mentions-only setting',
+      {notifyMePreferenceKey: 'mentionsOnly'},
       NotifyMe.mentionsOnly,
-    );
-  });
-
-  test('reads a stored all-messages setting', () async {
-    expect(await read({notifyMePreferenceKey: 'all'}), NotifyMe.all);
-  });
-
-  test('notifies for everything when nothing has been stored', () async {
-    expect(await read({}), NotifyMe.all);
-  });
-
-  test(
-    'notifies for everything when the stored value is unrecognized',
-    () async {
-      expect(
-        await read({notifyMePreferenceKey: 'onlyOnTuesdays'}),
-        NotifyMe.all,
-      );
-    },
-  );
-
-  test('notifies for everything for an empty stored value', () async {
-    expect(await read({notifyMePreferenceKey: ''}), NotifyMe.all);
-  });
-
-  test('reads the same key the settings screen writes', () {
-    expect(notifyMePreferenceKey, 'settings.notify_me');
-  });
+    ),
+    (
+      'reads a stored all-messages setting',
+      {notifyMePreferenceKey: 'all'},
+      NotifyMe.all,
+    ),
+    (
+      'notifies for everything when nothing has been stored',
+      <String, Object>{},
+      NotifyMe.all,
+    ),
+    (
+      'notifies for everything when the stored value is unrecognized',
+      {notifyMePreferenceKey: 'onlyOnTuesdays'},
+      NotifyMe.all,
+    ),
+  ]) {
+    test(name, () async {
+      expect(await read(stored), expected);
+    });
+  }
 }

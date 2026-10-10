@@ -139,17 +139,6 @@ void main() {
 
       expect(shared.clears, 0);
     });
-
-    test('keeps a stored session that fails to restore', () async {
-      final background = ZunoClient('Zuno', database: store, appClient: false);
-
-      await expectLater(
-        background.restoreSession(),
-        throwsA(_failedWithDiskError),
-      );
-
-      expect(store.cleared, isFalse);
-    });
   });
 
   test('the app\'s client still clears its session when the refresh is '

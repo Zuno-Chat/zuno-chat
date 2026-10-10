@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
@@ -8,14 +10,10 @@ import 'package:zuno/core/notifications/message_notification_image.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
-  late Client client;
-  late Room room;
   late Event event;
 
   setUp(() {
-    client = Client('test', database: FakeDatabaseApi());
-    client.setUserId('@me:x');
-    room = buildTestRoom(client);
+    final room = buildTestRoom(buildTestClient(userId: '@me:x'));
     event = buildTestEvent(
       room,
       eventId: r'$1',
@@ -50,16 +48,26 @@ void main() {
     expect(result, isNull);
   });
 
-  test('returns null when the download exceeds the timeout', () async {
-    final result = await fetchMessageNotificationImage(
-      event,
-      download: () => Future.delayed(
-        const Duration(milliseconds: 50),
-        () => MatrixFile(bytes: Uint8List(0), name: 'thumb.jpg'),
-      ),
-      timeout: const Duration(milliseconds: 5),
-    );
+  test('gives up with null once the download outlasts the timeout', () {
+    fakeAsync((async) {
+      var done = false;
+      NotificationImage? result;
+      fetchMessageNotificationImage(
+        event,
+        download: () => Completer<MatrixFile>().future,
+      ).then((image) {
+        result = image;
+        done = true;
+      });
 
-    expect(result, isNull);
+      async.elapse(
+        messageNotificationImageTimeout - const Duration(milliseconds: 1),
+      );
+      expect(done, isFalse);
+
+      async.elapse(const Duration(milliseconds: 1));
+      expect(done, isTrue);
+      expect(result, isNull);
+    });
   });
 }

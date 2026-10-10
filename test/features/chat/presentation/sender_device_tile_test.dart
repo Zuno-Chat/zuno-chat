@@ -7,27 +7,17 @@ import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
 import 'package:zuno/features/chat/presentation/sender_device_tile.dart';
 
+import '../../../helpers/fake_device_keys.dart';
 import '../../../helpers/fake_matrix.dart';
 
 const _bob = '@bob:example.org';
 
-class _Keys extends DeviceKeys {
-  _Keys(Client client, String userId, String deviceId, {this.isSigned = false})
-    : super.fromJson({
-        'user_id': userId,
-        'device_id': deviceId,
-        'algorithms': <String>[],
-        'keys': {
-          'curve25519:$deviceId': 'curve-$deviceId',
-          'ed25519:$deviceId': 'ed-$deviceId',
-        },
-        'signatures': <String, Object?>{},
-      }, client);
-
-  final bool isSigned;
+class _ApprovedKeys extends DeviceKeys {
+  _ApprovedKeys(Client client, String userId, String deviceId)
+    : super.fromJson(testDeviceKeysJson(userId, deviceId), client);
 
   @override
-  bool get signed => isSigned;
+  bool get signed => true;
 }
 
 void main() {
@@ -38,10 +28,6 @@ void main() {
     client = buildTestClient(userId: '@me:example.org');
     room = buildTestRoom(client);
   });
-
-  void devicesOf(String userId, List<_Keys> keys) =>
-      client.userDeviceKeys[userId] = DeviceKeysList(userId, client)
-        ..deviceKeys = {for (final key in keys) key.deviceId!: key};
 
   Event messageFrom(String sender, {String? senderKey}) => Event(
     eventId: r'$m',
@@ -76,7 +62,7 @@ void main() {
 
   testWidgets('a confirmed person writing from an unapproved device is '
       'told apart, with nothing for you to do', (tester) async {
-    devicesOf(_bob, [_Keys(client, _bob, 'NEWPHONE')]);
+    setTestDevices(client, _bob, {'NEWPHONE': null});
     await pump(tester, messageFrom(_bob, senderKey: 'curve-NEWPHONE'));
 
     expect(
@@ -87,7 +73,11 @@ void main() {
   });
 
   testWidgets('an approved device says nothing', (tester) async {
-    devicesOf(_bob, [_Keys(client, _bob, 'PHONE', isSigned: true)]);
+    setTestDevices(client, _bob, {}).deviceKeys['PHONE'] = _ApprovedKeys(
+      client,
+      _bob,
+      'PHONE',
+    );
     await pump(tester, messageFrom(_bob, senderKey: 'curve-PHONE'));
 
     expect(tile(), findsNothing);
@@ -105,7 +95,7 @@ void main() {
     UserTrustState.identityChanged,
   ]) {
     testWidgets('a ${trust.name} sender says nothing', (tester) async {
-      devicesOf(_bob, [_Keys(client, _bob, 'NEWPHONE')]);
+      setTestDevices(client, _bob, {'NEWPHONE': null});
       await pump(
         tester,
         messageFrom(_bob, senderKey: 'curve-NEWPHONE'),
@@ -123,16 +113,14 @@ void main() {
   });
 
   testWidgets('an unknown device says nothing', (tester) async {
-    devicesOf(_bob, [_Keys(client, _bob, 'PHONE')]);
+    setTestDevices(client, _bob, {'PHONE': null});
     await pump(tester, messageFrom(_bob, senderKey: 'curve-ELSEWHERE'));
 
     expect(tile(), findsNothing);
   });
 
   testWidgets("someone else's device key says nothing", (tester) async {
-    devicesOf('@mallory:example.org', [
-      _Keys(client, '@mallory:example.org', 'EVIL'),
-    ]);
+    setTestDevices(client, '@mallory:example.org', {'EVIL': null});
     await pump(tester, messageFrom(_bob, senderKey: 'curve-EVIL'));
 
     expect(tile(), findsNothing);

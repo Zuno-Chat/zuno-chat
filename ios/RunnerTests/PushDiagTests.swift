@@ -80,13 +80,6 @@ extension PushDiagTests {
     XCTAssertEqual(dictionary["registeredForRemoteNotifications"] as? Bool, false)
   }
 
-  func testTheRealNotificationCenterReadsItsSettingsWithoutTrapping() async {
-    await runWithinSystemTimeout {
-      let settings = await NotificationSettingsSnapshot.current()
-      XCTAssertEqual(settings.dictionary.count, 15)
-    }
-  }
-
   func testTheSnapshotMethodAnswersTheSettingsEnvironmentAndRegistrationOnTheMainThread() async {
     let outcome = await channelReply(from: PushDiagPlugin(), method: "snapshot")
     let dictionary = outcome.answer as? [String: Any]

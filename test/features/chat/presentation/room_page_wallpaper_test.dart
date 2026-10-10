@@ -26,19 +26,4 @@ void main() {
     expect(stack.children.first, isA<ChatWallpaperBackground>());
     expect(find.byType(MessageListView), findsOneWidget);
   });
-
-  testWidgets('the chat menu no longer offers a wallpaper choice', (
-    tester,
-  ) async {
-    final harness = RoomPageHarness();
-    harness.db.events = [harness.message(r'$m1')];
-    await harness.pumpRoomPage(tester);
-
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-
-    expect(find.text('Add to home screen'), findsOneWidget);
-    expect(find.text('Chat wallpaper'), findsNothing);
-  });
 }

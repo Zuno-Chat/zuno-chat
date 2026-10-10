@@ -71,7 +71,7 @@ final class NsePipelineCallsTests: XCTestCase {
     XCTAssertEqual(result.delivery.interruption, .timeSensitive)
     XCTAssertEqual(result.delivery.sound, .ring)
     XCTAssertEqual(result.delivery.userInfo["rg"], "rg\(uuid.uuidString)")
-    XCTAssertEqual(harness.best.all.map(\.interruption), [.active, .passive, .timeSensitive])
+    XCTAssertEqual(harness.best.values.map(\.interruption), [.active, .passive, .timeSensitive])
     XCTAssertEqual(harness.transport.requests.last?.body?["call_id"], .string("c2"))
   }
 

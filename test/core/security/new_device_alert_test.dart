@@ -100,13 +100,8 @@ void main() {
   group('KnownDevicesStore', () {
     setUp(() => SharedPreferences.setMockInitialValues({}));
 
-    test('never looked reads as null, not as empty', () async {
-      final store = KnownDevicesStore(await SharedPreferences.getInstance());
-
-      expect(store.knownDeviceIds('@me:example.org'), isNull);
-    });
-
-    test('remembers per account', () async {
+    test('remembers per account, an account never looked at reading as null, '
+        'not as empty', () async {
       final store = KnownDevicesStore(await SharedPreferences.getInstance());
 
       await store.remember('@me:example.org', {'AAA', 'BBB'});

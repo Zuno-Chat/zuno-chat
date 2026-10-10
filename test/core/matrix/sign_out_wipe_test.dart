@@ -33,12 +33,15 @@ void main() {
     expect(calls, isEmpty);
   });
 
-  test('signing out after a session stops delivery, then wipes', () async {
+  test('signing out after a session stops delivery, then wipes and forgets '
+      'the session, so a launch after a wipe that kept the app running does '
+      'not wipe again', () async {
     await wipe.onLoginState(true, stopDelivery: stopDelivery);
 
     await wipe.onLoginState(false, stopDelivery: stopDelivery);
 
     expect(calls, ['stop', 'wipe']);
+    expect(prefs.getBool(signedInMarkerKey), isNull);
   });
 
   test('a session left from an earlier run is wiped at launch', () async {
@@ -92,22 +95,6 @@ void main() {
     expect(calls.where((c) => c == 'wipe'), hasLength(1));
   });
 
-  test('a wipe the platform refuses is not fatal', () async {
-    await prefs.setBool(signedInMarkerKey, true);
-    final refusing = SignOutWipe(prefs, () async => throw Exception('no'));
-
-    await refusing.onLoginState(false, stopDelivery: stopDelivery);
-  });
-
-  test('a wipe that leaves the app running forgets the session, so the next '
-      'launch does not wipe again', () async {
-    await wipe.onLoginState(true, stopDelivery: stopDelivery);
-
-    await wipe.onLoginState(false, stopDelivery: stopDelivery);
-
-    expect(prefs.getBool(signedInMarkerKey), isNull);
-  });
-
   test(
     'signing in and out again in the same run stops delivery again',
     () async {
@@ -121,14 +108,29 @@ void main() {
     },
   );
 
-  test('a refused wipe keeps the session marked, so the next launch tries '
-      'again', () async {
+  test('a refused wipe is not fatal and keeps the session marked, so the next '
+      'launch tries again', () async {
     await prefs.setBool(signedInMarkerKey, true);
     final refusing = SignOutWipe(prefs, () async => throw Exception('no'));
 
     await refusing.onLoginState(false, stopDelivery: stopDelivery);
 
     expect(prefs.getBool(signedInMarkerKey), isTrue);
+  });
+
+  test('after a refused wipe, the next sign-out in the same run stops '
+      'delivery and tries the wipe again', () async {
+    await prefs.setBool(signedInMarkerKey, true);
+    final refusing = SignOutWipe(prefs, () async {
+      calls.add('wipe');
+      throw Exception('no');
+    });
+
+    await refusing.onLoginState(false, stopDelivery: stopDelivery);
+    await refusing.onLoginState(true, stopDelivery: stopDelivery);
+    await refusing.onLoginState(false, stopDelivery: stopDelivery);
+
+    expect(calls, ['stop', 'wipe', 'stop', 'wipe']);
   });
 
   group('signOutWipeProvider', () {
@@ -164,14 +166,6 @@ void main() {
       addTearDown(container.dispose);
       return container.read(signOutWipeProvider);
     }
-
-    test('signing out wipes the app data through the native side', () async {
-      await prefs.setBool(signedInMarkerKey, true);
-
-      await providedWipe().onLoginState(false, stopDelivery: stopDelivery);
-
-      expect(calls, ['stop', 'native wipe']);
-    });
 
     test('a wipe the platform declines keeps the session marked, so the next '
         'launch tries again', () async {
@@ -259,8 +253,8 @@ void main() {
       });
     });
 
-    test('where the platform ends the app, nothing is vacuumed and the wipe '
-        'takes no arguments', () async {
+    test('where the platform ends the app, signing out wipes through the '
+        'native side with no arguments, and nothing is vacuumed', () async {
       Object? arguments = 'unset';
       messenger.setMockMethodCallHandler(channel, (call) async {
         calls.add('native ${call.method}');

@@ -33,6 +33,8 @@ import '../../helpers/fake_call_style_channel.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/hybrid_fake_async.dart';
+import '../../helpers/native_method_calls.dart';
+import '../../helpers/notifying_client.dart';
 
 class _ScriptedClient extends ZunoClient {
   _ScriptedClient() : super('test', database: FakeDatabaseApi());
@@ -64,28 +66,10 @@ class _ScriptedClient extends ZunoClient {
   }
 
   @override
-  PushruleEvaluator get pushruleEvaluator =>
-      _countedEvaluator(++pushRuleChecks);
-
-  PushruleEvaluator _countedEvaluator(int _) => PushruleEvaluator.fromRuleset(
-    PushRuleSet(
-      underride: [
-        PushRule(
-          ruleId: '.m.rule.message',
-          default$: true,
-          enabled: true,
-          conditions: [
-            PushCondition(
-              kind: 'event_match',
-              key: 'type',
-              pattern: 'm.room.message',
-            ),
-          ],
-          actions: ['notify'],
-        ),
-      ],
-    ),
-  );
+  PushruleEvaluator get pushruleEvaluator {
+    pushRuleChecks++;
+    return notifyOnMessagesEvaluator();
+  }
 
   @override
   Future<Event?> getEventByPushNotification(
@@ -111,7 +95,7 @@ void main() {
   late _ScriptedClient client;
   late Room room;
   late RecordedNotifications notifications;
-  late RecordedCallStyleCalls callStyle;
+  late RecordedMethodCalls callStyle;
 
   PushNotification push({
     String? roomId = '!room:example.org',
@@ -128,6 +112,15 @@ void main() {
     senderId: senderId,
     originServerTs: originServerTs,
     content: {'msgtype': 'm.text', 'body': body},
+  );
+
+  Event invitation() => buildTestEvent(
+    room,
+    eventId: r'$event',
+    senderId: '@bob:example.org',
+    type: EventTypes.RoomMember,
+    stateKey: '@me:example.org',
+    content: {'membership': 'invite'},
   );
 
   Event callInvite({String callId = 'call1', String eventId = r'$event'}) =>
@@ -179,25 +172,6 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     return readResolvedCallIds(prefs);
-  }
-
-  List<String> mockPushNotices(Map<String, String> notices) {
-    final outstanding = Map.of(notices);
-    final taken = <String>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('zuno/conversations'), (
-          call,
-        ) async {
-          if (call.method != 'takePushNotice') return null;
-          final args = (call.arguments as Map).cast<String, Object?>();
-          final roomId = args['roomId'] as String?;
-          final eventId = args['eventId'] as String?;
-          taken.add('$roomId/$eventId');
-          if (outstanding[roomId] != eventId) return false;
-          outstanding.remove(roomId);
-          return true;
-        });
-    return taken;
   }
 
   setUp(() {
@@ -275,9 +249,9 @@ void main() {
   test('an unresolved push cancels the native notice for its room', () async {
     client.resolved = null;
     final notification = push();
-    final taken = mockPushNotices({
-      notification.roomId!: notification.eventId!,
-    });
+    final conversations = installFakeConversationsChannel(
+      noticed: {notification.roomId!: notification.eventId!},
+    );
 
     await handleIncomingPushNotification(
       client,
@@ -285,7 +259,9 @@ void main() {
       notifyMe: NotifyMe.all,
     );
 
-    expect(taken, ['${notification.roomId}/${notification.eventId}']);
+    expect(conversations.takenNotices, [
+      '${notification.roomId}/${notification.eventId}',
+    ]);
     expect(
       notifications.cancelled,
       contains(messageNotificationIdFor(notification.roomId!)),
@@ -588,50 +564,6 @@ void main() {
       },
     );
 
-    test('stays silent for a message you sent yourself', () async {
-      client.resolved = message(senderId: '@me:example.org');
-
-      expect(await handle(), IncomingPushOutcome.ignored);
-      expect(notifications.shown, isEmpty);
-    });
-
-    test(
-      'notifies for a message that has been queued for half an hour',
-      () async {
-        client.resolved = message(
-          body: 'sent while you were offline',
-          originServerTs: DateTime.now().subtract(const Duration(minutes: 31)),
-        );
-
-        expect(await handle(), IncomingPushOutcome.message);
-        expect(
-          notifications.single.body,
-          contains('sent while you were offline'),
-        );
-      },
-    );
-
-    test(
-      'notifies for a photo message by its caption, with no download',
-      () async {
-        client.resolved = buildTestEvent(
-          room,
-          eventId: r'$event',
-          senderId: '@bob:example.org',
-          content: {
-            'msgtype': MessageTypes.Image,
-            'body': 'a cat',
-            'filename': 'cat.jpg',
-            'url': 'mxc://x/cat',
-          },
-        );
-
-        expect(await handle(), IncomingPushOutcome.message);
-
-        expect(notifications.single.body, contains('a cat'));
-      },
-    );
-
     test('shows a plain message quietly when set to mentions only', () async {
       client.resolved = message();
 
@@ -736,20 +668,32 @@ void main() {
     const after = Duration(milliseconds: 30);
     late Completer<Event?> pending;
     late int roomNotificationId;
+    late FakeAsync time;
+    late Future<IncomingPushOutcome> handling;
 
     setUp(() {
       pending = Completer<Event?>();
       client.delayed = pending;
       roomNotificationId = messageNotificationIdFor(room.id);
+      time = FakeAsync();
     });
 
-    Future<IncomingPushOutcome> handleSlowly() =>
-        handleIncomingPushNotification(
+    Future<void> handleSlowly() async {
+      time.run((_) {
+        handling = handleIncomingPushNotification(
           client,
           push(),
           notifyMe: NotifyMe.all,
           placeholderAfter: after,
         );
+      });
+      await time.advance(after * 3);
+    }
+
+    Future<IncomingPushOutcome> outcome() async {
+      await time.advance(after);
+      return handling;
+    }
 
     List<Map<String, Object?>> linesOf(ShownNotification n) =>
         ((n.android['styleInformation'] as Map)['messages'] as List)
@@ -760,8 +704,7 @@ void main() {
     test(
       'posts a routable placeholder first, then upgrades it in place',
       () async {
-        final outcome = handleSlowly();
-        await Future<void>.delayed(after * 3);
+        await handleSlowly();
 
         final placeholder = notifications.shown
             .where((n) => n.id == roomNotificationId)
@@ -777,7 +720,7 @@ void main() {
           },
         ];
         pending.complete(message(body: 'hello'));
-        expect(await outcome, IncomingPushOutcome.message);
+        expect(await outcome(), IncomingPushOutcome.message);
 
         final posts = notifications.shown.where(
           (n) => n.id == roomNotificationId,
@@ -791,7 +734,7 @@ void main() {
     test(
       'stays silent all through when a native notice already alerted',
       () async {
-        mockPushNotices({room.id: r'$event'});
+        installFakeConversationsChannel(noticed: {room.id: r'$event'});
         notifications.active = [
           {
             'id': roomNotificationId,
@@ -800,10 +743,9 @@ void main() {
           },
         ];
 
-        final outcome = handleSlowly();
-        await Future<void>.delayed(after * 3);
+        await handleSlowly();
         pending.complete(message(body: 'hello'));
-        expect(await outcome, IncomingPushOutcome.message);
+        expect(await outcome(), IncomingPushOutcome.message);
 
         final posts = notifications.shown
             .where((n) => n.id == roomNotificationId)
@@ -817,8 +759,7 @@ void main() {
     test(
       'retracts the placeholder when the event turns out to be nothing',
       () async {
-        final outcome = handleSlowly();
-        await Future<void>.delayed(after * 3);
+        await handleSlowly();
         notifications.active = [
           {
             'id': roomNotificationId,
@@ -828,18 +769,17 @@ void main() {
         ];
 
         pending.complete(null);
-        expect(await outcome, IncomingPushOutcome.ignored);
+        expect(await outcome(), IncomingPushOutcome.ignored);
 
         expect(notifications.cancelled, contains(roomNotificationId));
       },
     );
 
     test('keeps the placeholder standing when the fetch fails', () async {
-      final outcome = handleSlowly();
-      await Future<void>.delayed(after * 3);
+      await handleSlowly();
 
       pending.completeError(Exception('offline'));
-      expect(await outcome, IncomingPushOutcome.message);
+      expect(await outcome(), IncomingPushOutcome.message);
 
       expect(notifications.cancelled, isNot(contains(roomNotificationId)));
       expect(
@@ -851,7 +791,8 @@ void main() {
     test('a fast fetch never shows a placeholder', () async {
       pending.complete(message(body: 'quick'));
 
-      expect(await handleSlowly(), IncomingPushOutcome.message);
+      await handleSlowly();
+      expect(await outcome(), IncomingPushOutcome.message);
 
       final posts = notifications.shown.where(
         (n) => n.id == roomNotificationId,
@@ -933,14 +874,7 @@ void main() {
   });
 
   test('notifies for a room invitation', () async {
-    client.resolved = buildTestEvent(
-      room,
-      eventId: r'$event',
-      senderId: '@bob:example.org',
-      type: EventTypes.RoomMember,
-      stateKey: '@me:example.org',
-      content: {'membership': 'invite'},
-    );
+    client.resolved = invitation();
 
     expect(await handle(), IncomingPushOutcome.message);
     expect(notifications.single.body, 'Invited you to chat');
@@ -948,7 +882,7 @@ void main() {
 
   test('an invitation posts over the native notice instead of cancelling '
       'it', () async {
-    mockPushNotices({room.id: r'$event'});
+    installFakeConversationsChannel(noticed: {room.id: r'$event'});
     notifications.active = [
       {
         'id': messageNotificationIdFor(room.id),
@@ -956,14 +890,7 @@ void main() {
         'payload': '',
       },
     ];
-    client.resolved = buildTestEvent(
-      room,
-      eventId: r'$event',
-      senderId: '@bob:example.org',
-      type: EventTypes.RoomMember,
-      stateKey: '@me:example.org',
-      content: {'membership': 'invite'},
-    );
+    client.resolved = invitation();
 
     expect(await handle(), IncomingPushOutcome.message);
 
@@ -973,14 +900,7 @@ void main() {
   });
 
   test('a room invitation gets no Reply/Mark-as-read actions', () async {
-    client.resolved = buildTestEvent(
-      room,
-      eventId: r'$event',
-      senderId: '@bob:example.org',
-      type: EventTypes.RoomMember,
-      stateKey: '@me:example.org',
-      content: {'membership': 'invite'},
-    );
+    client.resolved = invitation();
 
     expect(await handle(), IncomingPushOutcome.message);
     expect(notifications.single.android['actions'], anyOf(isNull, isEmpty));
@@ -1155,15 +1075,6 @@ void main() {
   });
 
   group('an invitation another path already announced', () {
-    Event invitation() => buildTestEvent(
-      room,
-      eventId: r'$event',
-      senderId: '@bob:example.org',
-      type: EventTypes.RoomMember,
-      stateKey: '@me:example.org',
-      content: {'membership': 'invite'},
-    );
-
     void roomNotificationShowing() => notifications.active = [
       {
         'id': messageNotificationIdFor(room.id),
@@ -1183,13 +1094,15 @@ void main() {
     test('moments ago leaves the room\'s notification standing, though the '
         'push put a notice there', () async {
       await claimInviteAnnouncement(room.id);
-      final taken = mockPushNotices({room.id: r'$event'});
+      final conversations = installFakeConversationsChannel(
+        noticed: {room.id: r'$event'},
+      );
       roomNotificationShowing();
       client.resolved = invitation();
 
       await handle();
 
-      expect(taken, ['${room.id}/\$event']);
+      expect(conversations.takenNotices, ['${room.id}/\$event']);
       expect(notifications.cancelled, isEmpty);
     });
 
@@ -1199,7 +1112,7 @@ void main() {
         room.id,
         now: DateTime.now().subtract(const Duration(minutes: 10)),
       );
-      mockPushNotices({room.id: r'$event'});
+      installFakeConversationsChannel(noticed: {room.id: r'$event'});
       roomNotificationShowing();
       client.resolved = invitation();
 

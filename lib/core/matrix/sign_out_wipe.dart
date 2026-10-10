@@ -40,13 +40,16 @@ class SignOutWipe {
     }
     if (!hadSession || _wiping) return;
     _wiping = true;
-    await runBestEffort(
-      () => stopDelivery().timeout(stopDeliveryBeforeWipeBudget),
-      label: 'stop notification delivery before wipe',
-    );
-    if (!await runBestEffort(_wipe, label: 'wipe app data')) return;
-    await _prefs.remove(signedInMarkerKey);
-    _wiping = false;
+    try {
+      await runBestEffort(
+        () => stopDelivery().timeout(stopDeliveryBeforeWipeBudget),
+        label: 'stop notification delivery before wipe',
+      );
+      if (!await runBestEffort(_wipe, label: 'wipe app data')) return;
+      await _prefs.remove(signedInMarkerKey);
+    } finally {
+      _wiping = false;
+    }
   }
 }
 

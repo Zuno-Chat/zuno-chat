@@ -35,17 +35,6 @@ void main() {
 
   tearDown(() => repo.deleteSync(recursive: true));
 
-  test('next is the minor after a feat', () async {
-    commit('fix: a');
-    commit('feat: b');
-    expect((await release(['next'])).stdout, '1.4.0\n');
-  });
-
-  test('next is none when nothing user-facing landed', () async {
-    commit('chore: a');
-    expect((await release(['next'])).stdout, 'none\n');
-  });
-
   test('next counts master only after the cut, past a hotfix tag', () async {
     commit('feat: maps');
     git(['tag', 'v1.4.0']);

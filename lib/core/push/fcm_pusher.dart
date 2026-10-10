@@ -1,5 +1,7 @@
 import 'package:matrix/matrix.dart';
 
+import 'pusher_format.dart';
+
 const fcmAppId = 'im.zuno.chat.android';
 
 Pusher buildFcmPusher({
@@ -14,7 +16,7 @@ Pusher buildFcmPusher({
     deviceDisplayName: deviceDisplayName,
     kind: 'http',
     lang: 'en',
-    data: PusherData(url: gatewayUrl, format: 'event_id_only'),
+    data: PusherData(url: gatewayUrl, format: pusherFormat),
   );
 }
 

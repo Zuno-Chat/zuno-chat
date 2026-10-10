@@ -5,26 +5,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 
-import '../../../helpers/fake_matrix.dart';
 import 'room_page_harness.dart';
-
-class _SendCapableFakeDatabaseApi extends StoredEventsFakeDatabaseApi {
-  @override
-  Future<void> storeEventUpdate(
-    String roomId,
-    StrippedStateEvent event,
-    EventUpdateType type,
-    Client client,
-  ) async {}
-
-  @override
-  Future<void> storeRoomUpdate(
-    String roomId,
-    SyncRoomUpdate roomUpdate,
-    Event? lastEvent,
-    Client client,
-  ) async {}
-}
 
 void main() {
   setUp(rootBundle.clear);
@@ -33,7 +14,7 @@ void main() {
     WidgetTester tester,
     String text,
   ) async {
-    final harness = RoomPageHarness(db: _SendCapableFakeDatabaseApi());
+    final harness = RoomPageHarness(db: SendingFakeDatabaseApi());
     await harness.pumpRoomPage(tester);
     await tester.enterText(find.byType(TextField), text);
     await tester.pump();

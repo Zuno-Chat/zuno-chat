@@ -16,6 +16,7 @@ import 'apns_pusher.dart';
 import 'fcm_bridge.dart' show FcmAvailability;
 import 'push_delivery_log.dart';
 import 'push_diagnostics_data.dart';
+import 'pusher_format.dart';
 import 'pusher_info.dart';
 import 'ring_mismatch.dart';
 import 'voip/voip_registration.dart';
@@ -325,14 +326,16 @@ List<DiagnosticRow> _registrationRows(
       : const DiagnosticRow('Push key', 'Present', DiagnosticStatus.ok),
   _registration(inputs.currentPushkey, inputs.pushers, current),
   if (current != null)
-    inputs.expectedGateway == null ||
-            Uri.tryParse(current.url ?? '') == inputs.expectedGateway
-        ? const DiagnosticRow('Gateway', 'Correct', DiagnosticStatus.ok)
-        : const DiagnosticRow('Gateway', 'Different', DiagnosticStatus.problem),
-  if (current != null)
-    current.format == apnsPusherFormat
-        ? const DiagnosticRow('Format', 'Correct', DiagnosticStatus.ok)
-        : const DiagnosticRow('Format', 'Different', DiagnosticStatus.problem),
+    ..._fitRows(pusherFit(current, gatewayUrl: inputs.expectedGateway)),
+];
+
+List<DiagnosticRow> _fitRows(PusherFit fit) => [
+  fit.gateway
+      ? const DiagnosticRow('Gateway', 'Correct', DiagnosticStatus.ok)
+      : const DiagnosticRow('Gateway', 'Different', DiagnosticStatus.problem),
+  fit.format
+      ? const DiagnosticRow('Format', 'Correct', DiagnosticStatus.ok)
+      : const DiagnosticRow('Format', 'Different', DiagnosticStatus.problem),
 ];
 
 DiagnosticRow _unknown(String label) =>

@@ -3,25 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/security/screen_security_service.dart';
 
+import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('zuno/calls');
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-
   late List<MethodCall> calls;
 
-  setUp(() {
-    calls = [];
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      calls.add(call);
-      return null;
-    });
-  });
-
-  tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+  setUp(() => calls = installFakeCallsChannel().calls);
 
   test('asks the native side to block or allow screenshots', () async {
     await ScreenSecurityService.instance.setPreventScreenshots(true);
@@ -38,7 +27,7 @@ void main() {
   });
 
   test('no native side at all is not an error', () async {
-    messenger.setMockMethodCallHandler(channel, null);
+    removeCallsChannel();
 
     await expectLater(
       ScreenSecurityService.instance.setPreventScreenshots(true),

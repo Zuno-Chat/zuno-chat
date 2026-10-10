@@ -456,7 +456,7 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   own tile shows no avatar.
 - `hangUp()` is memoized rather than phase-guarded, because several
   callers race it and the phase changes only at the end of teardown.
-- Every negotiation round goes through `NegotiationLock`, but teardown
+- Negotiation rounds run one at a time through a serial lock, but teardown
   never waits on it, so negotiation re-checks that its connection is still
   live after every await.
 - `createOffer` takes explicit empty constraints, because called bare it

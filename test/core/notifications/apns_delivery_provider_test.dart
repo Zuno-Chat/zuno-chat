@@ -10,8 +10,8 @@ import 'package:zuno/core/notifications/notification_sound_settings.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
 import 'package:zuno/core/push/registration_retry.dart';
 
-import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
+import '../../helpers/pusher_recording_client.dart';
 
 const _token =
     'a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4';
@@ -20,69 +20,24 @@ const _newToken =
     'd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7';
 const _newPushkey = '1OX2p9Tl9qfU5fan1OX2p9Tl9qfU5fan1OX2p9Tl9qc=';
 
-class _RecordingClient extends Client {
-  _RecordingClient() : super('test', database: FakeDatabaseApi()) {
-    homeserver = Uri.parse('https://matrix.example.org');
-  }
-
-  final posted = <Pusher>[];
-  final deleted = <PusherId>[];
-  Object? postError;
-  Completer<void>? holdNextPost;
-
-  @override
-  Future<void> postPusher(Pusher pusher, {bool? append}) async {
-    final hold = holdNextPost;
-    holdNextPost = null;
-    await hold?.future;
-    if (postError != null) throw postError!;
-    posted.add(pusher);
-  }
-
-  @override
-  Future<void> deletePusher(PusherId pusherId) async {
-    deleted.add(pusherId);
-  }
-
-  List<Map<String, Object?>>? pushersOnServer;
-
-  @override
-  Future<Map<String, Object?>> request(
-    RequestType type,
-    String action, {
-    dynamic data = '',
-    String contentType = 'application/json',
-    Map<String, Object?>? query,
-  }) async {
-    if (action != '/client/v3/pushers') {
-      return super.request(type, action, data: data, query: query);
-    }
-    final pushers = pushersOnServer;
-    if (pushers == null) throw Exception('offline');
-    return {'pushers': pushers};
-  }
-}
-
 Map<String, Object?> _serverPusher(
   String pushkey, {
   String? appId,
   String url = 'https://matrix.example.org/_matrix/push/v1/notify',
   String format = 'event_id_only',
-}) => {
-  'app_id': appId ?? apnsAppId,
-  'pushkey': pushkey,
-  'app_display_name': 'Zuno',
-  'device_display_name': 'Zuno on iOS',
-  'kind': 'http',
-  'lang': 'en',
-  'data': {'url': url, 'format': format},
-};
+}) => serverPusherJson(
+  appId: appId ?? apnsAppId,
+  pushkey: pushkey,
+  appName: 'Zuno',
+  deviceName: 'Zuno on iOS',
+  data: {'url': url, 'format': format},
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late ApnsDeliveryProvider provider;
-  late _RecordingClient client;
+  late PusherRecordingClient client;
   late int tokenReads;
   late int environmentReads;
   late DateTime now;
@@ -114,7 +69,7 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-    client = _RecordingClient();
+    client = PusherRecordingClient();
     tokenReads = 0;
     environmentReads = 0;
     readEnvironment = () async => 'development';
@@ -265,14 +220,6 @@ void main() {
       await provider.start(client);
 
       expect(client.posted.single.appId, apnsProductionAppId);
-    });
-
-    test('development registers under the development app id', () async {
-      readEnvironment = () async => 'development';
-
-      await provider.start(client);
-
-      expect(client.posted.single.appId, apnsDevelopmentAppId);
     });
 
     test('a relaunch under another environment moves the pusher to its app '

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -8,27 +6,9 @@ import 'package:zuno/features/chat/presentation/message_tile.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/gated_timeline_database.dart';
+import '../../../helpers/route_launcher.dart';
 import 'room_page_harness.dart';
-
-class _SlowDb extends StoredEventsFakeDatabaseApi {
-  final gate = Completer<void>();
-
-  @override
-  Future<List<Event>> getEventList(
-    Room room, {
-    int start = 0,
-    bool onlySending = false,
-    int? limit,
-  }) async {
-    await gate.future;
-    return super.getEventList(
-      room,
-      start: start,
-      onlySending: onlySending,
-      limit: limit,
-    );
-  }
-}
 
 void main() {
   testWidgets('the timeline is not applied while the route animates', (
@@ -53,20 +33,7 @@ void main() {
     ];
     await tester.pumpWidget(
       await harness.app(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: Center(
-              child: TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => RoomPage(room: harness.room),
-                  ),
-                ),
-                child: const Text('open'),
-              ),
-            ),
-          ),
-        ),
+        home: routeLauncher((_) => RoomPage(room: harness.room)),
       ),
     );
 
@@ -102,36 +69,15 @@ void main() {
     );
   });
 
-  testWidgets('with no route animation it is applied at once', (tester) async {
-    final harness = RoomPageHarness();
-    harness.db.events = [harness.message(r'$m1')];
-    await harness.pumpRoomPage(tester);
-
-    expect(find.byType(MessageTile), findsOneWidget);
-  });
-
   testWidgets('a slow timeline shows the spinner only after the slide', (
     tester,
   ) async {
-    final db = _SlowDb();
+    final db = GatedTimelineFakeDatabaseApi();
     final harness = RoomPageHarness(db: db);
     harness.db.events = [harness.message(r'$m1')];
     await tester.pumpWidget(
       await harness.app(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: Center(
-              child: TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => RoomPage(room: harness.room),
-                  ),
-                ),
-                child: const Text('open'),
-              ),
-            ),
-          ),
-        ),
+        home: routeLauncher((_) => RoomPage(room: harness.room)),
       ),
     );
 

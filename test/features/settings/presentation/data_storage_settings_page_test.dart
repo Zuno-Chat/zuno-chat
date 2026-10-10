@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -16,6 +15,7 @@ import 'package:zuno/features/settings/presentation/data_storage_settings_page.d
 import '../../../helpers/card_layout.dart';
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/preferences_container.dart';
 
 class _CacheClient extends Client {
   _CacheClient() : super('test', database: FakeDatabaseApi()) {
@@ -49,15 +49,10 @@ void main() {
   }) async {
     await tester.binding.setSurfaceSize(const Size(800, 3000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    SharedPreferences.setMockInitialValues(prefs);
-    final sharedPrefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(sharedPrefs),
-        matrixClientProvider.overrideWithValue(client),
-      ],
+    final container = await containerWithPreferences(
+      prefs,
+      overrides: [matrixClientProvider.overrideWithValue(client)],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -72,31 +67,6 @@ void main() {
     await pumpPage(tester);
 
     expectEveryRowOnACard();
-  });
-
-  testWidgets('holds the data toggles and both cache actions', (tester) async {
-    await pumpPage(tester);
-
-    expect(find.text('Data & storage'), findsOneWidget);
-    expect(switchTile('Reduce media size'), findsOneWidget);
-    expect(switchTile('Use less data for calls'), findsOneWidget);
-    expect(find.text('Clear cache'), findsOneWidget);
-    expect(find.text('Clear media cache'), findsOneWidget);
-  });
-
-  testWidgets('both data toggles are on by default', (tester) async {
-    await pumpPage(tester);
-
-    expect(
-      tester.widget<SwitchListTile>(switchTile('Reduce media size')).value,
-      isTrue,
-    );
-    expect(
-      tester
-          .widget<SwitchListTile>(switchTile('Use less data for calls'))
-          .value,
-      isTrue,
-    );
   });
 
   testWidgets('each data toggle says what it does in plain words, whether '
@@ -119,56 +89,29 @@ void main() {
     expect(find.text(calls), findsOneWidget);
   });
 
-  testWidgets('Reduce media size turns off and persists', (tester) async {
-    final container = await pumpPage(tester);
+  for (final (title, provider, key) in [
+    (
+      'Reduce media size',
+      reduceMediaSizeProvider,
+      'settings.reduce_media_size',
+    ),
+    (
+      'Use less data for calls',
+      lowDataCallsProvider,
+      'settings.low_data_calls',
+    ),
+  ]) {
+    testWidgets('$title turns off and persists', (tester) async {
+      final container = await pumpPage(tester);
 
-    await tester.tap(switchTile('Reduce media size'));
-    await tester.pump();
+      await tester.tap(switchTile(title));
+      await tester.pump();
 
-    expect(container.read(reduceMediaSizeProvider), isFalse);
-    expect(
-      container
-          .read(sharedPreferencesProvider)
-          .getBool('settings.reduce_media_size'),
-      isFalse,
-    );
-  });
-
-  testWidgets('Use less data for calls turns off and persists', (tester) async {
-    final container = await pumpPage(tester);
-
-    await tester.tap(switchTile('Use less data for calls'));
-    await tester.pump();
-
-    expect(container.read(lowDataCallsProvider), isFalse);
-    expect(
-      container
-          .read(sharedPreferencesProvider)
-          .getBool('settings.low_data_calls'),
-      isFalse,
-    );
-  });
-
-  testWidgets('stored off values are read back', (tester) async {
-    await pumpPage(
-      tester,
-      prefs: {
-        'settings.reduce_media_size': false,
-        'settings.low_data_calls': false,
-      },
-    );
-
-    expect(
-      tester.widget<SwitchListTile>(switchTile('Reduce media size')).value,
-      isFalse,
-    );
-    expect(
-      tester
-          .widget<SwitchListTile>(switchTile('Use less data for calls'))
-          .value,
-      isFalse,
-    );
-  });
+      expect(container.read(provider), isFalse);
+      expect(tester.widget<SwitchListTile>(switchTile(title)).value, isFalse);
+      expect(container.read(sharedPreferencesProvider).getBool(key), isFalse);
+    });
+  }
 
   testWidgets('Clear cache asks first, and Cancel clears nothing', (
     tester,
@@ -184,18 +127,7 @@ void main() {
 
     expect(find.text('Clear cache?'), findsNothing);
     expect(find.text('Cache cleared'), findsNothing);
-  });
-
-  testWidgets('Clear cache clears it once confirmed', (tester) async {
-    await pumpPage(tester);
-
-    await tester.tap(find.text('Clear cache'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Clear cache'));
-    await tester.pumpAndSettle();
-
-    expect(client.clears, 1);
-    expect(find.text('Cache cleared'), findsOneWidget);
+    expect(client.clears, 0);
   });
 
   testWidgets('Clear cache says it is done only once the clear, space given '

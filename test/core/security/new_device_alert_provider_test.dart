@@ -13,6 +13,7 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import '../../helpers/fake_device_keys.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/native_method_calls.dart';
 
 const _me = '@me:example.org';
 
@@ -25,11 +26,7 @@ void main() {
   setUp(() async {
     notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    const calls = MethodChannel('zuno/calls');
-    messenger.setMockMethodCallHandler(calls, (_) async => null);
-    addTearDown(() => messenger.setMockMethodCallHandler(calls, null));
+    silenceMethodChannels(const ['zuno/calls']);
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
     store = KnownDevicesStore(prefs);
@@ -113,14 +110,7 @@ void main() {
   test('a notification that cannot be shown still leaves the alert', () async {
     await store.remember(_me, {'THIS'});
     setTestDevices(client, _me, {'THIS': null, 'PIXEL': 'Pixel 9'});
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(
-      const MethodChannel('dexterous.com/flutter/local_notifications'),
-      (call) async => call.method == 'show'
-          ? throw PlatformException(code: 'blocked')
-          : null,
-    );
+    notifications.showError = PlatformException(code: 'blocked');
 
     final container = await watching();
 

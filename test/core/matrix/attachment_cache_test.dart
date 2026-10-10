@@ -52,14 +52,6 @@ void main() {
     expect(await disk.get('k'), bytes);
   });
 
-  test('a stale entry is dropped', () async {
-    final stored = await disk.put('k', bytes);
-    await stored!.setLastModified(
-      DateTime.now().subtract(const Duration(days: 2)),
-    );
-    expect(await disk.file('k'), isNull);
-  });
-
   test('two readers of a stale entry raise no delete error', () async {
     final stored = await disk.put('k', bytes);
     await stored!.setLastModified(
@@ -92,47 +84,31 @@ void main() {
     expect(await isAttachmentCached('k', disk: disk), isTrue);
   });
 
-  test('ten concurrent fetches of one key download once', () async {
-    AttachmentCache.instance.clear();
-    var fetches = 0;
-    final gate = Completer<void>();
-    Future<Uint8List> fetch() async {
-      fetches++;
-      await gate.future;
-      return bytes;
-    }
+  for (final (kind, fetchOnce) in [
+    ('attachment', fetchCachedAttachment),
+    ('avatar', fetchCachedAvatar),
+  ]) {
+    test('ten concurrent $kind fetches of one key download once', () async {
+      var fetches = 0;
+      final gate = Completer<void>();
+      Future<Uint8List> fetch() async {
+        fetches++;
+        await gate.future;
+        return bytes;
+      }
 
-    final all = [
-      for (var i = 0; i < 10; i++)
-        fetchCachedAttachment('dedupe', fetch, disk: disk),
-    ];
-    await pumpEventQueue();
-    gate.complete();
+      final all = [
+        for (var i = 0; i < 10; i++)
+          fetchOnce('$kind:dedupe', fetch, disk: disk),
+      ];
+      await pumpEventQueue();
+      gate.complete();
 
-    expect(await Future.wait(all), everyElement(bytes));
-    expect(fetches, 1);
-    await until(() => dir.listSync().isNotEmpty);
-  });
-
-  test('ten concurrent avatar fetches download once', () async {
-    var fetches = 0;
-    final gate = Completer<void>();
-    Future<Uint8List> fetch() async {
-      fetches++;
-      await gate.future;
-      return bytes;
-    }
-
-    final all = [
-      for (var i = 0; i < 10; i++)
-        fetchCachedAvatar('avatar:dedupe', fetch, disk: disk),
-    ];
-    await pumpEventQueue();
-    gate.complete();
-
-    expect(await Future.wait(all), everyElement(bytes));
-    expect(fetches, 1);
-  });
+      expect(await Future.wait(all), everyElement(bytes));
+      expect(fetches, 1);
+      await until(() => dir.listSync().isNotEmpty);
+    });
+  }
 
   test('a failed fetch is not remembered', () async {
     var fetches = 0;

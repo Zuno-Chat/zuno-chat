@@ -45,20 +45,24 @@ void main() {
     return result;
   }
 
-  testWidgets('the sheet orders reactions, actions, facts', (tester) async {
-    await open(tester);
+  testWidgets(
+    'the sheet orders reactions, actions, facts; no Report on your own',
+    (tester) async {
+      await open(tester);
 
-    final reaction = tester.getTopLeft(find.text('👍')).dy;
-    final reply = tester.getTopLeft(find.text('Reply')).dy;
-    final delete = tester.getTopLeft(find.text('Delete')).dy;
-    final facts = tester.getTopLeft(find.text('Sent 20 Sep, 09:30')).dy;
-    expect(reaction, lessThan(reply));
-    expect(reply, lessThan(delete));
-    expect(delete, lessThan(facts));
+      final reaction = tester.getTopLeft(find.text('👍')).dy;
+      final reply = tester.getTopLeft(find.text('Reply')).dy;
+      final delete = tester.getTopLeft(find.text('Delete')).dy;
+      final facts = tester.getTopLeft(find.text('Sent 20 Sep, 09:30')).dy;
+      expect(reaction, lessThan(reply));
+      expect(reply, lessThan(delete));
+      expect(delete, lessThan(facts));
 
-    final deleteText = tester.widget<Text>(find.text('Delete'));
-    expect(deleteText.style!.color, zunoLightTheme.colorScheme.error);
-  });
+      final deleteText = tester.widget<Text>(find.text('Delete'));
+      expect(deleteText.style!.color, zunoLightTheme.colorScheme.error);
+      expect(find.text('Report'), findsNothing);
+    },
+  );
 
   testWidgets(
     'without permission to post there are no reactions, Reply or Edit',

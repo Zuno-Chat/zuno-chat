@@ -9,6 +9,7 @@ import 'package:zuno/core/matrix/zuno_client.dart';
 import 'package:zuno/core/push/send_keep_awake.dart';
 
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/hybrid_fake_async.dart';
 
 class _Clock {
   final events = <String>[];
@@ -73,41 +74,23 @@ void main() {
 
   test('a client with a keeper holds the message send', () async {
     final clock = _Clock();
-    final client =
-        ZunoClient(
-            'test',
-            database: FakeDatabaseApi(),
-            httpClient: MockClient(
-              (request) async => http.Response('{"event_id": "\$sent"}', 200),
-            ),
-            keepAwake: clock.keeper(),
-          )
-          ..homeserver = Uri.parse('https://zuno.im')
-          ..accessToken = 'token';
+    final client = _client(keepAwake: clock.keeper());
+    final time = FakeAsync();
 
-    final eventId = await client.sendMessage(
-      '!r:zuno.im',
-      'm.room.message',
-      'txn',
-      {'body': 'hi'},
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 400));
+    String? eventId;
+    time.run((_) {
+      client
+          .sendMessage('!r:zuno.im', 'm.room.message', 'txn', {'body': 'hi'})
+          .then((id) => eventId = id);
+    });
+    await time.advance(const Duration(milliseconds: 300));
 
     expect(eventId, r'$sent');
     expect(clock.events, ['acquire zuno_send 25000', 'release zuno_send']);
   });
 
   test('a client without a keeper sends as before', () async {
-    final client =
-        ZunoClient(
-            'test',
-            database: FakeDatabaseApi(),
-            httpClient: MockClient(
-              (request) async => http.Response('{"event_id": "\$sent"}', 200),
-            ),
-          )
-          ..homeserver = Uri.parse('https://zuno.im')
-          ..accessToken = 'token';
+    final client = _client();
 
     expect(client.keepAwake, isNull);
     expect(
@@ -118,3 +101,15 @@ void main() {
     );
   });
 }
+
+ZunoClient _client({SendKeepAwake? keepAwake}) =>
+    ZunoClient(
+        'test',
+        database: FakeDatabaseApi(),
+        httpClient: MockClient(
+          (request) async => http.Response('{"event_id": "\$sent"}', 200),
+        ),
+        keepAwake: keepAwake,
+      )
+      ..homeserver = Uri.parse('https://zuno.im')
+      ..accessToken = 'token';

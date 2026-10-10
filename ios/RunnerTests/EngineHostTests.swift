@@ -89,28 +89,27 @@ final class LaunchPluginTests: XCTestCase {
     _ = host.start(.ring)
     let defaults = UserDefaults(suiteName: "launch-\(UUID().uuidString)")!
     let metrics = MetricsSubscriber(defaults: defaults, log: { _ in })
-    metrics.record(["voip_unreported code=0xbaadca11"])
+    metrics.record(["pushkit_unreported code=0xbaadca11"])
     let plugin = LaunchPlugin(host: host, diagnostics: metrics)
-    var replies: [Any?] = []
 
-    for method in ["takeWakeReason", "takeWakeReason", "takeDiagnostics", "takeDiagnostics"] {
-      plugin.handle(FlutterMethodCall(methodName: method, arguments: nil)) { replies.append($0) }
+    let replies = ["takeWakeReason", "takeWakeReason", "takeDiagnostics", "takeDiagnostics"].map {
+      immediateReply(from: plugin, method: $0)
     }
 
     XCTAssertEqual(replies[0] as? String, "ring")
     XCTAssertNil(replies[1])
-    XCTAssertEqual(replies[2] as? [String], ["voip_unreported code=0xbaadca11"])
+    XCTAssertEqual(replies[2] as? [String], ["pushkit_unreported code=0xbaadca11"])
     XCTAssertEqual(replies[3] as? [String], [])
   }
 }
 
 final class MetricKitLineTests: XCTestCase {
-  func testAnUnreportedVoipPushKillIsNamed() {
+  func testAnUnreportedVoipPushKillIsNamedAsItsSummaryCountsIt() {
     XCTAssertEqual(
       MetricKitLine.line(
         terminationReason: "Namespace RUNNINGBOARD, Code 0xbaadca11", exceptionType: 10,
         signal: 9),
-      "voip_unreported exception=10 signal=9 code=0xbaadca11")
+      "\(MetricSummaries.pushkitUnreported) exception=10 signal=9 code=0xbaadca11")
   }
 
   func testAnyOtherCrashKeepsOnlyItsCodes() {

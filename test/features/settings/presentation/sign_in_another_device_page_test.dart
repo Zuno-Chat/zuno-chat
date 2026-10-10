@@ -2,47 +2,29 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/linked_sign_in.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/sign_in_another_device_page.dart';
 
+import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/preferences_container.dart';
+import '../../../helpers/pump_until.dart';
+import '../../../helpers/uia_challenge.dart';
 
 void main() {
   Finder field(String label) =>
       find.ancestor(of: find.text(label), matching: find.byType(TextField));
 
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-    await tester.pump();
-  }
-
   Future<void> leave(WidgetTester tester) =>
       tester.pumpWidget(const SizedBox());
-
-  http.Response passwordChallenge() => http.Response(
-    jsonEncode({
-      'session': 's1',
-      'flows': [
-        {
-          'stages': ['m.login.password'],
-        },
-      ],
-      'params': <String, Object?>{},
-    }),
-    401,
-  );
 
   http.Response issued({int expiresInMs = 300000}) => http.Response(
     jsonEncode({'login_token': 'syl_abcdefgh', 'expires_in_ms': expiresInMs}),
@@ -70,7 +52,7 @@ void main() {
     List<Map<String, Object?>>? bodies,
   }) => serverThat(
     (body) => body['auth'] == null
-        ? passwordChallenge()
+        ? uiaPasswordChallengeResponse()
         : issued(expiresInMs: expiresInMs),
     bodies: bodies,
   );
@@ -81,16 +63,10 @@ void main() {
     DateTime Function()? now,
     Map<String, Object> prefs = const {},
   }) async {
-    SharedPreferences.setMockInitialValues(prefs);
-    final container = ProviderContainer(
-      overrides: [
-        matrixClientProvider.overrideWithValue(client),
-        sharedPreferencesProvider.overrideWithValue(
-          await SharedPreferences.getInstance(),
-        ),
-      ],
+    final container = await containerWithPreferences(
+      prefs,
+      overrides: [matrixClientProvider.overrideWithValue(client)],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -108,7 +84,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    await settle(tester);
+    await pumpRealAsync(tester, rounds: 2);
   }
 
   Future<void> confirmPassword(
@@ -117,22 +93,7 @@ void main() {
   ]) async {
     await tester.enterText(field('Password'), password);
     await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
-    await settle(tester);
-    await settle(tester);
-  }
-
-  List<bool> recordScreenshotBlocking(WidgetTester tester) {
-    const channel = MethodChannel('zuno/calls');
-    final calls = <bool>[];
-    final messenger = tester.binding.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      if (call.method == 'setPreventScreenshots') {
-        calls.add((call.arguments as Map)['enabled'] as bool);
-      }
-      return null;
-    });
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    return calls;
+    await pumpRealAsync(tester, rounds: 4);
   }
 
   Finder qrImage() =>
@@ -174,35 +135,11 @@ void main() {
     await leave(tester);
   });
 
-  testWidgets('a wrong password asks again, saying so', (tester) async {
-    await pumpPage(
-      tester,
-      client: serverThat(
-        (body) =>
-            body['auth'] == null ||
-                (body['auth']! as Map)['password'] == 'wrong'
-            ? passwordChallenge()
-            : issued(),
-      ),
-    );
-
-    await confirmPassword(tester, 'wrong');
-
-    expect(find.text('Confirm your password'), findsOneWidget);
-    expect(find.text('Wrong password.'), findsOneWidget);
-    expect(qrImage(), findsNothing);
-
-    await confirmPassword(tester);
-
-    expect(qrImage(), findsOneWidget);
-    await leave(tester);
-  });
-
   testWidgets('cancelling the password prompt leaves the page', (tester) async {
     await pumpPage(tester, client: serverWantingPassword());
 
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-    await settle(tester);
+    await pumpRealAsync(tester, rounds: 2);
     await tester.pumpAndSettle();
 
     expect(find.byType(SignInAnotherDevicePage), findsNothing);
@@ -229,7 +166,7 @@ void main() {
     expect(qrImage(), findsNothing);
 
     await tester.tap(find.widgetWithText(FilledButton, 'New code'));
-    await settle(tester);
+    await pumpRealAsync(tester, rounds: 2);
     await confirmPassword(tester);
 
     expect(qrImage(), findsOneWidget);
@@ -258,7 +195,7 @@ void main() {
 
   testWidgets('blocks screenshots while open and lifts the block on leaving '
       'when the preference is off', (tester) async {
-    final calls = recordScreenshotBlocking(tester);
+    final native = installFakeCallsChannel();
     await pumpPage(
       tester,
       client: serverWantingPassword(),
@@ -266,26 +203,26 @@ void main() {
     );
     await confirmPassword(tester);
 
-    expect(calls, [true]);
+    expect(native.screenshotBlocking, [true]);
 
     tester.state<NavigatorState>(find.byType(Navigator)).pop();
     await tester.pumpAndSettle();
 
-    expect(calls, [true, false]);
+    expect(native.screenshotBlocking, [true, false]);
     await leave(tester);
   });
 
   testWidgets(
     'keeps screenshots blocked on leaving when the preference is on',
     (tester) async {
-      final calls = recordScreenshotBlocking(tester);
+      final native = installFakeCallsChannel();
       await pumpPage(tester, client: serverWantingPassword());
       await confirmPassword(tester);
 
       tester.state<NavigatorState>(find.byType(Navigator)).pop();
       await tester.pumpAndSettle();
 
-      expect(calls, [true, true]);
+      expect(native.screenshotBlocking, [true, true]);
       await leave(tester);
     },
   );

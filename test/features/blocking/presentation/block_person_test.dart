@@ -45,7 +45,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('says what blocking does before doing it', (tester) async {
+  testWidgets('says what blocking does before doing it, and with no chat to '
+      'lose says nothing about one', (tester) async {
     await openDialog(tester);
 
     expect(find.text('Block Ann?'), findsOneWidget);
@@ -56,13 +57,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('They are not told'), findsOneWidget);
-    expect(blocked, isEmpty);
-  });
-
-  testWidgets('with no chat to lose, says nothing about one', (tester) async {
-    await openDialog(tester);
-
     expect(find.textContaining('You leave your chat'), findsNothing);
+    expect(blocked, isEmpty);
   });
 
   testWidgets('says the chat is left for good when there is one', (

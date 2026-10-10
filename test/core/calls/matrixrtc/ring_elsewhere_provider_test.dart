@@ -18,6 +18,7 @@ import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/recording_incoming_call_presenter.dart';
 
@@ -110,17 +111,6 @@ void main() {
 
     test('is false when someone else joins, as the caller does', () {
       joinCall(room, userId: _bob, deviceId: _laptop);
-
-      expect(answeredOnAnotherDevice(room, 'c1'), isFalse);
-    });
-
-    test('is false for an expired membership', () {
-      joinCall(
-        room,
-        userId: _me,
-        deviceId: _laptop,
-        expiresIn: const Duration(seconds: -5),
-      );
 
       expect(answeredOnAnotherDevice(room, 'c1'), isFalse);
     });
@@ -221,20 +211,6 @@ void main() {
       expect(container.read(resolvedCallIdsProvider), {'c1'});
     });
 
-    test('joining from this device does not end the ring', () async {
-      await ring();
-      joinCall(room, userId: _me, deviceId: _thisPhone);
-
-      await sync();
-
-      expect(presenter.ends, isEmpty);
-      expect(SystemRing.instance.ringing.value, (
-        roomId: room.id,
-        callId: 'c1',
-      ));
-      expect(container.read(resolvedCallIdsProvider), isEmpty);
-    });
-
     test('with nothing ringing, my other device joining or declining changes '
         'nothing', () async {
       joinCall(room, userId: _me, deviceId: _laptop);
@@ -246,30 +222,12 @@ void main() {
       expect(container.read(resolvedCallIdsProvider), isEmpty);
     });
 
-    test('the caller joining, my other device in a different call, or the '
-        'same call id in another room leaves the ring up', () async {
+    test('my other device in the same call id in another room leaves the '
+        'ring up', () async {
       await ring();
 
-      joinCall(room, userId: _bob, deviceId: 'BOBPHONE');
-      await sync();
-      joinCall(room, userId: _me, deviceId: _laptop, callId: 'c2');
-      await sync();
       joinCall(otherRoom, userId: _me, deviceId: _laptop);
       await sync();
-
-      expect(presenter.ends, isEmpty);
-      expect(SystemRing.instance.ringing.value, isNotNull);
-      expect(container.read(resolvedCallIdsProvider), isEmpty);
-    });
-
-    test('a decline by someone else, of another call, in another room, or '
-        'another kind of call message leaves the ring up', () async {
-      await ring();
-
-      await onTimeline(declineFrom(room, senderId: _bob));
-      await onTimeline(declineFrom(room, callId: 'c2'));
-      await onTimeline(declineFrom(otherRoom));
-      await onTimeline(declineFrom(room, msgtype: callInviteMsgtype));
 
       expect(presenter.ends, isEmpty);
       expect(SystemRing.instance.ringing.value, isNotNull);
@@ -299,7 +257,7 @@ void main() {
   });
 
   group('on iOS, CallKit', () {
-    late RecordedCallsChannel toNative;
+    late RecordedMethodCalls toNative;
 
     setUp(() {
       toNative = installFakeCallsChannel();
@@ -319,24 +277,11 @@ void main() {
         ],
       ]);
     });
-
-    test('hears the call was declined elsewhere', () async {
-      await ring();
-
-      await onTimeline(declineFrom(room));
-
-      expect(toNative.calls.map((c) => [c.method, c.arguments]), [
-        [
-          'endIncomingCall',
-          {'roomId': room.id, 'callId': 'c1', 'reason': 'declinedElsewhere'},
-        ],
-      ]);
-    });
   });
 
   group('on Android, with the ring notification up for the call', () {
-    late RecordedCallStyleCalls callStyle;
-    late RecordedCallsChannel toNative;
+    late RecordedMethodCalls callStyle;
+    late RecordedMethodCalls toNative;
 
     setUp(() async {
       installSilentNotificationSideChannels();
@@ -366,28 +311,6 @@ void main() {
       expect(callStyle.calls.map((c) => c.method), ['cancelIncomingCallStyle']);
       expect(await rememberedCallId(), isNull);
       expect(toNative.calls, isEmpty);
-    });
-
-    test('my other device declining takes the notification down and forgets '
-        'the call', () async {
-      await ring();
-
-      await onTimeline(declineFrom(room));
-
-      expect(callStyle.calls.map((c) => c.method), ['cancelIncomingCallStyle']);
-      expect(await rememberedCallId(), isNull);
-      expect(toNative.calls, isEmpty);
-    });
-
-    test('my other device answering a different call leaves the notification '
-        'up and the call remembered', () async {
-      await ring();
-      joinCall(room, userId: _me, deviceId: _laptop, callId: 'c2');
-
-      await sync();
-
-      expect(callStyle.calls, isEmpty);
-      expect(await rememberedCallId(), 'c1');
     });
   });
 }

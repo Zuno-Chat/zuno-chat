@@ -3,7 +3,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/matrix/currently_open_room_provider.dart';
@@ -11,42 +10,15 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/invite_notification_provider.dart';
 import 'package:zuno/core/notifications/message_notification_provider.dart';
 import 'package:zuno/core/notifications/notification_preview.dart';
-import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/read_model/opaque_thread_ids.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/notifying_client.dart';
 import '../../helpers/platform_capabilities.dart';
-
-class _NotifyingClient extends Client {
-  _NotifyingClient() : super('test', database: FakeDatabaseApi());
-
-  @override
-  String? prevBatch = 's1';
-
-  @override
-  PushruleEvaluator get pushruleEvaluator => PushruleEvaluator.fromRuleset(
-    PushRuleSet(
-      underride: [
-        PushRule(
-          ruleId: '.m.rule.message',
-          default$: true,
-          enabled: true,
-          conditions: [
-            PushCondition(
-              kind: 'event_match',
-              key: 'type',
-              pattern: 'm.room.message',
-            ),
-          ],
-          actions: ['notify'],
-        ),
-      ],
-    ),
-  );
-}
+import '../../helpers/preferences_container.dart';
 
 void main() {
   final withExtension = capabilitiesLike(
@@ -54,7 +26,7 @@ void main() {
     nseNotifications: true,
     voipRing: true,
   );
-  late _NotifyingClient client;
+  late NotifyingClient client;
   late Room room;
   late RecordedNotifications notifications;
   late List<MethodCall> native;
@@ -82,20 +54,17 @@ void main() {
         });
     addTearDown(OpaqueThreadIds.instance.reset);
     addTearDown(() => inFront(true));
-    client = _NotifyingClient()..setUserId('@me:x');
+    client = NotifyingClient()..setUserId('@me:x');
     room = buildTestRoom(client);
     room.setState(User('@a:x', displayName: 'Alice', room: room));
     client.rooms.add(room);
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    container = ProviderContainer(
+    container = await containerWithPreferences(
+      {},
       overrides: [
         matrixClientProvider.overrideWithValue(client),
-        sharedPreferencesProvider.overrideWithValue(prefs),
         platformCapabilitiesProvider.overrideWithValue(withExtension),
       ],
     );
-    addTearDown(container.dispose);
     container.read(messageNotificationProvider);
     container.read(roomInviteNotificationProvider);
   });
@@ -244,47 +213,6 @@ void main() {
       });
     },
   );
-
-  group('the message decision', () {
-    MessageNotificationContent? decide(
-      NotificationPreview preview,
-      Map<String, Object?> content,
-    ) => messageNotificationFor(
-      client,
-      buildTestEvent(room, eventId: r'$2', senderId: '@a:x', content: content),
-      pushRuleAction: EvaluatedPushRuleAction()..notify = true,
-      notifyMe: NotifyMe.all,
-      currentlyOpenRoomId: null,
-      preview: preview,
-    ).content;
-
-    test('Name only replaces the text but keeps a missed call', () {
-      expect(
-        decide(NotificationPreview.nameOnly, {
-          'msgtype': MessageTypes.Text,
-          'body': 'hi',
-        })?.text,
-        'New message',
-      );
-      expect(
-        decide(NotificationPreview.nameOnly, {
-          'msgtype': 'im.zuno.call_summary',
-          'body': 'Missed Voice call',
-          'call_id': 'c',
-          'kind': 'voice',
-          'status': 'missed',
-        })?.text,
-        'Missed Voice call',
-      );
-      expect(
-        decide(NotificationPreview.full, {
-          'msgtype': MessageTypes.Text,
-          'body': 'hi',
-        })?.text,
-        'hi',
-      );
-    });
-  });
 
   group('conversation shortcuts', () {
     test('are pushed only where notifications show avatars', () async {

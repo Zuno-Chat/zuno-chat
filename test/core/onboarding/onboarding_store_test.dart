@@ -1,12 +1,13 @@
 import 'dart:async';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+
+import '../../helpers/preferences_container.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -18,13 +19,10 @@ void main() {
     store = OnboardingStore(await SharedPreferences.getInstance());
   });
 
-  test('nothing has been asked yet on a fresh install', () {
+  test('nothing has been asked and nobody registered on a fresh install', () {
     expect(store.shown('@alex:example.org'), isEmpty);
-    expect(store.flowInProgress, isFalse);
-  });
-
-  test('no account counts as just registered on a fresh install', () {
     expect(store.justRegistered('@alex:example.org'), isFalse);
+    expect(store.flowInProgress, isFalse);
   });
 
   test('registering is remembered until the profile step is shown', () async {
@@ -39,12 +37,6 @@ void main() {
     final reopened = OnboardingStore(await SharedPreferences.getInstance());
 
     expect(reopened.justRegistered('@alex:example.org'), isTrue);
-  });
-
-  test('a step marked shown stays shown', () async {
-    await store.markShown('@alex:example.org', OnboardingStep.profile);
-
-    expect(store.shown('@alex:example.org'), {OnboardingStep.profile});
   });
 
   test('marking is additive rather than replacing', () async {
@@ -81,15 +73,12 @@ void main() {
 
   test('a sign-in after a sign-out that wiped the app data starts with '
       'nothing shown, even without a restart', () async {
-    final prefs = await SharedPreferences.getInstance();
     final logins = StreamController<bool>();
-    final container = ProviderContainer(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        isLoggedInProvider.overrideWith((ref) => logins.stream),
-      ],
+    final container = await containerWithPreferences(
+      {},
+      overrides: [isLoggedInProvider.overrideWith((ref) => logins.stream)],
     );
-    addTearDown(container.dispose);
+    final prefs = container.read(sharedPreferencesProvider);
     container.listen(onboardingStoreProvider, (_, _) {});
     logins.add(true);
     await pumpEventQueue();

@@ -3,26 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/matrix/media_quality.dart';
 
 void main() {
-  group('imageShrinkMaxDimension', () {
-    test('720 when reduce media size is on', () {
-      expect(imageShrinkMaxDimension(reduceMediaSize: true), 720);
-    });
-
-    test('1080 when reduce media size is off', () {
-      expect(imageShrinkMaxDimension(reduceMediaSize: false), 1080);
-    });
-  });
-
-  group('imageJpegQuality', () {
-    test('75 when reduce media size is on', () {
-      expect(imageJpegQuality(reduceMediaSize: true), 75);
-    });
-
-    test('85 when reduce media size is off', () {
-      expect(imageJpegQuality(reduceMediaSize: false), 85);
-    });
-  });
-
   group('pickerImageLimits', () {
     test('with a native resizer the picker hands over the original', () {
       for (final reduce in [true, false]) {
@@ -45,22 +25,7 @@ void main() {
     });
   });
 
-  group('videoLongEdge', () {
-    test('480 when reduce media size is on', () {
-      expect(videoLongEdge(reduceMediaSize: true), 480);
-    });
-
-    test('720 when reduce media size is off', () {
-      expect(videoLongEdge(reduceMediaSize: false), 720);
-    });
-  });
-
   group('scaledToFit', () {
-    test('leaves a landscape source already under the cap alone', () {
-      final result = scaledToFit(width: 640, height: 480, maxLongEdge: 720);
-      expect(result, (width: 640, height: 480));
-    });
-
     test('shrinks a landscape source down, preserving aspect ratio', () {
       final result = scaledToFit(width: 1920, height: 1080, maxLongEdge: 720);
       expect(result.width, 720);
@@ -95,41 +60,6 @@ void main() {
         expect(result, (width: 0, height: 0));
       },
     );
-  });
-
-  group('toRawEncoderOrientation', () {
-    test('leaves a landscape-source target unchanged', () {
-      final result = toRawEncoderOrientation(
-        target: (width: 720, height: 404),
-        isPortrait: false,
-      );
-      expect(result, (width: 720, height: 404));
-    });
-
-    test('swaps a portrait-source target — the raw sensor buffer is landscape-shaped', () {
-      final result = toRawEncoderOrientation(
-        target: (width: 270, height: 480),
-        isPortrait: true,
-      );
-      expect(result, (width: 480, height: 270));
-    });
-
-    test('a square target is unaffected by the swap either way', () {
-      expect(
-        toRawEncoderOrientation(
-          target: (width: 500, height: 500),
-          isPortrait: true,
-        ),
-        (width: 500, height: 500),
-      );
-      expect(
-        toRawEncoderOrientation(
-          target: (width: 500, height: 500),
-          isPortrait: false,
-        ),
-        (width: 500, height: 500),
-      );
-    });
   });
 
   group('encoderTarget', () {

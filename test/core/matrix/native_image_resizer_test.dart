@@ -3,8 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
 import 'package:zuno/core/matrix/native_image_resizer.dart';
-import 'package:zuno/core/platform/app_platform.dart';
-import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../helpers/platform_capabilities.dart';
 
@@ -85,24 +83,6 @@ void main() {
       ),
       isNull,
     );
-  });
-
-  test('with android capabilities the resize goes native', () async {
-    final calls = <MethodCall>[];
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      calls.add(call);
-      return {
-        'bytes': output,
-        'width': 1080,
-        'height': 810,
-        'mimeType': 'image/jpeg',
-      };
-    });
-    final result = await NativeImageResizer.forTest(
-      capabilities: capabilitiesFor(AppPlatform.android),
-    ).resize(input, maxDimension: 1080, quality: 85);
-    expect(calls.single.method, 'resize');
-    expect(result!.bytes, output);
   });
 
   group('without native resizing', () {

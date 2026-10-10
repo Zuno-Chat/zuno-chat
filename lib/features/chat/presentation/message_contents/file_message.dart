@@ -32,7 +32,7 @@ class _FileMessageState extends State<FileMessage> {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _downloading = true);
     try {
-      await saveAttachmentWithFeedback(messenger, widget.event);
+      await saveAttachmentsWithFeedback(messenger, [widget.event]);
     } finally {
       if (mounted) setState(() => _downloading = false);
     }

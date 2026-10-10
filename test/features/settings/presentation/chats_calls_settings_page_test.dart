@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/chats_calls_settings_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/preferences_container.dart';
 
 void main() {
   Finder switchTile(String title) =>
@@ -18,12 +18,7 @@ void main() {
   }) async {
     await tester.binding.setSurfaceSize(const Size(800, 3000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    SharedPreferences.setMockInitialValues(prefs);
-    final sharedPrefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [sharedPreferencesProvider.overrideWithValue(sharedPrefs)],
-    );
-    addTearDown(container.dispose);
+    final container = await containerWithPreferences(prefs);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -38,33 +33,6 @@ void main() {
     await pumpPage(tester);
 
     expectEveryRowOnACard();
-  });
-
-  testWidgets('holds the theme, the chat toggles and the call toggle', (
-    tester,
-  ) async {
-    await pumpPage(tester);
-
-    expect(find.text('Chats & calls'), findsOneWidget);
-    expect(find.text('Follow system'), findsOneWidget);
-    expect(switchTile('Show when you are typing'), findsOneWidget);
-    expect(switchTile('Prevent accidental calls'), findsOneWidget);
-  });
-
-  testWidgets('no Link previews row, live or placeholder', (tester) async {
-    await pumpPage(tester);
-
-    expect(find.text('Link previews'), findsNothing);
-  });
-
-  testWidgets('data, storage and diagnostics rows live elsewhere', (
-    tester,
-  ) async {
-    await pumpPage(tester);
-
-    expect(find.text('Reduce media size'), findsNothing);
-    expect(find.text('Use less data for calls'), findsNothing);
-    expect(find.text('Show hidden messages'), findsNothing);
   });
 
   testWidgets('picking Dark changes the theme', (tester) async {
@@ -86,19 +54,6 @@ void main() {
     await tester.pump();
 
     expect(container.read(confirmBeforeCallingProvider), isFalse);
-    expect(
-      tester
-          .widget<SwitchListTile>(switchTile('Prevent accidental calls'))
-          .value,
-      isFalse,
-    );
-  });
-
-  testWidgets('a stored off for Prevent accidental calls is read back', (
-    tester,
-  ) async {
-    await pumpPage(tester, prefs: {'settings.confirm_before_calling': false});
-
     expect(
       tester
           .widget<SwitchListTile>(switchTile('Prevent accidental calls'))

@@ -11,10 +11,11 @@ import 'package:zuno/features/communities/presentation/join_requests_view.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/layout_matrix.dart';
+import '../../../helpers/pump_until.dart';
 
 const _me = '@me:example.org';
 
-class _CountingDatabase extends FakeDatabaseApi {
+class _CountingDatabase extends FakeDatabaseApi with SendCapableDatabase {
   int memberReads = 0;
 
   @override
@@ -22,14 +23,6 @@ class _CountingDatabase extends FakeDatabaseApi {
     memberReads++;
     return [];
   }
-
-  @override
-  Future<void> storeEventUpdate(
-    String roomId,
-    StrippedStateEvent event,
-    EventUpdateType type,
-    Client client,
-  ) async {}
 }
 
 void main() {
@@ -102,10 +95,7 @@ void main() {
   }
 
   Future<void> network(WidgetTester tester) async {
-    for (var i = 0; i < 3; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
+    await pumpRealAsync(tester, rounds: 3);
   }
 
   Iterable<String> calls() => requests.map((r) => r.url.pathSegments.last);
@@ -126,7 +116,13 @@ void main() {
 
       await pump(tester, JoinRequestsBanner(room: room));
 
-      expect(find.byType(Material), findsNWidgets(1));
+      expect(
+        find.descendant(
+          of: find.byType(JoinRequestsBanner),
+          matching: find.byType(Material),
+        ),
+        findsNothing,
+      );
       expect(find.text('Let in'), findsNothing);
     });
 

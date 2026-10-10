@@ -65,7 +65,7 @@ void main() {
   test('a purge deletes the cached tiles', () async {
     final cache = mapTileCache();
     await cache.putTile(url: _url, metadata: _freshForADay(), bytes: _tile);
-    expect(await _readBack(cache, _url), isNotNull);
+    expect((await _readBack(cache, _url))?.bytes, _tile);
 
     await purgeMapTileCache();
 
@@ -75,7 +75,7 @@ void main() {
   test('a cache handed out before a purge keeps caching after it', () async {
     final cache = mapTileCache();
     await cache.putTile(url: _url, metadata: _freshForADay(), bytes: _tile);
-    expect(await _readBack(cache, _url), isNotNull);
+    expect((await _readBack(cache, _url))?.bytes, _tile);
 
     await purgeMapTileCache();
     const later = 'https://tiles.example.org/1/1/0.png';

@@ -40,13 +40,21 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('a sent code leads to the account form', (tester) async {
+  testWidgets('a sent code leads to the account form, naming the address', (
+    tester,
+  ) async {
     await pumpCodePage(tester);
 
     await send(tester, 'alex@example.org');
 
     expect(find.byType(RegisterPage), findsOneWidget);
     expect(find.text('Sign-up code'), findsOneWidget);
+    expect(
+      find.text(
+        'Check alex@example.org for your code. It expires in 24 hours.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('an address that cannot be one never reaches the network', (

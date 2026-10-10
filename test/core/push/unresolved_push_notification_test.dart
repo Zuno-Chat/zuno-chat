@@ -60,16 +60,6 @@ void main() {
         isNull,
       );
     });
-
-    test('nothing for a clear-out push with no room', () {
-      expect(
-        unresolvedPushNotification(
-          client,
-          const PushNotification(counts: PushNotificationCounts(unread: 0)),
-        ),
-        isNull,
-      );
-    });
   });
 
   test('names the room from the local cache when the gateway sent no name', () {

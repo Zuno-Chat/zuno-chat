@@ -4,6 +4,14 @@ enum PreviewLevel: String, Equatable, Sendable {
   case full
   case name
   case none
+
+  init(meta value: String?, stated: Bool) {
+    guard stated else {
+      self = .full
+      return
+    }
+    self = value.flatMap(PreviewLevel.init(rawValue:)) ?? PreviewLevel.none
+  }
 }
 
 enum NotifyFile {
@@ -64,13 +72,8 @@ struct NotifyMeta: Decodable, Equatable, Sendable {
     ringtone = try values.decodeIfPresent(Bool.self, forKey: .ringtone) ?? true
     voipCurrent = try values.decodeIfPresent(Bool.self, forKey: .voipCurrent) ?? false
     heartbeatMs = try values.decodeIfPresent(Int64.self, forKey: .heartbeatMs) ?? 0
-    if values.contains(.level) {
-      level =
-        (try? values.decode(String.self, forKey: .level)).flatMap(PreviewLevel.init(rawValue:))
-        ?? PreviewLevel.none
-    } else {
-      level = .full
-    }
+    level = PreviewLevel(
+      meta: try? values.decode(String.self, forKey: .level), stated: values.contains(.level))
   }
 
   static func decoded(_ data: Data) -> NotifyMeta? {

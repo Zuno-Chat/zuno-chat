@@ -133,16 +133,10 @@ struct NseMeta: Equatable, Sendable {
     guard let json = NseJson.parse(data), json["v"]?.int64 == 1,
       let user = json["user"]?.string, let baseUrl = json["base_url"]?.string, !baseUrl.isEmpty
     else { return nil }
-    let level: PreviewLevel
-    if let stated = json["level"] {
-      level = stated.string.flatMap(PreviewLevel.init(rawValue:)) ?? PreviewLevel.none
-    } else {
-      level = .full
-    }
     return NseMeta(
       user: user,
       baseUrl: baseUrl,
-      level: level,
+      level: PreviewLevel(meta: json["level"]?.string, stated: json["level"] != nil),
       mentionsOnly: json["notify"]?.string == "mentions",
       tone: json["tone"]?.bool ?? true,
       ringtone: json["ringtone"]?.bool ?? true,
@@ -252,6 +246,11 @@ struct NseDelivered: Equatable, Sendable {
   var t: String? { userInfo["t"] }
   var e: String? { userInfo["e"] }
   var k: String? { userInfo["k"] }
-  var o: Int64? { userInfo["o"].flatMap { Int64($0) } }
   var isFloor: Bool { userInfo["f"] == "1" }
+
+  var note: DeliveredNote {
+    DeliveredNote(
+      identifier: identifier, thread: threadId, roomToken: t,
+      seconds: NotificationUserInfo.seconds(userInfo["o"]), appPosted: !pushed)
+  }
 }

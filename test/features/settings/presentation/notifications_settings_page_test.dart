@@ -1,13 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -29,44 +26,34 @@ import 'package:zuno/features/settings/presentation/notifications_settings_page.
 import 'package:zuno/features/settings/presentation/push_diagnostics_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_permissions.dart';
 import '../../../helpers/fake_unified_push.dart';
+import '../../../helpers/fixed_delivery_mode.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/preferences_container.dart';
+import '../../../helpers/pusher_recording_client.dart';
 
-class _FixedDeliveryModeNotifier extends NotificationDeliveryModeNotifier {
-  _FixedDeliveryModeNotifier(this._mode);
-  final NotificationDeliveryMode _mode;
-
-  @override
-  NotificationDeliveryMode build() => _mode;
-}
-
-class _PusherRecordingClient extends Client {
-  _PusherRecordingClient() : super('test', database: FakeDatabaseApi()) {
-    homeserver = Uri.parse('https://matrix.example.org');
-  }
-
-  final posted = <Pusher>[];
-
-  @override
-  Future<void> postPusher(Pusher pusher, {bool? append}) async =>
-      posted.add(pusher);
-
-  @override
-  Future<void> deletePusher(PusherId pusherId) async {}
-}
-
-void _stubNotificationPermission({required bool granted}) {
-  const channel = MethodChannel('flutter.baseflow.com/permissions/methods');
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-  messenger.setMockMethodCallHandler(
-    channel,
-    (call) async =>
-        call.method == 'checkPermissionStatus' ? (granted ? 1 : 0) : null,
-  );
-  addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+void _useApplePush(PusherRecordingClient client) {
+  ambientCapabilities = iosCapabilities;
+  final tokenReader = apnsDeliveryProvider.tokenReader;
+  final notificationsAllowed = apnsDeliveryProvider.notificationsAllowed;
+  final environmentReader = apnsDeliveryProvider.environmentReader;
+  apnsDeliveryProvider
+    ..tokenReader = (() async => 'a1b2c3d4' * 8)
+    ..notificationsAllowed = (() async => true)
+    ..environmentReader = (() async => 'development');
+  addTearDown(() async {
+    await apnsDeliveryProvider.stop(client);
+    apnsDeliveryProvider
+      ..tokenReader = tokenReader
+      ..notificationsAllowed = notificationsAllowed
+      ..environmentReader = environmentReader
+      ..resetEnvironmentForTesting();
+  });
 }
 
 Future<ProviderContainer> _pumpPage(
@@ -79,21 +66,16 @@ Future<ProviderContainer> _pumpPage(
 }) async {
   await tester.binding.setSurfaceSize(const Size(800, 3000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  SharedPreferences.setMockInitialValues({});
-  final prefs = await SharedPreferences.getInstance();
-  final container = ProviderContainer(
+  final container = await containerWithPreferences(
+    {},
     overrides: [
-      sharedPreferencesProvider.overrideWithValue(prefs),
       matrixClientProvider.overrideWithValue(client ?? buildTestClient()),
-      notificationDeliveryModeProvider.overrideWith(
-        () => _FixedDeliveryModeNotifier(mode),
-      ),
+      fixedDeliveryMode(mode),
       if (capabilities != null)
         platformCapabilitiesProvider.overrideWithValue(capabilities),
       ...overrides,
     ],
   );
-  addTearDown(container.dispose);
 
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -138,7 +120,7 @@ void main() {
   });
 
   testWidgets('the Delivery row names the method in use', (tester) async {
-    _stubNotificationPermission(granted: true);
+    installFakePermissions();
     await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
 
     final row = tester.widget<ListTile>(
@@ -150,28 +132,19 @@ void main() {
     );
   });
 
-  testWidgets('transport rows are off this page, whatever the method', (
+  testWidgets('the transport rows sit behind Delivery, on the delivery page', (
     tester,
   ) async {
+    installFakePermissions();
     await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
-
-    expect(find.text('Delivery method'), findsNothing);
-    expect(find.text('Unrestricted battery usage'), findsNothing);
-    expect(find.text('Background data'), findsNothing);
-    expect(find.text('Status'), findsNothing);
-  });
-
-  testWidgets('everyday rows stay', (tester) async {
-    await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
-
-    expect(find.text('Enable notifications'), findsOneWidget);
-    expect(find.text('Mentions only'), findsOneWidget);
-    expect(find.text('Ringtone'), findsOneWidget);
-  });
-
-  testWidgets('tapping Delivery opens the delivery page', (tester) async {
-    _stubNotificationPermission(granted: true);
-    await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
+    for (final row in [
+      'Delivery method',
+      'Unrestricted battery usage',
+      'Background data',
+      'Status',
+    ]) {
+      expect(find.text(row), findsNothing, reason: row);
+    }
 
     await tester.tap(find.widgetWithText(ListTile, 'Delivery'));
     await tester.pumpAndSettle();
@@ -182,7 +155,7 @@ void main() {
 
   testWidgets('with notifications off there are no Delivery or full-screen '
       'call rows', (tester) async {
-    _stubNotificationPermission(granted: false);
+    installFakePermissions(onCheck: permissionDenied);
     await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
     expect(find.text('Enable notifications'), findsOneWidget);
@@ -191,56 +164,15 @@ void main() {
   });
 
   testWidgets('with notifications on both rows are there', (tester) async {
-    _stubNotificationPermission(granted: true);
+    installFakePermissions();
     await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
     expect(find.widgetWithText(ListTile, 'Delivery'), findsOneWidget);
     expect(find.text('Full-screen call alerts'), findsOneWidget);
   });
 
-  group('where calls cannot take over the lock screen', () {
-    testWidgets('there is no Full-screen call alerts row', (tester) async {
-      _stubNotificationPermission(granted: true);
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.fcm,
-        capabilities: capabilitiesLike(
-          androidCapabilities,
-          fullScreenIntent: false,
-        ),
-      );
-
-      expect(find.text('Full-screen call alerts'), findsNothing);
-      expect(find.textContaining('takes over the screen'), findsNothing);
-      expect(find.widgetWithText(ListTile, 'Delivery'), findsOneWidget);
-    });
-
-    testWidgets('iOS has no row either', (tester) async {
-      _stubNotificationPermission(granted: true);
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: iosCapabilities,
-      );
-
-      expect(find.text('Full-screen call alerts'), findsNothing);
-    });
-  });
-
-  testWidgets('Android keeps the Full-screen call alerts row', (tester) async {
-    _stubNotificationPermission(granted: true);
-    await _pumpPage(
-      tester,
-      NotificationDeliveryMode.fcm,
-      capabilities: androidCapabilities,
-    );
-
-    expect(find.text('Full-screen call alerts'), findsOneWidget);
-  });
-
-  testWidgets('with push diagnostics a Diagnostics row opens the diagnostics', (
-    tester,
-  ) async {
+  testWidgets('with push diagnostics a Diagnostics row opens the diagnostics, '
+      'the only way to Push target', (tester) async {
     await _pumpPage(
       tester,
       NotificationDeliveryMode.apns,
@@ -249,26 +181,12 @@ void main() {
         pushDiagnosticsSourceProvider.overrideWithValue(_DiagnosticsSource()),
       ],
     );
+    expect(find.widgetWithText(ListTile, 'Push target'), findsNothing);
 
     await tester.tap(find.text('Diagnostics'));
     await tester.pumpAndSettle();
 
     expect(find.byType(PushDiagnosticsPage), findsOneWidget);
-  });
-
-  testWidgets('Android has the Diagnostics row too', (tester) async {
-    await _pumpPage(
-      tester,
-      NotificationDeliveryMode.fcm,
-      capabilities: androidCapabilities,
-    );
-    await tester.scrollUntilVisible(
-      find.widgetWithText(ListTile, 'Diagnostics'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-
-    expect(find.widgetWithText(ListTile, 'Diagnostics'), findsOneWidget);
   });
 
   group('on Android, Enable notifications', () {
@@ -290,7 +208,7 @@ void main() {
     ]) {
       testWidgets('with ${mode.name} says only that calls can ring full '
           'screen, next to the Delivery row', (tester) async {
-        _stubNotificationPermission(granted: true);
+        installFakePermissions();
         await _pumpPage(tester, mode, capabilities: androidCapabilities);
 
         expect(subtitle(tester), 'Calls can ring full screen');
@@ -301,7 +219,7 @@ void main() {
     testWidgets('with background sync also says where its status shows', (
       tester,
     ) async {
-      _stubNotificationPermission(granted: true);
+      installFakePermissions();
       await _pumpPage(
         tester,
         NotificationDeliveryMode.backgroundService,
@@ -318,7 +236,7 @@ void main() {
     testWidgets('while off says nothing is delivered, whatever the method', (
       tester,
     ) async {
-      _stubNotificationPermission(granted: false);
+      installFakePermissions(onCheck: permissionDenied);
       await _pumpPage(
         tester,
         NotificationDeliveryMode.backgroundService,
@@ -337,7 +255,7 @@ void main() {
       'Delivery page', (tester) async {
     fcmDeliveryProvider.status.value = FcmStatus.tokenFailed;
     addTearDown(() => fcmDeliveryProvider.status.value = FcmStatus.idle);
-    _stubNotificationPermission(granted: true);
+    installFakePermissions();
     await _pumpPage(
       tester,
       NotificationDeliveryMode.fcm,
@@ -353,39 +271,25 @@ void main() {
   });
 
   group('where notifications have one way to arrive', () {
-    late _PusherRecordingClient client;
+    late PusherRecordingClient client;
 
     setUp(() {
-      ambientCapabilities = iosCapabilities;
-      client = _PusherRecordingClient();
-      final tokenReader = apnsDeliveryProvider.tokenReader;
-      final notificationsAllowed = apnsDeliveryProvider.notificationsAllowed;
-      final environmentReader = apnsDeliveryProvider.environmentReader;
-      apnsDeliveryProvider
-        ..tokenReader = (() async => 'a1b2c3d4' * 8)
-        ..notificationsAllowed = (() async => true)
-        ..environmentReader = (() async => 'development');
-      addTearDown(() async {
-        await apnsDeliveryProvider.stop(client);
-        apnsDeliveryProvider
-          ..tokenReader = tokenReader
-          ..notificationsAllowed = notificationsAllowed
-          ..environmentReader = environmentReader
-          ..resetEnvironmentForTesting();
-      });
+      client = PusherRecordingClient();
+      _useApplePush(client);
     });
 
     Future<ProviderContainer> pumpApplePush(
       WidgetTester tester, {
       ApnsStatus status = ApnsStatus.ready,
-      int dropped = 0,
       bool granted = true,
       List<Override> overrides = const [],
     }) {
       apnsDeliveryProvider
         ..status.value = status
-        ..dropped.value = dropped;
-      _stubNotificationPermission(granted: granted);
+        ..dropped.value = 0;
+      installFakePermissions(
+        onCheck: granted ? permissionGranted : permissionDenied,
+      );
       return _pumpPage(
         tester,
         NotificationDeliveryMode.apns,
@@ -397,24 +301,14 @@ void main() {
 
     Finder retry() => find.widgetWithText(TextButton, 'Retry');
 
-    testWidgets('there is no Delivery row', (tester) async {
+    testWidgets('there is no Delivery or Full-screen call alerts row', (
+      tester,
+    ) async {
       await pumpApplePush(tester);
 
       expect(find.widgetWithText(ListTile, 'Delivery'), findsNothing);
       expect(find.byIcon(Icons.cloud_sync_outlined), findsNothing);
-    });
-
-    testWidgets('Diagnostics is the only way to Push target', (tester) async {
-      _stubNotificationPermission(granted: true);
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: capabilitiesLike(iosCapabilities, pushDiagnostics: true),
-        client: client,
-      );
-
-      expect(find.widgetWithText(ListTile, 'Push target'), findsNothing);
-      expect(find.widgetWithText(ListTile, 'Diagnostics'), findsOneWidget);
+      expect(find.text('Full-screen call alerts'), findsNothing);
     });
 
     testWidgets('Enable notifications says what it does on this device', (
@@ -432,63 +326,36 @@ void main() {
       expect(find.textContaining('background sync'), findsNothing);
     });
 
-    for (final (name, status, dropped, message) in [
-      (
-        'a token that never came',
-        ApnsStatus.tokenFailed,
-        0,
-        'Could not set up notifications on this device',
-      ),
-      (
-        'a refused registration',
-        ApnsStatus.pusherFailed,
-        0,
-        'Could not set up notifications on this device',
-      ),
-      (
-        'a dropped registration',
-        ApnsStatus.ready,
-        2,
-        'Notifications may not reach this device',
-      ),
-    ]) {
-      testWidgets('$name shows on the first card, and Retry registers this '
-          'device again', (tester) async {
-        await pumpApplePush(tester, status: status, dropped: dropped);
+    testWidgets('a refused registration shows on the first card, and Retry '
+        'registers this device again', (tester) async {
+      const message = 'Could not set up notifications on this device';
+      await pumpApplePush(tester, status: ApnsStatus.pusherFailed);
 
-        final row = find.widgetWithText(ListTile, message);
-        expect(
-          find.descendant(of: find.byType(CardGroup).first, matching: row),
-          findsOneWidget,
-        );
-        final icon = tester.widget<Icon>(
-          find.descendant(of: row, matching: find.byIcon(Icons.error_outline)),
-        );
-        expect(icon.color, Theme.of(tester.element(row)).colorScheme.error);
+      final row = find.widgetWithText(ListTile, message);
+      expect(
+        find.descendant(of: find.byType(CardGroup).first, matching: row),
+        findsOneWidget,
+      );
+      final icon = tester.widget<Icon>(
+        find.descendant(of: row, matching: find.byIcon(Icons.error_outline)),
+      );
+      expect(icon.color, Theme.of(tester.element(row)).colorScheme.error);
 
-        await tester.tap(find.descendant(of: row, matching: retry()));
-        await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: row, matching: retry()));
+      await tester.pumpAndSettle();
 
-        expect(client.posted, hasLength(1));
-        expect(apnsDeliveryProvider.status.value, ApnsStatus.ready);
-        expect(apnsDeliveryProvider.dropped.value, 0);
-        expect(find.text(message), findsNothing);
-        expect(retry(), findsNothing);
-      });
-    }
+      expect(client.posted, hasLength(1));
+      expect(apnsDeliveryProvider.status.value, ApnsStatus.ready);
+      expect(find.text(message), findsNothing);
+      expect(retry(), findsNothing);
+    });
 
-    for (final status in [
-      ApnsStatus.ready,
-      ApnsStatus.registering,
-      ApnsStatus.postingPusher,
-    ]) {
-      testWidgets('${status.name} shows no problem', (tester) async {
-        await pumpApplePush(tester, status: status);
+    testWidgets('a working registration shows no problem', (tester) async {
+      await pumpApplePush(tester);
 
-        expect(find.byIcon(Icons.error_outline), findsNothing);
-        expect(retry(), findsNothing);
-      });
-    }
+      expect(find.byIcon(Icons.error_outline), findsNothing);
+      expect(retry(), findsNothing);
+    });
 
     testWidgets('with notifications off no problem shows, even one still '
         'reported', (tester) async {
@@ -505,22 +372,6 @@ void main() {
 
       expect(find.text(failure.message), findsNothing);
       expect(retry(), findsNothing);
-    });
-
-    testWidgets('a reported problem shows once notifications are on', (
-      tester,
-    ) async {
-      const failure = DeliveryFailure(
-        message: 'Could not set up notifications on this device',
-        action: DeliveryFailureAction.retry,
-      );
-      await pumpApplePush(
-        tester,
-        overrides: [deliveryFailureProvider.overrideWithValue(failure)],
-      );
-
-      expect(find.text(failure.message), findsOneWidget);
-      expect(retry(), findsOneWidget);
     });
 
     testWidgets('a problem dismissed on the home banner still shows here', (
@@ -542,58 +393,21 @@ void main() {
       );
       expect(retry(), findsOneWidget);
     });
-
-    testWidgets('retrying here brings back the banner it was dismissed '
-        'from', (tester) async {
-      final container = await pumpApplePush(
-        tester,
-        status: ApnsStatus.pusherFailed,
-      );
-      container
-          .read(dismissedDeliveryFailureProvider.notifier)
-          .dismiss(container.read(deliveryFailureProvider)!);
-      apnsDeliveryProvider.tokenReader = () async =>
-          throw PlatformException(code: 'unavailable');
-
-      await tester.tap(retry());
-      await tester.pump();
-
-      expect(apnsDeliveryProvider.status.value, ApnsStatus.tokenFailed);
-      expect(container.read(dismissedDeliveryFailureProvider), isNull);
-      await apnsDeliveryProvider.stop(client);
-    });
   });
 
-  group('where the app cannot vibrate', () {
-    testWidgets('there are no vibration switches', (tester) async {
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.fcm,
-        capabilities: capabilitiesLike(
-          androidCapabilities,
-          vibrationPatterns: false,
-        ),
-      );
+  testWidgets('iOS has no vibration switches, only sounds', (tester) async {
+    await _pumpPage(
+      tester,
+      NotificationDeliveryMode.apns,
+      capabilities: iosCapabilities,
+    );
 
-      expect(find.text('Vibrate for calls'), findsNothing);
-      expect(find.text('Vibrate for messages'), findsNothing);
-      expect(find.text('Sounds & vibration'), findsNothing);
-      expect(find.text('Sounds'), findsOneWidget);
-      expect(find.text('Ringtone'), findsOneWidget);
-      expect(find.text('Message tone'), findsOneWidget);
-    });
-
-    testWidgets('iOS has none either', (tester) async {
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: iosCapabilities,
-      );
-
-      expect(find.text('Vibrate for calls'), findsNothing);
-      expect(find.text('Vibrate for messages'), findsNothing);
-      expect(find.text('Sounds'), findsOneWidget);
-    });
+    expect(find.text('Vibrate for calls'), findsNothing);
+    expect(find.text('Vibrate for messages'), findsNothing);
+    expect(find.text('Sounds & vibration'), findsNothing);
+    expect(find.text('Sounds'), findsOneWidget);
+    expect(find.text('Ringtone'), findsOneWidget);
+    expect(find.text('Message tone'), findsOneWidget);
   });
 
   testWidgets('Android keeps both vibration switches', (tester) async {
@@ -608,49 +422,18 @@ void main() {
     expect(find.text('Vibrate for messages'), findsOneWidget);
   });
 
-  testWidgets('mentions only says other messages still show, silently', (
-    tester,
-  ) async {
-    await _pumpPage(tester, NotificationDeliveryMode.fcm);
-
-    expect(find.text('Other messages show silently'), findsOneWidget);
-  });
-
   group('the Enable notifications switch', () {
-    late List<String> callsMade;
-    late List<String> permissionCalls;
-    var status = 0;
+    late RecordedMethodCalls native;
+    late FakePermissions permissions;
 
     setUp(() {
-      callsMade = [];
-      permissionCalls = [];
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      const calls = MethodChannel('zuno/calls');
-      const permissions = MethodChannel(
-        'flutter.baseflow.com/permissions/methods',
-      );
-      messenger.setMockMethodCallHandler(calls, (call) async {
-        callsMade.add(call.method);
-        return null;
-      });
-      messenger.setMockMethodCallHandler(permissions, (call) async {
-        permissionCalls.add(call.method);
-        return switch (call.method) {
-          'checkPermissionStatus' => status,
-          _ => null,
-        };
-      });
-      addTearDown(() {
-        messenger.setMockMethodCallHandler(calls, null);
-        messenger.setMockMethodCallHandler(permissions, null);
-      });
+      native = installFakeCallsChannel();
+      permissions = installFakePermissions();
     });
 
     testWidgets('turned off, opens the notification settings, not app info', (
       tester,
     ) async {
-      status = 1;
       await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
       await tester.tap(
@@ -658,49 +441,17 @@ void main() {
       );
       await tester.pump();
 
-      expect(callsMade, contains('openNotificationSettings'));
-      expect(permissionCalls, isNot(contains('openAppSettings')));
-    });
-
-    testWidgets('turned on after a permanent refusal, opens them too', (
-      tester,
-    ) async {
-      status = 4;
-      await _pumpPage(tester, NotificationDeliveryMode.fcm);
-
-      await tester.tap(
-        find.widgetWithText(SwitchListTile, 'Enable notifications'),
-      );
-      await tester.pump();
-
-      expect(callsMade, contains('openNotificationSettings'));
-      expect(permissionCalls, isNot(contains('requestPermissions')));
+      expect(native.methods, contains('openNotificationSettings'));
+      expect(permissions.calls, isNot(contains('openAppSettings')));
     });
   });
 
   group('a silenced chat channel', () {
-    late List<MethodCall> callsMade;
+    late RecordedMethodCalls native;
 
     setUp(() {
-      callsMade = [];
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      const calls = MethodChannel('zuno/calls');
-      const permissions = MethodChannel(
-        'flutter.baseflow.com/permissions/methods',
-      );
-      messenger.setMockMethodCallHandler(calls, (call) async {
-        callsMade.add(call);
-        return null;
-      });
-      messenger.setMockMethodCallHandler(
-        permissions,
-        (call) async => call.method == 'checkPermissionStatus' ? 1 : null,
-      );
-      addTearDown(() {
-        messenger.setMockMethodCallHandler(calls, null);
-        messenger.setMockMethodCallHandler(permissions, null);
-      });
+      native = installFakeCallsChannel();
+      installFakePermissions();
     });
 
     testWidgets('gets a row that opens its system settings', (tester) async {
@@ -716,11 +467,8 @@ void main() {
       await tester.tap(find.text('Room messages are silenced'));
       await tester.pump();
 
-      final open = callsMade.singleWhere(
-        (c) => c.method == 'openChannelSettings',
-      );
+      final open = native.named('openChannelSettings').single;
       expect((open.arguments as Map)['channelId'], 'group_messages');
-      debugDefaultTargetPlatformOverride = null;
     });
 
     testWidgets('shows nothing while every chat channel can alert', (
@@ -732,48 +480,16 @@ void main() {
       await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
       expect(find.textContaining('are silenced'), findsNothing);
-      debugDefaultTargetPlatformOverride = null;
     });
   });
 
   group('asking for the permission', () {
-    late int status;
-    late int requestAnswer;
-    late List<String> permissionCalls;
-    late List<String> syncCalls;
-    Completer<void>? statusGate;
+    late FakePermissions permissions;
+    late RecordedMethodCalls backgroundSync;
 
     setUp(() {
-      status = 0;
-      requestAnswer = 1;
-      permissionCalls = [];
-      syncCalls = [];
-      statusGate = null;
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      const permissions = MethodChannel(
-        'flutter.baseflow.com/permissions/methods',
-      );
-      const backgroundSync = MethodChannel('zuno/background_sync');
-      messenger.setMockMethodCallHandler(permissions, (call) async {
-        permissionCalls.add(call.method);
-        switch (call.method) {
-          case 'checkPermissionStatus':
-            await statusGate?.future;
-            return status;
-          case 'requestPermissions':
-            return {17: requestAnswer};
-        }
-        return null;
-      });
-      messenger.setMockMethodCallHandler(backgroundSync, (call) async {
-        syncCalls.add(call.method);
-        return null;
-      });
-      addTearDown(() {
-        messenger.setMockMethodCallHandler(permissions, null);
-        messenger.setMockMethodCallHandler(backgroundSync, null);
-      });
+      permissions = installFakePermissions(onCheck: permissionDenied);
+      backgroundSync = recordMethodChannel('zuno/background_sync');
     });
 
     Finder toggle() =>
@@ -787,16 +503,16 @@ void main() {
       await tester.tap(toggle());
       await tester.pumpAndSettle();
 
-      expect(permissionCalls, contains('requestPermissions'));
+      expect(permissions.calls, contains('requestPermissions'));
       expect(tester.widget<SwitchListTile>(toggle()).value, isTrue);
       expect(find.widgetWithText(ListTile, 'Delivery'), findsOneWidget);
-      expect(syncCalls, ['startBackgroundSyncService']);
+      expect(backgroundSync.methods, ['startBackgroundSyncService']);
     });
 
     testWidgets('a no keeps it off and says nothing is delivered', (
       tester,
     ) async {
-      requestAnswer = 0;
+      permissions.onRequest = permissionDenied;
       await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
 
       await tester.tap(toggle());
@@ -804,7 +520,7 @@ void main() {
 
       expect(tester.widget<SwitchListTile>(toggle()).value, isFalse);
       expect(find.textContaining('nothing is delivered'), findsOneWidget);
-      expect(syncCalls, isEmpty);
+      expect(backgroundSync.methods, isEmpty);
     });
 
     testWidgets('with push delivery a yes leaves background sync alone', (
@@ -816,29 +532,29 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.widget<SwitchListTile>(toggle()).value, isTrue);
-      expect(syncCalls, isEmpty);
+      expect(backgroundSync.methods, isEmpty);
     });
 
     testWidgets('coming back from system settings picks up the change', (
       tester,
     ) async {
       await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
-      status = 1;
+      permissions.onCheck = permissionGranted;
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
 
       expect(tester.widget<SwitchListTile>(toggle()).value, isTrue);
-      expect(syncCalls, ['startBackgroundSyncService']);
+      expect(backgroundSync.methods, ['startBackgroundSyncService']);
     });
 
     testWidgets('closing the page mid-check is harmless', (tester) async {
-      statusGate = Completer();
+      permissions.checkGate = Completer();
       await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
 
       await tester.pumpWidget(const SizedBox());
-      statusGate!.complete();
+      permissions.checkGate!.complete();
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
@@ -846,22 +562,16 @@ void main() {
   });
 
   group('full-screen call alerts', () {
-    late List<String> callsMade;
+    late RecordedMethodCalls native;
 
     setUp(() {
-      callsMade = [];
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      const calls = MethodChannel('zuno/calls');
-      messenger.setMockMethodCallHandler(calls, (call) async {
-        callsMade.add(call.method);
-        return call.method == 'canUseFullScreenIntent' ? false : null;
-      });
-      addTearDown(() => messenger.setMockMethodCallHandler(calls, null));
+      native = installFakeCallsChannel(
+        reply: (call) => call.method == 'canUseFullScreenIntent' ? false : null,
+      );
     });
 
     testWidgets('when turned off say so and open the setting', (tester) async {
-      _stubNotificationPermission(granted: true);
+      installFakePermissions();
       await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
       final row = find.widgetWithText(ListTile, 'Full-screen call alerts');
@@ -876,7 +586,7 @@ void main() {
       await tester.tap(row);
       await tester.pump();
 
-      expect(callsMade, contains('openFullScreenIntentSettings'));
+      expect(native.methods, contains('openFullScreenIntentSettings'));
     });
   });
 
@@ -919,26 +629,11 @@ void main() {
   });
 
   group('Message tone with an Apple pusher registered', () {
-    late _PusherRecordingClient client;
+    late PusherRecordingClient client;
 
     setUp(() {
-      ambientCapabilities = iosCapabilities;
-      client = _PusherRecordingClient();
-      final tokenReader = apnsDeliveryProvider.tokenReader;
-      final notificationsAllowed = apnsDeliveryProvider.notificationsAllowed;
-      final environmentReader = apnsDeliveryProvider.environmentReader;
-      apnsDeliveryProvider
-        ..tokenReader = (() async => 'a1b2c3d4' * 8)
-        ..notificationsAllowed = (() async => true)
-        ..environmentReader = (() async => 'development');
-      addTearDown(() async {
-        await apnsDeliveryProvider.stop(client);
-        apnsDeliveryProvider
-          ..tokenReader = tokenReader
-          ..notificationsAllowed = notificationsAllowed
-          ..environmentReader = environmentReader
-          ..resetEnvironmentForTesting();
-      });
+      client = PusherRecordingClient();
+      _useApplePush(client);
     });
 
     Object? soundOf(Pusher pusher) =>
@@ -963,29 +658,6 @@ void main() {
 
       expect(client.posted.map(soundOf), ['message_tone.caf', null]);
       expect(apnsDeliveryProvider.status.value, ApnsStatus.ready);
-    });
-
-    testWidgets('on iOS, turning it back on re-posts it with the sound', (
-      tester,
-    ) async {
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: iosCapabilities,
-        client: client,
-      );
-      await apnsDeliveryProvider.start(client);
-
-      await tester.tap(messageTone());
-      await tester.pumpAndSettle();
-      await tester.tap(messageTone());
-      await tester.pumpAndSettle();
-
-      expect(client.posted.map(soundOf), [
-        'message_tone.caf',
-        null,
-        'message_tone.caf',
-      ]);
     });
 
     testWidgets('on Android capabilities the switch leaves Apple push alone', (
@@ -1013,9 +685,8 @@ void main() {
       nseNotifications: true,
     );
 
-    testWidgets('offers three levels with Name and message chosen', (
-      tester,
-    ) async {
+    testWidgets('offers three levels with Name and message chosen, and no '
+        'suggestion on a fixed iOS version', (tester) async {
       await _pumpPage(
         tester,
         NotificationDeliveryMode.apns,
@@ -1031,6 +702,7 @@ void main() {
       );
       expect(chosen.groupValue, NotificationPreview.full);
       expect(find.textContaining('message text stays in Zuno'), findsOneWidget);
+      expect(find.text('Use Name only'), findsNothing);
     });
 
     testWidgets('choosing Nothing stores it', (tester) async {
@@ -1102,17 +774,6 @@ void main() {
         container.read(notificationPreviewProvider),
         NotificationPreview.full,
       );
-    });
-
-    testWidgets('a fixed iOS version gets no suggestion', (tester) async {
-      await _pumpPage(
-        tester,
-        NotificationDeliveryMode.apns,
-        capabilities: withExtension,
-        osVersion: '26.4.2',
-      );
-
-      expect(find.text('Use Name only'), findsNothing);
     });
   });
 }

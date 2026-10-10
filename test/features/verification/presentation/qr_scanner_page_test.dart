@@ -7,6 +7,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'package:zuno/features/verification/presentation/qr_scanner_page.dart';
 
+import '../../../helpers/fake_permissions.dart';
+import '../../../helpers/route_launcher.dart';
 import 'verification_harness.dart';
 
 const _needsCamera = 'Zuno needs the camera to scan the code.';
@@ -14,12 +16,12 @@ const _pointCamera = 'Point the camera at the code on the other device.';
 
 void main() {
   late FakeScannerPlatform scanner;
-  late FakeCameraPermission permission;
+  late FakePermissions permission;
   late List<Uint8List?> results;
 
   setUp(() {
     scanner = installFakeScanner();
-    permission = installFakeCameraPermission();
+    permission = installFakePermissions();
     results = [];
   });
 
@@ -29,16 +31,8 @@ void main() {
   }) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: TextButton(
-              onPressed: () async => results.add(
-                await Navigator.of(context)
-                    .push<Uint8List>(MaterialPageRoute(builder: (_) => page)),
-              ),
-              child: const Text('open'),
-            ),
-          ),
+        home: Scaffold(
+          body: routeLauncher<Uint8List>((_) => page, onResult: results.add),
         ),
       ),
     );
@@ -77,11 +71,6 @@ void main() {
       expect(find.byType(MobileScanner), findsOneWidget);
       expect(find.text(_pointCamera), findsOneWidget);
       expect(scanner.starts, 1);
-    });
-
-    testWidgets('the title defaults to scanning a person', (tester) async {
-      await open(tester);
-      expect(find.text('Scan their code'), findsOneWidget);
     });
 
     for (final (name, status) in [

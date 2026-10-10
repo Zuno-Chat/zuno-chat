@@ -8,22 +8,18 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/linked_sign_in.dart';
 
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/uia_challenge.dart';
 
 void main() {
   group('LinkedSignInCode', () {
-    test('round-trips through its QR text', () {
-      const code = LinkedSignInCode(server: 'zuno.chat', token: 'syl_abc_def');
+    test('round-trips through its QR text, URL-special characters and '
+        'all', () {
+      const code = LinkedSignInCode(server: 'zuno.chat', token: 'syl_a+b/c=&d');
 
       final decoded = LinkedSignInCode.decode(code.encode());
 
       expect(decoded?.server, 'zuno.chat');
-      expect(decoded?.token, 'syl_abc_def');
-    });
-
-    test('keeps a token with URL-special characters intact', () {
-      const code = LinkedSignInCode(server: 'zuno.chat', token: 'a+b/c=&d');
-
-      expect(LinkedSignInCode.decode(code.encode())?.token, 'a+b/c=&d');
+      expect(decoded?.token, 'syl_a+b/c=&d');
     });
 
     test('tolerates whitespace around a pasted code', () {
@@ -92,19 +88,6 @@ void main() {
         ..accessToken = 'syt_token';
     }
 
-    http.Response passwordChallenge() => http.Response(
-      jsonEncode({
-        'session': 's1',
-        'flows': [
-          {
-            'stages': ['m.login.password'],
-          },
-        ],
-        'params': <String, Object?>{},
-      }),
-      401,
-    );
-
     http.Response issued({int expiresInMs = 300000}) => http.Response(
       jsonEncode({'login_token': 'syl_abc', 'expires_in_ms': expiresInMs}),
       200,
@@ -113,7 +96,8 @@ void main() {
     test('answers the password challenge and returns the code', () async {
       final bodies = <Map<String, Object?>>[];
       final client = clientAnswering(
-        (body) => body['auth'] == null ? passwordChallenge() : issued(),
+        (body) =>
+            body['auth'] == null ? uiaPasswordChallengeResponse() : issued(),
         bodies: bodies,
       );
       client.onUiaRequest.stream.listen((uia) {

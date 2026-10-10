@@ -86,23 +86,6 @@ final class NseFakeDecryptor: MegolmDecrypting, @unchecked Sendable {
   }
 }
 
-final class NseBestAttempts: @unchecked Sendable {
-  private let lock = NSLock()
-  private var recorded: [NseDelivery] = []
-
-  var all: [NseDelivery] {
-    lock.lock()
-    defer { lock.unlock() }
-    return recorded
-  }
-
-  func record(_ delivery: NseDelivery) {
-    lock.lock()
-    recorded.append(delivery)
-    lock.unlock()
-  }
-}
-
 struct NseHarness {
   let files = NseFakeFiles()
   let clock = NseFakeClock(now: NseTestData.now)
@@ -112,7 +95,7 @@ struct NseHarness {
   let signals = NseFakeSignals()
   let decryptor: NseFakeDecryptor
   let keychain: NotifySecretsRead
-  let best = NseBestAttempts()
+  let best = Recorder<NseDelivery>()
 
   init(
     keychain: NotifySecretsRead = .ready(NseTestData.keys), delivered: [NseDelivered] = [],
@@ -135,6 +118,6 @@ struct NseHarness {
 
   func run(_ push: NsePush = NseTestData.push()) async -> NseResult {
     let best = self.best
-    return await NsePipeline(env: environment).run(push) { best.record($0) }
+    return await NsePipeline(env: environment).run(push) { best.add($0) }
   }
 }

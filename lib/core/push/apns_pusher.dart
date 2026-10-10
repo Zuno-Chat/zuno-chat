@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:matrix/matrix.dart';
 
+import 'pusher_format.dart';
+
 const apnsProductionAppId = 'im.zuno.chat.ios';
 const apnsDevelopmentAppId = 'im.zuno.chat.ios.dev';
-
-const apnsPusherFormat = 'event_id_only';
 
 enum ApnsEnvironment { production, development }
 
@@ -54,7 +54,7 @@ Pusher buildApnsPusher({
     lang: 'en',
     data: PusherData(
       url: gatewayUrl,
-      format: apnsPusherFormat,
+      format: pusherFormat,
       additionalProperties: {
         'default_payload': {
           'aps': {

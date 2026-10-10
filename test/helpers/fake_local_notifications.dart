@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'native_method_calls.dart';
+
 class ShownNotification {
   ShownNotification({
     required this.id,
@@ -46,6 +48,7 @@ class RecordedNotifications {
   List<Map<String, Object?>> active = const [];
   List<Map<String, Object?>> deviceChannels = const [];
   final List<String> deletedChannels = [];
+  Object? showError;
   Map<String, Object?>? initializeArguments;
   Map<String, Object?> launchDetails = const {'notificationLaunchedApp': false};
 
@@ -75,13 +78,15 @@ RecordedNotifications installFakeLocalNotifications({
   TargetPlatform platform = TargetPlatform.android,
 }) {
   TestWidgetsFlutterBinding.ensureInitialized();
-  debugDefaultTargetPlatformOverride = platform;
+  if (defaultTargetPlatform != platform) {
+    debugDefaultTargetPlatformOverride = platform;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+  }
   if (platform == TargetPlatform.iOS) {
     IOSFlutterLocalNotificationsPlugin.registerWith();
   } else {
     AndroidFlutterLocalNotificationsPlugin.registerWith();
   }
-  addTearDown(() => debugDefaultTargetPlatformOverride = null);
   final recorded = RecordedNotifications();
   const channel = MethodChannel('dexterous.com/flutter/local_notifications');
   final messenger =
@@ -91,6 +96,8 @@ RecordedNotifications installFakeLocalNotifications({
     recorded.methods.add(call.method);
     switch (call.method) {
       case 'show':
+        final error = recorded.showError;
+        if (error != null) throw error;
         final args = (call.arguments as Map).cast<String, Object?>();
         final specifics = args['platformSpecifics'];
         final android = specifics is Map
@@ -137,42 +144,33 @@ RecordedNotifications installFakeLocalNotifications({
   return recorded;
 }
 
-void installSilentNotificationSideChannels() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-  for (final name in const [
-    'xyz.luan/audioplayers',
-    'xyz.luan/audioplayers.global',
-    'vibration',
-    'zuno/conversations',
-    'zuno/wake_lock',
-  ]) {
-    final channel = MethodChannel(name);
-    messenger.setMockMethodCallHandler(channel, (_) async => null);
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-  }
-}
+void installSilentNotificationSideChannels() => silenceMethodChannels(const [
+  'xyz.luan/audioplayers',
+  'xyz.luan/audioplayers.global',
+  'vibration',
+  'zuno/conversations',
+  'zuno/wake_lock',
+]);
 
-class RecordedMethodCalls {
-  final List<MethodCall> calls = [];
+RecordedMethodCalls installFakeConversationsChannel({
+  Map<String, String>? noticed,
+}) => recordMethodChannel(
+  'zuno/conversations',
+  reply: (call) {
+    if (noticed == null || call.method != 'takePushNotice') return null;
+    final args = (call.arguments as Map).cast<String, Object?>();
+    final roomId = args['roomId'];
+    if (noticed[roomId] != args['eventId']) return false;
+    noticed.remove(roomId);
+    return true;
+  },
+);
 
-  Iterable<MethodCall> named(String method) =>
-      calls.where((c) => c.method == method);
-}
-
-RecordedMethodCalls installFakeConversationsChannel() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('zuno/conversations');
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-  final recorded = RecordedMethodCalls();
-  messenger.setMockMethodCallHandler(channel, (call) async {
-    recorded.calls.add(call);
-    return null;
-  });
-  addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-  return recorded;
+extension PushNoticeReadings on RecordedMethodCalls {
+  List<String> get takenNotices => [
+    for (final args in argsOf('takePushNotice').cast<Map<Object?, Object?>>())
+      '${args['roomId']}/${args['eventId']}',
+  ];
 }
 
 Map<String, Object?> deviceChannel(

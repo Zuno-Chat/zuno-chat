@@ -3,8 +3,6 @@ package im.zuno.chat
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
-import android.os.SystemClock
 import android.util.Log
 import im.zuno.chat.zuno_notifications.PushKind
 import im.zuno.chat.zuno_notifications.PushNotice
@@ -18,7 +16,7 @@ import org.unifiedpush.flutter.connector.UnifiedPushService
 
 class ZunoPushService : UnifiedPushService() {
     override fun getEngine(context: Context): FlutterEngine {
-        extendWakeLock(context)
+        PushWakeLock.extend(context)
         return PushEnginePlugins.create(context).apply {
             MethodChannel(dartExecutor.binaryMessenger, WAKELOCK_CHANNEL)
                 .setMethodCallHandler(wakeLockHandler(context))
@@ -85,7 +83,7 @@ class ZunoPushService : UnifiedPushService() {
             appEngineAlive = AppEngine.alive,
             hasHeadlessEngine = headlessEngine != null,
         )
-        if (hold) holdWakeLock(applicationContext, eventId)
+        if (hold) PushWakeLock.hold(applicationContext, eventId)
         super.onMessage(message, instance)
     }
 
@@ -100,17 +98,10 @@ class ZunoPushService : UnifiedPushService() {
     internal companion object {
         const val TAG = "ZunoPushService"
         const val WAKELOCK_CHANNEL = "zuno/push_wakelock"
-        const val WAKELOCK_TAG = "zuno:push"
-
-        const val WAKELOCK_TIMEOUT_MS = 30_000L
-        private const val WAKELOCK_WRITE_OFF_MS = 300_000L
 
         private const val MAX_RETIRE_ATTEMPTS = 20
         private const val RETIRE_RETRY_MS = 30_000L
         private val main = Handler(Looper.getMainLooper())
-
-        private var wakeLock: PowerManager.WakeLock? = null
-        private val holds = PushHolds(WAKELOCK_TIMEOUT_MS, WAKELOCK_WRITE_OFF_MS)
 
         fun retire(engine: FlutterEngine, attempt: Int) {
             val channel = MethodChannel(engine.dartExecutor.binaryMessenger, WAKELOCK_CHANNEL)
@@ -136,35 +127,10 @@ class ZunoPushService : UnifiedPushService() {
             }
         }
 
-        @Synchronized
-        fun holdWakeLock(context: Context, key: String?) {
-            holds.acquire(key, SystemClock.elapsedRealtime())
-            extendWakeLock(context)
-        }
-
-        @Synchronized
-        fun extendWakeLock(context: Context) {
-            try {
-                wakeLock(context).acquire(WAKELOCK_TIMEOUT_MS)
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not take a push wakelock", e)
-            }
-        }
-
-        @Synchronized
-        fun releaseWakeLock(key: String?) {
-            if (!holds.release(key, SystemClock.elapsedRealtime())) return
-            try {
-                wakeLock?.takeIf { it.isHeld }?.release()
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not release the push wakelock", e)
-            }
-        }
-
         fun wakeLockHandler(context: Context) = MethodChannel.MethodCallHandler { call, result ->
             when (call.method) {
                 "release" -> {
-                    releaseWakeLock(call.argument<String>("key"))
+                    PushWakeLock.release(call.argument<String>("key"))
                     result.success(null)
                 }
 
@@ -175,12 +141,6 @@ class ZunoPushService : UnifiedPushService() {
                 else -> result.notImplemented()
             }
         }
-
-        private fun wakeLock(context: Context): PowerManager.WakeLock = wakeLock
-            ?: (context.applicationContext.getSystemService(Context.POWER_SERVICE) as PowerManager)
-                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKELOCK_TAG)
-                .apply { setReferenceCounted(false) }
-                .also { wakeLock = it }
 
         @Volatile
         var headlessEngine: FlutterEngine? = null

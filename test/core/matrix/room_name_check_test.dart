@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/matrix/room_name_check.dart';
 
 void main() {
-  test('a room cannot be named after Zuno', () {
-    expect(roomNameError('Zuno'), isNotNull);
+  test('a room cannot be named after Zuno, and is told so', () {
+    expect(roomNameError('Zuno'), 'Names cannot include Zuno');
     expect(roomNameError('zuno'), isNotNull);
     expect(roomNameError('ZUNO'), isNotNull);
   });
@@ -27,9 +27,5 @@ void main() {
 
   test('an empty name is not this check to make', () {
     expect(roomNameError(''), isNull);
-  });
-
-  test('the refusal names the word it refuses', () {
-    expect(roomNameError('Zuno'), contains('Zuno'));
   });
 }

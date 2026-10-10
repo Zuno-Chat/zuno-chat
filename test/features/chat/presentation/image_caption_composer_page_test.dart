@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,9 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
 
-final _onePixelPng = base64Decode(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-);
+import '../../../helpers/fake_attachments.dart';
+import '../../../helpers/route_launcher.dart';
 
 void main() {
   List<ComposedImage>? result;
@@ -23,22 +20,16 @@ void main() {
   Future<void> open(WidgetTester tester, List<String> names) async {
     final images = [
       for (final name in names)
-        (bytes: Uint8List.fromList(_onePixelPng), name: name),
+        (bytes: Uint8List.fromList(onePixelPng), name: name),
     ];
     await tester.pumpWidget(
       MaterialApp(
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () async {
-              result = await Navigator.of(context).push<List<ComposedImage>>(
-                MaterialPageRoute(
-                  builder: (_) => ImageCaptionComposerPage(images: images),
-                ),
-              );
-              closed = true;
-            },
-            child: const Text('open'),
-          ),
+        home: routeLauncher<List<ComposedImage>>(
+          (_) => ImageCaptionComposerPage(images: images),
+          onResult: (composed) {
+            result = composed;
+            closed = true;
+          },
         ),
       ),
     );
@@ -70,7 +61,7 @@ void main() {
 
     expect(result!.single.name, 'a.jpg');
     expect(result!.single.caption, 'sunset');
-    expect(result!.single.bytes, _onePixelPng);
+    expect(result!.single.bytes, onePixelPng);
   });
 
   testWidgets('several photos each keep their own caption, in order', (

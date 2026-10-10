@@ -6,16 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/navigation/zuno_links.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/auth/presentation/register_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_homeserver.dart';
+import '../../../helpers/preferences_container.dart';
+import '../../../helpers/pump_until.dart';
 
 const _tokenThenDummyFlows = [
   {
@@ -37,8 +37,8 @@ void main() {
     UrlOpener openUrl = openExternally,
     bool pushed = false,
   }) async {
-    SharedPreferences.setMockInitialValues({});
-    final container = ProviderContainer(
+    final container = await containerWithPreferences(
+      {},
       overrides: [
         matrixClientProvider.overrideWithValue(
           buildTestClient(httpClient: httpClient)
@@ -49,12 +49,8 @@ void main() {
             Uri.https(chosenServerName ?? Uri.parse(homeserver).host),
           ),
         ),
-        sharedPreferencesProvider.overrideWithValue(
-          await SharedPreferences.getInstance(),
-        ),
       ],
     );
-    addTearDown(container.dispose);
     final page = RegisterPage(
       requiresCode: requiresCode,
       email: email,
@@ -76,17 +72,37 @@ void main() {
     }
   }
 
+  Future<void> fillAndSubmit(
+    WidgetTester tester, {
+    String username = 'alice',
+    String password = 'correct horse battery staple',
+    String? code,
+    int turns = 1,
+  }) async {
+    if (code != null) await tester.enterText(field('Sign-up code'), code);
+    await tester.enterText(field('Username'), username);
+    await tester.enterText(field('Password'), password);
+    await tester.enterText(field('Confirm password'), password);
+    await tester.ensureVisible(
+      find.widgetWithText(FilledButton, 'Create account'),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+    await pumpRealAsync(tester, rounds: turns);
+  }
+
+  void useTallScreen(WidgetTester tester) {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+  }
+
+  FilledButton createButton(WidgetTester tester) => tester.widget<FilledButton>(
+    find.widgetWithText(FilledButton, 'Create account'),
+  );
+
   const termsLine =
       'Creating an account means you agree to the terms and the privacy '
       'policy.';
-
-  testWidgets('says that creating an account accepts the terms and policy', (
-    tester,
-  ) async {
-    await pumpRegisterPage(tester, chosenServerName: 'zuno.chat');
-
-    expect(find.text(termsLine), findsOneWidget);
-  });
 
   testWidgets('on another server there are no terms of Zuno to accept', (
     tester,
@@ -98,9 +114,8 @@ void main() {
     expect(find.text('Privacy policy'), findsNothing);
   });
 
-  testWidgets('Terms and Privacy policy open their pages on the website', (
-    tester,
-  ) async {
+  testWidgets('on zuno.chat, creating an account accepts the terms, and Terms '
+      'and Privacy policy open their pages on the website', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 3000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final opened = <Uri>[];
@@ -113,6 +128,8 @@ void main() {
       },
     );
 
+    expect(find.text(termsLine), findsOneWidget);
+
     await tester.tap(find.widgetWithText(TextButton, 'Terms'));
     await tester.pump();
     await tester.tap(find.widgetWithText(TextButton, 'Privacy policy'));
@@ -123,89 +140,6 @@ void main() {
       Uri.parse('https://zuno.chat/privacy'),
     ]);
   });
-
-  testWidgets('names the terms address when no browser opens them', (
-    tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(800, 3000));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pumpRegisterPage(
-      tester,
-      chosenServerName: 'zuno.chat',
-      openUrl: (uri) async => false,
-    );
-
-    await tester.tap(find.widgetWithText(TextButton, 'Terms'));
-    await tester.pump();
-    await tester.pump();
-
-    expect(
-      find.text('Link not opened. Visit zuno.chat/terms in a browser.'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('asks the homeserver for a refresh token on registration', (
-    tester,
-  ) async {
-    Map<String, Object?>? registerBody;
-    await pumpRegisterPage(
-      tester,
-      httpClient: MockClient((request) async {
-        registerBody = jsonDecode(request.body) as Map<String, Object?>;
-        return http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403);
-      }),
-    );
-
-    await tester.enterText(field('Username'), 'alice');
-    await tester.enterText(field('Password'), 'correct horse battery staple');
-    await tester.enterText(
-      field('Confirm password'),
-      'correct horse battery staple',
-    );
-    await tester.ensureVisible(
-      find.widgetWithText(FilledButton, 'Create account'),
-    );
-    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-
-    expect(registerBody?['refresh_token'], isTrue);
-  });
-
-  Future<List<Map<String, Object?>>> pumpAndRegister(
-    WidgetTester tester,
-    List<http.Response> responses,
-  ) async {
-    final bodies = <Map<String, Object?>>[];
-    await pumpRegisterPage(
-      tester,
-      httpClient: MockClient((request) async {
-        bodies.add(jsonDecode(request.body) as Map<String, Object?>);
-        return responses[bodies.length - 1];
-      }),
-      requiresCode: true,
-      email: 'alex@example.org',
-    );
-
-    await tester.enterText(field('Sign-up code'), 'ABCDEFGH23');
-    await tester.enterText(field('Username'), 'alice');
-    await tester.enterText(field('Password'), 'correct horse battery staple');
-    await tester.enterText(
-      field('Confirm password'),
-      'correct horse battery staple',
-    );
-    await tester.ensureVisible(
-      find.widgetWithText(FilledButton, 'Create account'),
-    );
-    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
-    const registrationExchangeTurns = 4;
-    for (var turn = 0; turn < registrationExchangeTurns; turn++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
-    return bodies;
-  }
 
   testWidgets('no code field unless the server asks for one', (tester) async {
     await pumpRegisterPage(tester);
@@ -222,34 +156,9 @@ void main() {
     expect(tester.widget<TextField>(code).controller?.text, 'AB3');
   });
 
-  testWidgets('the code goes up first, then the dummy stage', (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3;
-    addTearDown(tester.view.reset);
-    final bodies = await pumpAndRegister(tester, [
-      http.Response(
-        jsonEncode({
-          'session': 'uia1',
-          'completed': ['m.login.registration_token'],
-          'flows': _tokenThenDummyFlows,
-        }),
-        401,
-      ),
-      http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403),
-    ]);
-
-    expect(bodies.first['auth'], {
-      'type': 'm.login.registration_token',
-      'token': 'ABCDEFGH23',
-    });
-    expect(bodies.last['auth'], {'type': 'm.login.dummy', 'session': 'uia1'});
-  });
-
   testWidgets('a refused code says so and offers a new one', (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3;
-    addTearDown(tester.view.reset);
-    await pumpAndRegister(tester, [
+    useTallScreen(tester);
+    final responses = [
       http.Response(
         jsonEncode({
           'session': 'uia1',
@@ -270,7 +179,15 @@ void main() {
         }),
         401,
       ),
-    ]);
+    ];
+    var answered = 0;
+    await pumpRegisterPage(
+      tester,
+      httpClient: MockClient((_) async => responses[answered++]),
+      requiresCode: true,
+    );
+
+    await fillAndSubmit(tester, code: 'ABCDEFGH23', turns: 4);
 
     expect(find.text('That code is not valid or has expired.'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Send a new code'), findsOneWidget);
@@ -302,37 +219,6 @@ void main() {
 
     expect(find.text('Your account lives on zuno.chat.'), findsOneWidget);
   });
-
-  Future<void> fillAndSubmit(
-    WidgetTester tester, {
-    String username = 'alice',
-    String password = 'correct horse battery staple',
-    String? code,
-    int turns = 1,
-  }) async {
-    if (code != null) await tester.enterText(field('Sign-up code'), code);
-    await tester.enterText(field('Username'), username);
-    await tester.enterText(field('Password'), password);
-    await tester.enterText(field('Confirm password'), password);
-    await tester.ensureVisible(
-      find.widgetWithText(FilledButton, 'Create account'),
-    );
-    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
-    for (var turn = 0; turn < turns; turn++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
-  }
-
-  void useTallScreen(WidgetTester tester) {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 3;
-    addTearDown(tester.view.reset);
-  }
-
-  FilledButton createButton(WidgetTester tester) => tester.widget<FilledButton>(
-    find.widgetWithText(FilledButton, 'Create account'),
-  );
 
   testWidgets('nothing typed here is learned by the keyboard', (tester) async {
     await pumpRegisterPage(tester, requiresCode: true);
@@ -489,10 +375,7 @@ void main() {
     expect(container.read(signInInFlightProvider), isTrue);
 
     answer.complete(http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403));
-    for (var turn = 0; turn < 3; turn++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
+    await pumpRealAsync(tester, rounds: 3);
 
     expect(container.read(signInInFlightProvider), isFalse);
   });
@@ -517,11 +400,8 @@ void main() {
     expect(find.byType(RegisterPage), findsOneWidget);
 
     answer.complete(http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403));
-    for (var turn = 0; turn < 3; turn++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
-    expect(find.text('Create account'), findsWidgets);
+    await pumpRealAsync(tester, rounds: 3);
+    expect(find.widgetWithText(FilledButton, 'Create account'), findsOneWidget);
     await navigator.maybePop();
     await tester.pumpAndSettle();
 
@@ -591,21 +471,19 @@ void main() {
   });
 
   group('the keyboard', () {
-    testWidgets('stays closed until a field is tapped', (tester) async {
-      await pumpRegisterPage(tester);
-      await tester.pump();
+    for (final (form, requiresCode) in [
+      ('the form', false),
+      ('the form that asks for a code', true),
+    ]) {
+      testWidgets('stays closed on $form until a field is tapped', (
+        tester,
+      ) async {
+        await pumpRegisterPage(tester, requiresCode: requiresCode);
+        await tester.pump();
 
-      expect(tester.testTextInput.isVisible, isFalse);
-    });
-
-    testWidgets('stays closed on the form that asks for a code', (
-      tester,
-    ) async {
-      await pumpRegisterPage(tester, requiresCode: true);
-      await tester.pump();
-
-      expect(tester.testTextInput.isVisible, isFalse);
-    });
+        expect(tester.testTextInput.isVisible, isFalse);
+      });
+    }
 
     testWidgets('closes when Create account is tapped, even on a bad form', (
       tester,

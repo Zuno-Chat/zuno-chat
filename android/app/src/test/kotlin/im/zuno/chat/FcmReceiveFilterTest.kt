@@ -11,19 +11,14 @@ class FcmReceiveFilterTest {
     private val filter = FcmReceiveFilter()
 
     @Test
-    fun `a new message push in the background gets the notice, the lock and a warm Flutter`() {
-        assertEquals(
-            FcmReceivePlan.MessageNotice(wakeLockKey = "0:1%a", warmUpFlutter = true),
-            filter.planFor(null, "0:1%a", PushKind.MESSAGE, appInFront = false),
-        )
-    }
-
-    @Test
-    fun `message type gcm is a data message like a missing type`() {
-        assertEquals(
-            FcmReceivePlan.MessageNotice(wakeLockKey = "0:1%a", warmUpFlutter = true),
-            filter.planFor("gcm", "0:1%a", PushKind.MESSAGE, appInFront = false),
-        )
+    fun `a background data message, gcm or untyped, gets the notice, lock and warm Flutter`() {
+        for (type in listOf(null, "gcm")) {
+            assertEquals(
+                "$type",
+                FcmReceivePlan.MessageNotice(wakeLockKey = "0:1%$type", warmUpFlutter = true),
+                filter.planFor(type, "0:1%$type", PushKind.MESSAGE, appInFront = false),
+            )
+        }
     }
 
     @Test

@@ -93,6 +93,20 @@ void main() {
       ]);
       expect(mentionMatches(members, 'zed'), isEmpty);
     });
+
+    test('caps the list', () {
+      final many = [
+        for (var i = 0; i < 40; i++)
+          User(
+            '@u$i:example.org',
+            membership: 'join',
+            displayName: 'User $i',
+            room: room,
+          ),
+      ];
+
+      expect(mentionMatches(many, '', limit: 30), hasLength(30));
+    });
   });
 
   test('applyMention swaps the query for the mention and a space', () {
@@ -105,22 +119,6 @@ void main() {
 
     expect(result.text, 'hi @alice  there');
     expect(result.cursor, 10);
-  });
-
-  test('mentionMatches caps the list', () {
-    final client = buildTestClient(userId: '@me:example.org');
-    final room = buildTestRoom(client);
-    final many = [
-      for (var i = 0; i < 40; i++)
-        User(
-          '@u$i:example.org',
-          membership: 'join',
-          displayName: 'User $i',
-          room: room,
-        ),
-    ];
-
-    expect(mentionMatches(many, '', limit: 30), hasLength(30));
   });
 
   group('mentionInsertText', () {

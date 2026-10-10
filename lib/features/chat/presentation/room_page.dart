@@ -30,7 +30,6 @@ import '../../../core/location/live_location_sharing.dart';
 import '../../../core/location/location_message.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/attachment_action_buttons.dart';
-import '../../../core/matrix/attachment_actions.dart';
 import '../../../core/matrix/bearer_authorization.dart';
 import '../../../core/matrix/connectivity_provider.dart';
 import '../../../core/matrix/currently_open_room_provider.dart';
@@ -881,29 +880,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
   Future<void> _shareAttachments(List<Event> events) =>
       shareAttachmentsWithFeedback(ScaffoldMessenger.of(context), events);
 
-  Future<void> _saveAttachments(List<Event> events) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      if (events.length == 1) {
-        final message = await saveAttachment(events.single);
-        if (message != null) {
-          messenger.showSnackBar(SnackBar(content: Text(message)));
-        }
-        return;
-      }
-      final saved = await saveAttachments(events);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(savedSummary(saved: saved, total: events.length)),
-        ),
-      );
-    } catch (e) {
-      logCaught('save attachment', e);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not save. Try again.')),
-      );
-    }
-  }
+  Future<void> _saveAttachments(List<Event> events) =>
+      saveAttachmentsWithFeedback(ScaffoldMessenger.of(context), events);
 
   Future<void> _keepingUploadAlive(Future<void> Function() body) async {
     final service = UploadForegroundService.instance;

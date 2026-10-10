@@ -75,39 +75,30 @@ void main() {
       expect(source?.attribution, isNull);
     });
 
-    test('is none when the server advertises no tiles', () async {
-      expect(await sourceFrom(_wellKnown({})), isNull);
-    });
-
-    test('is none for a template sent in the clear', () async {
-      final source = await sourceFrom(
+    for (final (reason, response) in [
+      ('when the server advertises no tiles', _wellKnown({})),
+      (
+        'for a template sent in the clear',
         _wellKnown({
           'im.zuno.tiles': {'url': 'http://tiles.example.org/{z}/{x}/{y}.png'},
         }),
-      );
-
-      expect(source, isNull);
-    });
-
-    test('is none for a template missing a coordinate', () async {
-      final source = await sourceFrom(
+      ),
+      (
+        'for a template missing a coordinate',
         _wellKnown({
           'im.zuno.tiles': {'url': 'https://tiles.example.org/{z}/{x}.png'},
         }),
-      );
-
-      expect(source, isNull);
-    });
-
-    test('is none when the entry has the wrong shape', () async {
-      final source = await sourceFrom(_wellKnown({'im.zuno.tiles': _template}));
-
-      expect(source, isNull);
-    });
-
-    test('is none when the well-known is not JSON', () async {
-      expect(await sourceFrom(http.Response('<html>', 200)), isNull);
-    });
+      ),
+      (
+        'when the entry has the wrong shape',
+        _wellKnown({'im.zuno.tiles': _template}),
+      ),
+      ('when the well-known is not JSON', http.Response('<html>', 200)),
+    ]) {
+      test('is none $reason', () async {
+        expect(await sourceFrom(response), isNull);
+      });
+    }
 
     test('is none when the well-known cannot be reached', () async {
       final source = await sourceAnswering(
@@ -141,31 +132,24 @@ void main() {
       expect(await probeMapTiles(client, source), isTrue);
     });
 
-    test('is unavailable when the key is refused', () async {
-      final client = MockClient((_) async => http.Response('Invalid key', 403));
-
-      expect(await probeMapTiles(client, source), isFalse);
-    });
-
-    test(
-      'is unavailable when something other than a tile comes back',
-      () async {
-        final client = MockClient(
-          (_) async => http.Response(
-            '<html>',
-            200,
-            headers: {'content-type': 'text/html'},
-          ),
-        );
-
-        expect(await probeMapTiles(client, source), isFalse);
-      },
-    );
-
-    test('is unavailable when the host cannot be reached', () async {
-      final client = MockClient((_) async => throw const SocketException('x'));
-
-      expect(await probeMapTiles(client, source), isFalse);
-    });
+    for (final (reason, answer) in <(String, MockClientHandler)>[
+      ('the key is refused', (_) async => http.Response('Invalid key', 403)),
+      (
+        'something other than a tile comes back',
+        (_) async => http.Response(
+          '<html>',
+          200,
+          headers: {'content-type': 'text/html'},
+        ),
+      ),
+      (
+        'the host cannot be reached',
+        (_) async => throw const SocketException('x'),
+      ),
+    ]) {
+      test('is unavailable when $reason', () async {
+        expect(await probeMapTiles(MockClient(answer), source), isFalse);
+      });
+    }
   });
 }

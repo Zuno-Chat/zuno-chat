@@ -15,18 +15,21 @@ void main() {
     mode,
     zunoIgnoresBatteryOptimizations: () async => zunoExempt,
     distributorBatteryRestricted: () async => distributorRestricted,
-    capabilities: capabilities,
+    capabilities: capabilities ?? androidCapabilities,
   );
 
-  test('FCM never needs an exemption, whatever the phone says', () async {
-    expect(
-      await needs(
-        NotificationDeliveryMode.fcm,
-        zunoExempt: false,
-        distributorRestricted: true,
-      ),
-      isFalse,
-    );
+  test('Google services and Apple push never need an exemption, whatever the '
+      'phone says', () async {
+    for (final mode in [
+      NotificationDeliveryMode.fcm,
+      NotificationDeliveryMode.apns,
+    ]) {
+      expect(
+        await needs(mode, zunoExempt: false, distributorRestricted: true),
+        isFalse,
+        reason: mode.name,
+      );
+    }
   });
 
   test(
@@ -79,24 +82,11 @@ void main() {
         NotificationDeliveryMode.unifiedPush,
         zunoIgnoresBatteryOptimizations: () async => throw Exception('no'),
         distributorBatteryRestricted: () async => true,
+        capabilities: androidCapabilities,
       ),
       isFalse,
     );
   });
-
-  test(
-    'Apple push never needs an exemption, whatever the phone says',
-    () async {
-      expect(
-        await needs(
-          NotificationDeliveryMode.apns,
-          zunoExempt: false,
-          distributorRestricted: true,
-        ),
-        isFalse,
-      );
-    },
-  );
 
   group('on a platform without a battery exemption', () {
     final noExemption = capabilitiesLike(
@@ -136,18 +126,5 @@ void main() {
 
       expect(asked, isFalse);
     });
-  });
-
-  test('Android still asks for UnifiedPush and background sync', () async {
-    for (final mode in [
-      NotificationDeliveryMode.unifiedPush,
-      NotificationDeliveryMode.backgroundService,
-    ]) {
-      expect(
-        await needs(mode, zunoExempt: false, capabilities: androidCapabilities),
-        isTrue,
-        reason: mode.name,
-      );
-    }
   });
 }

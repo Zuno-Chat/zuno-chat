@@ -8,20 +8,7 @@ import 'package:zuno/core/security/prepared_uia_password.dart';
 import 'package:zuno/features/settings/presentation/uia_password_prompt.dart';
 
 import '../../../helpers/fake_matrix.dart';
-
-MatrixException _challenge({
-  String? errcode,
-  List<String> stages = const ['m.login.password'],
-  List<String> completed = const [],
-}) => MatrixException.fromJson({
-  'errcode': ?errcode,
-  'session': 's1',
-  'flows': [
-    {'stages': stages},
-  ],
-  'completed': completed,
-  'params': <String, Object?>{},
-});
+import '../../../helpers/uia_challenge.dart';
 
 void main() {
   late Client client;
@@ -57,11 +44,11 @@ void main() {
         .uiaRequestBackground<void>(
           request ??
               (auth) async {
-                if (auth == null) throw _challenge();
+                if (auth == null) throw uiaPasswordChallenge();
                 final password = (auth as AuthenticationPassword).password;
                 tried.add(password);
                 if (password != 'right') {
-                  throw _challenge(errcode: 'M_FORBIDDEN');
+                  throw uiaPasswordChallenge(errcode: 'M_FORBIDDEN');
                 }
               },
         )
@@ -128,7 +115,7 @@ void main() {
 
     unawaited(
       client.uiaRequestBackground<void>((auth) async {
-        if (auth == null) throw _challenge();
+        if (auth == null) throw uiaPasswordChallenge();
       }),
     );
     await tester.pumpAndSettle();
@@ -191,9 +178,9 @@ void main() {
     await answering(
       tester,
       request: (auth) async {
-        if (auth == null) throw _challenge();
+        if (auth == null) throw uiaPasswordChallenge();
         tried.add((auth as AuthenticationPassword).password);
-        throw _challenge(
+        throw uiaPasswordChallenge(
           stages: ['m.login.password', 'm.login.terms'],
           completed: ['m.login.password'],
         );

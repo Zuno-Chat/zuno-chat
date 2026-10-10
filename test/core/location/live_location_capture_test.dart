@@ -6,6 +6,7 @@ import 'package:zuno/core/location/live_location_capture.dart';
 import 'package:zuno/core/location/live_location_policy.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 
 const _methods = MethodChannel('zuno/live_location');
@@ -163,11 +164,7 @@ void main() {
   test('the notification Stop reaches Dart as a stop request', () async {
     final requested = capture.stopRequests.first;
 
-    await messenger.handlePlatformMessage(
-      _methods.name,
-      _methods.codec.encodeMethodCall(const MethodCall('stopRequested')),
-      (_) {},
-    );
+    await callFromNative(_methods, 'stopRequested');
 
     await expectLater(requested, completes);
   });

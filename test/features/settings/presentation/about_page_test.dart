@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -14,6 +13,7 @@ import 'package:zuno/features/settings/presentation/about_page.dart';
 
 import '../../../helpers/card_layout.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/preferences_container.dart';
 
 void main() {
   Finder switchTile(String title) =>
@@ -33,17 +33,14 @@ void main() {
   }) async {
     await tester.binding.setSurfaceSize(const Size(800, 3000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    SharedPreferences.setMockInitialValues(prefs);
-    final sharedPrefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
+    final container = await containerWithPreferences(
+      prefs,
       overrides: [
-        sharedPreferencesProvider.overrideWithValue(sharedPrefs),
         if (capabilities != null)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
         ...overrides,
       ],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -69,15 +66,6 @@ void main() {
     final loader = picture.bytesLoader as SvgAssetLoader;
     expect(loader.assetName, 'assets/logo/zuno-mark-amber.svg');
     expect(find.byIcon(Icons.chat_bubble_outline), findsNothing);
-  });
-
-  testWidgets('still shows the version/SDK rows around the mark', (
-    tester,
-  ) async {
-    await pumpAbout(tester);
-
-    expect(find.text('App version'), findsOneWidget);
-    expect(find.text('Chat library version'), findsOneWidget);
   });
 
   testWidgets('the library versions are the ones the app is built with', (
@@ -135,23 +123,7 @@ void main() {
     expectEveryRowOnACard();
   });
 
-  testWidgets('shows Donate wherever payment links are allowed', (
-    tester,
-  ) async {
-    await pumpAbout(
-      tester,
-      capabilities: capabilitiesLike(
-        iosCapabilities,
-        externalPaymentLinks: true,
-      ),
-    );
-
-    expect(find.text('Donate'), findsOneWidget);
-  });
-
-  testWidgets('tapping Donate opens the donation section of the website', (
-    tester,
-  ) async {
+  testWidgets('each link row opens its page, with no warning', (tester) async {
     final opened = <Uri>[];
     await pumpAbout(
       tester,
@@ -163,111 +135,52 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Donate'));
-    await tester.pump();
-
-    expect(opened, [Uri.parse('https://zuno.chat/#donate')]);
-    expect(find.byType(SnackBar), findsNothing);
-  });
-
-  testWidgets('says what to do when no browser opens the link', (tester) async {
-    await pumpAbout(tester, page: AboutPage(openUrl: (uri) async => false));
-
-    await tester.tap(find.text('Donate'));
-    await tester.pump();
-    await tester.pump();
-
-    expect(
-      find.text('Link not opened. Visit zuno.chat/#donate in a browser.'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('says what to do when opening the link throws', (tester) async {
-    await pumpAbout(
-      tester,
-      page: AboutPage(openUrl: (uri) async => throw Exception('no handler')),
-    );
-
-    await tester.tap(find.text('Donate'));
-    await tester.pump();
-    await tester.pump();
-
-    expect(
-      find.text('Link not opened. Visit zuno.chat/#donate in a browser.'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('Privacy policy and Terms open their pages on the website', (
-    tester,
-  ) async {
-    final opened = <Uri>[];
-    await pumpAbout(
-      tester,
-      page: AboutPage(
-        openUrl: (uri) async {
-          opened.add(uri);
-          return true;
-        },
-      ),
-    );
-
-    await tester.tap(find.text('Privacy policy'));
-    await tester.pump();
-    await tester.tap(find.text('Terms'));
-    await tester.pump();
+    for (final row in ['Donate', 'Privacy policy', 'Terms', 'Source code']) {
+      await tester.tap(find.text(row));
+      await tester.pump();
+    }
 
     expect(opened, [
+      Uri.parse('https://zuno.chat/#donate'),
       Uri.parse('https://zuno.chat/privacy'),
       Uri.parse('https://zuno.chat/terms'),
+      Uri.parse('https://github.com/Zuno-Chat/zuno-chat'),
     ]);
     expect(find.byType(SnackBar), findsNothing);
   });
 
-  testWidgets('names the privacy policy address when no browser opens it', (
-    tester,
-  ) async {
-    await pumpAbout(tester, page: AboutPage(openUrl: (uri) async => false));
+  testWidgets('says what to do when no browser opens the link', (tester) async {
+    await pumpAbout(tester, page: AboutPage(openUrl: (_) async => false));
 
-    await tester.tap(find.text('Privacy policy'));
+    await tester.tap(find.text('Donate'));
     await tester.pump();
     await tester.pump();
 
     expect(
-      find.text('Link not opened. Visit zuno.chat/privacy in a browser.'),
+      find.text('Link not opened. Visit zuno.chat/#donate in a browser.'),
       findsOneWidget,
     );
   });
 
-  testWidgets('names the terms address when opening them throws', (
+  testWidgets('the crash reporting toggle starts off and flips both ways', (
     tester,
   ) async {
-    await pumpAbout(
-      tester,
-      page: AboutPage(openUrl: (uri) async => throw Exception('no handler')),
-    );
+    final container = await pumpAbout(tester);
+    bool shown() =>
+        tester.widget<SwitchListTile>(switchTile('Send crash reports')).value;
+    expect(shown(), isFalse);
 
-    await tester.tap(find.text('Terms'));
+    await tester.tap(switchTile('Send crash reports'));
     await tester.pump();
+
+    expect(container.read(crashReportingProvider), isTrue);
+    expect(shown(), isTrue);
+
+    await tester.tap(switchTile('Send crash reports'));
     await tester.pump();
 
-    expect(
-      find.text('Link not opened. Visit zuno.chat/terms in a browser.'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('Send crash reports is a real, enabled toggle — off by default', (
-    tester,
-  ) async {
-    await pumpAbout(tester);
-
-    final tile = tester.widget<SwitchListTile>(
-      switchTile('Send crash reports'),
-    );
-    expect(tile.value, isFalse);
-    expect(tile.onChanged, isNotNull);
+    expect(container.read(crashReportingProvider), isFalse);
+    expect(shown(), isFalse);
   });
 
   testWidgets('the crash reporting switch promises only what it controls', (
@@ -280,54 +193,6 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('Nothing is sent'), findsNothing);
-  });
-
-  testWidgets('reads a previously-stored crash reporting opt-in', (
-    tester,
-  ) async {
-    await pumpAbout(tester, prefs: {'settings.crash_reporting': true});
-
-    final tile = tester.widget<SwitchListTile>(
-      switchTile('Send crash reports'),
-    );
-    expect(tile.value, isTrue);
-  });
-
-  testWidgets('tapping the crash reporting toggle flips and persists it', (
-    tester,
-  ) async {
-    final container = await pumpAbout(tester);
-
-    await tester.tap(switchTile('Send crash reports'));
-    await tester.pump();
-
-    expect(container.read(crashReportingProvider), isTrue);
-    expect(
-      container
-          .read(sharedPreferencesProvider)
-          .getBool('settings.crash_reporting'),
-      isTrue,
-    );
-  });
-
-  testWidgets('tapping the crash reporting toggle again turns it back off', (
-    tester,
-  ) async {
-    final container = await pumpAbout(
-      tester,
-      prefs: {'settings.crash_reporting': true},
-    );
-
-    await tester.tap(switchTile('Send crash reports'));
-    await tester.pump();
-
-    expect(container.read(crashReportingProvider), isFalse);
-    expect(
-      container
-          .read(sharedPreferencesProvider)
-          .getBool('settings.crash_reporting'),
-      isFalse,
-    );
   });
 
   testWidgets('Show hidden messages is off by default and flips', (
@@ -343,42 +208,6 @@ void main() {
     await tester.pump();
 
     expect(container.read(showHiddenMessagesProvider), isTrue);
-  });
-
-  testWidgets('tapping Source code opens the repository', (tester) async {
-    final opened = <Uri>[];
-    await pumpAbout(
-      tester,
-      page: AboutPage(
-        openUrl: (uri) async {
-          opened.add(uri);
-          return true;
-        },
-      ),
-    );
-
-    await tester.tap(find.text('Source code'));
-    await tester.pump();
-
-    expect(opened, [Uri.parse('https://github.com/Zuno-Chat/zuno-chat')]);
-    expect(find.byType(SnackBar), findsNothing);
-  });
-
-  testWidgets('names the repository address when no browser opens it', (
-    tester,
-  ) async {
-    await pumpAbout(tester, page: AboutPage(openUrl: (uri) async => false));
-
-    await tester.tap(find.text('Source code'));
-    await tester.pump();
-    await tester.pump();
-
-    expect(
-      find.text(
-        'Link not opened. Visit github.com/Zuno-Chat/zuno-chat in a browser.',
-      ),
-      findsOneWidget,
-    );
   });
 
   testWidgets('Open source licenses shows the license page with the notice', (

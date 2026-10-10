@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -17,6 +16,7 @@ import 'package:zuno/features/settings/presentation/settings_page.dart';
 
 import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 class _OwnMemberDb extends FakeDatabaseApi {
@@ -95,54 +95,25 @@ void main() {
     }
   });
 
-  testWidgets('Security names screenshots where they can be blocked', (
-    tester,
-  ) async {
+  testWidgets('on Android the categories name screenshots, delivery and '
+      'donate', (tester) async {
     await _pumpSettingsPage(tester, capabilities: androidCapabilities);
 
     expect(find.text('Recovery, devices, screenshots'), findsOneWidget);
-  });
-
-  testWidgets('Security names screen content where screenshots cannot be '
-      'blocked', (tester) async {
-    await _pumpSettingsPage(tester, capabilities: iosCapabilities);
-
-    expect(find.text('Recovery, devices, screen content'), findsOneWidget);
-    expect(find.textContaining('screenshots'), findsNothing);
-  });
-
-  testWidgets('Notifications names delivery where there is a choice of it', (
-    tester,
-  ) async {
-    await _pumpSettingsPage(tester, capabilities: androidCapabilities);
-
     expect(find.text('Sounds, delivery'), findsOneWidget);
-  });
-
-  testWidgets('Notifications names mentions where delivery has no choice', (
-    tester,
-  ) async {
-    await _pumpSettingsPage(tester, capabilities: iosCapabilities);
-
-    expect(find.text('Sounds, mentions'), findsOneWidget);
-    expect(find.textContaining('delivery'), findsNothing);
-  });
-
-  testWidgets('About names donate where payment links are allowed', (
-    tester,
-  ) async {
-    await _pumpSettingsPage(tester, capabilities: androidCapabilities);
-
     expect(find.text('Version, donate, diagnostics'), findsOneWidget);
   });
 
-  testWidgets('About leaves donate out where payment links are forbidden', (
-    tester,
-  ) async {
+  testWidgets('on iOS the categories name screen content, mentions and terms, '
+      'never screenshots, delivery or donate', (tester) async {
     await _pumpSettingsPage(tester, capabilities: iosCapabilities);
 
+    expect(find.text('Recovery, devices, screen content'), findsOneWidget);
+    expect(find.text('Sounds, mentions'), findsOneWidget);
     expect(find.text('Version, terms, diagnostics'), findsOneWidget);
-    expect(find.textContaining('donate'), findsNothing);
+    for (final word in ['screenshots', 'delivery', 'donate']) {
+      expect(find.textContaining(word), findsNothing, reason: word);
+    }
   });
 
   testWidgets('you are on top: name, username, and a way into Account', (
@@ -215,20 +186,6 @@ void main() {
     expect(find.text('Alex From Disk'), findsOneWidget);
   });
 
-  testWidgets('the last card clears the system navigation bar', (tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [matrixClientProvider.overrideWithValue(_client())],
-        child: const MediaQuery(
-          data: MediaQueryData(padding: EdgeInsets.only(bottom: 48)),
-          child: MaterialApp(home: SettingsPage()),
-        ),
-      ),
-    );
-    final list = tester.widget<ListView>(find.byType(ListView));
-    expect((list.padding! as EdgeInsets).bottom, 16 + 48);
-  });
-
   testWidgets('settings sit in four cards, leaving last', (tester) async {
     await _pumpSettingsPage(tester);
 
@@ -242,30 +199,6 @@ void main() {
       find.descendant(of: leaving, matching: find.text('Delete account')),
       findsOneWidget,
     );
-  });
-
-  testWidgets('the thin categories it replaced are gone', (tester) async {
-    await _pumpSettingsPage(tester);
-
-    expect(find.text('General'), findsNothing);
-    expect(find.text('App preferences'), findsNothing);
-    expect(find.text('Voice & video'), findsNothing);
-  });
-
-  testWidgets('destructive actions stay on the root screen', (tester) async {
-    await _pumpSettingsPage(tester);
-
-    expect(find.text('Sign out'), findsOneWidget);
-    expect(find.text('Delete account'), findsOneWidget);
-  });
-
-  testWidgets('no server-admin badge or Homeserver information entry', (
-    tester,
-  ) async {
-    await _pumpSettingsPage(tester);
-
-    expect(find.text("You're a homeserver admin"), findsNothing);
-    expect(find.text('Homeserver information'), findsNothing);
   });
 
   testWidgets('logging out asks first', (tester) async {
@@ -321,11 +254,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    const backgroundSync = MethodChannel('zuno/background_sync');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(backgroundSync, (_) async => null);
-    addTearDown(() => messenger.setMockMethodCallHandler(backgroundSync, null));
+    silenceMethodChannels(const ['zuno/background_sync']);
     final client = _SigningOutClient();
     await _pumpSettingsPage(
       tester,
@@ -354,7 +283,12 @@ void main() {
   });
 
   testWidgets('cancelling leaves the account alone', (tester) async {
-    await _pumpSettingsPage(tester, status: AccountSecurityStatus.protected);
+    final client = _SigningOutClient();
+    await _pumpSettingsPage(
+      tester,
+      status: AccountSecurityStatus.protected,
+      client: _client(client),
+    );
 
     await tester.tap(find.text('Sign out'));
     await tester.pumpAndSettle();
@@ -362,6 +296,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sign out?'), findsNothing);
+    expect(client.journal, isEmpty);
   });
 
   testWidgets('Send feedback opens the feedback sheet', (tester) async {

@@ -184,8 +184,9 @@ void main() {
     });
   });
 
-  group('displayBody and previewSnippet', () {
-    test('a reply drops the quoted fallback', () async {
+  test(
+    'displayBody and previewSnippet drop the quoted reply fallback',
+    () async {
       final event = message({
         'msgtype': 'm.text',
         'body': '> <@alice:example.org> earlier\n\nnow',
@@ -194,15 +195,8 @@ void main() {
 
       expect(displayBody(event, timeline), 'now');
       expect(previewSnippet(event, timeline), 'now');
-    });
-
-    test('an attachment previews by kind, not file name', () async {
-      final event = message({'msgtype': 'm.image', 'body': 'IMG_1.jpg'});
-      final timeline = await timelineOf([event]);
-
-      expect(previewSnippet(event, timeline), 'Photo');
-    });
-  });
+    },
+  );
 
   test('state events and edits are hidden from the timeline', () {
     expect(
@@ -236,6 +230,29 @@ void main() {
         '1:05:03',
       );
       expect(formatDuration(const Duration(hours: 12)), '12:00:00');
+    });
+  });
+
+  group('dateDividerLabel', () {
+    final now = DateTime(2026, 9, 2, 15);
+
+    test('same calendar day as now is "Today"', () {
+      expect(dateDividerLabel(DateTime(2026, 9, 2, 0, 1), now), 'Today');
+    });
+
+    test('the day before is "Yesterday"', () {
+      expect(dateDividerLabel(DateTime(2026, 9, 1, 23, 59), now), 'Yesterday');
+    });
+
+    test('earlier this year: month + day, no year', () {
+      expect(dateDividerLabel(DateTime(2026, 1, 15), now), 'January 15');
+    });
+
+    test('a previous year: month + day + year', () {
+      expect(
+        dateDividerLabel(DateTime(2025, 12, 31), now),
+        'December 31, 2025',
+      );
     });
   });
 }

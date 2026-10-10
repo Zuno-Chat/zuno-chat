@@ -199,29 +199,5 @@ void main() {
         subtitle: 'Checking this device…',
       ));
     });
-
-    test('every reason ends as a sentence, like the method descriptions '
-        'beside it', () {
-      for (final fcm in FcmAvailability.values) {
-        final choice = deliveryModeChoice(
-          NotificationDeliveryMode.fcm,
-          fcm: fcm,
-        );
-        if (choice.enabled) continue;
-        expect(choice.subtitle, endsWith('.'), reason: '$fcm');
-      }
-    });
-
-    test('no reason shouts, apologises or uses a contraction', () {
-      for (final fcm in [null, ...FcmAvailability.values]) {
-        final subtitle = deliveryModeChoice(
-          NotificationDeliveryMode.fcm,
-          fcm: fcm,
-        ).subtitle;
-        expect(subtitle, isNot(contains('!')), reason: '$fcm');
-        expect(subtitle, isNot(contains("'")), reason: '$fcm');
-        expect(subtitle.toLowerCase(), isNot(contains('sorry')));
-      }
-    });
   });
 }

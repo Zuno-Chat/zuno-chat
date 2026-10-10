@@ -40,27 +40,3 @@ class ComingSoonTile extends StatelessWidget {
     );
   }
 }
-
-class ComingSoonSwitchTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-
-  const ComingSoonSwitchTile({
-    required this.icon,
-    required this.title,
-    this.subtitle,
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SwitchListTile(
-      secondary: Icon(icon),
-      title: Text(title),
-      subtitle: Text(subtitle ?? 'Coming soon'),
-      value: false,
-      onChanged: null,
-    );
-  }
-}

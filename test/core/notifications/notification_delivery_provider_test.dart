@@ -1,6 +1,5 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/background_sync_delivery_provider.dart';
@@ -10,16 +9,29 @@ import 'package:zuno/core/notifications/notification_delivery_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
+import 'package:zuno/core/push/fcm_pusher.dart';
+import 'package:zuno/core/push/pusher_info.dart';
 import 'package:zuno/core/push/read_model/nse_channel.dart';
 import 'package:zuno/core/push/voip/voip_channel.dart';
 import 'package:zuno/core/push/voip/voip_registration.dart';
 
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
+import '../../helpers/pusher_recording_client.dart';
 
 const _apnsToken =
     'a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4';
 const _apnsPushkey = 'obLD1KGyw9ShssPUobLD1KGyw9ShssPUobLD1KGyw9Q=';
+
+PusherInfo _pusher({required String appId, required String pushkey}) =>
+    PusherInfo(
+      appId: appId,
+      pushkey: pushkey,
+      appDisplayName: 'Zuno Chat',
+      deviceDisplayName: 'Zuno on Android',
+      kind: 'http',
+      lang: 'en',
+    );
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -65,51 +77,10 @@ void main() {
     },
   );
 
-  test('fcm mode resolves to the real FCM transport, not a no-op', () {
-    expect(
-      notificationDeliveryProviderFor(NotificationDeliveryMode.fcm),
-      same(fcmDeliveryProvider),
-    );
-  });
-
   group('Apple push', () {
-    test('resolves to its own provider, not an Android transport', () {
-      final provider = notificationDeliveryProviderFor(
-        NotificationDeliveryMode.apns,
-      );
-
-      expect(provider, isA<ApnsDeliveryProvider>());
-      expect(
-        provider,
-        same(notificationDeliveryProviderFor(NotificationDeliveryMode.apns)),
-      );
-      for (final other in [
-        NotificationDeliveryMode.fcm,
-        NotificationDeliveryMode.unifiedPush,
-        NotificationDeliveryMode.backgroundService,
-      ]) {
-        expect(provider, isNot(same(notificationDeliveryProviderFor(other))));
-      }
-    });
-
-    test('without the native token handler, starting and stopping it touch '
-        'nothing', () async {
-      final client = _PusherClient();
-      final provider = notificationDeliveryProviderFor(
-        NotificationDeliveryMode.apns,
-      );
-
-      await provider.start(client);
-      await provider.stop(client);
-
-      expect(calls, isEmpty);
-      expect(client.posted, isEmpty);
-      expect(client.deleted, isEmpty);
-    });
-
     test('without the native token handler, retry, recheck and kick-off '
         'leave it alone', () async {
-      final client = _PusherClient();
+      final client = PusherRecordingClient();
 
       await retryFailedDelivery(client, NotificationDeliveryMode.apns);
       await recheckDelivery(client, NotificationDeliveryMode.apns);
@@ -121,12 +92,12 @@ void main() {
     });
 
     group('once the native token handler exists', () {
-      late _PusherClient client;
+      late PusherRecordingClient client;
 
       setUp(() {
         SharedPreferences.setMockInitialValues({});
         ambientCapabilities = iosCapabilities;
-        client = _PusherClient();
+        client = PusherRecordingClient();
         apnsDeliveryProvider.tokenReader = () async => _apnsToken;
         apnsDeliveryProvider.environmentReader = () async => 'development';
         addTearDown(() => apnsDeliveryProvider.stop(client));
@@ -160,7 +131,7 @@ void main() {
   test('stopping all delivery still stops background sync', () async {
     SharedPreferences.setMockInitialValues({});
 
-    await stopAllNotificationDelivery(_PusherClient());
+    await stopAllNotificationDelivery(PusherRecordingClient());
 
     expect(calls, contains('stopBackgroundSyncService'));
   });
@@ -190,7 +161,7 @@ void main() {
         voipSessionKey: '@me:example.org|PHONE',
       });
 
-      await stopAllNotificationDelivery(_PusherClient());
+      await stopAllNotificationDelivery(PusherRecordingClient());
 
       expect(voip.map((c) => [c.method, c.arguments]), [
         ['wipe', null],
@@ -207,25 +178,10 @@ void main() {
         voipSessionKey: '@me:example.org|PHONE',
       });
 
-      await stopAllNotificationDelivery(_PusherClient());
+      await stopAllNotificationDelivery(PusherRecordingClient());
 
       expect(voip, isEmpty);
     });
-  });
-
-  test('notificationDeliveryProviderFor returns a stable singleton per mode — '
-      '_AuthGate calls it on every rebuild, so a fresh instance each time '
-      'would be wasteful but still must behave identically', () {
-    expect(
-      notificationDeliveryProviderFor(
-        NotificationDeliveryMode.backgroundService,
-      ),
-      same(
-        notificationDeliveryProviderFor(
-          NotificationDeliveryMode.backgroundService,
-        ),
-      ),
-    );
   });
 
   test('bindAppStateToPushDelivery reaches both push runners', () async {
@@ -306,11 +262,11 @@ void main() {
   });
 
   group('routing to the active transport', () {
-    late _PusherClient client;
+    late PusherRecordingClient client;
 
     setUp(() {
       SharedPreferences.setMockInitialValues({});
-      client = _PusherClient();
+      client = PusherRecordingClient();
       fcmDeliveryProvider
         ..availabilityReader = (() async => FcmAvailability.available)
         ..tokenReader = (() async => 'token-xyz')
@@ -325,40 +281,82 @@ void main() {
 
       expect(client.posted.map((p) => p.pushkey), ['token-xyz']);
     });
+  });
 
-    test('retryFailedDelivery leaves a healthy transport alone', () async {
-      fcmDeliveryProvider.status.value = FcmStatus.ready;
-
-      await retryFailedDelivery(client, NotificationDeliveryMode.fcm);
-
-      expect(client.posted, isEmpty);
+  group("the running transport's own pusher and last error", () {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      fcmDeliveryProvider
+        ..availabilityReader = (() async => FcmAvailability.available)
+        ..tokenReader = (() async => 'fcm-token-abc')
+        ..tokenDeleter = (() async {});
+      await fcmDeliveryProvider.registerNow(PusherRecordingClient());
     });
 
-    test('recheckDelivery is a no-op for the background service', () async {
-      await recheckDelivery(client, NotificationDeliveryMode.backgroundService);
+    tearDown(() async {
+      await fcmDeliveryProvider.stop(PusherRecordingClient());
+      unifiedPushDeliveryProvider.lastPusherError = null;
+    });
 
-      expect(client.posted, isEmpty);
-      expect(calls, isEmpty);
+    test('a transport with nothing registered claims no pusher as its own', () {
+      expect(
+        currentPushkeyFor(NotificationDeliveryMode.backgroundService),
+        isNull,
+      );
+      final groups = groupPushers([
+        _pusher(appId: fcmAppId, pushkey: 'fcm-token-abc'),
+      ], currentPushkeyFor(NotificationDeliveryMode.backgroundService));
+      expect(groups.currentSession, isNull);
+    });
+
+    test(
+      'the last error shown is the running transport, not the other one',
+      () {
+        unifiedPushDeliveryProvider.lastPusherError =
+            'ntfy refused the endpoint';
+
+        expect(lastPusherErrorFor(NotificationDeliveryMode.fcm), isNull);
+        expect(
+          lastPusherErrorFor(NotificationDeliveryMode.unifiedPush),
+          'ntfy refused the endpoint',
+        );
+      },
+    );
+
+    group('Apple push', () {
+      tearDown(() async {
+        await apnsDeliveryProvider.stop(PusherRecordingClient());
+        apnsDeliveryProvider.lastPusherError = null;
+        apnsDeliveryProvider.resetEnvironmentForTesting();
+      });
+
+      test('this session is identified by its device token, and its pusher is '
+          'never an "other push target"', () async {
+        ambientCapabilities = iosCapabilities;
+        apnsDeliveryProvider
+          ..tokenReader = (() async => _apnsToken)
+          ..notificationsAllowed = (() async => true)
+          ..environmentReader = (() async => 'development');
+        await apnsDeliveryProvider.registerNow(PusherRecordingClient());
+
+        final groups = groupPushers([
+          _pusher(appId: apnsAppId, pushkey: _apnsPushkey),
+          _pusher(appId: fcmAppId, pushkey: 'fcm-token-abc'),
+        ], currentPushkeyFor(NotificationDeliveryMode.apns));
+
+        expect(groups.currentSession?.pushkey, _apnsPushkey);
+        expect(groups.others.single.appId, fcmAppId);
+      });
+
+      test('its last error is shown, not the Android one', () {
+        apnsDeliveryProvider.lastPusherError = 'M_FORBIDDEN';
+
+        expect(
+          lastPusherErrorFor(NotificationDeliveryMode.apns),
+          'M_FORBIDDEN',
+        );
+        expect(lastPusherErrorFor(NotificationDeliveryMode.fcm), isNull);
+      });
     });
   });
-}
-
-class _PusherClient extends Client {
-  _PusherClient() : super('test', database: FakeDatabaseApi()) {
-    homeserver = Uri.parse('https://matrix.example.org');
-  }
-
-  final posted = <Pusher>[];
-
-  final deleted = <PusherId>[];
-
-  @override
-  Future<void> postPusher(Pusher pusher, {bool? append}) async {
-    posted.add(pusher);
-  }
-
-  @override
-  Future<void> deletePusher(PusherId pusherId) async {
-    deleted.add(pusherId);
-  }
 }

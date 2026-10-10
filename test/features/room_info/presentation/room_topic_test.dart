@@ -53,19 +53,10 @@ void main() {
     expect(find.text('Read more'), findsNothing);
   });
 
-  testWidgets('a long topic stops at three lines with read more', (
-    tester,
-  ) async {
+  testWidgets('a long topic stops at three lines; read more shows the whole '
+      'topic and show less folds it', (tester) async {
     await pumpTopic(tester, _long);
-
     expect(shownLines(tester), 3);
-    expect(find.text('Read more'), findsOneWidget);
-  });
-
-  testWidgets('read more shows the whole topic and show less folds it', (
-    tester,
-  ) async {
-    await pumpTopic(tester, _long);
 
     await tester.tap(find.text('Read more'));
     await tester.pump();

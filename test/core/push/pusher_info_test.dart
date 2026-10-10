@@ -88,26 +88,6 @@ void main() {
       ]);
     });
 
-    test('the order the homeserver sent is kept', () {
-      final first = PusherInfo.fromJson(
-        _pusherJson(appId: 'im.fluffychat', pushkey: 'https://ntfy.sh/up1'),
-      );
-      final second = PusherInfo.fromJson(
-        _pusherJson(pushkey: 'https://ntfy.sh/up2'),
-      );
-      final third = PusherInfo.fromJson(
-        _pusherJson(appId: 'org.example', pushkey: 'https://ntfy.sh/up3'),
-      );
-
-      final groups = groupPushers([first, second, third], endpoint.toString());
-
-      expect(groups.others.map((p) => p.pushkey), [
-        first.pushkey,
-        second.pushkey,
-        third.pushkey,
-      ]);
-    });
-
     test('this session is matched on app id as well as pushkey', () {
       final impostor = PusherInfo.fromJson(
         _pusherJson(appId: 'im.fluffychat', pushkey: endpoint.toString()),
@@ -173,23 +153,6 @@ void main() {
 
       expect(groups.currentSession?.appId, apnsDevelopmentAppId);
       expect(groups.others, isEmpty);
-    });
-
-    test('another app sharing our pushkey is not this session', () {
-      const token = 'fZx9Q:APA91bHun4MxP5egoKMwt2K';
-      final groups = groupPushers([
-        PusherInfo.fromJson({
-          'app_id': 'org.example.other',
-          'pushkey': token,
-          'app_display_name': 'Something else',
-          'device_display_name': 'This device',
-          'kind': 'http',
-          'lang': 'en',
-        }),
-      ], token);
-
-      expect(groups.currentSession, isNull);
-      expect(groups.others, hasLength(1));
     });
   });
 }

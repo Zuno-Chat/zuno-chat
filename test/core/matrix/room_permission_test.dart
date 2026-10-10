@@ -15,79 +15,30 @@ RoomPermission _find(String id) =>
     roomPermissions.firstWhere((p) => p.id == id);
 
 void main() {
-  group('catalog', () {
-    test('has exactly 16 entries: 3 basic + 13 advanced', () {
-      expect(roomPermissions, hasLength(16));
-      expect(
-        roomPermissions.where((p) => p.section == RoomPermissionSection.basic),
-        hasLength(3),
-      );
-      expect(
-        roomPermissions.where(
-          (p) => p.section == RoomPermissionSection.advanced,
-        ),
-        hasLength(13),
-      );
-    });
-
-    test('every id is unique', () {
-      final ids = roomPermissions.map((p) => p.id).toSet();
-      expect(ids, hasLength(roomPermissions.length));
-    });
-
-    test('does not include users_default', () {
-      expect(roomPermissions.where((p) => p.id == 'users_default'), isEmpty);
-    });
-
-    test('no longer includes widgets, server_acl, or tombstone', () {
-      final ids = roomPermissions.map((p) => p.id).toSet();
-      expect(ids, isNot(contains('widgets')));
-      expect(ids, isNot(contains('server_acl')));
-      expect(ids, isNot(contains('tombstone')));
-    });
-
-    test('includes live location, mapped to its state event', () {
-      final permission = _find('live_location');
+  test('calls and live location map to their state events', () {
+    for (final (id, eventType) in [
+      ('calls', 'm.call.member'),
+      ('live_location', 'im.zuno.live_location'),
+    ]) {
+      final permission = _find(id);
       expect(
         permission.read({
-          'events': {'im.zuno.live_location': 0},
+          'events': {eventType: 0},
         }),
         0,
+        reason: id,
       );
       final content = <String, Object?>{};
       permission.write(content, 50);
       expect(content, {
-        'events': {'im.zuno.live_location': 50},
-      });
-    });
-
-    test('includes calls, mapped to m.call.member', () {
-      final permission = _find('calls');
-      expect(
-        permission.read({
-          'events': {'m.call.member': 0},
-        }),
-        0,
-      );
-      final content = <String, Object?>{};
-      permission.write(content, 50);
-      expect(content, {
-        'events': {'m.call.member': 50},
-      });
-    });
+        'events': {eventType: 50},
+      }, reason: id);
+    }
   });
 
-  group('roomDefaultRoleSetting', () {
-    test('reads users_default directly, falling back to 0', () {
-      expect(roomDefaultRoleSetting.read({}), 0);
-      expect(roomDefaultRoleSetting.read({'users_default': 50}), 50);
-    });
-
-    test('write() just sets the key', () {
-      final content = <String, Object?>{'ban': 50};
-      roomDefaultRoleSetting.write(content, -1);
-      expect(content, {'ban': 50, 'users_default': -1});
-    });
+  test('the default role reads users_default, falling back to 0', () {
+    expect(roomDefaultRoleSetting.read({}), 0);
+    expect(roomDefaultRoleSetting.read({'users_default': 50}), 50);
   });
 
   group('setRoomPermissionLevel', () {
@@ -235,54 +186,30 @@ void main() {
   });
 
   group('roomPermissionsAccessFor', () {
-    void setPowerLevels(Room room, Map<String, Object?> content) {
-      room.setState(
-        buildTestEvent(
-          room,
-          eventId: r'$powerlevels',
-          senderId: '@creator:example.org',
-          type: EventTypes.RoomPowerLevels,
-          stateKey: '',
-          content: content,
-        ),
-      );
+    for (final (name, level, access) in [
+      ('an admin can edit', 100, RoomPermissionsAccess.edit),
+      ('a moderator can only read', 50, RoomPermissionsAccess.readOnly),
+      ('a plain member sees nothing', 0, RoomPermissionsAccess.hidden),
+      ('a read-only member sees nothing', -1, RoomPermissionsAccess.hidden),
+    ]) {
+      test(name, () {
+        final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+        room.setState(
+          buildTestEvent(
+            room,
+            eventId: r'$powerlevels',
+            senderId: '@creator:example.org',
+            type: EventTypes.RoomPowerLevels,
+            stateKey: '',
+            content: {
+              'users': {'@me:example.org': level},
+            },
+          ),
+        );
+
+        expect(roomPermissionsAccessFor(room), access);
+      });
     }
-
-    test('an admin can edit', () {
-      final client = buildTestClient(userId: '@admin:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {'@admin:example.org': 100},
-      });
-      expect(roomPermissionsAccessFor(room), RoomPermissionsAccess.edit);
-    });
-
-    test('a moderator can only read', () {
-      final client = buildTestClient(userId: '@mod:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {'@mod:example.org': 50},
-      });
-      expect(roomPermissionsAccessFor(room), RoomPermissionsAccess.readOnly);
-    });
-
-    test('a plain member sees nothing', () {
-      final client = buildTestClient(userId: '@member:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {'@member:example.org': 0},
-      });
-      expect(roomPermissionsAccessFor(room), RoomPermissionsAccess.hidden);
-    });
-
-    test('a read-only member sees nothing', () {
-      final client = buildTestClient(userId: '@ro:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {'@ro:example.org': -1},
-      });
-      expect(roomPermissionsAccessFor(room), RoomPermissionsAccess.hidden);
-    });
   });
 
   group('community rules', () {

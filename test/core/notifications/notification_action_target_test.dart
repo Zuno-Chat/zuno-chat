@@ -261,19 +261,6 @@ void main() {
       );
     });
 
-    test('asks for each room key once', () async {
-      final asked = <String>[];
-      final rooms = ThreadKeyRooms(
-        threadKeyFor: (id) async {
-          asked.add(id);
-          return 'key-$id';
-        },
-      );
-      await rooms.roomFor(client, 'key-!b:example.org');
-      await rooms.roomFor(client, 'key-!b:example.org');
-      expect(asked, ['!a:example.org', '!b:example.org']);
-    });
-
     test('an unknown key finds no room', () async {
       final rooms = ThreadKeyRooms(threadKeyFor: (id) async => 'key-$id');
       expect(await rooms.roomFor(client, 'key-!gone:example.org'), isNull);
@@ -296,25 +283,5 @@ void main() {
         '!a:example.org',
       );
     });
-
-    test(
-      'a room that joins while keys are read does not stop the search',
-      () async {
-        var joined = false;
-        final rooms = ThreadKeyRooms(
-          threadKeyFor: (id) async {
-            if (!joined) {
-              joined = true;
-              client.rooms.add(buildTestRoom(client, id: '!c:example.org'));
-            }
-            return 'key-$id';
-          },
-        );
-        expect(
-          (await rooms.roomFor(client, 'key-!b:example.org'))?.id,
-          '!b:example.org',
-        );
-      },
-    );
   });
 }

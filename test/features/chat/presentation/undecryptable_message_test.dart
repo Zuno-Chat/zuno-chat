@@ -9,15 +9,7 @@ import 'package:zuno/features/chat/presentation/undecryptable_message.dart';
 import 'package:zuno/features/verification/presentation/approve_this_device_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
-
-AccountSecurityFacts _facts({required bool backup, required bool usableHere}) =>
-    AccountSecurityFacts(
-      recoveryExists: true,
-      thisDeviceHasIdentityKeys: usableHere,
-      keyBackupExists: backup,
-      keyBackupUsableHere: usableHere,
-      unapprovedOtherDevices: 0,
-    );
+import '../../../helpers/security_facts.dart';
 
 void main() {
   Future<void> pump(
@@ -45,7 +37,10 @@ void main() {
       await pump(
         tester,
         const UndecryptableMessageContent(),
-        facts: _facts(backup: true, usableHere: false),
+        facts: securityFacts(
+          thisDeviceHasIdentityKeys: false,
+          keyBackupUsableHere: false,
+        ),
       );
       await tester.pump();
 
@@ -56,24 +51,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.byType(ApproveThisDevicePage), findsOneWidget);
-    });
-
-    testWidgets('without a backup blames the missing key, and offers '
-        'nothing', (tester) async {
-      await pump(
-        tester,
-        const UndecryptableMessageContent(),
-        facts: _facts(backup: false, usableHere: false),
-      );
-      await tester.pump();
-
-      expect(
-        find.text(
-          "The sender's device did not share the key for this message.",
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Unlock older messages'), findsNothing);
     });
 
     testWidgets('while the facts load it offers nothing', (tester) async {
@@ -90,7 +67,10 @@ void main() {
     await pump(
       tester,
       const UndecryptablePreviewText(),
-      facts: _facts(backup: true, usableHere: false),
+      facts: securityFacts(
+        thisDeviceHasIdentityKeys: false,
+        keyBackupUsableHere: false,
+      ),
     );
     await tester.pump();
 

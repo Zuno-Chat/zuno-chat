@@ -1,5 +1,6 @@
 import Foundation
 import UserNotifications
+import XCTest
 
 @testable import Runner
 
@@ -75,5 +76,31 @@ enum NseTestData {
 
   static func push(eventId: String? = eventId) -> NsePush {
     NsePush(id: "push-1", roomId: roomId, eventId: eventId, receivedMs: now)
+  }
+
+  static func pushTrigger() throws -> UNNotificationTrigger {
+    let seed = try NSKeyedArchiver.archivedData(
+      withRootObject: NSDictionary(), requiringSecureCoding: false)
+    let coder = try NSKeyedUnarchiver(forReadingFrom: seed)
+    coder.requiresSecureCoding = false
+    return try XCTUnwrap(UNPushNotificationTrigger(coder: coder))
+  }
+
+  static func notification(
+    _ identifier: String, userInfo: [AnyHashable: Any], trigger: UNNotificationTrigger?,
+    thread: String = ""
+  ) throws -> UNNotification {
+    let content = UNMutableNotificationContent()
+    content.userInfo = userInfo
+    content.threadIdentifier = thread
+    let archiver = NSKeyedArchiver(requiringSecureCoding: false)
+    archiver.encode(
+      UNNotificationRequest(identifier: identifier, content: content, trigger: trigger),
+      forKey: "request")
+    archiver.encode(Date(), forKey: "date")
+    archiver.finishEncoding()
+    let coder = try NSKeyedUnarchiver(forReadingFrom: archiver.encodedData)
+    coder.requiresSecureCoding = false
+    return try XCTUnwrap(UNNotification(coder: coder))
   }
 }

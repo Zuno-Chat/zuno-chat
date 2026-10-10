@@ -172,7 +172,8 @@ void main() {
     expect(inputs.pushers, isNull);
   });
 
-  test('a test notification is sent, rate limited or refused', () async {
+  test('a test notification is sent, rate limited, not available with push '
+      'turned off, or refused', () async {
     answer = (request) async =>
         _module({'event_id': r'$zuno_test_1', 'server_ts': 1});
     expect(await source().sendTest(), PushTestOutcome.sent);
@@ -185,24 +186,26 @@ void main() {
     expect(await source().sendTest(), PushTestOutcome.rateLimited);
 
     answer = (request) async => _module({
+      'errcode': 'IM.ZUNO.PUSH_DISABLED',
+      'error': 'off',
+    }, status: 503);
+    expect(await source().sendTest(), PushTestOutcome.notAvailable);
+
+    answer = (request) async => _module({
       'errcode': 'IM.ZUNO.NOT_PUSHER_INSTANCE',
       'error': 'elsewhere',
     }, status: 503);
     expect(await source().sendTest(), PushTestOutcome.failed);
   });
 
-  test('a server without the push module reads as not installed', () async {
-    answer = (request) async => http.Response('{}', 404);
-
-    final inputs = await source().load(ios, NotificationDeliveryMode.apns);
-
-    expect(inputs.reach, ServerReach.notInstalled);
-  });
-
-  test('a plain page of any status below 500 reads as not installed, a 502 '
-      'as unreachable', () async {
-    for (final status in [200, 403]) {
-      answer = (request) async => http.Response('<html></html>', status);
+  test('a server without the push module, answering any status below 500, '
+      'reads as not installed and a 502 as unreachable', () async {
+    for (final (status, body) in [
+      (404, '{}'),
+      (200, '<html></html>'),
+      (403, '<html></html>'),
+    ]) {
+      answer = (request) async => http.Response(body, status);
       final inputs = await source().load(ios, NotificationDeliveryMode.apns);
       expect(inputs.reach, ServerReach.notInstalled, reason: '$status');
       expect(await source().sendTest(), PushTestOutcome.notAvailable);
@@ -211,21 +214,6 @@ void main() {
     answer = (request) async => http.Response('bad gateway', 502);
     final inputs = await source().load(ios, NotificationDeliveryMode.apns);
     expect(inputs.reach, ServerReach.unreachable);
-    expect(await source().sendTest(), PushTestOutcome.failed);
-  });
-
-  test('a test on a server without the push module, or with push turned off, '
-      'is not available; a broken route is a failure', () async {
-    answer = (request) async => http.Response('{}', 404);
-    expect(await source().sendTest(), PushTestOutcome.notAvailable);
-
-    answer = (request) async => _module({
-      'errcode': 'IM.ZUNO.PUSH_DISABLED',
-      'error': 'off',
-    }, status: 503);
-    expect(await source().sendTest(), PushTestOutcome.notAvailable);
-
-    answer = (request) async => http.Response('bad gateway', 502);
     expect(await source().sendTest(), PushTestOutcome.failed);
   });
 

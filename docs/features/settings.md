@@ -61,9 +61,8 @@ Delete account (`authentication.md`).
 - **iOS has no Donate row**, because the App Store forbids linking out to
   pay the developer. The rule is one capability for the whole platform, not
   per storefront, so the iOS app is the same in every region.
-- **Unbuilt settings ship as `ComingSoonTile` or `ComingSoonSwitchTile`
-  rows in their final place**, so future scope stays visible and every
-  placeholder looks the same.
+- **Unbuilt settings ship as `ComingSoonTile` rows in their final place**,
+  so future scope stays visible and every placeholder looks the same.
 - **Enum settings follow `NotificationDeliveryMode`.** A stored value that is
   unknown, or that this platform does not offer, reads as the platform
   default without touching storage.

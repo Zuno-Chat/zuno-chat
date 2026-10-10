@@ -8,6 +8,7 @@ import 'package:zuno/core/notifications/notification_sound_settings.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -16,7 +17,7 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('the native ringback tone', () {
-    late RecordedCallsChannel native;
+    late RecordedMethodCalls native;
     late NativeRingbackTonePlayer player;
 
     setUp(() {

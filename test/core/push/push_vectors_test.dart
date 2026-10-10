@@ -1,13 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Map<String, Object?> _fixture(String name) =>
-    jsonDecode(File('test/fixtures/push/$name').readAsStringSync())
-        as Map<String, Object?>;
+import '../../helpers/fixtures.dart';
 
 List<Map<String, Object?>> _list(Object? value) =>
     (value! as List).cast<Map<String, Object?>>();
@@ -19,9 +16,6 @@ List<int> _range(int first, int last) => [
 int _uint32(List<int> bytes, int offset) =>
     ByteData.sublistView(Uint8List.fromList(bytes.sublist(offset, offset + 4)))
         .getUint32(0);
-
-String _hex(List<int> bytes) =>
-    bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
 
 String _uuidV5(String namespace, String name) {
   final compact = namespace.replaceAll('-', '');
@@ -35,7 +29,7 @@ String _uuidV5(String namespace, String name) {
       .sublist(0, 16);
   hash[6] = (hash[6] & 0x0f) | 0x50;
   hash[8] = (hash[8] & 0x3f) | 0x80;
-  final hex = _hex(hash).toUpperCase();
+  final hex = hexOf(hash).toUpperCase();
   return [
     hex.substring(0, 8),
     hex.substring(8, 12),
@@ -68,7 +62,7 @@ String _normalizedName(String name) {
 
 void main() {
   group('the VoIP blob vectors', () {
-    final fixture = _fixture('voip_blob_v1.json');
+    final fixture = pushFixture('voip_blob_v1.json');
     final vectors = _list(fixture['vectors']);
     final known = vectors.singleWhere((v) => v['name'] == 'known_answer');
     final knownBlob = base64Decode(known['blob']! as String);
@@ -159,19 +153,8 @@ void main() {
       );
     });
 
-    test('the expiry is 45 s after the earlier of the send time and 30 s '
-        'after receipt', () {
-      for (final vector in vectors) {
-        final payload = vector['payload']! as Map<String, Object?>;
-        final ts = payload['ts']! as int;
-        final rts = payload['rts']! as int;
-        final earlier = ts < rts + 30000 ? ts : rts + 30000;
-        expect(vector['x'], earlier ~/ 1000 + 45, reason: '${vector['name']}');
-      }
-    });
-
-    test('a send time more than 30 s after receipt cannot extend the '
-        'expiry', () {
+    test('the expiry is 45 s after the send time, which a send time more '
+        'than 30 s after receipt cannot extend', () {
       int field(Map<String, Object?> vector, String key) =>
           (vector['payload']! as Map<String, Object?>)[key]! as int;
       final skewed = vectors.singleWhere((v) => v['name'] == 'skewed_sender');
@@ -237,7 +220,7 @@ void main() {
   });
 
   group('the name vectors', () {
-    final fixture = _fixture('names_v1.json');
+    final fixture = pushFixture('names_v1.json');
     final cases = {
       for (final entry in _list(fixture['cases'])) entry['name']: entry,
     };
@@ -297,7 +280,7 @@ void main() {
   });
 
   group('the CallKit UUID vectors', () {
-    final fixture = _fixture('call_uuid_v5.json');
+    final fixture = pushFixture('call_uuid_v5.json');
     final cases = _list(fixture['cases']);
 
     test('each is the name-based SHA-1 UUID of room, newline, call', () {
@@ -329,7 +312,7 @@ void main() {
   });
 
   group('the opaque id vectors', () {
-    final fixture = _fixture('opaque_ids_v1.json');
+    final fixture = pushFixture('opaque_ids_v1.json');
     final installKey = base64Decode(fixture['install_key']! as String);
     final cases = _list(fixture['cases']);
 
@@ -357,7 +340,7 @@ void main() {
   });
 
   group('the sealed file vectors', () {
-    final fixture = _fixture('sealed_file_v1.json');
+    final fixture = pushFixture('sealed_file_v1.json');
     final room = _list(fixture['cases']).single;
     final sealed = base64Decode(room['sealed']! as String);
 

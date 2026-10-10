@@ -38,33 +38,18 @@ void main() {
   });
 
   group('buildErrorSnackBar', () {
-    test(
-      'persist is false, so the Copy action doesn\'t stop it auto-dismissing',
-      () {
-        expect(buildErrorSnackBar('boom').persist, isFalse);
-      },
-    );
+    Future<void> showBuilt(WidgetTester tester, String message) async {
+      await pumpMessengerApp(tester);
+      globalScaffoldMessengerKey.currentState!.showSnackBar(
+        buildErrorSnackBar(message),
+      );
+      await tester.pumpAndSettle();
+    }
 
     testWidgets(
       'auto-dismisses on its own after the duration, with no tap at all',
       (tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Builder(
-              builder: (context) => Scaffold(
-                body: ElevatedButton(
-                  onPressed: () =>
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(buildErrorSnackBar('boom')),
-                  child: const Text('trigger'),
-                ),
-              ),
-            ),
-          ),
-        );
-
-        await tester.tap(find.text('trigger'));
-        await tester.pumpAndSettle();
+        await showBuilt(tester, 'boom');
         expect(find.text('boom'), findsOneWidget);
 
         await tester.pump(const Duration(seconds: 9));
@@ -90,24 +75,7 @@ void main() {
       });
 
       const fullMessage = 'boom\n\n#0 someFunction';
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(buildErrorSnackBar(fullMessage));
-                },
-                child: const Text('trigger'),
-              ),
-            ),
-          ),
-        ),
-      );
-
-      await tester.tap(find.text('trigger'));
-      await tester.pumpAndSettle();
+      await showBuilt(tester, fullMessage);
 
       expect(find.text('boom'), findsOneWidget);
       expect(find.text(fullMessage), findsNothing);
@@ -193,9 +161,17 @@ void main() {
   });
 
   group('reportZoneError', () {
-    test('is a no-op for crash reporting while Sentry is disabled', () {
-      expect(() => reportZoneError('boom', StackTrace.empty), returnsNormally);
-    });
+    testWidgets(
+      'reports the error like any unhandled one while Sentry is off',
+      (tester) async {
+        await pumpMessengerApp(tester);
+
+        reportZoneError('boom', StackTrace.empty);
+        await tester.pumpAndSettle();
+
+        expect(find.text('boom'), findsOneWidget);
+      },
+    );
   });
 
   group('reportUnhandledError', () {
@@ -243,6 +219,8 @@ void main() {
     ) async {
       showErrorSnackBar('too early');
       await tester.pump();
+
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('does not trip "Build scheduled during frame" when called from '

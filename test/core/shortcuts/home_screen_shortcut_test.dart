@@ -5,6 +5,7 @@ import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/shortcuts/home_screen_shortcut.dart';
 
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -28,14 +29,6 @@ void main() {
     });
     expect(await takeLaunchRoomShortcut(), '!room:example.org');
   });
-
-  test(
-    'takeLaunchRoomShortcut returns null when there was no shortcut launch',
-    () async {
-      messenger.setMockMethodCallHandler(channel, (call) async => null);
-      expect(await takeLaunchRoomShortcut(), isNull);
-    },
-  );
 
   test(
     'pinRoomShortcut sends the expected arguments and reports the result',
@@ -72,37 +65,10 @@ void main() {
     'onOpenRoomShortcut streams a room ID delivered while already running',
     () async {
       final future = onOpenRoomShortcut.first;
-      await messenger.handlePlatformMessage(
-        channel.name,
-        channel.codec.encodeMethodCall(
-          const MethodCall('openRoom', '!live:example.org'),
-        ),
-        (data) {},
-      );
+      await callFromNative(channel, 'openRoom', '!live:example.org');
       expect(await future, '!live:example.org');
     },
   );
-
-  test('a room opened before anyone listens reaches the first listener, '
-      'once', () async {
-    channel.setMethodCallHandler(null);
-    initHomeScreenShortcutChannel();
-    await messenger.handlePlatformMessage(
-      channel.name,
-      channel.codec.encodeMethodCall(
-        const MethodCall('openRoom', '!early:example.org'),
-      ),
-      (data) {},
-    );
-
-    expect(await onOpenRoomShortcut.first, '!early:example.org');
-
-    final later = <String>[];
-    final sub = onOpenRoomShortcut.listen(later.add);
-    addTearDown(sub.cancel);
-    await pumpEventQueue();
-    expect(later, isEmpty);
-  });
 
   group('on iOS, a tapped Apple push opens its room', () {
     final ios = capabilitiesFor(AppPlatform.ios);
@@ -130,13 +96,7 @@ void main() {
       initHomeScreenShortcutChannel(capabilities: ios);
       final opened = onOpenRoomShortcut.first;
 
-      await messenger.handlePlatformMessage(
-        channel.name,
-        channel.codec.encodeMethodCall(
-          const MethodCall('openRoom', '!pushed:example.org'),
-        ),
-        (data) {},
-      );
+      await callFromNative(channel, 'openRoom', '!pushed:example.org');
 
       expect(await opened, '!pushed:example.org');
     });

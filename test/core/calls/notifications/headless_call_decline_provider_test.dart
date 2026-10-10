@@ -6,16 +6,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/headless_call_decline_provider.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/preferences_container.dart';
 import '../../../helpers/recording_incoming_call_presenter.dart';
 
 void main() {
@@ -39,17 +38,14 @@ void main() {
     );
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
     presenter = RecordingIncomingCallPresenter();
-    container = ProviderContainer(
+    container = await containerWithPreferences(
+      {},
       overrides: [
         matrixClientProvider.overrideWithValue(client),
-        sharedPreferencesProvider.overrideWithValue(prefs),
         incomingCallPresenterProvider.overrideWithValue(presenter),
       ],
     );
-    addTearDown(container.dispose);
     container.read(headlessCallDeclineProvider);
   });
 
@@ -64,22 +60,9 @@ void main() {
     expect(sent, isEmpty);
   });
 
-  test('a decline from the background declines the call in its room and '
-      'marks it resolved', () async {
-    final room = buildTestRoom(client);
-    client.rooms.add(room);
-
-    CallNotificationService.instance.onHeadlessDeclineForTest(
-      HeadlessCallDecline(roomId: room.id, callId: 'c1'),
-    );
-    await pumpEventQueue(times: 50);
-
-    expect(sent.single['call_id'], 'c1');
-    expect(container.read(resolvedCallIdsProvider), {'c1'});
-  });
-
   test('a decline from the background stops this call\'s ring, though no '
-      'ring screen is up to do it', () async {
+      'ring screen is up to do it, declines the call in its room and marks it '
+      'resolved', () async {
     final room = buildTestRoom(client);
     client.rooms.add(room);
 
@@ -91,6 +74,8 @@ void main() {
     expect(presenter.ends, [
       (roomId: room.id, callId: 'c1', end: RingEnd.declinedElsewhere),
     ]);
+    expect(sent.single['call_id'], 'c1');
+    expect(container.read(resolvedCallIdsProvider), {'c1'});
   });
 
   test('a decline handed over from the action engine is reported done once '

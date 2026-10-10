@@ -18,15 +18,11 @@ import 'package:zuno/features/chat/presentation/message_meta.dart';
 import 'package:zuno/features/chat/presentation/reply_target_cache.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/zuno_app.dart';
 
 const me = '@me:example.org';
 const bob = '@bob:example.org';
 const meta = MessageMeta(time: '09:41', own: false);
-
-Widget _wrap(Widget child) => MaterialApp(
-  theme: zunoLightTheme,
-  home: Scaffold(body: Center(child: child)),
-);
 
 void main() {
   late Room room;
@@ -45,7 +41,7 @@ void main() {
 
   testWidgets('a missed call is drawn in the error color', (tester) async {
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const CallSummaryTile(
           summary: CallSummary(
             callId: 'c1',
@@ -68,7 +64,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const CallSummaryTile(
           summary: CallSummary(
             callId: 'c1',
@@ -103,7 +99,7 @@ void main() {
       },
     );
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         SizedBox(
           width: 240,
           child: FileMessage(event: event, own: false, meta: meta),
@@ -149,7 +145,7 @@ void main() {
     addTearDown(timeline.cancelSubscriptions);
 
     await tester.pumpWidget(
-      _wrap(ReactionsRow(event: message, timeline: timeline)),
+      inZunoApp(ReactionsRow(event: message, timeline: timeline)),
     );
 
     Material chip(String label) => tester.widget<Material>(
@@ -183,7 +179,7 @@ void main() {
     addTearDown(timeline.cancelSubscriptions);
 
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         ReplyQuote(
           timeline: timeline,
           eventId: r'$t',
@@ -227,7 +223,7 @@ void main() {
     late void Function() rebuild;
 
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         StatefulBuilder(
           builder: (context, setState) {
             rebuild = () => setState(() {});
@@ -253,7 +249,7 @@ void main() {
   });
 
   testWidgets('the day label is a quiet pill', (tester) async {
-    await tester.pumpWidget(_wrap(const DateDivider(label: 'Today')));
+    await tester.pumpWidget(inZunoApp(const DateDivider(label: 'Today')));
     final text = tester.widget<Text>(find.text('Today'));
     expect(text.style!.color, colors.onSurfaceVariant);
     expect(text.strutStyle!.forceStrutHeight, isTrue);
@@ -291,7 +287,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         SizedBox(
           width: 240,
           child: VoiceMessage(event: event, own: false, meta: meta),

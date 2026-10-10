@@ -12,16 +12,12 @@ Future<ConfirmedIdentityStore> _store([
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('remembers the identity a person was confirmed with', () async {
-    final store = await _store();
-    await store.remember('@bob:example.org', 'KEY_A');
-    expect(store.confirmedIdentityKey('@bob:example.org'), 'KEY_A');
-  });
-
-  test('records when, so Room info can say more than whether', () async {
+  test('remembers the identity a person was confirmed with, and when, so '
+      'Room info can say more than whether', () async {
     final store = await _store();
     final before = DateTime.now().subtract(const Duration(seconds: 1));
     await store.remember('@bob:example.org', 'KEY_A');
+    expect(store.confirmedIdentityKey('@bob:example.org'), 'KEY_A');
     final at = store.confirmedAt('@bob:example.org');
     expect(at, isNotNull);
     expect(at!.isAfter(before), isTrue);
@@ -41,7 +37,7 @@ void main() {
     expect(store.confirmedAt('@bob:example.org'), isNull);
   });
 
-  test('re-confirming replaces the key and the date', () async {
+  test('re-confirming replaces the key', () async {
     final store = await _store();
     await store.remember('@bob:example.org', 'KEY_OLD');
     await store.remember('@bob:example.org', 'KEY_NEW');

@@ -25,10 +25,6 @@ void main() {
     container.read(pendingCallNotificationActionProvider);
   });
 
-  test('starts with no pending action', () {
-    expect(container.read(pendingCallNotificationActionProvider), isNull);
-  });
-
   test('an action fired by the plugin becomes the pending action', () async {
     CallNotificationService.instance.onActionForTest(_response());
     await pumpEventQueue();

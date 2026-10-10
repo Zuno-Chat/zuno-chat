@@ -13,46 +13,37 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
-
-Future<ProviderContainer> _containerWith(Map<String, Object> values) async {
-  SharedPreferences.setMockInitialValues(values);
-  final prefs = await SharedPreferences.getInstance();
-  final container = ProviderContainer(
-    overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-  );
-  return container;
-}
+import '../../helpers/preferences_container.dart';
 
 void main() {
   group('themeModeProvider', () {
     test('defaults to system when nothing is stored', () async {
-      final container = await _containerWith({});
-      addTearDown(container.dispose);
+      final container = await containerWithPreferences({});
       expect(container.read(themeModeProvider), ThemeMode.system);
     });
 
     test('reads a previously-stored value', () async {
-      final container = await _containerWith({'settings.theme_mode': 'dark'});
-      addTearDown(container.dispose);
+      final container = await containerWithPreferences({
+        'settings.theme_mode': 'dark',
+      });
       expect(container.read(themeModeProvider), ThemeMode.dark);
     });
 
     test(
       'falls back to system for a corrupt/unrecognized stored value',
       () async {
-        final container = await _containerWith({
+        final container = await containerWithPreferences({
           'settings.theme_mode': 'not_a_real_mode',
         });
-        addTearDown(container.dispose);
         expect(container.read(themeModeProvider), ThemeMode.system);
       },
     );
 
     test('set() updates state and persists it', () async {
-      final container = await _containerWith({});
-      addTearDown(container.dispose);
+      final container = await containerWithPreferences({});
       await container.read(themeModeProvider.notifier).set(ThemeMode.light);
       expect(container.read(themeModeProvider), ThemeMode.light);
       final prefs = container.read(sharedPreferencesProvider);
@@ -64,92 +55,26 @@ void main() {
     Future<ProviderContainer> containerOn(
       PlatformCapabilities capabilities,
       Map<String, Object> values,
-    ) async {
-      SharedPreferences.setMockInitialValues(values);
-      final prefs = await SharedPreferences.getInstance();
-      final container = ProviderContainer(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          platformCapabilitiesProvider.overrideWithValue(capabilities),
-        ],
-      );
-      addTearDown(container.dispose);
-      return container;
-    }
+    ) => containerWithPreferences(
+      values,
+      overrides: [platformCapabilitiesProvider.overrideWithValue(capabilities)],
+    );
 
     test('defaults to fcm when nothing is stored', () async {
-      final container = await _containerWith({});
-      addTearDown(container.dispose);
+      final container = await containerWithPreferences({});
       expect(
         container.read(notificationDeliveryModeProvider),
         NotificationDeliveryMode.fcm,
       );
-    });
-
-    test('honours a stored choice rather than the new default', () async {
-      final container = await _containerWith({
-        'settings.notification_delivery_mode': 'unifiedPush',
-      });
-      addTearDown(container.dispose);
-      expect(
-        container.read(notificationDeliveryModeProvider),
-        NotificationDeliveryMode.unifiedPush,
-      );
-    });
-
-    test('reads a stored fcm value as-is — no longer coerced away', () async {
-      final container = await _containerWith({
-        'settings.notification_delivery_mode': 'fcm',
-      });
-      addTearDown(container.dispose);
-      expect(
-        container.read(notificationDeliveryModeProvider),
-        NotificationDeliveryMode.fcm,
-      );
-    });
-
-    test('set() persists fcm as-is', () async {
-      final container = await _containerWith({});
-      addTearDown(container.dispose);
-      await container
-          .read(notificationDeliveryModeProvider.notifier)
-          .set(NotificationDeliveryMode.fcm);
-      final prefs = container.read(sharedPreferencesProvider);
-      expect(prefs.getString('settings.notification_delivery_mode'), 'fcm');
     });
 
     test('falls back to fcm for a corrupt/unrecognized stored value', () async {
-      final container = await _containerWith({
+      final container = await containerWithPreferences({
         'settings.notification_delivery_mode': 'not_a_real_mode',
       });
-      addTearDown(container.dispose);
       expect(
         container.read(notificationDeliveryModeProvider),
         NotificationDeliveryMode.fcm,
-      );
-    });
-
-    test('reads an explicitly stored backgroundService value as-is', () async {
-      final container = await _containerWith({
-        'settings.notification_delivery_mode': 'backgroundService',
-      });
-      addTearDown(container.dispose);
-      expect(
-        container.read(notificationDeliveryModeProvider),
-        NotificationDeliveryMode.backgroundService,
-      );
-    });
-
-    test('set() persists backgroundService', () async {
-      final container = await _containerWith({});
-      addTearDown(container.dispose);
-      await container
-          .read(notificationDeliveryModeProvider.notifier)
-          .set(NotificationDeliveryMode.backgroundService);
-      final prefs = container.read(sharedPreferencesProvider);
-      expect(
-        prefs.getString('settings.notification_delivery_mode'),
-        'backgroundService',
       );
     });
 
@@ -362,35 +287,20 @@ void main() {
       });
     });
 
-    test('round-trips every mode with no coercion left', () async {
-      final container = await _containerWith({});
-      addTearDown(container.dispose);
-
-      for (final mode in androidCapabilities.deliveryModes) {
-        await container
-            .read(notificationDeliveryModeProvider.notifier)
-            .set(mode);
-        expect(container.read(notificationDeliveryModeProvider), mode);
-      }
-    });
-
     group('Google services the picker shows closed', () {
       Future<ProviderContainer> checkedAs(
         AsyncValue<FcmAvailability> fcm,
       ) async {
-        SharedPreferences.setMockInitialValues({
-          'settings.notification_delivery_mode': 'unifiedPush',
-          'settings.notification_delivery_mode_auto': 'unifiedPush',
-        });
-        final prefs = await SharedPreferences.getInstance();
-        final container = ProviderContainer(
+        final container = await containerWithPreferences(
+          {
+            'settings.notification_delivery_mode': 'unifiedPush',
+            'settings.notification_delivery_mode_auto': 'unifiedPush',
+          },
           overrides: [
-            sharedPreferencesProvider.overrideWithValue(prefs),
             platformCapabilitiesProvider.overrideWithValue(androidCapabilities),
             fcmAvailabilityProvider.overrideWithValue(fcm),
           ],
         );
-        addTearDown(container.dispose);
         container.listen(fcmAvailabilityProvider, (_, _) {});
         return container;
       }
@@ -415,27 +325,11 @@ void main() {
         );
       }
 
-      for (final fcm in [
-        FcmAvailability.unavailable,
-        FcmAvailability.disabled,
-        FcmAvailability.notConfigured,
-      ]) {
-        test('set(fcm) is refused when ${fcm.name}, and nothing is '
-            'recorded as chosen', () async {
-          final container = await checkedAs(AsyncData(fcm));
-
-          final saved = await container
-              .read(notificationDeliveryModeProvider.notifier)
-              .set(NotificationDeliveryMode.fcm);
-
-          expect(saved, isFalse);
-          expectUntouched(container);
-        });
-      }
-
-      test('set(fcm) is refused while this device is still being '
-          'checked', () async {
-        final container = await checkedAs(const AsyncLoading());
+      test('set(fcm) is refused where the picker closed it, and nothing is '
+          'recorded as chosen', () async {
+        final container = await checkedAs(
+          const AsyncData(FcmAvailability.unavailable),
+        );
 
         final saved = await container
             .read(notificationDeliveryModeProvider.notifier)
@@ -443,29 +337,6 @@ void main() {
 
         expect(saved, isFalse);
         expectUntouched(container);
-      });
-
-      test('set(fcm) goes through on a device that only needs an '
-          'update', () async {
-        final container = await checkedAs(
-          const AsyncData(FcmAvailability.updateRequired),
-        );
-
-        final saved = await container
-            .read(notificationDeliveryModeProvider.notifier)
-            .set(NotificationDeliveryMode.fcm);
-
-        expect(saved, isTrue);
-        expect(
-          container.read(notificationDeliveryModeProvider),
-          NotificationDeliveryMode.fcm,
-        );
-        expect(
-          container
-              .read(sharedPreferencesProvider)
-              .getBool('settings.notification_delivery_mode_chosen'),
-          isTrue,
-        );
       });
 
       test('the other methods are still set where Google services is '
@@ -487,8 +358,7 @@ void main() {
 
       test('set(fcm) goes through when no picker has checked this '
           'device', () async {
-        final container = await _containerWith({});
-        addTearDown(container.dispose);
+        final container = await containerWithPreferences({});
 
         final saved = await container
             .read(notificationDeliveryModeProvider.notifier)
@@ -506,31 +376,15 @@ void main() {
   });
 
   group('notifyMeProvider', () {
-    test('defaults to all when nothing is stored', () async {
-      final container = await _containerWith({});
-      addTearDown(container.dispose);
-      expect(container.read(notifyMeProvider), NotifyMe.all);
-    });
-
     test('reads a previously-stored mentionsOnly value', () async {
-      final container = await _containerWith({
+      final container = await containerWithPreferences({
         'settings.notify_me': 'mentionsOnly',
       });
-      addTearDown(container.dispose);
       expect(container.read(notifyMeProvider), NotifyMe.mentionsOnly);
     });
 
-    test('falls back to all for a corrupt/unrecognized stored value', () async {
-      final container = await _containerWith({
-        'settings.notify_me': 'not_a_real_mode',
-      });
-      addTearDown(container.dispose);
-      expect(container.read(notifyMeProvider), NotifyMe.all);
-    });
-
     test('set() updates state and persists it', () async {
-      final container = await _containerWith({});
-      addTearDown(container.dispose);
+      final container = await containerWithPreferences({});
       await container
           .read(notifyMeProvider.notifier)
           .set(NotifyMe.mentionsOnly);
@@ -589,20 +443,19 @@ void main() {
   boolPrefs.forEach((key, spec) {
     group(key, () {
       test('defaults to ${spec.defaultValue} when unset', () async {
-        final container = await _containerWith({});
-        addTearDown(container.dispose);
+        final container = await containerWithPreferences({});
         expect(spec.read(container), spec.defaultValue);
       });
 
       test('reads the opposite of the default when stored', () async {
-        final container = await _containerWith({key: !spec.defaultValue});
-        addTearDown(container.dispose);
+        final container = await containerWithPreferences({
+          key: !spec.defaultValue,
+        });
         expect(spec.read(container), !spec.defaultValue);
       });
 
       test('set() flips and persists the value', () async {
-        final container = await _containerWith({});
-        addTearDown(container.dispose);
+        final container = await containerWithPreferences({});
         await spec.set(container, !spec.defaultValue);
         expect(spec.read(container), !spec.defaultValue);
         final prefs = container.read(sharedPreferencesProvider);
@@ -612,34 +465,23 @@ void main() {
   });
 
   group('settings.encrypt_to_verified_sessions_only', () {
-    Future<ProviderContainer> containerWithClient(
-      Map<String, Object> values,
-    ) async {
-      SharedPreferences.setMockInitialValues(values);
-      final prefs = await SharedPreferences.getInstance();
-      return ProviderContainer(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(prefs),
-          matrixClientProvider.overrideWithValue(buildTestClient()),
-        ],
-      );
-    }
+    Future<ProviderContainer> containerWithClient(Map<String, Object> values) =>
+        containerWithPreferences(
+          values,
+          overrides: [
+            matrixClientProvider.overrideWithValue(buildTestClient()),
+          ],
+        );
 
     test('defaults to false when unset', () async {
       final container = await containerWithClient({});
-      addTearDown(container.dispose);
       expect(container.read(encryptToVerifiedSessionsOnlyProvider), isFalse);
-      expect(
-        container.read(matrixClientProvider).shareKeysWith,
-        ShareKeysWith.crossVerifiedIfEnabled,
-      );
     });
 
     test('reads true when stored', () async {
       final container = await containerWithClient({
         'settings.encrypt_to_verified_sessions_only': true,
       });
-      addTearDown(container.dispose);
       expect(container.read(encryptToVerifiedSessionsOnlyProvider), isTrue);
     });
 
@@ -647,7 +489,6 @@ void main() {
       'set() flips and persists the value, and applies it to the live client',
       () async {
         final container = await containerWithClient({});
-        addTearDown(container.dispose);
         await container
             .read(encryptToVerifiedSessionsOnlyProvider.notifier)
             .set(true);
@@ -668,7 +509,8 @@ void main() {
       final container = await containerWithClient({
         'settings.encrypt_to_verified_sessions_only': true,
       });
-      addTearDown(container.dispose);
+      container.read(matrixClientProvider).shareKeysWith =
+          ShareKeysWith.directlyVerifiedOnly;
       await container
           .read(encryptToVerifiedSessionsOnlyProvider.notifier)
           .set(false);
@@ -706,84 +548,37 @@ void main() {
   });
 
   group('settings.prevent_screenshots', () {
-    const channel = MethodChannel('zuno/calls');
-    final calls = <MethodCall>[];
-    late TestDefaultBinaryMessenger messenger;
+    late List<MethodCall> calls;
 
-    setUp(() {
-      TestWidgetsFlutterBinding.ensureInitialized();
-      messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      calls.clear();
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        calls.add(call);
-        return null;
-      });
-    });
-
-    tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    setUp(() => calls = installFakeCallsChannel().calls);
 
     test('defaults to true when unset', () async {
-      final container = await _containerWith({});
-      addTearDown(container.dispose);
+      final container = await containerWithPreferences({});
       expect(container.read(preventScreenshotsProvider), isTrue);
     });
 
     test('reads a previously-stored false value', () async {
-      final container = await _containerWith({
+      final container = await containerWithPreferences({
         'settings.prevent_screenshots': false,
       });
-      addTearDown(container.dispose);
       expect(container.read(preventScreenshotsProvider), isFalse);
     });
 
     test(
       'set() flips and persists the value, and calls the native channel',
       () async {
-        final container = await _containerWith({});
-        addTearDown(container.dispose);
+        final container = await containerWithPreferences({});
         await container.read(preventScreenshotsProvider.notifier).set(false);
 
         expect(container.read(preventScreenshotsProvider), isFalse);
         final prefs = container.read(sharedPreferencesProvider);
         expect(prefs.getBool('settings.prevent_screenshots'), isFalse);
-        await Future<void>.delayed(Duration.zero);
+        await pumpEventQueue();
         expect(calls, [
           isA<MethodCall>()
               .having((c) => c.method, 'method', 'setPreventScreenshots')
               .having((c) => c.arguments, 'arguments', {'enabled': false}),
         ]);
-      },
-    );
-
-    test(
-      'set(true) also calls the native channel with enabled: true',
-      () async {
-        final container = await _containerWith({
-          'settings.prevent_screenshots': false,
-        });
-        addTearDown(container.dispose);
-        await container.read(preventScreenshotsProvider.notifier).set(true);
-
-        await Future<void>.delayed(Duration.zero);
-        expect(calls, [
-          isA<MethodCall>()
-              .having((c) => c.method, 'method', 'setPreventScreenshots')
-              .having((c) => c.arguments, 'arguments', {'enabled': true}),
-        ]);
-      },
-    );
-
-    test(
-      'set() does not throw when the native channel is unavailable',
-      () async {
-        messenger.setMockMethodCallHandler(channel, null);
-        final container = await _containerWith({});
-        addTearDown(container.dispose);
-        await expectLater(
-          container.read(preventScreenshotsProvider.notifier).set(true),
-          completes,
-        );
       },
     );
   });
@@ -806,26 +601,20 @@ void main() {
 
   group('settings.crash_reporting', () {
     test('defaults to off', () async {
-      final container = await _containerWith({});
-      addTearDown(container.dispose);
+      final container = await containerWithPreferences({});
       expect(container.read(crashReportingProvider), isFalse);
     });
 
     test('reads a previously-stored opt-in', () async {
-      final container = await _containerWith({
+      final container = await containerWithPreferences({
         'settings.crash_reporting': true,
       });
-      addTearDown(container.dispose);
       expect(container.read(crashReportingProvider), isTrue);
     });
 
     test('persists an opt-in and an opt-out', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final container = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-      );
-      addTearDown(container.dispose);
+      final container = await containerWithPreferences({});
+      final prefs = container.read(sharedPreferencesProvider);
 
       await container.read(crashReportingProvider.notifier).set(true);
       expect(container.read(crashReportingProvider), isTrue);

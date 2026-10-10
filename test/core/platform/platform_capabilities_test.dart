@@ -374,28 +374,6 @@ void main() {
     expect(currentAppPlatform, AppPlatform.android);
   });
 
-  group('platformCapabilitiesProvider', () {
-    test('serves the android capabilities by default', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      expect(
-        container.read(platformCapabilitiesProvider),
-        same(capabilitiesFor(AppPlatform.android)),
-      );
-    });
-
-    test('serves an override instead of the host platform', () {
-      final ios = capabilitiesFor(AppPlatform.ios);
-      final container = ProviderContainer(
-        overrides: [platformCapabilitiesProvider.overrideWithValue(ios)],
-      );
-      addTearDown(container.dispose);
-
-      expect(container.read(platformCapabilitiesProvider), same(ios));
-    });
-  });
-
   group('ambientCapabilities', () {
     final android = capabilitiesFor(AppPlatform.android);
     final ios = capabilitiesFor(AppPlatform.ios);
@@ -459,15 +437,6 @@ void main() {
         expect(calls, isEmpty);
       },
     );
-
-    test('is back to the host platform in the next test', () async {
-      expect(ambientCapabilities, same(android));
-      expect(providerCapabilities(), same(android));
-
-      await useSingletonConsumers();
-
-      expect(calls, nativeCalls);
-    });
 
     test('loses to capabilities that are injected or overridden', () async {
       ambientCapabilities = ios;

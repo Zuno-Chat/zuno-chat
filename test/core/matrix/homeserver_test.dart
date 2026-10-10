@@ -49,7 +49,6 @@ void main() {
 
     expect(verified, officialHomeserver);
     expect(client.homeserver?.host, 'zuno.chat');
-    expect(contacted, isNotEmpty);
     expect(contacted.toSet(), {'zuno.chat'});
   });
 

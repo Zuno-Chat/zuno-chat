@@ -14,139 +14,84 @@ void main() {
     room.setState(User('@bob:example.org', displayName: 'Bob', room: room));
   });
 
-  test('member join', () {
-    final event = buildTestEvent(
-      room,
-      eventId: r'$1',
-      senderId: '@bob:example.org',
-      type: EventTypes.RoomMember,
-      stateKey: '@bob:example.org',
-      content: {'membership': 'join'},
-    );
-    expect(describeStateEvent(event), 'Bob joined');
-  });
+  Event stateEvent(
+    String type, {
+    String senderId = '@alice:example.org',
+    String stateKey = '',
+    Map<String, Object?> content = const {},
+  }) => buildTestEvent(
+    room,
+    eventId: r'$1',
+    senderId: senderId,
+    type: type,
+    stateKey: stateKey,
+    content: content,
+  );
 
-  test('member self-leave', () {
-    final event = buildTestEvent(
-      room,
-      eventId: r'$1',
-      senderId: '@bob:example.org',
-      type: EventTypes.RoomMember,
-      stateKey: '@bob:example.org',
-      content: {'membership': 'leave'},
-    );
-    expect(describeStateEvent(event), 'Bob left');
-  });
+  for (final (name, senderId, membership, description) in [
+    ('member join', '@bob:example.org', 'join', 'Bob joined'),
+    ('member self-leave', '@bob:example.org', 'leave', 'Bob left'),
+    (
+      'member removed by someone else (a kick)',
+      '@alice:example.org',
+      'leave',
+      'Alice removed Bob',
+    ),
+    ('member invite', '@alice:example.org', 'invite', 'Alice invited Bob'),
+    ('member ban', '@alice:example.org', 'ban', 'Alice banned Bob'),
+    ('member knock', '@bob:example.org', 'knock', 'Bob requested to join'),
+    (
+      'an unknown membership change still names both sides',
+      '@alice:example.org',
+      'im.custom',
+      "Alice updated Bob's membership",
+    ),
+  ]) {
+    test(name, () {
+      final event = stateEvent(
+        EventTypes.RoomMember,
+        senderId: senderId,
+        stateKey: '@bob:example.org',
+        content: {'membership': membership},
+      );
 
-  test('member removed by someone else (a kick)', () {
-    final event = buildTestEvent(
-      room,
-      eventId: r'$1',
-      senderId: '@alice:example.org',
-      type: EventTypes.RoomMember,
-      stateKey: '@bob:example.org',
-      content: {'membership': 'leave'},
-    );
-    expect(describeStateEvent(event), 'Alice removed Bob');
-  });
+      expect(describeStateEvent(event), description);
+    });
+  }
 
-  test('member invite', () {
-    final event = buildTestEvent(
-      room,
-      eventId: r'$1',
-      senderId: '@alice:example.org',
-      type: EventTypes.RoomMember,
-      stateKey: '@bob:example.org',
-      content: {'membership': 'invite'},
-    );
-    expect(describeStateEvent(event), 'Alice invited Bob');
-  });
-
-  test('member ban', () {
-    final event = buildTestEvent(
-      room,
-      eventId: r'$1',
-      senderId: '@alice:example.org',
-      type: EventTypes.RoomMember,
-      stateKey: '@bob:example.org',
-      content: {'membership': 'ban'},
-    );
-    expect(describeStateEvent(event), 'Alice banned Bob');
-  });
-
-  test('room name changed', () {
-    final event = buildTestEvent(
-      room,
-      eventId: r'$1',
-      senderId: '@alice:example.org',
-      type: EventTypes.RoomName,
-      stateKey: '',
-      content: {'name': 'New name'},
-    );
-    expect(
-      describeStateEvent(event),
+  for (final (name, type, content, description) in [
+    (
+      'room name changed',
+      EventTypes.RoomName,
+      {'name': 'New name'},
       'Alice changed the room name to "New name"',
-    );
-  });
-
-  test('room name removed (empty)', () {
-    final event = buildTestEvent(
-      room,
-      eventId: r'$1',
-      senderId: '@alice:example.org',
-      type: EventTypes.RoomName,
-      stateKey: '',
-      content: {'name': ''},
-    );
-    expect(describeStateEvent(event), 'Alice removed the room name');
-  });
-
-  test('room topic changed', () {
-    final event = buildTestEvent(
-      room,
-      eventId: r'$1',
-      senderId: '@alice:example.org',
-      type: EventTypes.RoomTopic,
-      stateKey: '',
-      content: {'topic': 'New topic'},
-    );
-    expect(describeStateEvent(event), 'Alice changed the topic to "New topic"');
-  });
-
-  test('member knock', () {
-    final event = buildTestEvent(
-      room,
-      eventId: r'$1',
-      senderId: '@bob:example.org',
-      type: EventTypes.RoomMember,
-      stateKey: '@bob:example.org',
-      content: {'membership': 'knock'},
-    );
-    expect(describeStateEvent(event), 'Bob requested to join');
-  });
-
-  test('an unknown membership change still names both sides', () {
-    final event = buildTestEvent(
-      room,
-      eventId: r'$1',
-      senderId: '@alice:example.org',
-      type: EventTypes.RoomMember,
-      stateKey: '@bob:example.org',
-      content: {'membership': 'im.custom'},
-    );
-    expect(describeStateEvent(event), "Alice updated Bob's membership");
-  });
-
-  test('room topic removed (missing)', () {
-    final event = buildTestEvent(
-      room,
-      eventId: r'$1',
-      senderId: '@alice:example.org',
-      type: EventTypes.RoomTopic,
-      stateKey: '',
-    );
-    expect(describeStateEvent(event), 'Alice removed the room topic');
-  });
+    ),
+    (
+      'room name removed (empty)',
+      EventTypes.RoomName,
+      {'name': ''},
+      'Alice removed the room name',
+    ),
+    (
+      'room topic changed',
+      EventTypes.RoomTopic,
+      {'topic': 'New topic'},
+      'Alice changed the topic to "New topic"',
+    ),
+    (
+      'room topic removed (missing)',
+      EventTypes.RoomTopic,
+      <String, Object?>{},
+      'Alice removed the room topic',
+    ),
+  ]) {
+    test(name, () {
+      expect(
+        describeStateEvent(stateEvent(type, content: content)),
+        description,
+      );
+    });
+  }
 
   for (final (type, description) in [
     (EventTypes.RoomAvatar, 'Alice changed the room photo'),
@@ -163,29 +108,14 @@ void main() {
     (EventTypes.RoomTombstone, 'Alice upgraded the room'),
   ]) {
     test(type, () {
-      final event = buildTestEvent(
-        room,
-        eventId: r'$1',
-        senderId: '@alice:example.org',
-        type: type,
-        stateKey: '',
-      );
-      expect(describeStateEvent(event), description);
+      expect(describeStateEvent(stateEvent(type)), description);
     });
   }
 
   test(
     'an unrecognized state event type falls back to null (caller labels it)',
     () {
-      final event = buildTestEvent(
-        room,
-        eventId: r'$1',
-        senderId: '@alice:example.org',
-        type: 'im.some.custom.state',
-        stateKey: '',
-        content: {},
-      );
-      expect(describeStateEvent(event), isNull);
+      expect(describeStateEvent(stateEvent('im.some.custom.state')), isNull);
     },
   );
 }

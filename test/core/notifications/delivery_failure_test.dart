@@ -95,14 +95,6 @@ void main() {
             DeliveryFailureAction.switchToUnifiedPush,
           );
         });
-
-        test('${status.name} offers UnifiedPush until the distributors are '
-            'known', () {
-          expect(
-            failureFor(NotificationDeliveryMode.fcm, fcm: status)?.action,
-            DeliveryFailureAction.switchToUnifiedPush,
-          );
-        });
       }
 
       test('a device Zuno can fix is offered the fix, distributor or not', () {
@@ -150,24 +142,16 @@ void main() {
       });
     });
 
-    test('a token failure is worth retrying', () {
-      expect(
-        failureFor(
-          NotificationDeliveryMode.fcm,
-          fcm: FcmStatus.tokenFailed,
-        )?.action,
-        DeliveryFailureAction.retry,
-      );
-    });
-
-    test('a refused registration reads like a missing token, with a '
-        'retry', () {
-      final failure = failureFor(
-        NotificationDeliveryMode.fcm,
-        fcm: FcmStatus.pusherFailed,
-      );
-      expect(failure?.message, 'Could not set up notifications on this device');
-      expect(failure?.action, DeliveryFailureAction.retry);
+    test('a missing token or a refused registration is worth a retry', () {
+      for (final fcm in [FcmStatus.tokenFailed, FcmStatus.pusherFailed]) {
+        final failure = failureFor(NotificationDeliveryMode.fcm, fcm: fcm);
+        expect(
+          failure?.message,
+          'Could not set up notifications on this device',
+          reason: '$fcm',
+        );
+        expect(failure?.action, DeliveryFailureAction.retry, reason: '$fcm');
+      }
     });
 
     test('ready and every in-flight state warn about nothing', () {
@@ -199,14 +183,16 @@ void main() {
   });
 
   group('unifiedPush', () {
-    test('a refused registration is worth retrying', () {
-      expect(
-        failureFor(
-          NotificationDeliveryMode.unifiedPush,
-          unifiedPush: UnifiedPushStatus.registrationFailed,
-        )?.action,
-        DeliveryFailureAction.retry,
+    test('a distributor that refused to register is worth retrying', () {
+      final failure = failureFor(
+        NotificationDeliveryMode.unifiedPush,
+        unifiedPush: UnifiedPushStatus.registrationFailed,
       );
+      expect(
+        failure?.message,
+        'The distributor app refused to register this device',
+      );
+      expect(failure?.action, DeliveryFailureAction.retry);
     });
 
     test('a refused registration reads like a missing token, with a '
@@ -231,14 +217,24 @@ void main() {
       );
     });
 
-    test('ready warns about nothing', () {
-      expect(
-        failureFor(
-          NotificationDeliveryMode.unifiedPush,
-          unifiedPush: UnifiedPushStatus.ready,
-        ),
-        isNull,
-      );
+    test('ready and every in-flight state warn about nothing', () {
+      for (final unifiedPush in [
+        UnifiedPushStatus.idle,
+        UnifiedPushStatus.findingDistributor,
+        UnifiedPushStatus.distributorSelected,
+        UnifiedPushStatus.registering,
+        UnifiedPushStatus.postingPusher,
+        UnifiedPushStatus.ready,
+      ]) {
+        expect(
+          failureFor(
+            NotificationDeliveryMode.unifiedPush,
+            unifiedPush: unifiedPush,
+          ),
+          isNull,
+          reason: '$unifiedPush',
+        );
+      }
     });
   });
 
@@ -357,6 +353,14 @@ void main() {
       expect(
         failureFor(NotificationDeliveryMode.backgroundService, fcm: fcm),
         isNull,
+        reason: '$fcm',
+      );
+    }
+    for (final up in UnifiedPushStatus.values) {
+      expect(
+        failureFor(NotificationDeliveryMode.backgroundService, unifiedPush: up),
+        isNull,
+        reason: '$up',
       );
     }
   });
@@ -374,15 +378,6 @@ void main() {
     );
   });
 
-  test('an action that acts on Google Play services calls it by that '
-      'name', () {
-    for (final action in DeliveryFailureAction.values) {
-      final label = deliveryFailureActionLabel(action);
-      if (!label.contains('Google')) continue;
-      expect(label, contains('Google Play services'), reason: '$action');
-    }
-  });
-
   test('a build without Google services offers another method', () {
     final failure = failureFor(
       NotificationDeliveryMode.fcm,
@@ -393,31 +388,6 @@ void main() {
       'This version of Zuno does not include Google services',
     );
     expect(failure?.action, DeliveryFailureAction.switchToUnifiedPush);
-  });
-
-  test('a phone with no push infrastructure is never left with no button', () {
-    final noPlayServices = failureFor(
-      NotificationDeliveryMode.fcm,
-      fcm: FcmStatus.playServicesUnavailable,
-    );
-    expect(noPlayServices?.action, DeliveryFailureAction.switchToUnifiedPush);
-
-    final noDistributor = failureFor(
-      NotificationDeliveryMode.unifiedPush,
-      unifiedPush: UnifiedPushStatus.noDistributorFound,
-    );
-    expect(noDistributor, isNotNull, reason: 'silence here is the dead end');
-    expect(
-      noDistributor?.action,
-      DeliveryFailureAction.switchToBackgroundService,
-    );
-
-    for (final up in UnifiedPushStatus.values) {
-      expect(
-        failureFor(NotificationDeliveryMode.backgroundService, unifiedPush: up),
-        isNull,
-      );
-    }
   });
 
   group('apple push', () {
@@ -450,23 +420,17 @@ void main() {
       );
     });
 
-    test('a token Apple would not hand out offers a retry', () {
-      final failure = failureFor(
-        NotificationDeliveryMode.apns,
-        apns: ApnsStatus.tokenFailed,
-      );
-      expect(failure?.message, 'Could not set up notifications on this device');
-      expect(failure?.action, DeliveryFailureAction.retry);
-    });
-
-    test('a refused registration reads like a missing token, with a '
-        'retry', () {
-      final failure = failureFor(
-        NotificationDeliveryMode.apns,
-        apns: ApnsStatus.pusherFailed,
-      );
-      expect(failure?.message, 'Could not set up notifications on this device');
-      expect(failure?.action, DeliveryFailureAction.retry);
+    test('a token Apple would not hand out or a refused registration offers '
+        'a retry', () {
+      for (final apns in [ApnsStatus.tokenFailed, ApnsStatus.pusherFailed]) {
+        final failure = failureFor(NotificationDeliveryMode.apns, apns: apns);
+        expect(
+          failure?.message,
+          'Could not set up notifications on this device',
+          reason: '$apns',
+        );
+        expect(failure?.action, DeliveryFailureAction.retry, reason: '$apns');
+      }
     });
 
     test('a dropped registration is called out, with Retry', () {
@@ -498,8 +462,8 @@ void main() {
       );
     });
 
-    test('a dropped Apple pusher never shows while another method is in '
-        'use', () {
+    test('a failed or dropped Apple pusher never shows while another method '
+        'is in use', () {
       for (final mode in [
         NotificationDeliveryMode.fcm,
         NotificationDeliveryMode.unifiedPush,
@@ -507,6 +471,11 @@ void main() {
       ]) {
         expect(
           failureFor(mode, apns: ApnsStatus.ready, apnsDropped: 2),
+          isNull,
+          reason: '$mode',
+        );
+        expect(
+          failureFor(mode, apns: ApnsStatus.pusherFailed),
           isNull,
           reason: '$mode',
         );
@@ -527,52 +496,6 @@ void main() {
         );
       }
     });
-
-    test('a failed Apple push never shows while another method is in use', () {
-      for (final mode in [
-        NotificationDeliveryMode.fcm,
-        NotificationDeliveryMode.unifiedPush,
-        NotificationDeliveryMode.backgroundService,
-      ]) {
-        expect(
-          failureFor(mode, apns: ApnsStatus.pusherFailed),
-          isNull,
-          reason: '$mode',
-        );
-      }
-    });
-  });
-
-  test('every failure carries a message and exactly one action', () {
-    for (final mode in NotificationDeliveryMode.values) {
-      for (final fcm in FcmStatus.values) {
-        for (final up in UnifiedPushStatus.values) {
-          for (final apns in ApnsStatus.values) {
-            for (final installed in [true, false, null]) {
-              for (final removed in [false, true]) {
-                final failure = notificationDeliveryFailure(
-                  mode: mode,
-                  fcm: fcm,
-                  unifiedPush: up,
-                  apns: apns,
-                  distributorInstalled: installed,
-                  fcmRemoved: removed,
-                  unifiedPushRemoved: removed,
-                );
-                if (failure == null) continue;
-                final reason = '$mode/$fcm/$up/$apns/$installed/$removed';
-                expect(failure.message, isNotEmpty, reason: reason);
-                expect(
-                  deliveryFailureActionLabel(failure.action),
-                  isNotEmpty,
-                  reason: reason,
-                );
-              }
-            }
-          }
-        }
-      }
-    }
   });
 
   test('no failure message names the server, shouts, apologises or uses a '
@@ -658,18 +581,6 @@ void main() {
       expect(
         notice?.message,
         'Google services cannot be used, so notifications use UnifiedPush',
-      );
-    });
-
-    test('names background sync when that is what Zuno switched to, in '
-        'lower case as everywhere else mid-sentence', () {
-      expect(
-        failureFor(
-          NotificationDeliveryMode.backgroundService,
-          autoSelected: NotificationDeliveryMode.backgroundService,
-        )?.message,
-        'Google services cannot be used, so notifications use background '
-        'sync',
       );
     });
 

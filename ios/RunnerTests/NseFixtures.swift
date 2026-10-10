@@ -4,12 +4,8 @@ import XCTest
 @testable import Runner
 
 enum NseFixtures {
-  static let directory = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    .appendingPathComponent("test/fixtures/push")
-
   static func json(_ name: String) throws -> NseJson {
-    let data = try Data(contentsOf: directory.appendingPathComponent(name))
+    let data = try Data(contentsOf: ContractFixture.directory.appendingPathComponent(name))
     return try XCTUnwrap(NseJson.parse(data))
   }
 
@@ -52,11 +48,5 @@ enum NseFixtures {
     case .array(let items): return items.map(any)
     case .object(let fields): return fields.mapValues(any)
     }
-  }
-}
-
-extension NseFixtures {
-  static func vodozemac() -> VodozemacMegolm {
-    VodozemacMegolm()
   }
 }

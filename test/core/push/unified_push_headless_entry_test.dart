@@ -3,65 +3,17 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush/unifiedpush.dart';
-import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
 import 'package:zuno/core/notifications/unified_push_delivery_provider.dart';
 import 'package:zuno/core/push/headless_push_runner.dart';
 import 'package:zuno/core/push/incoming_push_handler.dart';
 import 'package:zuno/core/push/unified_push_headless_entry.dart';
 
-import '../../helpers/fake_call_style_channel.dart';
 import '../../helpers/fake_local_notifications.dart';
-import '../../helpers/fake_matrix.dart';
-
-class _RecordingClient extends Client {
-  _RecordingClient() : super('test', database: FakeDatabaseApi());
-
-  int disposeCalls = 0;
-
-  @override
-  Future<void> dispose({bool closeDatabase = true}) async => disposeCalls++;
-}
-
-class _RingingClient extends Client {
-  _RingingClient({this.rings = true})
-    : super('test', database: FakeDatabaseApi()) {
-    setUserId('@me:example.org');
-  }
-
-  final bool rings;
-
-  @override
-  bool isLogged() => true;
-
-  @override
-  Future<Event?> getEventByPushNotification(
-    PushNotification notification, {
-    bool storeInDatabase = true,
-    Duration timeoutForServerRequests = const Duration(seconds: 8),
-    bool returnNullIfSeen = true,
-  }) async {
-    if (!rings) return null;
-    final room = buildTestRoom(this);
-    return buildTestEvent(
-      room,
-      eventId: r'$invite',
-      senderId: '@bob:example.org',
-      originServerTs: DateTime.now(),
-      content: const {
-        'msgtype': 'im.zuno.call_invite',
-        'call_id': 'call1',
-        'kind': 'voice',
-        'body': 'Incoming call',
-      },
-    );
-  }
-
-  @override
-  Future<void> dispose({bool closeDatabase = true}) async {}
-}
+import '../../helpers/headless_ring.dart';
+import '../../helpers/native_method_calls.dart';
+import '../../helpers/push_test_client.dart';
 
 PushMessage _push(String eventId) => PushMessage(
   utf8.encode(
@@ -72,10 +24,19 @@ PushMessage _push(String eventId) => PushMessage(
   true,
 );
 
+PushMessage _badgePush() => PushMessage(
+  utf8.encode(
+    jsonEncode({
+      'notification': {
+        'counts': {'unread': 0},
+      },
+    }),
+  ),
+  true,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -89,7 +50,7 @@ void main() {
       provider: provider,
       clientBuilder: () async {
         builds++;
-        return _RecordingClient();
+        return PushTestClient();
       },
       initializeNotifications: () async => setups++,
       firstCallbackTimeout: const Duration(milliseconds: 20),
@@ -110,25 +71,14 @@ void main() {
       provider: provider,
       clientBuilder: () async {
         builds++;
-        return _RecordingClient();
+        return PushTestClient();
       },
       initializeNotifications: () async {},
       releaseWakeLock: ({key}) async {},
       firstCallbackTimeout: const Duration(milliseconds: 20),
     );
 
-    await provider.deliverPushForTest(
-      PushMessage(
-        utf8.encode(
-          jsonEncode({
-            'notification': {
-              'counts': {'unread': 0},
-            },
-          }),
-        ),
-        true,
-      ),
-    );
+    await provider.deliverPushForTest(_badgePush());
 
     expect(builds, 0);
     expect(provider.lastPushOutcome, IncomingPushOutcome.badge);
@@ -138,12 +88,12 @@ void main() {
       'by itself after ten idle minutes', () async {
     final requests = StreamController<void>.broadcast();
     addTearDown(requests.close);
-    final built = <_RecordingClient>[];
+    final built = <PushTestClient>[];
     final provider = UnifiedPushDeliveryProvider();
     await runUnifiedPushHeadless(
       provider: provider,
       clientBuilder: () async {
-        final client = _RecordingClient();
+        final client = PushTestClient();
         built.add(client);
         return client;
       },
@@ -165,49 +115,39 @@ void main() {
 
   test('a failed notification setup still leaves the handler waiting for '
       'the push instead of crashing the engine', () async {
+    installFakeLocalNotifications();
+    installSilentNotificationSideChannels();
     final provider = UnifiedPushDeliveryProvider();
 
     await runUnifiedPushHeadless(
       provider: provider,
-      clientBuilder: () async => _RecordingClient(),
+      clientBuilder: () async => PushTestClient(),
       initializeNotifications: () async => throw StateError('no channel'),
+      releaseWakeLock: ({key}) async {},
       firstCallbackTimeout: const Duration(milliseconds: 20),
     );
+    await provider.deliverPushForTest(_badgePush());
 
-    expect(provider.runner.clientBuilder, isNotNull);
+    expect(provider.lastPushOutcome, IncomingPushOutcome.badge);
   });
 
-  group('the push wake lock', () {
+  group('the ring hold', () {
     late UnifiedPushDeliveryProvider provider;
-    late int releases;
+    late RecordedMethodCalls lock;
     late int holds;
     late Completer<void> ringOver;
 
     setUp(() {
-      ringRateLimiter.clear();
-      installFakeLocalNotifications();
-      installSilentNotificationSideChannels();
-      installFakeCallStyleChannel();
-      for (final name in ['zuno/calls', 'zuno/vibration']) {
-        final side = MethodChannel(name);
-        messenger.setMockMethodCallHandler(side, (_) async => null);
-        addTearDown(() => messenger.setMockMethodCallHandler(side, null));
-      }
-      const lock = MethodChannel('zuno/push_wakelock');
-      messenger.setMockMethodCallHandler(lock, (call) async {
-        if (call.method == 'release') releases++;
-        return null;
-      });
-      addTearDown(() => messenger.setMockMethodCallHandler(lock, null));
+      installHeadlessRingChannels();
+      lock = recordMethodChannel('zuno/push_wakelock');
       provider = UnifiedPushDeliveryProvider();
-      releases = 0;
       holds = 0;
       ringOver = Completer<void>();
     });
 
     Future<void> start({required bool rings}) => runUnifiedPushHeadless(
       provider: provider,
-      clientBuilder: () async => _RingingClient(rings: rings),
+      clientBuilder: () async => ringingPushClient(rings: rings),
       initializeNotifications: () async {},
       hold: (_) {
         holds++;
@@ -216,27 +156,30 @@ void main() {
       firstCallbackTimeout: const Duration(milliseconds: 20),
     );
 
-    test('is let go once for a ringing push, after the ring hold', () async {
-      await start(rings: true);
+    test(
+      'keeps a ringing push, and its wake lock, until the ring ends',
+      () async {
+        await start(rings: true);
 
-      final delivery = provider.deliverPushForTest(_push(r'$invite'));
-      await pumpEventQueue();
-      expect(provider.lastPushOutcome, IncomingPushOutcome.callRinging);
-      expect(holds, 1);
-      expect(releases, 0);
+        final delivery = provider.deliverPushForTest(_push(r'$invite'));
+        await pumpEventQueue();
+        expect(provider.lastPushOutcome, IncomingPushOutcome.callRinging);
+        expect(holds, 1);
+        expect(lock.count('release'), 0);
 
-      ringOver.complete();
-      await delivery;
-      expect(releases, 1);
-    });
+        ringOver.complete();
+        await delivery;
+        expect(lock.count('release'), 1);
+      },
+    );
 
-    test('is let go once for any other push, with no hold', () async {
+    test('is not started for any other push', () async {
       await start(rings: false);
 
       await provider.deliverPushForTest(_push(r'$text'));
 
+      expect(provider.lastPushOutcome, IncomingPushOutcome.ignored);
       expect(holds, 0);
-      expect(releases, 1);
     });
   });
 
@@ -245,23 +188,7 @@ void main() {
 
     tearDown(() => channel.setMethodCallHandler(null));
 
-    Future<Object?> ask(String method) {
-      final replied = Completer<Object?>();
-      messenger.handlePlatformMessage(
-        channel.name,
-        channel.codec.encodeMethodCall(MethodCall(method)),
-        (data) {
-          try {
-            replied.complete(
-              data == null ? null : channel.codec.decodeEnvelope(data),
-            );
-          } catch (error) {
-            replied.completeError(error);
-          }
-        },
-      );
-      return replied.future;
-    }
+    Future<Object?> ask(String method) => callFromNative(channel, method);
 
     test('is quiet for an engine that has done nothing', () async {
       answerQuiescence(HeadlessPushRunner());
@@ -269,21 +196,10 @@ void main() {
       expect(await ask('quiescent'), isTrue);
     });
 
-    test('lets go of a client nobody used, then answers quiet', () async {
-      final client = _RecordingClient();
-      final runner = HeadlessPushRunner()..clientBuilder = () async => client;
-      answerQuiescence(runner);
-
-      runner.prepareClient();
-
-      expect(await ask('quiescent'), isTrue);
-      expect(client.disposeCalls, 1);
-    });
-
     test('is not quiet while a push is being handled', () async {
       final handling = Completer<void>();
       final runner = HeadlessPushRunner()
-        ..clientBuilder = () async => _RecordingClient();
+        ..clientBuilder = () async => PushTestClient();
       answerQuiescence(runner);
 
       final push = runner.withClient((_) => handling.future);

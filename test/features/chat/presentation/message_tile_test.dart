@@ -9,6 +9,7 @@ import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
 import 'package:zuno/core/location/live_location_viewing.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
+import 'package:zuno/core/matrix/linkified_text.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
@@ -71,7 +72,6 @@ void main() {
     List<Event>? events,
     Event? older,
     bool canReply = true,
-    ReplyTargetCache? cache,
     List<Override> overrides = const [],
   }) async {
     final all = events ?? [event];
@@ -105,12 +105,10 @@ void main() {
                 event: event,
                 timeline: timeline,
                 replyTarget: index[record.replyToId],
-                replyTargets:
-                    cache ??
-                    ReplyTargetCache((id) async {
-                      lookups++;
-                      return null;
-                    }),
+                replyTargets: ReplyTargetCache((id) async {
+                  lookups++;
+                  return null;
+                }),
                 pendingSend: ValueNotifier<PendingAttachmentSend?>(null),
                 gallery: null,
                 galleryFailures: const [],
@@ -297,26 +295,25 @@ void main() {
     expect(find.byType(MessageMeta), findsOneWidget);
   });
 
-  testWidgets('a missing reply target is looked up once across rebuilds', (
-    tester,
-  ) async {
-    final reply = text(
-      r'$b',
-      extra: {
-        'm.relates_to': {
-          'm.in_reply_to': {'event_id': r'$gone'},
+  testWidgets('a formatted body that only holds a mention renders as plain '
+      'text', (tester) async {
+    await pumpTile(
+      tester,
+      text(
+        r'$a',
+        body: 'hi @Alice',
+        extra: {
+          'format': 'org.matrix.custom.html',
+          'formatted_body':
+              'hi <a href="https://matrix.to/#/@alice:example.org">@Alice</a>',
+          'm.mentions': {
+            'user_ids': ['@alice:example.org'],
+          },
         },
-      },
+      ),
     );
-    final cache = ReplyTargetCache((id) async {
-      lookups++;
-      return null;
-    });
-    await pumpTile(tester, reply, cache: cache);
-    await pumpTile(tester, reply, cache: cache);
-    await pumpTile(tester, reply, cache: cache);
-    expect(find.text('Original message not available'), findsOneWidget);
-    expect(lookups, 1);
+    expect(find.byType(LinkifiedText), findsOneWidget);
+    expect(find.byType(Html), findsNothing);
   });
 
   testWidgets('a long message collapses with the time beside Read more', (

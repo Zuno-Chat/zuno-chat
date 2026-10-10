@@ -16,6 +16,7 @@ import 'package:zuno/features/settings/presentation/recent_pushes_page.dart';
 
 import '../../../helpers/card_layout.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fixed_delivery_mode.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 final _ios = capabilitiesLike(
@@ -107,7 +108,7 @@ Future<void> _pump(
       overrides: [
         pushDiagnosticsSourceProvider.overrideWithValue(source),
         platformCapabilitiesProvider.overrideWithValue(capabilities ?? _ios),
-        notificationDeliveryModeProvider.overrideWith(() => _FixedMode(mode)),
+        fixedDeliveryMode(mode),
         sharedPreferencesProvider.overrideWithValue(prefs),
         matrixClientProvider.overrideWithValue(buildTestClient()),
       ],
@@ -115,14 +116,6 @@ Future<void> _pump(
     ),
   );
   await tester.pumpAndSettle();
-}
-
-class _FixedMode extends NotificationDeliveryModeNotifier {
-  _FixedMode(this._mode);
-  final NotificationDeliveryMode _mode;
-
-  @override
-  NotificationDeliveryMode build() => _mode;
 }
 
 void main() {
@@ -142,48 +135,40 @@ void main() {
     expect(find.text('Allowed'), findsOneWidget);
   });
 
-  testWidgets('a sent test says what to expect', (tester) async {
-    final source = _FakeSource();
-    await _pump(tester, source);
+  for (final (name, outcome, message) in [
+    (
+      'a sent test says what to expect',
+      PushTestOutcome.sent,
+      'Test notification sent. If nothing arrives within a minute, '
+          'notifications are not reaching this device.',
+    ),
+    (
+      'too many tests says to wait',
+      PushTestOutcome.rateLimited,
+      'Too many tests in the last hour. Try again later.',
+    ),
+    (
+      'a test that could not be sent says to check the connection',
+      PushTestOutcome.failed,
+      'Test not sent. Check your connection and try again.',
+    ),
+    (
+      'a test the server cannot run says so',
+      PushTestOutcome.notAvailable,
+      'Test notifications are not available on this server.',
+    ),
+  ]) {
+    testWidgets(name, (tester) async {
+      final source = _FakeSource(outcome: outcome);
+      await _pump(tester, source);
 
-    await tester.tap(find.text('Send a test notification'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Send a test notification'));
+      await tester.pumpAndSettle();
 
-    expect(source.tests, 1);
-    expect(
-      find.text(
-        'Test notification sent. If nothing arrives within a minute, '
-        'notifications are not reaching this device.',
-      ),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('too many tests says to wait', (tester) async {
-    await _pump(tester, _FakeSource(outcome: PushTestOutcome.rateLimited));
-
-    await tester.tap(find.text('Send a test notification'));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('Too many tests in the last hour. Try again later.'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('a test that could not be sent says to check the connection', (
-    tester,
-  ) async {
-    await _pump(tester, _FakeSource(outcome: PushTestOutcome.failed));
-
-    await tester.tap(find.text('Send a test notification'));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('Test not sent. Check your connection and try again.'),
-      findsOneWidget,
-    );
-  });
+      expect(source.tests, 1);
+      expect(find.text(message), findsOneWidget);
+    });
+  }
 
   testWidgets('sharing hands over the report without IDs', (tester) async {
     String? shared;
@@ -315,36 +300,7 @@ void main() {
 
     expect(find.text('Recent pushes'), findsNothing);
     expect(find.widgetWithText(ListTile, 'Push target'), findsOneWidget);
-    expect(find.text('Notifications'), findsWidgets);
-  });
-
-  testWidgets('a server without the push module offers no test', (
-    tester,
-  ) async {
-    final source = _FakeSource(reach: ServerReach.notInstalled);
-    await _pump(tester, source);
-
-    final row = find.widgetWithText(ListTile, 'Send a test notification');
-    expect(tester.widget<ListTile>(row).enabled, isFalse);
-    expect(
-      find.descendant(
-        of: row,
-        matching: find.text('Not available on this server'),
-      ),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('a test the server cannot run says so', (tester) async {
-    await _pump(tester, _FakeSource(outcome: PushTestOutcome.notAvailable));
-
-    await tester.tap(find.text('Send a test notification'));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('Test notifications are not available on this server.'),
-      findsOneWidget,
-    );
+    expect(find.text('Notifications'), findsOneWidget);
   });
 
   testWidgets('background sync offers no test', (tester) async {

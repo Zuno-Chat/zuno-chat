@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_player/video_player.dart';
 
-import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
 
 import '../../../helpers/fake_video_player.dart';
+import '../../../helpers/route_launcher.dart';
 
 void main() {
   late FakeVideoPlayer player;
@@ -23,21 +23,15 @@ void main() {
   Future<void> open(WidgetTester tester, {bool settle = true}) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () async {
-              result = await Navigator.of(context).push<ComposedVideo>(
-                MaterialPageRoute(
-                  builder: (_) => const VideoCaptionComposerPage(
-                    path: '/cache/clip.mp4',
-                    name: 'clip.mp4',
-                  ),
-                ),
-              );
-              closed = true;
-            },
-            child: const Text('open'),
+        home: routeLauncher<ComposedVideo>(
+          (_) => const VideoCaptionComposerPage(
+            path: '/cache/clip.mp4',
+            name: 'clip.mp4',
           ),
+          onResult: (composed) {
+            result = composed;
+            closed = true;
+          },
         ),
       ),
     );
@@ -109,16 +103,6 @@ void main() {
     expect(result!.durationMs, 42000);
   });
 
-  testWidgets('the keyboard action sends too', (tester) async {
-    await open(tester);
-
-    await tester.enterText(find.byType(TextField), 'hi');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
-
-    expect(result!.caption, 'hi');
-  });
-
   testWidgets('sent before it loads, it claims no size or length', (
     tester,
   ) async {
@@ -157,19 +141,5 @@ void main() {
 
     expect(closed, isTrue);
     expect(result, isNull);
-  });
-
-  testWidgets('the floating call window keeps clear of the caption bar', (
-    tester,
-  ) async {
-    await open(tester);
-
-    expect(
-      find.ancestor(
-        of: find.byTooltip('Send'),
-        matching: find.byType(KeepClearArea),
-      ),
-      findsOneWidget,
-    );
   });
 }

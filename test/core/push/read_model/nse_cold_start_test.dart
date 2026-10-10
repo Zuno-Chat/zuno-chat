@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:matrix/encryption/utils/stored_inbound_group_session.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -19,13 +18,8 @@ import 'package:zuno/core/push/read_model/read_model_publisher.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_megolm_sessions.dart';
 import '../../../helpers/platform_capabilities.dart';
-
-class _NoSessionsDatabase extends FakeDatabaseApi {
-  @override
-  Future<List<StoredInboundGroupSession>> getAllInboundGroupSessions() async =>
-      const [];
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -70,7 +64,7 @@ void main() {
         buildTestClient(
             userId: '@mwong:zuno.im',
             deviceId: 'PHONE',
-            database: _NoSessionsDatabase(),
+            database: SessionStoreFakeDatabaseApi(),
             httpClient: MockClient((_) async => http.Response('{}', 404)),
           )
           ..accessToken = 'syt_token'

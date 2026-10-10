@@ -200,13 +200,8 @@ struct NotificationResponseRoute: Equatable, Sendable {
   static func roomId(
     in userInfo: [AnyHashable: Any], resolveToken: (String) -> String? = NseRoomLookup.roomId
   ) -> String? {
-    if let roomId = userInfo["room_id"] as? String { return roomId }
-    if let target = NseRoomLookup.target(in: userInfo, resolve: resolveToken) { return target }
-    guard let payload = userInfo["payload"] as? String,
-      let decoded = try? JSONSerialization.jsonObject(with: Data(payload.utf8)),
-      let message = decoded as? [String: Any],
-      message["type"] as? String == "message"
-    else { return nil }
-    return message["roomId"] as? String
+    NotificationUserInfo.text(userInfo["room_id"])
+      ?? NseRoomLookup.target(in: userInfo, resolve: resolveToken)
+      ?? NotificationUserInfo.text(NotificationUserInfo.messagePayload(in: userInfo)?["roomId"])
   }
 }

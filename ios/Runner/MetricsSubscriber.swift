@@ -2,12 +2,12 @@ import Foundation
 import MetricKit
 
 enum MetricKitLine {
-  static let voipKillCode = "0xbaadca11"
-
   static func line(terminationReason: String?, exceptionType: Int?, signal: Int?) -> String {
     let reason = (terminationReason ?? "").lowercased()
-    let kind = reason.contains(voipKillCode) ? "voip_unreported" : "crash"
-    var fields = [kind]
+    let unreported = MetricSummaries.pushkitUnreported
+    var fields = [
+      MetricSummaries.crashKey(terminationReason: reason) == unreported ? unreported : "crash"
+    ]
     if let exceptionType { fields.append("exception=\(exceptionType)") }
     if let signal { fields.append("signal=\(signal)") }
     if let code = reason.range(of: #"0x[0-9a-f]{8}"#, options: .regularExpression) {

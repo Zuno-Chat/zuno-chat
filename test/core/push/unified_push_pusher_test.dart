@@ -52,9 +52,4 @@ void main() {
     expect(pusher.data.additionalProperties['endpoint'], endpoint.toString());
     expect(pusher.data.additionalProperties['auth'], 'AUTH');
   });
-
-  test('unifiedPushPusherIdFor addresses a pusher by whatever key it used', () {
-    expect(unifiedPushPusherIdFor('P256KEY').pushkey, 'P256KEY');
-    expect(unifiedPushPusherIdFor('P256KEY').appId, unifiedPushAppId);
-  });
 }

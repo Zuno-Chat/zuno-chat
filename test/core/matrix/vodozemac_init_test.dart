@@ -35,16 +35,7 @@ void main() {
     expect(calls, 1);
   });
 
-  test('reports a failed initialization instead of swallowing it', () async {
-    Future<void> init() async => throw StateError('no native library');
-
-    await expectLater(
-      ensureVodozemacInitialized(init: init),
-      throwsA(isA<StateError>()),
-    );
-  });
-
-  test('retries after a failure rather than caching it', () async {
+  test('reports a failure, then retries rather than caching it', () async {
     var calls = 0;
     Future<void> init() async {
       calls++;

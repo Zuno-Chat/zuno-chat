@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -14,12 +13,9 @@ import 'package:zuno/core/notifications/verification_request_notification.dart';
 import 'package:zuno/core/push/read_model/mention_spec.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fixtures.dart';
 
 const _roomId = '!abc:zuno.im';
-
-Map<String, dynamic> _fixture(String name) =>
-    jsonDecode(File('test/fixtures/push/$name').readAsStringSync())
-        as Map<String, dynamic>;
 
 Event _state(Room room, String type, Map<String, dynamic> content) => Event(
   type: type,
@@ -80,7 +76,7 @@ void main() {
   setUp(ringRateLimiter.clear);
 
   group('dispatch vectors match the Android handler', () {
-    final fixture = _fixture('nse_dispatch_v1.json');
+    final fixture = pushFixture('nse_dispatch_v1.json');
     final me = fixture['me'] as String;
     for (final raw in fixture['cases'] as List) {
       final vector = raw as Map<String, dynamic>;
@@ -148,7 +144,7 @@ void main() {
   });
 
   group('html vectors match the SDK plain text', () {
-    final fixture = _fixture('nse_html_v1.json');
+    final fixture = pushFixture('nse_html_v1.json');
     final client = buildTestClient(userId: '@mwong:zuno.im');
     final room = buildTestRoom(client, id: _roomId);
     for (final raw in fixture['cases'] as List) {
@@ -172,7 +168,7 @@ void main() {
   });
 
   group('mention vectors match the push rule evaluator', () {
-    final fixture = _fixture('nse_mentions_v1.json');
+    final fixture = pushFixture('nse_mentions_v1.json');
     final me = fixture['me'] as String;
     final rulesets = fixture['rulesets'] as Map<String, dynamic>;
     final specs = fixture['specs'] as Map<String, dynamic>;

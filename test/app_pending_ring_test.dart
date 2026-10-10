@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -21,40 +19,11 @@ import 'helpers/fake_call_style_channel.dart';
 import 'helpers/fake_local_notifications.dart';
 import 'helpers/fake_matrix.dart';
 import 'helpers/fixed_homeserver.dart';
-
-class _SendCapableFakeDatabaseApi extends FakeDatabaseApi {
-  @override
-  Future<void> transaction(Future<void> Function() action) => action();
-
-  @override
-  Future<User?> getUser(String userId, Room room) async => null;
-
-  @override
-  Future<void> storeEventUpdate(
-    String roomId,
-    StrippedStateEvent event,
-    EventUpdateType type,
-    Client client,
-  ) async {}
-
-  @override
-  Future<void> storeRoomUpdate(
-    String roomId,
-    SyncRoomUpdate roomUpdate,
-    Event? lastEvent,
-    Client client,
-  ) async {}
-}
+import 'helpers/native_method_calls.dart';
+import 'helpers/pump_until.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  FlutterLocalNotificationsPlatform.instance =
-      AndroidFlutterLocalNotificationsPlugin();
-  const notificationsChannel = MethodChannel(
-    'dexterous.com/flutter/local_notifications',
-  );
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   late Client client;
   late Room room;
@@ -62,30 +31,21 @@ void main() {
   setUp(() async {
     installSilentNotificationSideChannels();
     installFakeCallStyleChannel();
-    for (final name in const ['zuno/vibration', 'zuno/calls', 'zuno/share']) {
-      final channel = MethodChannel(name);
-      messenger.setMockMethodCallHandler(channel, (_) async => null);
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-    }
+    silenceMethodChannels(const ['zuno/vibration', 'zuno/calls', 'zuno/share']);
     SharedPreferences.setMockInitialValues({});
 
-    client = Client(
-      'test',
-      database: _SendCapableFakeDatabaseApi(),
+    client = buildTestClient(
+      userId: '@me:example.org',
+      database: SendCapableFakeDatabaseApi(),
       httpClient: MockClient(
         (request) async =>
             http.Response(jsonEncode({'event_id': r'$evt'}), 200),
       ),
     );
-    client.setUserId('@me:example.org');
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
     room = buildTestRoom(client);
     client.rooms.add(room);
-  });
-
-  tearDown(() {
-    messenger.setMockMethodCallHandler(notificationsChannel, null);
   });
 
   testWidgets(
@@ -95,24 +55,20 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       const callId = 'call1';
 
-      messenger.setMockMethodCallHandler(notificationsChannel, (call) async {
-        if (call.method == 'initialize') return true;
-        if (call.method != 'getNotificationAppLaunchDetails') return null;
-        return <String, Object?>{
-          'notificationLaunchedApp': true,
-          'notificationResponse': <String, Object?>{
-            'notificationId': 4002,
-            'actionId': 'decline',
-            'notificationResponseType': 1,
-            'payload': jsonEncode({
-              'roomId': room.id,
-              'callId': callId,
-              'callerId': '@bob:example.org',
-              'isVideo': false,
-            }),
-          },
-        };
-      });
+      installFakeLocalNotifications().launchDetails = {
+        'notificationLaunchedApp': true,
+        'notificationResponse': <String, Object?>{
+          'notificationId': ringNotificationId,
+          'actionId': 'decline',
+          'notificationResponseType': 1,
+          'payload': jsonEncode({
+            'roomId': room.id,
+            'callId': callId,
+            'callerId': '@bob:example.org',
+            'isVideo': false,
+          }),
+        },
+      };
 
       final container = ProviderContainer(
         overrides: [
@@ -143,19 +99,15 @@ void main() {
           ),
         ),
       );
-      await tester.runAsync(() async {
-        await Future<void>.delayed(const Duration(milliseconds: 500));
-      });
-      await tester.pump();
+      await pumpUntil(
+        tester,
+        () => container.read(resolvedCallIdsProvider).contains(callId),
+        reason:
+            'the router to decline the call for real, not leave it to a ring '
+            'screen that was never shown',
+      );
 
       expect(find.byType(IncomingCallPage), findsNothing);
-      expect(
-        container.read(resolvedCallIdsProvider),
-        contains(callId),
-        reason:
-            'the router should have declined the call for real, not '
-            'left it to a ring screen that was never shown',
-      );
     },
   );
 }

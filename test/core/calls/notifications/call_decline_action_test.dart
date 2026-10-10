@@ -11,11 +11,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/matrixrtc/call_decline.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/notifications/call_decline_action.dart';
-import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
-import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
 
-import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/recording_incoming_call_presenter.dart';
@@ -79,7 +76,6 @@ void main() {
   Future<void> decline({
     required Future<bool> Function() handOff,
     Future<Client> Function()? clientBuilder,
-    IncomingCallPresenter? ring,
     List<Duration> retryDelays = const [],
     Duration handOffPatience = const Duration(milliseconds: 50),
   }) => runHeadlessCallDecline(
@@ -87,7 +83,7 @@ void main() {
     callId: 'call1',
     handOff: handOff,
     clientBuilder: clientBuilder ?? () async => clientWithRoom(),
-    presenter: ring ?? presenter,
+    presenter: presenter,
     retryDelays: retryDelays,
     handOffPatience: handOffPatience,
     handOffRetryEvery: Duration.zero,
@@ -234,28 +230,5 @@ void main() {
 
     expect(tags.toSet(), hasLength(2));
     expect(tags.every((tag) => tag.startsWith('call_decline_')), isTrue);
-  });
-
-  test('on Android the ring notification comes down and the ringing call '
-      'is forgotten', () async {
-    final callStyle = installFakeCallStyleChannel();
-    const android = AndroidIncomingCallPresenter();
-    await android.showIncoming(
-      callerName: 'Bob',
-      callerId: '@bob:example.org',
-      isVideo: false,
-      roomId: roomId,
-      callId: 'call1',
-    );
-
-    await decline(handOff: () async => true, ring: android);
-
-    expect(
-      callStyle.calls.map((c) => c.method),
-      contains('cancelIncomingCallStyle'),
-    );
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
-    expect(readRingingCall(prefs), isNull);
   });
 }

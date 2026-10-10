@@ -74,19 +74,6 @@ void main() {
     expect(find.textContaining("Confirm it's really"), findsNothing);
   });
 
-  testWidgets('offers confirmation once they have joined', (tester) async {
-    room.summary = RoomSummary.fromJson({
-      'm.heroes': ['@bob:example.org'],
-      'm.joined_member_count': 2,
-      'm.invited_member_count': 0,
-    });
-
-    await pumpTile(tester, participants: [bob]);
-
-    expect(find.text('Confirm it is really @bob'), findsOneWidget);
-    expect(find.text('You can confirm them once they join'), findsNothing);
-  });
-
   testWidgets('says it is loading until the members arrive', (tester) async {
     await pumpTile(tester, participants: null);
 

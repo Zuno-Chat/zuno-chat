@@ -5,41 +5,59 @@ import 'package:zuno/core/notifications/background_sync_service.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../helpers/native_method_calls.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('zuno/background_sync');
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  final service = BackgroundSyncService.instance;
 
   tearDown(() {
     messenger.setMockMethodCallHandler(channel, null);
   });
 
-  test(
-    'start() invokes startBackgroundSyncService on the native channel',
-    () async {
-      String? method;
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        method = call.method;
-        return null;
-      });
-      await BackgroundSyncService.instance.start();
-      expect(method, 'startBackgroundSyncService');
-    },
-  );
+  for (final (method, invoke)
+      in <(String, Future<void> Function(BackgroundSyncService))>[
+        ('startBackgroundSyncService', (s) => s.start()),
+        ('stopBackgroundSyncService', (s) => s.stop()),
+        (
+          'requestIgnoreBatteryOptimizations',
+          (s) => s.requestIgnoreBatteryOptimizations(),
+        ),
+        ('openBackgroundDataSettings', (s) => s.openBackgroundDataSettings()),
+        ('openAutostartSettings', (s) => s.openAutostartSettings()),
+      ]) {
+    test('invokes $method on the native channel', () async {
+      final native = recordMethodChannel(channel.name);
 
-  test(
-    'stop() invokes stopBackgroundSyncService on the native channel',
-    () async {
-      String? method;
+      await invoke(service);
+
+      expect(native.methods, [method]);
+    });
+  }
+
+  for (final (method, ask)
+      in <(String, Future<bool> Function(BackgroundSyncService))>[
+        (
+          'isIgnoringBatteryOptimizations',
+          (s) => s.isIgnoringBatteryOptimizations(),
+        ),
+        ('isBackgroundDataRestricted', (s) => s.isBackgroundDataRestricted()),
+        ('hasAutostartSettings', (s) => s.hasAutostartSettings()),
+      ]) {
+    test('$method returns the native answer, and false for none', () async {
       messenger.setMockMethodCallHandler(channel, (call) async {
-        method = call.method;
-        return null;
+        expect(call.method, method);
+        return true;
       });
-      await BackgroundSyncService.instance.stop();
-      expect(method, 'stopBackgroundSyncService');
-    },
-  );
+      expect(await ask(service), isTrue);
+
+      messenger.setMockMethodCallHandler(channel, (call) async => null);
+      expect(await ask(service), isFalse);
+    });
+  }
 
   test(
     'start() propagates a PlatformException instead of swallowing it',
@@ -47,80 +65,7 @@ void main() {
       messenger.setMockMethodCallHandler(channel, (call) async {
         throw PlatformException(code: 'unavailable');
       });
-      expect(
-        () => BackgroundSyncService.instance.start(),
-        throwsA(isA<PlatformException>()),
-      );
-    },
-  );
-
-  test('isIgnoringBatteryOptimizations() returns the native result', () async {
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      expect(call.method, 'isIgnoringBatteryOptimizations');
-      return true;
-    });
-    expect(
-      await BackgroundSyncService.instance.isIgnoringBatteryOptimizations(),
-      isTrue,
-    );
-  });
-
-  test(
-    'isIgnoringBatteryOptimizations() defaults to false for a null result',
-    () async {
-      messenger.setMockMethodCallHandler(channel, (call) async => null);
-      expect(
-        await BackgroundSyncService.instance.isIgnoringBatteryOptimizations(),
-        isFalse,
-      );
-    },
-  );
-
-  test(
-    'requestIgnoreBatteryOptimizations() invokes the matching native method',
-    () async {
-      String? method;
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        method = call.method;
-        return null;
-      });
-      await BackgroundSyncService.instance.requestIgnoreBatteryOptimizations();
-      expect(method, 'requestIgnoreBatteryOptimizations');
-    },
-  );
-
-  test('isBackgroundDataRestricted() returns the native result', () async {
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      expect(call.method, 'isBackgroundDataRestricted');
-      return true;
-    });
-    expect(
-      await BackgroundSyncService.instance.isBackgroundDataRestricted(),
-      isTrue,
-    );
-  });
-
-  test(
-    'isBackgroundDataRestricted() defaults to false for a null result',
-    () async {
-      messenger.setMockMethodCallHandler(channel, (call) async => null);
-      expect(
-        await BackgroundSyncService.instance.isBackgroundDataRestricted(),
-        isFalse,
-      );
-    },
-  );
-
-  test(
-    'openBackgroundDataSettings() invokes the matching native method',
-    () async {
-      String? method;
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        method = call.method;
-        return null;
-      });
-      await BackgroundSyncService.instance.openBackgroundDataSettings();
-      expect(method, 'openBackgroundDataSettings');
+      expect(() => service.start(), throwsA(isA<PlatformException>()));
     },
   );
 
@@ -133,8 +78,9 @@ void main() {
         return false;
       });
 
-      final exempt = await BackgroundSyncService.instance
-          .isPackageIgnoringBatteryOptimizations('io.heckel.ntfy');
+      final exempt = await service.isPackageIgnoringBatteryOptimizations(
+        'io.heckel.ntfy',
+      );
 
       expect(exempt, isFalse);
       expect(received?.method, 'isPackageIgnoringBatteryOptimizations');
@@ -146,8 +92,7 @@ void main() {
     messenger.setMockMethodCallHandler(channel, (call) async => null);
 
     expect(
-      await BackgroundSyncService.instance
-          .isPackageIgnoringBatteryOptimizations('io.heckel.ntfy'),
+      await service.isPackageIgnoringBatteryOptimizations('io.heckel.ntfy'),
       isFalse,
     );
   });
@@ -159,65 +104,22 @@ void main() {
       return null;
     });
 
-    await BackgroundSyncService.instance.openAppSettings('io.heckel.ntfy');
+    await service.openAppSettings('io.heckel.ntfy');
 
     expect(received?.method, 'openAppSettings');
     expect(received?.arguments, {'package': 'io.heckel.ntfy'});
   });
 
-  group('autostart settings', () {
-    test('are offered when the device has a screen for them', () async {
-      messenger.setMockMethodCallHandler(
-        channel,
-        (call) async => call.method == 'hasAutostartSettings',
-      );
-      expect(
-        await BackgroundSyncService.instance.hasAutostartSettings(),
-        isTrue,
-      );
-    });
-
-    test('are not offered when the native side cannot tell', () async {
-      messenger.setMockMethodCallHandler(channel, null);
-      expect(
-        await BackgroundSyncService.instance.hasAutostartSettings(),
-        isFalse,
-      );
-    });
-
-    test('open through the native side', () async {
-      String? method;
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        method = call.method;
-        return true;
-      });
-      await BackgroundSyncService.instance.openAutostartSettings();
-      expect(method, 'openAutostartSettings');
-    });
+  test('autostart settings are not offered when the native side cannot '
+      'tell', () async {
+    messenger.setMockMethodCallHandler(channel, null);
+    expect(await service.hasAutostartSettings(), isFalse);
   });
 
   group('on a platform without these Android settings', () {
-    final service = BackgroundSyncService(
+    final ios = BackgroundSyncService(
       capabilities: capabilitiesFor(AppPlatform.ios),
     );
-
-    test('every call completes with no native side at all', () async {
-      messenger.setMockMethodCallHandler(channel, null);
-
-      await expectLater(service.start(), completes);
-      await expectLater(service.stop(), completes);
-      await expectLater(service.isIgnoringBatteryOptimizations(), completes);
-      await expectLater(service.requestIgnoreBatteryOptimizations(), completes);
-      await expectLater(
-        service.isPackageIgnoringBatteryOptimizations('io.heckel.ntfy'),
-        completes,
-      );
-      await expectLater(service.openAppSettings('io.heckel.ntfy'), completes);
-      await expectLater(service.isBackgroundDataRestricted(), completes);
-      await expectLater(service.openBackgroundDataSettings(), completes);
-      await expectLater(service.hasAutostartSettings(), completes);
-      await expectLater(service.openAutostartSettings(), completes);
-    });
 
     test('never reaches the native channel', () async {
       final methods = <String>[];
@@ -226,28 +128,28 @@ void main() {
         return true;
       });
 
-      await service.start();
-      await service.stop();
-      await service.isIgnoringBatteryOptimizations();
-      await service.requestIgnoreBatteryOptimizations();
-      await service.isPackageIgnoringBatteryOptimizations('io.heckel.ntfy');
-      await service.openAppSettings('io.heckel.ntfy');
-      await service.isBackgroundDataRestricted();
-      await service.openBackgroundDataSettings();
-      await service.hasAutostartSettings();
-      await service.openAutostartSettings();
+      await ios.start();
+      await ios.stop();
+      await ios.isIgnoringBatteryOptimizations();
+      await ios.requestIgnoreBatteryOptimizations();
+      await ios.isPackageIgnoringBatteryOptimizations('io.heckel.ntfy');
+      await ios.openAppSettings('io.heckel.ntfy');
+      await ios.isBackgroundDataRestricted();
+      await ios.openBackgroundDataSettings();
+      await ios.hasAutostartSettings();
+      await ios.openAutostartSettings();
 
       expect(methods, isEmpty);
     });
 
     test('reports nothing for the user to fix', () async {
-      expect(await service.isIgnoringBatteryOptimizations(), isTrue);
+      expect(await ios.isIgnoringBatteryOptimizations(), isTrue);
       expect(
-        await service.isPackageIgnoringBatteryOptimizations('io.heckel.ntfy'),
+        await ios.isPackageIgnoringBatteryOptimizations('io.heckel.ntfy'),
         isTrue,
       );
-      expect(await service.isBackgroundDataRestricted(), isFalse);
-      expect(await service.hasAutostartSettings(), isFalse);
+      expect(await ios.isBackgroundDataRestricted(), isFalse);
+      expect(await ios.hasAutostartSettings(), isFalse);
     });
   });
 }

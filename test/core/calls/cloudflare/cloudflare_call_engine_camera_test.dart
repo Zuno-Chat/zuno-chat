@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -17,18 +16,11 @@ void main() {
     void Function(EngineHarness call) body, {
     CallKind kind = CallKind.video,
     PlatformCapabilities? capabilities,
-  }) {
-    fakeAsync((async) {
-      final call = EngineHarness(
-        async,
-        kind: kind,
-        capabilities: capabilities ?? androidCapabilities,
-      );
-      body(call);
-      call.leave();
-      call.flush();
-    });
-  }
+  }) => runEngineCall(
+    body,
+    kind: kind,
+    capabilities: capabilities ?? androidCapabilities,
+  );
 
   Matcher placeholderOf(EngineHarness call) =>
       same(call.backend.placeholders.last.track);
@@ -247,22 +239,6 @@ void main() {
       }, capabilities: androidCapabilities);
     });
 
-    test('where the camera would keep running, a camera that was off stays '
-        'off when the app returns', () {
-      inCall((call) {
-        call.joinEncrypted();
-        call.wait(call.engine.setCameraEnabled(false));
-
-        call.wait(call.engine.setAppInBackground(true));
-        call.wait(call.engine.setAppInBackground(false));
-
-        expect(call.videoSlot.sender.track, placeholderOf(call));
-        expect(call.backend.captures, hasLength(1));
-        expect(call.local.videoEnabled, isFalse);
-        expect(call.engine.localFociInfo?['videoEnabled'], isFalse);
-      }, capabilities: androidCapabilities);
-    });
-
     test('a video call joined in the background starts on the placeholder '
         'and shows the camera once the app opens', () {
       inCall((call) {
@@ -279,20 +255,26 @@ void main() {
       }, capabilities: iosCapabilities);
     });
 
-    test('a camera that was off stays off when the app returns', () {
-      inCall((call) {
-        call.joinEncrypted();
-        call.wait(call.engine.setCameraEnabled(false));
+    for (final (platform, capabilities) in [
+      ('android', androidCapabilities),
+      ('ios', iosCapabilities),
+    ]) {
+      test('on $platform, a camera that was off stays off when the app '
+          'returns', () {
+        inCall((call) {
+          call.joinEncrypted();
+          call.wait(call.engine.setCameraEnabled(false));
 
-        call.wait(call.engine.setAppInBackground(true));
-        call.wait(call.engine.setAppInBackground(false));
+          call.wait(call.engine.setAppInBackground(true));
+          call.wait(call.engine.setAppInBackground(false));
 
-        expect(call.videoSlot.sender.track, placeholderOf(call));
-        expect(call.backend.captures, hasLength(1));
-        expect(call.local.videoEnabled, isFalse);
-        expect(call.engine.localFociInfo?['videoEnabled'], isFalse);
-      }, capabilities: iosCapabilities);
-    });
+          expect(call.videoSlot.sender.track, placeholderOf(call));
+          expect(call.backend.captures, hasLength(1));
+          expect(call.local.videoEnabled, isFalse);
+          expect(call.engine.localFociInfo?['videoEnabled'], isFalse);
+        }, capabilities: capabilities);
+      });
+    }
   });
 
   group('before joining', () {

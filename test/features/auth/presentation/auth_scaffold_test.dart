@@ -120,5 +120,6 @@ void main() {
     );
 
     expect(inCard(find.text('Cannot reach the server')), findsOneWidget);
+    expect(inCard(find.byType(Text)), findsOneWidget);
   });
 }

@@ -62,22 +62,32 @@ void main() {
     });
   });
 
-  group('FailedMediaSend', () {
-    test('sits at its place in the gallery', () {
-      const failed = FailedMediaSend(
-        gallery: GalleryGroupRef(id: 'g', index: 2, count: 3),
-        video: ComposedVideo(path: '/v.mp4', name: 'v.mp4', caption: ''),
-      );
-      expect(failed.index, 2);
-    });
+  test('a failed send sits at its place in the gallery, or first alone', () {
+    const inGallery = FailedMediaSend(
+      gallery: GalleryGroupRef(id: 'g', index: 2, count: 3),
+      video: ComposedVideo(path: '/v.mp4', name: 'v.mp4', caption: ''),
+    );
+    final single = FailedMediaSend(
+      gallery: null,
+      bytes: Uint8List(0),
+      caption: 'hi',
+    );
 
-    test('a single send sits first', () {
-      final failed = FailedMediaSend(
-        gallery: null,
-        bytes: Uint8List(0),
-        caption: 'hi',
-      );
-      expect(failed.index, 0);
-    });
+    expect(inGallery.index, 2);
+    expect(single.index, 0);
+  });
+
+  test('a pending send gets a synthetic tile only until its event is in the '
+      'timeline', () {
+    bool needsTile(String? pending, List<String> timeline) =>
+        pendingSendNeedsSyntheticTile(
+          pendingEventId: pending,
+          timelineEventIds: timeline,
+        );
+
+    expect(needsTile(null, ['a', 'b']), isFalse);
+    expect(needsTile('txid-1', ['a', 'b']), isTrue);
+    expect(needsTile('txid-1', []), isTrue);
+    expect(needsTile('txid-1', ['a', 'txid-1', 'b']), isFalse);
   });
 }

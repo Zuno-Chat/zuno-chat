@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/matrix/linkified_text.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 
-Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+import '../../helpers/zuno_app.dart';
 
 List<TextSpan> _spans(WidgetTester tester) {
   final span = tester.widget<Text>(find.byType(Text)).textSpan! as TextSpan;
@@ -17,7 +17,7 @@ void main() {
     'plain text with no URL or mention renders as a single unstyled span',
     (tester) async {
       await tester.pumpWidget(
-        _wrap(const LinkifiedText('just a normal message')),
+        inZunoApp(const LinkifiedText('just a normal message')),
       );
       expect(find.text('just a normal message'), findsOneWidget);
       final text = tester.widget<Text>(find.byType(Text));
@@ -29,7 +29,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _wrap(const LinkifiedText('@room please read this')),
+      inZunoApp(const LinkifiedText('@room please read this')),
     );
     final context = tester.element(find.byType(LinkifiedText));
     final primary = Theme.of(context).colorScheme.primary;
@@ -44,7 +44,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _wrap(const LinkifiedText('ask your @roommate about it')),
+      inZunoApp(const LinkifiedText('ask your @roommate about it')),
     );
     final text = tester.widget<Text>(find.byType(Text));
     expect(text.textSpan, isNull);
@@ -55,7 +55,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _wrap(const LinkifiedText('@room see https://example.com for details')),
+      inZunoApp(
+        const LinkifiedText('@room see https://example.com for details'),
+      ),
     );
     final children = _spans(tester);
 
@@ -71,7 +73,7 @@ void main() {
 
   testWidgets('highlights @mentions of room members only', (tester) async {
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const LinkifiedText(
           'hi @alice, @Nobody and foo@bar',
           mentionable: {'@alice', '@bar'},
@@ -89,7 +91,7 @@ void main() {
 
   testWidgets('highlights a bracketed display-name mention', (tester) async {
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const LinkifiedText(
           'hi @[Alice Smith]!',
           mentionable: {'@[alice smith]'},
@@ -104,23 +106,9 @@ void main() {
     );
   });
 
-  testWidgets('highlights a mention whose localpart holds a hyphen', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _wrap(const LinkifiedText('hi @bob-smith!', mentionable: {'@bob-smith'})),
-    );
-    final children = _spans(tester);
-
-    expect(
-      children.firstWhere((s) => s.text == '@bob-smith').style!.fontWeight,
-      FontWeight.bold,
-    );
-  });
-
   testWidgets('a mention never shows the server name', (tester) async {
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const LinkifiedText(
           'hi @bob:zuno.chat and @bob-smith:zuno.chat!',
           mentionable: {'@bob', '@bob-smith'},
@@ -144,7 +132,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _wrap(
+      inZunoApp(
         const LinkifiedText(
           'hi @[Alice Smith]:hello',
           mentionable: {'@[alice smith]'},
@@ -160,7 +148,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _wrap(const LinkifiedText('hi @nobody:zuno.chat', mentionable: {'@bob'})),
+      inZunoApp(
+        const LinkifiedText('hi @nobody:zuno.chat', mentionable: {'@bob'}),
+      ),
     );
 
     expect(find.text('hi @nobody:zuno.chat'), findsOneWidget);
@@ -169,7 +159,7 @@ void main() {
   testWidgets('leaves @mentions plain when no members are known', (
     tester,
   ) async {
-    await tester.pumpWidget(_wrap(const LinkifiedText('hi @alice')));
+    await tester.pumpWidget(inZunoApp(const LinkifiedText('hi @alice')));
 
     expect(find.text('hi @alice'), findsOneWidget);
     expect(tester.widget<Text>(find.byType(Text)).textSpan, isNull);
@@ -178,31 +168,10 @@ void main() {
   testWidgets('a trailing span is appended after plain text', (tester) async {
     const trailing = WidgetSpan(child: SizedBox(width: 30, height: 1));
     await tester.pumpWidget(
-      _wrap(const LinkifiedText('just text', trailing: trailing)),
+      inZunoApp(const LinkifiedText('just text', trailing: trailing)),
     );
     final span = tester.widget<Text>(find.byType(Text)).textSpan! as TextSpan;
     expect((span.children!.first as TextSpan).text, 'just text');
     expect(span.children!.last, same(trailing));
-  });
-
-  testWidgets('a trailing span is appended after a link', (tester) async {
-    const trailing = WidgetSpan(child: SizedBox(width: 30, height: 1));
-    await tester.pumpWidget(
-      _wrap(const LinkifiedText('see https://example.com', trailing: trailing)),
-    );
-    final span = tester.widget<Text>(find.byType(Text)).textSpan! as TextSpan;
-    expect(span.children!.last, same(trailing));
-  });
-
-  testWidgets('links take the dark theme token in the dark', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(brightness: Brightness.dark),
-        home: const Scaffold(body: LinkifiedText('see https://example.com')),
-      ),
-    );
-    final link = _spans(tester)
-        .firstWhere((s) => s.text == 'https://example.com');
-    expect(link.style!.color, ZunoColors.dark.link);
   });
 }

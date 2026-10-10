@@ -92,7 +92,7 @@ final class NsePipelineTests: XCTestCase {
 
     XCTAssertEqual(result, NseResult(delivery: .passthrough, outcome: .noMeta))
     XCTAssertTrue(harness.transport.requests.isEmpty)
-    XCTAssertTrue(harness.best.all.isEmpty)
+    XCTAssertTrue(harness.best.values.isEmpty)
     XCTAssertNil(harness.files.read(NotifyFile.shownNse))
   }
 
@@ -115,9 +115,9 @@ final class NsePipelineTests: XCTestCase {
 
     _ = await harness.run()
 
-    XCTAssertEqual(harness.best.all.first?.title, "Design team")
-    XCTAssertEqual(harness.best.all.first?.body, "New message")
-    XCTAssertEqual(harness.best.all.first?.interruption, .active)
+    XCTAssertEqual(harness.best.values.first?.title, "Design team")
+    XCTAssertEqual(harness.best.values.first?.body, "New message")
+    XCTAssertEqual(harness.best.values.first?.interruption, .active)
   }
 
   func testAnUnencryptedMessageShowsWithItsNamesAndCountsInTheBadge() async {
@@ -151,6 +151,19 @@ final class NsePipelineTests: XCTestCase {
     XCTAssertFalse(harness.signals.logged[0].contains("lag="))
   }
 
+  func testOnlyAMessageAtNameAndMessageCarriesTheActions() async {
+    for (level, category) in [("full", "message"), ("name", nil), ("none", nil)]
+      as [(String, String?)]
+    {
+      let harness = harness(meta: NseTestData.meta(["level": level]))
+      harness.transport.reply(
+        "nse/fetch",
+        NseTestData.ok(NseTestData.event(content: ["msgtype": "m.text", "body": "Lunch?"])))
+      let result = await harness.run()
+      XCTAssertEqual(result.delivery.category, category, level)
+    }
+  }
+
   func testARoomWithoutAReadModelFileIsNamedByTheServer() async {
     let harness = harness(room: nil)
     harness.transport.reply(
@@ -163,7 +176,7 @@ final class NsePipelineTests: XCTestCase {
     XCTAssertEqual(result.outcome, .shown)
     XCTAssertEqual(result.delivery.title, "Design team")
     XCTAssertEqual(result.delivery.body, "Alice: Lunch?")
-    XCTAssertEqual(harness.best.all.first?.title, "Zuno")
+    XCTAssertEqual(harness.best.values.first?.title, "Zuno")
   }
 
   func testMentionsOnlyTrustsTheServerHighlightForUnencryptedEvents() async {
@@ -243,8 +256,8 @@ final class NsePipelineTests: XCTestCase {
     XCTAssertEqual(result.delivery.interruption, .passive)
     XCTAssertEqual(result.delivery.sound, .none)
     XCTAssertTrue(result.delivery.removals.isEmpty)
-    XCTAssertEqual(harness.best.all.count, 1)
-    for line in [result.delivery] + harness.best.all {
+    XCTAssertEqual(harness.best.values.count, 1)
+    for line in [result.delivery] + harness.best.values {
       XCTAssertEqual(line.title, "Zuno")
       XCTAssertEqual(line.body, "New message")
       XCTAssertEqual(line.threadId, "zuno")
@@ -398,19 +411,6 @@ final class NsePipelineTests: XCTestCase {
     XCTAssertEqual(result.delivery.removals, ["read"])
     XCTAssertEqual(result.delivery.interruption, .passive)
     XCTAssertEqual(result.delivery.userInfo["k"], "sys")
-  }
-
-  func testAReadReplyNeverTrapsOnALineWhoseEventTimeIsTooBigToScale() async {
-    let harness = harness(delivered: [
-      NseTestData.delivered("huge", t: roomToken, o: Int64.max),
-      NseTestData.delivered("read", t: roomToken, o: 100),
-    ])
-    harness.transport.reply(
-      "nse/fetch", NseFakeTransport.module(200, ["status": "read", "receipt_ts": 200_000]))
-
-    let result = await harness.run()
-
-    XCTAssertEqual(result.delivery.removals, ["read"])
   }
 
   func testAReadReplyWithoutAReceiptRemovesNothing() async {

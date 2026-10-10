@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 
 struct DeliveredNote: Equatable, Sendable {
   let identifier: String
@@ -6,39 +7,49 @@ struct DeliveredNote: Equatable, Sendable {
   let roomToken: String?
   let seconds: Int?
   var appPosted = false
+  var roomId: String? = nil
 }
 
 extension DeliveredNote {
-  init(identifier: String, thread: String, userInfo: [AnyHashable: Any], pushed: Bool = true) {
+  init(_ notification: UNNotification) {
+    let content = notification.request.content
     self.init(
-      identifier: identifier, thread: thread, roomToken: userInfo["t"] as? String,
-      seconds: Self.seconds(userInfo["o"]),
-      appPosted: !pushed && !CatchUpComposer.isCatchUp(identifier))
+      identifier: notification.request.identifier, thread: content.threadIdentifier,
+      roomToken: content.userInfo["t"] as? String,
+      seconds: NotificationUserInfo.seconds(content.userInfo["o"]),
+      appPosted: !notification.isPushed, roomId: content.userInfo["room_id"] as? String)
   }
+}
 
-  private static func seconds(_ value: Any?) -> Int? {
-    if let text = value as? String { return Int(text) }
-    return (value as? NSNumber)?.intValue
+extension UNNotification {
+  var isPushed: Bool {
+    request.trigger is UNPushNotificationTrigger || CatchUpComposer.isCatchUp(request.identifier)
   }
 }
 
 struct ThreadRead: Equatable, Sendable {
-  let token: String
-  let upToMs: Int64?
+  var token: String?
+  var roomId: String?
+  var upToMs: Int64?
 }
 
 enum DeliveredSweep {
   static func identifiersToRemove(_ delivered: [DeliveredNote], reads: [ThreadRead]) -> [String] {
-    let reads = reads.filter { !$0.token.isEmpty }
-    guard !reads.isEmpty else { return [] }
-    return delivered.filter { note in reads.contains { covers($0, note) } }.map(\.identifier)
+    delivered.filter { note in reads.contains { covers($0, note) } }.map(\.identifier)
   }
 
   private static func covers(_ read: ThreadRead, _ note: DeliveredNote) -> Bool {
-    guard !note.appPosted else { return false }
-    guard note.roomToken == read.token || note.thread == read.token else { return false }
+    guard !note.appPosted, isInRoom(note, of: read) else { return false }
     guard let upTo = read.upToMs else { return true }
     guard let seconds = note.seconds else { return false }
     return Int64(seconds) <= upTo / 1000
+  }
+
+  private static func isInRoom(_ note: DeliveredNote, of read: ThreadRead) -> Bool {
+    if let token = read.token, !token.isEmpty, note.roomToken == token || note.thread == token {
+      return true
+    }
+    guard let roomId = read.roomId, !roomId.isEmpty else { return false }
+    return note.roomId == roomId
   }
 }

@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 
+import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 
 void main() {
@@ -23,13 +24,9 @@ void main() {
     notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
     SharedPreferences.setMockInitialValues({});
-    callsChannel = [];
-    const channel = MethodChannel('zuno/calls');
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      callsChannel.add(call);
-      return call.method == 'canUseFullScreenIntent' ? false : null;
-    });
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    callsChannel = installFakeCallsChannel(
+      reply: (call) => call.method == 'canUseFullScreenIntent' ? false : null,
+    ).calls;
     await service.initialize();
     initializeArguments ??= notifications.initializeArguments;
   });
@@ -231,10 +228,6 @@ void main() {
         ],
         ['openFullScreenIntentSettings', null],
       ]);
-    });
-
-    test('full-screen ringing follows what Android allows', () async {
-      expect(await service.canUseFullScreenIntent(), isFalse);
     });
 
     test(

@@ -124,12 +124,6 @@ void main() {
     }
   });
 
-  test('references never notify, which silences call and verification '
-      'signaling', () {
-    expect(referenceRule.relType, 'm.reference');
-    expect(silentRelationRules, contains(referenceRule));
-  });
-
   group('ensureSilentRelationRule', () {
     test(
       'installs a silent override on the relation type when missing',

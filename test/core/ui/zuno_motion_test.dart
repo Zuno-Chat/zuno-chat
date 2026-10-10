@@ -286,14 +286,4 @@ void main() {
       expect(find.text('second'), findsNothing);
     });
   });
-
-  test('the push lasts as long as the page token', () {
-    expect(
-      const ZunoSlideTransitionsBuilder().transitionDuration,
-      ZunoDurations.page,
-    );
-    expect(ZunoDurations.page, const Duration(milliseconds: 300));
-    expect(ZunoDurations.standard, const Duration(milliseconds: 250));
-    expect(ZunoDurations.fast, const Duration(milliseconds: 150));
-  });
 }

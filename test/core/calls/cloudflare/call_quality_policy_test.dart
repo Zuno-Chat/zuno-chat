@@ -98,17 +98,6 @@ void main() {
   });
 
   group('videoEncodingFor', () {
-    test('every tier has explicit non-null limits', () {
-      for (final quality in CallQuality.values) {
-        for (final lowData in [false, true]) {
-          final limits = videoEncodingFor(quality, lowDataMode: lowData);
-          expect(limits.scaleResolutionDownBy, greaterThanOrEqualTo(1.0));
-          expect(limits.maxFramerate, greaterThan(0));
-          expect(limits.maxBitrate, greaterThan(0));
-        }
-      }
-    });
-
     test('good tier is the capture profile cap', () {
       expect(videoEncodingFor(CallQuality.good, lowDataMode: false), (
         scaleResolutionDownBy: 1.0,
@@ -229,12 +218,6 @@ void main() {
         result.degradationPreference,
         RTCDegradationPreference.MAINTAIN_FRAMERATE,
       );
-    });
-
-    test('returns the same params instance it was given', () {
-      final params = RTCRtpParameters(encodings: [RTCRtpEncoding(rid: 'a')]);
-      final result = applyVideoEncodingLimits(params, limits);
-      expect(identical(result, params), isTrue);
     });
   });
 

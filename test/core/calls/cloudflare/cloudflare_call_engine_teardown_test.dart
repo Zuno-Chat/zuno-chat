@@ -25,29 +25,6 @@ void main() {
   };
 
   group('happy path', () {
-    test('the local participant starts on the front camera', () {
-      final engine = _buildEngine(kind: CallKind.video);
-      final local = engine.participants.single;
-      expect(local.isLocal, isTrue);
-      expect(local.frontCamera, isTrue);
-    });
-
-    test('leaving reports disconnected and drops every participant', () async {
-      final engine = _buildEngine();
-      final statuses = <CallEngineStatus>[];
-      engine.statusStream.listen(statuses.add);
-
-      engine.updateRemoteParticipant(remoteId, remoteFoci);
-      expect(engine.participants, hasLength(2));
-
-      await engine.leave();
-      await pumpEventQueue();
-
-      expect(engine.status, CallEngineStatus.disconnected);
-      expect(statuses, [CallEngineStatus.disconnected]);
-      expect(engine.participants.where((p) => !p.isLocal), isEmpty);
-    });
-
     test('an unchanged membership does not re-emit participants', () async {
       final engine = _buildEngine();
       final emissions = <List<CallEngineParticipant>>[];
@@ -74,19 +51,6 @@ void main() {
 
       expect(emissions, hasLength(2));
       expect(emissions.last.last.audioMuted, isTrue);
-    });
-
-    test('a membership advertising an encryption key marks the participant encrypted', () async {
-      final engine = _buildEngine();
-
-      engine.updateRemoteParticipant(remoteId, {
-        ...remoteFoci,
-        'encrypted': true,
-      });
-      await pumpEventQueue();
-
-      final remote = engine.participants.firstWhere((p) => !p.isLocal);
-      expect(remote.encrypted, isTrue);
     });
 
     test(

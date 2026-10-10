@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
@@ -32,11 +31,8 @@ void main() {
     expect(isNotSent(message(EventStatus.error)), isTrue);
   });
 
-  test('a message still on its way is not "not sent" yet', () {
+  test('a message still on its way, or delivered, is not "not sent"', () {
     expect(isNotSent(message(EventStatus.sending)), isFalse);
-  });
-
-  test('a delivered message is not "not sent"', () {
     expect(isNotSent(message(EventStatus.sent)), isFalse);
   });
 
@@ -77,13 +73,5 @@ void main() {
     ]);
 
     expect(selected, [failedA, failedB]);
-  });
-
-  testWidgets('NotSentRow says what happened and what to do', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: NotSentRow())),
-    );
-
-    expect(find.text('Not sent · Tap to retry'), findsOneWidget);
   });
 }

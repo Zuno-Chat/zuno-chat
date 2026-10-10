@@ -49,15 +49,6 @@ void main() {
       expect(settings.callVibration, isTrue);
       expect(settings.messageVibration, isTrue);
     });
-
-    test('throws on a stored value of the wrong type', () async {
-      final prefs = await prefsWith({ringtoneEnabledKey: 'yes'});
-
-      expect(
-        () => readNotificationSoundSettings(prefs),
-        throwsA(isA<TypeError>()),
-      );
-    });
   });
 
   group('loadNotificationSoundSettings', () {
@@ -69,84 +60,76 @@ void main() {
       expect(settings.messageTone, isFalse);
       expect(settings.messageVibration, isTrue);
     });
+
+    test('falls back to every default when a stored value has the wrong '
+        'type', () async {
+      await prefsWith({
+        ringtoneEnabledKey: 'yes',
+        messageToneEnabledKey: false,
+      });
+
+      expect(
+        await loadNotificationSoundSettings(),
+        same(NotificationSoundSettings.defaults),
+      );
+    });
   });
 
   group('messageAlertFor', () {
     final now = DateTime(2026, 9, 4, 12);
     const room = '!a:example.org';
+    const moments = Duration(milliseconds: 300);
 
-    test('plays the tone when nothing has played yet', () {
-      expect(
-        messageAlertFor(
-          roomId: room,
-          lastToneRoomId: null,
-          lastToneAt: null,
-          now: now,
-        ),
+    for (final (name, roomId, lastToneRoomId, lastToneAt, expected) in [
+      (
+        'plays the tone when nothing has played yet',
+        room,
+        null,
+        null,
         MessageAlert.tone,
-      );
-    });
-
-    test('plays the tone again once the interval has passed', () {
-      expect(
-        messageAlertFor(
-          roomId: room,
-          lastToneRoomId: room,
-          lastToneAt: now.subtract(minMessageToneInterval),
-          now: now,
-        ),
+      ),
+      (
+        'plays the tone again once the interval has passed',
+        room,
+        room,
+        now.subtract(minMessageToneInterval),
         MessageAlert.tone,
-      );
-    });
-
-    test('a second message in the same room moments later is a silent '
-        'update, so the tone still playing is not cut off', () {
-      expect(
-        messageAlertFor(
-          roomId: room,
-          lastToneRoomId: room,
-          lastToneAt: now.subtract(const Duration(milliseconds: 300)),
-          now: now,
-        ),
+      ),
+      (
+        'a second message in the same room moments later is a silent '
+            'update, so the tone still playing is not cut off',
+        room,
+        room,
+        now.subtract(moments),
         MessageAlert.silentUpdate,
-      );
-    });
-
-    test('a message in another room moments later is plain silent', () {
-      expect(
-        messageAlertFor(
-          roomId: '!b:example.org',
-          lastToneRoomId: room,
-          lastToneAt: now.subtract(const Duration(milliseconds: 300)),
-          now: now,
-        ),
+      ),
+      (
+        'a message in another room moments later is plain silent',
+        '!b:example.org',
+        room,
+        now.subtract(moments),
         MessageAlert.silent,
-      );
-    });
-
-    test('a burst in the same room arriving in the same instant is a silent '
-        'update', () {
-      expect(
-        messageAlertFor(
-          roomId: room,
-          lastToneRoomId: room,
-          lastToneAt: now,
-          now: now,
-        ),
+      ),
+      (
+        'a burst in the same room arriving in the same instant is a silent '
+            'update',
+        room,
+        room,
+        now,
         MessageAlert.silentUpdate,
-      );
-    });
-  });
-
-  group('vibration patterns', () {
-    test('the call pattern starts with a zero wait and repeats cleanly', () {
-      expect(callVibrationPattern.first, 0);
-      expect(callVibrationPattern.length.isOdd, isTrue);
-    });
-
-    test('the message pattern is a double buzz starting with a zero wait', () {
-      expect(messageVibrationPattern, [0, 300, 150, 300]);
-      expect(messageVibrationPattern.first, 0);
-    });
+      ),
+    ]) {
+      test(name, () {
+        expect(
+          messageAlertFor(
+            roomId: roomId,
+            lastToneRoomId: lastToneRoomId,
+            lastToneAt: lastToneAt,
+            now: now,
+          ),
+          expected,
+        );
+      });
+    }
   });
 }

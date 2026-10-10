@@ -7,6 +7,7 @@ import 'package:zuno/features/location/presentation/live_location_watch_scope.da
 
 import '../../../helpers/fake_device_keys.dart';
 import '../../../helpers/fake_live_location.dart';
+import '../../../helpers/route_launcher.dart';
 
 void main() {
   late LiveLocationHarness harness;
@@ -31,17 +32,11 @@ void main() {
       ProviderScope(
         overrides: harness.overrides,
         child: MaterialApp(
-          home: Builder(
-            builder: (context) => LiveLocationWatchScope(
-              roomId: harness.room.id,
-              child: TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const Scaffold(body: Text('Covering')),
-                  ),
-                ),
-                child: const Text('Open'),
-              ),
+          home: LiveLocationWatchScope(
+            roomId: harness.room.id,
+            child: routeLauncher(
+              (_) => const Scaffold(body: Text('Covering')),
+              label: 'Open',
             ),
           ),
         ),
@@ -50,25 +45,12 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('watches while its screen shows', (tester) async {
+  testWidgets('stops watching while another screen covers it, and watches '
+      'again once that screen closes', (tester) async {
     await pumpScope(tester);
-
-    expect(watches(), [true]);
-  });
-
-  testWidgets('stops watching while another screen covers it', (tester) async {
-    await pumpScope(tester);
-
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
-
     expect(watches(), [true, false]);
-  });
-
-  testWidgets('watches again once that screen closes', (tester) async {
-    await pumpScope(tester);
-    await tester.tap(find.text('Open'));
-    await tester.pumpAndSettle();
 
     Navigator.of(tester.element(find.text('Covering'))).pop();
     await tester.pumpAndSettle();

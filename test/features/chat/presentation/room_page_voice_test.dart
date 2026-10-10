@@ -10,6 +10,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import '../../../helpers/fake_audio_player.dart';
 import '../../../helpers/opus_caf.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/pump_until.dart';
 import 'room_page_harness.dart';
 
 void main() {
@@ -177,6 +178,9 @@ void main() {
 
   List<File> leftoverRecordings() => temp.listSync().whereType<File>().toList();
 
+  bool recordingDone() =>
+      recorderCalls.contains('stop') && leftoverRecordings().isEmpty;
+
   testWidgets('holding records, and letting go sends it as a voice '
       'message', (tester) async {
     await openRoom(tester);
@@ -190,7 +194,11 @@ void main() {
 
     await realWait(tester, 350);
     await gesture.up();
-    await drive(tester);
+    await pumpUntil(
+      tester,
+      () => voiceMessages().isNotEmpty && recordingDone(),
+      reason: 'the voice message to be sent and its recording removed',
+    );
 
     final voice = voiceMessages().single;
     expect(voice['msgtype'], 'm.audio');
@@ -211,7 +219,11 @@ void main() {
 
     await realWait(tester, 350);
     await gesture.up();
-    await drive(tester);
+    await pumpUntil(
+      tester,
+      () => recordingDone() && !shows('Release to cancel'),
+      reason: 'the recording to be thrown away',
+    );
 
     expect(voiceMessages(), isEmpty);
     expect(leftoverRecordings(), isEmpty);
@@ -228,7 +240,11 @@ void main() {
 
     await realWait(tester, 200);
     await tapMic(tester);
-    await drive(tester);
+    await pumpUntil(
+      tester,
+      () => voiceMessages().isNotEmpty,
+      reason: 'the voice message to be sent',
+    );
 
     expect(voiceMessages(), hasLength(1));
     expect(find.byTooltip('Cancel recording'), findsNothing);
@@ -247,7 +263,13 @@ void main() {
     expect(voiceMessages(), isEmpty);
 
     await tester.tap(find.byTooltip('Cancel recording'));
-    await drive(tester);
+    await pumpUntil(
+      tester,
+      () =>
+          recordingDone() &&
+          find.byTooltip('Cancel recording').evaluate().isEmpty,
+      reason: 'the recording to be thrown away',
+    );
 
     expect(find.byTooltip('Cancel recording'), findsNothing);
     expect(voiceMessages(), isEmpty);
@@ -259,7 +281,11 @@ void main() {
 
     final gesture = await holdMic(tester);
     await gesture.cancel();
-    await drive(tester);
+    await pumpUntil(
+      tester,
+      () => recordingDone() && !shows('Slide up to cancel'),
+      reason: 'the recording to be thrown away',
+    );
 
     expect(find.text('Slide up to cancel'), findsNothing);
     expect(voiceMessages(), isEmpty);
@@ -273,7 +299,11 @@ void main() {
 
     await tapMic(tester, settle: false, hold: const Duration(milliseconds: 20));
     await tapMic(tester, settle: false, hold: const Duration(milliseconds: 20));
-    await drive(tester);
+    await pumpUntil(
+      tester,
+      recordingDone,
+      reason: 'the short recording to be dropped',
+    );
 
     expect(voiceMessages(), isEmpty);
     expect(leftoverRecordings(), isEmpty);
@@ -322,24 +352,36 @@ void main() {
     await tapMic(tester);
     await realWait(tester, 200);
     await tapMic(tester);
-    await drive(tester);
+    await pumpUntil(
+      tester,
+      () => shows('Voice message not sent. Try again.'),
+      reason: 'the failed send to be reported',
+    );
 
     expect(find.text('Voice message not sent. Try again.'), findsOneWidget);
   });
 
   group('the recording format', () {
-    Future<void> recordAndSend(WidgetTester tester) async {
+    Future<void> recordAndSend(
+      WidgetTester tester, {
+      required String awaiting,
+      required bool Function() until,
+    }) async {
       final gesture = await holdMic(tester);
       await realWait(tester, 350);
       await gesture.up();
-      await drive(tester);
+      await pumpUntil(tester, until, reason: awaiting);
     }
 
     testWidgets('where the recorder writes Ogg, it records mono 48 kHz Opus at '
         '32 kbps to .ogg and sends the recording as it is', (tester) async {
       await openRoom(tester, platform: androidCapabilities);
 
-      await recordAndSend(tester);
+      await recordAndSend(
+        tester,
+        awaiting: 'the voice message to be sent',
+        until: () => voiceMessages().isNotEmpty,
+      );
 
       expect(startArgs!['path'], endsWith('.ogg'));
       expect(startArgs!['sampleRate'], 48000);
@@ -353,7 +395,11 @@ void main() {
         'Opus at 32 kbps and sends it as Ogg Opus', (tester) async {
       await openRoom(tester, platform: iosCapabilities);
 
-      await recordAndSend(tester);
+      await recordAndSend(
+        tester,
+        awaiting: 'the voice message to be sent and its recording removed',
+        until: () => voiceMessages().isNotEmpty && recordingDone(),
+      );
 
       expect(startArgs!['path'], endsWith('.caf'));
       expect(startArgs!['sampleRate'], 48000);
@@ -373,7 +419,12 @@ void main() {
       recordingUnreadable = true;
       await openRoom(tester, platform: iosCapabilities);
 
-      await recordAndSend(tester);
+      await recordAndSend(
+        tester,
+        awaiting: 'the failure to be reported and the recording removed',
+        until: () =>
+            shows('Voice message not sent. Try again.') && recordingDone(),
+      );
 
       expect(uploads, isEmpty);
       expect(voiceMessages(), isEmpty);

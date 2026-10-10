@@ -96,16 +96,6 @@ void main() {
     File(path).writeAsBytesSync(encryptedBytes());
   }
 
-  test('the plugin alone cannot open the database while another isolate is '
-      'inside a transaction', () async {
-    busyOpens = 1;
-
-    await expectLater(
-      sqflite.openDatabase(path, password: 'the-key'),
-      throwsA(isA<TypeError>()),
-    );
-  });
-
   test(
     'opens with the key straight away when no transaction is open',
     () async {

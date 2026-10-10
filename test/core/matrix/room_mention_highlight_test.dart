@@ -39,8 +39,8 @@ void main() {
       '<p>@room and @room again</p>',
       color,
     );
-    expect('span'.allMatches(result).length, 4);
-    expect(result.contains('>@room</span> and'), isTrue);
+    const span = '<span style="color: $hex; font-weight: bold;">@room</span>';
+    expect(result, '<p>$span and $span again</p>');
   });
 
   group('highlightUserMentionsInHtml', () {

@@ -154,7 +154,8 @@ void main() {
         },
       );
 
-      test('a failing vibration platform names what failed', () async {
+      test('a failing vibration platform is swallowed, never thrown at the '
+          'poster, and logged with what failed', () async {
         vibrateError = PlatformException(code: 'muted');
 
         await player.vibrateForMessage();
@@ -167,13 +168,6 @@ void main() {
             ),
           ),
         );
-      });
-
-      test('a failing vibration platform is swallowed, never thrown at the '
-          'poster', () async {
-        vibrateError = PlatformException(code: 'muted');
-
-        await expectLater(player.vibrateForMessage(), completes);
       });
 
       test('both settings off is logged as a deliberate skip, and is '
@@ -209,19 +203,6 @@ void main() {
           logs,
           contains('zuno/sound: message tone skipped, rate-limited'),
         );
-      });
-
-      test('a second call within the rate limit for another room is plain '
-          'silent', () async {
-        await player.prepareMessageNotification(roomId: room);
-        calls.clear();
-
-        final result = await player.prepareMessageNotification(
-          roomId: '!other:example.org',
-        );
-
-        expect(result, (alert: MessageAlert.silent, vibrate: false));
-        expect(calls, isEmpty);
       });
 
       test('with the tone setting off there is nothing to keep playing, so '

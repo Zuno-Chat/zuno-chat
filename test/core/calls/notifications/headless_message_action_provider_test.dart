@@ -2,21 +2,19 @@ import 'dart:convert';
 import 'dart:isolate';
 import 'dart:ui';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/headless_message_action_provider.dart';
 import 'package:zuno/core/calls/notifications/live_isolate_route.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/message_notification_action.dart';
-import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/preferences_container.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -49,45 +47,17 @@ void main() {
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
     client.rooms.add(buildTestRoom(client));
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [
-        matrixClientProvider.overrideWithValue(client),
-        sharedPreferencesProvider.overrideWithValue(prefs),
-      ],
+    final container = await containerWithPreferences(
+      {},
+      overrides: [matrixClientProvider.overrideWithValue(client)],
     );
-    addTearDown(container.dispose);
     container.read(headlessMessageActionProvider);
   });
 
-  test('Mark as read handed to the app marks the room read with the app\'s '
-      'own client', () async {
-    CallNotificationService.instance.onMessageActionForTest(
-      HandedMessageAction(markRead),
-    );
-    await pumpEventQueue();
-
-    expect(requests.single, contains('read_markers'));
-  });
-
   test('a Reply handed to the app is sent by the app\'s own client, the one '
-      'that holds the room\'s encryption session', () async {
-    CallNotificationService.instance.onMessageActionForTest(
-      HandedMessageAction((
-        kind: MessageNotificationActionKind.reply,
-        roomId: '!room:example.org',
-        eventId: r'$1',
-        replyText: 'on my way',
-      )),
-    );
-    await pumpEventQueue(times: 50);
-
-    expect(sent.single['body'], 'on my way');
-  });
-
-  test('a reply handed over is sent under the transaction id it came with, '
-      'so a resend from the action engine is the same message', () async {
+      'that holds the room\'s encryption session, under the transaction id it '
+      'came with, so a resend from the action engine is the same '
+      'message', () async {
     CallNotificationService.instance.onMessageActionForTest(
       HandedMessageAction((
         kind: MessageNotificationActionKind.reply,
@@ -98,6 +68,7 @@ void main() {
     );
     await pumpEventQueue(times: 50);
 
+    expect(sent.single['body'], 'on my way');
     expect(
       requests.where((r) => r.contains('/send/')).single,
       endsWith('/zuno-tx-9'),

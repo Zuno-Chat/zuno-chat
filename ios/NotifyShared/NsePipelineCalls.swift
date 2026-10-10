@@ -64,13 +64,12 @@ extension NsePipeline {
   }
 
   func read(_ receiptTs: Int64, _ context: NseContext) async -> NseResult {
-    let stale = await env.center.delivered().filter { note in
-      note.pushed && note.t == context.t && (note.o.map { $0 <= receiptTs / 1000 } ?? false)
-    }
+    let delivered = await env.center.delivered().map(\.note)
     var delivery = NseComposer.readNotice(
       names: NseComposer.names(room: context.room, fetched: nil, senderId: nil),
       tokens: context.tokens())
-    delivery.removals = stale.map(\.identifier)
+    delivery.removals = DeliveredSweep.identifiersToRemove(
+      delivered, reads: [ThreadRead(token: context.t, upToMs: receiptTs)])
     return NseResult(delivery: delivery, outcome: .read)
   }
 

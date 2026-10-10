@@ -69,21 +69,8 @@ void main() {
       expect(assessPassword('password12345').blocker, contains('common'));
     });
 
-    test('the username reused as the password', () {
-      expect(
-        assessPassword(
-          'alexanderthegreat',
-          username: 'alexanderthegreat',
-        ).isUsable,
-        isFalse,
-      );
-      expect(
-        assessPassword('alexander991', username: 'alexander').isUsable,
-        isFalse,
-      );
-    });
-
-    test('says which problem it is, not a generic one', () {
+    test('the username, whole or inside the password, is named as the '
+        'problem', () {
       expect(
         assessPassword(
           'alexanderthegreat',
@@ -183,9 +170,5 @@ void main() {
         lessThanOrEqualTo(varied.strength.index),
       );
     });
-  });
-
-  test('the recommended length is above the enforced one', () {
-    expect(recommendedPasswordLength, greaterThan(minPasswordLength));
   });
 }

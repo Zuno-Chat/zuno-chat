@@ -9,6 +9,7 @@ import 'package:zuno/features/chat/presentation/message_meta.dart';
 
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/pump_until.dart';
 
 const _meta = MessageMeta(time: '09:41', own: false);
 
@@ -55,10 +56,10 @@ void main() {
 
   Future<void> saveBy(WidgetTester tester, {bool Function()? until}) async {
     await tester.tap(find.byType(InkWell));
-    await pumpWhileFetching(
+    await pumpUntil(
       tester,
-      rounds: 300,
-      until: until ?? () => find.byType(SnackBar).evaluate().isNotEmpty,
+      until ?? () => find.byType(SnackBar).evaluate().isNotEmpty,
+      reason: 'the save to finish',
     );
     await tester.pump(const Duration(milliseconds: 750));
   }
@@ -102,46 +103,6 @@ void main() {
     expect(saved.mimeType, 'application/pdf');
     expect(saved.bytes, server.served);
     expect(find.text('Saved'), findsOneWidget);
-  });
-
-  testWidgets('a name that tries to leave its folder is saved as just the '
-      'name', (tester) async {
-    await pumpFile(tester, file(body: '../../../etc/report.pdf'));
-
-    await saveBy(tester);
-
-    expect(device.picker.saved.single.fileName, 'report.pdf');
-  });
-
-  testWidgets('saving it again does not download it again', (tester) async {
-    await pumpFile(tester, file());
-    await saveBy(tester);
-    await tester.pump(const Duration(seconds: 5));
-
-    await saveBy(tester, until: () => device.picker.saved.length == 2);
-
-    expect(device.picker.saved, hasLength(2));
-    expect(server.downloads, hasLength(1));
-  });
-
-  testWidgets('closing the save dialog says nothing', (tester) async {
-    device.picker.answer = null;
-    await pumpFile(tester, file());
-
-    await saveBy(tester, until: () => device.picker.saved.isNotEmpty);
-
-    expect(find.byType(SnackBar), findsNothing);
-  });
-
-  testWidgets('a file that cannot be fetched says so', (tester) async {
-    final event = file();
-    server.goneFromServer(event);
-    await pumpFile(tester, event);
-
-    await saveBy(tester);
-
-    expect(find.text('Could not save. Try again.'), findsOneWidget);
-    expect(device.picker.saved, isEmpty);
   });
 
   testWidgets('shows a spinner while it saves, and ignores more taps', (

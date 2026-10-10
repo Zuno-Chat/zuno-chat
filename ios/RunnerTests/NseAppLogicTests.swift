@@ -105,7 +105,7 @@ final class NseAppLogicTests: XCTestCase {
         userInfo: ["t": "t!abc:zuno.im", "k": "call", "rg": "rg\(uuid.uuidString)"],
         payloadEventId: nil)
     ])
-    let removed = NseRecorder<[String]>()
+    let removed = Recorder<[String]>()
 
     let found = await RingFloorSweeper.sweep(
       roomId: "!abc:zuno.im", callUuid: uuid, hashing: NseFakeHashing(), center: center,
@@ -116,7 +116,7 @@ final class NseAppLogicTests: XCTestCase {
   }
 
   func testWithoutKeysTheSweepTouchesNothing() async {
-    let removed = NseRecorder<[String]>()
+    let removed = Recorder<[String]>()
 
     let found = await RingFloorSweeper.sweep(
       roomId: "!abc:zuno.im", callUuid: UUID(), hashing: nil, center: NseFakeCenter(),

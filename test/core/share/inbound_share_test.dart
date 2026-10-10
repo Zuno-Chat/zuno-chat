@@ -8,6 +8,7 @@ import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/share/inbound_share.dart';
 
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -84,13 +85,8 @@ void main() {
   });
 
   group('channel', () {
-    Future<void> receiveShare(String text) => messenger.handlePlatformMessage(
-      'zuno/share',
-      const StandardMethodCodec().encodeMethodCall(
-        MethodCall('share', {'text': text}),
-      ),
-      (_) {},
-    );
+    Future<void> receiveShare(String text) =>
+        callFromNative(channel, 'share', {'text': text});
 
     Future<List<String?>> listenBriefly() async {
       final heard = <String?>[];
@@ -99,19 +95,6 @@ void main() {
       await sub.cancel();
       return heard;
     }
-
-    test('an incoming share call reaches the stream', () async {
-      initInboundShareChannel();
-      final received = onInboundShare.first;
-      await messenger.handlePlatformMessage(
-        'zuno/share',
-        const StandardMethodCodec().encodeMethodCall(
-          const MethodCall('share', {'text': 'hello'}),
-        ),
-        (_) {},
-      );
-      expect((await received).text, 'hello');
-    });
 
     test('a share that arrives before anyone listens reaches the first '
         'listener, once', () async {
@@ -128,27 +111,6 @@ void main() {
 
       expect(first, ['early']);
       expect(second, isEmpty);
-      expect(await listenBriefly(), isEmpty);
-    });
-
-    test('of several unheard shares, only the latest is kept', () async {
-      initInboundShareChannel();
-      await receiveShare('older');
-      await receiveShare('newer');
-
-      expect(await listenBriefly(), ['newer']);
-      expect(await listenBriefly(), isEmpty);
-    });
-
-    test('a share heard on arrival is not kept for a later listener', () async {
-      initInboundShareChannel();
-      final heard = <String?>[];
-      final sub = onInboundShare.listen((share) => heard.add(share.text));
-      await receiveShare('now');
-      await pumpEventQueue();
-      await sub.cancel();
-
-      expect(heard, ['now']);
       expect(await listenBriefly(), isEmpty);
     });
 

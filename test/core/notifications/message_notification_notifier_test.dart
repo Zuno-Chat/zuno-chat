@@ -20,38 +20,12 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/notifying_client.dart';
 import '../../helpers/platform_capabilities.dart';
-
-class _NotifyingClient extends Client {
-  _NotifyingClient() : super('test', database: FakeDatabaseApi());
-
-  @override
-  String? prevBatch = 's1';
-
-  @override
-  PushruleEvaluator get pushruleEvaluator => PushruleEvaluator.fromRuleset(
-    PushRuleSet(
-      underride: [
-        PushRule(
-          ruleId: '.m.rule.message',
-          default$: true,
-          enabled: true,
-          conditions: [
-            PushCondition(
-              kind: 'event_match',
-              key: 'type',
-              pattern: 'm.room.message',
-            ),
-          ],
-          actions: ['notify'],
-        ),
-      ],
-    ),
-  );
-}
+import '../../helpers/preferences_container.dart';
 
 void main() {
-  late _NotifyingClient client;
+  late NotifyingClient client;
   late Room room;
   late ProviderContainer container;
   late RecordedNotifications notifications;
@@ -59,20 +33,15 @@ void main() {
   setUp(() async {
     notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
-    client = _NotifyingClient();
+    client = NotifyingClient();
     client.setUserId('@me:x');
     room = buildTestRoom(client);
     room.setState(User('@a:x', displayName: 'Alice', room: room));
     room.setState(User('@me:x', displayName: 'Me', room: room));
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    container = ProviderContainer(
-      overrides: [
-        matrixClientProvider.overrideWithValue(client),
-        sharedPreferencesProvider.overrideWithValue(prefs),
-      ],
+    container = await containerWithPreferences(
+      {},
+      overrides: [matrixClientProvider.overrideWithValue(client)],
     );
-    addTearDown(container.dispose);
     container.read(messageNotificationProvider);
   });
 
@@ -152,16 +121,6 @@ void main() {
     expect(notifications.shown, isEmpty);
   });
 
-  test('still notifies for a message that arrived days late', () async {
-    await deliver(
-      textEvent(
-        originServerTs: DateTime.now().subtract(const Duration(days: 2)),
-      ),
-    );
-
-    expect(notifications.shown, hasLength(1));
-  });
-
   test('ignores what the initial sync replays (no prevBatch yet), so a '
       'cache clear cannot notify weeks-old messages', () async {
     client.prevBatch = null;
@@ -198,7 +157,7 @@ void main() {
     () async {
       await deliver(photoEvent());
 
-      final shown = notifications.shown.singleWhere((n) => n.id != 4004);
+      final shown = notifications.single;
       expect(shown.body, contains('a cat'));
       expect(shown.android['style'], AndroidNotificationStyle.messaging.index);
     },

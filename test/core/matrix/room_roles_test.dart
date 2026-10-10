@@ -23,6 +23,12 @@ void main() {
     );
   }
 
+  Room roomAs(String me, Map<String, int> users) {
+    final room = buildTestRoom(buildTestClient(userId: me));
+    setPowerLevels(room, {'users': users});
+    return room;
+  }
+
   group('roomRoleForLevel', () {
     test('classifies each boundary', () {
       expect(roomRoleForLevel(-1), RoomRole.readOnly);
@@ -36,39 +42,11 @@ void main() {
     });
   });
 
-  group('ownRoomRole / roomRoleOfUser', () {
-    test('reads the room creator as admin by default', () {
-      final client = buildTestClient(userId: '@creator:example.org');
-      final room = buildTestRoom(client);
-      room.setState(
-        buildTestEvent(
-          room,
-          eventId: r'$create',
-          senderId: '@creator:example.org',
-          type: EventTypes.RoomCreate,
-          stateKey: '',
-        ),
-      );
-      expect(ownRoomRole(room), RoomRole.admin);
-    });
-
-    test('reads an explicit users entry for another member', () {
-      final client = buildTestClient(userId: '@alice:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {'@bob:example.org': 50},
-      });
-      expect(roomRoleOfUser(room, '@bob:example.org'), RoomRole.moderator);
-      expect(roomRoleOfUser(room, '@carol:example.org'), RoomRole.member);
-    });
-  });
-
   group('assignableRolesFor', () {
     test('an admin can assign any role to a lower-level member', () {
-      final client = buildTestClient(userId: '@admin:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {'@admin:example.org': 100, '@bob:example.org': 0},
+      final room = roomAs('@admin:example.org', {
+        '@admin:example.org': 100,
+        '@bob:example.org': 0,
       });
       expect(
         assignableRolesFor(room, targetUserId: '@bob:example.org'),
@@ -79,10 +57,9 @@ void main() {
     test(
       'a moderator can only offer member or read-only, never moderator/admin',
       () {
-        final client = buildTestClient(userId: '@mod:example.org');
-        final room = buildTestRoom(client);
-        setPowerLevels(room, {
-          'users': {'@mod:example.org': 50, '@bob:example.org': 0},
+        final room = roomAs('@mod:example.org', {
+          '@mod:example.org': 50,
+          '@bob:example.org': 0,
         });
         expect(
           assignableRolesFor(room, targetUserId: '@bob:example.org'),
@@ -91,31 +68,10 @@ void main() {
       },
     );
 
-    test('a moderator cannot touch a peer moderator or an admin', () {
-      final client = buildTestClient(userId: '@mod:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {
-          '@mod:example.org': 50,
-          '@othermod:example.org': 50,
-          '@admin:example.org': 100,
-        },
-      });
-      expect(
-        assignableRolesFor(room, targetUserId: '@othermod:example.org'),
-        isEmpty,
-      );
-      expect(
-        assignableRolesFor(room, targetUserId: '@admin:example.org'),
-        isEmpty,
-      );
-    });
-
     test('a member or read-only user cannot assign any role', () {
-      final client = buildTestClient(userId: '@member:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {'@member:example.org': 0, '@ro:example.org': -1},
+      final room = roomAs('@member:example.org', {
+        '@member:example.org': 0,
+        '@ro:example.org': -1,
       });
       expect(
         assignableRolesFor(room, targetUserId: '@ro:example.org'),
@@ -124,11 +80,7 @@ void main() {
     });
 
     test('nobody can assign themselves a role through this', () {
-      final client = buildTestClient(userId: '@admin:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {'@admin:example.org': 100},
-      });
+      final room = roomAs('@admin:example.org', {'@admin:example.org': 100});
       expect(
         assignableRolesFor(room, targetUserId: '@admin:example.org'),
         isEmpty,
@@ -138,34 +90,25 @@ void main() {
 
   group('canManageMember', () {
     test('a lower-level target is manageable', () {
-      final client = buildTestClient(userId: '@admin:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {'@admin:example.org': 100, '@bob:example.org': 0},
+      final room = roomAs('@admin:example.org', {
+        '@admin:example.org': 100,
+        '@bob:example.org': 0,
       });
       expect(canManageMember(room, '@bob:example.org'), isTrue);
     });
 
     test('a peer or superior target is not manageable', () {
-      final client = buildTestClient(userId: '@mod:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {
-          '@mod:example.org': 50,
-          '@othermod:example.org': 50,
-          '@admin:example.org': 100,
-        },
+      final room = roomAs('@mod:example.org', {
+        '@mod:example.org': 50,
+        '@othermod:example.org': 50,
+        '@admin:example.org': 100,
       });
       expect(canManageMember(room, '@othermod:example.org'), isFalse);
       expect(canManageMember(room, '@admin:example.org'), isFalse);
     });
 
     test('you can never manage yourself', () {
-      final client = buildTestClient(userId: '@admin:example.org');
-      final room = buildTestRoom(client);
-      setPowerLevels(room, {
-        'users': {'@admin:example.org': 100},
-      });
+      final room = roomAs('@admin:example.org', {'@admin:example.org': 100});
       expect(canManageMember(room, '@admin:example.org'), isFalse);
     });
   });

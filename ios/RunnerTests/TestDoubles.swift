@@ -33,6 +33,23 @@ final class FakeTimers {
   }
 }
 
+final class Recorder<Value>: @unchecked Sendable {
+  private let lock = NSLock()
+  private var recorded: [Value] = []
+
+  var values: [Value] {
+    lock.lock()
+    defer { lock.unlock() }
+    return recorded
+  }
+
+  func add(_ value: Value) {
+    lock.lock()
+    recorded.append(value)
+    lock.unlock()
+  }
+}
+
 @MainActor
 final class FakeBackgroundTasks {
   private var expirations: [Int: @MainActor @Sendable () -> Void] = [:]

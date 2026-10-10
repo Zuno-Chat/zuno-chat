@@ -22,13 +22,6 @@ void main() {
     expect((PreparedUiaPassword()..prepare(null)).take(), isNull);
   });
 
-  test('nothing is prepared until something prepares it', () {
-    final prepared = PreparedUiaPassword();
-
-    expect(prepared.isPrepared, isFalse);
-    expect(prepared.take(), isNull);
-  });
-
   test('clear forgets an answer without using it', () {
     final prepared = PreparedUiaPassword()..prepare('hunter2');
 

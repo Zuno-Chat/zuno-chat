@@ -8,10 +8,8 @@ import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 import 'package:zuno/core/matrix/database_key.dart';
 import 'package:zuno/core/matrix/database_raw_key.dart';
 
+import '../../helpers/fixtures.dart';
 import '../../helpers/in_memory_secret_store.dart';
-
-String _hex(List<int> bytes) =>
-    bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
 List<int> _bytes(String hex) => [
   for (var i = 0; i < hex.length; i += 2)
@@ -85,7 +83,7 @@ void main() {
           length: length,
         );
 
-        expect(_hex(key), expected);
+        expect(hexOf(key), expected);
       });
     }
 
@@ -125,7 +123,7 @@ void main() {
     Future<void> noWait(Duration _) async {}
 
     Future<String> deriveFake(String passphrase, List<int> salt) async {
-      derived.add((passphrase, _hex(salt)));
+      derived.add((passphrase, hexOf(salt)));
       return rawKey;
     }
 

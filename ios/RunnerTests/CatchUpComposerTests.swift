@@ -56,8 +56,6 @@ final class CatchUpComposerTests: XCTestCase {
     }
     XCTAssertEqual(category("msg", "full"), NotificationCategories.shown("message"))
     XCTAssertEqual(category("msg", "name"), "")
-    XCTAssertEqual(category("inv", "full"), "")
-    XCTAssertEqual(category("call", "full"), "")
   }
 
   func testEachEventHasItsOwnCatchUpIdentifier() throws {

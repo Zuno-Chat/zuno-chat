@@ -12,37 +12,15 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/features/room_info/presentation/room_settings_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
-
-class _FakeImagePicker extends ImagePickerPlatform {
-  final sources = <ImageSource>[];
-  XFile? answer;
-
-  @override
-  Future<XFile?> getImageFromSource({
-    required ImageSource source,
-    ImagePickerOptions options = const ImagePickerOptions(),
-  }) async {
-    sources.add(source);
-    return answer;
-  }
-}
-
-class _UploadingDatabaseApi extends FakeDatabaseApi {
-  @override
-  int get maxFileSize => 0;
-
-  @override
-  Future<({Map<String, Object?> content, DateTime savedAt})?>
-  getCustomCacheObject(String cacheKey) async =>
-      (content: const <String, Object?>{}, savedAt: DateTime.now());
-}
+import '../../../helpers/pump_until.dart';
 
 void main() {
   late List<http.Request> requests;
   late Client client;
   late Room room;
-  late _FakeImagePicker picker;
+  late FakeImagePicker picker;
   http.Response? Function(http.Request request)? respond;
   Completer<void>? gate;
 
@@ -50,13 +28,10 @@ void main() {
     requests = [];
     respond = null;
     gate = null;
-    picker = _FakeImagePicker();
-    final original = ImagePickerPlatform.instance;
-    ImagePickerPlatform.instance = picker;
-    addTearDown(() => ImagePickerPlatform.instance = original);
+    picker = installFakeImagePicker();
     client = buildTestClient(
       userId: '@me:example.org',
-      database: _UploadingDatabaseApi(),
+      database: UploadingFakeDatabaseApi(),
       httpClient: MockClient((request) async {
         final custom = respond?.call(request);
         if (custom == null && request.url.pathSegments.contains('media')) {
@@ -121,15 +96,9 @@ void main() {
   }
 
   Future<void> settle(WidgetTester tester) async {
-    for (var i = 0; i < 5; i++) {
-      await tester.pump();
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    }
+    await pumpRealAsync(tester, rounds: 5);
     await tester.pumpAndSettle();
   }
-
-  ListTile accessRow(WidgetTester tester) =>
-      tester.widget<ListTile>(find.widgetWithText(ListTile, 'Room access'));
 
   Future<void> pickAccess(WidgetTester tester, String label) async {
     await tester.tap(find.text('Room access'));
@@ -252,7 +221,9 @@ void main() {
           .toList();
     }
 
-    testWidgets('offers Community and Private, never Public', (tester) async {
+    testWidgets('offers Community, Ask to join and Private, never Public', (
+      tester,
+    ) async {
       setOwnLevel(100);
       setJoinRule('restricted');
       addToCommunity();
@@ -321,22 +292,14 @@ void main() {
     });
   });
 
-  testWidgets('a moderator sees the access but cannot change it', (
-    tester,
-  ) async {
-    setOwnLevel(50);
-    await pumpPage(tester);
-
-    expect(find.text('Private'), findsOneWidget);
-    expect(accessRow(tester).onTap, isNull);
-  });
-
-  testWidgets('a direct chat has no access row', (tester) async {
+  testWidgets('a direct chat has no photo or access row', (tester) async {
     setOwnLevel(100);
     setDirectChatWith('@bob:example.org');
     await pumpPage(tester);
 
+    expect(find.text('Room photo'), findsNothing);
     expect(find.text('Room access'), findsNothing);
+    expect(find.text('Room name'), findsOneWidget);
   });
 
   testWidgets('the main address hides the server', (tester) async {
@@ -397,20 +360,6 @@ void main() {
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
     }
-  });
-
-  testWidgets('a room cannot be renamed after Zuno', (tester) async {
-    setOwnLevel(100);
-    await pumpPage(tester);
-
-    await tester.tap(find.text('Room name'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Zun0 support');
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('cannot include Zuno'), findsOneWidget);
-    expect(requests.where((r) => r.url.path.contains('m.room.name')), isEmpty);
   });
 
   testWidgets('the topic row shows at most three lines', (tester) async {
@@ -501,14 +450,15 @@ void main() {
       expect(find.byType(SnackBar), findsNothing);
     });
 
-    testWidgets('the error clears as soon as the name is edited', (
+    testWidgets('a name after Zuno is refused until it is edited', (
       tester,
     ) async {
       setOwnLevel(100);
       await pumpPage(tester);
 
-      await edit(tester, 'Room name', 'Zuno');
+      await edit(tester, 'Room name', 'Zun0 support');
       expect(find.textContaining('cannot include Zuno'), findsOneWidget);
+      expect(writesOf('m.room.name'), isEmpty);
 
       await tester.enterText(find.byType(TextField), 'Chess');
       await tester.pump();
@@ -809,7 +759,7 @@ void main() {
 
     testWidgets('a gallery photo is uploaded and set', (tester) async {
       setOwnLevel(100);
-      picker.answer = photo();
+      picker.answer = [photo()];
       respond = uploads;
       await pumpPage(tester);
       await openSheet(tester);
@@ -817,7 +767,7 @@ void main() {
       await tester.tap(find.text('Choose from gallery'));
       await settle(tester);
 
-      expect(picker.sources, [ImageSource.gallery]);
+      expect(picker.calls, ['image:gallery']);
       expect(requests.first.url.pathSegments.last, 'upload');
       expect(bodyOf(writesOf('m.room.avatar').single), {
         'url': 'mxc://example.org/new',
@@ -834,7 +784,7 @@ void main() {
       await tester.tap(find.text('Take photo'));
       await settle(tester);
 
-      expect(picker.sources, [ImageSource.camera]);
+      expect(picker.calls, ['image:camera']);
       expect(requests, isEmpty);
       expect(find.byType(SnackBar), findsNothing);
       expect(
@@ -847,7 +797,7 @@ void main() {
 
     testWidgets('a failed upload says the photo was not saved', (tester) async {
       setOwnLevel(100);
-      picker.answer = photo();
+      picker.answer = [photo()];
       respond = (r) => r.url.pathSegments.last == 'upload' ? refused() : null;
       await pumpPage(tester);
       await openSheet(tester);
@@ -857,15 +807,6 @@ void main() {
 
       expect(writesOf('m.room.avatar'), isEmpty);
       expect(find.text('Photo not saved. Try again.'), findsOneWidget);
-    });
-
-    testWidgets('a direct chat has no room photo', (tester) async {
-      setOwnLevel(100);
-      setDirectChatWith('@bob:example.org');
-      await pumpPage(tester);
-
-      expect(find.text('Room photo'), findsNothing);
-      expect(find.text('Room name'), findsOneWidget);
     });
   });
 

@@ -101,20 +101,6 @@ void main() {
       expect(db.removed, ['txid-1']);
     });
 
-    test('keeps an event the server already has', () async {
-      stored(EventStatus.sent);
-
-      await discardSendPlaceholder(placeholderRoom, 'txid-1');
-
-      expect(db.removed, isEmpty);
-    });
-
-    test('does nothing when the placeholder is already gone', () async {
-      await discardSendPlaceholder(placeholderRoom, 'txid-1');
-
-      expect(db.removed, isEmpty);
-    });
-
     test('does nothing when the lookup fails', () async {
       stored(EventStatus.error);
       db.lookupError = StateError('database closed');

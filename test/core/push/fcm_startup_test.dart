@@ -1,37 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm_startup.dart';
 
-import '../../helpers/fake_matrix.dart';
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
-
-class _RecordingClient extends Client {
-  _RecordingClient({this.loggedIn = true})
-    : super('test', database: FakeDatabaseApi());
-
-  final bool loggedIn;
-  final fetched = <String?>[];
-
-  @override
-  bool isLogged() => loggedIn;
-
-  @override
-  Future<Event?> getEventByPushNotification(
-    PushNotification notification, {
-    bool storeInDatabase = true,
-    Duration timeoutForServerRequests = const Duration(seconds: 8),
-    bool returnNullIfSeen = true,
-  }) async {
-    fetched.add(notification.eventId);
-    return null;
-  }
-}
+import '../../helpers/push_test_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -57,31 +33,15 @@ void main() {
     fcmDeliveryProvider.runner.liveClient = null;
   });
 
-  Future<void> fromNative(String method, Object? arguments) {
-    final replied = Completer<void>();
-    messenger.handlePlatformMessage(
-      channel.name,
-      channel.codec.encodeMethodCall(MethodCall(method, arguments)),
-      (_) => replied.complete(),
-    );
-    return replied.future;
-  }
-
   Map<String, Object?> push(String eventId) => {
     'id': 'job-$eventId',
     'data': {'event_id': eventId, 'room_id': '!r:x'},
     'appInFront': false,
   };
 
-  test('binding the app engine alone does not claim pushes yet', () async {
-    await initializeFcmDelivery();
-
-    expect(calls, isEmpty);
-  });
-
   test('attaching the client alone does not claim pushes yet', () async {
     await initializeFcmDelivery();
-    final client = _RecordingClient();
+    final client = PushTestClient();
 
     attachFcmAppClient(client);
 
@@ -91,11 +51,11 @@ void main() {
 
   test('once the app is ready its engine takes pushes on the client', () async {
     await initializeFcmDelivery();
-    final client = _RecordingClient();
+    final client = PushTestClient();
     attachFcmAppClient(client);
 
     expect(await markFcmAppReady(), isTrue);
-    await fromNative('push', push(r'$one'));
+    await callFromNative(channel, 'push', push(r'$one'));
 
     expect(calls, ['ready']);
     expect(client.fetched, [r'$one']);
@@ -111,30 +71,19 @@ void main() {
   test('reports an app engine the router passed over', () async {
     readyAnswer = false;
     await initializeFcmDelivery();
-    attachFcmAppClient(_RecordingClient());
+    attachFcmAppClient(PushTestClient());
 
     expect(await markFcmAppReady(), isFalse);
     expect(calls, ['ready']);
   });
 
-  test('a push reaching a signed-out app is answered and dropped', () async {
-    await initializeFcmDelivery();
-    final client = _RecordingClient(loggedIn: false);
-    attachFcmAppClient(client);
-    await markFcmAppReady();
-
-    await fromNative('push', push(r'$one'));
-
-    expect(client.fetched, isEmpty);
-  });
-
   test('an undecodable push is answered and dropped', () async {
     await initializeFcmDelivery();
-    final client = _RecordingClient();
+    final client = PushTestClient();
     attachFcmAppClient(client);
     await markFcmAppReady();
 
-    await fromNative('push', {
+    await callFromNative(channel, 'push', {
       'id': 'job',
       'data': {'unrelated': 'x'},
     });
@@ -147,11 +96,11 @@ void main() {
 
     test('nothing is bound and nothing is claimed', () async {
       await initializeFcmDelivery(bridge: bridge);
-      final client = _RecordingClient();
+      final client = PushTestClient();
       attachFcmAppClient(client, bridge: bridge);
 
       expect(await markFcmAppReady(bridge: bridge), isFalse);
-      await fromNative('push', push(r'$one'));
+      await callFromNative(channel, 'push', push(r'$one'));
 
       expect(calls, isEmpty);
       expect(client.fetched, isEmpty);

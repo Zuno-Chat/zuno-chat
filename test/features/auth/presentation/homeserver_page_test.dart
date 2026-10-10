@@ -6,18 +6,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/homeserver.dart';
+import 'package:zuno/core/matrix/homeserver_input.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/auth/presentation/homeserver_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_homeserver.dart';
+import '../../../helpers/pump_until.dart';
 
 void main() {
   late ProviderContainer container;
-  late Client client;
 
   MockClient server({Set<String> down = const {}}) =>
       MockClient((request) async {
@@ -40,7 +40,7 @@ void main() {
     http.Client? httpClient,
     bool pushed = false,
   }) async {
-    client = buildTestClient(httpClient: httpClient)
+    final client = buildTestClient(httpClient: httpClient)
       ..homeserver = officialHomeserver;
     container = ProviderContainer(
       overrides: [
@@ -74,10 +74,7 @@ void main() {
   Future<void> submit(WidgetTester tester, String server) async {
     await tester.enterText(find.byType(TextField), server);
     await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
-    for (var turn = 0; turn < 10; turn++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
+    await pumpRealAsync(tester, rounds: 10);
   }
 
   testWidgets('the address is not autocorrected and keeps its URL keyboard', (
@@ -125,9 +122,8 @@ void main() {
     );
   });
 
-  testWidgets('a server that does not answer is refused, the old one stays', (
-    tester,
-  ) async {
+  testWidgets('a server that does not answer is refused, and the screen '
+      'stays', (tester) async {
     await pumpHomeserverPage(
       tester,
       httpClient: server(down: {'typo.example'}),
@@ -137,9 +133,12 @@ void main() {
     await submit(tester, 'typo.example');
 
     expect(find.byType(HomeserverPage), findsOneWidget);
-    expect(find.textContaining('typo.example'), findsWidgets);
-    expect(container.read(homeserverProvider).value, officialHomeserver);
-    expect(client.homeserver, officialHomeserver);
+    expect(
+      find.text(
+        'Cannot reach that server. Check the address and your connection.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a failure that lands after the page is gone is dropped', (
@@ -157,10 +156,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
 
     answer.complete(http.Response('not a homeserver', 500));
-    for (var turn = 0; turn < 5; turn++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
-    }
+    await pumpRealAsync(tester, rounds: 5);
 
     expect(tester.takeException(), isNull);
   });
@@ -183,6 +179,10 @@ void main() {
       await submit(tester, 'not a server');
 
       expect(find.byType(HomeserverPage), findsOneWidget);
+      expect(
+        find.text(parseHomeserverInput('not a server').error!),
+        findsOneWidget,
+      );
       expect(tester.testTextInput.isVisible, isFalse);
     });
   });

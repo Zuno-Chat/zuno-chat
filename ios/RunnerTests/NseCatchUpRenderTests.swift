@@ -94,26 +94,6 @@ final class NseCatchUpRenderTests: XCTestCase {
     XCTAssertFalse(body.unicodeScalars.contains("\u{7}"))
     XCTAssertTrue(body.hasPrefix("Alice: Hi"))
   }
-
-  func testOnlyAMessageAtNameAndMessageCarriesTheActions() async {
-    for (level, category) in [("full", "message"), ("name", nil), ("none", nil)]
-      as [(String, String?)]
-    {
-      let harness = makeHarness(level: level)
-      harness.transport.reply(
-        "nse/fetch",
-        NseTestData.ok(NseTestData.event(content: ["msgtype": "m.text", "body": "Lunch?"])))
-      let result = await harness.run()
-      XCTAssertEqual(result.delivery.category, category, level)
-    }
-  }
-
-  func testTheCategoryReachesTheNotificationOnlyOnceActionsAreRoutedNatively() {
-    var delivery = NseComposer.test()
-    delivery.category = "message"
-    let content = NseContentFactory.content(for: delivery, original: UNNotificationContent())
-    XCTAssertEqual(content.categoryIdentifier, NotificationCategories.shown("message"))
-  }
 }
 
 private final class CatchUpCalls: @unchecked Sendable {

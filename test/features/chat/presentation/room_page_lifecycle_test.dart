@@ -23,39 +23,22 @@ import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
 
+import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_video_player.dart';
+import '../../../helpers/fixtures.dart';
+import '../../../helpers/gated_timeline_database.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/pump_until.dart';
 import 'room_page_harness.dart';
-
-class _GatedDb extends SendingFakeDatabaseApi {
-  final gate = Completer<void>();
-
-  @override
-  Future<List<Event>> getEventList(
-    Room room, {
-    int start = 0,
-    bool onlySending = false,
-    int? limit,
-  }) async {
-    await gate.future;
-    return super.getEventList(
-      room,
-      start: start,
-      onlySending: onlySending,
-      limit: limit,
-    );
-  }
-}
 
 void main() {
   late RoomPageHarness harness;
-  late List<String> notificationCalls;
+  late RecordedNotifications notifications;
   late bool readMarkersFail;
 
   setUp(() {
     rootBundle.clear();
-    notificationCalls = [];
     readMarkersFail = false;
   });
 
@@ -73,14 +56,7 @@ void main() {
       }
       return null;
     };
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-          const MethodChannel('dexterous.com/flutter/local_notifications'),
-          (call) async {
-            notificationCalls.add(call.method);
-            return call.method == 'initialize' ? true : null;
-          },
-        );
+    notifications = installFakeLocalNotifications();
     return harness;
   }
 
@@ -132,7 +108,7 @@ void main() {
         container(tester).read(currentlyOpenRoomIdProvider),
         harness.room.id,
       );
-      notificationCalls.clear();
+      notifications.methods.clear();
 
       goToBackground(tester);
       await harness.settle(tester);
@@ -144,7 +120,7 @@ void main() {
         container(tester).read(currentlyOpenRoomIdProvider),
         harness.room.id,
       );
-      expect(notificationCalls, contains('cancel'));
+      expect(notifications.methods, contains('cancel'));
     });
 
     testWidgets('a read marker that failed is sent again on return', (
@@ -214,18 +190,11 @@ void main() {
   });
 
   group('sending a recovery code', () {
-    Future<String> recoveryWords() async {
-      final text = await File('assets/wordlist/recovery_words.txt')
-          .readAsString();
-      return text
-          .split('\n')
-          .where((w) => w.trim().isNotEmpty)
-          .take(12)
-          .join(' ');
-    }
+    String recoveryWords() =>
+        shippedRecoveryWordlist().words.take(12).join(' ');
 
     testWidgets('asks first, and Cancel keeps it unsent', (tester) async {
-      final words = (await tester.runAsync(recoveryWords))!;
+      final words = recoveryWords();
       await openRoom(tester);
 
       await tester.enterText(find.byType(TextField), words);
@@ -245,7 +214,7 @@ void main() {
     });
 
     testWidgets('Send anyway sends it', (tester) async {
-      final words = (await tester.runAsync(recoveryWords))!;
+      final words = recoveryWords();
       await openRoom(tester);
 
       await tester.enterText(find.byType(TextField), words);
@@ -363,6 +332,8 @@ void main() {
       WidgetTester tester,
       InboundShare share, {
       List<Override> overrides = const [],
+      required String awaiting,
+      required bool Function() until,
     }) async {
       harness = makeHarness(overrides: overrides);
       harness.respond = (request) {
@@ -391,8 +362,20 @@ void main() {
           home: RoomPage(room: harness.room, pendingShare: share),
         ),
       );
-      await harness.drive(tester);
+      await pumpUntil(tester, until, reason: awaiting);
     }
+
+    int failedTiles() => find.byType(GalleryFailedThumbnail).evaluate().length;
+
+    bool settledOn(Type page) {
+      final found = find.byType(page).evaluate();
+      return found.isNotEmpty &&
+          ModalRoute.of(found.single)!.animation!.isCompleted;
+    }
+
+    List<String> copies() => [
+      for (final file in temp.listSync()) file.uri.pathSegments.last,
+    ];
 
     const sharedVideo = InboundShare(
       files: [
@@ -410,8 +393,35 @@ void main() {
       mimeType: 'application/pdf',
     );
 
+    Future<void> openWithSharedVideo(
+      WidgetTester tester, {
+      List<Override> overrides = const [],
+    }) => openWithShare(
+      tester,
+      sharedVideo,
+      overrides: overrides,
+      awaiting: 'the caption screen for the video',
+      until: () => settledOn(VideoCaptionComposerPage),
+    );
+
+    Future<void> sendFailingVideo(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('Send'));
+      await pumpUntil(
+        tester,
+        () => failedTiles() == 1,
+        reason: 'the video to fail',
+      );
+    }
+
     testWidgets('shared text waits in the composer', (tester) async {
-      await openWithShare(tester, const InboundShare(text: 'look at this'));
+      await openWithShare(
+        tester,
+        const InboundShare(text: 'look at this'),
+        awaiting: 'the shared text in the composer',
+        until: () =>
+            tester.widget<TextField>(find.byType(TextField)).controller!.text ==
+            'look at this',
+      );
 
       final field = tester.widget<TextField>(find.byType(TextField));
       expect(field.controller!.text, 'look at this');
@@ -433,6 +443,8 @@ void main() {
             ),
           ],
         ),
+        awaiting: 'the document to be sent and its copy removed',
+        until: () => harness.sent.isNotEmpty && copies().isEmpty,
       );
 
       expect(shareCalls.single.method, 'copyToCache');
@@ -452,6 +464,9 @@ void main() {
             ),
           ],
         ),
+        awaiting: 'the caption screen for the photo',
+        until: () =>
+            find.byType(ImageCaptionComposerPage).evaluate().isNotEmpty,
       );
 
       expect(find.byType(ImageCaptionComposerPage), findsOneWidget);
@@ -462,9 +477,8 @@ void main() {
       final connection = StreamController<ConnectionStatus>.broadcast();
       addTearDown(connection.close);
       uploadsFail = true;
-      await openWithShare(
+      await openWithSharedVideo(
         tester,
-        sharedVideo,
         overrides: [
           connectionStatusProvider.overrideWith((ref) => connection.stream),
         ],
@@ -473,20 +487,21 @@ void main() {
       await harness.drive(tester, turns: 2);
 
       expect(find.byType(VideoCaptionComposerPage), findsOneWidget);
-      await tester.tap(find.byTooltip('Send'));
-      await harness.drive(tester);
+      await sendFailingVideo(tester);
 
       expect(harness.sent, isEmpty);
       expect(find.text('Not sent. Tap to try again.'), findsOneWidget);
-      expect(temp.listSync().map((f) => f.uri.pathSegments.last), ['clip.mp4']);
+      expect(copies(), ['clip.mp4']);
 
       uploadsFail = false;
       connection.add(ConnectionStatus.noInternet);
       await harness.drive(tester, turns: 2);
       connection.add(ConnectionStatus.online);
-      for (var i = 0; i < 6 && temp.listSync().isNotEmpty; i++) {
-        await harness.drive(tester);
-      }
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty && copies().isEmpty,
+        reason: 'the video to go again and its copy to be removed',
+      );
 
       expect(harness.sent.single['msgtype'], 'm.video');
       expect(temp.listSync(), isEmpty);
@@ -496,22 +511,32 @@ void main() {
       tester,
     ) async {
       uploadsFail = true;
-      await openWithShare(tester, sharedVideo);
-      await tester.tap(find.byTooltip('Send'));
-      await harness.drive(tester);
+      await openWithSharedVideo(tester);
+      await sendFailingVideo(tester);
 
       await tester.tap(find.byType(GalleryFailedThumbnail));
-      await harness.drive(tester);
+      await pumpUntil(
+        tester,
+        () => failedTiles() == 0,
+        reason: 'the retry to start',
+      );
+      await pumpUntil(
+        tester,
+        () => failedTiles() == 1,
+        reason: 'the retry to fail',
+      );
 
       expect(harness.sent, isEmpty);
       expect(find.text('Not sent. Tap to try again.'), findsOneWidget);
-      expect(temp.listSync(), hasLength(1));
+      expect(copies(), hasLength(1));
 
       uploadsFail = false;
       await tester.tap(find.byType(GalleryFailedThumbnail));
-      for (var i = 0; i < 6 && temp.listSync().isNotEmpty; i++) {
-        await harness.drive(tester);
-      }
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty && copies().isEmpty,
+        reason: 'the video to go again and its copy to be removed',
+      );
 
       expect(harness.sent.single['msgtype'], 'm.video');
       expect(temp.listSync(), isEmpty);
@@ -524,6 +549,8 @@ void main() {
       await openWithShare(
         tester,
         InboundShare(files: [sharedVideo.files.single, document('b.pdf')]),
+        awaiting: 'the caption screen for the video',
+        until: () => settledOn(VideoCaptionComposerPage),
       );
       harness.respond = (request) async {
         if (!request.url.path.contains('/upload')) return null;
@@ -540,22 +567,31 @@ void main() {
           200,
         );
       };
-      await tester.tap(find.byTooltip('Send'));
-      await harness.drive(tester);
+      await sendFailingVideo(tester);
       expect(find.text('Not sent. Tap to try again.'), findsOneWidget);
 
       videoUploadsFail = false;
       probeGate = Completer<void>();
       await tester.tap(find.byType(GalleryFailedThumbnail));
-      await harness.drive(tester, turns: 2);
+      await pumpUntil(
+        tester,
+        () => failedTiles() == 0,
+        reason: 'the retry to start',
+      );
       pdfUpload.complete();
-      await harness.drive(tester);
-      expect(temp.listSync().map((f) => f.uri.pathSegments.last), ['clip.mp4']);
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty && copies().length == 1,
+        reason: 'the document to be sent and its copy removed',
+      );
+      expect(copies(), ['clip.mp4']);
 
       probeGate!.complete();
-      for (var i = 0; i < 6 && temp.listSync().isNotEmpty; i++) {
-        await harness.drive(tester);
-      }
+      await pumpUntil(
+        tester,
+        () => harness.sent.length == 2 && copies().isEmpty,
+        reason: 'the retried video to be sent and its copy removed',
+      );
 
       expect(harness.sent.map((sent) => sent['msgtype']), [
         'm.file',
@@ -568,13 +604,16 @@ void main() {
       tester,
     ) async {
       uploadsFail = true;
-      await openWithShare(tester, sharedVideo);
-      await tester.tap(find.byTooltip('Send'));
-      await harness.drive(tester);
-      expect(temp.listSync(), hasLength(1));
+      await openWithSharedVideo(tester);
+      await sendFailingVideo(tester);
+      expect(copies(), hasLength(1));
 
       await tester.pumpWidget(const SizedBox());
-      await harness.drive(tester, turns: 4);
+      await pumpUntil(
+        tester,
+        () => copies().isEmpty,
+        reason: 'the kept copy to be removed',
+      );
 
       expect(temp.listSync(), isEmpty);
     });
@@ -585,6 +624,8 @@ void main() {
       await openWithShare(
         tester,
         InboundShare(files: [document('notes.pdf'), document('broken.pdf')]),
+        awaiting: 'the readable file to be sent',
+        until: () => harness.sent.isNotEmpty,
       );
 
       expect(
@@ -600,6 +641,9 @@ void main() {
       await openWithShare(
         tester,
         InboundShare(files: [document('a.pdf'), document('b.pdf')]),
+        awaiting: 'the failed copies to be reported',
+        until: () =>
+            shows('2 shared files could not be opened. Share them again.'),
       );
 
       expect(tester.takeException(), isNull);
@@ -659,7 +703,7 @@ void main() {
     });
 
     testWidgets('leaving before the messages load is harmless', (tester) async {
-      final db = _GatedDb();
+      final db = GatedTimelineFakeDatabaseApi();
       harness = makeHarness(db: db);
       db.events = [harness.message(r'$m1')];
       await tester.pumpWidget(

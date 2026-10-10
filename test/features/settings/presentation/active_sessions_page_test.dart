@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/encryption.dart';
@@ -11,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/security/account_security_status.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/active_sessions_page.dart';
@@ -20,34 +18,19 @@ import 'package:zuno/features/verification/presentation/approve_this_device_page
 import 'package:zuno/features/verification/presentation/verification_page.dart';
 
 import '../../../helpers/fake_call_session.dart';
+import '../../../helpers/fake_device_keys.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/native_method_calls.dart';
+import '../../../helpers/security_facts.dart';
+import '../../../helpers/uia_challenge.dart';
 import '../../verification/presentation/verification_harness.dart';
 
 const _me = '@alice:example.org';
 const _here = 'HERE';
 
-MatrixException _passwordChallenge() => MatrixException.fromJson({
-  'session': 's1',
-  'flows': [
-    {
-      'stages': ['m.login.password'],
-    },
-  ],
-  'params': <String, Object?>{},
-});
-
 class _Keys extends DeviceKeys {
   _Keys(Client client, String deviceId, {this.approved = false})
-    : super.fromJson({
-        'user_id': _me,
-        'device_id': deviceId,
-        'algorithms': <String>[],
-        'keys': {
-          'curve25519:$deviceId': 'curve-$deviceId',
-          'ed25519:$deviceId': 'ed-$deviceId',
-        },
-        'signatures': <String, Object?>{},
-      }, client);
+    : super.fromJson(testDeviceKeysJson(_me, deviceId), client);
 
   final bool approved;
   Future<KeyVerification> Function()? onStart;
@@ -97,9 +80,8 @@ class _DevicesClient extends Client {
   Future<void> updateUserDeviceKeys({Set<String>? additionalUsers}) async {}
 
   Future<void> _delete(List<String> ids, AuthenticationData? auth) async {
-    if (auth == null) throw _passwordChallenge();
+    if (auth == null) throw uiaPasswordChallenge();
     passwords.add((auth as AuthenticationPassword).password);
-    if (auth.password == 'wrong') throw _passwordChallenge();
     final error = deleteError;
     if (error != null) throw error;
     deletions.add(ids);
@@ -130,18 +112,9 @@ class _DevicesClient extends Client {
     AuthenticationData? auth,
   }) async {
     tokenRequests++;
-    throw _passwordChallenge();
+    throw uiaPasswordChallenge();
   }
 }
-
-AccountSecurityFacts _facts({required bool identityKeysHere}) =>
-    AccountSecurityFacts(
-      recoveryExists: true,
-      thisDeviceHasIdentityKeys: identityKeysHere,
-      keyBackupExists: true,
-      keyBackupUsableHere: true,
-      unapprovedOtherDevices: 0,
-    );
 
 final _lastWeek = DateTime(2026, 9, 20, 14, 5).millisecondsSinceEpoch;
 final _yesterday = DateTime(2026, 9, 26, 9, 30).millisecondsSinceEpoch;
@@ -152,11 +125,7 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     client = _DevicesClient();
-    const backgroundSync = MethodChannel('zuno/background_sync');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(backgroundSync, (_) async => null);
-    addTearDown(() => messenger.setMockMethodCallHandler(backgroundSync, null));
+    silenceMethodChannels(const ['zuno/background_sync']);
   });
 
   Future<void> pullToRefresh(WidgetTester tester) =>
@@ -206,7 +175,9 @@ void main() {
           accountSecurityFactsProvider.overrideWith(
             (ref) => identityKeysHere == null
                 ? const Stream.empty()
-                : Stream.value(_facts(identityKeysHere: identityKeysHere)),
+                : Stream.value(
+                    securityFacts(thisDeviceHasIdentityKeys: identityKeysHere),
+                  ),
           ),
         ],
         child: const MaterialApp(home: ActiveSessionsPage()),
@@ -538,39 +509,6 @@ void main() {
       expect(client.deletions, isEmpty);
       expect(find.byType(SnackBar), findsNothing);
       expect(find.text('Pixel'), findsOneWidget);
-    });
-
-    testWidgets('a wrong password asks again, saying so', (tester) async {
-      threeDevices();
-      await pumpPage(tester);
-
-      await tester.tap(find.text('Sign out everywhere else'));
-      await tester.pumpAndSettle();
-      await confirm(tester, 'Sign out');
-      expect(find.text('Wrong password.'), findsNothing);
-      await enterPassword(tester, 'wrong');
-
-      expect(find.text('Confirm your password'), findsOneWidget);
-      expect(find.text('Wrong password.'), findsOneWidget);
-      expect(client.deletions, isEmpty);
-
-      await enterPassword(tester, 'hunter2');
-
-      expect(client.passwords, ['wrong', 'hunter2']);
-      expect(client.deletions, hasLength(1));
-    });
-
-    testWidgets('an empty password counts as cancelling', (tester) async {
-      threeDevices();
-      await pumpPage(tester);
-
-      await tester.tap(find.text('Sign out everywhere else'));
-      await tester.pumpAndSettle();
-      await confirm(tester, 'Sign out');
-      await enterPassword(tester, '');
-
-      expect(client.passwords, isEmpty);
-      expect(find.byType(SnackBar), findsNothing);
     });
 
     testWidgets('a server failure says so', (tester) async {

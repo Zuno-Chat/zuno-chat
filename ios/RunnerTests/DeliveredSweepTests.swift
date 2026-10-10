@@ -1,12 +1,16 @@
+import UserNotifications
 import XCTest
 
 @testable import Runner
 
 final class DeliveredSweepTests: XCTestCase {
   private func note(
-    _ identifier: String, token: String? = "t1", thread: String = "t1", seconds: Int? = 100
+    _ identifier: String, token: String? = "t1", thread: String = "t1", seconds: Int? = 100,
+    appPosted: Bool = false, roomId: String? = nil
   ) -> DeliveredNote {
-    DeliveredNote(identifier: identifier, thread: thread, roomToken: token, seconds: seconds)
+    DeliveredNote(
+      identifier: identifier, thread: thread, roomToken: token, seconds: seconds,
+      appPosted: appPosted, roomId: roomId)
   }
 
   func testAReadRoomLosesItsNotificationsUpToTheReceipt() {
@@ -34,21 +38,34 @@ final class DeliveredSweepTests: XCTestCase {
   }
 
   func testZunosOwnPostsStayWithZuno() {
-    let dart = DeliveredNote(
-      identifier: "dart", thread: "t1", roomToken: nil, seconds: nil, appPosted: true)
+    let dart = note("dart", token: nil, seconds: nil, appPosted: true, roomId: "!a:x")
     XCTAssertEqual(
-      DeliveredSweep.identifiersToRemove([dart], reads: [ThreadRead(token: "t1", upToMs: nil)]),
+      DeliveredSweep.identifiersToRemove(
+        [dart], reads: [ThreadRead(token: "t1", roomId: "!a:x", upToMs: nil)]),
       [])
   }
 
-  func testOnlyLocalPostsThatAreNotCatchUpLinesAreZunosOwn() {
-    let info: [AnyHashable: Any] = ["t": "t1", "o": "100", "k": "msg"]
-    XCTAssertFalse(DeliveredNote(identifier: "p", thread: "t1", userInfo: info).appPosted)
-    XCTAssertFalse(
-      DeliveredNote(identifier: "zuno.catchup.e1", thread: "t1", userInfo: info, pushed: false)
-        .appPosted)
-    XCTAssertTrue(
-      DeliveredNote(identifier: "42", thread: "t1", userInfo: [:], pushed: false).appPosted)
+  func testAReadByRoomIdTakesTheStaticAlertsOfThatRoom() {
+    let delivered = [
+      note("static-a", token: nil, thread: "", seconds: nil, roomId: "!a:x"),
+      note("static-b", token: nil, thread: "", seconds: nil, roomId: "!b:x"),
+      note("badge", token: nil, thread: "", seconds: nil),
+    ]
+    XCTAssertEqual(
+      DeliveredSweep.identifiersToRemove(delivered, reads: [ThreadRead(roomId: "!a:x")]),
+      ["static-a"])
+  }
+
+  func testEachReadTakesItsRoomByIdOrByToken() {
+    let delivered = [
+      note("static-a", token: nil, thread: "", seconds: nil, roomId: "!a:x"),
+      note("line-b", token: "tb", thread: "tb"),
+      note("line-c", token: "tc", thread: "tc"),
+    ]
+    XCTAssertEqual(
+      DeliveredSweep.identifiersToRemove(
+        delivered, reads: [ThreadRead(roomId: "!a:x"), ThreadRead(token: "tb")]),
+      ["static-a", "line-b"])
   }
 
   func testAnEventTimeTooBigToScaleToMillisecondsIsNeverCovered() {
@@ -57,22 +74,33 @@ final class DeliveredSweepTests: XCTestCase {
     XCTAssertEqual(removed, [])
   }
 
-  func testAnEmptyTokenNeverMatches() {
+  func testAnEmptyTokenOrRoomIdNeverMatches() {
     let removed = DeliveredSweep.identifiersToRemove(
-      [note("a", token: nil, thread: "", seconds: 1)], reads: [ThreadRead(token: "", upToMs: nil)])
+      [note("a", token: nil, thread: "", seconds: 1, roomId: "")],
+      reads: [ThreadRead(token: "", upToMs: nil), ThreadRead(roomId: "")])
     XCTAssertEqual(removed, [])
   }
 
-  func testTheTokenAndEventTimeAreReadFromUserInfo() {
-    let read = DeliveredNote(
-      identifier: "a", thread: "t1",
-      userInfo: ["t": "t1", "o": NSNumber(value: 1_790_000_000), "k": "msg"])
-    XCTAssertEqual(read, note("a", seconds: 1_790_000_000))
-    let composed = DeliveredNote(
-      identifier: "a", thread: "t1", userInfo: ["t": "t1", "o": "1790000000", "k": "msg"])
-    XCTAssertEqual(composed, note("a", seconds: 1_790_000_000))
-    let odd = DeliveredNote(identifier: "b", thread: "x", userInfo: ["t": 5, "o": "soon"])
-    XCTAssertNil(odd.roomToken)
-    XCTAssertNil(odd.seconds)
+  func testAPushOrACatchUpLineIsPushedWhileTheAppsOwnLocalLineIsNot() throws {
+    let pushed = try NseTestData.notification(
+      "push-a", userInfo: [:], trigger: NseTestData.pushTrigger())
+    let catchUp = try NseTestData.notification("zuno.catchup.e1", userInfo: [:], trigger: nil)
+    let own = try NseTestData.notification("42", userInfo: [:], trigger: nil)
+
+    XCTAssertTrue(pushed.isPushed)
+    XCTAssertTrue(catchUp.isPushed)
+    XCTAssertFalse(own.isPushed)
+  }
+
+  func testANoteReadsItsRoomAndEventTimeFromTheNotification() throws {
+    let line = try NseTestData.notification(
+      "a", userInfo: ["t": "t1", "o": "1790000000", "k": "msg", "room_id": "!a:x"],
+      trigger: NseTestData.pushTrigger(), thread: "t1")
+    let own = try NseTestData.notification(
+      "42", userInfo: ["t": 5, "room_id": 7], trigger: nil, thread: "x")
+
+    XCTAssertEqual(DeliveredNote(line), note("a", seconds: 1_790_000_000, roomId: "!a:x"))
+    XCTAssertEqual(
+      DeliveredNote(own), note("42", token: nil, thread: "x", seconds: nil, appPosted: true))
   }
 }

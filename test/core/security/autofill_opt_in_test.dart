@@ -20,16 +20,6 @@ List<String> textFieldsSilentOnAutofill(String path, String source) => [
 ];
 
 void main() {
-  test('a field that names its hints, or opts out, passes', () {
-    expect(
-      textFieldsSilentOnAutofill('a.dart', '''
-        TextField(autofillHints: const [AutofillHints.password]);
-        TextField(decoration: InputDecoration(labelText: f(x)), autofillHints: null);
-      '''),
-      isEmpty,
-    );
-  });
-
   test('a field that says nothing is reported with its line', () {
     expect(
       textFieldsSilentOnAutofill('a.dart', 'x;\nTextField(controller: c);'),

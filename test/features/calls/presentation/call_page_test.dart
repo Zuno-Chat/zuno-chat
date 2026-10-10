@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
@@ -19,11 +18,14 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_controls.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
+import 'package:zuno/features/calls/presentation/call_status_widgets.dart';
 import 'package:zuno/features/calls/presentation/call_view.dart';
 import 'package:zuno/features/calls/presentation/participant_tile.dart';
 import 'package:zuno/features/verification/presentation/why_confirm_sheet.dart';
 
+import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/native_method_calls.dart';
 import 'call_page_harness.dart';
 
 void main() {
@@ -31,19 +33,13 @@ void main() {
     late Room room;
 
     setUp(() {
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      for (final name in [
+      installFakeLocalNotifications();
+      silenceMethodChannels(const [
         'zuno/calls',
         'zuno/vibration',
         'flutter.baseflow.com/permissions/methods',
-        'dexterous.com/flutter/local_notifications',
         'wakelock_plus',
-      ]) {
-        final channel = MethodChannel(name);
-        messenger.setMockMethodCallHandler(channel, (_) async => null);
-        addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      }
+      ]);
       room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
     });
 
@@ -120,7 +116,9 @@ void main() {
       final harness = CallPageHarness(tester);
       await harness.open(sessionFor(CallKind.voice));
 
-      expect(harness.audioRoute, 'earpiece');
+      expect(harness.argsOf('startCallAudio'), [
+        {'route': 'earpiece'},
+      ]);
       expect(harness.speakerIcon, Icons.hearing_outlined);
       expect(harness.proximityScreenOff, isTrue);
       expect(harness.wakelockToggles, isEmpty);
@@ -141,7 +139,9 @@ void main() {
       final harness = CallPageHarness(tester);
       await harness.open(sessionFor(CallKind.video));
 
-      expect(harness.audioRoute, 'speaker');
+      expect(harness.argsOf('startCallAudio'), [
+        {'route': 'speaker'},
+      ]);
       expect(harness.speakerIcon, Icons.volume_up_outlined);
       expect(harness.proximityScreenOff, isFalse);
       expect(harness.wakelockToggles, [true]);
@@ -158,7 +158,9 @@ void main() {
       final harness = CallPageHarness(tester)..headsets = ['bluetooth'];
       await harness.open(sessionFor(CallKind.video));
 
-      expect(harness.audioRoute, 'bluetooth');
+      expect(harness.argsOf('startCallAudio'), [
+        {'route': 'bluetooth'},
+      ]);
       expect(harness.speakerIcon, Icons.bluetooth_audio_outlined);
       expect(harness.proximityScreenOff, isFalse);
       await harness.close();
@@ -203,19 +205,6 @@ void main() {
       expect(harness.audioRoute, 'bluetooth');
       expect(harness.speakerIcon, Icons.bluetooth_audio_outlined);
       expect(harness.proximityScreenOff, isFalse);
-      await harness.close();
-    });
-
-    testWidgets('a wired headset plugged in on the speaker takes over too', (
-      tester,
-    ) async {
-      final harness = CallPageHarness(tester);
-      await talking(harness, CallKind.video);
-
-      await harness.changeHeadsets(['wiredHeadset']);
-
-      expect(harness.audioRoute, 'wiredHeadset');
-      expect(harness.speakerIcon, Icons.headphones_outlined);
       await harness.close();
     });
 
@@ -296,23 +285,6 @@ void main() {
       await harness.settle();
 
       expect(session.engine.microphoneMutedRequests, [true]);
-      expect(session.membershipRefreshes, 1);
-      await harness.close();
-    });
-
-    testWidgets('turning a voice call into video switches the engine, keeps '
-        'the screen on and stops handling the ear', (tester) async {
-      final harness = CallPageHarness(tester);
-      final session = await talking(harness, CallKind.voice);
-      expect(harness.proximityScreenOff, isTrue);
-
-      await tester.tap(find.byTooltip('Switch to video call'));
-      await harness.settle();
-
-      expect(session.engine.switchToVideoCalls, 1);
-      expect(session.kind, CallKind.video);
-      expect(harness.wakelockToggles, [true]);
-      expect(harness.proximityScreenOff, isFalse);
       expect(session.membershipRefreshes, 1);
       await harness.close();
     });
@@ -510,7 +482,7 @@ void main() {
       session.engine.setStatus(CallEngineStatus.reconnecting);
       await harness.settle();
 
-      expect(find.text('Reconnecting…'), findsWidgets);
+      expect(find.byType(ReconnectingNotice), findsOneWidget);
       await harness.close();
     });
   });

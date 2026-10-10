@@ -4,52 +4,37 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ServiceActionDecisionTest {
+    private val actions =
+        listOf(CallActionReceiver.ACTION_HANG_UP, LiveLocationActionReceiver.ACTION_STOP)
+
     @Test
-    fun `delivers a call hang up to dart while the app engine is alive`() {
-        assertEquals(
-            ServiceActionRoute.DeliverToDart,
-            ServiceActionDecision.route(
-                action = CallActionReceiver.ACTION_HANG_UP,
-                expected = CallActionReceiver.ACTION_HANG_UP,
-                dartAttached = true,
-            ),
-        )
+    fun `a call hang up or a live location stop goes to dart while the app engine is alive`() {
+        for (action in actions) {
+            assertEquals(
+                action,
+                ServiceActionRoute.DeliverToDart,
+                ServiceActionDecision.route(
+                    action = action,
+                    expected = action,
+                    dartAttached = true,
+                ),
+            )
+        }
     }
 
     @Test
-    fun `stops the call service when no engine is left to hang the call up`() {
-        assertEquals(
-            ServiceActionRoute.StopService,
-            ServiceActionDecision.route(
-                action = CallActionReceiver.ACTION_HANG_UP,
-                expected = CallActionReceiver.ACTION_HANG_UP,
-                dartAttached = false,
-            ),
-        )
-    }
-
-    @Test
-    fun `hands a live location stop to dart so it clears the share`() {
-        assertEquals(
-            ServiceActionRoute.DeliverToDart,
-            ServiceActionDecision.route(
-                action = LiveLocationActionReceiver.ACTION_STOP,
-                expected = LiveLocationActionReceiver.ACTION_STOP,
-                dartAttached = true,
-            ),
-        )
-    }
-
-    @Test
-    fun `stops live location capture itself when dart is gone`() {
-        assertEquals(
-            ServiceActionRoute.StopService,
-            ServiceActionDecision.route(
-                action = LiveLocationActionReceiver.ACTION_STOP,
-                expected = LiveLocationActionReceiver.ACTION_STOP,
-                dartAttached = false,
-            ),
-        )
+    fun `with no engine left the service stops the call or the live location capture itself`() {
+        for (action in actions) {
+            assertEquals(
+                action,
+                ServiceActionRoute.StopService,
+                ServiceActionDecision.route(
+                    action = action,
+                    expected = action,
+                    dartAttached = false,
+                ),
+            )
+        }
     }
 
     @Test

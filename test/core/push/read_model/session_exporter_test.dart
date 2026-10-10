@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/encryption/utils/pickle_key.dart';
-import 'package:matrix/encryption/utils/stored_inbound_group_session.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vodozemac/vodozemac.dart' as vod;
@@ -12,6 +11,8 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/push/read_model/session_exporter.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_megolm_sessions.dart';
+import '../../../helpers/fixtures.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 class _Events implements InboundSessionEvents {
@@ -45,88 +46,12 @@ class _ThrowingEvents implements InboundSessionEvents {
   }) => throw StateError('listener');
 }
 
-class _SessionsDatabase extends FakeDatabaseApi {
-  final sessions = <String, StoredInboundGroupSession>{};
-  bool failWrites = false;
-  bool failReads = false;
-  void Function()? duringRead;
-
-  StoredInboundGroupSession put(
-    String roomId,
-    String sessionId, {
-    String indexes = '{}',
-    String senderKey = 'curve-a',
-  }) => sessions[sessionId] = StoredInboundGroupSession(
-    roomId: roomId,
-    sessionId: sessionId,
-    pickle: 'pickle-$sessionId',
-    content: '{}',
-    indexes: indexes,
-    allowedAtIndex: '{}',
-    senderKey: senderKey,
-    senderClaimedKeys: '{}',
-  );
-
-  @override
-  Future<StoredInboundGroupSession?> getInboundGroupSession(
-    String roomId,
-    String sessionId,
-  ) async {
-    if (failReads) throw StateError('unreadable');
-    duringRead?.call();
-    return sessions[sessionId];
-  }
-
-  @override
-  Future<List<StoredInboundGroupSession>> getAllInboundGroupSessions() async =>
-      sessions.values.toList();
-
-  @override
-  Future<void> storeInboundGroupSession(
-    String roomId,
-    String sessionId,
-    String pickle,
-    String content,
-    String indexes,
-    String allowedAtIndex,
-    String senderKey,
-    String senderClaimedKey,
-  ) async {
-    if (failWrites) throw StateError('disk full');
-    put(roomId, sessionId, indexes: indexes, senderKey: senderKey);
-  }
-
-  @override
-  Future<void> updateInboundGroupSessionIndexes(
-    String indexes,
-    String roomId,
-    String sessionId,
-  ) async {
-    if (failWrites) throw StateError('disk full');
-    put(roomId, sessionId, indexes: indexes);
-  }
-}
-
-class _HookedDatabase extends _SessionsDatabase with InboundSessionHooks {
+class _HookedDatabase extends SessionStoreFakeDatabaseApi
+    with InboundSessionHooks {
   _HookedDatabase(this.inboundSessionEvents);
 
   @override
   final InboundSessionEvents inboundSessionEvents;
-}
-
-class _Trimmer implements MegolmTrimmer {
-  final calls = <String>[];
-
-  @override
-  TrimmedSession? trim({
-    required String pickle,
-    required String userId,
-    required int fromIndex,
-  }) {
-    calls.add('$pickle@$fromIndex');
-    if (pickle == 'pickle-broken') return null;
-    return TrimmedSession(pickle: 'trimmed-$pickle', firstIndex: fromIndex);
-  }
 }
 
 final Object _needsMacLibrary = Platform.isMacOS
@@ -325,18 +250,18 @@ void main() {
 
   group('the exporter', () {
     var now = DateTime(2026, 10, 2, 12);
-    late _SessionsDatabase database;
+    late SessionStoreFakeDatabaseApi database;
     late Client client;
     late Room room;
-    late _Trimmer trimmer;
+    late FakeMegolmTrimmer trimmer;
     late SessionExporter exporter;
 
     setUp(() {
       now = DateTime(2026, 10, 2, 12);
-      database = _SessionsDatabase();
+      database = SessionStoreFakeDatabaseApi();
       client = buildTestClient(userId: '@mwong:zuno.im', database: database);
       room = buildTestRoom(client, id: '!r:zuno.im');
-      trimmer = _Trimmer();
+      trimmer = FakeMegolmTrimmer();
       exporter = SessionExporter(trimmer: trimmer, now: () => now);
     });
 
@@ -434,7 +359,8 @@ void main() {
       expect(exported(retried), ['s1']);
     });
 
-    test('exports nothing when not allowed, muted or idle, but still names notifiers', () async {
+    test('exports nothing when not allowed or idle, but still names '
+        'notifiers', () async {
       database.put(room.id, 's1');
       exporter.sessionStored(roomId: room.id, sessionId: 's1');
 
@@ -492,9 +418,7 @@ void main() {
     late Map<String, dynamic> golden;
 
     setUpAll(() async {
-      golden = jsonDecode(
-        File('test/fixtures/push/megolm_golden_v1.json').readAsStringSync(),
-      ) as Map<String, dynamic>;
+      golden = pushFixture('megolm_golden_v1.json');
       if (vod.isInitialized()) return;
       await vod.init(libraryPath: _macLibrary(), stem: 'flutter_vodozemac');
     });

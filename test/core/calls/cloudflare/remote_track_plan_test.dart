@@ -34,10 +34,6 @@ void main() {
         isEmpty,
       );
     });
-
-    test('pulls video once the remote camera turns on', () {
-      expect(plan(pulled: {'audio'}, remoteVideoEnabled: true), ['video']);
-    });
   });
 
   group('sad paths', () {

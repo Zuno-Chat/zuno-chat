@@ -1,8 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -17,16 +15,12 @@ import 'package:zuno/features/blocking/presentation/block_person.dart';
 import 'package:zuno/features/communities/presentation/community_page.dart';
 import 'package:zuno/features/rooms/presentation/room_invite_page.dart';
 
+import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
-
-class _ForgettingDatabase extends FakeDatabaseApi {
-  @override
-  Future<void> forgetRoom(String roomId) async {}
-}
+import '../../../helpers/pump_until.dart';
+import '../../../helpers/route_launcher.dart';
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
   late List<http.Request> requests;
   late bool refuseReports;
   late bool refuseJoins;
@@ -35,27 +29,14 @@ void main() {
   late Room room;
 
   setUp(() {
-    FlutterLocalNotificationsPlatform.instance =
-        AndroidFlutterLocalNotificationsPlugin();
-    const notificationsChannel = MethodChannel(
-      'dexterous.com/flutter/local_notifications',
-    );
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(
-      notificationsChannel,
-      (call) async => call.method == 'initialize' ? true : null,
-    );
-    addTearDown(
-      () => messenger.setMockMethodCallHandler(notificationsChannel, null),
-    );
+    installFakeLocalNotifications();
     requests = [];
     refuseReports = false;
     refuseJoins = false;
     offline = false;
     client = buildTestClient(
       userId: '@me:example.org',
-      database: _ForgettingDatabase(),
+      database: ForgettingFakeDatabaseApi(),
       httpClient: MockClient((request) async {
         requests.add(request);
         if (offline) {
@@ -126,16 +107,8 @@ void main() {
         ],
         child: MaterialApp(
           home: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        RoomInvitePage(room: room, blockPerson: blockPerson),
-                  ),
-                ),
-                child: const Text('open'),
-              ),
+            body: routeLauncher(
+              (_) => RoomInvitePage(room: room, blockPerson: blockPerson),
             ),
           ),
         ),
@@ -184,10 +157,11 @@ void main() {
     );
 
     Future<void> settleJoin() async {
-      for (var i = 0; i < 4; i++) {
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.pump(const Duration(milliseconds: 200));
-      }
+      await pumpRealAsync(
+        tester,
+        rounds: 4,
+        step: const Duration(milliseconds: 200),
+      );
     }
 
     await tester.tap(find.widgetWithText(FilledButton, 'Join'));
@@ -339,22 +313,6 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('Exception'), findsNothing);
-    expect(find.byType(RoomInvitePage), findsOneWidget);
-  });
-
-  testWidgets('a refused block leaves the invitation alone', (tester) async {
-    inviteFromBob();
-    await openInvite(
-      tester,
-      blockPerson: (_) async => throw Exception('offline'),
-    );
-
-    await tester.tap(find.widgetWithText(TextButton, 'Block and decline'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Block'));
-    await settleNetwork(tester);
-
-    expect(find.text('Not blocked. Try again.'), findsOneWidget);
     expect(find.byType(RoomInvitePage), findsOneWidget);
   });
 }

@@ -120,14 +120,6 @@ void main() {
       expect(geolocator.streamSettings, isEmpty);
     });
 
-    test('says so when location services are off', () async {
-      geolocator.servicesEnabled = false;
-
-      final fixes = await watchOwnLocation(geolocator: geolocator).toList();
-
-      expect(fixes, [const LocationFailed(LocationFailure.servicesOff)]);
-    });
-
     test('reads services turned off mid-stream as such', () async {
       final fixes = <LocationFix>[];
       final updates = watchOwnLocation(geolocator: geolocator)

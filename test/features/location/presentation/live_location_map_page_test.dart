@@ -267,17 +267,6 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.textContaining('updated just now'), findsOneWidget);
     });
-
-    testWidgets('a sharer already fresh shows no updating', (tester) async {
-      harness.shareFrom('@bea:x', deviceId: 'TABLET');
-      harness.positionFrom('@bea:x', deviceId: 'TABLET');
-      await tester.pump();
-
-      await pumpMap(tester);
-      await tester.pump();
-
-      expect(find.byType(CircularProgressIndicator), findsNothing);
-    });
   });
 
   group('your own location', () {

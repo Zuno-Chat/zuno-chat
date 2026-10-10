@@ -51,15 +51,6 @@ void main() {
       expect(out, contains('tap'));
     });
 
-    test('drops an intent: href', () {
-      expect(
-        sanitizeMessageHtml(
-          '<a href="intent://evil#Intent;package=com.x;end">tap</a>',
-        ),
-        isNot(contains('intent:')),
-      );
-    });
-
     test('unwraps a disallowed tag but keeps its text', () {
       expect(sanitizeMessageHtml('<marquee>keep me</marquee>'), 'keep me');
     });

@@ -6,10 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/chat/presentation/message_tile.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/route_launcher.dart';
 import 'room_page_harness.dart';
 
 void main() {
@@ -35,9 +38,9 @@ void main() {
     addTearDown(() => messenger.setMockMethodCallHandler(shortcuts, null));
   });
 
-  RoomPageHarness makeHarness() {
+  RoomPageHarness makeHarness({PlatformCapabilities? capabilities}) {
     db = SendingFakeDatabaseApi();
-    final harness = RoomPageHarness(db: db);
+    final harness = RoomPageHarness(db: db, capabilities: capabilities);
     harness.respond = (request) {
       final path = request.url.path;
       if (refuse && (path.endsWith('/invite') || path.endsWith('/leave'))) {
@@ -64,26 +67,21 @@ void main() {
     harness = makeHarness();
     await tester.pumpWidget(
       await harness.app(
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => RoomPage(room: harness.room),
-              ),
-            ),
-            child: const Text('open'),
-          ),
-        ),
+        home: routeLauncher((_) => RoomPage(room: harness.room)),
       ),
     );
     await tester.tap(find.text('open'));
     await harness.settle(tester);
   }
 
-  Future<void> pick(WidgetTester tester, String item) async {
+  Future<void> openMenu(WidgetTester tester) async {
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+  }
+
+  Future<void> pick(WidgetTester tester, String item) async {
+    await openMenu(tester);
     await tester.tap(find.text(item));
     await harness.settle(tester);
   }
@@ -94,7 +92,7 @@ void main() {
   group('Add members', () {
     Future<void> invite(WidgetTester tester, String username) async {
       await pick(tester, 'Add members');
-      expect(find.text('Add members'), findsWidgets);
+      expect(find.text('Add members'), findsOneWidget);
       await tester.enterText(
         find.descendant(
           of: find.byType(AlertDialog),
@@ -145,9 +143,7 @@ void main() {
       );
       await harness.pumpRoomPage(tester);
 
-      await tester.tap(find.byIcon(Icons.more_vert));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await openMenu(tester);
 
       expect(find.text('Add members'), findsNothing);
       expect(find.text('Chat info'), findsOneWidget);
@@ -210,6 +206,16 @@ void main() {
       await pick(tester, 'Add to home screen');
 
       expect(find.text('Shortcut not added. Try again.'), findsOneWidget);
+    });
+
+    testWidgets('iOS does not offer it', (tester) async {
+      harness = makeHarness(capabilities: iosCapabilities);
+      await harness.pumpRoomPage(tester);
+
+      await openMenu(tester);
+
+      expect(find.text('Add to home screen'), findsNothing);
+      expect(find.text('Reload messages'), findsOneWidget);
     });
   });
 

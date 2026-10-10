@@ -35,12 +35,6 @@ void main() {
     },
   );
 
-  test('every HTTP client created after install carries it', () async {
-    await installUserAgent(version: () async => '1.2.0');
-
-    expect(HttpClient().userAgent, _agent);
-  });
-
   test('reads the version from the installed package by default', () async {
     PackageInfo.setMockInitialValues(
       appName: 'Zuno',

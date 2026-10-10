@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/notifications/native_notification_actions.dart';
 
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -153,13 +154,7 @@ void main() {
       NativeNotificationActionsChannel(capabilities: enabled)
           .listen(() => hints++);
 
-      await messenger.handlePlatformMessage(
-        channel.name,
-        const StandardMethodCodec().encodeMethodCall(
-          const MethodCall('actionsAvailable'),
-        ),
-        (_) {},
-      );
+      await callFromNative(channel, 'actionsAvailable');
 
       expect(hints, 1);
     },

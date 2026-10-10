@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -6,16 +5,14 @@ import 'package:zuno/core/calls/platform/system_call.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 const _roomId = '!room:example.org';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('zuno/calls');
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-  late RecordedCallsChannel native;
+  late RecordedMethodCalls native;
   late Object? startReply;
 
   setUp(() {
@@ -94,7 +91,7 @@ void main() {
     );
 
     test('starts unmuted when there is no platform side', () async {
-      messenger.setMockMethodCallHandler(channel, null);
+      removeCallsChannel();
 
       expect((await beginOn(systemCall)).muted, isFalse);
     });
@@ -160,7 +157,7 @@ void main() {
     );
 
     test('a missing platform side is not an error for any report', () async {
-      messenger.setMockMethodCallHandler(channel, null);
+      removeCallsChannel();
 
       await expectLater(reportEverythingOn(systemCall), completes);
     });
@@ -181,10 +178,6 @@ void main() {
   });
 
   group('picking the system call', () {
-    test('ios reports its calls to CallKit', () {
-      expect(systemCallFor(iosCapabilities), isA<CallKitSystemCall>());
-    });
-
     test('CallKit, not the platform name, decides', () {
       expect(
         systemCallFor(capabilitiesLike(iosCapabilities, callKit: false)),
