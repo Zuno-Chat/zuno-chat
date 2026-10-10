@@ -96,7 +96,7 @@ FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart rea
 - **`ZunoPushService` replaces the UnifiedPush connector's service**, because the connector's bound-service delivery holds no wake lock. It posts the instant notice, holds a wake lock until Dart has handled the push, and delivers to the app engine, else to a headless engine (`--unifiedpush-bg`).
 - **Push engines register an explicit plugin allowlist** (`PushEnginePlugins`), not the generated registrant, because some plugins carry process-wide state. flutter_webrtc, for one, repoints its process-wide singleton at the newest engine that registers it, which would send a live call's WebRTC events to a push engine.
 - **Battery.** Both fallbacks need a battery exemption, and UnifiedPush needs one for the distributor as well. Where a maker's autostart screen exists, Delivery shows an Autostart row and onboarding asks once (`onboarding.md`).
-- **Background sync** is a foreground service running `/sync`, typed `specialUse` on Android 14+.
+- **Background sync** is a foreground service keeping the app's `/sync` running, typed `specialUse` on Android 14+. In the background it uses the long long-poll and pauses while the device has no network (`app-foundation.md`).
 - **Designed, off: UnifiedPush over WebPush** through the homeserver's own Sygnal instead of a third-party Matrix gateway. It needs a WebPush pushkin in Sygnal first.
 
 ### iOS: APNs alerts

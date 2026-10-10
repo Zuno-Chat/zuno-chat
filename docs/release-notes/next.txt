@@ -5,4 +5,4 @@ New
 • Minimize a call and keep using Zuno.
 • Mute, use the speaker or turn your camera off while your call rings.
 
-Fixed 33 bugs.
+Fixed 35 bugs.

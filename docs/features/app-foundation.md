@@ -53,7 +53,7 @@ flowchart TD
 
 ### Navigation
 
-**`_AuthGate` (`lib/app.dart`) is the only routing decision.** It swaps the root between `SignedOutEntry` and `RoomListPage`, and keeps the signed-out screens while a sign-in is in flight. Everything else is `Navigator.push`, and code without a `BuildContext` uses `globalNavigatorKey` and `globalScaffoldMessengerKey`. `_AuthGate` also runs the launch checks, starts and stops notification delivery, and owns the sign-out wipe and the background sync pause.
+**`_AuthGate` (`lib/app.dart`) is the only routing decision.** It swaps the root between `SignedOutEntry` and `RoomListPage`, and keeps the signed-out screens while a sign-in is in flight. Everything else is `Navigator.push`, and code without a `BuildContext` uses `globalNavigatorKey` and `globalScaffoldMessengerKey`. `_AuthGate` also runs the launch checks, starts and stops notification delivery, and owns the sign-out wipe.
 
 **Launch targets hold the splash.** On a logged-in cold start, `_AuthGate` keeps the splash while it runs every launch check concurrently under a time cap: a pending ring, a launch shortcut, a notification tap, a call action and a launch share. The root swaps to `RoomListPage` only afterwards, so a target is already on top and the room list never flashes alone.
 
@@ -249,15 +249,29 @@ stateDiagram-v2
   noInternet --> unreachable: network back, probe fails
 ```
 
-- A sync connection failure is never trusted alone, only probed, because `forceSyncNow` and network handoffs throw stray errors. A finished sync clears to `online`.
+- A sync connection failure is never trusted alone, only probed, because a cancelled request and network handoffs throw stray errors. A finished sync clears to `online`.
 - **The banner** sits above the `Navigator`, so it shows over every screen and dialog, and it stays exactly as long as the problem.
 - Core Matrix traffic stays ungated offline, since the SDK queues and retries it. Only doomed extras are gated: link-preview images, history requests and starting a call.
 
-**Backgrounding pauses `/sync`.** `_AuthGate` calls `client.abortSync()` on `paused`, which also tears down the in-flight long-poll, and sets `client.backgroundSync = true` on `resumed`.
-- The background-service delivery mode is exempt, since keeping `/sync` alive is its whole purpose.
-- A call or a ring keeps sync running, because a call learns of the other side leaving, and a ring of an answer elsewhere, only through sync. A CallKit answer on the lock screen never resumes the app, so on iOS a ring or call that starts in the background turns sync back on.
-- A live location share keeps sync running too, because watches and membership changes arrive only through sync (`location-sharing.md`). While only a share keeps it alive, the app drives sync itself with a longer long-poll: an idle long-poll costs a radio wake-up per round, and it returns as soon as anything arrives, so a longer one loses no latency. A long-poll that fails after a long wait means something between the device and the server cuts long requests, so it falls back to the SDK's length for the rest of the session.
-- Attachment sends survive backgrounding: `abortSync()` leaves the HTTP client alone, and an in-flight send holds a foreground service or background task (`chats-messaging.md`).
+**`SyncCoordinator` is the only owner of the app client's `/sync`.** It runs the loop itself, one `oneShotSync` per round, from the reasons it holds and the device network; the SDK's own loop never runs.
+
+| Reasons held | Device network | Sync |
+|---|---|---|
+| The app in front, a call or a ring | any | short long-poll |
+| Only a live share or background-service delivery | up | long long-poll |
+| Only a live share or background-service delivery | down | off |
+| None | any | off |
+
+- A call learns of the other side leaving, and a ring of an answer elsewhere, only through sync, so a ring or a call that starts in the background turns sync on, on both platforms.
+- A live share needs sync for watches and membership changes (`location-sharing.md`), and background-service delivery for every notification (`notifications.md`).
+- Background-only sync uses a longer long-poll, because an idle long-poll costs a radio wake-up per round and returns as soon as anything arrives. A long-poll cut after a long wait means something between the device and the server cuts long requests, so the session falls back to the short length.
+- Turning sync off never cancels anything: the request in flight finishes and is processed.
+- Coming back to the front, or the network coming back, cancels a request still waiting for its response and sends a fresh one, because a request sent before the app froze or the network dropped can hang until it times out.
+- A cancel closes the connection (an abortable `/sync` request in the HTTP chain); `abortSync()` only orphans the request until the server answers.
+- Background-only sync backs off after repeated failures, until a new reason, the network or the front ends the wait. In front, in a call or during a ring, it keeps the SDK's quick retry.
+- A cache clear, which a block or an unblock also runs, waits for sync to go idle and then sends one initial sync. Sign-out cancels the request in flight.
+- There is no pull-to-refresh: a running long-poll already returns as soon as the server has anything new.
+- Attachment sends survive backgrounding: an in-flight send holds a foreground service or background task (`chats-messaging.md`).
 
 ### Errors
 
@@ -273,6 +287,7 @@ stateDiagram-v2
 - **Cold start never waits on the network, or on independent steps run in sequence.** Sequential setup was a measured cost with no correctness benefit.
 - **Device network and homeserver are separate signals.** The sync stream alone cannot tell "your internet is down" from "the server is down", and the banner must not blame the wrong one.
 - **`/sync` pauses in the background**: a long-poll with no screen wastes battery when push carries the wake-up.
+- **The app runs the sync loop, not the SDK**: the SDK's loop multiplies after an abort during a request, and its long-poll length is fixed.
 - **One app-owned iOS engine, not Flutter's `LaunchEngine` or a second headless engine.** `LaunchEngine` starts an engine at every launch and crashes when mixed with implicit-engine registration, and a separate ring engine would strand an answered call's WebRTC objects where the UI cannot reach them.
 - **The boot splash matches the OS launch screen pixel for pixel.** A cold start paints the mark twice, from two independent layers, and any mismatch reads as two loading screens. Holding launch targets behind it costs a plain cold start about a second, the price of no room-list flash under a ring.
 - **gzip only**: zstd saved little on real sync payloads, where IDs, keys and ciphertext do not compress, and it cost a dependency.
@@ -293,7 +308,8 @@ stateDiagram-v2
 - **The SDK's `BoxCollection.transaction` has no `try/finally`**, so after a throwing action, later direct writes land in a batch nobody commits while the cache already shows them.
 - **`Client.importantStateEvents` must list every state type a feature needs live**, or the SDK silently drops its live updates in rooms that are not fully loaded (`m.call.member` and `im.zuno.live_location` are there for this).
 - **The SDK's in-memory log buffer grows without bound** and could hold anything the SDK logs, so the client keeps no history of it.
-- **`oneShotSync` joins an in-flight long-poll instead of starting a sync**, so any "refresh now" goes through `forceSyncNow` (`force_sync.dart`), which aborts first and restores the sync loop afterwards.
+- **The SDK's own sync loop must stay off for the app client**: it restarts itself when an aborted request returns, so each `abortSync()` during a request leaves one more loop running (matrix 14, reported upstream). `ZunoClient` refuses `backgroundSync = true`, and the SDK's `clear()` turns it back on behind the setter, so the coordinator turns it off at every login change.
+- **`oneShotSync` joins the request in flight instead of starting one**, so a push catch-up or an SDK flow never adds a request. Nothing but the coordinator drives the app client's sync, and a test enforces it.
 - **`softLoggedOut` is a token refresh in flight, not a sign-out**: only `loggedOut` reads as signed out.
 - **Riverpod 3 retries a failed provider on its own**, so a `FutureProvider` whose error must reach the UI passes `retry: (_, _) => null`.
 - **`_AuthGate`'s `ref.listenManual` subscriptions must not become `build()`-driven**, because `_AuthGate` sits under every route and Flutter defers rebuilding an element under a covered route.

@@ -19,7 +19,7 @@ bool becameOnline(AsyncValue<bool>? previous, AsyncValue<bool> next) {
   return wasOffline && !isOffline;
 }
 
-bool _isForeground(AppLifecycleState? state) =>
+bool isAppInForeground(AppLifecycleState? state) =>
     state == null ||
     state == AppLifecycleState.resumed ||
     state == AppLifecycleState.inactive;
@@ -50,10 +50,10 @@ final connectionStatusProvider = StreamProvider<ConnectionStatus>((ref) {
     networkAvailable: ref.watch(networkAvailabilityProvider),
     syncStatus: client.onSyncStatus.stream,
     probe: () => isHomeserverReachable(client),
-    foreground: _isForeground(WidgetsBinding.instance.lifecycleState),
+    foreground: isAppInForeground(WidgetsBinding.instance.lifecycleState),
   );
   final lifecycle = AppLifecycleListener(
-    onStateChange: (state) => monitor.setForeground(_isForeground(state)),
+    onStateChange: (state) => monitor.setForeground(isAppInForeground(state)),
   );
   ref.onDispose(() {
     lifecycle.dispose();

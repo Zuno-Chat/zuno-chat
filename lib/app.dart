@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:matrix/matrix.dart' show Client;
 
 import 'core/calls/active_call_controller.dart';
 import 'core/calls/active_call_provider.dart';
@@ -11,15 +10,12 @@ import 'core/calls/models/call_kind.dart';
 import 'core/calls/notifications/call_notification_router.dart';
 import 'core/calls/notifications/call_notification_service.dart';
 import 'core/calls/notifications/ringing_call_provider.dart';
-import 'core/calls/platform/system_ring.dart';
 import 'core/calls/ring_coordinator.dart';
 import 'core/errors/best_effort.dart';
 import 'core/errors/global_error_handler.dart';
 import 'core/location/live_location_capture.dart';
 import 'core/location/live_location_sharing.dart';
 import 'core/location/live_location_viewing.dart';
-import 'core/matrix/background_long_poll.dart';
-import 'core/matrix/background_sync_lifecycle.dart';
 import 'core/matrix/connection_monitor.dart';
 import 'core/matrix/connectivity_provider.dart';
 import 'core/matrix/currently_open_room_provider.dart';
@@ -27,6 +23,7 @@ import 'core/matrix/homeserver.dart';
 import 'core/matrix/matrix_client_provider.dart';
 import 'core/matrix/room_invite.dart';
 import 'core/matrix/sign_out_wipe.dart';
+import 'core/matrix/sync_coordinator_provider.dart';
 import 'core/navigation/global_navigator.dart';
 import 'core/navigation/launch_route.dart';
 import 'core/navigation/root_route_reset.dart';
@@ -35,7 +32,6 @@ import 'core/notifications/notification_delivery_mode.dart';
 import 'core/notifications/notification_delivery_provider.dart';
 import 'core/notifications/notification_permission_provider.dart';
 import 'core/platform/platform_capabilities.dart';
-import 'core/push/incoming_push_handler.dart';
 import 'core/push/read_model/nse_services.dart';
 import 'core/push/read_model/opaque_thread_ids.dart';
 import 'core/settings/app_preferences_provider.dart';
@@ -154,8 +150,6 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   bool _launchHandled = false;
   bool _sawFirstResume = false;
   late final Future<void> _pendingRingShown;
-  late final Client _client = ref.read(matrixClientProvider);
-  late final _longPoll = BackgroundLongPoll(_client);
 
   @override
   void initState() {
@@ -163,14 +157,13 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     WidgetsBinding.instance.addObserver(this);
     ref.listenManual(nseServicesProvider, (_, _) {});
     ref.listenManual(liveLocationViewingProvider, (_, _) {});
-    ref.listenManual(connectionStatusProvider, (_, _) => _applyLiveShareSync());
     ref.listenManual(
       liveLocationSharingProvider,
       (_, sharing) => _bindLiveLocation(sharing),
       fireImmediately: true,
     );
     ref.listenManual(pushRingServicesProvider, (_, _) {});
-    trackPushClientFreshness(_client);
+    ref.listenManual(syncReasonsProvider, (_, _) {});
     bindAppStateToPushDelivery(
       currentlyOpenRoomId: () =>
           mounted ? ref.read(currentlyOpenRoomIdProvider) : null,
@@ -187,15 +180,6 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     _newDeviceTapSub = CallNotificationService.instance.onNewDeviceTap.listen(
       (_) => _openActiveSessions(),
     );
-    ref.listenManual(activeCallProvider, (_, session) {
-      if (session != null) {
-        _leaveLongPoll();
-        _resumeSyncForSystemCall();
-        return;
-      }
-      _pauseSyncIfBackgrounded();
-    });
-    SystemRing.instance.ringing.addListener(_onSystemRingChanged);
     ref.listenManual(notificationDeliveryModeProvider, (_, mode) {
       _syncNotificationDelivery(
         ref.read(isLoggedInProvider).value ?? false,
@@ -251,38 +235,17 @@ class _AuthGateState extends ConsumerState<_AuthGate>
 
   @override
   void dispose() {
-    untrackPushClientFreshness(_client);
     WidgetsBinding.instance.removeObserver(this);
-    SystemRing.instance.ringing.removeListener(_onSystemRingChanged);
     _shortcutSub?.cancel();
     _shareSub?.cancel();
     _messageTapSub?.cancel();
     _newDeviceTapSub?.cancel();
     _liveCaptureLostSub?.cancel();
-    _liveLocation?.needsSync.removeListener(_applyLiveShareSync);
-    _longPoll.stop();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final client = ref.read(matrixClientProvider);
-    final deliveryMode = ref.read(notificationDeliveryModeProvider);
-    if (client.isLogged()) {
-      if (shouldPauseBackgroundSync(
-        state,
-        deliveryMode,
-        keepSyncAlive: _needsLiveSync,
-      )) {
-        _longPoll.stop();
-        unawaited(client.abortSync());
-      } else if (shouldResumeBackgroundSync(state, deliveryMode)) {
-        _syncLoop(client);
-      } else if (_longPollsIn(state)) {
-        _longPoll.start();
-      }
-    }
-
     if (state != AppLifecycleState.resumed) return;
     CallNotificationService.instance.reclaimLiveRoutes();
     if (ref.read(platformCapabilitiesProvider).nativeNotificationActions) {
@@ -298,85 +261,22 @@ class _AuthGateState extends ConsumerState<_AuthGate>
       await router.releaseLockscreenIfIdle();
     }());
     unawaited(ref.read(notificationsAllowedProvider.notifier).refresh());
+    final client = ref.read(matrixClientProvider);
     if (client.isLogged()) {
-      unawaited(recheckDelivery(client, deliveryMode));
+      unawaited(
+        recheckDelivery(client, ref.read(notificationDeliveryModeProvider)),
+      );
     }
   }
 
-  bool _isAppSyncing() {
-    if (!mounted) return false;
-    final client = ref.read(matrixClientProvider);
-    return WidgetsBinding.instance.lifecycleState ==
-            AppLifecycleState.resumed &&
-        client.isLogged();
-  }
-
-  void _pauseSyncIfBackgrounded() {
-    final state = WidgetsBinding.instance.lifecycleState;
-    final client = ref.read(matrixClientProvider);
-    if (state == null || !client.isLogged()) return;
-    final deliveryMode = ref.read(notificationDeliveryModeProvider);
-    if (shouldPauseBackgroundSync(
-      state,
-      deliveryMode,
-      keepSyncAlive: _needsLiveSync,
-    )) {
-      _longPoll.stop();
-      unawaited(client.abortSync());
-    } else if (_longPollsIn(state)) {
-      _longPoll.start();
-    }
-  }
-
-  bool get _needsLiveSync => _callNeedsSync || _liveShareNeedsSync;
-
-  bool get _callNeedsSync =>
-      ref.read(activeCallProvider) != null ||
-      SystemRing.instance.ringing.value != null;
-
-  bool _longPollsIn(AppLifecycleState state) => shouldLongPollInBackground(
-    state,
-    ref.read(notificationDeliveryModeProvider),
-    forCall: _callNeedsSync,
-    forLiveShare: _liveShareNeedsSync,
-  );
-
-  void _syncLoop(Client client) {
-    _longPoll.stop();
-    client.backgroundSync = true;
-  }
-
-  void _leaveLongPoll() {
-    if (_longPoll.running && _client.isLogged()) _syncLoop(_client);
-  }
-
-  bool get _liveShareNeedsSync =>
-      (_liveLocation?.needsSync.value ?? false) &&
-      ref.read(connectionStatusProvider).value != ConnectionStatus.noInternet;
+  bool _isAppSyncing() =>
+      mounted && (ref.read(syncCoordinatorProvider)?.syncing ?? false);
 
   void _bindLiveLocation(LiveLocationSharing sharing) {
     if (identical(_liveLocation, sharing)) return;
-    _liveLocation?.needsSync.removeListener(_applyLiveShareSync);
     unawaited(_liveCaptureLostSub?.cancel());
     _liveLocation = sharing;
-    sharing.needsSync.addListener(_applyLiveShareSync);
     _liveCaptureLostSub = sharing.captureLost.listen(_onLiveCaptureLost);
-  }
-
-  void _applyLiveShareSync() {
-    if (!_liveShareNeedsSync) {
-      _pauseSyncIfBackgrounded();
-      return;
-    }
-    final state = WidgetsBinding.instance.lifecycleState;
-    if (state == null || state == AppLifecycleState.resumed) return;
-    final client = ref.read(matrixClientProvider);
-    if (!client.isLogged()) return;
-    if (_longPollsIn(state)) {
-      _longPoll.start();
-    } else {
-      _syncLoop(client);
-    }
   }
 
   void _onLiveCaptureLost(LiveCaptureFailure reason) {
@@ -392,25 +292,6 @@ class _AuthGateState extends ConsumerState<_AuthGate>
         }),
       ),
     );
-  }
-
-  void _onSystemRingChanged() {
-    if (SystemRing.instance.ringing.value != null) {
-      _leaveLongPoll();
-      _resumeSyncForSystemCall();
-      return;
-    }
-    if (!ref.read(platformCapabilitiesProvider).callKit) {
-      _pauseSyncIfBackgrounded();
-    }
-  }
-
-  void _resumeSyncForSystemCall() {
-    if (!ref.read(platformCapabilitiesProvider).callKit) return;
-    final state = WidgetsBinding.instance.lifecycleState;
-    if (state == null || state == AppLifecycleState.resumed) return;
-    final client = ref.read(matrixClientProvider);
-    if (client.isLogged()) _syncLoop(client);
   }
 
   Future<void> _showPendingRing() async {

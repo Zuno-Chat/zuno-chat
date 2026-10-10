@@ -173,7 +173,8 @@ so another client cannot claim a longer share.
   tile's sender until dragged, and can show your own location, which never
   leaves the device.
 - **Sync stays on in the background while a share runs**, because watches
-  and membership changes arrive only through it (`app-foundation.md`). On
+  and membership changes arrive only through it, and pauses only while the
+  device has no network (`app-foundation.md`). On
   Android without the battery exemption the duration step offers it, since
   Doze can cut a still phone's network mid-share.
 

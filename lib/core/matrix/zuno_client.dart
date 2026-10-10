@@ -2,6 +2,7 @@ import 'package:matrix/matrix.dart';
 
 import '../push/send_keep_awake.dart';
 import 'client_lease.dart';
+import 'sync_coordinator.dart';
 
 class ZunoClient extends Client {
   ZunoClient(
@@ -20,8 +21,14 @@ class ZunoClient extends Client {
   final bool appClient;
   final ClientLease? lease;
   final SendKeepAwake? keepAwake;
+  SyncCoordinator? syncCoordinator;
 
   bool _restoringSession = false;
+
+  // FIXME: matrix SDK adds a sync loop per mid-request abortSync() (upstream).
+  @override
+  set backgroundSync(bool enabled) =>
+      super.backgroundSync = enabled && syncCoordinator == null;
 
   Future<void> restoreSession() async {
     _restoringSession = true;
@@ -41,8 +48,13 @@ class ZunoClient extends Client {
       return;
     }
     if (_restoringSession && reason == SessionClearReason.initFailed) return;
+    syncCoordinator?.cancelWaitingRequest();
     await super.clear(reason: reason);
   }
+
+  @override
+  Future<void> clearCache() =>
+      syncCoordinator?.whileIdle(super.clearCache) ?? super.clearCache();
 
   @override
   Future<void> sendToDeviceEncrypted(
@@ -75,6 +87,7 @@ class ZunoClient extends Client {
 
   @override
   Future<void> dispose({bool closeDatabase = true}) async {
+    syncCoordinator?.dispose();
     try {
       await super.dispose(closeDatabase: closeDatabase);
     } finally {

@@ -26,7 +26,6 @@ import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/errors/global_error_handler.dart';
 import '../../../core/matrix/communities.dart';
-import '../../../core/matrix/force_sync.dart';
 import '../../../core/matrix/join_requests.dart';
 import '../../../core/matrix/join_room.dart';
 import '../../../core/matrix/local_username_dialog.dart';
@@ -257,21 +256,6 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       messenger.showSnackBar(
         SnackBar(content: Text(failureMessage(e, failed: failed))),
       );
-    }
-  }
-
-  Future<void> _refresh(BuildContext context, Client client) async {
-    try {
-      await forceSyncNow(client);
-    } catch (e) {
-      logCaught('sync', e);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not refresh. Check your connection.'),
-          ),
-        );
-      }
     }
   }
 
@@ -644,30 +628,25 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
                 const NotificationDeliveryBanner(),
                 OwnLiveLocationBanner(onOpen: open),
                 Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () => _refresh(context, client),
-                    child: communities
-                        ? ChatListView.communities(
-                            key: const ValueKey(HomeTab.communities),
-                            client: client,
-                            layout: layout,
-                            unreadCorrections: unreadCorrections,
-                            onOpen: open,
-                            onActions: (room) =>
-                                _showRoomActions(context, room),
-                            loading: loading,
-                          )
-                        : ChatListView.chats(
-                            key: const ValueKey(HomeTab.chats),
-                            client: client,
-                            layout: layout,
-                            unreadCorrections: unreadCorrections,
-                            onOpen: open,
-                            onActions: (room) =>
-                                _showRoomActions(context, room),
-                            loading: loading,
-                          ),
-                  ),
+                  child: communities
+                      ? ChatListView.communities(
+                          key: const ValueKey(HomeTab.communities),
+                          client: client,
+                          layout: layout,
+                          unreadCorrections: unreadCorrections,
+                          onOpen: open,
+                          onActions: (room) => _showRoomActions(context, room),
+                          loading: loading,
+                        )
+                      : ChatListView.chats(
+                          key: const ValueKey(HomeTab.chats),
+                          client: client,
+                          layout: layout,
+                          unreadCorrections: unreadCorrections,
+                          onOpen: open,
+                          onActions: (room) => _showRoomActions(context, room),
+                          loading: loading,
+                        ),
                 ),
               ],
             ),

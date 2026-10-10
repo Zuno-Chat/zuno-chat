@@ -1,7 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart'
-    show debugPrint, kDebugMode, visibleForTesting;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,6 +16,7 @@ import '../calls/platform/incoming_call_presenter.dart';
 import '../calls/platform/system_ring.dart';
 import '../matrix/room_title.dart';
 import '../matrix/undecryptable_event.dart';
+import '../matrix/zuno_client.dart';
 import '../notifications/invite_notification_provider.dart';
 import '../notifications/message_notification_image.dart';
 import '../notifications/message_notification_poster.dart';
@@ -28,50 +28,7 @@ import 'push_timing.dart';
 
 const defaultPlaceholderAfter = Duration(seconds: 3);
 const messageCatchUpWait = Duration(milliseconds: 1500);
-const _staleAfter = Duration(seconds: 15);
 const _noticeReplacedWithin = Duration(seconds: 30);
-
-final _lastSyncs = Expando<DateTime>();
-final _freshness = Expando<StreamSubscription<SyncUpdate>>();
-final _catchUps = Expando<Future<void>>();
-
-void trackPushClientFreshness(Client client) {
-  if (_freshness[client] != null) return;
-  _freshness[client] = client.onSync.stream.listen(
-    (_) => _lastSyncs[client] = DateTime.now(),
-  );
-}
-
-void untrackPushClientFreshness(Client client) {
-  unawaited(_freshness[client]?.cancel());
-  _freshness[client] = null;
-  _lastSyncs[client] = null;
-}
-
-@visibleForTesting
-bool tracksPushClientFreshness(Client client) => _freshness[client] != null;
-
-Future<void>? _catchUpIfStale(Client client) {
-  if (_freshness[client] == null) return null;
-  final running = _catchUps[client];
-  if (running != null) return running;
-  if (client.syncPending) return null;
-  final last = _lastSyncs[client];
-  if (last != null && DateTime.now().difference(last) < _staleAfter) {
-    return null;
-  }
-  debugPrint('zuno/push: the app\'s client is behind, catching up alongside');
-  final catchUp = client
-      .oneShotSync(timeout: Duration.zero)
-      .then<void>((_) {}, onError: (_) {});
-  _catchUps[client] = catchUp;
-  unawaited(
-    catchUp.whenComplete(() {
-      if (identical(_catchUps[client], catchUp)) _catchUps[client] = null;
-    }),
-  );
-  return catchUp;
-}
 
 Future<bool> _readSince(Client client, Event event) async {
   final room = client.getRoomById(event.room.id) ?? event.room;
@@ -139,7 +96,9 @@ Future<IncomingPushOutcome> _handle(
     notification,
     quiet: notifyMe == NotifyMe.mentionsOnly,
   );
-  final catchUp = _catchUpIfStale(client);
+  final catchUp = client is ZunoClient
+      ? client.syncCoordinator?.catchUp()
+      : null;
   final Event? event;
   try {
     event = await placeholder.race(

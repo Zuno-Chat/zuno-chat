@@ -6,7 +6,6 @@ import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
-import '../../../core/matrix/force_sync.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/security/password_strength.dart';
 import '../../../core/security/prepared_uia_password.dart';
@@ -95,7 +94,7 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
 
     if (bootstrap.state == BootstrapState.done && !_syncedAfterDone) {
       _syncedAfterDone = true;
-      unawaited(_restoreThenRefresh(ref.read(matrixClientProvider)));
+      unawaited(restoreKeyBackupFromRecovery(ref.read(matrixClientProvider)));
       if (_wipeExisting) {
         unawaited(
           forgetConfirmationsAfterIdentityReset(
@@ -105,14 +104,6 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
         );
       }
     }
-  }
-
-  Future<void> _restoreThenRefresh(Client client) async {
-    await restoreKeyBackupFromRecovery(client);
-    await runBestEffort(
-      () => forceSyncNow(client),
-      label: 'forceSyncNow after recovery',
-    );
   }
 
   void _maybeAutoAdvance() {

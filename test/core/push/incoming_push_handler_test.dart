@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
@@ -19,6 +20,9 @@ import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/sync_coordinator.dart';
+import 'package:zuno/core/matrix/sync_request_canceller.dart';
+import 'package:zuno/core/matrix/zuno_client.dart';
 import 'package:zuno/core/notifications/invite_notification_provider.dart';
 import 'package:zuno/core/notifications/notified_events_store.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
@@ -30,7 +34,7 @@ import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/hybrid_fake_async.dart';
 
-class _ScriptedClient extends Client {
+class _ScriptedClient extends ZunoClient {
   _ScriptedClient() : super('test', database: FakeDatabaseApi());
 
   Event? resolved;
@@ -1218,7 +1222,17 @@ void main() {
   });
 
   group('the app\'s own client', () {
-    tearDown(() => untrackPushClientFreshness(client));
+    setUp(
+      () => client.syncCoordinator = SyncCoordinator(
+        client,
+        SyncRequestCanceller(http.Client()),
+      ),
+    );
+
+    tearDown(() {
+      client.syncCoordinator?.dispose();
+      client.syncCoordinator = null;
+    });
 
     Event messageWithId(String eventId) => buildTestEvent(
       room,
@@ -1229,7 +1243,6 @@ void main() {
 
     test('after a long quiet catches up with the server alongside the fetch, '
         'without a long poll, and leaves storing the event to it', () async {
-      trackPushClientFreshness(client);
       client.resolved = message();
 
       await handle();
@@ -1241,7 +1254,6 @@ void main() {
 
     test('a message read on another device during the quiet stays silent '
         'once the catch-up brings the read marker', () async {
-      trackPushClientFreshness(client);
       client.onCaughtUp = () => room.roomAccountData['m.fully_read'] =
           BasicEvent(type: 'm.fully_read', content: {'event_id': r'$event'});
       client.resolved = message();
@@ -1251,7 +1263,6 @@ void main() {
     });
 
     test('a ring never waits for the catch-up', () async {
-      trackPushClientFreshness(client);
       client.catchUpGate = Completer<void>().future;
       client.resolved = callInvite();
 
@@ -1262,7 +1273,6 @@ void main() {
     });
 
     test('a hang-up never waits for the catch-up', () async {
-      trackPushClientFreshness(client);
       client.catchUpGate = Completer<void>().future;
       client.resolved = callSummary(status: CallSummaryStatus.ended);
 
@@ -1275,7 +1285,6 @@ void main() {
 
     test('a second push during the catch-up joins it, and both wait for it '
         'before deciding', () async {
-      trackPushClientFreshness(client);
       final gate = Completer<void>();
       client.catchUpGate = gate.future;
       client.events.addAll({
@@ -1296,7 +1305,6 @@ void main() {
     });
 
     test('that synced moments ago is not synced again', () async {
-      trackPushClientFreshness(client);
       client.onSync.add(SyncUpdate(nextBatch: 's2'));
       await pumpEventQueue();
       client.resolved = message();
@@ -1309,7 +1317,6 @@ void main() {
 
     test('that is syncing already is left to it, storing the event '
         'included', () async {
-      trackPushClientFreshness(client);
       client.syncing = true;
       client.resolved = message();
 
@@ -1321,7 +1328,6 @@ void main() {
 
     test('whose catch-up hangs decides a message on what it knew, after a '
         'short wait', () async {
-      trackPushClientFreshness(client);
       client.catchUpGate = Completer<void>().future;
       client.resolved = message();
       final time = FakeAsync();

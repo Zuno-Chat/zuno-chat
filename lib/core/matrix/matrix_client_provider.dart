@@ -27,6 +27,8 @@ import 'ephemeral_to_device.dart';
 import 'fresh_token_http_client.dart';
 import 'sdk_logs.dart';
 import 'session_refresh.dart';
+import 'sync_coordinator.dart';
+import 'sync_request_canceller.dart';
 import 'upload_progress_http_client.dart';
 import 'vodozemac_init.dart';
 import 'zuno_client.dart';
@@ -152,9 +154,12 @@ Future<StartedMatrixClient> _startClient(
   final watch = Stopwatch()..start();
 
   ZunoClient? client;
+  final syncRequests = SyncRequestCanceller(
+    IOClient(HttpClient()..connectionTimeout = _connectTimeout),
+  );
   final uploadProgressHttpClient = UploadProgressHttpClient(
     FreshTokenHttpClient(
-      IOClient(HttpClient()..connectionTimeout = _connectTimeout),
+      syncRequests,
       accessToken: () => client?.accessToken,
       ensureFresh: () async {
         await client?.ensureNotSoftLoggedOut();
@@ -195,6 +200,9 @@ Future<StartedMatrixClient> _startClient(
       lease: lease,
       keepAwake: exportsSessions ? sendKeepAwake : null,
     );
+    if (backgroundSync) {
+      started.syncCoordinator = SyncCoordinator(started, syncRequests);
+    }
     await vodInitFuture;
 
     started.importantStateEvents

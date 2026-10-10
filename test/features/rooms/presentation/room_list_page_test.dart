@@ -33,35 +33,20 @@ import 'package:zuno/features/verification/presentation/verification_page.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../verification/presentation/verification_harness.dart';
 
-class _SyncStubClient extends Client {
-  _SyncStubClient({required super.httpClient})
+class _StubClient extends Client {
+  _StubClient({required super.httpClient})
     : super('test', database: TimelineCapableFakeDatabaseApi());
 
-  Object? syncError;
-  int syncs = 0;
   bool withEncryption = false;
 
   late final Encryption _encryption = Encryption(client: this);
 
   @override
   Encryption? get encryption => withEncryption ? _encryption : null;
-
-  @override
-  Future<void> abortSync() async {}
-
-  @override
-  Future<void> oneShotSync({Duration? timeout}) async {
-    syncs++;
-    final error = syncError;
-    if (error != null) throw error;
-  }
-
-  @override
-  set backgroundSync(bool enabled) {}
 }
 
 void main() {
-  late _SyncStubClient client;
+  late _StubClient client;
   late Room room;
   late List<http.Request> requests;
   late bool offline;
@@ -88,7 +73,7 @@ void main() {
     offline = false;
     verifications = StreamController<KeyVerification>.broadcast();
     addTearDown(verifications.close);
-    client = _SyncStubClient(
+    client = _StubClient(
       httpClient: MockClient((request) async {
         requests.add(request);
         if (offline) {
@@ -361,36 +346,6 @@ void main() {
     await bounded(tester);
 
     expect(find.byType(SettingsPage), findsOneWidget);
-  });
-
-  group('pulling down', () {
-    Future<void> pull(WidgetTester tester) async {
-      await tester.fling(find.text('Book club'), const Offset(0, 800), 1000);
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
-      await tester.pumpAndSettle();
-    }
-
-    testWidgets('syncs at once', (tester) async {
-      await pumpRoomList(tester);
-
-      await pull(tester);
-
-      expect(client.syncs, 1);
-      expect(find.byType(SnackBar), findsNothing);
-    });
-
-    testWidgets('says so when the sync fails', (tester) async {
-      client.syncError = http.ClientException('Failed host lookup');
-      await pumpRoomList(tester);
-
-      await pull(tester);
-
-      expect(
-        find.text('Could not refresh. Check your connection.'),
-        findsOneWidget,
-      );
-    });
   });
 
   testWidgets('a new room can be created from the keyboard', (tester) async {

@@ -467,6 +467,18 @@ void main() {
         expect((app as ZunoClient).appClient, isTrue);
         expect((background as ZunoClient).appClient, isFalse);
       });
+
+      test(
+        'only the app\'s client has its sync run by a coordinator',
+        () async {
+          final app = await create();
+          await obtainDatabaseCipher();
+          final background = await create(backgroundSync: false);
+
+          expect((app as ZunoClient).syncCoordinator, isNotNull);
+          expect((background as ZunoClient).syncCoordinator, isNull);
+        },
+      );
     });
 
     group('compaction', () {
