@@ -1,7 +1,8 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
+
+import '../errors/caught_errors.dart';
 
 PushNotification? pushNotificationFromFcmData(Map<String, dynamic> data) {
   final eventId = data['event_id'];
@@ -31,8 +32,8 @@ PushNotification? pushNotificationFromFcmData(Map<String, dynamic> data) {
       senderDisplayName: parsed.senderDisplayName,
       type: parsed.type,
     );
-  } catch (e) {
-    debugPrint('zuno/push: FCM payload partly unreadable ($e)');
+  } catch (e, s) {
+    reportCaughtType('fcm payload parse', e, s);
     return PushNotification(eventId: eventId, roomId: roomId, counts: counts);
   }
 }

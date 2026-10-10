@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../errors/caught_errors.dart';
 import '../matrix/session_display_name.dart';
 import '../push/fcm_bridge.dart';
 import '../push/fcm_gateway.dart';
@@ -13,6 +14,7 @@ import '../push/fcm_pusher.dart';
 import '../push/fcm_registration_store.dart';
 import '../push/headless_push_runner.dart';
 import '../push/pusher_reconciliation.dart';
+import '../push/pusher_removal.dart';
 import '../push/registration_retry.dart';
 import 'notification_delivery_provider.dart';
 import 'notification_permission.dart';
@@ -191,10 +193,8 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     String? current;
     try {
       current = await tokenReader();
-    } catch (e) {
-      debugPrint(
-        'zuno/push: FCM token check failed, keeping registration ($e)',
-      );
+    } catch (e, s) {
+      _reportTokenFailure('fcm token check', e, s);
     }
     final registered = _token;
     if (registered == null) return false;
@@ -231,16 +231,17 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     String? token;
     try {
       token = await tokenReader();
-    } catch (e) {
-      debugPrint('zuno/push: FCM token request failed ($e)');
+    } catch (e, s) {
       final permanent = e is FcmTokenException
           ? _permanentTokenFailure(e.failure)
           : null;
       if (permanent != null) {
+        debugPrint('zuno/push: FCM token request failed ($e)');
         _retry.cancel();
         status.value = permanent;
         return;
       }
+      _reportTokenFailure('fcm token request', e, s);
     }
     if (token == null || token.isEmpty) {
       status.value = FcmStatus.tokenFailed;
@@ -274,7 +275,8 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
           deviceDisplayName: sessionDisplayName(Platform.operatingSystem),
         ),
       );
-    } catch (e) {
+    } catch (e, s) {
+      reportCaught('fcm pusher post', e, s);
       lastPusherError = e.toString();
       status.value = FcmStatus.pusherFailed;
       _retry.schedule(() => registerNow(client));
@@ -290,9 +292,9 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     await _clearPendingToken();
     if (replaced != null && replaced != token) {
       try {
-        await client.deletePusher(fcmPusherId(replaced));
-      } catch (e) {
-        debugPrint('zuno/push: could not remove the replaced FCM pusher ($e)');
+        await removePusher(client, fcmPusherId(replaced));
+      } catch (e, s) {
+        reportCaught('fcm replaced pusher delete', e, s);
       }
     }
     return true;
@@ -303,7 +305,8 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload();
       return prefs;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('fcm prefs reload', e, s);
       return null;
     }
   }
@@ -318,8 +321,8 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     if (prefs == null || !prefs.containsKey(fcmPendingTokenKey)) return;
     try {
       await prefs.remove(fcmPendingTokenKey);
-    } catch (e) {
-      debugPrint('zuno/push: could not clear the pending FCM token ($e)');
+    } catch (e, s) {
+      reportCaught('fcm pending token clear', e, s);
     }
   }
 
@@ -329,8 +332,8 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
         await SharedPreferences.getInstance(),
         token: token,
       );
-    } catch (e) {
-      debugPrint('zuno/push: could not remember the FCM registration ($e)');
+    } catch (e, s) {
+      reportCaught('fcm registration write', e, s);
     }
   }
 
@@ -339,8 +342,8 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     final Stream<String> refreshes;
     try {
       refreshes = tokenRefreshStream();
-    } catch (e) {
-      debugPrint('zuno/push: could not subscribe to token refresh ($e)');
+    } catch (e, s) {
+      reportCaught('fcm token refresh subscribe', e, s);
       return;
     }
     _tokenRefreshSub = refreshes.listen((token) async {
@@ -372,24 +375,25 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
       try {
         await clearFcmRegistration(prefs);
         await prefs.remove(fcmPendingTokenKey);
-      } catch (e) {
-        debugPrint('zuno/push: could not forget the FCM registration ($e)');
+      } catch (e, s) {
+        reportCaught('fcm registration forget', e, s);
       }
     }
     if (tokens.isNotEmpty) {
       String? failure;
       for (final token in tokens) {
         try {
-          await client.deletePusher(fcmPusherId(token));
-        } catch (e) {
+          await removePusher(client, fcmPusherId(token));
+        } catch (e, s) {
+          reportCaught('fcm pusher delete', e, s);
           failure = 'Could not remove the push registration: $e';
         }
       }
       lastPusherError = failure;
       try {
         await tokenDeleter();
-      } catch (e) {
-        debugPrint('zuno/push: FCM token deletion failed ($e)');
+      } catch (e, s) {
+        reportCaught('fcm token delete', e, s);
       }
     }
     unawaited(_tokenRefreshSub?.cancel());
@@ -414,6 +418,15 @@ FcmStatus? _unavailableStatus(FcmAvailability availability) =>
       FcmAvailability.unavailable => FcmStatus.playServicesUnavailable,
       FcmAvailability.notConfigured => FcmStatus.notConfigured,
     };
+
+void _reportTokenFailure(String label, Object error, StackTrace stack) {
+  if (error is FcmTokenException &&
+      error.failure == FcmTokenFailure.unavailable) {
+    debugPrint('zuno/push: FCM token service unreachable ($error)');
+    return;
+  }
+  reportCaught(label, error, stack);
+}
 
 FcmStatus? _permanentTokenFailure(FcmTokenFailure failure) => switch (failure) {
   FcmTokenFailure.noPlayServices => FcmStatus.playServicesUnavailable,

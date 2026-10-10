@@ -61,6 +61,7 @@ class UploadForegroundService : Service() {
             } catch (error: IllegalStateException) {
                 false
             } catch (error: SecurityException) {
+                CaughtErrors.record(context, "upload service start", error)
                 false
             }
         }

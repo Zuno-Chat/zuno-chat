@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
-import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import 'attachment_actions.dart';
 
 class AttachmentActionButtons extends StatelessWidget {
@@ -56,8 +56,8 @@ Future<void> saveAttachmentsWithFeedback(
         content: Text(savedSummary(saved: saved, total: events.length)),
       ),
     );
-  } catch (e) {
-    logCaught('save attachment', e);
+  } catch (e, s) {
+    if (!isGalleryAccessDenied(e)) reportCaught('save attachment', e, s);
     messenger.showSnackBar(
       const SnackBar(content: Text('Could not save. Try again.')),
     );
@@ -83,8 +83,8 @@ Future<void> shareAttachmentsWithFeedback(
         );
       },
     );
-  } catch (e) {
-    logCaught('share attachment', e);
+  } catch (e, s) {
+    reportCaught('share attachment', e, s);
     failure = 'Could not share. Try again.';
   }
   if (preparing) messenger.hideCurrentSnackBar();

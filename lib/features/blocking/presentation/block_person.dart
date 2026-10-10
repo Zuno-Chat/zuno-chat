@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/end_call.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/official_room.dart';
 
 typedef BlockPerson = Future<void> Function(String userId);
@@ -75,7 +76,8 @@ class _BlockDialogState extends State<_BlockDialog> {
     });
     try {
       await widget.block(widget.userId);
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('block person', e, s);
       if (mounted) {
         setState(() {
           _blocking = false;

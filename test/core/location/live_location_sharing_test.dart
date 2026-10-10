@@ -13,6 +13,7 @@ import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_recipients.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
 
+import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_device_keys.dart';
 import '../../helpers/fake_live_location.dart';
 
@@ -470,6 +471,41 @@ void main() {
         parseLivePosition(positions().last.content)?.position.geo.toUriString(),
         northBy(600).toUriString(),
       );
+    });
+
+    group('what a failed send reports', () {
+      late List<String> logs;
+
+      setUp(() => logs = recordDebugPrints());
+
+      Iterable<String> caught() =>
+          logs.where((line) => line.startsWith('zuno/caught:'));
+
+      test('a position that does not go out is reported as the send', () async {
+        client.sendError = Exception('unreachable');
+
+        await startSharing();
+
+        expect(caught(), [
+          'zuno/caught: live location position send: _Exception',
+        ]);
+      });
+
+      test('recipients that cannot be listed are reported as the round, not '
+          'the send', () async {
+        sharing.dispose();
+        sharing = LiveLocationSharing(
+          client: client,
+          capture: capture,
+          isOffline: () => offline,
+          recipients: (_) async => throw StateError('no members'),
+          now: () => now,
+        );
+
+        await startSharing();
+
+        expect(caught(), ['zuno/caught: live location send round: StateError']);
+      });
     });
 
     test(

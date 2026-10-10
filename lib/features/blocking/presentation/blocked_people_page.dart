@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/ui/card_group.dart';
@@ -56,7 +57,8 @@ class _BlockedPeoplePageState extends ConsumerState<BlockedPeoplePage> {
     setState(() => _busy = true);
     try {
       await (widget.unblock ?? client.unignoreUser)(userId);
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('unblock person', e, s);
       if (mounted) setState(() => _busy = false);
       messenger.showSnackBar(
         const SnackBar(content: Text('Not unblocked. Try again.')),

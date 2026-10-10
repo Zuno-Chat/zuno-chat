@@ -4,6 +4,7 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 
 enum ClientLeaseKind { app, background }
@@ -95,14 +96,18 @@ class ClientLeases {
       return (token: token, denied: token == null);
     } on TimeoutException {
       if (kind == ClientLeaseKind.background) {
-        unawaited(reply.then(_letGo, onError: (_) {}));
+        unawaited(
+          reply.then(
+            _letGo,
+            onError: (Object e, StackTrace s) =>
+                reportCaught('take the client lease late', e, s),
+          ),
+        );
       }
       debugPrint('zuno/db: no answer about the client lease (${kind.name})');
       return _unanswered;
-    } on MissingPluginException {
-      return _unchecked;
-    } catch (e) {
-      debugPrint('zuno/db: the client lease could not be checked ($e)');
+    } catch (e, s) {
+      reportCaught('check the client lease', e, s);
       return _unchecked;
     }
   }
@@ -111,8 +116,8 @@ class ClientLeases {
     if (token == null) return;
     try {
       await channel.invokeMethod<void>('release', {'token': token});
-    } catch (e) {
-      debugPrint('zuno/db: the client lease was not given back ($e)');
+    } catch (e, s) {
+      reportCaught('give back the client lease', e, s);
     }
   }
 

@@ -50,13 +50,15 @@ struct NotifyStore: Sendable {
       at: directory.appendingPathComponent("rooms", isDirectory: true),
       withIntermediateDirectories: true,
       attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
-    try? files.setAttributes(
-      [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-      ofItemAtPath: directory.path)
+    CaughtErrors.attempt("notify store protect") {
+      try files.setAttributes(
+        [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+        ofItemAtPath: directory.path)
+    }
     var excluded = directory
     var values = URLResourceValues()
     values.isExcludedFromBackup = true
-    try? excluded.setResourceValues(values)
+    CaughtErrors.attempt("notify store exclude backup") { try excluded.setResourceValues(values) }
   }
 
   func read(_ name: String, key: SymmetricKey) -> SealedRead {
@@ -65,11 +67,18 @@ struct NotifyStore: Sendable {
       data = try Data(contentsOf: url(name))
     } catch CocoaError.fileReadNoSuchFile {
       return .missing
+    } catch CocoaError.fileReadNoPermission {
+      return .unreadable
     } catch {
+      CaughtErrors.record("notify store read", error)
       return .unreadable
     }
-    guard let plaintext = try? SealedFile.open(data, name: name, key: key) else { return .corrupt }
-    return .found(plaintext)
+    do {
+      return .found(try SealedFile.open(data, name: name, key: key))
+    } catch {
+      CaughtErrors.record("notify store open", error)
+      return .corrupt
+    }
   }
 
   func write(_ name: String, plaintext: Data, key: SymmetricKey) throws {
@@ -86,21 +95,29 @@ struct NotifyStore: Sendable {
   }
 
   func remove(_ name: String) {
-    try? FileManager.default.removeItem(at: url(name))
+    Self.removeItem(at: url(name), "notify store remove")
   }
 
   func wipe() {
     let files = FileManager.default
-    guard
-      let items = try? files.contentsOfDirectory(
+    let items: [URL]
+    do {
+      items = try files.contentsOfDirectory(
         at: directory, includingPropertiesForKeys: nil, options: [])
-    else { return }
-    for item in items where item.lastPathComponent != NotifyFile.signedOut {
-      try? files.removeItem(at: item)
+    } catch CocoaError.fileReadNoSuchFile {
+      return
+    } catch {
+      CaughtErrors.record("notify store wipe list", error)
+      return
     }
-    try? files.createDirectory(
-      at: directory.appendingPathComponent("rooms", isDirectory: true),
-      withIntermediateDirectories: true)
+    for item in items where item.lastPathComponent != NotifyFile.signedOut {
+      Self.removeItem(at: item, "notify store wipe remove")
+    }
+    CaughtErrors.attempt("notify store wipe recreate") {
+      try files.createDirectory(
+        at: directory.appendingPathComponent("rooms", isDirectory: true),
+        withIntermediateDirectories: true)
+    }
   }
 
   func writeRingFlag(_ ringtoneOn: Bool) throws {
@@ -108,9 +125,16 @@ struct NotifyStore: Sendable {
   }
 
   func readRingFlag() -> Bool? {
-    guard let data = try? Data(contentsOf: url(NotifyFile.ringFlag)), data.count == 1 else {
+    let data: Data
+    do {
+      data = try Data(contentsOf: url(NotifyFile.ringFlag))
+    } catch CocoaError.fileReadNoSuchFile {
+      return nil
+    } catch {
+      CaughtErrors.record("notify store ring flag read", error)
       return nil
     }
+    guard data.count == 1 else { return nil }
     switch data[data.startIndex] {
     case 0x31: return true
     case 0x30: return false
@@ -134,7 +158,10 @@ struct NotifyStore: Sendable {
       return .present
     } catch CocoaError.fileReadNoSuchFile {
       return .absent
+    } catch CocoaError.fileReadNoPermission {
+      return .unreadable
     } catch {
+      CaughtErrors.record("notify store signed out read", error)
       return .unreadable
     }
   }
@@ -148,21 +175,39 @@ struct NotifyStore: Sendable {
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     let temporary = folder.appendingPathComponent(".\(UUID().uuidString).tmp")
     let descriptor = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
-    guard descriptor >= 0 else { throw CocoaError(.fileWriteUnknown) }
+    guard descriptor >= 0 else { throw POSIXError.current }
     let written = data.withUnsafeBytes { buffer in
       Darwin.write(descriptor, buffer.baseAddress, buffer.count)
     }
+    let writeFailure = written < 0 ? POSIXError.current : nil
     let synced = fsync(descriptor)
+    let syncFailure = synced == 0 ? nil : POSIXError.current
     close(descriptor)
     guard written == data.count, synced == 0 else {
       try? FileManager.default.removeItem(at: temporary)
-      throw CocoaError(.fileWriteUnknown)
+      throw writeFailure ?? syncFailure ?? POSIXError(.EIO)
     }
-    try? FileManager.default.setAttributes(
-      [.protectionKey: protection], ofItemAtPath: temporary.path)
+    CaughtErrors.attempt("notify store protect file") {
+      try FileManager.default.setAttributes(
+        [.protectionKey: protection], ofItemAtPath: temporary.path)
+    }
     guard rename(temporary.path, target.path) == 0 else {
+      let failure = POSIXError.current
       try? FileManager.default.removeItem(at: temporary)
-      throw CocoaError(.fileWriteUnknown)
+      throw failure
     }
   }
+
+  private static func removeItem(at url: URL, _ label: String) {
+    do {
+      try FileManager.default.removeItem(at: url)
+    } catch CocoaError.fileNoSuchFile {
+    } catch {
+      CaughtErrors.record(label, error)
+    }
+  }
+}
+
+extension POSIXError {
+  static var current: POSIXError { POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
 }

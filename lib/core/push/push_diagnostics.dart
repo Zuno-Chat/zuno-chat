@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 
 class PushDiagnostics {
@@ -22,8 +22,8 @@ class PushDiagnostics {
       return raw is Map ? raw : null;
     } on MissingPluginException {
       return null;
-    } on PlatformException catch (e) {
-      debugPrint('zuno/push: diagnostics unavailable (${e.code})');
+    } on PlatformException catch (e, s) {
+      reportCaught('push diagnostics snapshot', e.code, s);
       return null;
     }
   }

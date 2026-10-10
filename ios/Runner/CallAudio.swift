@@ -152,9 +152,9 @@ final class CallAudioEngineGate: @unchecked Sendable {
     let result = module.setEngineAvailability(availability)
     applied = result == 0 ? available : nil
     if result != 0 {
-      let wanted = available
-      CallAudio.log.error(
-        "engine availability \(wanted, privacy: .public) refused: \(result, privacy: .public)")
+      CaughtErrors.record(
+        available ? "call audio engine enable" : "call audio engine disable",
+        NSError(domain: "org.webrtc.RTCAudioDeviceModule", code: result))
     }
   }
 }
@@ -189,7 +189,9 @@ final class CallRingback {
       return
     }
     if player == nil {
-      player = try? AVAudioPlayer(data: tone, fileTypeHint: AVFileType.wav.rawValue)
+      player = CaughtErrors.attempt("call ringback player") {
+        try AVAudioPlayer(data: tone, fileTypeHint: AVFileType.wav.rawValue)
+      }
       player?.numberOfLoops = -1
     }
     if player?.isPlaying == false {
@@ -239,6 +241,13 @@ final class CallRingback {
 @MainActor
 final class CallAudio {
   nonisolated static let log = Logger(subsystem: "im.zuno.chat", category: "call-audio")
+
+  nonisolated static func isSessionError(_ error: any Error, _ code: AVAudioSession.ErrorCode)
+    -> Bool
+  {
+    let bridged = error as NSError
+    return bridged.domain == NSOSStatusErrorDomain && bridged.code == code.rawValue
+  }
 
   let ringback = CallRingback()
   var onRouteChange: ((CallAudioState) -> Void)?
@@ -302,7 +311,13 @@ final class CallAudio {
       rebalance?.cancel()
       let session = AVAudioSession.sharedInstance()
       if !isActive {
-        try? session.setActive(false)
+        do {
+          try session.setActive(false)
+        } catch let error where Self.isSessionError(error, .isBusy) {
+          Self.log.notice("call audio reset: the session is busy")
+        } catch {
+          CaughtErrors.record("call audio reset", error)
+        }
       }
       if saved == nil {
         saved = (session.category, session.mode, session.categoryOptions)
@@ -344,9 +359,10 @@ final class CallAudio {
       try rtc.setActive(true)
       selfManaged = true
       activated()
+    } catch let error where Self.isSessionError(error, .insufficientPriority) {
+      Self.log.notice("call audio self-managed activation: another call has priority")
     } catch {
-      Self.log.error(
-        "self-managed activation failed: \(error.localizedDescription, privacy: .public)")
+      CaughtErrors.record("call audio self-managed activation", error)
     }
   }
 
@@ -357,7 +373,9 @@ final class CallAudio {
     ringback.setWanted(false)
     inCall = false
     if AVAudioApplication.shared.isInputMuted {
-      try? AVAudioApplication.shared.setInputMuted(false)
+      CaughtErrors.attempt("call audio unmute") {
+        try AVAudioApplication.shared.setInputMuted(false)
+      }
     }
     if selfManaged {
       endSelfManaged()
@@ -433,12 +451,7 @@ final class CallAudio {
     deactivated()
     let rtc = RTCAudioSession.sharedInstance()
     rtc.lockForConfiguration()
-    do {
-      try rtc.setActive(false)
-    } catch {
-      Self.log.error(
-        "self-managed deactivation failed: \(error.localizedDescription, privacy: .public)")
-    }
+    CaughtErrors.attempt("call audio self-managed deactivation") { try rtc.setActive(false) }
     rtc.unlockForConfiguration()
     restoreIfIdle()
   }
@@ -466,8 +479,7 @@ final class CallAudio {
       try rtc.setCategory(.playAndRecord, mode: .voiceChat, options: CallAudioRouting.callOptions)
       return true
     } catch {
-      Self.log.error(
-        "call session configuration failed: \(error.localizedDescription, privacy: .public)")
+      CaughtErrors.record("call audio configure", error)
       return false
     }
   }
@@ -476,12 +488,14 @@ final class CallAudio {
     guard !inCall, !isActive, let saved else { return }
     self.saved = nil
     let session = AVAudioSession.sharedInstance()
-    try? session.overrideOutputAudioPort(.none)
-    try? session.setPreferredInput(nil)
+    CaughtErrors.attempt("call audio restore output") { try session.overrideOutputAudioPort(.none) }
+    CaughtErrors.attempt("call audio restore input") { try session.setPreferredInput(nil) }
     let rtc = RTCAudioSession.sharedInstance()
     rtc.lockForConfiguration()
     defer { rtc.unlockForConfiguration() }
-    try? rtc.setCategory(saved.category, mode: saved.mode, options: saved.options)
+    CaughtErrors.attempt("call audio restore category") {
+      try rtc.setCategory(saved.category, mode: saved.mode, options: saved.options)
+    }
   }
 
   private func apply(_ route: CallAudioRoute) {
@@ -498,9 +512,7 @@ final class CallAudio {
         try session.setPreferredInput(inputs.first { $0.portType == port })
       }
     } catch {
-      let detail = error.localizedDescription
-      Self.log.error(
-        "route \(route.rawValue, privacy: .public) failed: \(detail, privacy: .public)")
+      CaughtErrors.record("call audio route \(route.rawValue)", error)
     }
   }
 

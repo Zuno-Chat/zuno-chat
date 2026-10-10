@@ -110,12 +110,13 @@ class FakeSender extends RTCRtpSender {
 }
 
 class FakeReceiver extends RTCRtpReceiver {
-  FakeReceiver(this.receiverId, this.track);
+  FakeReceiver(this.receiverId, this.track, {this.owner});
 
   @override
   final String receiverId;
   @override
   final MediaStreamTrack? track;
+  final FakePeerConnection? owner;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -238,7 +239,11 @@ class FakePeerConnection extends RTCPeerConnection {
         FakeTransceiver(
           mid: mid,
           sender: FakeSender('recv-sender-$mid', null),
-          receiver: FakeReceiver('receiver-$mid', FakeTrack(kind, 'r-$mid')),
+          receiver: FakeReceiver(
+            'receiver-$mid',
+            FakeTrack(kind, 'r-$mid'),
+            owner: this,
+          ),
           direction: TransceiverDirection.RecvOnly,
         ),
       );
@@ -349,6 +354,7 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
   final cryptors = <FakeFrameCryptor>[];
   final failEnableFor = <String>{};
   Completer<void>? senderGate;
+  Completer<void>? receiverGate;
 
   Iterable<FakeFrameCryptor> get live => cryptors.where((c) => !c.disposed);
 
@@ -394,7 +400,13 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
     required RTCRtpReceiver receiver,
     required Algorithm algorithm,
     required KeyProvider keyProvider,
-  }) async => _cryptor(participantId);
+  }) async {
+    await receiverGate?.future;
+    if (receiver is FakeReceiver && (receiver.owner?.disposed ?? false)) {
+      throw StateError('peerConnection not found');
+    }
+    return _cryptor(participantId);
+  }
 }
 
 class FakeWebRtcBackend implements WebRtcBackend {
@@ -408,6 +420,7 @@ class FakeWebRtcBackend implements WebRtcBackend {
   final audioArms = <({int capturesBefore, int connectionsBefore})>[];
   Object? captureError;
   final adoptErrors = <String, Object>{};
+  Completer<void>? adoptGate;
   Completer<void>? captureGate;
   int cameraSwitches = 0;
   var _tracks = 0;
@@ -462,6 +475,7 @@ class FakeWebRtcBackend implements WebRtcBackend {
 
   @override
   Future<MediaStream> createLocalMediaStream(String label) async {
+    if (label.startsWith('adopted_')) await adoptGate?.future;
     if (adoptErrors[label] case final error?) throw error;
     final stream = FakeMediaStream(label);
     streams.add(stream);
@@ -469,11 +483,13 @@ class FakeWebRtcBackend implements WebRtcBackend {
   }
 
   bool placeholderAvailable = true;
+  Object? placeholderError;
   final placeholders = <PlaceholderVideo>[];
   final releasedPlaceholders = <PlaceholderVideo>[];
 
   @override
   Future<PlaceholderVideo?> createPlaceholderVideo() async {
+    if (placeholderError case final error?) throw error;
     if (!placeholderAvailable) return null;
     final placeholder = (
       stream: FakeMediaStream('placeholder-${placeholders.length + 1}'),

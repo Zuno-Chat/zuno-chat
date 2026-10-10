@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../errors/caught_errors.dart';
+
 final notificationsAllowedProvider =
     NotifierProvider<NotificationsAllowedNotifier, bool?>(
       NotificationsAllowedNotifier.new,
@@ -20,7 +22,8 @@ class NotificationsAllowedNotifier extends Notifier<bool?> {
       final allowed = (await Permission.notification.status).isGranted;
       if (state != allowed) state = allowed;
       return allowed;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('notification permission refresh', e, s);
       return state;
     }
   }

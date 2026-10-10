@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../errors/caught_errors.dart';
 import 'attachment_cache.dart';
 import 'bearer_authorization.dart';
 import 'connectivity_provider.dart';
@@ -78,7 +79,8 @@ class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
       final preview = await client.getUrlPreview(url);
       _PreviewCache.put(url, preview);
       return preview;
-    } catch (_) {
+    } catch (e, s) {
+      if (e is! MatrixException) reportCaught('load a link preview', e, s);
       _PreviewCache.put(url, null);
       return null;
     }

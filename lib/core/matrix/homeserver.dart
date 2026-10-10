@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../errors/caught_errors.dart';
 import 'matrix_client_provider.dart';
 
 final officialHomeserver = Uri.parse('https://zuno.chat');
@@ -14,7 +15,10 @@ final homeserverProvider = AsyncNotifierProvider<HomeserverNotifier, Uri>(
 class HomeserverNotifier extends AsyncNotifier<Uri> {
   @override
   FutureOr<Uri> build() async {
-    await ref.watch(matrixClientProvider).checkHomeserver(officialHomeserver);
+    await reportFailureOf(
+      ref.watch(matrixClientProvider).checkHomeserver(officialHomeserver),
+      label: 'homeserver check',
+    );
     return officialHomeserver;
   }
 

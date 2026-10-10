@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../errors/caught_errors.dart';
 import '../security/password_strength.dart';
 import 'homeserver.dart';
 import 'matrix_client_provider.dart';
@@ -100,7 +101,10 @@ Future<RegistrationSupport> fetchRegistrationSupport(Client client) async {
       response.statusCode,
       decoded is Map<String, Object?> ? decoded : const {},
     );
-  } on Exception {
+  } on FormatException {
+    return const RegistrationSupport(RegistrationAvailability.unknown);
+  } on Exception catch (e, s) {
+    reportCaught('probe registration support', e, s);
     return const RegistrationSupport(RegistrationAvailability.unknown);
   }
 }

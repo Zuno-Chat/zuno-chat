@@ -1,7 +1,8 @@
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../platform/platform_capabilities.dart';
+import '../keychain_unavailable.dart';
 
 const nseChannel = MethodChannel('zuno/nse');
 
@@ -33,8 +34,8 @@ class NseChannel {
       return true;
     } on MissingPluginException {
       return false;
-    } on PlatformException catch (e) {
-      debugPrint('zuno/nse: $method failed (${e.code})');
+    } on PlatformException catch (e, s) {
+      if (!isKeychainUnavailable(e)) reportCaught('nse $method', e.code, s);
       return false;
     }
   }
@@ -45,8 +46,8 @@ class NseChannel {
       return await nseChannel.invokeMethod<T>(method, arguments);
     } on MissingPluginException {
       return null;
-    } on PlatformException catch (e) {
-      debugPrint('zuno/nse: $method failed (${e.code})');
+    } on PlatformException catch (e, s) {
+      if (!isKeychainUnavailable(e)) reportCaught('nse $method', e.code, s);
       return null;
     }
   }

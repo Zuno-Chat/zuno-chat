@@ -137,11 +137,11 @@ class AboutPage extends ConsumerWidget {
                 children: [
                   SwitchListTile(
                     secondary: const Icon(Icons.bug_report_outlined),
-                    title: const Text('Send crash reports'),
+                    title: const Text('Send crash and error reports'),
                     subtitle: const Text(
-                      'Sends the technical details of a crash to a reporting '
-                      'service, with message content, names and addresses '
-                      'removed. No crash report is sent while this is off',
+                      'Sends the technical details of a crash or error to a '
+                      'reporting service, with message content, names and '
+                      'addresses removed. No report is sent while this is off',
                     ),
                     value: crashReporting,
                     onChanged: (value) =>

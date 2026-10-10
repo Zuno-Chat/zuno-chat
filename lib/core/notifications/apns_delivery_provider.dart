@@ -4,12 +4,14 @@ import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../errors/caught_errors.dart';
 import '../matrix/session_display_name.dart';
 import '../platform/platform_capabilities.dart';
 import '../push/apns_pusher.dart';
 import '../push/apns_pusher_check.dart';
 import '../push/fcm_gateway.dart';
 import '../push/pusher_reconciliation.dart';
+import '../push/pusher_removal.dart';
 import '../push/registration_retry.dart';
 import 'notification_delivery_provider.dart';
 import 'notification_permission.dart';
@@ -85,10 +87,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       debugPrint(
         'zuno/push: unknown APNs environment, using the build mode ($name)',
       );
-    } catch (e) {
-      debugPrint(
-        'zuno/push: APNs environment unreadable, using the build mode ($e)',
-      );
+    } catch (e, s) {
+      reportCaught('apns environment read', e, s);
     }
     return apnsAppId;
   }
@@ -130,10 +130,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     final String? current;
     try {
       current = await tokenReader();
-    } catch (e) {
-      debugPrint(
-        'zuno/push: APNs token check failed, keeping registration ($e)',
-      );
+    } catch (e, s) {
+      _reportTokenFailure('apns token check', e, s);
       return;
     }
     if (current != null && current.isNotEmpty && current != stored.token) {
@@ -209,8 +207,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     final String? token;
     try {
       token = await tokenReader();
-    } catch (e) {
-      debugPrint('zuno/push: APNs token request failed ($e)');
+    } catch (e, s) {
+      _reportTokenFailure('apns token request', e, s);
       status.value = ApnsStatus.tokenFailed;
       _retry.schedule(() => _register(client));
       return;
@@ -271,11 +269,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
             gatewayUrl: gatewayUrl,
             sound: sound,
           );
-        } catch (e) {
-          debugPrint(
-            'zuno/push: Message tone not on the APNs pusher yet, trying '
-            'again on resume ($e)',
-          );
+        } catch (e, s) {
+          reportCaught('apns pusher sound update', e, s);
           return;
         }
         _soundChanged = true;
@@ -306,8 +301,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
         gatewayUrl: gatewayUrl,
         sound: sound,
       );
-    } catch (e) {
-      debugPrint('zuno/push: the APNs pusher was refused ($e)');
+    } catch (e, s) {
+      reportCaught('apns pusher post', e, s);
       lastPusherError = e.toString();
       status.value = ApnsStatus.pusherFailed;
       _retry.schedule(() => _register(client));
@@ -347,14 +342,15 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       await prefs.remove(_appIdKey);
       await prefs.remove(_droppedKey);
       await prefs.remove(_soundKey);
-    } catch (e) {
-      debugPrint('zuno/push: could not forget the APNs registration ($e)');
+    } catch (e, s) {
+      reportCaught('apns registration forget', e, s);
     }
     if (registration != null) {
       try {
-        await client.deletePusher(_pusherId(registration));
+        await removePusher(client, _pusherId(registration));
         lastPusherError = null;
-      } catch (e) {
+      } catch (e, s) {
+        reportCaught('apns pusher delete', e, s);
         lastPusherError = 'Could not remove the push registration: $e';
       }
     }
@@ -366,9 +362,9 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
 
   Future<void> _forget(Client client, _Registration registration) async {
     try {
-      await client.deletePusher(_pusherId(registration));
-    } catch (e) {
-      debugPrint('zuno/push: could not remove the old APNs pusher ($e)');
+      await removePusher(client, _pusherId(registration));
+    } catch (e, s) {
+      reportCaught('apns old pusher delete', e, s);
     }
   }
 
@@ -387,7 +383,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
         token: token,
         pushkey: pushkey,
       );
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('apns registration read', e, s);
       return null;
     }
   }
@@ -395,7 +392,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
   Future<int> _storedDropped() async {
     try {
       return (await SharedPreferences.getInstance()).getInt(_droppedKey) ?? 0;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('apns drop count read', e, s);
       return 0;
     }
   }
@@ -403,8 +401,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
   Future<void> _storeDropped(int count) async {
     try {
       await (await SharedPreferences.getInstance()).setInt(_droppedKey, count);
-    } catch (e) {
-      debugPrint('zuno/push: could not record the APNs drop count ($e)');
+    } catch (e, s) {
+      reportCaught('apns drop count write', e, s);
     }
   }
 
@@ -413,7 +411,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     try {
       final prefs = await SharedPreferences.getInstance();
       tone = readNotificationSoundSettings(prefs).messageTone;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('apns message tone read', e, s);
       tone = NotificationSoundSettings.defaults.messageTone;
     }
     return tone ? darwinMessageToneSound : null;
@@ -427,7 +426,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
         '' => (sound: null),
         final sound => (sound: sound),
       };
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('apns pusher sound read', e, s);
       return null;
     }
   }
@@ -436,8 +436,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_soundKey, sound ?? '');
-    } catch (e) {
-      debugPrint('zuno/push: could not record the APNs pusher sound ($e)');
+    } catch (e, s) {
+      reportCaught('apns pusher sound write', e, s);
     }
   }
 
@@ -446,10 +446,18 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_tokenKey, registration.token);
       await prefs.setString(_appIdKey, registration.appId);
-    } catch (e) {
-      debugPrint('zuno/push: could not remember the APNs registration ($e)');
+    } catch (e, s) {
+      reportCaught('apns registration write', e, s);
     }
   }
+}
+
+void _reportTokenFailure(String label, Object error, StackTrace stack) {
+  if (error is PlatformException && error.code == 'timeout') {
+    debugPrint('zuno/push: APNs gave no token in time ($error)');
+    return;
+  }
+  reportCaught(label, error, stack);
 }
 
 final apnsDeliveryProvider = ApnsDeliveryProvider();

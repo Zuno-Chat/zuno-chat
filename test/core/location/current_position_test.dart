@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:zuno/core/location/current_position.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 
+import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_geolocator.dart';
 
 void main() {
@@ -88,6 +89,33 @@ void main() {
       await findCurrentLocation(geolocator: geolocator),
       const LocationFailed(LocationFailure.unavailable),
     );
+  });
+
+  group('what a fix that never arrived reports', () {
+    late List<String> logs;
+
+    setUp(() => logs = recordDebugPrints());
+
+    for (final (reason, error) in [
+      ('location turned off', const LocationServiceDisabledException()),
+      ('access taken back', const PermissionDeniedException('denied')),
+    ]) {
+      test('nothing for $reason on the way', () async {
+        geolocator.positionError = error;
+
+        await findCurrentLocation(geolocator: geolocator);
+
+        expect(logs, isEmpty);
+      });
+    }
+
+    test('a failure of the platform is reported', () async {
+      geolocator.positionError = StateError('no provider');
+
+      await findCurrentLocation(geolocator: geolocator);
+
+      expect(logs, ['zuno/caught: find current location: StateError']);
+    });
   });
 
   group('watching this device\'s own location', () {

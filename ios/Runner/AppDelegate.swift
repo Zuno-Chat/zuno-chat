@@ -10,8 +10,8 @@ import UserNotifications
   ) -> Bool {
     PushRingHandler.shared.start()
     NseAppHooks.shared.start()
-    NotifySweep.shared.runWhenProtectedDataAvailable()
-    excludeAppDataFromBackup()
+    NotifySweep.sweepWhenProtectedDataAvailable()
+    ProtectedDataGate.shared.run { Self.excludeAppDataFromBackup() }
     Self.wireCallKit(CallKitCenter.shared, to: ReadModelCache.shared)
     CallKitCenter.shared.setUp()
     MetricsSubscriber.shared.start()
@@ -97,16 +97,18 @@ import UserNotifications
     }
   }
 
-  private func excludeAppDataFromBackup() {
+  private static func excludeAppDataFromBackup() {
     let files = FileManager.default
     for directory in [
       FileManager.SearchPathDirectory.applicationSupportDirectory, .documentDirectory,
     ] {
       guard var url = files.urls(for: directory, in: .userDomainMask).first else { continue }
-      try? files.createDirectory(at: url, withIntermediateDirectories: true)
+      CaughtErrors.attempt("app data backup directory") {
+        try files.createDirectory(at: url, withIntermediateDirectories: true)
+      }
       var values = URLResourceValues()
       values.isExcludedFromBackup = true
-      try? url.setResourceValues(values)
+      CaughtErrors.attempt("app data backup exclude") { try url.setResourceValues(values) }
     }
   }
 

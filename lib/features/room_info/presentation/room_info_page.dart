@@ -9,6 +9,7 @@ import '../../../core/calls/end_call.dart';
 import '../../../core/calls/matrixrtc/call_member_state.dart';
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/local_username_dialog.dart';
 import '../../../core/matrix/matrix_ids.dart';
@@ -16,6 +17,7 @@ import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/optimistic_room_state.dart';
 import '../../../core/matrix/room_access.dart';
 import '../../../core/matrix/room_exit.dart';
+import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_roles.dart';
 import '../../../core/matrix/room_title.dart';
@@ -96,8 +98,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
       confirmed = true;
     } on TimeoutException {
       confirmed = false;
-    } catch (e) {
-      logCaught('mute from room info', e);
+    } catch (e, s) {
+      reportCaught('mute from room info', e, s);
       refused = true;
     } finally {
       await sub.cancel();
@@ -171,8 +173,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
           _membersFromMemory = false;
         });
       }
-    } catch (e) {
-      logCaught('load members', e);
+    } catch (e, s) {
+      reportCaught('load members', e, s);
       if (mounted && _participants == null) {
         setState(() {
           _participants = _byName(widget.room.getParticipants());
@@ -199,8 +201,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
       await widget.room.invite(userId);
       messenger.showSnackBar(const SnackBar(content: Text('Invitation sent')));
       _showMembership(userId, Membership.invite);
-    } catch (e) {
-      logCaught('invite', e);
+    } catch (e, s) {
+      if (!isUnknownInvitee(e)) reportCaught('invite', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Invitation not sent. Try again.')),
       );
@@ -222,8 +224,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     try {
       await setUserRoomRole(room, user.id, chosen);
       if (mounted) setState(() {});
-    } catch (e) {
-      logCaught('change role', e);
+    } catch (e, s) {
+      reportCaught('change role', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Role not changed. Try again.')),
       );
@@ -388,8 +390,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
         Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => RoomPage(room: room)));
       }
-    } catch (e) {
-      logCaught('start chat', e);
+    } catch (e, s) {
+      reportCaught('start chat', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Could not start the chat. Try again.')),
       );
@@ -409,8 +411,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     try {
       await (ban ? widget.room.ban(user.id) : widget.room.kick(user.id));
       _showMembership(user.id, ban ? Membership.ban : Membership.leave);
-    } catch (e) {
-      logCaught(ban ? 'ban member' : 'remove member', e);
+    } catch (e, s) {
+      reportCaught(ban ? 'ban member' : 'remove member', e, s);
       final failure = ban ? 'Not banned' : 'Not removed';
       messenger.showSnackBar(SnackBar(content: Text('$failure. Try again.')));
     }
@@ -422,8 +424,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     try {
       await widget.room.unban(userId);
       _showMembership(userId, Membership.leave);
-    } catch (e) {
-      logCaught('unban', e);
+    } catch (e, s) {
+      reportCaught('unban', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Not unbanned. Try again.')),
       );
@@ -482,8 +484,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
       applyOptimisticRoomState(widget.room, EventTypes.Encryption, {
         'algorithm': Client.supportedGroupEncryptionAlgorithms.first,
       });
-    } catch (e) {
-      logCaught('enable encryption', e);
+    } catch (e, s) {
+      reportCaught('enable encryption', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Encryption not enabled. Try again.')),
       );

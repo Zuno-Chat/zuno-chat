@@ -5,6 +5,8 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../calls/notifications/call_notification_service.dart';
+import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../matrix/client_lease.dart';
 import '../notifications/notify_me.dart';
 import 'incoming_push_handler.dart';
@@ -19,15 +21,7 @@ Future<void> initializeHeadlessNotifications() =>
 Future<bool> prepareHeadlessPush({
   Future<void> Function() initializeNotifications =
       initializeHeadlessNotifications,
-}) async {
-  try {
-    await initializeNotifications();
-    return true;
-  } catch (error, stack) {
-    debugPrint('zuno/push: headless setup failed, push lost: $error\n$stack');
-    return false;
-  }
-}
+}) => runBestEffort(initializeNotifications, label: 'headless push setup');
 
 class HeadlessPushRunner {
   Client? liveClient;
@@ -120,7 +114,11 @@ class HeadlessPushRunner {
 
   void _hold(Future<void> work, Set<Future<void>> holds) {
     _idle?.cancel();
-    final held = work.then<void>((_) {}, onError: (_) {});
+    final held = work.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) =>
+          reportCaught('push client hold', error, stack),
+    );
     holds.add(held);
     held.whenComplete(() {
       holds.remove(held);
@@ -162,8 +160,8 @@ class HeadlessPushRunner {
   void _opened(Client client) {
     try {
       onClientOpened?.call(client);
-    } catch (error) {
-      debugPrint('zuno/push: the new client hook failed ($error)');
+    } catch (error, stack) {
+      reportCaught('push client opened hook', error, stack);
     }
   }
 
@@ -197,8 +195,8 @@ class HeadlessPushRunner {
         .then((client) => client.dispose(closeDatabase: false))
         .then<void>(
           (_) {},
-          onError: (Object error) =>
-              debugPrint('zuno/push: the push client did not close ($error)'),
+          onError: (Object error, StackTrace stack) =>
+              reportCaught('push client close', error, stack),
         )
         .whenComplete(() => _closing.remove(closing));
     _closing.add(closing);
@@ -267,7 +265,7 @@ class HeadlessPushRunner {
     } on ClientLeaseDenied {
       debugPrint('zuno/push: another client holds the store, notice kept');
     } catch (error, stack) {
-      debugPrint('zuno/push: handling failed: $error\n$stack');
+      reportCaught('push handling', error, stack);
     } finally {
       clientDone();
       _delivering--;
@@ -295,8 +293,8 @@ class HeadlessPushRunner {
     if (verdict != null) return verdict;
     try {
       return await nativeAppInFront();
-    } catch (e) {
-      debugPrint('zuno/push: could not ask whether the app is in front ($e)');
+    } catch (e, s) {
+      reportCaught('push runner app in front check', e, s);
       return true;
     }
   }

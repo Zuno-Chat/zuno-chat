@@ -68,6 +68,11 @@ final class VideoToolsPlugin: NSObject, @preconcurrency FlutterPlugin {
     return aacSubtypes.contains(subtype) ? "audio/mp4a-latm" : "audio/x-\(fourCC(subtype))"
   }
 
+  private nonisolated static func recordUnlessUnrecognized(_ label: String, _ error: any Error) {
+    guard (error as? AVError)?.code != .fileFormatNotRecognized else { return }
+    CaughtErrors.record(label, error)
+  }
+
   @concurrent
   private nonisolated static func probe(path: String) async -> sending [String: Any]? {
     let asset = AVURLAsset(url: URL(fileURLWithPath: path))
@@ -82,8 +87,10 @@ final class VideoToolsPlugin: NSObject, @preconcurrency FlutterPlugin {
 
       let seconds = try await asset.load(.duration).seconds
       let known = seconds.isFinite && seconds > 0
-      let fileSize = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? NSNumber)?
-        .doubleValue
+      let attributes = CaughtErrors.attempt("video probe size") {
+        try FileManager.default.attributesOfItem(atPath: path)
+      }
+      let fileSize = (attributes?[.size] as? NSNumber)?.doubleValue
       let quarterTurns = Int((atan2(transform.b, transform.a) / (.pi / 2)).rounded())
       var reply: [String: Any] = [
         "width": width,
@@ -104,6 +111,7 @@ final class VideoToolsPlugin: NSObject, @preconcurrency FlutterPlugin {
       }
       return reply
     } catch {
+      Self.recordUnlessUnrecognized("video probe", error)
       return nil
     }
   }
@@ -137,6 +145,7 @@ final class VideoToolsPlugin: NSObject, @preconcurrency FlutterPlugin {
       try await session.export(to: url, as: .mp4)
       return true
     } catch {
+      CaughtErrors.record("video remux", error)
       try? FileManager.default.removeItem(atPath: output)
       return false
     }
@@ -153,7 +162,8 @@ final class VideoToolsPlugin: NSObject, @preconcurrency FlutterPlugin {
     generator.maximumSize = CGSize(width: maxDimension, height: maxDimension)
     let reply: [String: Any]? = await withCheckedContinuation { continuation in
       generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: .zero)]) {
-        _, frame, _, status, _ in
+        _, frame, _, status, error in
+        if status == .failed, let error { Self.recordUnlessUnrecognized("video thumbnail", error) }
         guard status == .succeeded, let frame,
           let jpeg = UIImage(cgImage: frame).jpegData(
             compressionQuality: CGFloat(min(max(quality, 0), 100)) / 100)

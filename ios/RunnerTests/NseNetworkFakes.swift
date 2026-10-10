@@ -95,7 +95,7 @@ final class NseFakeTransport: NseTransport, @unchecked Sendable {
     defer { lock.unlock() }
     recorded.append(
       Request(
-        path: path, authorization: authorization, body: NseJson.parse(body),
+        path: path, authorization: authorization, body: NseJson.parse(body, "test request parse"),
         timeoutMs: timeoutMs))
     var queue = scripted[path] ?? []
     let next = queue.isEmpty ? (NseHttpResult.failure, Int64(0)) : queue.removeFirst()

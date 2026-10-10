@@ -188,6 +188,25 @@ final class NsePluginTests: XCTestCase {
     XCTAssertEqual((room as? FlutterError)?.code, "bad_args")
   }
 
+  func testAWriteWhileTheSecretsAreUnreadableAnswersKeychain() throws {
+    let fixture = try ReadModelFixture(self)
+    fixture.memory.locked = true
+    let plugin = NsePlugin(cache: fixture.cache())
+
+    let meta = immediateReply(
+      from: plugin, method: "writeMeta",
+      arguments: ["json": #"{"v":1,"user":"@me:zuno.im","device":"D","heartbeat_ms":1}"#])
+    let room = immediateReply(
+      from: plugin, method: "writeRoom",
+      arguments: [
+        "room_id": "!abc:zuno.im",
+        "json": #"{"v":1,"room":"!abc:zuno.im","title":"Room","dm":false,"partner":""}"#,
+      ])
+
+    XCTAssertEqual((meta as? FlutterError)?.code, "keychain")
+    XCTAssertEqual((room as? FlutterError)?.code, "keychain")
+  }
+
   func testDeleteAndWipeAnswerNothing() throws {
     let (plugin, _) = try plugin()
 

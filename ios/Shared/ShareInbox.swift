@@ -24,27 +24,49 @@ enum ShareInbox {
     for directory in entries(in: root) {
       guard let manifest = manifest(in: directory) else {
         if !isFresh(created(directory) ?? .distantPast, now: now) {
-          try? FileManager.default.removeItem(at: directory)
+          remove(directory, "share inbox sweep")
         }
         continue
       }
       if isFresh(manifest.created, now: now) {
         fresh.append(ShareInboxEntry(directory: directory, manifest: manifest))
       } else {
-        try? FileManager.default.removeItem(at: directory)
+        remove(directory, "share inbox sweep")
       }
     }
     return fresh
   }
 
   static func entries(in directory: URL) -> [URL] {
-    (try? FileManager.default.contentsOfDirectory(
-      at: directory, includingPropertiesForKeys: [.creationDateKey], options: []))
-      ?? []
+    do {
+      return try FileManager.default.contentsOfDirectory(
+        at: directory, includingPropertiesForKeys: [.creationDateKey], options: [])
+    } catch CocoaError.fileReadNoSuchFile {
+      return []
+    } catch {
+      CaughtErrors.record("share inbox list", error)
+      return []
+    }
   }
 
   static func created(_ url: URL) -> Date? {
-    try? url.resourceValues(forKeys: [.creationDateKey]).creationDate
+    do {
+      return try url.resourceValues(forKeys: [.creationDateKey]).creationDate
+    } catch CocoaError.fileReadNoSuchFile {
+      return nil
+    } catch {
+      CaughtErrors.record("share inbox created date", error)
+      return nil
+    }
+  }
+
+  static func remove(_ url: URL, _ label: String) {
+    do {
+      try FileManager.default.removeItem(at: url)
+    } catch CocoaError.fileNoSuchFile {
+    } catch {
+      CaughtErrors.record(label, error)
+    }
   }
 
   private static func isFresh(_ created: Date, now: Date) -> Bool {
@@ -52,9 +74,18 @@ enum ShareInbox {
   }
 
   private static func manifest(in directory: URL) -> ShareManifest? {
-    guard let data = try? Data(contentsOf: directory.appendingPathComponent(manifestName))
-    else { return nil }
-    return try? ShareManifest.decoded(from: data)
+    let data: Data
+    do {
+      data = try Data(contentsOf: directory.appendingPathComponent(manifestName))
+    } catch CocoaError.fileReadNoSuchFile {
+      return nil
+    } catch {
+      CaughtErrors.record("share inbox manifest read", error)
+      return nil
+    }
+    return CaughtErrors.attempt("share inbox manifest decode") {
+      try ShareManifest.decoded(from: data)
+    }
   }
 }
 
@@ -160,7 +191,7 @@ struct ShareEntry {
       var excluded = root
       var values = URLResourceValues()
       values.isExcludedFromBackup = true
-      try? excluded.setResourceValues(values)
+      CaughtErrors.attempt("share inbox exclude backup") { try excluded.setResourceValues(values) }
     }
     let directory = root.appendingPathComponent(id, isDirectory: true)
     try files.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -213,7 +244,7 @@ struct ShareEntry {
   }
 
   func discard() {
-    try? FileManager.default.removeItem(at: directory)
+    ShareInbox.remove(directory, "share entry discard")
   }
 
   private static func slot(_ index: Int, in directory: URL) throws -> URL {
@@ -256,7 +287,7 @@ struct ShareInboxCollector {
       return nil
     }
     for older in fresh where older.directory != newest.directory {
-      try? FileManager.default.removeItem(at: older.directory)
+      ShareInbox.remove(older.directory, "share inbox collect remove")
     }
     prune(now: now)
     let target = imports.appendingPathComponent(
@@ -266,6 +297,7 @@ struct ShareInboxCollector {
       try? FileManager.default.removeItem(at: target)
       try FileManager.default.moveItem(at: newest.directory, to: target)
     } catch {
+      CaughtErrors.record("share inbox collect move", error)
       return nil
     }
     return SharePayload(
@@ -282,7 +314,7 @@ struct ShareInboxCollector {
     where now.timeIntervalSince(ShareInbox.created(directory) ?? .distantPast)
       > Self.importLifetime
     {
-      try? FileManager.default.removeItem(at: directory)
+      ShareInbox.remove(directory, "share inbox prune")
     }
   }
 }

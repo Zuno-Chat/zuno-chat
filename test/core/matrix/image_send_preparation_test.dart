@@ -193,8 +193,8 @@ void main() {
     });
   });
 
-  test('blurhashOf encodes a decodable image and rejects garbage', () {
-    expect(blurhashOf(_jpeg(64, 48)), isNotNull);
-    expect(blurhashOf(Uint8List.fromList([1, 2, 3])), isNull);
+  test('a blurhash is made for a decodable image, none for garbage', () async {
+    expect(await blurhashInBackground(_jpeg(64, 48)), isNotNull);
+    expect(await blurhashInBackground(Uint8List.fromList([1, 2, 3])), isNull);
   });
 }

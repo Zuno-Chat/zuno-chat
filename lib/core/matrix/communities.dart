@@ -1,6 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../calls/matrixrtc/call_unread_correction_provider.dart';
+import '../errors/caught_errors.dart';
 import 'optimistic_room_state.dart';
 import 'room_access.dart';
 import 'room_permission.dart';
@@ -215,7 +216,8 @@ Future<String> createCommunityRoom(
       roomId,
       {'via': via},
     );
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('add a room to its community', e, s);
     throw RoomNotAddedToCommunity(roomId);
   }
   applyOptimisticRoomState(community, EventTypes.SpaceChild, {

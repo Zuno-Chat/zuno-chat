@@ -43,10 +43,10 @@ enum MentionMatcher {
   }
 
   private static func matches(_ body: String, core: String) -> Bool {
-    guard
-      let regex = try? NSRegularExpression(
+    let regex = CaughtErrors.attempt("mention regex") {
+      try NSRegularExpression(
         pattern: "(^|[^A-Za-z0-9_])\(core)($|[^A-Za-z0-9_])", options: [.caseInsensitive])
-    else { return false }
-    return regex.firstMatch(in: body, range: NSRange(body.startIndex..., in: body)) != nil
+    }
+    return regex?.firstMatch(in: body, range: NSRange(body.startIndex..., in: body)) != nil
   }
 }

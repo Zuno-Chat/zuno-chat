@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../errors/caught_errors.dart';
 import '../matrix/matrix_client_provider.dart';
 
 typedef SilentRelationRule = ({String ruleId, String relType});
@@ -103,8 +103,8 @@ class PushRuleMaintenanceNotifier extends Notifier<void> {
       }
       await ensureMessageRuleSound(client);
       _done = true;
-    } catch (e) {
-      debugPrint('zuno/push: could not maintain the push rules: $e');
+    } catch (e, s) {
+      reportCaught('push rules maintenance', e, s);
     } finally {
       _running = false;
     }

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/app_platform.dart';
 
 String zunoUserAgent(String? version, {AppPlatform? platform}) {
@@ -35,7 +36,9 @@ Future<void> installUserAgent({
   String? known;
   try {
     known = await (version ?? _installedVersion)();
-  } catch (_) {}
+  } catch (e, s) {
+    reportCaught('read the installed app version', e, s);
+  }
   HttpOverrides.global = _UserAgentOverrides(
     zunoUserAgent(known, platform: platform),
   );

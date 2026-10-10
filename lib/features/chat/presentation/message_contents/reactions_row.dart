@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
-import '../../../../core/errors/best_effort.dart';
+import '../../../../core/errors/caught_errors.dart';
 import '../../../../core/matrix/reactions.dart';
 
 const reactionOverflow = 12.0;
@@ -18,8 +18,8 @@ class ReactionsRow extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await toggleReaction(event, timeline, key);
-    } catch (e) {
-      logCaught('react', e);
+    } catch (e, s) {
+      reportCaught('react', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Reaction not sent. Try again.')),
       );

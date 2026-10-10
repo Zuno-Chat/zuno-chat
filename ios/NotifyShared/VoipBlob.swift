@@ -68,6 +68,7 @@ enum VoipBlob {
       plaintext = try ChaChaPoly.open(
         box, using: secret, authenticating: associatedData(Data(bytes[0..<headerLength])))
     } catch {
+      CaughtErrors.record("voip blob open", error)
       return .forged(header)
     }
     guard let ring = ring(from: plaintext) else { return .forged(header) }
@@ -77,8 +78,11 @@ enum VoipBlob {
   private static func ring(from plaintext: Data) -> VoipRing? {
     var trimmed = [UInt8](plaintext)
     while trimmed.last == 0 { trimmed.removeLast() }
+    let parsed = CaughtErrors.attempt("voip blob json") {
+      try JSONSerialization.jsonObject(with: Data(trimmed))
+    }
     guard
-      let object = try? JSONSerialization.jsonObject(with: Data(trimmed)) as? [String: Any],
+      let object = parsed as? [String: Any],
       let room = object["room"] as? String,
       let call = object["call"] as? String, !call.isEmpty,
       let caller = object["caller"] as? String,

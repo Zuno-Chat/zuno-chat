@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show debugPrint, kReleaseMode;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kReleaseMode, visibleForTesting;
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -47,10 +49,44 @@ void configureCrashReportingOptions(
       crumb == null ? null : scrubBreadcrumb(crumb);
 }
 
+const _startBound = Duration(seconds: 10);
+
+Future<void>? _starting;
+
 Future<void> initCrashReporting(
   SharedPreferences prefs, {
   required bool optedIn,
   bool trackSessions = true,
+}) {
+  final start = _startCrashReporting(
+    prefs,
+    optedIn: optedIn,
+    trackSessions: trackSessions,
+  );
+  noteCrashReportingStart(start);
+  return start;
+}
+
+@visibleForTesting
+void noteCrashReportingStart(Future<void> start) {
+  final settled = _starting = start.then<void>((_) {}, onError: (Object _) {});
+  unawaited(
+    settled.whenComplete(() {
+      if (identical(_starting, settled)) _starting = null;
+    }),
+  );
+}
+
+Future<void> crashReportingStarted() async {
+  final starting = _starting;
+  if (starting == null) return;
+  await starting.timeout(_startBound, onTimeout: () {});
+}
+
+Future<void> _startCrashReporting(
+  SharedPreferences prefs, {
+  required bool optedIn,
+  required bool trackSessions,
 }) async {
   final allowed = shouldReportCrashes(
     optedIn: optedIn,
@@ -71,9 +107,15 @@ Future<void> initCrashReporting(
   Sentry.configureScope((scope) => scope.setUser(SentryUser(id: installId)));
 }
 
-Future<void> initHeadlessCrashReporting() async {
+Future<void> initHeadlessCrashReporting() {
+  final start = _startHeadlessCrashReporting();
+  noteCrashReportingStart(start);
+  return start;
+}
+
+Future<void> _startHeadlessCrashReporting() async {
   final prefs = await SharedPreferences.getInstance();
-  await initCrashReporting(
+  await _startCrashReporting(
     prefs,
     optedIn: readCrashReporting(prefs),
     trackSessions: false,

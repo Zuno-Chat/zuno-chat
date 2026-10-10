@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/picked_file.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/recovery_code.dart';
@@ -210,8 +210,8 @@ Future<void> _saveAsFile(BuildContext context, String code) async {
     );
     if (uri == null) return;
     messenger.showSnackBar(const SnackBar(content: Text('Saved')));
-  } catch (e) {
-    logCaught('save recovery code file', e);
+  } catch (e, s) {
+    reportCaught('save recovery code file', e, s);
     messenger.showSnackBar(
       const SnackBar(content: Text('Could not save. Try again.')),
     );
@@ -489,8 +489,8 @@ class _RecoveryCodeEntryFieldState
         text: code,
         selection: TextSelection.collapsed(offset: code.length),
       );
-    } catch (e) {
-      logCaught('open recovery code file', e);
+    } catch (e, s) {
+      reportCaught('open recovery code file', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Could not open that file. Try again.')),
       );

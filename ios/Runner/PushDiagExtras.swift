@@ -51,7 +51,15 @@ enum PushDiagExtras {
   }
 
   static func tail(of url: URL) -> [String] {
-    guard let data = try? Data(contentsOf: url) else { return [] }
+    let data: Data
+    do {
+      data = try Data(contentsOf: url)
+    } catch CocoaError.fileReadNoSuchFile {
+      return []
+    } catch {
+      CaughtErrors.record("push diag log read", error)
+      return []
+    }
     let text = String(decoding: data.suffix(logBytes), as: UTF8.self)
     return text.split(whereSeparator: \.isNewline).suffix(logLines).map(String.init)
   }
@@ -64,16 +72,24 @@ enum PushDiagExtras {
     case .unreadable, .corrupt:
       return .failed
     case .found(let data):
-      guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-        return .failed
+      let object = CaughtErrors.attempt("push diag sealed json") {
+        try JSONSerialization.jsonObject(with: data)
       }
+      guard let json = object as? [String: Any] else { return .failed }
       return .found(json)
     }
   }
 
   private static func children(of folder: URL) -> [URL] {
-    (try? FileManager.default.contentsOfDirectory(
-      at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+    do {
+      return try FileManager.default.contentsOfDirectory(
+        at: folder, includingPropertiesForKeys: [.contentModificationDateKey])
+    } catch CocoaError.fileReadNoSuchFile {
+      return []
+    } catch {
+      CaughtErrors.record("push diag list", error)
+      return []
+    }
   }
 
   private static func newest(_ urls: [URL]) -> Date? {
@@ -81,7 +97,14 @@ enum PushDiagExtras {
   }
 
   private static func modified(_ url: URL) -> Date? {
-    try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+    do {
+      return try url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+    } catch CocoaError.fileReadNoSuchFile {
+      return nil
+    } catch {
+      CaughtErrors.record("push diag modified", error)
+      return nil
+    }
   }
 
   private static func millis(_ date: Date) -> Int64 {

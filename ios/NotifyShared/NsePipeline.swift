@@ -293,7 +293,8 @@ final class NsePipeline: Sendable {
       recordUtd(context)
       return .floor(.utd)
     }
-    guard let json = NseJson.parse(Data(text.utf8)), json["room_id"]?.string == context.roomId,
+    guard let json = NseJson.parse(Data(text.utf8), "nse decrypted event parse"),
+      json["room_id"]?.string == context.roomId,
       let type = json["type"]?.string
     else { return .floor(.mismatch) }
     context.store.updateState {

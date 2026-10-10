@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/calls/presentation/call_page.dart';
 import '../../../features/calls/presentation/incoming_call_page.dart';
+import '../../errors/caught_errors.dart';
 import '../../errors/global_error_handler.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../navigation/global_navigator.dart';
@@ -110,7 +111,11 @@ class CallNotificationRouter extends Notifier<void> {
       await session.phaseStream
           .firstWhere((phase) => phase == CallSessionPhase.ended)
           .timeout(_endingCallWait);
-    } catch (_) {}
+    } on TimeoutException {
+      return;
+    } catch (e, s) {
+      reportCaught('wait for the call to end', e, s);
+    }
   }
 
   Future<void> handleRingEnded(RingingCallInfo call) async {
@@ -272,7 +277,7 @@ class CallNotificationRouter extends Notifier<void> {
       _showCallScreen(navigator, session, instant: instant);
     }
     _log('accepted ${call.callId}, opening the call screen');
-    unawaited(session.accept().catchError((_) {}));
+    session.accept().ignore();
   }
 
   Future<void> _openCallPageWhenShown(

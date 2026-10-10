@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 import '../settings/app_preferences_provider.dart';
 
@@ -26,8 +26,8 @@ Future<Set<DeviceRisk>> checkDeviceSafety({
       for (final risk in DeviceRisk.values)
         if (names.contains(risk.name)) risk,
     };
-  } catch (error) {
-    logCaught('device safety check', error);
+  } catch (error, stack) {
+    reportCaught('device safety check', error, stack);
     return const {};
   }
 }

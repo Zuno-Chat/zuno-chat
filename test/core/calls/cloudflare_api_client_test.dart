@@ -9,6 +9,8 @@ import 'package:http/testing.dart';
 
 import 'package:zuno/core/calls/cloudflare/cloudflare_api_client.dart';
 
+import '../../helpers/caught_reports.dart';
+
 const _base = '/_synapse/client/zuno/calls/cloudflare';
 
 CloudflareApiClient _client(http.Client mock) => CloudflareApiClient(
@@ -99,10 +101,146 @@ void main() {
         isA<CloudflareCallsException>().having(
           (e) => e.message,
           'message',
-          'session_not_found: gone',
+          'session_not_found from PUT /sessions/{id}/renegotiate',
         ),
       ),
     );
+  });
+
+  group('what a failure says', () {
+    const session = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6';
+    late List<String> logs;
+
+    setUp(() => logs = recordDebugPrints());
+
+    Future<CloudflareCallsException> failureOf(http.Response response) async {
+      try {
+        await _client(MockClient((_) async => response)).pushLocalTracks(
+          sessionId: session,
+          offer: const CfSessionDescription(sdp: 'sdp', type: 'offer'),
+          tracks: [CfTrack.local(mid: '0', trackName: 'audio')],
+        );
+      } on CloudflareCallsException catch (error) {
+        expect(logs.join('\n'), isNot(contains(session)));
+        return error;
+      }
+      fail('the push did not fail');
+    }
+
+    test('an HTTP failure names the route, the status and the code, never '
+        'the session or what Cloudflare wrote about it', () async {
+      final error = await failureOf(
+        http.Response(
+          jsonEncode({
+            'errorCode': 'session_error',
+            'errorDescription': 'session $session is not ready',
+          }),
+          404,
+        ),
+      );
+
+      expect(
+        error.toString(),
+        'CloudflareCallsException: HTTP 404 from '
+        'POST /sessions/{id}/tracks/new: session_error',
+      );
+      expect(error.statusCode, 404);
+    });
+
+    test('a refusal from the homeserver names its Matrix error code', () async {
+      final error = await failureOf(
+        http.Response(jsonEncode({'errcode': 'M_UNKNOWN_TOKEN'}), 401),
+      );
+
+      expect(
+        error.message,
+        'HTTP 401 from POST /sessions/{id}/tracks/new: M_UNKNOWN_TOKEN',
+      );
+    });
+
+    test('a body that is not a JSON error leaves the code out', () async {
+      final error = await failureOf(
+        http.Response('<html>/sessions/$session</html>', 502),
+      );
+
+      expect(error.message, 'HTTP 502 from POST /sessions/{id}/tracks/new');
+    });
+
+    test('a code that is free text is left out', () async {
+      final error = await failureOf(
+        http.Response(
+          jsonEncode({'errorCode': 'no session /sessions/$session'}),
+          404,
+        ),
+      );
+
+      expect(error.message, 'HTTP 404 from POST /sessions/{id}/tracks/new');
+    });
+
+    test('a track error in an accepted answer names the code and the route, '
+        'not the description', () async {
+      final error = await failureOf(
+        http.Response(
+          jsonEncode({
+            'errorCode': 'session_not_found',
+            'errorDescription': 'session $session is gone',
+            'tracks': [],
+          }),
+          200,
+        ),
+      );
+
+      expect(
+        error.message,
+        'session_not_found from POST /sessions/{id}/tracks/new',
+      );
+    });
+
+    test('a retry is logged under the route, not the session', () {
+      fakeAsync((async) {
+        var calls = 0;
+        final mock = MockClient((request) async {
+          calls++;
+          if (calls == 1) {
+            return http.Response(jsonEncode({'retry_after_ms': 100}), 429);
+          }
+          return http.Response(jsonEncode({'tracks': []}), 200);
+        });
+
+        _client(mock).pullRemoteTracks(
+          sessionId: session,
+          tracks: [CfTrack.remote(sessionId: 'remote', trackName: 'audio')],
+        );
+        async.elapse(const Duration(seconds: 1));
+
+        expect(calls, 2);
+        expect(
+          logs.single,
+          startsWith('zuno/retry: POST /sessions/{id}/tracks/new failed'),
+        );
+        expect(logs.single, isNot(contains(session)));
+      });
+    });
+
+    test('a session the module never names says so without the reply', () {
+      expect(
+        _client(
+          MockClient(
+            (_) async => http.Response(
+              jsonEncode({'errorDescription': 'quota for $session'}),
+              200,
+            ),
+          ),
+        ).createSession(),
+        throwsA(
+          isA<CloudflareCallsException>().having(
+            (e) => e.message,
+            'message',
+            'POST /sessions/new returned no session',
+          ),
+        ),
+      );
+    });
   });
 
   test(

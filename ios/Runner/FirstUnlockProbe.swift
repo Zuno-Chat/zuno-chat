@@ -7,12 +7,14 @@ enum FirstUnlockProbe {
 
   static func passed() -> Bool {
     let status = read()
-    guard status == errSecItemNotFound else { return passed(status: status) }
-    return passed(status: create())
+    guard status == errSecItemNotFound else {
+      return passed(status: SystemKeychain.checked(status, "first unlock probe read"))
+    }
+    return passed(status: SystemKeychain.checked(create(), "first unlock probe create"))
   }
 
   static func passed(status: OSStatus) -> Bool {
-    status != errSecInteractionNotAllowed && status != errSecNotAvailable
+    !SystemKeychain.isLocked(status)
   }
 
   private static var base: [String: Any] {

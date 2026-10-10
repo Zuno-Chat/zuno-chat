@@ -4,7 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../matrix/connectivity_provider.dart';
 import '../matrix/ephemeral_to_device.dart';
 import '../matrix/matrix_client_provider.dart';
@@ -267,8 +267,8 @@ class LiveLocationViewing {
   Future<void> _loadMember(Room room, String userId) async {
     try {
       await room.requestUser(userId, ignoreErrors: true);
-    } catch (error) {
-      logCaught('live location member', error);
+    } catch (error, stack) {
+      reportCaught('live location member', error, stack);
     }
     if (!_disposed && room.getState(EventTypes.RoomMember, userId) != null) {
       _changes.add(room.id);
@@ -539,8 +539,8 @@ class LiveLocationViewing {
         ),
       );
       return true;
-    } catch (error) {
-      logCaught('live location watch', error.runtimeType);
+    } catch (error, stack) {
+      reportCaughtType('live location watch', error, stack);
       return false;
     }
   }

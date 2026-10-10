@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/location/geo_uri.dart';
 import '../../../core/location/maps_link.dart';
+import '../../../core/navigation/zuno_links.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import 'location_map_view.dart';
 
@@ -22,7 +24,9 @@ Future<void> openInMaps(BuildContext context, GeoUri geo, MapsApp app) async {
       mapsLink(geo, app),
       mode: LaunchMode.externalApplication,
     );
-  } catch (_) {}
+  } catch (e, s) {
+    if (!noAppOpensLink(e)) reportCaughtType('open in maps', e, s);
+  }
   if (!opened) {
     messenger.showSnackBar(const SnackBar(content: Text('No maps app found')));
   }

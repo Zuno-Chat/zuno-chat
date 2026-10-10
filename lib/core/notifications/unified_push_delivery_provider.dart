@@ -11,6 +11,7 @@ import 'package:unifiedpush_platform_interface/data/public_key_set.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart'
     show UnifiedPushPlatform;
 
+import '../errors/caught_errors.dart';
 import '../matrix/session_display_name.dart';
 import '../push/fcm_gateway.dart';
 import '../push/headless_push_runner.dart';
@@ -19,6 +20,7 @@ import '../push/matrix_unified_push_gateway.dart';
 import '../push/push_notification_codec.dart';
 import '../push/push_wake_lock.dart';
 import '../push/pusher_reconciliation.dart';
+import '../push/pusher_removal.dart';
 import '../push/registration_retry.dart';
 import '../push/unified_push_pusher.dart';
 import '../push/unified_push_registration_store.dart';
@@ -115,9 +117,9 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
         onUnregistered: (instance) => _onUnregistered(instance),
         onMessage: (message, instance) => _onMessage(message, instance),
       );
-    } catch (e) {
+    } catch (e, s) {
       _callbacksRegistered = false;
-      debugPrint('zuno/push: UnifiedPush callbacks not registered ($e)');
+      reportCaught('unifiedpush callbacks', e, s);
     }
   }
 
@@ -181,8 +183,8 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
       }
       distributorBatteryRestricted.value =
           !await distributorIgnoresBatteryOptimizations(distributor);
-    } catch (e) {
-      debugPrint('zuno/push: distributor battery check failed ($e)');
+    } catch (e, s) {
+      reportCaught('unifiedpush distributor battery check', e, s);
     }
   }
 
@@ -296,8 +298,10 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     final pushkey = _pushkey ?? _endpointUrl?.toString();
     if (pushkey != null) {
       try {
-        await client.deletePusher(unifiedPushPusherIdFor(pushkey));
-      } catch (_) {}
+        await removePusher(client, unifiedPushPusherIdFor(pushkey));
+      } catch (e, s) {
+        reportCaught('unifiedpush pusher remove', e, s);
+      }
     }
     await UnifiedPush.unregister();
     await clearUnifiedPushRegistration(await SharedPreferences.getInstance());
@@ -356,9 +360,10 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     _pendingPusher = null;
     if (pushkey != null) {
       try {
-        await client.deletePusher(unifiedPushPusherIdFor(pushkey));
+        await removePusher(client, unifiedPushPusherIdFor(pushkey));
         lastPusherError = null;
-      } catch (e) {
+      } catch (e, s) {
+        reportCaught('unifiedpush pusher delete', e, s);
         lastPusherError = 'Could not remove the push registration: $e';
       }
     }
@@ -398,7 +403,8 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     status.value = UnifiedPushStatus.postingPusher;
     try {
       await client.postPusher(pusher);
-    } catch (e) {
+    } catch (e, s) {
+      reportCaught('unifiedpush pusher post', e, s);
       lastPusherError = e.toString();
       status.value = UnifiedPushStatus.pusherFailed;
       _retry.schedule(() => _retryWithLiveClient());

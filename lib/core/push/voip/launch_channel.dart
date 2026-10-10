@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../platform/platform_capabilities.dart';
 
 const launchChannel = MethodChannel('zuno/launch');
@@ -18,19 +18,14 @@ class LaunchChannel {
   Future<WakeReason?> takeWakeReason() async =>
       WakeReason.values.asNameMap()[await _invoke<String>('takeWakeReason')];
 
-  Future<List<String>> takeDiagnostics() async => [
-    for (final line in await _invoke<List<Object?>>('takeDiagnostics') ?? [])
-      if (line is String) line,
-  ];
-
   Future<T?> _invoke<T>(String method) async {
     if (!_enabled) return null;
     try {
       return await launchChannel.invokeMethod<T>(method);
     } on MissingPluginException {
       return null;
-    } on PlatformException catch (e) {
-      debugPrint('zuno/launch: $method failed (${e.code})');
+    } on PlatformException catch (e, s) {
+      reportCaught('launch $method', e.code, s);
       return null;
     }
   }

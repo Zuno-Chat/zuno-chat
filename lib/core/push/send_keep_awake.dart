@@ -1,7 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
+
+import '../errors/caught_errors.dart';
 
 class SendKeepAwake {
   SendKeepAwake({
@@ -53,7 +54,7 @@ final sendKeepAwake = SendKeepAwake(
 Future<void> _wakeLockCall(String method, Map<String, Object> arguments) async {
   try {
     await _wakeLock.invokeMethod<void>(method, arguments);
-  } catch (e) {
-    debugPrint('zuno/send: background time not $method ($e)');
+  } catch (e, s) {
+    reportCaught('send wake lock $method', e, s);
   }
 }

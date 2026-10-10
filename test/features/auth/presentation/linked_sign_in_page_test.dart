@@ -14,10 +14,16 @@ import 'package:zuno/core/matrix/linked_sign_in.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/auth/presentation/linked_sign_in_page.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_homeserver.dart';
 import '../../../helpers/preferences_container.dart';
 import '../../../helpers/pump_until.dart';
+
+class _UnreachableHomeserver extends HomeserverNotifier {
+  @override
+  Future<Uri> build() async => throw http.ClientException('offline');
+}
 
 void main() {
   Finder field(String label) =>
@@ -42,13 +48,14 @@ void main() {
     WidgetTester tester, {
     required Client client,
     CodeScanner? scan,
+    HomeserverNotifier Function()? homeserver,
   }) async {
     final container = await containerWithPreferences(
       {},
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         homeserverProvider.overrideWith(
-          () => FixedHomeserver(Uri.https('example.org')),
+          homeserver ?? () => FixedHomeserver(Uri.https('example.org')),
         ),
       ],
     );
@@ -163,6 +170,30 @@ void main() {
       findsOneWidget,
     );
     expect(bodies, isEmpty);
+  });
+
+  testWidgets('a scanned code while the server cannot be reached says so, '
+      'leaving the report to the server check', (tester) async {
+    final bodies = <Map<String, Object?>>[];
+    const code = LinkedSignInCode(server: 'example.org', token: 'syl_x');
+    await pumpPage(
+      tester,
+      client: clientRecording(bodies),
+      scan: (_) async => bytesOf(code.encode()),
+      homeserver: _UnreachableHomeserver.new,
+    );
+
+    final reports = await reportsDuring(() async {
+      await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
+      await pumpRealAsync(tester, rounds: 2);
+    });
+
+    expect(
+      find.text('Cannot connect. Check your connection and try again.'),
+      findsOneWidget,
+    );
+    expect(bodies, isEmpty);
+    expect(reports, isEmpty);
   });
 
   testWidgets('a cancelled scan changes nothing', (tester) async {

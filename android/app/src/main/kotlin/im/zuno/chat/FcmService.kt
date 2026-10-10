@@ -40,7 +40,7 @@ class FcmService : FirebaseMessagingService() {
                 FcmPushHandling.NOTHING -> Log.d(TAG, "Badge push $messageId needs nothing")
             }
         } finally {
-            messageId?.let { PushWakeLock.release(it) }
+            messageId?.let { PushWakeLock.release(applicationContext, it) }
             PushDeliveryLog.handled(
                 applicationContext,
                 messageId,
@@ -74,7 +74,7 @@ class FcmService : FirebaseMessagingService() {
             }
             FcmBadgeDecision.messageNotificationIds(shown).forEach { manager.cancel(it) }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not clear the chat notifications", e)
+            CaughtErrors.record(this, "fcm clear chat notifications", e)
         }
         try {
             getSharedPreferences(PREFERENCES, MODE_PRIVATE)
@@ -82,7 +82,7 @@ class FcmService : FirebaseMessagingService() {
                 .remove(FcmBadgeDecision.THREADS_KEY)
                 .apply()
         } catch (e: Exception) {
-            Log.w(TAG, "Could not forget the chat notification threads", e)
+            CaughtErrors.record(this, "fcm forget notification threads", e)
         }
     }
 

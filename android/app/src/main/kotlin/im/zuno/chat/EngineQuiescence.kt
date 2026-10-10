@@ -1,15 +1,14 @@
 package im.zuno.chat
 
+import android.content.Context
 import android.os.Handler
-import android.util.Log
 import io.flutter.plugin.common.MethodChannel
 
 object EngineQuiescence {
-    private const val TAG = "EngineQuiescence"
     private const val METHOD = "quiescent"
     const val ANSWER_TIMEOUT_MS = 5_000L
 
-    fun ask(channel: MethodChannel, main: Handler, done: (Boolean) -> Unit) {
+    fun ask(context: Context, channel: MethodChannel, main: Handler, done: (Boolean) -> Unit) {
         var answered = false
         fun finish(quiet: Boolean) {
             if (answered) return
@@ -41,7 +40,7 @@ object EngineQuiescence {
                 },
             )
         } catch (e: Exception) {
-            Log.w(TAG, "Could not ask an engine whether it is quiet", e)
+            CaughtErrors.record(context, "engine quiescence ask", e)
             answer(false)
         }
     }

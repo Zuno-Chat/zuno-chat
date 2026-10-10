@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/push/fcm_push_notification.dart';
 
+import '../../helpers/recording_sentry.dart';
+
 void main() {
   test('decodes Sygnal\'s event_id_only payload', () {
     final notification = pushNotificationFromFcmData({
@@ -68,6 +70,24 @@ void main() {
     });
     expect(notification?.eventId, '\$abc:example.org');
     expect(notification?.counts, isNull);
+  });
+
+  group('a payload the SDK cannot read', () {
+    final transport = useRecordingSentry();
+
+    test('still names its event, and reports only the error type, never '
+        'what the message said', () async {
+      final notification = pushNotificationFromFcmData({
+        'event_id': '\$abc:example.org',
+        'room_id': '!room:example.org',
+        'content': 'Alice: the door code is 4471',
+      });
+      await pumpEventQueue();
+
+      expect(notification?.eventId, '\$abc:example.org');
+      expect(transport.sentEvent.tags?['caught'], 'fcm payload parse');
+      expect(transport.sentEvent.throwable.toString(), 'FormatException');
+    });
   });
 
   test('ignores non-string values without throwing', () {

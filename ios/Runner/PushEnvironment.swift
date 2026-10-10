@@ -6,8 +6,12 @@ enum PushEnvironment: String, Equatable, Sendable {
 
   static let current = resolve(
     profile: Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision")
-      .flatMap { try? Data(contentsOf: $0) },
+      .flatMap(profileData),
     simulator: runsOnSimulator)
+
+  private static func profileData(_ url: URL) -> Data? {
+    CaughtErrors.attempt("push environment profile") { try Data(contentsOf: url) }
+  }
 
   static func resolve(profile: Data?, simulator: Bool) -> PushEnvironment {
     if simulator { return .development }
@@ -21,10 +25,10 @@ enum PushEnvironment: String, Equatable, Sendable {
         of: Data("</plist>".utf8), in: start.lowerBound..<profile.endIndex)
     else { return nil }
     let plist = profile.subdata(in: start.lowerBound..<end.upperBound)
-    guard
-      let object = try? PropertyListSerialization.propertyList(from: plist, format: nil),
-      let dictionary = object as? [String: Any]
-    else { return nil }
+    let object = CaughtErrors.attempt("push environment plist") {
+      try PropertyListSerialization.propertyList(from: plist, format: nil)
+    }
+    guard let dictionary = object as? [String: Any] else { return nil }
     return dictionary["Entitlements"] as? [String: Any]
   }
 

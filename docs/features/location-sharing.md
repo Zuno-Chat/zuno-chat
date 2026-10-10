@@ -146,6 +146,10 @@ so another client cannot claim a longer share.
 - **Positions and watches are never stored or replayed** (`app-foundation.md`):
   a send that failed offline goes out again only as the newest position, on
   reconnect.
+- **An error that can carry a position is reported by its type or code
+  only** (`crash-reporting.md`), from finding a fix for a pin to live
+  capture and sends, because its text could put a location in a crash
+  report.
 - **No end record and no state renewals**: both would be permanent history,
   and positions carry liveness.
 - **The end is checked by the wall clock on every input**, because Dart

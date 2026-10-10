@@ -21,6 +21,12 @@ class FakeAudioPlatform {
 
   void finishPlaying() => _emit({'event': 'audio.onComplete'});
 
+  void failPlaying() {
+    for (final sink in _sinks.values) {
+      sink.error(code: 'AndroidAudioError', message: 'MEDIA_ERROR_UNKNOWN');
+    }
+  }
+
   void reportDuration(int ms) =>
       _emit({'event': 'audio.onDuration', 'value': ms});
 }

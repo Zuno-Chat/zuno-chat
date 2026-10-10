@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../matrix/room_title.dart';
 import '../../platform/platform_capabilities.dart';
@@ -187,8 +187,8 @@ class ReadModelPublisher {
     final Map<String, Object?> extras;
     try {
       extras = await roomExtras?.call(room) ?? const <String, Object?>{};
-    } catch (e) {
-      debugPrint('zuno/nse: a room file was skipped (${e.runtimeType})');
+    } catch (e, s) {
+      reportCaughtType('nse room extras', e, s);
       return;
     }
     if (_held || _client == null) return;

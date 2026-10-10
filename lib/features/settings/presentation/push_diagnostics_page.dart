@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/push/push_diagnostics_data.dart' show ServerReach;
@@ -43,8 +44,8 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
             ref.read(platformCapabilitiesProvider),
             ref.read(notificationDeliveryModeProvider),
           );
-    } catch (e) {
-      debugPrint('zuno/push: diagnostics could not be read ($e)');
+    } catch (e, s) {
+      reportCaught('read push diagnostics', e, s);
     }
     if (!mounted) return;
     setState(() {

@@ -281,30 +281,51 @@ void main() {
       expect(client.fetched, [r'$two']);
     });
 
-    test('starts crash reporting only once the first job is done, and '
-        'never holds up an answer for it', () async {
+    test('starts crash reporting with its setup, before the first push is '
+        'handled, and never holds up an answer for it', () async {
+      final answered = Completer<bool>();
+      readyAnswer = () => answered.future;
       var starts = 0;
+      int? startsWhenPrepared;
       final client = _PusherPushClient();
-      await runFcmHeadless(
+      final started = runFcmHeadless(
         runner: HeadlessPushRunner()..liveClient = client,
         initCrashReporting: () {
           starts++;
           return Completer<void>().future;
         },
-        prepare: () async => true,
+        prepare: () async {
+          startsWhenPrepared = starts;
+          return true;
+        },
       );
-      expect(calls, ['ready']);
+      await pumpEventQueue();
       expect(starts, 0);
 
       await fromNative('push', push(r'$one')).timeout(
         const Duration(seconds: 2),
         onTimeout: () => fail('crash reporting held up the answer'),
       );
-      expect(starts, 1);
+      expect(startsWhenPrepared, 1);
+      expect(client.fetched, [r'$one']);
 
+      answered.complete(true);
+      await started;
       await fromNative('push', push(r'$two'));
       expect(starts, 1);
       expect(client.fetched, [r'$one', r'$two']);
+    });
+
+    test('starts crash reporting once the router takes it, with no push '
+        'yet', () async {
+      var starts = 0;
+      await runFcmHeadless(
+        runner: HeadlessPushRunner()..liveClient = _PusherPushClient(),
+        initCrashReporting: () async => starts++,
+        prepare: () async => true,
+      );
+
+      expect(starts, 1);
     });
 
     test(

@@ -1,6 +1,7 @@
-import 'package:flutter/foundation.dart' show debugPrint, immutable;
+import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/services.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 
 enum NativeNotificationActionKind { reply, markRead }
@@ -83,8 +84,8 @@ class NativeNotificationActionsChannel {
       raw = await _methods.invokeListMethod<Object?>('takeActions');
     } on MissingPluginException {
       return _noActions;
-    } on PlatformException catch (e) {
-      debugPrint('zuno/notifications: could not take actions ($e)');
+    } on PlatformException catch (e, s) {
+      reportCaught('native actions take', e, s);
       return _noActions;
     }
     final actions = <NativeNotificationAction>[];
@@ -107,8 +108,8 @@ class NativeNotificationActionsChannel {
       await _methods.invokeMethod<void>('finish', {'id': id, 'ok': ok});
     } on MissingPluginException {
       return;
-    } on PlatformException catch (e) {
-      debugPrint('zuno/notifications: could not finish action $id ($e)');
+    } on PlatformException catch (e, s) {
+      reportCaught('native action finish', e, s);
     }
   }
 

@@ -186,7 +186,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     if (call != null) {
       showCallScreen(Navigator.of(context), call, replace: true);
     }
-    unawaited(session.accept().catchError((_) {}));
+    session.accept().ignore();
   }
 
   Future<void> _decline() async {

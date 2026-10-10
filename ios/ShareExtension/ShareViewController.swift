@@ -50,7 +50,8 @@ final class ShareViewController: UIViewController {
   private func share() async {
     guard let root = ShareInbox.root() else { return show(Self.unreadable) }
     _ = ShareInbox.sweep(root, now: Date())
-    guard var entry = try? ShareEntry.create(in: root) else { return show(Self.unreadable) }
+    let created = CaughtErrors.attempt("share entry create") { try ShareEntry.create(in: root) }
+    guard var entry = created else { return show(Self.unreadable) }
     self.entry = entry
     var index = 0
     for item in extensionContext?.inputItems as? [NSExtensionItem] ?? [] {
@@ -80,6 +81,7 @@ final class ShareViewController: UIViewController {
     do {
       committed = try entry.commit(created: Date())
     } catch {
+      CaughtErrors.record("share commit", error)
       entry.discard()
       committed = false
     }
@@ -96,10 +98,13 @@ final class ShareViewController: UIViewController {
   {
     switch ShareItemKind.of(provider.registeredTypeIdentifiers) {
     case .file(let type):
-      if let file = await copyFile(provider, type: type, index: index, into: directory) {
+      let image = UTType(type)?.conforms(to: .image) == true
+      if let file = await copyFile(
+        provider, type: type, index: index, into: directory, fallsBack: image)
+      {
         return .file(file)
       }
-      guard UTType(type)?.conforms(to: .image) == true else { return nil }
+      guard image else { return nil }
       return await writeImage(provider, type: type, index: index, into: directory)
     case .fileURL:
       return await loadURL(provider, type: UTType.fileURL.identifier, index: index, into: directory)
@@ -112,15 +117,18 @@ final class ShareViewController: UIViewController {
     }
   }
 
-  private func copyFile(_ provider: NSItemProvider, type: String, index: Int, into directory: URL)
-    async -> ShareManifest.File?
-  {
+  private func copyFile(
+    _ provider: NSItemProvider, type: String, index: Int, into directory: URL, fallsBack: Bool
+  ) async -> ShareManifest.File? {
     await withCheckedContinuation { continuation in
       loads.append(
-        provider.loadFileRepresentation(forTypeIdentifier: type) { url, _ in
+        provider.loadFileRepresentation(forTypeIdentifier: type) { url, error in
+          if !fallsBack { Self.loadFailed("share load file", error) }
           continuation.resume(
-            returning: url.flatMap {
-              try? ShareEntry.place($0, in: directory, index: index, typeIdentifier: type)
+            returning: url.flatMap { url in
+              Self.placed("share place file", fallsBack: fallsBack) {
+                try ShareEntry.place(url, in: directory, index: index, typeIdentifier: type)
+              }
             })
         })
     }
@@ -130,20 +138,27 @@ final class ShareViewController: UIViewController {
     async -> Loaded?
   {
     await withCheckedContinuation { continuation in
-      provider.loadItem(forTypeIdentifier: type, options: nil) { item, _ in
+      provider.loadItem(forTypeIdentifier: type, options: nil) { item, error in
+        Self.loadFailed("share load image", error)
         let file: ShareManifest.File? =
           switch item {
           case let url as URL where url.isFileURL:
-            try? ShareEntry.place(url, in: directory, index: index, typeIdentifier: type)
+            Self.placed("share place image") {
+              try ShareEntry.place(url, in: directory, index: index, typeIdentifier: type)
+            }
           case let data as Data:
-            try? ShareEntry.place(
-              data, named: "shared", in: directory, index: index,
-              typeIdentifier: Self.imageType(of: data) ?? type)
+            Self.placed("share place image") {
+              try ShareEntry.place(
+                data, named: "shared", in: directory, index: index,
+                typeIdentifier: Self.imageType(of: data) ?? type)
+            }
           case let image as UIImage:
-            image.pngData().flatMap {
-              try? ShareEntry.place(
-                $0, named: "shared", in: directory, index: index,
-                typeIdentifier: UTType.png.identifier)
+            image.pngData().flatMap { png in
+              Self.placed("share place image") {
+                try ShareEntry.place(
+                  png, named: "shared", in: directory, index: index,
+                  typeIdentifier: UTType.png.identifier)
+              }
             }
           default:
             nil
@@ -157,7 +172,8 @@ final class ShareViewController: UIViewController {
     async -> Loaded?
   {
     await withCheckedContinuation { continuation in
-      provider.loadItem(forTypeIdentifier: type, options: nil) { item, _ in
+      provider.loadItem(forTypeIdentifier: type, options: nil) { item, error in
+        Self.loadFailed("share load url", error)
         if let text = item as? String {
           return continuation.resume(returning: .text(text))
         }
@@ -170,10 +186,14 @@ final class ShareViewController: UIViewController {
         }
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        let contentType =
-          (try? url.resourceValues(forKeys: [.contentTypeKey]))?.contentType ?? .data
-        let file = try? ShareEntry.place(
-          url, in: directory, index: index, typeIdentifier: contentType.identifier)
+        let values = CaughtErrors.attempt("share url content type") {
+          try url.resourceValues(forKeys: [.contentTypeKey])
+        }
+        let contentType = values?.contentType ?? .data
+        let file = Self.placed("share place url") {
+          try ShareEntry.place(
+            url, in: directory, index: index, typeIdentifier: contentType.identifier)
+        }
         continuation.resume(returning: file.map { .file($0) })
       }
     }
@@ -181,7 +201,9 @@ final class ShareViewController: UIViewController {
 
   private func loadText(_ provider: NSItemProvider) async -> Loaded? {
     await withCheckedContinuation { continuation in
-      provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, _ in
+      provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) {
+        item, error in
+        Self.loadFailed("share load text", error)
         let text: String? =
           switch item {
           case let string as String: string
@@ -191,6 +213,24 @@ final class ShareViewController: UIViewController {
           }
         continuation.resume(returning: text.map { .text($0) })
       }
+    }
+  }
+
+  private nonisolated static func loadFailed(_ label: String, _ error: (any Error)?) {
+    guard let error, (error as? CocoaError)?.code != .userCancelled else { return }
+    CaughtErrors.record(label, error)
+  }
+
+  private nonisolated static func placed(
+    _ label: String, fallsBack: Bool = false, _ place: () throws -> ShareManifest.File
+  ) -> ShareManifest.File? {
+    do {
+      return try place()
+    } catch CocoaError.featureUnsupported {
+      return nil
+    } catch {
+      if !fallsBack { CaughtErrors.record(label, error) }
+      return nil
     }
   }
 

@@ -7,6 +7,8 @@ import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 
 import 'package:zuno/core/matrix/atomic_batch_database.dart';
 
+import '../../helpers/caught_reports.dart';
+
 const _channel = MethodChannel('com.davidmartos96.sqflite_sqlcipher');
 
 const _begin = {
@@ -281,6 +283,45 @@ void main() {
         failsWith('disk is full'),
       );
       expect(labels(), ['batch', 'execute ROLLBACK']);
+    });
+
+    test('whose transaction SQLite already ended reports nothing of the '
+        'ROLLBACK', () async {
+      final database = await open();
+      native.onBatch = (_) async => throw diskFull();
+      native.onExecute = (_) async => throw PlatformException(
+        code: 'sqlite_error',
+        message: 'cannot rollback - no transaction is active (code 1)',
+      );
+      final batch = database.batch()..insert('box', {'k': 'a', 'v': '1'});
+
+      final reports = await reportsDuring(
+        () => expectLater(
+          batch.commit(noResult: true),
+          failsWith('disk is full'),
+        ),
+      );
+
+      expect(reports, isEmpty);
+    });
+
+    test('whose ROLLBACK fails some other way reports it', () async {
+      final database = await open();
+      native.onBatch = (_) async => throw diskFull();
+      native.onExecute = (_) async => throw PlatformException(
+        code: 'sqlite_error',
+        message: 'disk I/O error (code 10)',
+      );
+      final batch = database.batch()..insert('box', {'k': 'a', 'v': '1'});
+
+      final reports = await reportsDuring(
+        () => expectLater(
+          batch.commit(noResult: true),
+          failsWith('disk is full'),
+        ),
+      );
+
+      expect(reports, ['roll back a failed batch']);
     });
 
     test('that fails is rolled back once, before any other call from this '

@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/linked_sign_in.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/security/screen_security_service.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import 'uia_password_prompt.dart';
@@ -67,9 +69,14 @@ class _SignInAnotherDevicePageState
       final issued = await issueLinkedSignInCode(client, now: widget.now);
       if (!mounted) return;
       setState(() => _issued = issued);
-    } catch (e) {
+    } catch (e, s) {
+      final unsupported =
+          e is MatrixException && e.error == MatrixError.M_UNRECOGNIZED;
+      if (!isUiaCancel(e) && !unsupported) {
+        reportCaught('issue sign-in code', e, s);
+      }
       if (!mounted) return;
-      if (e.toString().contains('canceled')) {
+      if (isUiaCancel(e)) {
         Navigator.of(context).pop();
         return;
       }

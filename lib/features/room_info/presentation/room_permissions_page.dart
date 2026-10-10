@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_roles.dart';
 import '../../../core/ui/card_group.dart';
@@ -35,8 +35,8 @@ class _RoomPermissionsPageState extends State<RoomPermissionsPage> {
     try {
       await setRoomPermissionLevel(widget.room, permission, chosen.powerLevel);
       if (mounted) setState(() {});
-    } catch (e) {
-      logCaught('update permissions', e);
+    } catch (e, s) {
+      reportCaught('update permissions', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Not saved. Try again.')),
       );

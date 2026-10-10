@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/errors/connection_error.dart';
+import 'package:zuno/core/errors/native_caught_error.dart';
 
 void main() {
   final refusal = MatrixException.fromJson({
@@ -32,6 +33,79 @@ void main() {
     expect(isConnectionError(refusal), isFalse);
     expect(isConnectionError(StateError('bad state')), isFalse);
     expect(isConnectionError('Tried to request history'), isFalse);
+  });
+
+  test('a native network failure is a connection error', () {
+    for (final type in [
+      'java.net.UnknownHostException',
+      'java.net.SocketTimeoutException',
+      'javax.net.ssl.SSLHandshakeException',
+    ]) {
+      expect(
+        isConnectionError(NativeCaughtError(type: type, message: 'x')),
+        isTrue,
+        reason: type,
+      );
+    }
+    expect(
+      isConnectionError(
+        const NativeCaughtError(
+          type: 'Foundation.URLError',
+          message: 'The Internet connection appears to be offline.',
+          domain: 'NSURLErrorDomain',
+          code: -1009,
+        ),
+      ),
+      isTrue,
+    );
+  });
+
+  test('a native certificate failure is a connection error', () {
+    expect(
+      isConnectionError(
+        const NativeCaughtError(
+          type: 'Foundation.URLError',
+          message: 'untrusted',
+          domain: 'NSURLErrorDomain',
+          code: -1202,
+        ),
+      ),
+      isTrue,
+    );
+  });
+
+  test('any other native failure is not a connection error', () {
+    expect(
+      isConnectionError(
+        const NativeCaughtError(
+          type: 'java.lang.IllegalStateException',
+          message: 'x',
+        ),
+      ),
+      isFalse,
+    );
+    expect(
+      isConnectionError(
+        const NativeCaughtError(
+          type: 'Foundation.URLError',
+          message: 'cancelled',
+          domain: 'NSURLErrorDomain',
+          code: -999,
+        ),
+      ),
+      isFalse,
+    );
+    expect(
+      isConnectionError(
+        const NativeCaughtError(
+          type: 'Swift.DecodingError',
+          message: 'x',
+          domain: 'Swift.DecodingError',
+          code: -1009,
+        ),
+      ),
+      isFalse,
+    );
   });
 
   test('a connection failure reads as what failed and what to do', () {

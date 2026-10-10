@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/format/chat_list_time.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/push/push_diagnostics_source.dart';
@@ -34,8 +35,8 @@ class _RecentPushesPageState extends ConsumerState<RecentPushesPage> {
             ref.read(platformCapabilitiesProvider),
             ref.read(notificationDeliveryModeProvider),
           );
-    } catch (e) {
-      debugPrint('zuno/push: recent pushes could not be read ($e)');
+    } catch (e, s) {
+      reportCaught('read recent pushes', e, s);
     }
     if (!mounted) return;
     setState(() => _pushes = pushes);

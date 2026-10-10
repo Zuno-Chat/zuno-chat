@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint, listEquals;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -8,6 +8,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../calls/matrixrtc/call_unread_correction_provider.dart';
+import '../../errors/best_effort.dart';
+import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../notifications/notification_permission_provider.dart';
 import '../../notifications/notification_preview.dart';
@@ -193,7 +195,8 @@ class NseServices {
         timeout: const Duration(seconds: 5),
       );
       return profile.displayname;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('nse display name fetch', e, s);
       return _name;
     }
   }
@@ -203,16 +206,14 @@ Future<String> _installedVersion() async {
   try {
     final info = await PackageInfo.fromPlatform();
     return '${info.version}+${info.buildNumber}';
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('nse installed version', e, s);
     return 'unknown';
   }
 }
 
-void _safely(String step, Future<void> Function() work) => unawaited(
-  work().catchError(
-    (Object error) => debugPrint('zuno/nse: $step failed ($error)'),
-  ),
-);
+void _safely(String step, Future<void> Function() work) =>
+    unawaited(runBestEffort(work, label: 'nse $step'));
 
 Future<ZunoPushResult<NseCredentialGrant>> mintNseCredential(
   Client client,

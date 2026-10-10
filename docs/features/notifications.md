@@ -213,6 +213,7 @@ Both platforms show the permission, this device's registration and the module's 
 - **The APNs pushkey is the token bytes in base64, never hex**, because Sygnal base64-decodes it and hex decodes to junk that APNs rejects, deleting the pusher with no symptom.
 - **`stopAllNotificationDelivery` is every sign-out's push teardown**, run while the token still works (`authentication.md`): it stops every mode and, on iOS, tells the module to forget the device and wipes the read model and VoIP keys.
 - **A notification-permission revoke kills the process**, so both push providers' `stop` fall back to the persisted registration, or the pusher would stay on the homeserver.
+- **A pusher delete is skipped once signed out, and an unknown or missing token counts as done**, because the homeserver drops a device's pushers with the device.
 - **Sygnal omits falsy counts and drops the empty badge push**, so an `unread` 0 clear may never arrive and the next sync cleans up instead.
 - **Background audio hardening mutes app-process sound** once no activity is visible, so one-shot sounds play as a channel's own sound, which the system plays.
 - **Never reuse a retired channel id** (`messages`, `messages_group`, `messages_sound_v1`, `messages_group_sound_v1`), because recreating one restores its old settings.

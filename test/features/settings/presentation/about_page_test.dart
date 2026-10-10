@@ -166,17 +166,18 @@ void main() {
     tester,
   ) async {
     final container = await pumpAbout(tester);
-    bool shown() =>
-        tester.widget<SwitchListTile>(switchTile('Send crash reports')).value;
+    bool shown() => tester
+        .widget<SwitchListTile>(switchTile('Send crash and error reports'))
+        .value;
     expect(shown(), isFalse);
 
-    await tester.tap(switchTile('Send crash reports'));
+    await tester.tap(switchTile('Send crash and error reports'));
     await tester.pump();
 
     expect(container.read(crashReportingProvider), isTrue);
     expect(shown(), isTrue);
 
-    await tester.tap(switchTile('Send crash reports'));
+    await tester.tap(switchTile('Send crash and error reports'));
     await tester.pump();
 
     expect(container.read(crashReportingProvider), isFalse);
@@ -189,7 +190,7 @@ void main() {
     await pumpAbout(tester);
 
     expect(
-      find.textContaining('No crash report is sent while this is off'),
+      find.textContaining('No report is sent while this is off'),
       findsOneWidget,
     );
     expect(find.textContaining('Nothing is sent'), findsNothing);

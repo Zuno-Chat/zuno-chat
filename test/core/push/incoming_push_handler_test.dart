@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,6 +28,7 @@ import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/push/incoming_push_handler.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_call_style_channel.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
@@ -788,6 +788,32 @@ void main() {
       );
     });
 
+    group('reports', () {
+      test('a placeholder that cannot be posted as that, not as the '
+          'fetch', () async {
+        notifications.showError = PlatformException(code: 'blocked');
+
+        final reports = await reportsDuring(() async {
+          await handleSlowly();
+          pending.complete(message(body: 'hello'));
+          expect(await outcome(), IncomingPushOutcome.message);
+        });
+
+        expect(reports, ['push placeholder post']);
+      });
+
+      test('a fetch that fails after the placeholder went up as the '
+          'fetch', () async {
+        final reports = await reportsDuring(() async {
+          await handleSlowly();
+          pending.completeError(StateError('event gone'));
+          expect(await outcome(), IncomingPushOutcome.message);
+        });
+
+        expect(reports, ['push event fetch']);
+      });
+    });
+
     test('a fast fetch never shows a placeholder', () async {
       pending.complete(message(body: 'quick'));
 
@@ -804,17 +830,8 @@ void main() {
 
   group('refusal logging', () {
     late List<String> lines;
-    late DebugPrintCallback originalDebugPrint;
 
-    setUp(() {
-      lines = [];
-      originalDebugPrint = debugPrint;
-      debugPrint = (String? message, {int? wrapWidth}) {
-        if (message != null) lines.add(message);
-      };
-    });
-
-    tearDown(() => debugPrint = originalDebugPrint);
+    setUp(() => lines = recordDebugPrints());
 
     String refusalLine() =>
         lines.singleWhere((line) => line.contains('not notifying'));

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import 'caption_bar.dart';
 import 'image_caption_composer_page.dart' show ComposedImage;
 import 'preview_decode_width.dart';
@@ -73,7 +74,11 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
     ];
     _videoInitFutures = [
       for (final controller in _videoControllers)
-        controller?.initialize()?..ignore(),
+        if (controller != null)
+          reportFailureOf(controller.initialize(), label: 'preview video')
+            ..ignore()
+        else
+          null,
     ];
   }
 

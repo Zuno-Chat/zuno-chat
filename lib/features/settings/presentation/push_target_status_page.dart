@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
@@ -79,8 +79,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     var failed = false;
     try {
       await removal.remove(client);
-    } catch (e) {
-      logCaught('remove push target', e);
+    } catch (e, s) {
+      reportCaught('remove push target', e, s);
       failed = true;
     }
     if (!mounted) return;
@@ -128,8 +128,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
         await client.deletePusher(
           PusherId(appId: pusher.appId, pushkey: pusher.pushkey),
         );
-      } catch (e) {
-        logCaught('remove other push target', e);
+      } catch (e, s) {
+        reportCaught('remove other push target', e, s);
         failed = true;
       }
     }

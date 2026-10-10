@@ -217,6 +217,11 @@ final class CallKitCenter: NSObject {
     }
   }
 
+  nonisolated private static func recordUnavailable(_ label: String, _ error: (any Error)?) {
+    guard let error, refusal(error) == "unavailable" else { return }
+    CaughtErrors.record(label, error)
+  }
+
   nonisolated static func ringtoneSound(stored: Any?, flag: Bool?) -> String? {
     if let enabled = stored as? Bool { return enabled ? nil : NseContentFactory.silentRing }
     return flag == false ? NseContentFactory.silentRing : nil
@@ -338,6 +343,7 @@ final class CallKitCenter: NSObject {
     let reply = UncheckedSendable(completion)
     providerForCall().reportNewIncomingCall(call.uuid, update: update(for: call)) {
       [weak self] error in
+      CallKitCenter.recordUnavailable("callkit report sync call", error)
       let refusal = CallKitCenter.refusal(error)
       if let error, let refusal {
         CallKitCenter.log.notice(
@@ -375,6 +381,7 @@ final class CallKitCenter: NSObject {
       if reportAgain {
         let provider = providerForCall()
         provider.reportNewIncomingCall(uuid, update: update(for: call)) { [weak self] error in
+          CallKitCenter.recordUnavailable("callkit report again", error)
           if error == nil {
             if let self, let tracked = self.trackedCall(uuid) {
               self.reportEnded(tracked.key, .remoteEnded)
@@ -407,6 +414,7 @@ final class CallKitCenter: NSObject {
     let key = call.key
     providerForCall().reportNewIncomingCall(call.uuid, update: update(for: call)) {
       [weak self] error in
+      CallKitCenter.recordUnavailable("callkit report pushed call", error)
       let refusal = CallKitCenter.refusal(error)
       if let error, let refusal {
         CallKitCenter.log.notice(
@@ -432,6 +440,7 @@ final class CallKitCenter: NSObject {
     update.hasVideo = false
     let provider = providerForCall()
     provider.reportNewIncomingCall(uuid, update: update) { [weak self] error in
+      CallKitCenter.recordUnavailable("callkit report placeholder", error)
       if error == nil {
         if let self, let call = self.trackedCall(uuid) {
           self.reportEnded(call.key, .remoteEnded)
@@ -549,9 +558,9 @@ final class CallKitCenter: NSObject {
     let action = CXAnswerCallAction(call: call.uuid)
     call.ownActions.insert(action.uuid)
     requestTransaction(action) { [weak self] error in
-      CallKitCenter.log.error(
-        "in-app answer refused: \(error.localizedDescription, privacy: .public)")
-      guard let self, let call = self.calls[key] else { return }
+      guard let self else { return }
+      self.recordRefusal("callkit answer request", error, key: key)
+      guard let call = self.calls[key] else { return }
       self.emit("callFailed", call.arguments)
       self.reportEnded(key, .failed)
     }
@@ -623,8 +632,7 @@ final class CallKitCenter: NSObject {
     let action = CXEndCallAction(call: call.uuid)
     call.ownActions.insert(action.uuid)
     requestTransaction(action) { [weak self] error in
-      CallKitCenter.log.error(
-        "end request refused: \(error.localizedDescription, privacy: .public)")
+      self?.recordRefusal("callkit end request", error, key: key)
       self?.reportEnded(key, reason)
     }
   }
@@ -733,7 +741,6 @@ final class CallKitCenter: NSObject {
 
   private func startFailed(_ key: String, _ error: any Error, retry: Bool) {
     guard let call = calls[key] else { return }
-    Self.log.error("start request refused: \(error.localizedDescription, privacy: .public)")
     let brokenProvider =
       (error as? CXErrorCodeRequestTransactionError)?.code == .unknownCallProvider
     if brokenProvider, retry, calls.count == 1 {
@@ -742,8 +749,19 @@ final class CallKitCenter: NSObject {
       requestStart(call, retry: false)
       return
     }
+    recordRefusal("callkit start request", error, key: key)
     emit("callFailed", call.arguments)
     finish(call)
+  }
+
+  private func recordRefusal(_ label: String, _ error: any Error, key: String) {
+    guard calls[key] != nil,
+      (error as? CXErrorCodeRequestTransactionError)?.code != .unknownCallUUID
+    else {
+      Self.log.notice("\(label, privacy: .public) refused for an ended call")
+      return
+    }
+    CaughtErrors.record(label, error)
   }
 
   private func requestMute(_ call: TrackedCall, _ muted: Bool) {
@@ -751,8 +769,7 @@ final class CallKitCenter: NSObject {
     let action = CXSetMutedCallAction(call: call.uuid, muted: muted)
     call.ownActions.insert(action.uuid)
     requestTransaction(action) { [weak self] error in
-      CallKitCenter.log.notice(
-        "mute request refused: \(error.localizedDescription, privacy: .public)")
+      self?.recordRefusal("callkit mute request", error, key: key)
       guard !muted, let self, let call = self.calls[key], !call.muted else { return }
       call.muted = true
       var arguments = call.arguments

@@ -127,7 +127,7 @@ object PushDeliveryLog {
                 val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                 prefs.edit().putString(KEY, prepend(prefs.getString(KEY, null), line)).apply()
             } catch (e: Exception) {
-                Log.w(TAG, "Could not record the push delivery", e)
+                CaughtErrors.record(context, "push delivery log received", e)
             }
         }
     }
@@ -144,7 +144,7 @@ object PushDeliveryLog {
                     prefs.edit().putString(KEY, it).apply()
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Could not record how the push was handled", e)
+                CaughtErrors.record(context, "push delivery log handled", e)
             }
         }
     }

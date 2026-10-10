@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../features/calls/presentation/incoming_call_page.dart';
-import '../errors/crash_reporting.dart';
 import '../errors/global_error_handler.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../matrix/room_title.dart';
@@ -37,15 +36,6 @@ import 'platform/system_ring.dart';
 
 const genericBindWindow = Duration(seconds: 20);
 const freshCallWindow = Duration(seconds: 45);
-
-class IosDiagnostic implements Exception {
-  const IosDiagnostic(this.summary);
-
-  final String summary;
-
-  @override
-  String toString() => 'IosDiagnostic($summary)';
-}
 
 typedef FreshCall = ({IncomingCall call, int startedMs});
 
@@ -159,9 +149,6 @@ class RingCoordinator extends Notifier<void> {
     const launch = LaunchChannel();
     final reason = await launch.takeWakeReason();
     if (reason != null) debugPrint('zuno/ring: woken for ${reason.name}');
-    for (final line in await launch.takeDiagnostics()) {
-      unawaited(captureCrash(IosDiagnostic(line), null));
-    }
   }
 
   bool _resolvedNow(String callId) =>

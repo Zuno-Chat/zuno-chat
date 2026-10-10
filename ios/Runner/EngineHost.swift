@@ -98,6 +98,7 @@ final class EngineHost {
       ("ZunoClientLeasePlugin", ClientLeasePlugin.self),
       ("ZunoVoipPlugin", VoipPlugin.self),
       ("ZunoLaunchPlugin", LaunchPlugin.self),
+      ("ZunoErrorsPlugin", ErrorsPlugin.self),
       ("ZunoNsePlugin", NsePlugin.self),
       ("ZunoLiveLocationPlugin", LiveLocationPlugin.self),
     ]

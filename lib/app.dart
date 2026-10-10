@@ -11,8 +11,9 @@ import 'core/calls/notifications/call_notification_router.dart';
 import 'core/calls/notifications/call_notification_service.dart';
 import 'core/calls/notifications/ringing_call_provider.dart';
 import 'core/calls/ring_coordinator.dart';
-import 'core/errors/best_effort.dart';
+import 'core/errors/caught_errors.dart';
 import 'core/errors/global_error_handler.dart';
+import 'core/errors/native_errors.dart';
 import 'core/location/live_location_capture.dart';
 import 'core/location/live_location_sharing.dart';
 import 'core/location/live_location_viewing.dart';
@@ -155,6 +156,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(drainNativeErrors());
     ref.listenManual(nseServicesProvider, (_, _) {});
     ref.listenManual(liveLocationViewingProvider, (_, _) {});
     ref.listenManual(
@@ -247,6 +249,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
+    unawaited(drainNativeErrors());
     CallNotificationService.instance.reclaimLiveRoutes();
     if (ref.read(platformCapabilitiesProvider).nativeNotificationActions) {
       unawaited(nativeNotificationActionRunner.drain());
@@ -357,9 +360,10 @@ class _AuthGateState extends ConsumerState<_AuthGate>
               if (resolved != null) _openRoomById(resolved, instant: instant);
             })
             .catchError(
-              (Object error) => debugPrint(
-                'zuno/push: a tapped notification did not open its room '
-                '(${error.runtimeType})',
+              (Object error, StackTrace stack) => reportCaughtType(
+                'open tapped notification room',
+                error,
+                stack,
               ),
             ),
       );
@@ -392,9 +396,13 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     if (!mounted) return;
     final loggedIn =
         ref.read(isLoggedInProvider).value ??
-        await ref
-            .read(isLoggedInProvider.future)
-            .catchError((Object _) => false);
+        await ref.read(isLoggedInProvider.future).catchError((
+          Object error,
+          StackTrace stack,
+        ) {
+          reportCaught('sign-in state', error, stack);
+          return false;
+        });
     if (!mounted || !loggedIn) return;
     final client = ref.read(matrixClientProvider);
     unawaited(
@@ -477,8 +485,8 @@ class _AuthGateState extends ConsumerState<_AuthGate>
         return _launchHandled ? const RoomListPage() : const ZunoSplash();
       },
       loading: () => const ZunoSplash(),
-      error: (e, _) {
-        logCaught('sign-in state', e);
+      error: (e, s) {
+        reportCaught('sign-in state', e, s);
         return const Scaffold(
           body: Center(
             child: Text('Zuno could not start. Close it and open it again.'),

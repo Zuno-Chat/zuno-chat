@@ -1,8 +1,8 @@
 package im.zuno.chat
 
+import android.content.Context
 import android.os.Handler
 import android.os.HandlerThread
-import android.util.Log
 import com.cloudwebrtc.webrtc.FlutterWebRTCPlugin
 import com.cloudwebrtc.webrtc.MethodCallHandlerImpl
 import com.cloudwebrtc.webrtc.video.LocalVideoTrack
@@ -58,18 +58,18 @@ class PlaceholderVideo private constructor(
         private const val FRAME_INTERVAL_MS = 500L
         private const val LUMA_BLACK: Byte = 16
         private const val CHROMA_NEUTRAL: Byte = -128
-        private const val TAG = "PlaceholderVideo"
+        private const val UNAVAILABLE = "placeholder video unavailable"
         private val active = mutableMapOf<String, PlaceholderVideo>()
 
-        fun attach(engine: FlutterEngine, streamId: String): String? {
+        fun attach(context: Context, engine: FlutterEngine, streamId: String): String? {
             val plugin = engine.plugins.get(FlutterWebRTCPlugin::class.java) as? FlutterWebRTCPlugin
-                ?: return unavailable("flutter_webrtc is not registered on this engine")
+                ?: return unavailable(context, "flutter_webrtc is not registered on this engine")
             val factory = plugin.peerConnectionFactory
-                ?: return unavailable("flutter_webrtc has no peer connection factory")
+                ?: return unavailable(context, "flutter_webrtc has no peer connection factory")
             val stream = plugin.getStreamForId(streamId, "")
-                ?: return unavailable("flutter_webrtc has no stream $streamId")
-            val registry = registry(plugin)
-                ?: return unavailable("flutter_webrtc's track registry is out of reach")
+                ?: return unavailable(context, "flutter_webrtc has no such stream")
+            val registry = runCatching { registry(plugin) }.getOrElse { return unavailable(context, it) }
+                ?: return unavailable(context, "flutter_webrtc's track registry is out of reach")
             val source = factory.createVideoSource(false)
             val track = factory.createVideoTrack(UUID.randomUUID().toString(), source)
             registry.putLocalTrack(track.id(), LocalVideoTrack(track))
@@ -89,8 +89,11 @@ class PlaceholderVideo private constructor(
             all.forEach { it.release() }
         }
 
-        private fun unavailable(reason: String): String? {
-            Log.w(TAG, "No placeholder video: $reason")
+        private fun unavailable(context: Context, reason: String): String? =
+            unavailable(context, IllegalStateException(reason))
+
+        private fun unavailable(context: Context, cause: Throwable): String? {
+            CaughtErrors.record(context, UNAVAILABLE, cause)
             return null
         }
 
@@ -98,11 +101,10 @@ class PlaceholderVideo private constructor(
             while (plane.hasRemaining()) plane.put(value)
         }
 
-        private fun registry(plugin: FlutterWebRTCPlugin): MethodCallHandlerImpl? = runCatching {
+        private fun registry(plugin: FlutterWebRTCPlugin): MethodCallHandlerImpl? {
             val field = FlutterWebRTCPlugin::class.java.getDeclaredField("methodCallHandler")
             field.isAccessible = true
-            field.get(plugin) as? MethodCallHandlerImpl
-        }.onFailure { Log.w(TAG, "flutter_webrtc's methodCallHandler field changed", it) }
-            .getOrNull()
+            return field.get(plugin) as? MethodCallHandlerImpl
+        }
     }
 }

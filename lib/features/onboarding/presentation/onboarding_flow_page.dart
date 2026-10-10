@@ -8,9 +8,10 @@ import 'package:matrix/matrix.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/calls/notifications/call_notification_service.dart';
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/picker_access.dart';
 import '../../../core/notifications/background_sync_service.dart';
 import '../../../core/notifications/fcm_availability_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
@@ -496,8 +497,8 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
       );
       if (!mounted) return;
       setState(() => _avatar = shrunk);
-    } catch (e) {
-      logCaught('pick onboarding photo', e);
+    } catch (e, s) {
+      if (!isPickerAccessDenied(e)) reportCaught('pick onboarding photo', e, s);
       messenger.showSnackBar(
         const SnackBar(
           content: Text('Photo not added. You can add one later in Settings.'),
@@ -521,13 +522,13 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
         });
       }
       if (avatar != null) await client.setAvatar(avatar);
-    } catch (e) {
+    } catch (e, s) {
+      reportCaught('save onboarding profile', e, s);
       messenger.showSnackBar(
         const SnackBar(
           content: Text('Not saved. You can set it later in Settings.'),
         ),
       );
-      debugPrint('zuno/onboarding: profile save failed: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }

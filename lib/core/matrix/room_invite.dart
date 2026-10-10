@@ -1,10 +1,14 @@
 import 'package:matrix/matrix.dart';
 
+import '../errors/caught_errors.dart';
 import 'matrix_ids.dart';
 import 'room_exit.dart';
 import 'room_title.dart';
 
 bool isIncomingInvite(Room room) => room.membership == Membership.invite;
+
+bool isUnknownInvitee(Object error) =>
+    error is MatrixException && error.error == MatrixError.M_NOT_FOUND;
 
 String? inviterId(Room room) {
   final ownMember = ownInviteMember(room);
@@ -46,7 +50,8 @@ Future<StrippedStateEvent?> _restoreMember(Room room, String userId) async {
     if (user == null) return null;
     room.setState(user);
     return user;
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('restore an invite member', e, s);
     return null;
   }
 }

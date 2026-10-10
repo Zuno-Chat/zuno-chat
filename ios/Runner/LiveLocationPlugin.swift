@@ -199,7 +199,11 @@ extension LiveLocationPlugin: @preconcurrency CLLocationManagerDelegate {
   }
 
   func locationManager(_ manager: CLLocationManager, didFailWithError error: any Error) {
-    if (error as? CLError)?.code == .denied { lose("denied") }
+    switch (error as? CLError)?.code {
+    case .denied: lose("denied")
+    case .locationUnknown, .network: break
+    default: CaughtErrors.record("live location", error)
+    }
   }
 
   func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {

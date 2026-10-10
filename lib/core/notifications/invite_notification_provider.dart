@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -8,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../calls/notifications/call_notification_service.dart';
 import '../calls/serial_lock.dart';
+import '../errors/caught_errors.dart';
 import '../matrix/join_requests.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../platform/platform_capabilities.dart';
@@ -54,8 +54,8 @@ Future<InviteClaim> claimInviteAnnouncement(String roomId) =>
         final announcedAt = inviteAnnouncedAt(prefs, roomId);
         if (announcedAt != null) return (won: false, announcedAt: announcedAt);
         await markInviteAnnouncedOnDisk(prefs, roomId);
-      } catch (e) {
-        debugPrint('zuno/notifications: invite announcement not stored ($e)');
+      } catch (e, s) {
+        reportCaught('invite announcement claim', e, s);
       }
       return (won: true, announcedAt: null);
     });
@@ -66,7 +66,9 @@ Future<void> forgetInviteAnnouncements(Iterable<String> roomIds) =>
         final prefs = await SharedPreferences.getInstance();
         await prefs.reload();
         await forgetInviteAnnouncementsOnDisk(prefs, roomIds);
-      } catch (_) {}
+      } catch (e, s) {
+        reportCaught('invite announcement forget', e, s);
+      }
     });
 
 final roomInviteNotificationProvider =
@@ -117,9 +119,9 @@ class RoomInviteNotificationNotifier extends Notifier<void> {
           ]),
         );
       }
-    } catch (e) {
+    } catch (e, s) {
       await forgetInviteAnnouncements([content.roomId]);
-      debugPrint('zuno/notifications: invitation not announced ($e)');
+      reportCaught('invite notification post', e, s);
     }
   }
 
@@ -156,7 +158,8 @@ class RoomInviteNotificationNotifier extends Notifier<void> {
       return roomIds.where(
         (roomId) => inviteAnnouncedAt(prefs, roomId) != null,
       );
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('invite announcement lookup', e, s);
       return const [];
     }
   }

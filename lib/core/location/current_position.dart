@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:geolocator/geolocator.dart';
 
+import '../errors/caught_errors.dart';
 import 'geo_uri.dart';
 
 sealed class LocationFix {
@@ -65,7 +66,10 @@ Future<LocationFix> findCurrentLocation({
       ),
     );
     return _found(position, approximate: await _isApproximate(platform));
-  } catch (_) {
+  } catch (error, stack) {
+    if (error is! TimeoutException && !_isAccessLost(error)) {
+      reportCaughtType('find current location', error, stack);
+    }
     return const LocationFailed(LocationFailure.unavailable);
   }
 }
@@ -75,7 +79,8 @@ Stream<LocationFix> watchOwnLocation({GeolocatorPlatform? geolocator}) async* {
   final LocationFailed? refusal;
   try {
     refusal = await _access(platform);
-  } catch (_) {
+  } catch (error, stack) {
+    reportCaughtType('watch location access', error, stack);
     yield const LocationFailed(LocationFailure.unavailable);
     return;
   }
@@ -91,16 +96,25 @@ Stream<LocationFix> watchOwnLocation({GeolocatorPlatform? geolocator}) async* {
       )
       .transform(
         StreamTransformer<LocationFix, LocationFix>.fromHandlers(
-          handleError: (error, _, sink) => sink.add(
-            LocationFailed(
-              error is LocationServiceDisabledException
-                  ? LocationFailure.servicesOff
-                  : LocationFailure.unavailable,
-            ),
-          ),
+          handleError: (error, stack, sink) {
+            if (!_isAccessLost(error)) {
+              reportCaughtType('watch location', error, stack);
+            }
+            sink.add(
+              LocationFailed(
+                error is LocationServiceDisabledException
+                    ? LocationFailure.servicesOff
+                    : LocationFailure.unavailable,
+              ),
+            );
+          },
         ),
       );
 }
+
+bool _isAccessLost(Object error) =>
+    error is LocationServiceDisabledException ||
+    error is PermissionDeniedException;
 
 Future<LocationFailed?> _access(GeolocatorPlatform platform) async {
   if (!await platform.isLocationServiceEnabled()) {
@@ -135,7 +149,8 @@ Future<bool> _isApproximate(GeolocatorPlatform platform) async {
   try {
     return await platform.getLocationAccuracy() ==
         LocationAccuracyStatus.reduced;
-  } catch (_) {
+  } catch (error, stack) {
+    reportCaughtType('location accuracy', error, stack);
     return false;
   }
 }

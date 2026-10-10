@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
+import 'package:zuno/core/calls/cloudflare/webrtc_backend.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
@@ -23,6 +24,7 @@ import 'package:zuno/features/calls/presentation/call_view.dart';
 import 'package:zuno/features/calls/presentation/participant_tile.dart';
 import 'package:zuno/features/verification/presentation/why_confirm_sheet.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
@@ -289,16 +291,38 @@ void main() {
       await harness.close();
     });
 
-    testWidgets('a camera that will not turn on says so', (tester) async {
+    testWidgets('a camera that will not turn on says so, and is reported', (
+      tester,
+    ) async {
       final harness = CallPageHarness(tester);
       final session = await talking(harness, CallKind.video);
       session.engine.cameraError = StateError('camera in use');
 
-      await tester.tap(find.byTooltip('Turn camera on'));
-      await harness.settle();
+      final reports = await reportsDuring(() async {
+        await tester.tap(find.byTooltip('Turn camera on'));
+        await harness.settle();
+      });
 
       expect(session.engine.cameraEnabledRequests, [true]);
       expect(find.text(cameraDidNotTurnOnMessage), findsOneWidget);
+      expect(reports, contains('toggle camera'));
+      expect(tester.takeException(), isNull);
+      await harness.close();
+    });
+
+    testWidgets('a camera refused at the prompt says so, and is not '
+        'reported', (tester) async {
+      final harness = CallPageHarness(tester);
+      final session = await talking(harness, CallKind.video);
+      session.engine.cameraError = const CameraRefused();
+
+      final reports = await reportsDuring(() async {
+        await tester.tap(find.byTooltip('Turn camera on'));
+        await harness.settle();
+      });
+
+      expect(find.text(cameraDidNotTurnOnMessage), findsOneWidget);
+      expect(reports, isEmpty);
       expect(tester.takeException(), isNull);
       await harness.close();
     });

@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../errors/retry_backoff.dart';
 import '../matrix/connectivity_provider.dart';
 import '../matrix/ephemeral_to_device.dart';
@@ -199,8 +199,8 @@ class LiveLocationSharing {
     ).toContent();
     try {
       share.stateEventId = await _writeState(room.id, state);
-    } catch (error) {
-      logCaught('live location share', error);
+    } catch (error, stack) {
+      reportCaught('live location share', error, stack);
       if (_active[room.id] == share) _active.remove(room.id);
       _publish();
       await _settleCapture();
@@ -234,8 +234,7 @@ class LiveLocationSharing {
     _inFlight++;
     try {
       await _clearState(roomId).timeout(_clearBound);
-    } on TimeoutException {
-      logCaught('live location stop', 'clear still pending');
+    } on TimeoutException catch (_) {
     } finally {
       _clearing--;
       _settle();
@@ -404,8 +403,8 @@ class LiveLocationSharing {
       if (room != null && !_active.containsKey(roomId)) {
         _echoState(room, eventId, const {});
       }
-    } catch (error) {
-      logCaught('live location stop', error);
+    } catch (error, stack) {
+      reportCaught('live location stop', error, stack);
     }
   }
 
@@ -423,8 +422,8 @@ class LiveLocationSharing {
         ),
       );
       if (eventId != null) share.startEventIds.add(eventId);
-    } catch (error) {
-      logCaught('live location start message', error);
+    } catch (error, stack) {
+      reportCaught('live location start message', error, stack);
     }
   }
 
@@ -568,8 +567,8 @@ class LiveLocationSharing {
           share.firstSends.remove(key);
         }
       }
-    } catch (error) {
-      logCaught('live location send', error.runtimeType);
+    } catch (error, stack) {
+      reportCaughtType('live location send round', error, stack);
     } finally {
       share.sending = false;
       if (share.resend) {
@@ -619,8 +618,8 @@ class LiveLocationSharing {
         ),
       ).timeout(_sendDeadline);
       return true;
-    } catch (error) {
-      logCaught('live location send', error.runtimeType);
+    } catch (error, stack) {
+      reportCaughtType('live location position send', error, stack);
       return false;
     }
   }
@@ -746,10 +745,12 @@ class LiveLocationSharing {
           content['device_id'] != _client.deviceID) {
         await _endLocally(share);
       }
-    } on MatrixException catch (error) {
-      if (error.error == MatrixError.M_NOT_FOUND) await _endLocally(share);
-    } catch (error) {
-      logCaught('live location check', error);
+    } catch (error, stack) {
+      if (error is MatrixException && error.error == MatrixError.M_NOT_FOUND) {
+        await _endLocally(share);
+      } else {
+        reportCaught('live location check', error, stack);
+      }
     } finally {
       share.verifying = false;
       if (share.reverify && _active[share.roomId] == share) {

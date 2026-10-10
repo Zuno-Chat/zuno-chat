@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../matrix/client_lease.dart';
 import '../platform/platform_capabilities.dart';
 
@@ -79,7 +80,7 @@ Future<void> replyToRoom(
   if (eventId == null) return;
   await runBestEffort(
     () => room.setReadMarker(eventId, mRead: eventId),
-    label: 'setReadMarker (notification reply) ${room.id}',
+    label: 'notification reply read marker',
   );
 }
 
@@ -121,8 +122,8 @@ class HeadlessWakeLock {
     if (!supported) return;
     try {
       await _channel.invokeMethod<void>(method, args);
-    } catch (e) {
-      debugPrint('zuno/notifications: wake lock $method skipped ($e)');
+    } catch (e, s) {
+      reportCaught('notification wake lock $method', e, s);
     }
   }
 }
@@ -164,8 +165,8 @@ Future<void> runHeadlessMessageAction(
       retryDelays: retryDelays,
       txid: txid,
     );
-  } catch (e) {
-    debugPrint('zuno/notifications: message action ${action.kind} failed: $e');
+  } catch (e, s) {
+    reportCaught('message action ${action.kind.name}', e, s);
   } finally {
     await client?.dispose(closeDatabase: false);
     await lock.release();
@@ -217,8 +218,8 @@ Future<bool> _handedOff(
 ) async {
   try {
     return await handOff(action, txid);
-  } catch (e) {
-    debugPrint('zuno/notifications: could not hand the action to the app: $e');
+  } catch (e, s) {
+    reportCaught('message action hand-off', e, s);
     return false;
   }
 }

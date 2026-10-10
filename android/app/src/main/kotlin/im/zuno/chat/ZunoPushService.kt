@@ -50,7 +50,7 @@ class ZunoPushService : UnifiedPushService() {
                 headlessEngine = null
                 headlessEngineGeneration = null
                 bootHeadlessEngine()
-                superseded?.let { retire(it, attempt = 0) }
+                superseded?.let { retire(applicationContext, it, attempt = 0) }
             }
 
             PushEngineAction.BootHeadlessEngine -> bootHeadlessEngine()
@@ -103,19 +103,19 @@ class ZunoPushService : UnifiedPushService() {
         private const val RETIRE_RETRY_MS = 30_000L
         private val main = Handler(Looper.getMainLooper())
 
-        fun retire(engine: FlutterEngine, attempt: Int) {
+        fun retire(context: Context, engine: FlutterEngine, attempt: Int) {
             val channel = MethodChannel(engine.dartExecutor.binaryMessenger, WAKELOCK_CHANNEL)
-            EngineQuiescence.ask(channel, main) { quiet ->
+            EngineQuiescence.ask(context, channel, main) { quiet ->
                 when {
                     quiet -> try {
                         engine.destroy()
                         Log.d(TAG, "Superseded headless engine destroyed")
                     } catch (e: Exception) {
-                        Log.w(TAG, "Could not destroy the superseded headless engine", e)
+                        CaughtErrors.record(context, "unifiedpush engine destroy", e)
                     }
 
                     attempt + 1 < MAX_RETIRE_ATTEMPTS -> main.postDelayed(
-                        { retire(engine, attempt + 1) },
+                        { retire(context, engine, attempt + 1) },
                         RETIRE_RETRY_MS,
                     )
 
@@ -130,7 +130,7 @@ class ZunoPushService : UnifiedPushService() {
         fun wakeLockHandler(context: Context) = MethodChannel.MethodCallHandler { call, result ->
             when (call.method) {
                 "release" -> {
-                    PushWakeLock.release(call.argument<String>("key"))
+                    PushWakeLock.release(context, call.argument<String>("key"))
                     result.success(null)
                 }
 

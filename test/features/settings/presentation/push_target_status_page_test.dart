@@ -31,6 +31,9 @@ class _PushersClient extends Client {
   @override
   String? get deviceID => 'HERE';
 
+  @override
+  bool isLogged() => true;
+
   List<Map<String, Object?>> pushers = [];
   Object? listError;
   Completer<void>? listGate;

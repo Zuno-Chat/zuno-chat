@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart'
     show debugPrint, kDebugMode, visibleForTesting;
 import 'package:flutter/services.dart' show MethodChannel;
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 import 'notification_sound_settings.dart';
 
@@ -78,10 +79,8 @@ class NotificationSoundPlayer {
         'repeat': -1,
         'usage': 'notification',
       });
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('zuno/sound: message vibration failed: $e');
-      }
+    } catch (e, s) {
+      reportCaught('message vibration', e, s);
     }
   }
 }

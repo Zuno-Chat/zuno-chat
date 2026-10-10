@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 import 'message_notification_image.dart';
 
@@ -19,8 +19,8 @@ Future<String?> publishNotificationImage(
       'bytes': image.bytes,
       'mimeType': image.mimeType,
     });
-  } catch (e) {
-    debugPrint('zuno/notifications: could not publish thumbnail ($e)');
+  } catch (e, s) {
+    reportCaught('notification image publish', e, s);
     return null;
   }
 }

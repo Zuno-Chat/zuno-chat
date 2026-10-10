@@ -182,13 +182,5 @@ void main() {
 
       expect(await const LaunchChannel().takeWakeReason(), isNull);
     });
-
-    test('takes the diagnostic lines and drops anything else', () async {
-      replies['takeDiagnostics'] = ['voip_unreported code=0xbaadca11', 4];
-
-      expect(await const LaunchChannel().takeDiagnostics(), [
-        'voip_unreported code=0xbaadca11',
-      ]);
-    });
   });
 }

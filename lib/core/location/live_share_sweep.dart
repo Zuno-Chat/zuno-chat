@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:matrix/matrix.dart';
 
-import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import 'live_location_protocol.dart';
 
 const _sweepRetryGap = Duration(minutes: 1);
@@ -98,17 +98,17 @@ class LiveShareSweep {
       if (_isActive(room.id)) return;
       final eventId = await _writeState(room.id, const {});
       if (!_isActive(room.id)) _echoState(room, eventId, const {});
-    } on MatrixException catch (error) {
+    } on MatrixException catch (error, stack) {
       if (error.error == MatrixError.M_FORBIDDEN) {
         _refusedClears[room.id] = (
           stateEventId: stateEventId,
           powerLevelsEventId: _powerLevelsEventId(room),
         );
       } else if (error.error != MatrixError.M_NOT_FOUND) {
-        logCaught('live location leftover', error);
+        reportCaught('live location leftover', error, stack);
       }
-    } catch (error) {
-      logCaught('live location leftover', error);
+    } catch (error, stack) {
+      reportCaught('live location leftover', error, stack);
     }
   }
 }

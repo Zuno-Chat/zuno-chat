@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../notifications/notification_sound_settings.dart';
 import '../../platform/platform_capabilities.dart';
 import '../notifications/call_notification_service.dart';
@@ -102,7 +103,9 @@ abstract class RememberingIncomingCallPresenter
         callerId: callerId,
         isVideo: isVideo,
       ));
-    } catch (_) {}
+    } catch (e, s) {
+      reportCaught('remember the ringing call', e, s);
+    }
     await presentIncoming(
       callerName: callerName,
       callerId: callerId,
@@ -126,11 +129,14 @@ abstract class RememberingIncomingCallPresenter
         DateTime.now().difference(presented.at) < SystemRing.lifetime) {
       try {
         if ((await rememberedRing())?.callId == callId) return true;
-      } catch (_) {}
+      } catch (e, s) {
+        reportCaught('check the remembered ring', e, s);
+      }
     }
     try {
       return (await (ringingNow ?? activeRing()))?.callId == callId;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('check the active ring', e, s);
       return false;
     }
   }
@@ -153,7 +159,8 @@ abstract class RememberingIncomingCallPresenter
     try {
       final ringing = await rememberedRing();
       return ringing != null && ringing.callId != callId;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('check the ring is for another call', e, s);
       return false;
     }
   }
@@ -214,7 +221,9 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
     if (handled != null) return;
     try {
       await clearRingingCall(await SharedPreferences.getInstance());
-    } catch (_) {}
+    } catch (e, s) {
+      reportCaught('forget the ringing call', e, s);
+    }
   }
 
   @override
@@ -225,7 +234,8 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
       final showing = active?.any((n) => n.id == _ringNotificationId) ?? false;
       if (!showing) return null;
       return await rememberedRing();
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('read the active ring notification', e, s);
       return null;
     }
   }
@@ -314,8 +324,8 @@ class CallKitIncomingCallPresenter implements IncomingCallPresenter {
       };
     } on MissingPluginException {
       return RingOutcome.unavailable;
-    } on PlatformException catch (e) {
-      debugPrint('zuno/callkit: ring for ${ring['callId']} not reported: $e');
+    } on PlatformException catch (e, s) {
+      reportCaught('callkit reportIncomingCall', e, s);
       return RingOutcome.unavailable;
     }
   }

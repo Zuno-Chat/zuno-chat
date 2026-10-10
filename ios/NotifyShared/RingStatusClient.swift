@@ -26,9 +26,8 @@ struct RingStatusClient: Sendable {
   {
     let wait = max(0, min(Self.maxWaitMs, waitMs))
     guard let url = NseModuleUrl.endpoint(baseUrl, "ring/status"),
-      let body = try? JSONSerialization.data(
-        withJSONObject: ["room_id": roomId, "call_id": callId, "wait_ms": wait],
-        options: [.sortedKeys])
+      let body = NseJson.data(
+        ["room_id": roomId, "call_id": callId, "wait_ms": wait], "ring status body")
     else { return RingStatusReply(status: .unknown, serverTs: nil) }
     let result = await transport.post(
       url, authorization: "ZunoNotify \(credential)", body: body, timeoutMs: wait + Self.slackMs)

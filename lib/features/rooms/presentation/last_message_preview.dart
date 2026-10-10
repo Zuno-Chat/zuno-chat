@@ -79,7 +79,7 @@ class _LastMessagePreviewState extends State<LastMessagePreview> {
         if (!mounted || decrypted == null) return;
         setState(() => _resolvedEvent = decrypted);
         _listenForSessionKeys();
-      }, label: 'retryDecrypt ${widget.room.id}'),
+      }, label: 'retryDecrypt'),
     );
   }
 

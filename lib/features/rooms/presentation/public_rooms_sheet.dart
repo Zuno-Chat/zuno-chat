@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/format/member_count.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/ui/sheet.dart';
@@ -125,7 +126,8 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
         _nextBatch = page.nextBatch;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('search public rooms', e, s);
       if (_isStale(generation)) return;
       setState(() {
         _loading = false;
@@ -146,7 +148,8 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
         _rooms = [..._rooms, ..._ofKind(page.chunk)];
         _nextBatch = page.nextBatch;
       });
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('load more public rooms', e, s);
       if (_isStale(generation)) return;
       setState(() => _nextBatch = null);
     } finally {

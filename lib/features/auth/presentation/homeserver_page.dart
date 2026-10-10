@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/homeserver_input.dart';
@@ -54,7 +55,8 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
       await ref.read(homeserverProvider.notifier).use(homeserver);
       if (!mounted) return;
       Navigator.of(context).pop();
-    } catch (e) {
+    } catch (e, s) {
+      if (homeserverProblem(e).reported) reportCaught('use homeserver', e, s);
       if (!mounted) return;
       setState(() => _error = homeserverErrorMessage(e));
     } finally {

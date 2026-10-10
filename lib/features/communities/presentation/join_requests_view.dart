@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/matrix/join_requests.dart';
 import '../../../core/matrix/matrix_ids.dart';
@@ -276,8 +277,8 @@ class _JoinRequestRowState extends State<JoinRequestRow> {
     try {
       await action(widget.room, widget.user.id);
       widget.onAnswered?.call();
-    } catch (e) {
-      logCaught('answer join request', e);
+    } catch (e, s) {
+      reportCaught('answer join request', e, s);
       messenger.showSnackBar(
         SnackBar(content: Text(failureMessage(e, failed: failed))),
       );

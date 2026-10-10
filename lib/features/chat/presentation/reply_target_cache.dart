@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/undecryptable_event.dart';
 
 const _keysArrivedDebounce = Duration(milliseconds: 300);
@@ -37,8 +37,8 @@ class ReplyTargetCache extends ChangeNotifier {
   Future<Event?> _lookup(String eventId) async {
     try {
       return await lookup(eventId);
-    } catch (e) {
-      logCaught('reply target $eventId', e);
+    } catch (e, s) {
+      reportCaught('reply target', e, s);
       return null;
     }
   }

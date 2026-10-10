@@ -76,8 +76,13 @@ struct NotifyMeta: Decodable, Equatable, Sendable {
       meta: try? values.decode(String.self, forKey: .level), stated: values.contains(.level))
   }
 
-  static func decoded(_ data: Data) -> NotifyMeta? {
-    try? JSONDecoder().decode(NotifyMeta.self, from: data)
+  static func decoded(_ data: Data, reporting label: String? = nil) -> NotifyMeta? {
+    do {
+      return try JSONDecoder().decode(NotifyMeta.self, from: data)
+    } catch {
+      if let label { CaughtErrors.record(label, error) }
+      return nil
+    }
   }
 }
 
@@ -114,10 +119,16 @@ struct RoomTitleFile: Decodable, Equatable, Sendable {
     partner = try values.decodeIfPresent(String.self, forKey: .partner) ?? ""
   }
 
-  static func decoded(_ data: Data, roomId: String) -> RoomTitleFile? {
-    guard let file = try? JSONDecoder().decode(RoomTitleFile.self, from: data),
-      file.room == roomId
-    else { return nil }
-    return file
+  static func decoded(_ data: Data, roomId: String, reporting label: String? = nil)
+    -> RoomTitleFile?
+  {
+    let file: RoomTitleFile
+    do {
+      file = try JSONDecoder().decode(RoomTitleFile.self, from: data)
+    } catch {
+      if let label { CaughtErrors.record(label, error) }
+      return nil
+    }
+    return file.room == roomId ? file : nil
   }
 }

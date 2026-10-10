@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/security/verification_cancel_message.dart';
@@ -65,8 +66,8 @@ class _VerificationPageState extends State<VerificationPage> {
     _sending = true;
     try {
       await request();
-    } catch (e) {
-      logCaught(label, e);
+    } catch (e, s) {
+      reportCaught(label, e, s);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not send that. Try again.')),
@@ -89,8 +90,8 @@ class _VerificationPageState extends State<VerificationPage> {
     final kv = widget.keyVerification;
     try {
       await kv.continueVerification(EventTypes.Sas);
-    } catch (e) {
-      logCaught('start picture check', e);
+    } catch (e, s) {
+      reportCaught('start picture check', e, s);
       if (kv.isDone) return;
       await runBestEffort(kv.cancel, label: 'cancel unstartable verification');
       if (!kv.isDone) await kv.cancel('m.unknown', true);

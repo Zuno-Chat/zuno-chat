@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import '../errors/caught_errors.dart';
 import '../matrix/bearer_authorization.dart';
 import 'zuno_push_replies.dart';
 
@@ -90,7 +91,8 @@ ZunoPushResult<T> zunoPushResultOf<T>(
   final Map<String, Object?> json;
   try {
     json = zunoPushObject(jsonDecode(utf8.decode(response.bodyBytes)), 'body');
-  } on FormatException catch (e) {
+  } on FormatException catch (e, s) {
+    reportCaught('zuno push reply body', e.message, s);
     return malformed(e.message);
   }
   if (status != 200) {
@@ -116,7 +118,8 @@ ZunoPushResult<T> zunoPushResultOf<T>(
   if (serverTs is! int) return malformed('server_ts is not an integer');
   try {
     return ZunoPushOk(parse(json), serverTs: serverTs);
-  } on FormatException catch (e) {
+  } on FormatException catch (e, s) {
+    reportCaught('zuno push reply fields', e.message, s);
     return malformed(e.message);
   }
 }
@@ -216,7 +219,8 @@ class ZunoPushApi {
         errcode: e.errcode,
         error: e.errorMessage,
       );
-    } catch (e) {
+    } catch (e, s) {
+      reportCaught('zuno push bearer', e, s);
       return ZunoPushFailure(ZunoPushFailureKind.network, error: '$e');
     }
     final request = http.Request(method, zunoPushUri(homeserver, path))
@@ -231,7 +235,8 @@ class ZunoPushApi {
           .send(request)
           .then(http.Response.fromStream)
           .timeout(timeout);
-    } catch (e) {
+    } catch (e, s) {
+      reportCaught('zuno push request', e, s);
       return ZunoPushFailure(ZunoPushFailureKind.network, error: '$e');
     }
     return zunoPushResultOf(response, parse);

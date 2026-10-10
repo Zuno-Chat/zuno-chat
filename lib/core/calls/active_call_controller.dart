@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../errors/global_error_handler.dart';
 import '../matrix/room_title.dart';
 import '../platform/platform_capabilities.dart';
@@ -15,6 +16,7 @@ import 'active_call_provider.dart';
 import 'call_audio_route.dart';
 import 'call_picture_in_picture.dart';
 import 'call_proximity.dart';
+import 'cloudflare/webrtc_backend.dart';
 import 'matrixrtc/call_session.dart';
 import 'models/call_engine_participant.dart';
 import 'models/call_engine_status.dart';
@@ -250,8 +252,10 @@ class ActiveCallController extends ChangeNotifier {
     try {
       await _toggleCameraOrThrow();
       return true;
-    } catch (e) {
-      logCaught('toggle camera', e);
+    } on CameraRefused {
+      return !turningOn;
+    } catch (e, s) {
+      reportCaught('toggle camera', e, s);
       return !turningOn;
     }
   }
@@ -301,8 +305,8 @@ class ActiveCallController extends ChangeNotifier {
     if (_finished) return null;
     try {
       return await _audioOutput.begin(_audioRoute);
-    } catch (error) {
-      logCaught('start call audio', error);
+    } catch (error, stack) {
+      reportCaught('start call audio', error, stack);
       return null;
     }
   }
@@ -312,7 +316,10 @@ class ActiveCallController extends ChangeNotifier {
         title: roomTitle(session.room),
         withCamera: session.kind == CallKind.video,
       )
-      .catchError((e, s) => debugPrint('startOngoingCall failed: $e\n$s'));
+      .catchError(
+        (Object e, StackTrace s) =>
+            reportCaught('start the ongoing-call notice', e, s),
+      );
 
   void _onPhase(CallSessionPhase phase) {
     if (_finished) return;
@@ -366,8 +373,8 @@ class ActiveCallController extends ChangeNotifier {
     try {
       await renderer.initialize();
       return renderer;
-    } catch (e) {
-      logCaught('create call video', e);
+    } catch (e, s) {
+      reportCaught('create call video', e, s);
       unawaited(runBestEffort(renderer.dispose, label: 'release call video'));
       return null;
     }

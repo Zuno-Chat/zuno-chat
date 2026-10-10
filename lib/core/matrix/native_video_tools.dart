@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 import 'native_image_resizer.dart';
 
@@ -11,9 +12,11 @@ Future<Map<String, Object?>?> _invokeMap(
 ) async {
   try {
     return await _channel.invokeMapMethod<String, Object?>(method, arguments);
-  } on PlatformException {
+  } on PlatformException catch (e, s) {
+    reportCaught('native video $method', e, s);
     return null;
-  } on MissingPluginException {
+  } on MissingPluginException catch (e, s) {
+    reportCaught('native video $method', e, s);
     return null;
   }
 }
@@ -87,9 +90,11 @@ class NativeVideoTools {
             'output': output,
           }) ??
           false;
-    } on PlatformException {
+    } on PlatformException catch (e, s) {
+      reportCaught('native video remux', e, s);
       return false;
-    } on MissingPluginException {
+    } on MissingPluginException catch (e, s) {
+      reportCaught('native video remux', e, s);
       return false;
     }
   }

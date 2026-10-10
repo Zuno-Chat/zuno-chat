@@ -16,6 +16,10 @@ protocol KeychainBackend: Sendable {
 }
 
 struct SystemKeychain: KeychainBackend {
+  static func isLocked(_ status: OSStatus) -> Bool {
+    status == errSecInteractionNotAllowed || status == errSecNotAvailable
+  }
+
   func read(service: String, account: String, accessGroup: String?) -> KeychainRead {
     var query = Self.query(service: service, account: account, accessGroup: accessGroup)
     query[kSecReturnData as String] = true
@@ -31,6 +35,7 @@ struct SystemKeychain: KeychainBackend {
     case errSecInteractionNotAllowed:
       return .locked
     default:
+      Self.checked(status, "keychain read \(service)")
       return .failed(status)
     }
   }
@@ -39,16 +44,28 @@ struct SystemKeychain: KeychainBackend {
     let query = Self.query(service: service, account: account, accessGroup: accessGroup)
     let update = SecItemUpdate(
       query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-    guard update == errSecItemNotFound else { return update }
+    guard update == errSecItemNotFound else {
+      return Self.checked(update, "keychain update \(service)")
+    }
     var item = query
     item[kSecValueData as String] = data
     item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-    return SecItemAdd(item as CFDictionary, nil)
+    return Self.checked(SecItemAdd(item as CFDictionary, nil), "keychain add \(service)")
   }
 
   func delete(service: String, accessGroup: String?) -> OSStatus {
     let query = Self.query(service: service, account: nil, accessGroup: accessGroup)
-    return SecItemDelete(query as CFDictionary)
+    let status = SecItemDelete(query as CFDictionary)
+    return status == errSecItemNotFound
+      ? status : Self.checked(status, "keychain delete \(service)")
+  }
+
+  @discardableResult
+  static func checked(_ status: OSStatus, _ label: String) -> OSStatus {
+    if status != errSecSuccess, !isLocked(status) {
+      CaughtErrors.record(label, NSError(domain: NSOSStatusErrorDomain, code: Int(status)))
+    }
+    return status
   }
 
   private static func query(service: String, account: String?, accessGroup: String?)
@@ -112,9 +129,10 @@ struct NotifyKeychain: Sendable {
   func load(createIfMissing: Bool) -> NotifySecretsRead {
     switch backend.read(service: Self.service, account: Self.account, accessGroup: accessGroup) {
     case .found(let data):
-      if let secrets = try? JSONDecoder().decode(NotifySecrets.self, from: data),
-        secrets.rmKey.count == 32, secrets.installKey.count == 32
-      {
+      let secrets = CaughtErrors.attempt("notify keychain decode") {
+        try JSONDecoder().decode(NotifySecrets.self, from: data)
+      }
+      if let secrets, secrets.rmKey.count == 32, secrets.installKey.count == 32 {
         return .ready(secrets)
       }
       return createIfMissing ? create() : .unavailable
@@ -129,7 +147,8 @@ struct NotifyKeychain: Sendable {
 
   @discardableResult
   func save(_ secrets: NotifySecrets) -> Bool {
-    guard let data = try? JSONEncoder().encode(secrets) else { return false }
+    let data = CaughtErrors.attempt("notify keychain encode") { try JSONEncoder().encode(secrets) }
+    guard let data else { return false }
     return backend.write(
       data, service: Self.service, account: Self.account, accessGroup: accessGroup)
       == errSecSuccess

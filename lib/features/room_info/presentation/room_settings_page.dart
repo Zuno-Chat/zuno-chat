@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/communities.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/optimistic_room_state.dart';
+import '../../../core/matrix/picker_access.dart';
 import '../../../core/matrix/room_access.dart';
 import '../../../core/matrix/room_avatar.dart';
 import '../../../core/matrix/room_name_check.dart';
@@ -91,8 +92,8 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
       if (mounted) {
         messenger.showSnackBar(SnackBar(content: Text(success)));
       }
-    } catch (e) {
-      logCaught(failure, e);
+    } catch (e, s) {
+      if (e is! RoomListingRefused) reportCaught(failure, e, s);
       if (mounted) {
         messenger.showSnackBar(SnackBar(content: Text('$failure. Try again.')));
       }
@@ -264,8 +265,8 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
       if (mounted) {
         messenger.showSnackBar(const SnackBar(content: Text('Photo updated')));
       }
-    } catch (e) {
-      logCaught('update room photo', e);
+    } catch (e, s) {
+      if (!isPickerAccessDenied(e)) reportCaught('update room photo', e, s);
       if (mounted) {
         messenger.showSnackBar(
           const SnackBar(content: Text('Photo not saved. Try again.')),

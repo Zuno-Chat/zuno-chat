@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 
@@ -77,7 +78,8 @@ class _SessionTokenDialogState extends State<_SessionTokenDialog> {
         _password.text,
       );
       if (mounted) setState(() => _session = session);
-    } catch (e) {
+    } catch (e, s) {
+      if (!isPasswordRefusal(e)) reportCaught('request session token', e, s);
       if (mounted) setState(() => _error = loginErrorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);

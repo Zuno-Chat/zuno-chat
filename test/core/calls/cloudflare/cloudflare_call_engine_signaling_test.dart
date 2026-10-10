@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
@@ -11,6 +10,7 @@ import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_webrtc.dart';
 import '../../../helpers/platform_capabilities.dart';
 import 'cloudflare_engine_harness.dart';
@@ -1100,16 +1100,8 @@ void main() {
 
   group('leaving while a track close is under way', () {
     late List<String> logs;
-    late DebugPrintCallback originalDebugPrint;
 
-    setUp(() {
-      logs = [];
-      originalDebugPrint = debugPrint;
-      debugPrint = (String? message, {int? wrapWidth}) {
-        if (message != null) logs.add(message);
-      };
-    });
-    tearDown(() => debugPrint = originalDebugPrint);
+    setUp(() => logs = recordDebugPrints());
 
     test('a close that leaving cuts off is not reported as a failure', () {
       inCall((call) {
@@ -1143,6 +1135,143 @@ void main() {
         call.flush();
 
         expect(call.sfu.closes, isEmpty);
+      });
+    });
+  });
+
+  group('failures on a connection that is gone', () {
+    late List<String> logs;
+
+    setUp(() => logs = recordDebugPrints());
+
+    Iterable<String> caught() =>
+        logs.where((line) => line.startsWith('zuno/caught:'));
+
+    void connectionFails(EngineHarness call) {
+      call.engine.handleConnectionStateForTest(
+        RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+      );
+      call.async.elapse(const Duration(seconds: 2));
+      call.flush();
+    }
+
+    test('a receiver that cannot be encrypted on the live connection is '
+        'reported', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.backend.cryptors.failEnableFor.add(receiverLabel(ann, 'audio'));
+
+        call.remoteJoins();
+
+        expect(caught(), contains(startsWith('zuno/caught: wrap receiver:')));
+      });
+    });
+
+    test('a receiver whose connection a rejoin closed is not reported', () {
+      inCall((call) {
+        call.joinEncrypted();
+        final gate = Completer<void>();
+        call.backend.cryptors.receiverGate = gate;
+        call.remoteJoins();
+
+        connectionFails(call);
+        gate.complete();
+        call.flush();
+
+        expect(call.backend.peerConnections, hasLength(2));
+        expect(caught(), isEmpty);
+        expect(
+          call.backend.cryptors.liveLabels,
+          contains(receiverLabel(ann, 'audio')),
+        );
+      });
+    });
+
+    test('a pull still out when a rejoin closes its connection is not '
+        'reported', () {
+      inCall((call) {
+        call.joinEncrypted();
+        final gate = Completer<void>();
+        call.sfu.pullGate = gate;
+        call.remoteJoins();
+
+        connectionFails(call);
+        call.sfu.pullGate = null;
+        gate.completeError(StateError('session closed'));
+        call.flush();
+
+        expect(call.backend.peerConnections, hasLength(2));
+        expect(caught(), isEmpty);
+        expect(call.sfu.pulls.last.path, '/sessions/s2/tracks/new');
+      });
+    });
+
+    test('a pull that fails on the live connection is still reported', () {
+      inCall((call) {
+        call.joinEncrypted();
+        final gate = Completer<void>();
+        call.sfu.pullGate = gate;
+        call.remoteJoins();
+
+        call.sfu.pullGate = null;
+        gate.completeError(StateError('session closed'));
+        call.flush();
+
+        expect(
+          caught(),
+          contains(startsWith('zuno/caught: sync remote tracks:')),
+        );
+      });
+    });
+
+    test('a track adopted as its connection closes is not reported', () {
+      inCall((call) {
+        call.sfu.reuseMids = true;
+        call.joinEncrypted();
+        call.remoteJoins();
+        final gate = Completer<void>();
+        call.backend.adoptGate = gate;
+        call.remoteJoins(sessionId: 'remote-2');
+
+        connectionFails(call);
+        for (final track in ['audio', 'video']) {
+          call.backend.adoptErrors['adopted_${ann}_$track'] = StateError(
+            'track not found',
+          );
+        }
+        gate.complete();
+        call.flush();
+
+        expect(caught(), isEmpty);
+      });
+    });
+
+    test('a rejoin cut short by leaving is not reported', () {
+      inCall((call) {
+        call.joinEncrypted();
+        final gate = Completer<void>();
+        call.sfu.sessionGate = gate;
+        connectionFails(call);
+
+        final leaving = call.engine.leave();
+        call.flush();
+        gate.completeError(StateError('engine gone'));
+        call.flush();
+        call.wait(leaving);
+
+        expect(caught(), isEmpty);
+      });
+    });
+
+    test('an offer rolled back is logged without naming whose pull it was', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.pc.createAnswerError = StateError('no answer');
+
+        call.remoteJoins();
+
+        expect(logs, contains(contains('rolling back')));
+        expect(logs.join('\n'), isNot(contains(ann.deviceId)));
       });
     });
   });

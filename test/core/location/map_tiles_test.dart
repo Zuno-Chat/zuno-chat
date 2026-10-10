@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 
 import 'package:zuno/core/location/map_tiles.dart';
 
+import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_matrix.dart';
 
 const _template =
@@ -106,6 +107,51 @@ void main() {
       );
 
       expect(source, isNull);
+    });
+
+    group('what gets reported', () {
+      late List<String> logs;
+
+      setUp(() => logs = recordDebugPrints());
+
+      for (final (reason, response) in [
+        (
+          'a server with no well-known',
+          http.Response(
+            jsonEncode({'errcode': 'M_NOT_FOUND', 'error': 'Not found'}),
+            404,
+            headers: {'content-type': 'application/json'},
+          ),
+        ),
+        ('a well-known that is not an object', http.Response('[]', 200)),
+      ]) {
+        test('$reason is none, and nothing to report', () async {
+          expect(await sourceFrom(response), isNull);
+          expect(logs, isEmpty);
+        });
+      }
+
+      test('a present well-known still gives its tiles, quietly', () async {
+        final source = await sourceFrom(
+          _wellKnown({
+            'im.zuno.tiles': {'url': _template},
+          }),
+        );
+
+        expect(source?.urlTemplate, _template);
+        expect(logs, isEmpty);
+      });
+
+      test('a fetch that fails for another reason is reported', () async {
+        final source = await sourceAnswering(
+          (_) async => throw StateError('client closed'),
+        );
+
+        expect(source, isNull);
+        expect(logs, [
+          'zuno/caught: map tile source: Bad state: client closed',
+        ]);
+      });
     });
 
     test('is none before a homeserver is known', () async {

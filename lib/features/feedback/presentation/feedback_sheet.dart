@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/feedback.dart';
 import '../../../core/ui/sheet.dart';
 
@@ -48,7 +49,8 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
     try {
       await widget.onSend(_message.text.trim());
       if (mounted) Navigator.of(context).pop(true);
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('send feedback', e, s);
       if (mounted) {
         setState(() {
           _sending = false;

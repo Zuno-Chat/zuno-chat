@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import 'mention_query.dart';
@@ -60,9 +61,15 @@ class _MentionSuggestionsState extends State<MentionSuggestions> {
         widget.room.participantListComplete) {
       return;
     }
-    _fetching = (widget.loadMembers ?? _fetchEveryone)().then((users) {
-      if (mounted) setState(() => _everyone = users);
-    }, onError: (_) => _fetching = null);
+    _fetching = (widget.loadMembers ?? _fetchEveryone)().then(
+      (users) {
+        if (mounted) setState(() => _everyone = users);
+      },
+      onError: (Object e, StackTrace s) {
+        reportCaught('load mention members', e, s);
+        _fetching = null;
+      },
+    );
   }
 
   Future<List<User>> _fetchEveryone() async {

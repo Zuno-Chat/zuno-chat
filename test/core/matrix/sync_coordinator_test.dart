@@ -8,6 +8,7 @@ import 'package:zuno/core/matrix/sync_coordinator.dart';
 import 'package:zuno/core/matrix/sync_request_canceller.dart';
 import 'package:zuno/core/matrix/zuno_client.dart';
 
+import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_sync_server.dart';
 import '../../helpers/hybrid_fake_async.dart';
 
@@ -262,6 +263,20 @@ void main() {
 
       expect(server.waiting, hasLength(1));
     });
+
+    syncTest(
+      'a client that fails to start is left to whoever started it',
+      () async {
+        final reports = await reportsDuring(() async {
+          act(
+            () => client.onLoginStateChanged.addError(Exception('init failed')),
+          );
+          await flush();
+        });
+
+        expect(reports, isEmpty);
+      },
+    );
   });
 
   group('a cache clear', () {

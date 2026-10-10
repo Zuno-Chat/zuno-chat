@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../notifications/message_notification_action.dart';
 import '../matrixrtc/call_decline.dart';
@@ -37,8 +37,8 @@ class HeadlessCallDeclineNotifier extends Notifier<void> {
       await retryNotificationAction(
         () => declineCallOrFail(room, decline.callId),
       );
-    } catch (e) {
-      debugPrint('zuno/calls: decline of ${decline.callId} failed: $e');
+    } catch (e, s) {
+      reportCaught('decline a call handed from the background', e, s);
     } finally {
       decline.finished();
     }

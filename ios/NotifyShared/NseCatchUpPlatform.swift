@@ -46,6 +46,7 @@ final class NseCatchUpPlatform: CatchUpPlatform {
       try await center().add(request)
       return true
     } catch {
+      NotificationFailure.record("nse catch-up post", error)
       return false
     }
   }

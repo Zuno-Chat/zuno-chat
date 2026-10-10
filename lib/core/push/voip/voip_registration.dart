@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../calls/serial_lock.dart';
+import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../platform/platform_capabilities.dart';
 import '../read_model/nse_channel.dart';
@@ -134,8 +135,8 @@ class VoipRegistration {
     if (client.isLogged()) {
       try {
         await _server(client).deleteDevice();
-      } catch (_) {
-        debugPrint('zuno/voip: the server was not told to forget this device');
+      } catch (e, s) {
+        reportCaught('voip device forget', e, s);
       }
     }
     _current.value = false;
@@ -185,7 +186,8 @@ class VoipRegistration {
       reply = await _server(
         client,
       ).putVoip(appId: appId, pushkey: token, kid: status.kid, key: status.key);
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('voip register', e, s);
       _quietRetry(client, null);
       return;
     }
@@ -249,7 +251,9 @@ class VoipRegistration {
   Future<void> _forgetToken(Client client) async {
     try {
       await _server(client).deleteVoip();
-    } catch (_) {}
+    } catch (e, s) {
+      reportCaught('voip token forget', e, s);
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(voipAckedKey);
     _current.value = false;

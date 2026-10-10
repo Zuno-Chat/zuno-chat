@@ -1,14 +1,15 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
 
+import '../errors/caught_errors.dart';
 import 'pusher_info.dart';
 
 Future<List<PusherInfo>?> fetchPushers(Client client) async {
   final Map<String, Object?> response;
   try {
     response = await client.request(RequestType.GET, '/client/v3/pushers');
-  } catch (e) {
-    debugPrint('zuno/push: could not read the pusher list ($e)');
+  } catch (e, s) {
+    reportCaught('pusher list fetch', e, s);
     return null;
   }
   final raw = response['pushers'];

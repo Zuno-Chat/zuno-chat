@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../calls/end_call.dart';
-import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../errors/connection_error.dart';
 import 'communities.dart';
 import 'room_title.dart';
@@ -13,7 +13,9 @@ Future<void> exitRoom(Room room, {required bool isDirect}) async {
   if (!isDirect) return;
   try {
     await room.forget();
-  } catch (_) {}
+  } catch (e, s) {
+    reportCaught('forget a deleted chat', e, s);
+  }
 }
 
 Iterable<String> _roomIdsLeftBy(Room room) => [
@@ -78,8 +80,8 @@ Future<bool> confirmAndExitRoom(
     await endCallsIn(_roomIdsLeftBy(room));
     await exitRoom(room, isDirect: isDirect);
     return true;
-  } catch (e) {
-    logCaught('exit room', e);
+  } catch (e, s) {
+    reportCaught('exit room', e, s);
     final String failed;
     if (isDirect) {
       failed = 'Could not delete the chat.';

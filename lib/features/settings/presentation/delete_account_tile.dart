@@ -4,10 +4,12 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/active_call_provider.dart';
 import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/sign_out.dart';
+import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
 import '../../../core/ui/circle_icon.dart';
 import 'uia_password_prompt.dart';
@@ -114,8 +116,9 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
         if (auth != null) await windDown();
         await client.deactivateAccount(auth: auth, erase: true);
       });
-    } catch (e) {
-      if (e.toString().contains('canceled')) return;
+    } catch (e, s) {
+      if (isUiaCancel(e)) return;
+      if (!isPasswordRefusal(e)) reportCaught('delete account', e, s);
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(content: Text(deactivateAccountErrorMessage(e))),

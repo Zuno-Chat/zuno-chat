@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/registration_code_request.dart';
@@ -49,7 +50,8 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
         ref.read(matrixClientProvider),
         email,
       );
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('request registration code', e, s);
       outcome = RegistrationCodeOutcome.serverError;
     }
     if (!mounted) return;

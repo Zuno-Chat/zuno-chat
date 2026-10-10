@@ -4,5 +4,6 @@ New
 • Restore from a saved recovery code file.
 • Minimize a call and keep using Zuno.
 • Mute, use the speaker or turn your camera off while your call rings.
+• Crash reports, when you turn them on, now cover errors too.
 
-Fixed 37 bugs.
+Fixed 39 bugs.

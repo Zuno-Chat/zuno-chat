@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../errors/caught_errors.dart';
+
 const ringtoneEnabledKey = 'settings.ringtone_enabled';
 const callVibrationEnabledKey = 'settings.call_vibration_enabled';
 const messageToneEnabledKey = 'settings.message_tone_enabled';
@@ -33,7 +35,8 @@ Future<NotificationSoundSettings> loadNotificationSoundSettings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     return readNotificationSoundSettings(prefs);
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('notification sound settings read', e, s);
     return NotificationSoundSettings.defaults;
   }
 }

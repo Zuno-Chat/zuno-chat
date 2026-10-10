@@ -33,3 +33,10 @@ enum NotificationCategories {
     center.setNotificationCategories(all)
   }
 }
+
+enum NotificationFailure {
+  static func record(_ label: String, _ error: (any Error)?) {
+    guard let error, (error as? UNError)?.code != .notificationsNotAllowed else { return }
+    CaughtErrors.record(label, error)
+  }
+}

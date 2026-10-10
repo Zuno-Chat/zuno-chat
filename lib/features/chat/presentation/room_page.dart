@@ -24,6 +24,7 @@ import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/picked_file.dart';
 import '../../../core/location/live_location_availability.dart';
 import '../../../core/location/live_location_sharing.dart';
@@ -41,6 +42,7 @@ import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/media_gallery_group.dart';
 import '../../../core/matrix/media_processing_exception.dart';
 import '../../../core/matrix/media_quality.dart';
+import '../../../core/matrix/picker_access.dart';
 import '../../../core/matrix/reactions.dart';
 import '../../../core/matrix/read_receipts.dart';
 import '../../../core/matrix/room_exit.dart';
@@ -342,8 +344,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
     try {
       await room.invite(userId);
       messenger.showSnackBar(const SnackBar(content: Text('Invitation sent')));
-    } catch (e) {
-      logCaught('invite', e);
+    } catch (e, s) {
+      if (!isUnknownInvitee(e)) reportCaught('invite', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Invitation not sent. Try again.')),
       );
@@ -366,7 +368,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
         headers: {'authorization': await bearerAuthorization(client)},
       );
       return response.statusCode == 200 ? response.bodyBytes : null;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('fetch shortcut icon', e, s);
       return null;
     }
   }
@@ -390,8 +393,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
           ),
         ),
       );
-    } catch (e) {
-      logCaught('add shortcut', e);
+    } catch (e, s) {
+      reportCaught('add shortcut', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Shortcut not added. Try again.')),
       );
@@ -430,8 +433,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
     try {
       await widget.room.client.database.deleteTimelineForRoom(widget.room.id);
       widget.room.lastEvent = null;
-    } catch (e) {
-      logCaught('reload messages', e);
+    } catch (e, s) {
+      reportCaught('reload messages', e, s);
       if (mounted) _snack('Messages not reloaded. Try again.');
     }
     await _loadTimeline();
@@ -495,7 +498,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     unawaited(
       runBestEffort(
         () => widget.room.setReadMarker(eventId, mRead: eventId),
-        label: 'setReadMarker ${widget.room.id}',
+        label: 'setReadMarker',
       ).then((ok) {
         if (!ok && _lastMarkedReadEventId == eventId) {
           _lastMarkedReadEventId = null;
@@ -598,7 +601,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
         parseMarkdown: false,
         parseCommands: false,
       ),
-      label: 'sendTextEvent ${widget.room.id}',
+      label: 'send a text message',
     );
   }
 
@@ -693,7 +696,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
         lowDataMode: ref.read(lowDataCallsProvider),
       ),
     );
-    if (session != null) unawaited(session.accept().catchError((_) {}));
+    session?.accept().ignore();
   }
 
   void _startReply(Event event) {
@@ -743,8 +746,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
     try {
       await ref.read(liveLocationSharingProvider).stopShareStartedBy(event);
       await widget.room.redactEvent(event.eventId);
-    } catch (e) {
-      logCaught('delete message', e);
+    } catch (e, s) {
+      reportCaught('delete message', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Message not deleted. Try again.')),
       );
@@ -853,8 +856,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
     final messenger = ScaffoldMessenger.of(context);
     try {
       await toggleReaction(event, timeline, key);
-    } catch (e) {
-      logCaught('react', e);
+    } catch (e, s) {
+      reportCaught('react', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Reaction not sent. Try again.')),
       );
@@ -946,8 +949,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
     } on FileTooBigMatrixException catch (e) {
       await discardSendPlaceholder(widget.room, txid);
       if (mounted) _snack(tooLargeToSendMessage(e));
-    } catch (e) {
-      logCaught('send attachment', e);
+    } catch (e, s) {
+      reportCaught('send attachment', e, s);
       await discardSendPlaceholder(widget.room, txid);
       onFailed(e);
     }
@@ -1333,7 +1336,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
   }
 
   Future<void> _resend(Event event) =>
-      runBestEffort(event.sendAgain, label: 'sendAgain ${event.eventId}');
+      runBestEffort(event.sendAgain, label: 'sendAgain');
 
   void _retryAfterReconnect() {
     _markLatestRead();
@@ -1395,8 +1398,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
         case _Attachment.location:
           await _sendLocation();
       }
-    } catch (e) {
-      logCaught('attach ${choice.name}', e);
+    } catch (e, s) {
+      if (!isPickerAccessDenied(e)) reportCaught('attach ${choice.name}', e, s);
       if (mounted) _snack(_attachmentFailure(choice, e));
     }
   }
@@ -1435,7 +1438,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
       case SendPin(:final geo):
         try {
           await sendLocationPin(room, geo, at: DateTime.now());
-        } catch (_) {
+        } catch (e, s) {
+          reportCaughtType('send location pin', e, s);
           if (mounted) _snack('Location not sent. Try again.');
         }
       case ShareLive(:final first, :final duration):
@@ -1493,8 +1497,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
           .listen((amplitude) {
             _waveformSamples.add(normalizedAmplitude(amplitude.current));
           });
-    } catch (e) {
-      logCaught('start recording', e);
+    } catch (e, s) {
+      reportCaught('start recording', e, s);
       _tapToggleRecording = false;
       _micHeld = false;
       if (mounted) {
@@ -1639,8 +1643,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
           },
         },
       );
-    } catch (e) {
-      logCaught('send voice message', e);
+    } catch (e, s) {
+      reportCaught('send voice message', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Voice message not sent. Try again.')),
       );

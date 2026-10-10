@@ -5,6 +5,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
 
+import '../errors/caught_errors.dart';
 import 'sync_request_canceller.dart';
 
 enum SyncReason { foreground, call, ring, liveShare, delivery }
@@ -43,7 +44,8 @@ class SyncCoordinator {
     _subscriptions.addAll([
       _client.onSync.stream.listen(
         (_) => _lastSync = clock.now(),
-        onError: (_) {},
+        onError: (Object e, StackTrace s) =>
+            reportCaught('client sync stream', e, s),
       ),
       _client.onLoginStateChanged.stream.listen(_onLoginState, onError: (_) {}),
     ]);
@@ -109,7 +111,11 @@ class SyncCoordinator {
     debugPrint('zuno/push: the app\'s client is behind, catching up alongside');
     final catchUp = _catchUp = _client
         .oneShotSync(timeout: Duration.zero)
-        .then<void>((_) {}, onError: (_) {});
+        .then<void>(
+          (_) {},
+          onError: (Object e, StackTrace s) =>
+              reportCaught('catch up sync', e, s),
+        );
     unawaited(catchUp.whenComplete(() => _catchUp = null));
     return catchUp;
   }
@@ -121,7 +127,11 @@ class SyncCoordinator {
     _wakeUp();
     try {
       while (_client.syncPending) {
-        await _client.oneShotSync().then<void>((_) {}, onError: (_) {});
+        await _client.oneShotSync().then<void>(
+          (_) {},
+          onError: (Object e, StackTrace s) =>
+              reportCaught('sync before an idle action', e, s),
+        );
       }
       await action();
     } finally {
@@ -197,7 +207,8 @@ class SyncCoordinator {
     var failed = false;
     try {
       await _client.oneShotSync(timeout: length);
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('sync round', e, s);
       failed = true;
     }
     final after = _client.onSyncStatus.value;

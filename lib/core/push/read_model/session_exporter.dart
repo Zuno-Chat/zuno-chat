@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/encryption/utils/pickle_key.dart';
 import 'package:matrix/encryption/utils/stored_inbound_group_session.dart';
 import 'package:matrix/matrix.dart';
@@ -9,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 import 'package:vodozemac/vodozemac.dart' as vod;
 
+import '../../errors/caught_errors.dart';
 import '../../matrix/database_compaction.dart';
 import '../../matrix/ephemeral_to_device.dart';
 import 'mention_spec.dart';
@@ -50,8 +50,8 @@ mixin InboundSessionHooks on DatabaseApi {
     );
     try {
       inboundSessionEvents.sessionStored(roomId: roomId, sessionId: sessionId);
-    } catch (e) {
-      debugPrint('zuno/nse: a stored session was not noted (${e.runtimeType})');
+    } catch (e, s) {
+      reportCaughtType('nse session stored hook', e, s);
     }
   }
 
@@ -70,8 +70,8 @@ mixin InboundSessionHooks on DatabaseApi {
         previous: before?.indexes,
         indexes: indexes,
       );
-    } catch (e) {
-      debugPrint('zuno/nse: a read index was not noted (${e.runtimeType})');
+    } catch (e, s) {
+      reportCaughtType('nse session indexes hook', e, s);
     }
   }
 }
@@ -142,8 +142,8 @@ class VodozemacMegolmTrimmer implements MegolmTrimmer {
         pickle: trimmed.toPickleEncrypted(key),
         firstIndex: trimmed.firstKnownIndex,
       );
-    } catch (e) {
-      debugPrint('zuno/nse: a session could not be trimmed ($e)');
+    } catch (e, s) {
+      reportCaught('nse session trim', e, s);
       return null;
     }
   }
@@ -189,7 +189,7 @@ Map<int, int> decryptedIndexes(String? indexes) {
   final Object? decoded;
   try {
     decoded = jsonDecode(indexes);
-  } catch (_) {
+  } on FormatException {
     return const {};
   }
   if (decoded is! Map) return const {};
@@ -293,7 +293,10 @@ class SessionExporter implements InboundSessionEvents {
     final Object? decoded;
     try {
       decoded = jsonDecode(prefs.getString(indexKey) ?? '{}');
-    } catch (_) {
+    } on FormatException {
+      return;
+    } catch (e, s) {
+      reportCaught('nse session index load', e, s);
       return;
     }
     if (decoded is! Map) return;
@@ -343,8 +346,8 @@ class SessionExporter implements InboundSessionEvents {
       final sessions = await _trimmed(room, userId);
       if (_stamp(room.id) == stamp) _sessions[room.id] = sessions;
       return fields(sessions);
-    } catch (e) {
-      debugPrint('zuno/nse: a room could not be exported (${e.runtimeType})');
+    } catch (e, s) {
+      reportCaughtType('nse room export', e, s);
       return fields(const []);
     }
   }

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../errors/caught_errors.dart';
 import '../serial_lock.dart';
 
 const _legacyKey = 'calls.resolved';
@@ -107,7 +108,9 @@ Future<void> rememberCallResolved(String callId) => _disk.run(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     await markCallResolvedOnDisk(prefs, callId);
-  } catch (_) {}
+  } catch (e, s) {
+    reportCaught('remember a resolved call', e, s);
+  }
 });
 
 Future<bool> isCallResolved(String callId) async {
@@ -117,7 +120,8 @@ Future<bool> isCallResolved(String callId) async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload();
       return readResolvedCallIds(prefs).contains(callId);
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('read resolved calls', e, s);
       return false;
     }
   });

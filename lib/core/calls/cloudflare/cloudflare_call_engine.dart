@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import '../../errors/backoff.dart';
 import '../../errors/best_effort.dart';
+import '../../errors/caught_errors.dart';
 import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
 import '../models/call_engine_participant.dart';
@@ -127,11 +128,21 @@ class CloudflareCallEngine implements CallEngine {
     try {
       await keyProvider.setSharedKey(key: key);
     } catch (_) {
-      if (existingKeyProvider == null) await quietly(keyProvider.dispose);
+      if (existingKeyProvider == null) {
+        await runBestEffort(
+          keyProvider.dispose,
+          label: 'dispose a key provider that refused the key',
+        );
+      }
       rethrow;
     }
     if (_left) {
-      if (existingKeyProvider == null) await quietly(keyProvider.dispose);
+      if (existingKeyProvider == null) {
+        await runBestEffort(
+          keyProvider.dispose,
+          label: 'dispose a key provider made after leaving',
+        );
+      }
       return;
     }
     final keptCryptors = Map.of(_senderCryptors);
@@ -152,7 +163,7 @@ class CloudflareCallEngine implements CallEngine {
           final label = '${remote.id}-${entry.key}';
           await runBestEffort(
             () => _wrapReceiver(label, entry.value.receiver, pc),
-            label: 'wrap receiver $label after key',
+            label: 'wrap receiver after key',
           );
         }
       }
@@ -162,10 +173,7 @@ class CloudflareCallEngine implements CallEngine {
     _notifyLocalStateChanged();
     for (final remote in _remote.values.toList()) {
       unawaited(
-        runBestEffort(
-          () => _syncRemoteTracks(remote),
-          label: 'pull after key for ${remote.id}',
-        ),
+        runBestEffort(() => _syncRemoteTracks(remote), label: 'pull after key'),
       );
     }
   }
@@ -276,10 +284,7 @@ class CloudflareCallEngine implements CallEngine {
     String reason,
   ) async {
     for (final cryptor in cryptors) {
-      await runBestEffort(
-        cryptor.dispose,
-        label: 'dispose cryptor ${cryptor.participantId} $reason',
-      );
+      await runBestEffort(cryptor.dispose, label: 'dispose cryptor $reason');
     }
   }
 
@@ -307,18 +312,25 @@ class CloudflareCallEngine implements CallEngine {
       return;
     }
     try {
-      final cryptor = await _webRtc.frameCryptorFactory
-          .createFrameCryptorForRtpReceiver(
-            participantId: label,
-            receiver: receiver,
-            algorithm: Algorithm.kAesGcm,
-            keyProvider: keyProvider,
-          );
+      final FrameCryptor cryptor;
+      try {
+        cryptor = await _webRtc.frameCryptorFactory
+            .createFrameCryptorForRtpReceiver(
+              participantId: label,
+              receiver: receiver,
+              algorithm: Algorithm.kAesGcm,
+              keyProvider: keyProvider,
+            );
+      } catch (_) {
+        if (_isLiveConnection(pc)) rethrow;
+        return;
+      }
       try {
         await cryptor.setEnabled(true);
       } catch (_) {
         await _disposeCryptors([cryptor], 'that failed to start');
-        rethrow;
+        if (_isLiveConnection(pc)) rethrow;
+        return;
       }
       if (!_isLiveConnection(pc)) {
         await _disposeCryptors([cryptor], 'for a closed connection');
@@ -413,7 +425,7 @@ class CloudflareCallEngine implements CallEngine {
       await _closeTracksOrThrow(pc, sessionId, mids, force, current);
     } catch (e, s) {
       if (!_isLiveConnection(pc)) return;
-      debugPrint('[Call] closing tracks $mids failed (ignored): $e\n$s');
+      reportCaught('closing tracks', e, s);
     }
   }
 
@@ -592,7 +604,7 @@ class CloudflareCallEngine implements CallEngine {
   }
 
   Future<void> _disposePeerConnection(RTCPeerConnection pc) =>
-      quietly(pc.dispose);
+      runBestEffort(pc.dispose, label: 'dispose the peer connection');
 
   Future<void> _publishLocalMedia() async {
     await _attachLocalMediaAndPublish();
@@ -723,8 +735,9 @@ class CloudflareCallEngine implements CallEngine {
           if (_left) return;
           _notifyLocalStateChanged();
           return;
-        } catch (e) {
-          debugPrint('[Call] rejoin attempt $_reconnectAttempts failed: $e');
+        } catch (e, s) {
+          if (_left) return;
+          reportCaught('rejoin the call', e, s);
         }
       }
     } finally {
@@ -758,7 +771,7 @@ class CloudflareCallEngine implements CallEngine {
       unawaited(
         runBestEffort(
           () => _syncRemoteTracks(remote),
-          label: 're-pull after rejoin for ${remote.id}',
+          label: 're-pull after rejoin',
         ),
       );
     }
@@ -826,7 +839,7 @@ class CloudflareCallEngine implements CallEngine {
       tracks: tracks,
     );
     for (final track in result.tracks.where((t) => t.hasError)) {
-      logCaught('publish ${track.trackName}', '${track.errorCode}');
+      reportCaught('publish ${track.trackName} rejected', '${track.errorCode}');
     }
     if (!_isLiveConnection(pc)) return;
     if (result.sessionDescription case final answer?) {
@@ -852,7 +865,9 @@ class CloudflareCallEngine implements CallEngine {
       await _reapplyVideoEncoding();
       _notifyParticipants();
       _notifyLocalStateChanged();
-    } catch (_) {}
+    } catch (e, s) {
+      if (_isLiveConnection(pc)) reportCaught('poll call stats', e, s);
+    }
   }
 
   static const _firstMediaPollStart = Duration(milliseconds: 250);
@@ -872,15 +887,17 @@ class CloudflareCallEngine implements CallEngine {
           final reports = await pc.getStats();
           if (!_isLiveConnection(pc)) return;
           _noteSendingTracks(reports);
-        } catch (_) {}
+        } catch (e, s) {
+          if (_isLiveConnection(pc)) reportCaught('poll first media', e, s);
+        }
         final silent = [
           for (final name in _publishedTrackNames)
-            if (!_sendingTrackNames.contains(name)) name,
+            if (!_sendingTrackNames.contains(name) && _expectsMedia(name)) name,
         ];
         if (silent.isEmpty || !_isLiveConnection(pc)) return;
         if (waited >= _firstMediaDeadline) {
           for (final name in silent) {
-            logCaught(
+            reportCaught(
               'publish $name',
               'no media sent ${_firstMediaDeadline.inSeconds} s after '
                   'publishing, so the SFU will drop it',
@@ -895,6 +912,9 @@ class CloudflareCallEngine implements CallEngine {
 
     schedule();
   }
+
+  bool _expectsMedia(String trackName) =>
+      trackName != 'video' || _sendingCamera || !_placeholderUnavailable;
 
   void _noteSendingTracks(List<StatsReport> reports) {
     var changed = false;
@@ -931,17 +951,13 @@ class CloudflareCallEngine implements CallEngine {
     if (_placeholderUnavailable) return null;
     try {
       _placeholderVideo = await _webRtc.createPlaceholderVideo();
-    } catch (e) {
-      logCaught('create placeholder video', e);
+    } catch (e, s) {
+      reportCaught('create placeholder video', e, s);
     }
     if (_left) {
       await _releasePlaceholderVideo();
     } else if (_placeholderVideo == null) {
       _placeholderUnavailable = true;
-      logCaught(
-        'placeholder video unavailable',
-        'a video slot with no camera behind it expires on the SFU after 30 s',
-      );
     }
     return _placeholderVideo?.track;
   }
@@ -1203,7 +1219,7 @@ class CloudflareCallEngine implements CallEngine {
       runBestEffort(() async {
         if (sessionChanged) await _dropRemoteMedia(remote);
         await _syncRemoteTracks(remote);
-      }, label: 'sync remote tracks for $id'),
+      }, label: 'sync remote tracks'),
     );
     _notifyParticipants();
   }
@@ -1238,7 +1254,7 @@ class CloudflareCallEngine implements CallEngine {
       _midOwners.removeWhere(
         (_, owner) => owner.participant == remote.id && owner.trackName == name,
       );
-      await quietly(remote.adoptedStreams.remove(name)?.dispose);
+      await _disposeAdoptedStream(remote.adoptedStreams.remove(name));
       if (transceiver == null) continue;
       mids.add(transceiver.mid);
       _midOwners.remove(transceiver.mid);
@@ -1275,7 +1291,11 @@ class CloudflareCallEngine implements CallEngine {
     try {
       await _negotiationLock.run(() async {
         if (!_isLiveConnection(pc)) return;
-        await _pullTracksLocked(remote, toPull, pc, sessionId);
+        try {
+          await _pullTracksLocked(remote, toPull, pc, sessionId);
+        } catch (_) {
+          if (_isLiveConnection(pc)) rethrow;
+        }
       });
     } finally {
       remote.pulling = false;
@@ -1319,7 +1339,7 @@ class CloudflareCallEngine implements CallEngine {
       unawaited(
         runBestEffort(
           () => _adoptExistingTrack(remote, name, mid),
-          label: 'adopt already-arrived $name track for ${remote.id}',
+          label: 'adopt an already-arrived track',
         ),
       );
     }
@@ -1342,7 +1362,7 @@ class CloudflareCallEngine implements CallEngine {
         offer: _cfDescription(localDescription),
       );
     } catch (_) {
-      await _rollbackUnansweredOffer(pc, remote.id);
+      await _rollbackUnansweredOffer(pc);
       if (_isLiveConnection(pc)) {
         await _forgetUnansweredPull(remote, pulledMids);
       }
@@ -1361,7 +1381,7 @@ class CloudflareCallEngine implements CallEngine {
     }
     if (remote.pullErrors[trackName] == errorCode) return;
     remote.pullErrors[trackName] = errorCode;
-    logCaught('pull $trackName from ${remote.id}', errorCode);
+    reportCaught('pull $trackName', errorCode);
   }
 
   Future<void> _forgetUnansweredPull(
@@ -1376,20 +1396,17 @@ class CloudflareCallEngine implements CallEngine {
     await _closeTracks(pulledMids.values.toList(), force: true);
   }
 
-  Future<void> _rollbackUnansweredOffer(
-    RTCPeerConnection pc,
-    VoipParticipantId id,
-  ) async {
+  Future<void> _rollbackUnansweredOffer(RTCPeerConnection pc) async {
     final state = pc.signalingState;
     if (!_isLiveConnection(pc) ||
         state == null ||
         state == RTCSignalingState.RTCSignalingStateStable) {
       return;
     }
-    debugPrint('[Call] pull for $id left signaling in $state; rolling back');
+    debugPrint('[Call] a pull left signaling in $state; rolling back');
     await runBestEffort(
       () => pc.setLocalDescription(RTCSessionDescription('', 'rollback')),
-      label: 'roll back unanswered offer for $id',
+      label: 'roll back unanswered offer',
     );
   }
 
@@ -1405,7 +1422,7 @@ class CloudflareCallEngine implements CallEngine {
       final label = '${remote.id}-${owner.trackName}';
       await runBestEffort(
         () => _wrapReceiver(label, transceiver.receiver, pc),
-        label: 'wrap receiver $label',
+        label: 'wrap receiver',
       );
     }
   }
@@ -1435,13 +1452,14 @@ class CloudflareCallEngine implements CallEngine {
         );
         await stream.addTrack(track);
       } catch (_) {
-        await quietly(stream?.dispose);
-        rethrow;
+        await _disposeAdoptedStream(stream);
+        if (_isLiveConnection(pc)) rethrow;
+        return;
       }
       if (!_isLiveConnection(pc) ||
           !stillWanted() ||
           remote.adoptedStreams.containsKey(trackName)) {
-        await quietly(stream.dispose);
+        await _disposeAdoptedStream(stream);
         return;
       }
       remote.adoptedStreams[trackName] = stream;
@@ -1470,7 +1488,7 @@ class CloudflareCallEngine implements CallEngine {
     unawaited(
       runBestEffort(
         () => _dropRemoteMedia(remote),
-        label: 'close tracks for departed $id',
+        label: 'close tracks for a departed participant',
       ),
     );
     _notifyParticipants();
@@ -1487,6 +1505,9 @@ class CloudflareCallEngine implements CallEngine {
     );
   }
 }
+
+Future<void> _disposeAdoptedStream(MediaStream? stream) =>
+    runBestEffort(stream?.dispose, label: 'dispose an adopted stream');
 
 class _RemoteParticipant {
   final VoipParticipantId id;
@@ -1521,7 +1542,7 @@ class _RemoteParticipant {
 
   Future<void> resetTracks() async {
     for (final s in adoptedStreams.values) {
-      await quietly(s.dispose);
+      await _disposeAdoptedStream(s);
     }
     adoptedStreams.clear();
     recvTransceivers.clear();

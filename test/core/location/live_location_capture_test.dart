@@ -6,6 +6,7 @@ import 'package:zuno/core/location/live_location_capture.dart';
 import 'package:zuno/core/location/live_location_policy.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 
+import '../../helpers/caught_reports.dart';
 import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 
@@ -195,14 +196,35 @@ void main() {
     await capture.stop();
   });
 
-  test('a native start failure means capture is unavailable', () async {
-    messenger.setMockMethodCallHandler(_methods, (call) async {
-      throw PlatformException(code: 'start_failed');
+  group('a native start failure', () {
+    late List<String> logs;
+
+    setUp(() => logs = recordDebugPrints());
+
+    void startFailsWith(String code) =>
+        messenger.setMockMethodCallHandler(_methods, (call) async {
+          throw PlatformException(code: code);
+        });
+
+    test('means capture is unavailable, and is reported', () async {
+      startFailsWith('start_failed');
+
+      await expectLater(
+        capture.start(LiveLocationMode.coarse, notice),
+        throwsA(isA<LiveCaptureUnavailable>()),
+      );
+      expect(logs, ['zuno/caught: live location start: start_failed']);
     });
 
-    await expectLater(
-      capture.start(LiveLocationMode.coarse, notice),
-      throwsA(isA<LiveCaptureUnavailable>()),
-    );
+    test('for location access refused means capture is unavailable, and is '
+        'not reported', () async {
+      startFailsWith('denied');
+
+      await expectLater(
+        capture.start(LiveLocationMode.coarse, notice),
+        throwsA(isA<LiveCaptureUnavailable>()),
+      );
+      expect(logs, isEmpty);
+    });
   });
 }

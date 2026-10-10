@@ -3,6 +3,8 @@ import Foundation
 
 @MainActor
 final class ReadModelCache {
+  struct SecretsUnavailable: Error {}
+
   static let shared = ReadModelCache(
     store: NotifyStore.shared(),
     keychain: NotifyKeychain(accessGroup: NotifyStore.groupIdentifier()))
@@ -34,10 +36,10 @@ final class ReadModelCache {
     let read = keychain.load(createIfMissing: create)
     switch read {
     case .ready(let secrets):
-      try? store.prepare()
+      Self.prepare(store)
       secretsCache = secrets
     case .created(let secrets):
-      try? store.prepare()
+      Self.prepare(store)
       store.wipe()
       forgetFiles()
       secretsCache = secrets
@@ -52,7 +54,7 @@ final class ReadModelCache {
     guard let store, let secrets = readySecrets() else { return nil }
     var meta: NotifyMeta?
     if case .found(let data) = store.read(NotifyFile.meta, key: secrets.readModelKey) {
-      meta = NotifyMeta.decoded(data)
+      meta = NotifyMeta.decoded(data, reporting: "notify meta decode")
     }
     metaCache = .some(meta)
     return meta
@@ -68,7 +70,7 @@ final class ReadModelCache {
     let name = NotifyFile.room(OpaqueIds.roomToken(roomId, installKey: secrets.tokenKey))
     var file: RoomTitleFile?
     if case .found(let data) = store.read(name, key: secrets.readModelKey) {
-      file = RoomTitleFile.decoded(data, roomId: roomId)
+      file = RoomTitleFile.decoded(data, roomId: roomId, reporting: "room title decode")
     }
     rooms[roomId] = .some(file)
     return file
@@ -95,12 +97,15 @@ final class ReadModelCache {
       roomToken: OpaqueIds.roomToken(change.roomId, installKey: secrets.tokenKey),
       state: change.state, source: change.source, at: now())
     ledgerCache = ledger
-    try? store.write(NotifyFile.ledger, plaintext: ledger.encoded(), key: secrets.readModelKey)
+    CaughtErrors.attempt("ledger write") {
+      try store.write(NotifyFile.ledger, plaintext: ledger.encoded(), key: secrets.readModelKey)
+    }
     DarwinHint.ringChanged.post()
   }
 
   func writeMeta(_ json: Data) throws {
-    guard let store, let secrets = writableSecrets() else { throw CocoaError(.fileWriteUnknown) }
+    guard let store else { throw CocoaError(.fileWriteUnknown) }
+    guard let secrets = writableSecrets() else { throw SecretsUnavailable() }
     guard let meta = NotifyMeta.decoded(json) else { throw CocoaError(.coderReadCorrupt) }
     if try store.writeIfChanged(NotifyFile.meta, plaintext: json, key: secrets.readModelKey) {
       DarwinHint.readModelChanged.post()
@@ -110,7 +115,8 @@ final class ReadModelCache {
   }
 
   func writeRoom(roomId: String, json: Data) throws {
-    guard let store, let secrets = writableSecrets() else { throw CocoaError(.fileWriteUnknown) }
+    guard let store else { throw CocoaError(.fileWriteUnknown) }
+    guard let secrets = writableSecrets() else { throw SecretsUnavailable() }
     guard let file = RoomTitleFile.decoded(json, roomId: roomId) else {
       throw CocoaError(.coderReadCorrupt)
     }
@@ -146,9 +152,9 @@ final class ReadModelCache {
 
   func setSignedOut(_ signedOut: Bool) {
     guard let store else { return }
-    try? store.prepare()
+    Self.prepare(store)
     if signedOut {
-      try? store.markSignedOut()
+      CaughtErrors.attempt("signed out mark") { try store.markSignedOut() }
     } else {
       store.clearSignedOut()
     }
@@ -168,6 +174,10 @@ final class ReadModelCache {
     case .ready(let secrets), .created(let secrets): return secrets
     case .locked, .unavailable: return nil
     }
+  }
+
+  private static func prepare(_ store: NotifyStore) {
+    CaughtErrors.attempt("read model prepare") { try store.prepare() }
   }
 
   private func forgetFiles() {

@@ -14,6 +14,7 @@ import '../calls/notifications/ring_notification.dart';
 import '../calls/notifications/ringing_call_store.dart';
 import '../calls/platform/incoming_call_presenter.dart';
 import '../calls/platform/system_ring.dart';
+import '../errors/caught_errors.dart';
 import '../matrix/room_title.dart';
 import '../matrix/undecryptable_event.dart';
 import '../matrix/zuno_client.dart';
@@ -39,7 +40,8 @@ Future<bool> _readSince(Client client, Event event) async {
     final marker = await client.database.getEventById(fullyRead, room);
     return marker != null &&
         marker.originServerTs.isAfter(event.originServerTs);
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('push fully read lookup', e, s);
     return false;
   }
 }
@@ -102,15 +104,17 @@ Future<IncomingPushOutcome> _handle(
   final Event? event;
   try {
     event = await placeholder.race(
-      () => client.getEventByPushNotification(
-        notification,
-        storeInDatabase: catchUp == null && !client.syncPending,
+      () => reportFailureOf(
+        client.getEventByPushNotification(
+          notification,
+          storeInDatabase: catchUp == null && !client.syncPending,
+        ),
+        label: 'push event fetch',
       ),
       after: placeholderAfter,
     );
-  } catch (e) {
+  } catch (_) {
     timing?.mark('fetch-failed');
-    debugPrint('zuno/push: could not fetch the event for this push: $e');
     return await placeholder.post()
         ? IncomingPushOutcome.message
         : IncomingPushOutcome.ignored;
@@ -256,7 +260,9 @@ class _Placeholder {
       resolution.then((_) {}, onError: (_) {}).whenComplete(settled.complete),
     );
     await Future.any([settled.future, mark]);
-    if (!settled.isCompleted) await post();
+    if (!settled.isCompleted) {
+      await reportFailureOf(post(), label: 'push placeholder post');
+    }
     return resolution;
   }
 
@@ -371,7 +377,8 @@ Future<Duration?> _ringAge(String callId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     return ringAgeFor(prefs, callId);
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('push ring age read', e, s);
     return null;
   }
 }

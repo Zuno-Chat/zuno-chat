@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/read_model/nse_channel.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -59,10 +60,27 @@ void main() {
     ]);
   });
 
-  test('a write the native side refuses reports false', () async {
-    failure = PlatformException(code: 'write_failed');
+  group('a refusal from native code', () {
+    Future<void> writeAndRead() async {
+      expect(await const NseChannel().writeMeta('{}'), isFalse);
+      expect(await const NseChannel().threadKey('!abc:zuno.im'), isNull);
+    }
 
-    expect(await const NseChannel().writeMeta('{}'), isFalse);
+    test('reads as a failed write or nothing, and is reported', () async {
+      failure = PlatformException(code: 'write_failed');
+
+      expect(await reportsDuring(writeAndRead), [
+        'nse writeMeta',
+        'nse threadKey',
+      ]);
+    });
+
+    test('over the keychain reads the same, but is left to the native '
+        'record', () async {
+      failure = PlatformException(code: 'keychain');
+
+      expect(await reportsDuring(writeAndRead), isEmpty);
+    });
   });
 
   test('with the flag off nothing is written', () async {

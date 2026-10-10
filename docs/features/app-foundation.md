@@ -141,7 +141,7 @@ The `zuno/*` channels, each behind its flag:
 | Push and notifications (`notifications.md`) | `zuno/push_wakelock`, `zuno/push_diag` | `zuno/fcm`, `zuno/background_sync`, `zuno/conversations`, `zuno/vibration` | `zuno/apns`, `zuno/nse`, `zuno/notification_actions` |
 | Media and uploads | `zuno/image`, `zuno/video`, `zuno/upload_service` | | |
 | Live location (`location-sharing.md`) | `zuno/live_location`, with its fix stream `zuno/live_location/fixes` | | |
-| App | `zuno/app_data` (the sign-out wipe), `zuno/client_lease`, `zuno/network`, `zuno/shortcuts`, `zuno/share`, `zuno/wake_lock` | `zuno/device_safety` | `zuno/launch` (the wake reason) |
+| App | `zuno/app_data` (the sign-out wipe), `zuno/client_lease`, `zuno/errors` (the native error journal, `crash-reporting.md`), `zuno/network`, `zuno/shortcuts`, `zuno/share`, `zuno/wake_lock` | `zuno/device_safety` | `zuno/launch` (the wake reason) |
 
 ### iOS project
 
@@ -150,7 +150,7 @@ The `zuno/*` channels, each behind its flag:
 | `ios/Runner/` | The app target and its `zuno/*` plugins |
 | `ios/ShareExtension/` | The share extension (`chats-messaging.md`) |
 | `ios/NotificationService/` | The notification service extension (`notifications.md`) |
-| `ios/Shared/` | Swift compiled into the app and the share extension |
+| `ios/Shared/` | Swift compiled into the app and the share extension; the error journal also goes into the notification extension |
 | `ios/NotifyShared/` | Swift compiled into the app and the notification extension, such as the read model and the ring decisions |
 | `ios/RunnerTests/` | XCTests through `@testable import Runner`, which compiles both shared folders |
 
@@ -159,8 +159,8 @@ The `zuno/*` channels, each behind its flag:
 
   | Group | Members | Holds |
   |---|---|---|
-  | `group.im.zuno.chat.$(DEVELOPMENT_TEAM)` | App, share extension | The share inbox |
-  | `group.im.zuno.chat.notify.$(DEVELOPMENT_TEAM)` | App, notification extension (never the share extension) | The notification read model, and the notify Keychain item |
+  | `group.im.zuno.chat.$(DEVELOPMENT_TEAM)` | App, share extension | The share inbox, and the share extension's error journal |
+  | `group.im.zuno.chat.notify.$(DEVELOPMENT_TEAM)` | App, notification extension (never the share extension) | The notification read model, the notify Keychain item, and the app's and the notification extension's error journals |
 
 - **Keychain items** are all `AfterFirstUnlockThisDeviceOnly` and never synchronized. They outlive an uninstall, so a reinstall's first launch deletes the notify and VoIP items (`NotifySweep`), never the database key.
 
@@ -276,8 +276,9 @@ stateDiagram-v2
 ### Errors
 
 - `main()` runs in `runZonedGuarded`, and the global handlers chain onto `FlutterError.onError` and `PlatformDispatcher.onError`. Unhandled errors go to crash reporting (`crash-reporting.md`) and, in debug builds only, to an error SnackBar.
-- A caught error the user sees gets a plain sentence, never the exception's text, and the exception goes to `logCaught` (`core/errors/best_effort.dart`). The one deliberate exception is the push diagnostics page, which shows the last pusher error as is (`notifications.md`).
-- `isConnectionError` is the one test for a network failure, and `failureMessage` adds a check-your-connection hint for one.
+- A caught failure goes to `reportCaught` (`core/errors/caught_errors.dart`) with its stack, and an expected outcome narrows its catch instead; `crash-reporting.md` has what is sent.
+- A caught error the user sees gets a plain sentence, never the exception's text. The one deliberate exception is the push diagnostics page, which shows the last pusher error as is (`notifications.md`).
+- `isConnectionError` is the one test for a network failure, native ones from the error journal included, and `failureMessage` adds a check-your-connection hint for one.
 
 ## Decisions
 
@@ -322,6 +323,7 @@ stateDiagram-v2
 - **SQLCipher 5 cannot open a 4.x database with its defaults**, so a bump needs compatibility settings or a migration.
 - **The SDK keeps every encrypted to-device payload for replay and queues failed sends**, so the app's database keeps ephemeral payloads (live location positions and watches) out of both, or coordinates would reach the disk and stale positions would replay later.
 - **App Group files are written through a temp file and a rename, never in the purged `Library/Caches`**, because a file lock held at suspension gets the process killed (`0xdead10cc`). The write takes the temp file's protection class, so set it on the temp file.
+- **File work at iOS launch waits for protected data** (`ProtectedDataGate`), because a launch before first unlock, such as a VoIP ring, can neither read nor change the app's files.
 - **Darwin notifications between the app and its extensions are system-wide**, so they only ever mean "go re-read" and never carry data or authority.
 - **Changing the Team ID strands the App Group containers and the Keychain items**, because their identifiers carry it.
 - **Never call the AppDelegate's `registrar(forPlugin:)`, `hasPlugin` or `valuePublishedByPlugin`**, including a plugin README's `GeneratedPluginRegistrant.register(with: self)`: they silently start Flutter's `LaunchEngine`, a second engine with a second Matrix client.

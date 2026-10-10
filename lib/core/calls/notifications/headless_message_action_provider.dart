@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../notifications/message_notification_action.dart';
 import 'call_notification_service.dart';
@@ -43,10 +43,8 @@ class HeadlessMessageActionNotifier extends Notifier<void> {
     try {
       if (room == null) return;
       await performMessageNotificationAction(room, action, txid: handed.txid);
-    } catch (e) {
-      debugPrint(
-        'zuno/notifications: message action ${action.kind} failed: $e',
-      );
+    } catch (e, s) {
+      reportCaught('message action ${action.kind.name}', e, s);
     }
   }
 }

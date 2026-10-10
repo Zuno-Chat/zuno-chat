@@ -4,10 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/device_keys_refresh.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/sign_out.dart';
+import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/ui/card_group.dart';
@@ -82,8 +83,8 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
         _sessions = sessions;
         _loadFailed = false;
       });
-    } catch (e) {
-      logCaught('load devices', e);
+    } catch (e, s) {
+      reportCaught('load devices', e, s);
       if (!mounted) return;
       if (_sessions.isEmpty) {
         setState(() => _loadFailed = true);
@@ -110,9 +111,9 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await client.uiaRequestBackground<void>(request);
-    } catch (e) {
-      if (e.toString().contains('canceled')) return;
-      logCaught('sign out other devices', e);
+    } catch (e, s) {
+      if (isUiaCancel(e)) return;
+      reportCaught('sign out other devices', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Not signed out. Try again.')),
       );
@@ -135,8 +136,8 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
         ref.read(matrixClientProvider),
         windDown: ref.read(signOutWindDownProvider),
       );
-    } catch (e) {
-      logCaught('sign out', e);
+    } catch (e, s) {
+      reportCaught('sign out', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Not signed out. Try again.')),
       );
@@ -230,8 +231,8 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
         ),
       );
       if (mounted) await _refresh();
-    } catch (e) {
-      logCaught('start device approval', e);
+    } catch (e, s) {
+      reportCaught('start device approval', e, s);
       messenger.showSnackBar(
         const SnackBar(
           content: Text('Could not start approving that device. Try again.'),

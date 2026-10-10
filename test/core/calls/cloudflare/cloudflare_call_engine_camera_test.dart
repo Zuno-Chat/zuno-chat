@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_webrtc.dart';
 import '../../../helpers/platform_capabilities.dart';
 import 'cloudflare_engine_harness.dart';
@@ -435,25 +435,54 @@ void main() {
 
   group('what shows up in the logs', () {
     late List<String> logs;
-    late DebugPrintCallback originalDebugPrint;
 
-    setUp(() {
-      logs = [];
-      originalDebugPrint = debugPrint;
-      debugPrint = (String? message, {int? wrapWidth}) {
-        if (message != null) logs.add(message);
-      };
-    });
-    tearDown(() => debugPrint = originalDebugPrint);
+    setUp(() => logs = recordDebugPrints());
 
-    test('a placeholder that cannot be made', () {
+    Iterable<String> caught(List<String> logs) =>
+        logs.where((l) => l.startsWith('zuno/caught:'));
+
+    test('a placeholder the platform cannot make is left to the platform to '
+        'report, and its silent video slot is not reported either', () {
       inCall((call) {
         call.backend.placeholderAvailable = false;
 
         call.join();
+        call.mediaFlows(kinds: {'audio'});
+        call.async.elapse(const Duration(seconds: 40));
+
+        expect(caught(logs), isEmpty);
+      }, kind: CallKind.voice);
+    });
+
+    test('a placeholder that fails to be made is reported once, for what '
+        'failed', () {
+      inCall((call) {
+        call.backend.placeholderError = StateError('no placeholder');
+
+        call.join();
+        call.mediaFlows(kinds: {'audio'});
+        call.async.elapse(const Duration(seconds: 40));
+
+        expect(caught(logs), [
+          'zuno/caught: create placeholder video: Bad state: no placeholder',
+        ]);
+      }, kind: CallKind.voice);
+    });
+
+    test('without a placeholder, a camera turned on that sends nothing is '
+        'still reported', () {
+      inCall((call) {
+        call.backend.placeholderAvailable = false;
+        call.join();
+        call.wait(call.engine.setCameraEnabled(true));
+
+        call.mediaFlows(kinds: {'audio'});
+        call.async.elapse(const Duration(seconds: 40));
 
         expect(
-          logs.where((l) => l.contains('placeholder video unavailable')),
+          caught(
+            logs,
+          ).where((l) => l.contains('publish video') && l.contains('no media')),
           hasLength(1),
         );
       }, kind: CallKind.voice);

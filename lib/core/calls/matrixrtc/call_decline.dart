@@ -29,15 +29,13 @@ Future<void> declineCall(Room room, String callId) =>
     _sendDecline(room, callId);
 
 class CallDeclineNotSent implements Exception {
-  const CallDeclineNotSent(this.callId);
-
-  final String callId;
+  const CallDeclineNotSent();
 
   @override
-  String toString() => 'CallDeclineNotSent($callId)';
+  String toString() => 'CallDeclineNotSent';
 }
 
 Future<void> declineCallOrFail(Room room, String callId) async {
   final sent = await _sendDecline(room, callId);
-  if (sent == null) throw CallDeclineNotSent(callId);
+  if (sent == null) throw const CallDeclineNotSent();
 }

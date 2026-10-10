@@ -50,8 +50,10 @@ struct VoipKeyStore: Sendable {
   func load() -> VoipKeysRead {
     switch backend.read(service: Self.service, account: Self.account, accessGroup: nil) {
     case .found(let data):
-      guard let keys = try? JSONDecoder().decode(VoipKeys.self, from: data), keys.key.count == 32
-      else { return .missing }
+      let keys = CaughtErrors.attempt("voip keychain decode") {
+        try JSONDecoder().decode(VoipKeys.self, from: data)
+      }
+      guard let keys, keys.key.count == 32 else { return .missing }
       return .ready(keys)
     case .missing:
       return .missing
@@ -94,7 +96,8 @@ struct VoipKeyStore: Sendable {
   }
 
   private func save(_ keys: VoipKeys) -> Bool {
-    guard let data = try? JSONEncoder().encode(keys) else { return false }
+    let data = CaughtErrors.attempt("voip keychain encode") { try JSONEncoder().encode(keys) }
+    guard let data else { return false }
     return backend.write(data, service: Self.service, account: Self.account, accessGroup: nil)
       == errSecSuccess
   }

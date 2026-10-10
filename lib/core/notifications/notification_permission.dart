@@ -1,5 +1,7 @@
 import 'package:permission_handler/permission_handler.dart';
 
+import '../errors/caught_errors.dart';
+
 enum NotificationPermissionAction { request, openSettings, none }
 
 NotificationPermissionAction notificationPermissionActionFor({
@@ -22,7 +24,8 @@ bool shouldRefreshBackgroundSync({
 Future<bool> mayRegisterForNotifications() async {
   try {
     return (await Permission.notification.status).isGranted;
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('notification permission check', e, s);
     return true;
   }
 }

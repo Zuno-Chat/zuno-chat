@@ -341,6 +341,10 @@ final class ProximityScreen {
   }
 }
 
+enum PlaceholderVideoUnavailable: Error {
+  case noWebRTCPlugin, noPeerConnectionFactory, noSuchStream, noBlackFrame
+}
+
 @MainActor
 private final class PlaceholderVideo {
   private static let width = 160
@@ -353,11 +357,16 @@ private final class PlaceholderVideo {
   private var timer: Timer?
 
   static func attach(streamId: String) -> String? {
-    guard let plugin = FlutterWebRTCPlugin.sharedSingleton(),
-      let factory = plugin.peerConnectionFactory,
-      let stream = plugin.localStreams?[streamId] as? RTCMediaStream,
-      let frame = blackFrame()
-    else { return nil }
+    guard let plugin = FlutterWebRTCPlugin.sharedSingleton() else {
+      return unavailable(.noWebRTCPlugin)
+    }
+    guard let factory = plugin.peerConnectionFactory else {
+      return unavailable(.noPeerConnectionFactory)
+    }
+    guard let stream = plugin.localStreams?[streamId] as? RTCMediaStream else {
+      return unavailable(.noSuchStream)
+    }
+    guard let frame = blackFrame() else { return unavailable(.noBlackFrame) }
     let source = factory.videoSource()
     let track = factory.videoTrack(with: source, trackId: UUID().uuidString)
     plugin.localTracks?.setObject(LocalVideoTrack(track: track), forKey: track.trackId as NSString)
@@ -370,6 +379,11 @@ private final class PlaceholderVideo {
 
   static func release(trackId: String) {
     active.removeValue(forKey: trackId)?.stop()
+  }
+
+  private static func unavailable(_ reason: PlaceholderVideoUnavailable) -> String? {
+    CaughtErrors.record("placeholder video unavailable", reason)
+    return nil
   }
 
   private init(source: RTCVideoSource, frame: RTCCVPixelBuffer) {

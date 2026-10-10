@@ -23,6 +23,26 @@ Uri _moduleUri(Client client, List<String> segments) {
   );
 }
 
+final _errorCodePattern = RegExp(r'^[A-Za-z0-9_]{1,64}$');
+
+String? moduleErrorCode(Object? json) {
+  if (json is! Map) return null;
+  final code = json['errorCode'] ?? json['errcode'];
+  return code is String && _errorCodePattern.hasMatch(code) ? code : null;
+}
+
+String moduleFailure(http.Response response, String request) {
+  final failure = 'HTTP ${response.statusCode} from $request';
+  final Object? json;
+  try {
+    json = jsonDecode(response.body);
+  } on FormatException {
+    return failure;
+  }
+  final code = moduleErrorCode(json);
+  return code == null ? failure : '$failure: $code';
+}
+
 Duration? retryAfterOf(http.Response response) {
   if (response.statusCode != 429) return null;
   try {

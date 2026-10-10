@@ -8,12 +8,18 @@ class PusherRecordingClient extends Client with PusherRecording {
   PusherRecordingClient() : super('test', database: FakeDatabaseApi()) {
     homeserver = Uri.parse('https://matrix.example.org');
   }
+
+  bool signedIn = true;
+
+  @override
+  bool isLogged() => signedIn;
 }
 
 mixin PusherRecording on Client {
   final posted = <Pusher>[];
   final deleted = <PusherId>[];
   Object? postError;
+  Object? deleteError;
   Completer<void>? holdNextPost;
   void Function()? onDeletePusher;
   List<Map<String, Object?>>? pushersOnServer;
@@ -31,6 +37,8 @@ mixin PusherRecording on Client {
   @override
   Future<void> deletePusher(PusherId pusherId) async {
     onDeletePusher?.call();
+    final error = deleteError;
+    if (error != null) throw error;
     deleted.add(pusherId);
   }
 

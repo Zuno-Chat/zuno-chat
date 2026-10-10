@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../platform/platform_capabilities.dart';
 import '../call_audio_route.dart';
 import '../notifications/call_notification_service.dart';
@@ -65,7 +66,10 @@ class NativeCallAudioOutput implements CallAudioOutput {
       return callAudioSnapshotFrom(
         await _callsChannel.invokeMapMethod<Object?, Object?>('audioRoute'),
       );
-    } catch (_) {
+    } catch (e, s) {
+      if (e is! MissingPluginException) {
+        reportCaught('read call audio route', e, s);
+      }
       return (headsets: const <CallAudioRoute>{}, route: null);
     }
   }

@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:matrix/matrix.dart' show Client;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../errors/crash_reporting.dart';
 import '../matrix/client_lease.dart';
 import '../matrix/matrix_client_provider.dart';
@@ -18,6 +20,7 @@ import 'fcm_pusher.dart';
 import 'fcm_registration_store.dart';
 import 'headless_decline_hold.dart';
 import 'headless_push_runner.dart';
+import 'pusher_removal.dart';
 
 Future<void> handleFcmPush(HeadlessPushRunner runner, FcmPush push) async {
   final notification = pushNotificationFromFcmData(push.data);
@@ -46,29 +49,18 @@ HeadlessPushRunner buildFcmBackgroundRunner({
   Future<void> Function(Client client) retryPendingToken = retryPendingFcmToken,
 }) {
   final runner = HeadlessPushRunner()..clientBuilder = clientBuilder;
-  runner.onRinging = () => _holdWhileRinging(runner, hold);
+  runner.onRinging = () =>
+      runBestEffort(() => hold(runner), label: 'fcm ring hold');
   runner.onClientOpened = (_) => unawaited(
     runner
         .withClient(retryPendingToken)
         .then<void>(
           (_) {},
-          onError: (Object error) => debugPrint(
-            'zuno/push: the waiting FCM token check failed ($error)',
-          ),
+          onError: (Object error, StackTrace stack) =>
+              reportCaught('fcm pending token client', error, stack),
         ),
   );
   return runner;
-}
-
-Future<void> _holdWhileRinging(
-  HeadlessPushRunner runner,
-  Future<void> Function(HeadlessPushRunner runner) hold,
-) async {
-  try {
-    await hold(runner);
-  } catch (error, stack) {
-    debugPrint('zuno/push: ring hold failed: $error\n$stack');
-  }
 }
 
 @visibleForTesting
@@ -93,24 +85,28 @@ Future<void> runFcmHeadless({
     unawaited(
       Future.sync(initCrashReporting).then(
         (_) {},
-        onError: (Object error) =>
-            debugPrint('zuno/push: crash reporting not started: $error'),
+        onError: (Object error, StackTrace stack) =>
+            reportCaught('headless crash reporting start', error, stack),
       ),
     );
   }
 
   Future<bool>? preparing;
-  Future<bool> prepared() => preparing ??= prepare().then(
-    (ready) {
-      if (!ready) preparing = null;
-      return ready;
-    },
-    onError: (Object error) {
-      debugPrint('zuno/push: headless setup failed ($error)');
-      preparing = null;
-      return false;
-    },
-  );
+  Future<bool> prepared() {
+    startCrashReporting();
+    return preparing ??= prepare().then(
+      (ready) {
+        if (!ready) preparing = null;
+        return ready;
+      },
+      onError: (Object error, StackTrace stack) {
+        reportCaught('fcm headless prepare', error, stack);
+        preparing = null;
+        return false;
+      },
+    );
+  }
+
   var jobs = 0;
   Future<void> job(Future<void> Function() run) async {
     jobs++;
@@ -118,7 +114,6 @@ Future<void> runFcmHeadless({
       if (await prepared()) await run();
     } finally {
       jobs--;
-      startCrashReporting();
     }
   }
 
@@ -155,8 +150,8 @@ Future<void> refreshFcmPusherHeadless(
       (client) => _moveFcmPusher(client, prefs, from: registered, to: token),
     );
     if (moved != null) return;
-  } catch (e) {
-    debugPrint('zuno/push: the FCM pusher stays on the old token for now ($e)');
+  } catch (e, s) {
+    if (e is! ClientLeaseDenied) reportCaught('fcm headless pusher move', e, s);
   }
   await prefs.setString(fcmPendingTokenKey, token);
 }
@@ -177,8 +172,8 @@ Future<void> retryPendingFcmToken(
     }
     if (!await notificationsAllowed()) return;
     await _moveFcmPusher(client, prefs, from: registered, to: pending);
-  } catch (e) {
-    debugPrint('zuno/push: the waiting FCM token is still not registered ($e)');
+  } catch (e, s) {
+    reportCaught('fcm pending token retry', e, s);
   }
 }
 
@@ -200,9 +195,9 @@ Future<bool> _moveFcmPusher(
   await saveFcmRegistration(prefs, token: to);
   await prefs.remove(fcmPendingTokenKey);
   try {
-    await client.deletePusher(fcmPusherId(from));
-  } catch (e) {
-    debugPrint('zuno/push: could not remove the replaced FCM pusher ($e)');
+    await removePusher(client, fcmPusherId(from));
+  } catch (e, s) {
+    reportCaught('fcm headless replaced pusher delete', e, s);
   }
   debugPrint('zuno/push: FCM pusher moved to the new token');
   return true;

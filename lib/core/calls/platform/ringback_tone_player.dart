@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:flutter/services.dart' show MethodChannel;
+import 'package:flutter/services.dart'
+    show MethodChannel, MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../notifications/notification_sound_settings.dart';
 import '../../platform/platform_capabilities.dart';
 
@@ -10,7 +12,9 @@ const _callsChannel = MethodChannel('zuno/calls');
 Future<void> _invokeCallChannel(String method) async {
   try {
     await _callsChannel.invokeMethod<void>(method);
-  } catch (_) {}
+  } catch (e, s) {
+    if (e is! MissingPluginException) reportCaught('ringback $method', e, s);
+  }
 }
 
 abstract interface class RingbackTonePlayer {

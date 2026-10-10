@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
 
 import '../../errors/best_effort.dart';
+import '../../errors/caught_errors.dart';
 import '../../notifications/message_notification_action.dart';
 import '../../platform/platform_capabilities.dart';
 import '../matrixrtc/call_decline.dart';
@@ -28,7 +29,7 @@ Future<void> runHeadlessCallDecline({
     final ring = presenter ?? incomingCallPresenterFor(ambientCapabilities);
     await runBestEffort(
       () => ring.cancelIncoming(roomId: roomId, callId: callId),
-      label: 'ring stop for declined $callId',
+      label: 'stop the ring for a declined call',
     );
     await markCallResolved(callId);
     Future<bool> handOver() => _handedOff(handOff);
@@ -49,8 +50,8 @@ Future<void> runHeadlessCallDecline({
       () => declineCallOrFail(room, callId),
       retryDelays,
     );
-  } catch (e) {
-    debugPrint('zuno/calls: decline of $callId failed: $e');
+  } catch (e, s) {
+    reportCaught('decline a call in the background', e, s);
   } finally {
     await client?.dispose(closeDatabase: false);
     await lock.release();
@@ -60,8 +61,8 @@ Future<void> runHeadlessCallDecline({
 Future<bool> _handedOff(Future<bool> Function() handOff) async {
   try {
     return await handOff();
-  } catch (e) {
-    debugPrint('zuno/calls: could not hand the decline to the app: $e');
+  } catch (e, s) {
+    reportCaught('hand the decline to the app', e, s);
     return false;
   }
 }

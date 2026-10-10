@@ -1,10 +1,10 @@
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
 
 import '../calls/notifications/call_notification_service.dart';
 import '../calls/notifications/caller_avatar.dart';
+import '../errors/best_effort.dart';
 import '../matrix/attachment_cache.dart';
 import '../matrix/mxc_avatar_image.dart' show AvatarBucket, avatarCacheKey;
 import '../platform/platform_capabilities.dart';
@@ -93,7 +93,7 @@ Future<void> postMessageNotification(
     await refine();
     return;
   }
-  onRefining(_quietly(refine()));
+  onRefining(runBestEffort(refine, label: 'notification refinement'));
 }
 
 Future<Uint8List?> _avatarTheAppShows(
@@ -103,11 +103,3 @@ Future<Uint8List?> _avatarTheAppShows(
   avatarCacheKey(avatarUrl, AvatarBucket.small),
   expires: false,
 );
-
-Future<void> _quietly(Future<void> refinement) async {
-  try {
-    await refinement;
-  } catch (e) {
-    debugPrint('zuno/push: notification refinement failed ($e)');
-  }
-}

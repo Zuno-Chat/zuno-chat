@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 
+import '../errors/caught_errors.dart';
 import '../notifications/notification_delivery_mode.dart';
 import '../platform/platform_capabilities.dart';
 
@@ -71,8 +72,8 @@ class FcmBridge {
       return _availabilityFrom(
         await channel.invokeMethod<String>('availability'),
       );
-    } catch (e) {
-      debugPrint('zuno/push: FCM availability check failed ($e)');
+    } catch (e, s) {
+      reportCaught('fcm availability check', e, s);
       return FcmAvailability.unknown;
     }
   }
@@ -83,8 +84,8 @@ class FcmBridge {
       return _availabilityFrom(
         await channel.invokeMethod<String>('fixPlayServices'),
       );
-    } catch (e) {
-      debugPrint('zuno/push: Google Play services fix refused ($e)');
+    } catch (e, s) {
+      reportCaught('fcm play services fix', e, s);
       return availability();
     }
   }
@@ -144,11 +145,8 @@ class FcmBridge {
     if (!offered) return false;
     try {
       return await channel.invokeMethod<bool>('ready') ?? false;
-    } catch (e) {
-      debugPrint(
-        'zuno/push: could not tell the FCM router this engine is '
-        'ready ($e)',
-      );
+    } catch (e, s) {
+      reportCaught('fcm ready', e, s);
       return false;
     }
   }
@@ -158,8 +156,8 @@ Future<bool> _quiet(Future<bool> Function()? isQuiescent) async {
   if (isQuiescent == null) return false;
   try {
     return await isQuiescent();
-  } catch (e) {
-    debugPrint('zuno/push: could not settle this push engine ($e)');
+  } catch (e, s) {
+    reportCaught('fcm quiescent check', e, s);
     return false;
   }
 }

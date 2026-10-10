@@ -103,7 +103,7 @@ struct ShareCache: Sendable {
   }
 
   func clear() {
-    try? FileManager.default.removeItem(at: root)
+    ShareInbox.remove(root, "share cache clear")
   }
 
   func move(uris: [String], names: [String]) -> [String?] {
@@ -122,6 +122,7 @@ struct ShareCache: Sendable {
         try files.moveItem(at: source, to: target)
         return target.path
       } catch {
+        CaughtErrors.record("share cache move", error)
         return nil
       }
     }

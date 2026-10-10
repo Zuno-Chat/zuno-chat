@@ -79,6 +79,7 @@ class LiveLocationService : Service() {
             fail("denied")
             return START_NOT_STICKY
         } catch (error: IllegalStateException) {
+            CaughtErrors.record(this, "live location foreground", error)
             fail("failed")
             return START_NOT_STICKY
         }
@@ -151,6 +152,7 @@ class LiveLocationService : Service() {
             if (instance?.get() !== this || stopping || mode != currentMode) {
                 return@addOnFailureListener
             }
+            CaughtErrors.record(this, "live location fused request", it)
             client.removeLocationUpdates(fusedCallback)
             try {
                 requestPlatform(mode, request)

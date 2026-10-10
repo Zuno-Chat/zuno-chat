@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
+import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
+import '../../../core/matrix/picker_access.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/sheet.dart';
@@ -54,8 +56,8 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
         _profile = profile;
         _profileError = null;
       });
-    } catch (e) {
-      logCaught('load profile', e);
+    } catch (e, s) {
+      reportCaught('load profile', e, s);
       if (mounted) {
         setState(() => _profileError = 'Could not load your profile.');
       }
@@ -83,8 +85,8 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
           const SnackBar(content: Text('Display name updated')),
         );
       }
-    } catch (e) {
-      logCaught('update display name', e);
+    } catch (e, s) {
+      reportCaught('update display name', e, s);
       if (mounted) {
         messenger.showSnackBar(
           const SnackBar(content: Text('Display name not saved. Try again.')),
@@ -148,8 +150,8 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
       if (mounted) {
         messenger.showSnackBar(const SnackBar(content: Text('Photo updated')));
       }
-    } catch (e) {
-      logCaught('update profile photo', e);
+    } catch (e, s) {
+      if (!isPickerAccessDenied(e)) reportCaught('update profile photo', e, s);
       if (mounted) {
         messenger.showSnackBar(
           const SnackBar(content: Text('Photo not saved. Try again.')),
@@ -177,8 +179,8 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
         onSubmit: (current, next) async {
           try {
             await client.changePassword(next, oldPassword: current);
-          } catch (e) {
-            logCaught('change password', e);
+          } catch (e, s) {
+            if (!isPasswordRefusal(e)) reportCaught('change password', e, s);
             rethrow;
           }
         },

@@ -1,5 +1,6 @@
 package im.zuno.chat
 
+import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -18,22 +19,24 @@ object VideoTools {
     private val mainHandler = Handler(Looper.getMainLooper())
     private const val MIN_SAMPLE_BUFFER = 2 shl 20
 
-    fun probe(path: String, onResult: (Map<String, Any?>?) -> Unit) {
+    fun probe(context: Context, path: String, onResult: (Map<String, Any?>?) -> Unit) {
         executor.execute {
             val result = try {
                 probeNow(path)
             } catch (error: Exception) {
+                CaughtErrors.record(context, "video probe", error)
                 null
             }
             mainHandler.post { onResult(result) }
         }
     }
 
-    fun remux(input: String, output: String, onResult: (Boolean) -> Unit) {
+    fun remux(context: Context, input: String, output: String, onResult: (Boolean) -> Unit) {
         executor.execute {
             val result = try {
                 remuxNow(input, output)
             } catch (error: Exception) {
+                CaughtErrors.record(context, "video remux", error)
                 false
             }
             mainHandler.post { onResult(result) }
@@ -41,6 +44,7 @@ object VideoTools {
     }
 
     fun thumbnail(
+        context: Context,
         path: String,
         maxDimension: Int,
         quality: Int,
@@ -50,8 +54,10 @@ object VideoTools {
             val result = try {
                 thumbnailNow(path, maxDimension, quality)
             } catch (error: Exception) {
+                CaughtErrors.record(context, "video thumbnail", error)
                 null
             } catch (error: OutOfMemoryError) {
+                CaughtErrors.record(context, "video thumbnail out of memory", error)
                 null
             }
             mainHandler.post { onResult(result) }

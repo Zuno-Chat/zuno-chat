@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show DebugPrintCallback, debugPrint;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -10,6 +9,8 @@ import 'package:zuno/core/notifications/notification_sound_settings.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
 import 'package:zuno/core/push/registration_retry.dart';
 
+import '../../helpers/caught_reports.dart';
+import '../../helpers/fake_permissions.dart';
 import '../../helpers/platform_capabilities.dart';
 import '../../helpers/pusher_recording_client.dart';
 
@@ -150,6 +151,50 @@ void main() {
     },
   );
 
+  group('a token Apple does not give', () {
+    setUp(installFakePermissions);
+
+    test('in time, as while offline, is retried without a report', () async {
+      provider.tokenReader = () async =>
+          throw PlatformException(code: 'timeout');
+
+      expect(await reportsDuring(() => provider.start(client)), isEmpty);
+      expect(provider.status.value, ApnsStatus.tokenFailed);
+      expect(provider.retryScheduled, isTrue);
+    });
+
+    test('because registering failed is reported, and retried', () async {
+      provider.tokenReader = () async =>
+          throw PlatformException(code: 'registration_failed');
+
+      expect(await reportsDuring(() => provider.start(client)), [
+        'apns token request',
+      ]);
+      expect(provider.retryScheduled, isTrue);
+    });
+
+    test('in time on a relaunch keeps the registration without a '
+        'report', () async {
+      await provider.start(client);
+      final relaunched = providerWith(registration: true)
+        ..tokenReader = () async => throw PlatformException(code: 'timeout');
+
+      expect(await reportsDuring(() => relaunched.start(client)), isEmpty);
+      expect(relaunched.status.value, ApnsStatus.ready);
+    });
+
+    test('on a relaunch for any other reason is reported', () async {
+      await provider.start(client);
+      final relaunched = providerWith(registration: true)
+        ..tokenReader = () async =>
+            throw PlatformException(code: 'registration_failed');
+
+      expect(await reportsDuring(() => relaunched.start(client)), [
+        'apns token check',
+      ]);
+    });
+  });
+
   test('a pusher the server rejects reports pusherFailed with its error, and '
       'retrying after a fix registers', () async {
     client.postError = Exception('M_UNKNOWN');
@@ -268,17 +313,11 @@ void main() {
 
     group('falling back to the build mode', () {
       late List<String> lines;
-      late DebugPrintCallback originalDebugPrint;
 
       setUp(() {
-        lines = [];
-        originalDebugPrint = debugPrint;
-        debugPrint = (String? message, {int? wrapWidth}) {
-          if (message != null) lines.add(message);
-        };
+        installFakePermissions();
+        lines = recordDebugPrints();
       });
-
-      tearDown(() => debugPrint = originalDebugPrint);
 
       test('an unreadable environment falls back to the build mode and is '
           'asked again next time', () async {
@@ -290,7 +329,7 @@ void main() {
         expect(
           lines.single,
           allOf(
-            contains('APNs environment unreadable'),
+            startsWith('zuno/caught: apns environment read:'),
             contains('MissingPluginException'),
           ),
         );
@@ -486,6 +525,28 @@ void main() {
     await relaunched.start(client);
     expect(relaunched.token, isNull);
     expect(relaunched.dropped.value, 0);
+  });
+
+  test('stop after the session ended asks the homeserver nothing and shows '
+      'no error, since the pusher went with the session', () async {
+    await provider.start(client);
+    client.signedIn = false;
+
+    await provider.stop(client);
+
+    expect(client.deleted, isEmpty);
+    expect(provider.lastPusherError, isNull);
+    expect(provider.status.value, ApnsStatus.idle);
+  });
+
+  test('stop shows a pusher delete the homeserver refuses', () async {
+    await provider.start(client);
+    client.deleteError = MatrixException.fromJson({'errcode': 'M_FORBIDDEN'});
+
+    await provider.stop(client);
+
+    expect(provider.lastPusherError, contains('M_FORBIDDEN'));
+    expect(provider.status.value, ApnsStatus.idle);
   });
 
   test('stop with nothing registered touches neither the server nor the '

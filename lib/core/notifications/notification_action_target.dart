@@ -1,5 +1,6 @@
 import 'package:matrix/matrix.dart';
 
+import '../errors/caught_errors.dart';
 import '../push/read_model/opaque_thread_ids.dart';
 
 typedef TimedEvent = ({String id, int ts});
@@ -30,7 +31,8 @@ Future<String?> resolveMarkReadEvent({
   List<TimedEvent> stored;
   try {
     stored = await local();
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('mark read local events', e, s);
     stored = const [];
   }
   final localPick = _newest([?lastEvent, ...stored], bound);
@@ -38,7 +40,9 @@ Future<String?> resolveMarkReadEvent({
   TimedEvent? found;
   try {
     found = await remote(bound);
-  } catch (_) {
+  } catch (e, s) {
+    final absent = e is MatrixException && e.error == MatrixError.M_NOT_FOUND;
+    if (!absent) reportCaught('mark read remote event', e, s);
     found = null;
   }
   return _newest([?localPick, ?found], bound)?.id;

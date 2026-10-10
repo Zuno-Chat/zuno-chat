@@ -1,8 +1,9 @@
-import 'package:flutter/foundation.dart' show Listenable, debugPrint;
+import 'package:flutter/foundation.dart' show Listenable;
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:unifiedpush/unifiedpush.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 import '../push/voip/voip_registration.dart';
 import '../settings/app_preferences_provider.dart';
@@ -26,8 +27,8 @@ final unifiedPushDistributorInstalledProvider =
       ref.onDispose(lifecycle.dispose);
       try {
         return (await UnifiedPush.getDistributors()).isNotEmpty;
-      } catch (e) {
-        debugPrint('zuno/push: could not list UnifiedPush distributors ($e)');
+      } catch (e, s) {
+        reportCaught('unifiedpush distributors list', e, s);
         return false;
       }
     });

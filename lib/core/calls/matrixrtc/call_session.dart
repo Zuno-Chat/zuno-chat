@@ -4,7 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart'
-    show ValueListenable, debugPrint, visibleForTesting;
+    show ValueListenable, visibleForTesting;
 import 'package:flutter/widgets.dart'
     show AppLifecycleListener, AppLifecycleState, WidgetsBinding;
 import 'package:http/http.dart' as http;
@@ -12,6 +12,7 @@ import 'package:matrix/matrix.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../errors/best_effort.dart';
+import '../../errors/caught_errors.dart';
 import '../../errors/retry_backoff.dart';
 import '../../matrix/bearer_authorization.dart';
 import '../../matrix/olm_sender.dart';
@@ -269,19 +270,23 @@ class CallSession {
       if (_ending) return;
       _startLocalMedia().ignore();
       invite = await (_invite = _sendInvite());
-    } catch (e) {
+    } catch (e, s) {
+      if (!_shownToUser(e)) reportCaught('start an outgoing call', e, s);
       await _failBeforeRinging(e);
       return;
     }
     if (invite == null) {
-      await _failBeforeRinging(StateError('The call invite was not sent'));
+      final unsent = StateError('The call invite was not sent');
+      reportCaught('send the call invite', unsent);
+      await _failBeforeRinging(unsent);
       return;
     }
     if (_ending) return;
     try {
       await _connect();
       _startRingTimeout();
-    } catch (_) {
+    } catch (e, s) {
+      if (!_shownToUser(e)) reportCaught('connect an outgoing call', e, s);
       await hangUp();
     }
   }
@@ -364,7 +369,8 @@ class CallSession {
     }
     try {
       await _connect();
-    } catch (_) {
+    } catch (e, s) {
+      if (!_shownToUser(e)) reportCaught('accept a call', e, s);
       await hangUp();
       rethrow;
     }
@@ -387,7 +393,7 @@ class CallSession {
     if (ambientCapabilities.callKit) await _awaitMicrophonePrompt();
     final statuses = await needed.request();
     if (statuses[Permission.microphone] != PermissionStatus.granted) {
-      throw const _MicrophoneUnavailable();
+      throw const MicrophoneUnavailable();
     }
     _cameraRefused =
         video && statuses[Permission.camera] != PermissionStatus.granted;
@@ -397,7 +403,7 @@ class CallSession {
     final status = await Permission.microphone.status;
     if (status.isGranted) return;
     if (status.isPermanentlyDenied || !await _reachesForeground()) {
-      throw const _MicrophoneUnavailable();
+      throw const MicrophoneUnavailable();
     }
   }
 
@@ -460,8 +466,7 @@ class CallSession {
       _reconcileRemoteMemberships();
       _setPhase(CallSessionPhase.active);
       _activeAt = DateTime.now();
-    } catch (e, s) {
-      debugPrint('[CallSession] _connect failed: $e\n$s');
+    } catch (e) {
       if (_hangUp == null) {
         failedMessage = _failureMessage(e);
         endReason = CallEndReason.failed;
@@ -470,10 +475,16 @@ class CallSession {
     }
   }
 
+  static bool _isForbidden(Object error) =>
+      error is MatrixException && error.error == MatrixError.M_FORBIDDEN;
+
+  static bool _shownToUser(Object error) =>
+      _isForbidden(error) || error is MicrophoneUnavailable;
+
   static String _failureMessage(Object error) => switch (error) {
-    MatrixException(error: MatrixError.M_FORBIDDEN) =>
+    _ when _isForbidden(error) =>
       'You do not have permission to start calls in this room',
-    _MicrophoneUnavailable() => microphoneUnavailableMessage,
+    MicrophoneUnavailable() => microphoneUnavailableMessage,
     _ => callDidNotConnectMessage,
   };
 
@@ -588,7 +599,7 @@ class CallSession {
     try {
       await engine.setEncryptionKey(key);
     } catch (e, s) {
-      debugPrint('[CallSession] applying the call key failed: $e\n$s');
+      reportCaught('apply the call key', e, s);
       if (_phase == CallSessionPhase.ended) return;
       failedMessage = callDidNotConnectMessage;
       endReason = CallEndReason.failed;
@@ -614,13 +625,16 @@ class CallSession {
     try {
       await retryWithBackoff(
         () => _sendEncryptionKeyOnce(id, key),
-        label: 'call key relay to $id',
+        label: 'call key relay',
         maxAttempts: _keyRelayAttempts,
         baseDelay: keyRelayBaseDelay,
         maxDelay: keyRelayMaxDelay,
         retryIf: (_) => _phase != CallSessionPhase.ended,
       );
-    } catch (_) {}
+    } catch (e, s) {
+      if (_phase == CallSessionPhase.ended) return;
+      reportCaught('relay the call key', e, s);
+    }
   }
 
   Future<void> _sendEncryptionKeyOnce(
@@ -630,7 +644,7 @@ class CallSession {
     await client.updateUserDeviceKeys(additionalUsers: {id.userId});
     final deviceKeys =
         client.userDeviceKeys[id.userId]?.deviceKeys[id.deviceId];
-    if (deviceKeys == null) throw StateError('No device keys yet for $id');
+    if (deviceKeys == null) throw StateError('No device keys yet');
     await client.sendToDeviceEncrypted(
       [deviceKeys],
       callEncryptionKeyEventType,
@@ -876,6 +890,6 @@ class CallSession {
   }
 }
 
-class _MicrophoneUnavailable implements Exception {
-  const _MicrophoneUnavailable();
+class MicrophoneUnavailable implements Exception {
+  const MicrophoneUnavailable();
 }

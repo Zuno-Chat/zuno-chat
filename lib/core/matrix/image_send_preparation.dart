@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show compute;
 import 'package:image/image.dart' as img;
 import 'package:matrix/matrix.dart';
 
+import '../errors/caught_errors.dart';
 import 'media_processing_exception.dart';
 import 'media_quality.dart';
 import 'native_image_resizer.dart';
@@ -60,7 +61,7 @@ Future<PreparedImage> prepareImageForSend(
     if (thumb != null && thumb.bytes.length >= main.bytes.length) thumb = null;
   }
 
-  final blurhash = await compute(blurhashOf, (thumb ?? main).bytes);
+  final blurhash = await blurhashInBackground((thumb ?? main).bytes);
   onProgress?.call(1);
 
   final name = sentPhotoName(main.mimeType);
@@ -74,13 +75,17 @@ Future<PreparedImage> prepareImageForSend(
 
 const _blurhashSampleSize = 32;
 
-String? blurhashOf(Uint8List bytes) {
-  final img.Image? decoded;
+Future<String?> blurhashInBackground(Uint8List bytes) async {
   try {
-    decoded = img.decodeImage(bytes);
-  } catch (_) {
+    return await compute(blurhashOf, bytes);
+  } catch (e, s) {
+    reportCaught('decode an image for its blurhash', e, s);
     return null;
   }
+}
+
+String? blurhashOf(Uint8List bytes) {
+  final decoded = img.decodeImage(bytes);
   if (decoded == null) return null;
   final landscape = decoded.width >= decoded.height;
   final small = img.copyResize(

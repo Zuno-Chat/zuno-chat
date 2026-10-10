@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
+
+import '../errors/caught_errors.dart';
 
 const messageNotificationImageTimeout = Duration(seconds: 8);
 
@@ -23,8 +24,8 @@ Future<NotificationImage?> fetchMessageNotificationImage(
   try {
     final file = await fetch().timeout(timeout);
     return NotificationImage(bytes: file.bytes, mimeType: file.mimeType);
-  } catch (e) {
-    debugPrint('zuno/notifications: could not fetch thumbnail image: $e');
+  } catch (e, s) {
+    reportCaught('notification image fetch', e, s);
     return null;
   }
 }

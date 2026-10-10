@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../errors/caught_errors.dart';
+
 final fallbackMatrixGatewayUrl = Uri.parse(
   'https://matrix.gateway.unifiedpush.org/_matrix/push/v1/notify',
 );
@@ -25,6 +27,10 @@ Future<Uri> resolveMatrixGatewayUrl(
     final body = jsonDecode(response.body);
     final gateway = body is Map ? body['unifiedpush'] : null;
     if (gateway is Map && gateway['gateway'] == 'matrix') return discoveryUrl;
-  } catch (_) {}
+  } on FormatException {
+    return fallbackMatrixGatewayUrl;
+  } catch (e, s) {
+    reportCaught('unifiedpush gateway discovery', e, s);
+  }
   return fallbackMatrixGatewayUrl;
 }

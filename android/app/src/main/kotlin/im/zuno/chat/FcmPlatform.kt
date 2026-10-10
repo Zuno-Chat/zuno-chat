@@ -17,27 +17,30 @@ object FcmPlatform {
     private const val TAG = "FcmPlatform"
     private const val MAX_CAUSES = 8
 
-    fun configured(context: Context): Boolean? = try {
+    private fun configured(context: Context, failed: (Exception) -> Unit): Boolean? = try {
         FirebaseApp.getApps(context).isNotEmpty()
     } catch (e: Exception) {
-        Log.w(TAG, "Could not ask Firebase whether it is set up", e)
+        failed(e)
         null
     }
 
+    private fun configuredOrRecord(context: Context): Boolean? =
+        configured(context) { CaughtErrors.record(context, "fcm firebase check", it) }
+
     fun availability(context: Context): FcmAvailability =
-        FcmAvailabilityDecision.decide(configured(context), playServicesStatus(context))
+        FcmAvailabilityDecision.decide(configuredOrRecord(context), playServicesStatus(context))
 
     @Suppress("DEPRECATION")
     fun token(context: Context, done: (FcmTokenOutcome) -> Unit) {
-        if (configured(context) == null) {
-            return done(
-                FcmTokenOutcome.Failure(
-                    FcmTokenFailure.FAILED,
-                    "Could not ask Firebase whether it is set up",
-                ),
-            )
-        }
-        val messaging = messaging(context) ?: return done(
+        val configured = configured(context) {
+            Log.w(TAG, "Could not ask Firebase whether it is set up", it)
+        } ?: return done(
+            FcmTokenOutcome.Failure(
+                FcmTokenFailure.FAILED,
+                "Could not ask Firebase whether it is set up",
+            ),
+        )
+        val messaging = messaging(context, configured) ?: return done(
             FcmTokenOutcome.Failure(
                 FcmTokenFailure.NOT_CONFIGURED,
                 "Firebase is not set up in this build",
@@ -68,7 +71,7 @@ object FcmPlatform {
 
     @Suppress("DEPRECATION")
     fun deleteToken(context: Context, done: (Exception?) -> Unit) {
-        val messaging = messaging(context) ?: return done(null)
+        val messaging = messaging(context, configuredOrRecord(context) == true) ?: return done(null)
         try {
             messaging.isAutoInitEnabled = false
             messaging.deleteToken().addOnCompleteListener { task -> done(task.exception) }
@@ -83,17 +86,17 @@ object FcmPlatform {
                 .makeGooglePlayServicesAvailable(activity)
                 .addOnCompleteListener { done(availability(activity)) }
         } catch (e: Exception) {
-            Log.w(TAG, "Google Play services could not be fixed", e)
+            CaughtErrors.record(activity, "fcm fix play services", e)
             done(availability(activity))
         }
     }
 
-    private fun messaging(context: Context): FirebaseMessaging? {
-        if (configured(context) != true) return null
+    private fun messaging(context: Context, configured: Boolean): FirebaseMessaging? {
+        if (!configured) return null
         return try {
             FirebaseMessaging.getInstance()
         } catch (e: IllegalStateException) {
-            Log.w(TAG, "Firebase Messaging is not available", e)
+            CaughtErrors.record(context, "fcm messaging instance", e)
             null
         }
     }
@@ -101,7 +104,7 @@ object FcmPlatform {
     private fun playServicesStatus(context: Context): Int = try {
         GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context)
     } catch (e: Exception) {
-        Log.w(TAG, "Could not ask for Google Play services", e)
+        CaughtErrors.record(context, "fcm play services check", e)
         FcmAvailabilityDecision.CHECK_FAILED
     }
 

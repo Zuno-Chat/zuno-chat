@@ -20,6 +20,13 @@ void main() {
       );
     });
 
+    test('redacts a room ID that has no server name', () {
+      expect(
+        scrubText('reply not sent to !${_eventIdV3.substring(1)}'),
+        'reply not sent to ![redacted]',
+      );
+    });
+
     test('redacts a v3 event ID', () {
       expect(
         scrubText('event $_eventIdV3 failed'),
@@ -33,7 +40,7 @@ void main() {
           'GET https://matrix.example.org/_matrix/sync?access_token=syt_abc'
           '&since=s72',
         ),
-        'GET https://matrix.example.org/_matrix/sync?access_token=[redacted]'
+        'GET https://[redacted]/_matrix/sync?access_token=[redacted]'
         '&since=s72',
       );
     });
@@ -51,6 +58,57 @@ void main() {
           'POST /_matrix/client/v3/rooms/!room:zuno.chat/send/m.room.message',
         ),
         'POST /_matrix/client/v3/rooms/![redacted]/send/m.room.message',
+      );
+    });
+
+    test('redacts a JSON object, which can carry event content', () {
+      expect(
+        scrubText('parsing failed. {"body":"see you at 6","msgtype":"m.text"}'),
+        'parsing failed. {[redacted]}',
+      );
+    });
+
+    test('redacts a location', () {
+      expect(
+        scrubText('bad geo:51.5,-0.12;u=35 uri'),
+        'bad geo:[redacted] uri',
+      );
+    });
+
+    test('redacts the host of a URL, which names the homeserver', () {
+      expect(
+        scrubText(
+          'timed out: https://matrix.example.org/_matrix/sync, '
+          'mxc://example.org/abc',
+        ),
+        'timed out: https://[redacted]/_matrix/sync, mxc://[redacted]/abc',
+      );
+    });
+
+    test('redacts a file path, which can name what the user shared', () {
+      expect(
+        scrubText(
+          "Cannot open file, path = '/data/user/0/im.zuno.chat/cache/a/Tax "
+          "return.pdf' and file:///private/var/mobile/Containers/x/Photo.jpg",
+        ),
+        "Cannot open file, path = '[path]' and file://[path]",
+      );
+    });
+
+    test('keeps why a file failed after redacting its path', () {
+      expect(
+        scrubText(
+          '/data/user/0/im.zuno.chat/cache/Photo 1.jpg: open failed: ENOENT '
+          '(No such file or directory)',
+        ),
+        '[path]: open failed: ENOENT (No such file or directory)',
+      );
+    });
+
+    test('redacts a file name Apple quotes in an error', () {
+      expect(
+        scrubText('The file “Tax return.pdf” couldn’t be opened.'),
+        'The file “[redacted]” couldn’t be opened.',
       );
     });
 
@@ -96,7 +154,7 @@ void main() {
       expect(scrubbed.exceptions?.single.type, 'MatrixException');
       expect(
         scrubbed.request?.url,
-        'https://matrix.example.org/_matrix/client/v3/rooms/![redacted]',
+        'https://[redacted]/_matrix/client/v3/rooms/![redacted]',
       );
       expect(scrubbed.request?.queryString, 'access_token=[redacted]');
       expect(scrubbed.request?.headers['Authorization'], 'Bearer [redacted]');
@@ -111,6 +169,61 @@ void main() {
         scrubEvent(event).breadcrumbs?.single.message,
         'opened ![redacted]',
       );
+    });
+
+    test(
+      'keeps only the first line of a FormatException, never its source',
+      () {
+        final event = SentryEvent(
+          exceptions: [
+            SentryException(
+              type: 'FormatException',
+              value:
+                  'Unexpected character (at character 9)\n'
+                  '{"body":"see you at 6"\n        ^\n',
+            ),
+          ],
+        );
+
+        expect(
+          scrubEvent(event).exceptions?.single.value,
+          'Unexpected character (at character 9)',
+        );
+      },
+    );
+
+    test('redacts the platform message Sentry copies into the mechanism', () {
+      final event = SentryEvent(
+        exceptions: [
+          SentryException(
+            type: 'PlatformException',
+            value: 'PlatformException(write_failed)',
+            mechanism: Mechanism(
+              type: 'generic',
+              data: {
+                'code': 'write_failed',
+                'message': 'no room for !room:zuno.chat',
+              },
+            ),
+          ),
+        ],
+      );
+
+      final data = scrubEvent(event).exceptions?.single.mechanism?.data;
+      expect(data?['message'], 'no room for ![redacted]');
+      expect(data?['code'], 'write_failed');
+    });
+
+    test('redacts tags and the fingerprint', () {
+      final event = SentryEvent(
+        tags: {'caught': 'sdk: left !room:zuno.chat'},
+        fingerprint: ['sdk: left !room:zuno.chat', 'String'],
+      );
+
+      final scrubbed = scrubEvent(event);
+
+      expect(scrubbed.tags?['caught'], 'sdk: left ![redacted]');
+      expect(scrubbed.fingerprint, ['sdk: left ![redacted]', 'String']);
     });
 
     test('survives an event with no message, exceptions or request', () {
@@ -133,6 +246,22 @@ void main() {
       expect(scrubbed.data?['room'], '#[redacted]');
       expect(scrubbed.data?['retries'], 2);
     });
+
+    test(
+      'keeps only the first line, which drops a source excerpt or a stack',
+      () {
+        final crumb = Breadcrumb(
+          message:
+              'zuno/caught: payload: FormatException: Unexpected end\n'
+              '{"body":"see you at 6"\n^',
+        );
+
+        expect(
+          scrubBreadcrumb(crumb).message,
+          'zuno/caught: payload: FormatException: Unexpected end',
+        );
+      },
+    );
 
     test('survives a breadcrumb with no message or data', () {
       expect(() => scrubBreadcrumb(Breadcrumb()), returnsNormally);

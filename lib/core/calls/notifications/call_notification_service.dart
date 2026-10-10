@@ -10,6 +10,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:matrix/matrix.dart' show Client;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../network/user_agent.dart';
 import '../../notifications/message_notification_action.dart';
@@ -626,7 +627,8 @@ class CallNotificationService {
       queued = await _channel.invokeListMethod<Object?>('takeCallEvents');
     } on MissingPluginException {
       return;
-    } on PlatformException {
+    } on PlatformException catch (e, s) {
+      reportCaught('take queued native calls', e, s);
       return;
     }
     for (final event in queued ?? const <Object?>[]) {
@@ -912,8 +914,8 @@ class CallNotificationService {
     if (prefs == null) return null;
     try {
       return await step(prefs);
-    } catch (e) {
-      debugPrint('zuno/notifications: notification store step failed ($e)');
+    } catch (e, s) {
+      reportCaught('notification store step', e, s);
       return null;
     }
   });
@@ -923,7 +925,8 @@ class CallNotificationService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload();
       return prefs;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('reload the notification store', e, s);
       return null;
     }
   }
@@ -931,7 +934,8 @@ class CallNotificationService {
   Future<List<ActiveNotification>> _activeNotifications() async {
     try {
       return await _plugin.getActiveNotifications();
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('read active notifications', e, s);
       return const [];
     }
   }
@@ -1101,8 +1105,8 @@ class CallNotificationService {
           'avatarBytes': avatar,
         },
       );
-    } catch (e) {
-      debugPrint('zuno/notifications: conversation shortcut skipped ($e)');
+    } catch (e, s) {
+      reportCaught('push a conversation shortcut', e, s);
     }
   }
 
@@ -1149,7 +1153,8 @@ class CallNotificationService {
         {'roomId': roomId, 'eventId': eventId},
       );
       return taken ?? false;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('take a push notice', e, s);
       return false;
     }
   }
@@ -1257,7 +1262,8 @@ class CallNotificationService {
       return silencedMessageChannels(
         await _android?.getNotificationChannels() ?? const [],
       );
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('read notification channels', e, s);
       return const [];
     }
   }

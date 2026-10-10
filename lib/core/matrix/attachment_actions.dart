@@ -10,6 +10,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 import 'attachment_cache.dart';
 
@@ -101,7 +103,12 @@ Future<String?> saveAttachment(
       try {
         await Gal.putVideo(path);
       } finally {
-        unawaited(copy.delete(recursive: true).catchError((_) => copy));
+        unawaited(
+          runBestEffort(
+            () => copy.delete(recursive: true),
+            label: 'delete a saved video copy',
+          ),
+        );
       }
       return 'Saved to Videos';
     case AttachmentSaveTarget.file:
@@ -115,12 +122,17 @@ Future<String?> saveAttachment(
   }
 }
 
+bool isGalleryAccessDenied(Object error) =>
+    error is GalException && error.type == GalExceptionType.accessDenied;
+
 Future<int> saveAttachments(List<Event> events) async {
   var saved = 0;
   for (final event in events) {
     try {
       if (await saveAttachment(event) != null) saved++;
-    } catch (_) {}
+    } catch (e, s) {
+      if (!isGalleryAccessDenied(e)) reportCaught('save attachment', e, s);
+    }
   }
   return saved;
 }

@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../matrix/bearer_authorization.dart';
 import '../cloudflare/calls_module.dart';
 import '../cloudflare/cloudflare_turn_client.dart';
@@ -18,8 +18,8 @@ Future<List<Map<String, Object?>>> resolveIceServers(
       authorization: () => bearerAuthorization(client),
       httpClient: httpClient,
     ).timeout(_turnBudget);
-  } catch (e) {
-    debugPrint('[ice_servers] TURN credential mint failed: $e');
+  } catch (e, s) {
+    reportCaught('mint TURN credentials', e, s);
     return const [];
   }
 }

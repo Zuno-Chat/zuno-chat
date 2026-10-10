@@ -2,29 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'package:zuno/core/errors/feedback.dart';
 
-const _dsn = 'https://key@o0.ingest.sentry.io/1';
-
-class _RecordingTransport implements Transport {
-  final bool accepts;
-  final envelopes = <SentryEnvelope>[];
-
-  _RecordingTransport({this.accepts = true});
-
-  @override
-  Future<SentryId?> send(SentryEnvelope envelope) async {
-    envelopes.add(envelope);
-    return accepts ? SentryId.newId() : SentryId.empty();
-  }
-
-  SentryEvent get sentEvent => envelopes.single.items
-      .map((item) => item.originalObject)
-      .whereType<SentryEvent>()
-      .single;
-}
+import '../../helpers/recording_sentry.dart';
 
 void main() {
   setUp(() {
@@ -38,9 +19,13 @@ void main() {
   });
 
   test('sends the message as a feedback event', () async {
-    final transport = _RecordingTransport();
+    final transport = RecordingTransport();
 
-    await sendFeedback('Calls drop on wifi', dsn: _dsn, transport: transport);
+    await sendFeedback(
+      'Calls drop on wifi',
+      dsn: testSentryDsn,
+      transport: transport,
+    );
 
     final event = transport.sentEvent;
     expect(event.type, 'feedback');
@@ -48,11 +33,11 @@ void main() {
   });
 
   test('redacts identifiers and tokens typed into the message', () async {
-    final transport = _RecordingTransport();
+    final transport = RecordingTransport();
 
     await sendFeedback(
       '@alice:zuno.chat cannot join !abc:zuno.chat access_token=secret',
-      dsn: _dsn,
+      dsn: testSentryDsn,
       transport: transport,
     );
 
@@ -63,9 +48,9 @@ void main() {
   });
 
   test('attaches the app release and the OS version, and no user', () async {
-    final transport = _RecordingTransport();
+    final transport = RecordingTransport();
 
-    await sendFeedback('Idea', dsn: _dsn, transport: transport);
+    await sendFeedback('Idea', dsn: testSentryDsn, transport: transport);
 
     final event = transport.sentEvent;
     expect(event.release, 'im.zuno.chat@1.2.3+45');
@@ -74,16 +59,16 @@ void main() {
   });
 
   test('throws when Sentry does not accept the feedback', () async {
-    final transport = _RecordingTransport(accepts: false);
+    final transport = RecordingTransport(accepts: false);
 
     await expectLater(
-      sendFeedback('Idea', dsn: _dsn, transport: transport),
+      sendFeedback('Idea', dsn: testSentryDsn, transport: transport),
       throwsA(isA<FeedbackNotSent>()),
     );
   });
 
   test('throws without sending when no DSN is compiled in', () async {
-    final transport = _RecordingTransport();
+    final transport = RecordingTransport();
 
     await expectLater(
       sendFeedback('Idea', dsn: '', transport: transport),

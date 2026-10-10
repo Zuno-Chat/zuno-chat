@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/caught_errors.dart';
+import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/linked_sign_in.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -110,7 +112,8 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
           );
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
-    } catch (e) {
+    } catch (e, s) {
+      if (!isLoginRefusal(e)) reportCaught('linked sign in', e, s);
       if (!mounted) return;
       setState(() => _error = linkedSignInErrorMessage(e));
       holdRetriesFor(e, whenOver: () => _error = null);

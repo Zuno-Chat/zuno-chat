@@ -2,9 +2,11 @@ import Foundation
 
 extension NsePipeline {
   func catchUp(_ context: NseContext, safeMode: Bool) async -> CatchUpOutcome? {
-    guard let data = context.catchUpBody,
-      let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-      body["missed"] != nil || body["read_rooms"] != nil
+    guard let data = context.catchUpBody else { return nil }
+    let parsed = CaughtErrors.attempt("nse catch-up body") {
+      try JSONSerialization.jsonObject(with: data)
+    }
+    guard let body = parsed as? [String: Any], body["missed"] != nil || body["read_rooms"] != nil
     else { return nil }
     let elapsed = Double(env.clock.nowMs() - context.start) / 1000
     let platform = env.catchUpPlatform(

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../calls/notifications/call_notification_service.dart';
+import '../errors/best_effort.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../settings/app_preferences_provider.dart';
 import 'known_devices_store.dart';
@@ -68,13 +69,14 @@ class NewDeviceAlertNotifier extends Notifier<List<NewDeviceAlert>> {
 
       for (final alert in alerts) {
         final text = newDeviceNotificationText(alert);
-        try {
-          await CallNotificationService.instance.showNewDevice(
+        await runBestEffort(
+          () => CallNotificationService.instance.showNewDevice(
             deviceId: alert.deviceId,
             title: text.title,
             body: text.body,
-          );
-        } catch (_) {}
+          ),
+          label: 'show a new device notification',
+        );
       }
     } finally {
       _busy = false;

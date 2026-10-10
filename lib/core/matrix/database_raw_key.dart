@@ -4,11 +4,12 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart' show debugPrint, listEquals;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 import 'package:vodozemac/vodozemac.dart' as vod;
 
 import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../security/secret_store.dart';
 import 'shared_database_open.dart';
 import 'vodozemac_init.dart';
@@ -80,8 +81,11 @@ Future<String> deriveDatabaseRawKeyNatively(String passphrase, List<int> salt) {
 }
 
 Future<String> deriveDatabaseRawKeyFast(String passphrase, List<int> salt) =>
-    deriveDatabaseRawKeyNatively(passphrase, salt).catchError((Object error) {
-      debugPrint('zuno/db: native key derivation unavailable ($error)');
+    deriveDatabaseRawKeyNatively(passphrase, salt).catchError((
+      Object error,
+      StackTrace stack,
+    ) {
+      reportCaught('derive the database key natively', error, stack);
       return deriveDatabaseRawKey(passphrase, salt);
     });
 
@@ -116,8 +120,8 @@ Future<bool> cacheDatabaseRawKey(
     if (!await _opensKeyedTables(path, rawKey)) return false;
     await store.write(_rawKeyName, '${_hex(salt)}:$rawKey');
     return true;
-  } catch (error) {
-    debugPrint('zuno/db: could not cache the derived database key: $error');
+  } catch (error, stack) {
+    reportCaught('cache the derived database key', error, stack);
     return false;
   }
 }
@@ -129,8 +133,8 @@ Future<String?> _rawKeyFor(String path, SecretStore store) async {
   final String? entry;
   try {
     entry = await store.read(_rawKeyName);
-  } catch (error) {
-    debugPrint('zuno/db: could not read the cached database key: $error');
+  } catch (error, stack) {
+    reportCaught('read the cached database key', error, stack);
     return null;
   }
   if (entry == null) return null;
@@ -151,11 +155,8 @@ Future<sqflite.Database?> _openWithRawKey(
   if (!await _opensKeyedTables(path, rawKey)) return null;
   try {
     return await openSharedDatabase(path, password: rawKey, wait: wait);
-  } catch (error) {
-    debugPrint(
-      'zuno/db: the cached database key failed the shared open: '
-      '$error',
-    );
+  } catch (error, stack) {
+    reportCaught('open the database with the cached key', error, stack);
     return null;
   }
 }
@@ -169,17 +170,14 @@ Future<bool> _opensKeyedTables(String path, String rawKey) async {
       readOnly: true,
       singleInstance: false,
     );
-  } catch (error) {
-    debugPrint(
-      'zuno/db: the derived database key does not open the '
-      'database: $error',
-    );
+  } catch (error, stack) {
+    reportCaught('open the database with the derived key', error, stack);
     return false;
   }
   try {
     return await readsKeyedTables(probe);
-  } catch (error) {
-    debugPrint('zuno/db: the derived database key reads nothing: $error');
+  } catch (error, stack) {
+    reportCaught('read the database with the derived key', error, stack);
     return false;
   } finally {
     await runBestEffort(probe.close, label: 'close the database key probe');
@@ -204,7 +202,10 @@ Future<Uint8List?> _fileSalt(String path) async {
         .openRead(0, _sqlCipherSaltLength)
         .expand((chunk) => chunk)
         .toList();
-  } on FileSystemException {
+  } on PathNotFoundException {
+    return null;
+  } on FileSystemException catch (error, stack) {
+    reportCaught('read the database salt', error, stack);
     return null;
   }
   return header.length == _sqlCipherSaltLength

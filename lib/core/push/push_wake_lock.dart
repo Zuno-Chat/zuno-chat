@@ -1,8 +1,8 @@
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 
 const _channel = MethodChannel('zuno/push_wakelock');
@@ -27,8 +27,8 @@ Future<void> releasePushWakeLock({
       'release',
       key == null ? null : {'key': key},
     );
-  } catch (e) {
-    debugPrint('zuno/push: wakelock release skipped ($e)');
+  } catch (e, s) {
+    reportCaught('push wake lock release', e, s);
   }
 }
 
@@ -36,8 +36,8 @@ Future<bool> nativePushAppInFront({PlatformCapabilities? capabilities}) async {
   if (!_holdsWakeLocks(capabilities)) return true;
   try {
     return await _channel.invokeMethod<bool>('appInFront') ?? true;
-  } catch (e) {
-    debugPrint('zuno/push: could not ask whether the app is in front ($e)');
+  } catch (e, s) {
+    reportCaught('push app in front check', e, s);
     return true;
   }
 }
@@ -63,7 +63,7 @@ Future<void> keepAwakeWhile(
 Future<void> _refinementLock(String method, Map<String, Object> args) async {
   try {
     await _refinementChannel.invokeMethod<void>(method, args);
-  } catch (e) {
-    debugPrint('zuno/push: refinement wake lock $method skipped ($e)');
+  } catch (e, s) {
+    reportCaught('push refinement wake lock $method', e, s);
   }
 }

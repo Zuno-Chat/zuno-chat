@@ -277,6 +277,7 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
             it.startTone(ToneGenerator.TONE_SUP_RINGTONE)
         }
     } catch (error: RuntimeException) {
+        CaughtErrors.record(context, "call ringback tone", error)
         null
     }
 

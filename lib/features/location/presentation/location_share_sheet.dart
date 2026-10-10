@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/location/current_position.dart';
 import '../../../core/location/geo_uri.dart';
 import '../../../core/location/live_location_availability.dart';
@@ -299,8 +299,8 @@ class _LiveDurationState extends State<_LiveDuration> {
     bool unrestricted;
     try {
       unrestricted = await widget.runsUnrestricted();
-    } catch (error) {
-      logCaught('battery exemption check', error);
+    } catch (error, stack) {
+      reportCaught('battery exemption check', error, stack);
       unrestricted = true;
     }
     if (mounted) setState(() => _unrestricted = unrestricted);

@@ -3,7 +3,6 @@ package im.zuno.chat
 import android.content.Context
 import android.os.PowerManager
 import android.os.SystemClock
-import android.util.Log
 
 class PushHolds(private val timeoutMs: Long, private val writeOffMs: Long) {
     private class Hold(val key: String?, val at: Long)
@@ -32,7 +31,6 @@ class PushHolds(private val timeoutMs: Long, private val writeOffMs: Long) {
 }
 
 object PushWakeLock {
-    private const val TAG = "PushWakeLock"
     private const val WAKE_LOCK_TAG = "zuno:push"
     private const val TIMEOUT_MS = 30_000L
     private const val WRITE_OFF_MS = 300_000L
@@ -51,17 +49,17 @@ object PushWakeLock {
         try {
             lock(context).acquire(TIMEOUT_MS)
         } catch (e: Exception) {
-            Log.w(TAG, "Could not take the push wake lock", e)
+            CaughtErrors.record(context, "push wake lock acquire", e)
         }
     }
 
     @Synchronized
-    fun release(key: String?) {
+    fun release(context: Context, key: String?) {
         if (!holds.release(key, SystemClock.elapsedRealtime())) return
         try {
             wakeLock?.takeIf { it.isHeld }?.release()
         } catch (e: Exception) {
-            Log.w(TAG, "Could not release the push wake lock", e)
+            CaughtErrors.record(context, "push wake lock release", e)
         }
     }
 

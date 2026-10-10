@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../errors/caught_errors.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../settings/app_preferences_provider.dart';
 import 'account_security_status.dart';
@@ -10,7 +11,7 @@ import 'recovery_code.dart';
 import 'user_trust.dart';
 
 final recoveryWordlistProvider = FutureProvider<RecoveryWordlist>((ref) {
-  return RecoveryWordlist.load();
+  return reportFailureOf(RecoveryWordlist.load(), label: 'recovery wordlist');
 });
 
 final confirmedIdentityStoreProvider = Provider<ConfirmedIdentityStore>((ref) {
@@ -25,11 +26,14 @@ final accountSecurityFactsProvider = StreamProvider<AccountSecurityFacts>((
   ref,
 ) async* {
   final client = ref.watch(matrixClientProvider);
-  yield await accountSecurityFactsOf(client);
+  yield await _reportedSecurityFacts(client);
   await for (final _ in client.onSync.stream) {
-    yield await accountSecurityFactsOf(client);
+    yield await _reportedSecurityFacts(client);
   }
 });
+
+Future<AccountSecurityFacts> _reportedSecurityFacts(Client client) =>
+    reportFailureOf(accountSecurityFactsOf(client), label: 'security status');
 
 final accountSecurityStatusProvider =
     Provider<AsyncValue<AccountSecurityStatus>>(

@@ -25,10 +25,16 @@ enum NseJson: Equatable, Sendable {
     }
   }
 
-  static func parse(_ data: Data) -> NseJson? {
-    guard let any = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
-    else { return nil }
-    return NseJson(any)
+  static func parse(_ data: Data, _ label: String) -> NseJson? {
+    CaughtErrors.attempt(label) {
+      NseJson(try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]))
+    }
+  }
+
+  static func data(_ object: Any, _ label: String) -> Data? {
+    CaughtErrors.attempt(label) {
+      try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    }
   }
 
   subscript(_ key: String) -> NseJson? {
@@ -130,7 +136,7 @@ struct NseMeta: Equatable, Sendable {
   let mention: NseMentionSpec?
 
   static func decode(_ data: Data) -> NseMeta? {
-    guard let json = NseJson.parse(data), json["v"]?.int64 == 1,
+    guard let json = NseJson.parse(data, "nse meta parse"), json["v"]?.int64 == 1,
       let user = json["user"]?.string, let baseUrl = json["base_url"]?.string, !baseUrl.isEmpty
     else { return nil }
     return NseMeta(
@@ -163,7 +169,7 @@ struct NseRoomFile: Equatable, Sendable {
   let notifiers: [String]
 
   static func decode(_ data: Data) -> NseRoomFile? {
-    guard let json = NseJson.parse(data), json["v"]?.int64 == 1,
+    guard let json = NseJson.parse(data, "nse room file parse"), json["v"]?.int64 == 1,
       let room = json["room"]?.string
     else { return nil }
     let sessions = (json["sessions"]?.array ?? []).compactMap { item -> NseSession? in

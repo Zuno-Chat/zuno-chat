@@ -477,6 +477,10 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 - The calls module resolves against `client.homeserver`, the
   well-known-resolved base, not the address typed at login, and per
   request, so building an engine never fails.
+- Calls-module errors (sessions, tracks, TURN) name the request by a fixed
+  route template and carry only the module's error code, never a session
+  ID or the response body, because their text reaches crash reports
+  (`crash-reporting.md`).
 - After a flutter_webrtc bump, check the Android placeholder on a device,
   because it reaches plugin internals by reflection and fails quietly.
 - iOS sets no codec preferences, because flutter_webrtc's iOS side would
@@ -510,8 +514,9 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   only while no other call holds the device, because one call's end must
   never undo the next call's start.
 - Hang-up stops local media before the membership clear, so a stalled
-  request never keeps the microphone or camera live. A track close that
-  this teardown cuts off is expected and is not logged.
+  request never keeps the microphone or camera live. An engine failure on
+  a connection teardown has already closed, such as a cut-off track close,
+  is expected and is not reported.
 - On Android, native code takes flutter_webrtc's plugin from the engine
   that asked, never `sharedSingleton`, which points at the last engine
   created, such as a notification action's.

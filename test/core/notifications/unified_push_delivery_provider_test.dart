@@ -271,6 +271,8 @@ void main() {
   group('stop()', () {
     ({dynamic client, List<String> pusherPosts}) pusherClient({
       bool failDelete = false,
+      bool tokenGone = false,
+      bool signedIn = true,
     }) {
       final posts = <String>[];
       final c = buildTestClient(
@@ -282,12 +284,15 @@ void main() {
             if (failDelete) {
               return http.Response('{"errcode":"M_FORBIDDEN"}', 403);
             }
+            if (tokenGone) {
+              return http.Response('{"errcode":"M_UNKNOWN_TOKEN"}', 401);
+            }
           }
           return http.Response('{}', 200);
         }),
       );
       c.baseUri = Uri.parse('https://example.org');
-      c.bearerToken = 'test-token';
+      if (signedIn) c.bearerToken = 'test-token';
       return (client: c, pusherPosts: posts);
     }
 
@@ -346,6 +351,33 @@ void main() {
         readUnifiedPushRegistration(await SharedPreferences.getInstance()),
         isNull,
       );
+    });
+
+    test('after the session ended asks the homeserver nothing and shows no '
+        'error, since the pusher went with the session', () async {
+      SharedPreferences.setMockInitialValues({});
+      await persistRegistration();
+      final env = pusherClient(signedIn: false);
+
+      await provider.stop(env.client);
+
+      expect(env.pusherPosts, isEmpty);
+      expect(provider.lastPusherError, isNull);
+      expect(fake.unregistrations, 1);
+      expect(provider.status.value, UnifiedPushStatus.idle);
+    });
+
+    test('after the account was deleted shows no error, since its token '
+        'and pushers are gone', () async {
+      SharedPreferences.setMockInitialValues({});
+      await persistRegistration();
+      final env = pusherClient(tokenGone: true);
+
+      await provider.stop(env.client);
+
+      expect(env.pusherPosts, hasLength(1));
+      expect(provider.lastPusherError, isNull);
+      expect(fake.unregistrations, 1);
     });
 
     test('a second stop is a no-op once everything is torn down', () async {

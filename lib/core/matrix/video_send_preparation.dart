@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show compute;
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import 'image_send_preparation.dart' show blurhashOf, matrixImageFile;
+import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
+import 'image_send_preparation.dart' show blurhashInBackground, matrixImageFile;
 import 'media_quality.dart';
 import 'native_image_resizer.dart';
 import 'native_video_tools.dart';
@@ -39,8 +40,9 @@ Future<_Thumbnail?> _loadThumbnail(
     );
     if (image == null) return null;
     onThumbnail?.call(image);
-    return (image: image, blurhash: await compute(blurhashOf, image.bytes));
-  } catch (_) {
+    return (image: image, blurhash: await blurhashInBackground(image.bytes));
+  } catch (e, s) {
+    reportCaught('make a video thumbnail', e, s);
     return null;
   }
 }
@@ -140,8 +142,12 @@ Future<PreparedVideo> prepareVideoForSend(
   } finally {
     final produced = output;
     if (produced != null) {
-      final file = File(produced);
-      unawaited(file.delete().catchError((_) => file));
+      unawaited(
+        runBestEffort(
+          () => File(produced).delete(),
+          label: 'delete a prepared video',
+        ),
+      );
     }
   }
 }

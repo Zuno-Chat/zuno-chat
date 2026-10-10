@@ -1,5 +1,6 @@
 package im.zuno.chat
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -15,6 +16,7 @@ object ImageResizer {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     fun resize(
+        context: Context,
         bytes: ByteArray,
         maxDimension: Int,
         quality: Int,
@@ -24,8 +26,10 @@ object ImageResizer {
             val result = try {
                 resizeNow(bytes, maxDimension, quality)
             } catch (error: Exception) {
+                CaughtErrors.record(context, "image resize", error)
                 null
             } catch (error: OutOfMemoryError) {
+                CaughtErrors.record(context, "image resize out of memory", error)
                 null
             }
             mainHandler.post { onResult(result) }

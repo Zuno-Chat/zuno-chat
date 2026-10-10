@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../errors/caught_errors.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../notifications/background_sync_service.dart';
 import '../notifications/notification_delivery_mode.dart';
@@ -72,7 +73,8 @@ Future<bool> needsBatteryExemptionFor(
     if (!await zunoExempt()) return true;
     if (mode != NotificationDeliveryMode.unifiedPush) return false;
     return await distributorRestricted();
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('check battery restrictions', e, s);
     return false;
   }
 }
@@ -85,7 +87,8 @@ Future<bool> _distributorBatteryRestricted() async {
 Future<PermissionStatus?> _notificationPermission() async {
   try {
     return await Permission.notification.status;
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('read the notification permission', e, s);
     return null;
   }
 }

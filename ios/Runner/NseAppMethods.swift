@@ -64,7 +64,9 @@ enum NseAppMethods {
 
 enum NseBadge {
   static func apply(_ count: Int) {
-    UNUserNotificationCenter.current().setBadgeCount(count)
+    UNUserNotificationCenter.current().setBadgeCount(count) { error in
+      NotificationFailure.record("badge count", error)
+    }
   }
 }
 

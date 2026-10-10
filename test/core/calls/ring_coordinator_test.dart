@@ -167,7 +167,6 @@ void main() {
       launchChannel.name,
       reply: (call) => switch (call.method) {
         'takeWakeReason' => 'ring',
-        'takeDiagnostics' => ['voip_unreported code=0xbaadca11'],
         _ => null,
       },
     ).calls;
@@ -324,15 +323,11 @@ void main() {
   });
 
   group('rings native code reported', () {
-    test('takes what native code queued, once, with the wake reason and its '
-        'diagnostics', () async {
+    test('takes what native code queued, once, with the wake reason', () async {
       await startCoordinator();
 
       expect(native.count('takeCallEvents'), 1);
-      expect(launchCalls.map((c) => c.method), [
-        'takeWakeReason',
-        'takeDiagnostics',
-      ]);
+      expect(launchCalls.map((c) => c.method), ['takeWakeReason']);
     });
 
     test('a pushed ring marks the call ringing, and its invite later only '

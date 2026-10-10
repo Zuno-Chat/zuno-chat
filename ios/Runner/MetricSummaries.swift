@@ -84,14 +84,23 @@ final class MetricSummaryStore: @unchecked Sendable {
   }
 
   private func load() -> [MetricSummary] {
-    guard let data = try? Data(contentsOf: url),
-      let stored = try? JSONDecoder().decode([MetricSummary].self, from: data)
-    else { return [] }
-    return stored
+    let data: Data
+    do {
+      data = try Data(contentsOf: url)
+    } catch CocoaError.fileReadNoSuchFile {
+      return []
+    } catch {
+      CaughtErrors.record("metric summaries read", error)
+      return []
+    }
+    return CaughtErrors.attempt("metric summaries decode") {
+      try JSONDecoder().decode([MetricSummary].self, from: data)
+    } ?? []
   }
 
   private func save(_ summaries: [MetricSummary]) {
-    guard let data = try? JSONEncoder().encode(summaries) else { return }
-    try? data.write(to: url, options: .atomic)
+    CaughtErrors.attempt("metric summaries write") {
+      try JSONEncoder().encode(summaries).write(to: url, options: .atomic)
+    }
   }
 }

@@ -1,13 +1,10 @@
 package im.zuno.chat
 
 import android.content.Context
-import android.util.Log
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 
 object PushEnginePlugins {
-    private const val TAG = "PushEnginePlugins"
-
     private val factories: List<Pair<String, () -> FlutterPlugin>> = listOf(
         "flutter_local_notifications" to {
             com.dexterous.flutterlocalnotifications.FlutterLocalNotificationsPlugin()
@@ -36,7 +33,7 @@ object PushEnginePlugins {
             try {
                 engine.plugins.add(factory())
             } catch (e: Exception) {
-                Log.e(TAG, "Could not register $name on a push engine", e)
+                CaughtErrors.record(context, "push engine plugin $name", e)
             }
         }
         return engine

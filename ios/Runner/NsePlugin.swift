@@ -45,6 +45,9 @@ final class NsePlugin: NSObject, @preconcurrency FlutterPlugin {
     do {
       try body()
       return nil
+    } catch is ReadModelCache.SecretsUnavailable {
+      return FlutterError(
+        code: "keychain", message: "the notify secrets are not readable", details: nil)
     } catch {
       return FlutterError(code: "write_failed", message: "\(error)", details: nil)
     }

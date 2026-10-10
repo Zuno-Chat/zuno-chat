@@ -5,6 +5,7 @@ import 'package:flutter/services.dart'
     show FilteringTextInputFormatter, TextInput, TextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -123,7 +124,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
         _codeRefused = true;
         _error = registrationErrorMessage(e);
       });
-    } catch (e) {
+    } catch (e, s) {
+      if (!isRegistrationRefusal(e)) reportCaught('register', e, s);
       if (!mounted) return;
       setState(() => _error = registrationErrorMessage(e));
       holdRetriesFor(e, whenOver: () => _error = null);

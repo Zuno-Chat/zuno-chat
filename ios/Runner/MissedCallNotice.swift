@@ -13,6 +13,8 @@ enum MissedCallNotice {
   }
 
   static func post() {
-    UNUserNotificationCenter.current().add(request())
+    UNUserNotificationCenter.current().add(request()) { error in
+      NotificationFailure.record("missed call notice", error)
+    }
   }
 }

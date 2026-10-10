@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../platform/platform_capabilities.dart';
 
 const _callsChannel = MethodChannel('zuno/calls');
@@ -85,8 +85,8 @@ class CallKitPushRingBridge implements PushRingBridge {
       return await _callsChannel.invokeMethod<T>(method, arguments);
     } on MissingPluginException {
       return null;
-    } on PlatformException catch (e) {
-      debugPrint('zuno/callkit: $method failed (${e.code})');
+    } on PlatformException catch (e, s) {
+      reportCaught('callkit $method', e, s);
       return null;
     }
   }

@@ -1,8 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
 
+import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import 'message_notification_action.dart';
 import 'native_notification_actions.dart';
 import 'notification_action_target.dart';
@@ -55,9 +56,9 @@ class NativeNotificationActionRunner {
   }
 
   Future<void> drain() {
-    _running = _running.then((_) => _drainOnce()).catchError((Object e) {
-      debugPrint('zuno/notifications: native actions failed: $e');
-    });
+    _running = _running.then(
+      (_) => runBestEffort(_drainOnce, label: 'native actions drain'),
+    );
     return _running;
   }
 
@@ -111,8 +112,8 @@ class NativeNotificationActionRunner {
         replyText: action.replyText,
       ), txid).timeout(_actionBudget);
       return (ok: true, followUp: () => _markReadAfterReply(room, action));
-    } catch (e) {
-      debugPrint('zuno/notifications: native ${action.kind.name} failed: $e');
+    } catch (e, s) {
+      reportCaught('native ${action.kind.name} action', e, s);
       return _failed;
     }
   }
@@ -144,8 +145,8 @@ class NativeNotificationActionRunner {
       ).timeout(_readAfterReplyBudget);
       if (eventId == null) return;
       await markRoomRead(room, eventId).timeout(_readAfterReplyBudget);
-    } catch (e) {
-      debugPrint('zuno/notifications: read marker after a reply skipped: $e');
+    } catch (e, s) {
+      reportCaught('native read marker after reply', e, s);
     }
   }
 

@@ -53,7 +53,7 @@ Future<List<Map<String, Object?>>> _fetchOnce(
   );
   if (response.statusCode < 200 || response.statusCode >= 300) {
     throw CloudflareTurnException(
-      'HTTP ${response.statusCode} from TURN credentials: ${response.body}',
+      moduleFailure(response, 'TURN credentials'),
       statusCode: response.statusCode,
       retryAfter: retryAfterOf(response),
     );
@@ -61,9 +61,7 @@ Future<List<Map<String, Object?>>> _fetchOnce(
   final json = jsonDecode(response.body) as Map<String, dynamic>;
   final iceServers = json['iceServers'];
   if (iceServers is! List) {
-    throw CloudflareTurnException(
-      'Missing/invalid iceServers in response: ${response.body}',
-    );
+    throw CloudflareTurnException('TURN credentials returned no ICE servers');
   }
   return iceServers
       .cast<Map<String, dynamic>>()

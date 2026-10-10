@@ -7,6 +7,7 @@ import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/message_contents/voice_message.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_audio_player.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -186,6 +187,42 @@ void main() {
 
     expect(find.text('Voice message did not load. Try again.'), findsOneWidget);
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+  });
+
+  voiceTest('a message the player cannot play is reported once, as the play '
+      'that failed', (tester) async {
+    final event = voice();
+    alreadyOnPhone(event);
+    audio.refusesToPlay = true;
+    await pumpVoice(tester, event);
+
+    final reports = await reportsDuring(() async {
+      await tester.tap(find.byType(InkWell));
+      await pumpUntil(
+        tester,
+        () => find.byType(SnackBar).evaluate().isNotEmpty,
+        reason: 'the failure to be reported',
+      );
+      await settle(tester);
+    });
+
+    expect(reports, ['play voice message']);
+  });
+
+  voiceTest('the player failing once playing is reported as the player\'s', (
+    tester,
+  ) async {
+    final event = voice();
+    alreadyOnPhone(event);
+    await pumpVoice(tester, event);
+    await pressPlayPause(tester);
+
+    final reports = await reportsDuring(() async {
+      audio.failPlaying();
+      await settle(tester);
+    });
+
+    expect(reports, ['voice message player']);
   });
 
   voiceTest('pausing then playing again carries on from where it stopped', (

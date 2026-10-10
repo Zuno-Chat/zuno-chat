@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:unifiedpush/unifiedpush.dart';
 
+import '../errors/caught_errors.dart';
 import '../settings/app_preferences_provider.dart';
 import 'fcm_delivery_provider.dart';
 import 'notification_delivery_mode.dart';
@@ -96,8 +97,8 @@ class DeliveryAutoFallbackNotifier extends Notifier<void> {
       debugPrint('zuno/push: no Google services, switching to ${target.name}');
       await modes.autoSelect(target);
       ref.read(autoSelectedDeliveryModeProvider.notifier).refresh();
-    } catch (e) {
-      debugPrint('zuno/push: automatic transport fallback failed ($e)');
+    } catch (e, s) {
+      reportCaught('delivery auto fallback', e, s);
     } finally {
       _switching = false;
     }

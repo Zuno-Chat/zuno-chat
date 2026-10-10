@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter/services.dart';
 
-import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../matrix/looks_like_video.dart';
 import '../navigation/held_broadcast.dart';
 import '../platform/platform_capabilities.dart';
@@ -108,11 +108,11 @@ Future<List<XFile>> copySharedFilesToCache(
       'uris': [for (final file in files) file.uri],
       'names': [for (final file in files) file.name],
     });
-  } on PlatformException catch (e) {
-    logCaught('copy shared files', e);
+  } on PlatformException catch (e, s) {
+    reportCaught('copy shared files', e, s);
     return const [];
-  } on MissingPluginException catch (e) {
-    logCaught('copy shared files', e);
+  } on MissingPluginException catch (e, s) {
+    reportCaught('copy shared files', e, s);
     return const [];
   }
   if (paths == null) return const [];
@@ -127,7 +127,10 @@ Future<void> discardSharedCopies(List<XFile> copies) async {
   for (final copy in copies) {
     try {
       await File(copy.path).delete();
-    } on FileSystemException {
+    } on PathNotFoundException {
+      continue;
+    } on FileSystemException catch (e, s) {
+      reportCaught('discard a shared copy', e, s);
       continue;
     }
   }

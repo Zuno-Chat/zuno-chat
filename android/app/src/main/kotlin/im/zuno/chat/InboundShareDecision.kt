@@ -15,9 +15,11 @@ object InboundShareDecision {
         if (fromDisplay.isNotEmpty()) return safeFileName(fromDisplay)
         val path = uri.substringBefore('?').substringAfter("://", "")
         val lastSegment = path.trimEnd('/').substringAfterLast('/').trim()
-        val decoded = runCatching {
+        val decoded = try {
             URLDecoder.decode(lastSegment, "UTF-8")
-        }.getOrDefault(lastSegment)
+        } catch (e: IllegalArgumentException) {
+            lastSegment
+        }
         return safeFileName(decoded)
     }
 

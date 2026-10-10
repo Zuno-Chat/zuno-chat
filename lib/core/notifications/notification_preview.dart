@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 
 enum NotificationPreview {
@@ -40,7 +41,8 @@ Future<NotificationPreview> currentNotificationPreview({
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     return notificationPreviewFromPreferences(prefs);
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('notification preview read', e, s);
     return NotificationPreview.full;
   }
 }

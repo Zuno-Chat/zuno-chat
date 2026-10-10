@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/calls/end_call.dart';
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/format/member_count.dart';
 import '../../../core/matrix/communities.dart';
@@ -17,6 +18,7 @@ import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/optimistic_room_state.dart';
 import '../../../core/matrix/room_access.dart';
 import '../../../core/matrix/room_exit.dart';
+import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_roles.dart';
 import '../../../core/matrix/room_title.dart';
@@ -144,8 +146,8 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     try {
       final rooms = await widget.loadRooms(_community);
       if (mounted) setState(() => _more = rooms);
-    } catch (e) {
-      logCaught('community rooms', e);
+    } catch (e, s) {
+      reportCaught('community rooms', e, s);
       if (mounted) setState(() => _failed = true);
     }
   }
@@ -164,8 +166,8 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     try {
       final room = await joinAndAwaitRoom(_client, id, via: _viaFor(id));
       if (room != null && mounted) widget.openRoom(context, room);
-    } catch (e) {
-      logCaught('join community room', e);
+    } catch (e, s) {
+      reportCaught('join community room', e, s);
       messenger.showSnackBar(
         SnackBar(
           content: Text(failureMessage(e, failed: 'Could not join the room.')),
@@ -239,8 +241,8 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     setState(() => _joining.add(roomId));
     try {
       await action();
-    } catch (e) {
-      logCaught('join request', e);
+    } catch (e, s) {
+      reportCaught('join request', e, s);
       messenger.showSnackBar(
         SnackBar(content: Text(failureMessage(e, failed: failed))),
       );
@@ -261,8 +263,8 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     try {
       await _community.invite(userId);
       messenger.showSnackBar(const SnackBar(content: Text('Invitation sent')));
-    } catch (e) {
-      logCaught('invite to community', e);
+    } catch (e, s) {
+      if (!isUnknownInvitee(e)) reportCaught('invite to community', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Invitation not sent. Try again.')),
       );
@@ -286,8 +288,8 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
         SnackBar(content: Text('Room created, but not added to $name.')),
       );
       roomId = e.roomId;
-    } catch (e) {
-      logCaught('create community room', e);
+    } catch (e, s) {
+      reportCaught('create community room', e, s);
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -355,8 +357,8 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     List<User> people;
     try {
       people = await community.requestParticipants(shown);
-    } catch (e) {
-      logCaught('community members', e);
+    } catch (e, s) {
+      reportCaught('community members', e, s);
       people = community.getParticipants(shown);
     } finally {
       _loadingMembers = false;
@@ -425,8 +427,8 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     try {
       await setUserRoomRole(community, user.id, chosen);
       if (mounted) setState(() {});
-    } catch (e) {
-      logCaught('change community role', e);
+    } catch (e, s) {
+      reportCaught('change community role', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Role not changed. Try again.')),
       );
@@ -451,8 +453,8 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
         'membership': (ban ? Membership.ban : Membership.leave).name,
       }, stateKey: user.id);
       if (mounted) setState(() {});
-    } catch (e) {
-      logCaught(ban ? 'ban from community' : 'remove from community', e);
+    } catch (e, s) {
+      reportCaught(ban ? 'ban from community' : 'remove from community', e, s);
       messenger.showSnackBar(
         SnackBar(
           content: Text('${ban ? 'Not banned' : 'Not removed'}. Try again.'),

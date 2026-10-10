@@ -13,6 +13,7 @@ import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
 
+import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/fixed_homeserver.dart';
 import '../../helpers/hybrid_fake_async.dart';
@@ -186,17 +187,33 @@ void main() {
       });
     });
 
-    test('a non-JSON body is inconclusive rather than thrown', () async {
+    test('a non-JSON body is inconclusive rather than thrown, and no '
+        'failure to report', () async {
       final client = buildTestClient(
         httpClient: MockClient(
           (_) async => http.Response('<html>nope</html>', 401),
         ),
       )..homeserver = Uri.parse('https://example.org');
 
-      expect(
-        (await fetchRegistrationSupport(client)).availability,
-        RegistrationAvailability.unknown,
+      late RegistrationSupport support;
+      final reports = await reportsDuring(
+        () async => support = await fetchRegistrationSupport(client),
       );
+
+      expect(support.availability, RegistrationAvailability.unknown);
+      expect(reports, isEmpty);
+    });
+
+    test('a probe that fails some other way is reported', () async {
+      final client = buildTestClient(
+        httpClient: MockClient((_) async => throw Exception('closed')),
+      )..homeserver = Uri.parse('https://example.org');
+
+      final reports = await reportsDuring(
+        () => fetchRegistrationSupport(client),
+      );
+
+      expect(reports, ['probe registration support']);
     });
   });
 

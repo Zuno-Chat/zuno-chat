@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 
 const _channel = MethodChannel('zuno/apns');
@@ -25,8 +25,8 @@ class ApnsAlertRemoval {
       return removed ?? 0;
     } on MissingPluginException {
       return 0;
-    } on PlatformException catch (e) {
-      debugPrint('zuno/push: delivered alerts not removed (${e.code})');
+    } on PlatformException catch (e, s) {
+      reportCaught('apns alert removal', e.code, s);
       return 0;
     }
   }

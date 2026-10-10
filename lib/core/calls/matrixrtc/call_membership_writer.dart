@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:matrix/matrix.dart';
 
+import '../../errors/caught_errors.dart';
 import 'call_member_state.dart';
 
 const _writeHold = Duration(seconds: 5);
@@ -76,6 +77,12 @@ class _OwnCallMembershipWriter {
   void _writeLatestAgain(String roomId, Map<String, Object?> stale) {
     final latest = _latest[roomId];
     if (latest == null || identical(latest, stale)) return;
-    unawaited(write(roomId, latest).then<void>((_) {}, onError: (Object _) {}));
+    unawaited(
+      write(roomId, latest).then<void>(
+        (_) {},
+        onError: (Object e, StackTrace s) =>
+            reportCaught('rewrite the latest call membership', e, s),
+      ),
+    );
   }
 }

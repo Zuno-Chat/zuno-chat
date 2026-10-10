@@ -1,7 +1,6 @@
 @preconcurrency import Flutter
 import UIKit
 import UserNotifications
-import os
 
 @MainActor
 enum NotificationActionsCommand {
@@ -30,16 +29,11 @@ enum NotificationActionsCommand {
 
 @MainActor
 enum NotificationActionEffects {
-  nonisolated private static let log = Logger(
-    subsystem: "im.zuno.chat", category: "notification-actions")
-
   static func reportNotSent(
     _ notice: NotificationActionNotice, then done: @escaping @MainActor @Sendable () -> Void
   ) {
     UNUserNotificationCenter.current().add(ReplyNotSentNotice.request(for: notice)) { error in
-      if let error {
-        log.error("reply-not-sent notice failed: \(error.localizedDescription, privacy: .public)")
-      }
+      NotificationFailure.record("reply not sent notice", error)
       Task { @MainActor in done() }
     }
   }

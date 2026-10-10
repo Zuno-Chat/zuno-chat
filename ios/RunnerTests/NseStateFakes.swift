@@ -32,7 +32,7 @@ final class NseFakeFiles: NseFiles, @unchecked Sendable {
   }
 
   func json(_ name: String) -> NseJson? {
-    read(name).flatMap(NseJson.parse)
+    read(name).flatMap { NseJson.parse($0, "test state parse") }
   }
 }
 

@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
+
+import '../errors/caught_errors.dart';
 
 const _wellKnownKey = 'im.zuno.tiles';
 
@@ -11,11 +15,23 @@ class TileSource {
 }
 
 Future<TileSource?> fetchTileSource(Client client) async {
-  if (client.homeserver == null) return null;
+  final homeserver = client.homeserver;
+  if (homeserver == null) return null;
   try {
-    final wellKnown = await client.getWellknown(cacheLifetime: Duration.zero);
-    return _tileSourceFrom(wellKnown.additionalProperties[_wellKnownKey]);
-  } catch (_) {
+    final response = await client.httpClient.get(
+      Uri.https(
+        client.userID?.domain ?? homeserver.host,
+        '/.well-known/matrix/client',
+      ),
+    );
+    if (response.statusCode != 200) return null;
+    final wellKnown = jsonDecode(utf8.decode(response.bodyBytes));
+    if (wellKnown is! Map) return null;
+    return _tileSourceFrom(wellKnown[_wellKnownKey]);
+  } on FormatException {
+    return null;
+  } catch (error, stack) {
+    reportCaught('map tile source', error, stack);
     return null;
   }
 }
@@ -53,7 +69,8 @@ Future<bool> probeMapTiles(http.Client client, TileSource source) async {
         .timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return false;
     return response.headers['content-type']?.startsWith('image/') ?? false;
-  } catch (_) {
+  } catch (error, stack) {
+    reportCaught('probe map tiles', error, stack);
     return false;
   }
 }

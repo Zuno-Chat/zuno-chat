@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../errors/caught_errors.dart';
+
 const notificationThreadsKey = 'notifications.threads';
 const maxNotificationLines = 8;
 const _maxThreads = 32;
@@ -103,7 +105,10 @@ Map<String, Object?> _readAll(SharedPreferences prefs) {
   try {
     final decoded = jsonDecode(prefs.getString(notificationThreadsKey) ?? '');
     return decoded is Map ? decoded.cast<String, Object?>() : {};
-  } catch (_) {
+  } on FormatException {
+    return {};
+  } catch (e, s) {
+    reportCaught('notification threads read', e, s);
     return {};
   }
 }

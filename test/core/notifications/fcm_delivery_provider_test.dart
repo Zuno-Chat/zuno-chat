@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm_pusher.dart';
 import 'package:zuno/core/push/fcm_registration_store.dart';
 
+import '../../helpers/caught_reports.dart';
 import '../../helpers/pusher_recording_client.dart';
 
 void main() {
@@ -140,6 +142,57 @@ void main() {
         expect(provider.retryScheduled, isTrue);
       });
     }
+
+    group('is reported', () {
+      setUp(
+        () => provider
+          ..retryDelay = ((_) => const Duration(days: 1))
+          ..notificationsAllowed = (() async => true),
+      );
+
+      test('never while Google cannot be reached, which a retry '
+          'covers', () async {
+        provider.tokenReader = () async =>
+            throw const FcmTokenException(FcmTokenFailure.unavailable);
+
+        expect(await reportsDuring(() => provider.start(client)), isEmpty);
+      });
+
+      test('when Firebase fails it any other way', () async {
+        provider.tokenReader = () async =>
+            throw const FcmTokenException(FcmTokenFailure.failed);
+
+        expect(await reportsDuring(() => provider.start(client)), [
+          'fcm token request',
+        ]);
+      });
+
+      test('on a restored registration, never while Google cannot be '
+          'reached', () async {
+        SharedPreferences.setMockInitialValues({'push.fcm.token': 'token-abc'});
+        client.pushersOnServer = [
+          serverPusherJson(appId: fcmAppId, pushkey: 'token-abc'),
+        ];
+        provider.tokenReader = () async =>
+            throw const FcmTokenException(FcmTokenFailure.unavailable);
+
+        expect(await reportsDuring(() => provider.start(client)), isEmpty);
+      });
+
+      test('on a restored registration, when Firebase fails it any other '
+          'way', () async {
+        SharedPreferences.setMockInitialValues({'push.fcm.token': 'token-abc'});
+        client.pushersOnServer = [
+          serverPusherJson(appId: fcmAppId, pushkey: 'token-abc'),
+        ];
+        provider.tokenReader = () async =>
+            throw const FcmTokenException(FcmTokenFailure.failed);
+
+        expect(await reportsDuring(() => provider.start(client)), [
+          'fcm token check',
+        ]);
+      });
+    });
   });
 
   group('fixPlayServices', () {
@@ -422,6 +475,28 @@ void main() {
 
     expect(client.posted, hasLength(1));
     expect(client.deleted, isEmpty);
+  });
+
+  test('stop after the session ended asks the homeserver nothing and shows '
+      'no error, since the pusher went with the session', () async {
+    await provider.start(client);
+    client.signedIn = false;
+
+    await provider.stop(client);
+
+    expect(client.deleted, isEmpty);
+    expect(provider.lastPusherError, isNull);
+    expect(provider.status.value, FcmStatus.idle);
+  });
+
+  test('stop shows a pusher delete the homeserver refuses', () async {
+    await provider.start(client);
+    client.deleteError = MatrixException.fromJson({'errcode': 'M_FORBIDDEN'});
+
+    await provider.stop(client);
+
+    expect(provider.lastPusherError, contains('M_FORBIDDEN'));
+    expect(provider.status.value, FcmStatus.idle);
   });
 
   test('stop deletes the pusher before deleting the token', () async {

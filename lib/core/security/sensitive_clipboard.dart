@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 
 const _channel = MethodChannel('zuno/calls');
@@ -29,9 +30,11 @@ class SensitiveClipboard {
     }
     try {
       await _channel.invokeMethod('copySensitive', {'text': text});
-    } on MissingPluginException {
+    } on MissingPluginException catch (e, s) {
+      reportCaught('copy sensitive text', e, s);
       await Clipboard.setData(ClipboardData(text: text));
-    } on PlatformException {
+    } on PlatformException catch (e, s) {
+      reportCaught('copy sensitive text', e, s);
       await Clipboard.setData(ClipboardData(text: text));
     }
     _clearTimer?.cancel();
@@ -43,8 +46,11 @@ class SensitiveClipboard {
   Future<void> _clearIfMatches(String text) async {
     try {
       await _channel.invokeMethod('clearClipboardIfMatches', {'text': text});
-    } on MissingPluginException catch (_) {
-    } on PlatformException catch (_) {}
+    } on MissingPluginException catch (e, s) {
+      reportCaught('clear the sensitive clipboard', e, s);
+    } on PlatformException catch (e, s) {
+      reportCaught('clear the sensitive clipboard', e, s);
+    }
   }
 
   void cancelPendingClear() {

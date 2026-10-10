@@ -11,6 +11,7 @@ import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/ui/step_layout.dart';
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/route_launcher.dart';
@@ -88,9 +89,10 @@ class _FakeBootstrap extends Fake implements Bootstrap {
 }
 
 class _FakeKey extends Fake implements OpenSSSS {
-  _FakeKey({this.accepts, this.recoveryKey});
+  _FakeKey({this.accepts, this.recoveryKey, this.rejection});
 
   final String? accepts;
+  final Object? rejection;
   final attempts = <String?>[];
   bool _unlocked = false;
 
@@ -108,9 +110,38 @@ class _FakeKey extends Fake implements OpenSSSS {
     bool postUnlock = true,
   }) async {
     attempts.add(keyOrPassphrase);
-    if (keyOrPassphrase != accepts) throw Exception('wrong key');
+    if (keyOrPassphrase != accepts) {
+      throw rejection ?? InvalidPassphraseException('Invalid key');
+    }
     _unlocked = true;
   }
+}
+
+class _SetupEncryption extends Fake implements Encryption {
+  _SetupEncryption(this.client, Future<OpenSSSS> Function() createKey)
+    : ssss = _SetupSsss(createKey);
+
+  @override
+  final Client client;
+
+  @override
+  SSSS ssss;
+}
+
+class _SetupSsss extends Fake implements SSSS {
+  _SetupSsss(this._createKey);
+
+  final Future<OpenSSSS> Function() _createKey;
+
+  @override
+  String? get defaultKeyId => null;
+
+  @override
+  Map<String, Set<String>> analyzeEncryptedSecrets() => {};
+
+  @override
+  Future<OpenSSSS> createKey([String? passphrase, String? name]) =>
+      _createKey();
 }
 
 void main() {
@@ -119,15 +150,18 @@ void main() {
   late List<_FakeBootstrap> created;
   late Client client;
 
-  Future<_FakeBootstrap> pump(
-    WidgetTester tester,
-    BootstrapState state, {
+  Future<void> settle(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+  }
+
+  Future<void> pumpPage(
+    WidgetTester tester, {
+    required BootstrapFactory createBootstrap,
     SecureBackupMode mode = SecureBackupMode.recoveryCode,
     bool? autoRestoreExisting,
-    void Function(_FakeBootstrap bootstrap)? prepare,
     double keyboard = 0,
   }) async {
-    created = [];
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(360, 640);
     tester.view.padding = const FakeViewPadding(top: 24, bottom: 48);
@@ -146,22 +180,39 @@ void main() {
             (_) => SecureBackupPage(
               mode: mode,
               autoRestoreExisting: autoRestoreExisting,
-              createBootstrap: (client, onUpdate) {
-                final bootstrap = _FakeBootstrap(
-                  created.isEmpty ? state : BootstrapState.loading,
-                )..onUpdate = onUpdate;
-                if (created.isEmpty) prepare?.call(bootstrap);
-                created.add(bootstrap);
-                return bootstrap;
-              },
+              createBootstrap: createBootstrap,
             ),
           ),
         ),
       ),
     );
     await tester.tap(find.text('open'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await settle(tester);
+  }
+
+  Future<_FakeBootstrap> pump(
+    WidgetTester tester,
+    BootstrapState state, {
+    SecureBackupMode mode = SecureBackupMode.recoveryCode,
+    bool? autoRestoreExisting,
+    void Function(_FakeBootstrap bootstrap)? prepare,
+    double keyboard = 0,
+  }) async {
+    created = [];
+    await pumpPage(
+      tester,
+      mode: mode,
+      autoRestoreExisting: autoRestoreExisting,
+      keyboard: keyboard,
+      createBootstrap: (client, onUpdate) {
+        final bootstrap = _FakeBootstrap(
+          created.isEmpty ? state : BootstrapState.loading,
+        )..onUpdate = onUpdate;
+        if (created.isEmpty) prepare?.call(bootstrap);
+        created.add(bootstrap);
+        return bootstrap;
+      },
+    );
     return created.single;
   }
 
@@ -489,6 +540,69 @@ void main() {
       expect(bootstrap.calls, ['openExistingSsss']);
     });
 
+    Future<List<String>> unlockReports(WidgetTester tester, String typed) =>
+        reportsDuring(() async {
+          await tester.enterText(find.byType(TextField), typed);
+          await tester.pump();
+          await tester.tap(filled('Unlock'));
+          await settle(tester);
+        });
+
+    for (final (label, typo) in <(String, Object)>[
+      ('a code with a word wrong', InvalidPassphraseException('Invalid key')),
+      (
+        'an older-style key with a character mistyped',
+        const FormatException('Invalid input formatting for Base58 decoding.'),
+      ),
+    ]) {
+      for (final (screen, state) in [
+        ('recovery', BootstrapState.openExistingSsss),
+        ('older recovery', BootstrapState.askUnlockSsss),
+      ]) {
+        testWidgets('$label for $screen says so and is no failure to '
+            'report', (tester) async {
+          final key = _FakeKey(accepts: 'right', rejection: typo);
+          await pump(
+            tester,
+            state,
+            prepare: (b) => b
+              ..newSsssKey = key
+              ..oldSsssKeys = {'a': key},
+          );
+
+          final reports = await unlockReports(tester, 'wrong');
+
+          expect(
+            find.text('That did not work. Check the code and try again.'),
+            findsOneWidget,
+          );
+          expect(reports, isEmpty);
+        });
+      }
+    }
+
+    testWidgets('recovery data that cannot be read is reported', (
+      tester,
+    ) async {
+      final key = _FakeKey(
+        accepts: 'right',
+        rejection: const FormatException('Invalid character'),
+      );
+      await pump(
+        tester,
+        BootstrapState.openExistingSsss,
+        prepare: (b) => b.newSsssKey = key,
+      );
+
+      final reports = await unlockReports(tester, 'wrong');
+
+      expect(
+        find.text('That did not work. Check the code and try again.'),
+        findsOneWidget,
+      );
+      expect(reports, ['unlock recovery']);
+    });
+
     testWidgets('older secrets are unlocked one at a time, then it moves on', (
       tester,
     ) async {
@@ -530,6 +644,53 @@ void main() {
 
     expect(created, hasLength(2));
     expect(find.text('Setting up…'), findsOneWidget);
+  });
+
+  group('a setup step that fails', () {
+    Future<void> pumpSetup(
+      WidgetTester tester,
+      Future<OpenSSSS> Function() createKey,
+    ) => pumpPage(
+      tester,
+      mode: SecureBackupMode.key,
+      createBootstrap: (client, onUpdate) => Bootstrap(
+        encryption: _SetupEncryption(client, createKey),
+        onUpdate: onUpdate,
+      ),
+    );
+
+    testWidgets('because the password it asked for was backed out of is no '
+        'failure to report', (tester) async {
+      await pumpSetup(
+        tester,
+        () => client.uiaRequestBackground<OpenSSSS>(
+          (_) async => throw uiaPasswordChallenge(),
+        ),
+      );
+
+      final reports = await reportsDuring(() async {
+        await tester.tap(filled('Generate security key'));
+        await settle(tester);
+        expect(find.text('Confirm your password'), findsOneWidget);
+        await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+        await settle(tester);
+      });
+
+      expect(find.text('That did not work. Try again.'), findsOneWidget);
+      expect(reports, isEmpty);
+    });
+
+    testWidgets('for any other reason is reported', (tester) async {
+      await pumpSetup(tester, () async => throw Exception('upload failed'));
+
+      final reports = await reportsDuring(() async {
+        await tester.tap(filled('Generate security key'));
+        await settle(tester);
+      });
+
+      expect(find.text('That did not work. Try again.'), findsOneWidget);
+      expect(reports, ['recovery bootstrap']);
+    });
   });
 
   group('when setup is done', () {

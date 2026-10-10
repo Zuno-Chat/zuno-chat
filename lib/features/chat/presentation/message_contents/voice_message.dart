@@ -4,7 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
-import '../../../../core/errors/best_effort.dart';
+import '../../../../core/errors/caught_errors.dart';
 import '../../../../core/matrix/attachment_cache.dart';
 import '../../../../core/matrix/voice_message.dart';
 import '../../../../core/matrix/voice_recording.dart';
@@ -35,6 +35,7 @@ class _VoiceMessageState extends State<VoiceMessage> {
   Duration? _duration;
   List<int>? _waveform;
   bool _loading = false;
+  bool _starting = false;
   StreamSubscription<PlayerState>? _stateSub;
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration>? _durationSub;
@@ -56,10 +57,14 @@ class _VoiceMessageState extends State<VoiceMessage> {
     });
     _durationSub = _player.onDurationChanged.listen((duration) {
       if (mounted) setState(() => _duration = duration);
-    }, onError: (Object _) {});
+    }, onError: _playerFailed);
     _completeSub = _player.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _position = Duration.zero);
     }, onError: (Object _) {});
+  }
+
+  void _playerFailed(Object error, StackTrace stack) {
+    if (!_starting) reportCaught('voice message player', error, stack);
   }
 
   @override
@@ -100,8 +105,8 @@ class _VoiceMessageState extends State<VoiceMessage> {
         final file = await widget.event.downloadAndDecryptAttachment();
         bytes = file.bytes;
         AttachmentCache.instance.put(_cacheKey, bytes);
-      } catch (e) {
-        logCaught('load voice message', e);
+      } catch (e, s) {
+        reportCaught('load voice message', e, s);
         _didNotLoad();
         return false;
       } finally {
@@ -109,6 +114,7 @@ class _VoiceMessageState extends State<VoiceMessage> {
       }
     }
     if (!mounted) return false;
+    _starting = true;
     try {
       await _player.play(
         BytesSource(
@@ -120,10 +126,12 @@ class _VoiceMessageState extends State<VoiceMessage> {
                   : null),
         ),
       );
-    } catch (e) {
-      logCaught('play voice message', e);
+    } catch (e, s) {
+      reportCaught('play voice message', e, s);
       _didNotLoad();
       return false;
+    } finally {
+      _starting = false;
     }
     return true;
   }

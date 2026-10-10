@@ -28,6 +28,12 @@ class _PlaceholderVideoTrack extends webrtc.MediaStreamTrack {
   Future<void> dispose() async {}
 }
 
+class CameraRefused implements Exception {
+  const CameraRefused();
+}
+
+const _notAllowed = 'NotAllowedError';
+
 class WebRtcBackend {
   const WebRtcBackend();
 
@@ -35,8 +41,19 @@ class WebRtcBackend {
     Map<String, dynamic> configuration,
   ) => webrtc.createPeerConnection(configuration);
 
-  Future<webrtc.MediaStream> getUserMedia(Map<String, dynamic> constraints) =>
-      webrtc.navigator.mediaDevices.getUserMedia(constraints);
+  Future<webrtc.MediaStream> getUserMedia(
+    Map<String, dynamic> constraints,
+  ) async {
+    try {
+      return await webrtc.navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error) {
+      final cameraOnly = constraints['audio'] != true;
+      if (cameraOnly && '$error'.contains(_notAllowed)) {
+        throw const CameraRefused();
+      }
+      rethrow;
+    }
+  }
 
   Future<webrtc.MediaStream> createLocalMediaStream(String label) =>
       webrtc.createLocalMediaStream(label);

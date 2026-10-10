@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/ui/sheet.dart';
 
@@ -64,7 +65,8 @@ class _ReportSheetState extends State<_ReportSheet> {
     try {
       await widget.onSend(reason, _note.text.trim());
       if (mounted) Navigator.of(context).pop(true);
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('send abuse report', e, s);
       if (mounted) {
         setState(() {
           _sending = false;

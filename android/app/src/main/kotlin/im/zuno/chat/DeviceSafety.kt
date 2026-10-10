@@ -36,14 +36,16 @@ class DeviceSafety(private val context: Context) {
         } finally {
             keyStore.deleteEntry(ATTESTATION_ALIAS)
         }
-    }.getOrNull()
+    }.onFailure { CaughtErrors.record(context, "device safety attestation", it) }
+        .getOrNull()
 
     private fun bootProperties(): BootProperties = runCatching {
         val process = Runtime.getRuntime().exec("getprop")
         val dump = process.inputStream.bufferedReader().use { it.readText() }
         process.waitFor()
         BootProperties.fromGetprop(dump)
-    }.getOrDefault(BootProperties())
+    }.onFailure { CaughtErrors.record(context, "device safety boot properties", it) }
+        .getOrDefault(BootProperties())
 
     private fun rootSigns(): RootSigns = RootSigns(
         suBinaryFound = suDirectories().any { File(it, "su").exists() },

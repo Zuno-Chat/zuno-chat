@@ -6,7 +6,7 @@ import XCTest
 enum NseFixtures {
   static func json(_ name: String) throws -> NseJson {
     let data = try Data(contentsOf: ContractFixture.directory.appendingPathComponent(name))
-    return try XCTUnwrap(NseJson.parse(data))
+    return try XCTUnwrap(NseJson.parse(data, "test fixture parse"))
   }
 
   static func cases(_ name: String) throws -> [NseJson] {

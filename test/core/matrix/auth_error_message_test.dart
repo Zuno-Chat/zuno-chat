@@ -6,6 +6,8 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/auth_error_message.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
 
+import '../../helpers/uia_challenge.dart';
+
 MatrixException matrixError(String code, String message) =>
     MatrixException.fromJson({'errcode': code, 'error': message});
 
@@ -32,6 +34,26 @@ void main() {
         loginErrorMessage(matrixError('M_LIMIT_EXCEEDED', 'Too many requests')),
         contains('Wait a moment'),
       );
+    });
+
+    test('a refusal of what was typed is an answer, not a failure', () {
+      for (final code in [
+        'M_FORBIDDEN',
+        'M_USER_DEACTIVATED',
+        'M_LIMIT_EXCEEDED',
+      ]) {
+        expect(isLoginRefusal(matrixError(code, 'no')), isTrue, reason: code);
+      }
+    });
+
+    test('anything else a sign-in meets is a failure', () {
+      for (final error in <Object>[
+        matrixError('M_UNKNOWN', 'something odd happened'),
+        const SocketException('failed'),
+        StateError('Bad state: no element'),
+      ]) {
+        expect(isLoginRefusal(error), isFalse, reason: '$error');
+      }
     });
 
     test('an unreachable server is a different problem from a password', () {
@@ -173,6 +195,32 @@ void main() {
         'That code is not valid or has expired.',
       );
     });
+
+    test('a refusal of what was typed is an answer, not a failure', () {
+      for (final code in [
+        'M_USER_IN_USE',
+        'M_INVALID_USERNAME',
+        'M_EXCLUSIVE',
+        'M_WEAK_PASSWORD',
+        'M_LIMIT_EXCEEDED',
+      ]) {
+        expect(
+          isRegistrationRefusal(matrixError(code, 'no')),
+          isTrue,
+          reason: code,
+        );
+      }
+    });
+
+    test('anything else a sign-up meets is a failure', () {
+      for (final error in <Object>[
+        matrixError('M_UNKNOWN', 'something odd happened'),
+        uiaPasswordChallenge(stages: ['m.login.recaptcha']),
+        StateError('Bad state: no element'),
+      ]) {
+        expect(isRegistrationRefusal(error), isFalse, reason: '$error');
+      }
+    });
   });
 
   group('homeserverErrorMessage', () {
@@ -185,9 +233,13 @@ void main() {
       expect(message, isNot(contains('SocketException')));
     });
 
-    for (final (label, error) in [
-      ('a server that answers but is not a homeserver', Exception('http')),
+    for (final (label, error) in <(String, Object)>[
+      (
+        'a server that answers but is not a homeserver',
+        Exception('http error response'),
+      ),
       ('a non-JSON response', const FormatException('Unexpected character')),
+      ('a JSON response of the wrong shape', TypeError()),
     ]) {
       test('$label is a wrong-address answer, not a dump', () {
         expect(
@@ -196,6 +248,31 @@ void main() {
         );
       });
     }
+
+    test('whatever the address turns out to be is an answer, not a '
+        'failure', () {
+      for (final error in <Object>[
+        Exception('http error response'),
+        const FormatException('Unexpected character'),
+        TypeError(),
+        matrixError('M_UNRECOGNIZED', 'Unrecognized request'),
+        BadServerLoginTypesException({'m.login.sso'}, {'m.login.password'}),
+        const SocketException('Failed host lookup'),
+      ]) {
+        expect(homeserverProblem(error).reported, isFalse, reason: '$error');
+      }
+    });
+
+    test('an error nobody planned for is a failure, and still points at '
+        'the address', () {
+      final error = StateError('Bad state: no element');
+
+      expect(homeserverProblem(error).reported, isTrue);
+      expect(
+        homeserverErrorMessage(error),
+        'That address is not a server Zuno can use. Check it.',
+      );
+    });
 
     test('a Matrix server with no password login says so', () {
       final message = homeserverErrorMessage(
@@ -246,5 +323,24 @@ void main() {
         );
       },
     );
+  });
+
+  group('password prompts', () {
+    test('a refused password is an answer, not a failure', () {
+      expect(
+        isPasswordRefusal(matrixError('M_FORBIDDEN', 'Invalid password')),
+        isTrue,
+      );
+    });
+
+    test('anything else a password prompt meets is a failure', () {
+      for (final error in <Object>[
+        matrixError('M_LIMIT_EXCEEDED', 'Too many requests'),
+        matrixError('M_USER_DEACTIVATED', 'deactivated'),
+        const SocketException('failed'),
+      ]) {
+        expect(isPasswordRefusal(error), isFalse, reason: '$error');
+      }
+    });
   });
 }

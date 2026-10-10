@@ -6,19 +6,16 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.os.Build
 import android.os.PowerManager
-import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 
 object PushDiagSnapshot {
-    private const val TAG = "ZunoPushDiag"
-
     fun read(context: Context): Map<String, Any> {
         val snapshot = mutableMapOf<String, Any>()
         fun put(key: String, read: () -> Any?) {
             try {
                 read()?.let { snapshot[key] = it }
             } catch (e: Exception) {
-                Log.w(TAG, "Could not read $key", e)
+                CaughtErrors.record(context, "push diag $key", e)
             }
         }
         val notifications =

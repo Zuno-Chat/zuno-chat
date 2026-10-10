@@ -13,8 +13,12 @@ import im.zuno.chat.zuno_notifications.AppLaunchIntent
 class ShareActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val text = runCatching { InboundShareDecision.joinedText(sharedTexts(intent)) }.getOrNull()
-        val files = runCatching { sharedFiles(intent) }.getOrDefault(emptyList())
+        val text = runCatching { InboundShareDecision.joinedText(sharedTexts(intent)) }
+            .onFailure { CaughtErrors.record(this, "share read text", it) }
+            .getOrNull()
+        val files = runCatching { sharedFiles(intent) }
+            .onFailure { CaughtErrors.record(this, "share read files", it) }
+            .getOrDefault(emptyList())
         if (InboundShareDecision.payload(text, files) != null) {
             startActivity(forwardIntent(text, files))
         }
@@ -38,7 +42,9 @@ class ShareActivity : Activity() {
                 name = InboundShareDecision.fileName(displayName(uri), raw),
                 mimeType = InboundShareDecision.mimeTypeFor(
                     perItemTypes?.getOrNull(i),
-                    runCatching { contentResolver.getType(uri) }.getOrNull(),
+                    runCatching { contentResolver.getType(uri) }
+                        .onFailure { CaughtErrors.record(this, "share file type", it) }
+                        .getOrNull(),
                     intent.type,
                 ),
             )
@@ -71,7 +77,7 @@ class ShareActivity : Activity() {
         )?.use { cursor ->
             if (cursor.moveToFirst()) cursor.getString(0) else null
         }
-    }.getOrNull()
+    }.onFailure { CaughtErrors.record(this, "share file name", it) }.getOrNull()
 
     private fun forwardIntent(text: String?, files: List<SharedFile>): Intent =
         AppLaunchIntent.of(this, ACTION_INBOUND_SHARE).apply {

@@ -9,6 +9,7 @@ class SendRecordingRoom extends Room {
   final pendingCopies = <bool>[];
   final sentEvents = <Map<String, dynamic>>[];
   bool undelivered = false;
+  Object? sendError;
   Completer<void>? sendGate;
 
   @override
@@ -25,6 +26,7 @@ class SendRecordingRoom extends Room {
     attempts.add(content);
     pendingCopies.add(displayPendingEvent);
     await sendGate?.future;
+    if (sendError case final error?) throw error;
     if (undelivered) return null;
     sentEvents.add(content);
     return client.generateUniqueTransactionId();

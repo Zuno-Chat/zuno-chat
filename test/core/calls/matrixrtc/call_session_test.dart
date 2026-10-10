@@ -21,6 +21,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/app_lifecycle.dart';
 import '../../../helpers/call_membership.dart';
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_call_engine.dart';
 import '../../../helpers/fake_device_keys.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -101,6 +102,14 @@ void main() {
   });
 
   Uint8List testKey() => Uint8List.fromList(List<int>.generate(32, (i) => i));
+
+  Iterable<String> reported(List<String> logs) =>
+      logs.where((line) => line.startsWith('zuno/caught:'));
+
+  MatrixException forbidden() => MatrixException.fromJson({
+    'errcode': 'M_FORBIDDEN',
+    'error': "You don't have permission to post that to the room.",
+  });
 
   CallSession incoming({
     Room? inRoom,
@@ -363,6 +372,45 @@ void main() {
         session.failedMessage,
         'You do not have permission to start calls in this room',
       );
+    });
+
+    group('what an answer that fails reports', () {
+      test(
+        'a call that fails to connect is reported once, by the session',
+        () async {
+          final logs = recordDebugPrints();
+          final session = incoming(engine: FakeCallEngine(failJoin: true));
+
+          await expectLater(session.accept(), throwsStateError);
+
+          expect(reported(logs), [startsWith('zuno/caught: accept a call:')]);
+        },
+      );
+
+      test('a refusal the user is already shown is not reported', () async {
+        final logs = recordDebugPrints();
+        final session = incoming(
+          engine: FakeCallEngine(failJoin: true, joinError: forbidden()),
+        );
+
+        await expectLater(session.accept(), throwsA(isA<MatrixException>()));
+
+        expect(reported(logs), isEmpty);
+      });
+
+      test('a microphone refused at the prompt is not reported', () async {
+        permissions.onRequest = permissionDenied;
+        final logs = recordDebugPrints();
+        final session = incoming();
+
+        await expectLater(
+          session.accept(),
+          throwsA(isA<MicrophoneUnavailable>()),
+        );
+
+        expect(session.failedMessage, microphoneUnavailableMessage);
+        expect(reported(logs), isEmpty);
+      });
     });
 
     test(
@@ -959,6 +1007,56 @@ void main() {
       },
     );
 
+    test('a relay that gives up while the call is on is reported, without '
+        'the device it was for', () async {
+      final logs = recordDebugPrints();
+      bobInCall();
+
+      await relaying().accept();
+      await pumpEventQueue();
+
+      expect(
+        reported(logs),
+        contains(startsWith('zuno/caught: relay the call key:')),
+      );
+      final retries = logs.where((l) => l.startsWith('zuno/retry:'));
+      expect(retries, isNotEmpty);
+      expect(retries, everyElement(startsWith('zuno/retry: call key relay ')));
+      expect(logs.join('\n'), isNot(contains('BOBDEVICE')));
+    });
+
+    test('a relay cut short by the call ending is not reported', () async {
+      final logs = recordDebugPrints();
+      final queried = Completer<void>();
+      final answer = Completer<void>();
+      final endingClient = buildCallTestClient((request) async {
+        if (request.url.path.endsWith('/keys/query')) {
+          if (!queried.isCompleted) queried.complete();
+          await answer.future;
+          return http.Response('boom', 500);
+        }
+        return http.Response('{"event_id":"\$evt"}', 200);
+      });
+      final endingRoom = buildTestRoom(endingClient);
+      joinTheCall(endingRoom, _bob, deviceId: 'BOBDEVICE');
+      final session = incoming(
+        inRoom: endingRoom,
+        key: testKey(),
+        keyRelayDelay: Duration.zero,
+      );
+
+      await session.accept();
+      await queried.future;
+      await session.hangUp();
+      answer.complete();
+      await pumpEventQueue();
+
+      expect(
+        reported(logs).where((l) => l.contains('relay the call key')),
+        isEmpty,
+      );
+    });
+
     test('a known device republishing the same sessionId is not sent the key '
         'again', () async {
       bobInCall({'sessionId': 'bob-session-1', 'audioMuted': false});
@@ -1038,6 +1136,60 @@ void main() {
       expect(session.endReason, CallEndReason.failed);
       expect(session.failedMessage, microphoneUnavailableMessage);
       expect(engine.startLocalMediaCalls, 0);
+    });
+
+    test('an invite the server never confirms is reported as such', () async {
+      final logs = recordDebugPrints();
+      final session = outgoing(sendRoom()..undelivered = true);
+
+      await untilPhase(session, CallSessionPhase.ended);
+
+      expect(reported(logs), [
+        'zuno/caught: send the call invite: '
+            'Bad state: The call invite was not sent',
+      ]);
+    });
+
+    test('an invite the room refuses says so and is not reported', () async {
+      final logs = recordDebugPrints();
+      final session = outgoing(sendRoom()..sendError = forbidden());
+
+      await untilPhase(session, CallSessionPhase.ended);
+
+      expect(
+        session.failedMessage,
+        'You do not have permission to start calls in this room',
+      );
+      expect(reported(logs), isEmpty);
+    });
+
+    test('a call the room refuses once it rings says so and is not '
+        'reported', () async {
+      final logs = recordDebugPrints();
+      final session = outgoing(
+        sendRoom(),
+        engine: FakeCallEngine(failJoin: true, joinError: forbidden()),
+      );
+
+      await untilPhase(session, CallSessionPhase.ended);
+
+      expect(
+        session.failedMessage,
+        'You do not have permission to start calls in this room',
+      );
+      expect(reported(logs), isEmpty);
+    });
+
+    test('an invite that fails for another reason is reported', () async {
+      final logs = recordDebugPrints();
+      final session = outgoing(sendRoom()..sendError = StateError('boom'));
+
+      await untilPhase(session, CallSessionPhase.ended);
+
+      expect(session.failedMessage, callDidNotConnectMessage);
+      expect(reported(logs), [
+        'zuno/caught: start an outgoing call: Bad state: boom',
+      ]);
     });
 
     test('an invite the server never confirms ends the call with a message, '

@@ -1,5 +1,7 @@
 import 'package:sqflite_sqlcipher/sqlite_api.dart';
 
+import '../errors/caught_errors.dart';
+
 class AtomicBatchDatabase implements Database {
   AtomicBatchDatabase(this._database);
 
@@ -174,6 +176,10 @@ class AtomicBatchDatabase implements Database {
   ]) => throw UnsupportedError('devInvokeSqlMethod is for sqflite development');
 }
 
+bool _nothingToRollBack(Object error) =>
+    error is DatabaseException &&
+    '$error'.contains('cannot rollback - no transaction is active');
+
 class _AtomicBatch implements Batch {
   _AtomicBatch(this._owner);
 
@@ -212,7 +218,11 @@ class _AtomicBatch implements Batch {
       } catch (_) {
         try {
           await _owner._database.execute('ROLLBACK');
-        } catch (_) {}
+        } catch (e, s) {
+          if (!_nothingToRollBack(e)) {
+            reportCaught('roll back a failed batch', e, s);
+          }
+        }
         rethrow;
       }
     });

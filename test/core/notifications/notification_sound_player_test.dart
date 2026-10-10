@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show DebugPrintCallback, debugPrint;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +5,8 @@ import 'package:zuno/core/notifications/notification_sound_player.dart';
 import 'package:zuno/core/notifications/notification_sound_settings.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+
+import '../../helpers/caught_reports.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -59,15 +60,10 @@ void main() {
     group('prepareMessageNotification', () {
       const room = '!room:example.org';
       late List<String> logs;
-      late DebugPrintCallback originalDebugPrint;
       var fakeNow = DateTime(2030);
 
       setUp(() {
-        logs = <String>[];
-        originalDebugPrint = debugPrint;
-        debugPrint = (String? message, {int? wrapWidth}) {
-          if (message != null) logs.add(message);
-        };
+        logs = recordDebugPrints();
         fakeNow = fakeNow.add(const Duration(days: 1));
         player.now = () => fakeNow;
         SharedPreferences.setMockInitialValues({
@@ -76,10 +72,7 @@ void main() {
         });
       });
 
-      tearDown(() {
-        debugPrint = originalDebugPrint;
-        player.now = DateTime.now;
-      });
+      tearDown(() => player.now = DateTime.now);
 
       test('asks for the tone (the sound channel) when the tone setting is '
           'on', () async {
@@ -148,7 +141,7 @@ void main() {
             contains('zuno/sound: message vibration skipped, no vibrator'),
           );
           expect(
-            logs.any((m) => m.contains('message vibration failed')),
+            logs.any((m) => m.startsWith('zuno/caught: message vibration')),
             isFalse,
           );
         },
@@ -164,7 +157,7 @@ void main() {
           logs,
           contains(
             predicate<String>(
-              (m) => m.startsWith('zuno/sound: message vibration failed:'),
+              (m) => m.startsWith('zuno/caught: message vibration:'),
             ),
           ),
         );

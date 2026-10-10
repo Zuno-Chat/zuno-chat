@@ -106,7 +106,13 @@ void main() {
       () async {
         await expectLater(
           declineCallOrFail(roomAnswering(500), 'c1'),
-          throwsA(isA<CallDeclineNotSent>()),
+          throwsA(
+            isA<CallDeclineNotSent>().having(
+              (e) => '$e',
+              'description',
+              isNot(contains('c1')),
+            ),
+          ),
         );
       },
     );

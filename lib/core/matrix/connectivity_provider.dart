@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 import 'connection_monitor.dart';
 import 'matrix_client_provider.dart';
@@ -32,7 +33,8 @@ Future<bool> isHomeserverReachable(Client client) async {
         .get(homeserver.resolveUri(Uri(path: '_matrix/client/versions')))
         .timeout(homeserverProbeTimeout);
     return response.statusCode < 500;
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('probe the homeserver', e, s);
     return false;
   }
 }

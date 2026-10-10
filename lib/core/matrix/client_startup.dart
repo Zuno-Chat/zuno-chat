@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show debugPrint;
+import '../errors/caught_errors.dart';
 
 const appStartRetryDelays = [Duration(milliseconds: 250), Duration(seconds: 1)];
 
@@ -11,9 +11,9 @@ Future<T> startWithRetries<T>({
   for (var tries = 0; ; tries++) {
     try {
       return await attempt();
-    } catch (error) {
+    } catch (error, stack) {
       if (tries == appStartRetryDelays.length) rethrow;
-      debugPrint('zuno/db: start ${tries + 1} failed: $error');
+      reportCaught('start the client before a retry', error, stack);
       await (pause ?? Future<void>.delayed)(appStartRetryDelays[tries]);
     }
   }

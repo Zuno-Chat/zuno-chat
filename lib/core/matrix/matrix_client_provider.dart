@@ -13,6 +13,7 @@ import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 
 import '../calls/matrixrtc/call_member_state.dart' show callMemberEventType;
 import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../location/live_location_protocol.dart' show liveLocationStateType;
 import '../platform/platform_capabilities.dart';
 import '../push/read_model/session_exporter.dart';
@@ -149,7 +150,7 @@ Future<StartedMatrixClient> _startClient(
   required bool backgroundSync,
   ClientLease? lease,
 }) async {
-  keepNoSdkLogHistory();
+  handleSdkLogs();
   final vodInitFuture = ensureVodozemacInitialized();
   final watch = Stopwatch()..start();
 
@@ -240,8 +241,8 @@ bool exportsInboundSessions({
 Future<void> _abandon(Client? client, UploadProgressHttpClient http) async {
   try {
     await client?.dispose(closeDatabase: false);
-  } catch (error) {
-    debugPrint('zuno/db: could not dispose a client that failed: $error');
+  } catch (error, stack) {
+    reportCaught('dispose a client that failed to start', error, stack);
   }
   http.close();
 }

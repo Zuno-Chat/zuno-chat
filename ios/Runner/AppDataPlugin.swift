@@ -40,10 +40,17 @@ final class AppDataPlugin: NSObject, @preconcurrency FlutterPlugin {
     var wiped = true
 
     func empty(_ directory: URL?, required: Bool = true) {
-      guard let directory,
-        let items = try? files.contentsOfDirectory(
+      guard let directory else { return }
+      let items: [URL]
+      do {
+        items = try files.contentsOfDirectory(
           at: directory, includingPropertiesForKeys: nil, options: [])
-      else { return }
+      } catch CocoaError.fileReadNoSuchFile {
+        return
+      } catch {
+        if required { wiped = false }
+        return
+      }
       for item in items {
         let name = item.lastPathComponent
         if name.hasPrefix("com.apple.") || name.hasPrefix(".com.apple.")

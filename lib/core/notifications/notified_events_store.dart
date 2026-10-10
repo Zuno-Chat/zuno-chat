@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../errors/caught_errors.dart';
+
 const _notifiedEventsKey = 'notifications.notified_events';
 const maxNotifiedEvents = 256;
 
@@ -21,7 +23,8 @@ Future<void> markEventNotifiedOnDisk(
 List<String> readNotifiedEventIds(SharedPreferences prefs) {
   try {
     return prefs.getStringList(_notifiedEventsKey) ?? const [];
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('notified events read', e, s);
     return const [];
   }
 }
@@ -46,7 +49,10 @@ Map<String, int> _announcedInvites(SharedPreferences prefs, DateTime now) {
   final Object? decoded;
   try {
     decoded = jsonDecode(prefs.getString(_announcedInvitesKey) ?? '{}');
-  } catch (_) {
+  } on FormatException {
+    return {};
+  } catch (e, s) {
+    reportCaught('announced invites read', e, s);
     return {};
   }
   if (decoded is! Map) return {};

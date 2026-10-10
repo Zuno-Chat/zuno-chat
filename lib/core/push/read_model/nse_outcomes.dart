@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../calls/matrixrtc/call_unread_correction_provider.dart';
+import '../../errors/caught_errors.dart';
 import '../../notifications/notification_preview.dart';
 import '../../notifications/notified_events_store.dart';
 import '../../notifications/notify_me.dart';
@@ -83,7 +84,10 @@ class NseOutcomeReader {
     final Object? decoded;
     try {
       decoded = jsonDecode(prefs.getString(countersKey) ?? '{}');
-    } catch (_) {
+    } on FormatException {
+      return {};
+    } catch (e, s) {
+      reportCaught('nse outcome counters read', e, s);
       return {};
     }
     if (decoded is! Map) return {};

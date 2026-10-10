@@ -54,7 +54,7 @@ class LocalMedia {
           : false,
     });
     if (_closed) {
-      await quietly(capture.dispose);
+      await runBestEffort(capture.dispose, label: 'dispose the call capture');
       return;
     }
     MediaStream? microphone;
@@ -66,14 +66,23 @@ class LocalMedia {
         cameraStream = await _adopt('local_video', videoTracks);
       }
     } catch (_) {
-      await quietly(microphone?.dispose);
-      await quietly(capture.dispose);
+      await runBestEffort(
+        microphone?.dispose,
+        label: 'dispose the microphone stream',
+      );
+      await runBestEffort(capture.dispose, label: 'dispose the call capture');
       rethrow;
     }
     if (_closed) {
-      await quietly(cameraStream?.dispose);
-      await quietly(microphone.dispose);
-      await quietly(capture.dispose);
+      await runBestEffort(
+        cameraStream?.dispose,
+        label: 'dispose the camera stream',
+      );
+      await runBestEffort(
+        microphone.dispose,
+        label: 'dispose the microphone stream',
+      );
+      await runBestEffort(capture.dispose, label: 'dispose the call capture');
       return;
     }
     _capture = capture;
@@ -91,7 +100,7 @@ class LocalMedia {
         await stream.addTrack(track);
       }
     } catch (_) {
-      await quietly(stream.dispose);
+      await runBestEffort(stream.dispose, label: 'dispose a local stream');
       rethrow;
     }
     return stream;
@@ -107,12 +116,18 @@ class LocalMedia {
     try {
       wrapper = await _adopt('local_video', captured.getVideoTracks());
     } catch (_) {
-      await quietly(captured.dispose);
+      await runBestEffort(
+        captured.dispose,
+        label: 'dispose the camera capture',
+      );
       rethrow;
     }
     if (_closed) {
-      await quietly(wrapper.dispose);
-      await quietly(captured.dispose);
+      await runBestEffort(wrapper.dispose, label: 'dispose the camera stream');
+      await runBestEffort(
+        captured.dispose,
+        label: 'dispose the camera capture',
+      );
       return;
     }
     _cameraStream = wrapper;
@@ -124,8 +139,8 @@ class LocalMedia {
     final captured = _cameraCapture;
     _cameraStream = null;
     _cameraCapture = null;
-    await quietly(camera?.dispose);
-    await quietly(captured?.dispose);
+    await runBestEffort(camera?.dispose, label: 'dispose the camera stream');
+    await runBestEffort(captured?.dispose, label: 'dispose the camera capture');
   }
 
   Future<void> switchCamera() async {
@@ -157,8 +172,11 @@ class LocalMedia {
     final capture = _capture;
     _microphoneStream = null;
     _capture = null;
-    await quietly(microphone?.dispose);
+    await runBestEffort(
+      microphone?.dispose,
+      label: 'dispose the microphone stream',
+    );
     await stopCamera();
-    await quietly(capture?.dispose);
+    await runBestEffort(capture?.dispose, label: 'dispose the call capture');
   }
 }

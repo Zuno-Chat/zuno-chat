@@ -379,7 +379,9 @@ class MainActivity : FlutterActivity() {
                 "attachPlaceholderVideo" -> {
                     val streamId = call.argument<String>("streamId")
                     result.success(
-                        streamId?.let { PlaceholderVideo.attach(flutterEngine, it) },
+                        streamId?.let {
+                            PlaceholderVideo.attach(applicationContext, flutterEngine, it)
+                        },
                     )
                 }
 
@@ -447,7 +449,7 @@ class MainActivity : FlutterActivity() {
                     ) {
                         result.success(null)
                     } else {
-                        VideoTools.probe(path) { result.success(it) }
+                        VideoTools.probe(applicationContext, path) { result.success(it) }
                     }
                 }
 
@@ -457,7 +459,9 @@ class MainActivity : FlutterActivity() {
                     if (input == null || output == null) {
                         result.success(false)
                     } else {
-                        VideoTools.remux(input, output) { result.success(it) }
+                        VideoTools.remux(applicationContext, input, output) {
+                            result.success(it)
+                        }
                     }
                 }
 
@@ -468,7 +472,9 @@ class MainActivity : FlutterActivity() {
                     if (path == null || maxDimension == null || quality == null) {
                         result.success(null)
                     } else {
-                        VideoTools.thumbnail(path, maxDimension, quality) { result.success(it) }
+                        VideoTools.thumbnail(applicationContext, path, maxDimension, quality) {
+                            result.success(it)
+                        }
                     }
                 }
 
@@ -486,7 +492,9 @@ class MainActivity : FlutterActivity() {
                     if (bytes == null || maxDimension == null || quality == null) {
                         result.success(null)
                     } else {
-                        ImageResizer.resize(bytes, maxDimension, quality) { result.success(it) }
+                        ImageResizer.resize(applicationContext, bytes, maxDimension, quality) {
+                            result.success(it)
+                        }
                     }
                 }
 
@@ -623,6 +631,15 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ERRORS_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "take") {
+                    result.success(CaughtErrors.take(this).map { it.toMap() })
+                } else {
+                    result.notImplemented()
+                }
+            }
+
         val deviceSafetyChannel =
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_SAFETY_CHANNEL)
         deviceSafetyChannel.setMethodCallHandler { call, result ->
@@ -631,6 +648,9 @@ class MainActivity : FlutterActivity() {
                     val mainThread = Handler(Looper.getMainLooper())
                     Thread {
                         val risks = runCatching { DeviceSafety(applicationContext).check() }
+                            .onFailure {
+                                CaughtErrors.record(applicationContext, "device safety check", it)
+                            }
                             .getOrDefault(emptyList())
                         mainThread.post { result.success(risks) }
                     }.start()
@@ -690,7 +710,9 @@ class MainActivity : FlutterActivity() {
         try {
             setPictureInPictureParams(buildPictureInPictureParams())
         } catch (error: IllegalArgumentException) {
+            CaughtErrors.record(this, "pip params bad argument", error)
         } catch (error: IllegalStateException) {
+            CaughtErrors.record(this, "pip params bad state", error)
         }
     }
 
@@ -733,8 +755,10 @@ class MainActivity : FlutterActivity() {
     private fun enterPictureInPicture(): Boolean = try {
         enterPictureInPictureMode(buildPictureInPictureParams())
     } catch (error: IllegalStateException) {
+        CaughtErrors.record(this, "pip enter bad state", error)
         false
     } catch (error: IllegalArgumentException) {
+        CaughtErrors.record(this, "pip enter bad argument", error)
         false
     }
 
@@ -817,7 +841,7 @@ class MainActivity : FlutterActivity() {
             target.outputStream().use { source.copyTo(it) }
             target.path
         }
-    }.getOrNull()
+    }.onFailure { CaughtErrors.record(this, "share copy to cache", it) }.getOrNull()
 
     private fun pinShortcut(
         id: String,
@@ -883,6 +907,7 @@ class MainActivity : FlutterActivity() {
         private const val DEVICE_SAFETY_CHANNEL = "zuno/device_safety"
         private const val APP_DATA_CHANNEL = "zuno/app_data"
         private const val PUSH_DIAG_CHANNEL = "zuno/push_diag"
+        private const val ERRORS_CHANNEL = "zuno/errors"
         private const val PIP_HANG_UP_REQUEST_CODE = 4102
         private const val EXTRA_HANDED_OVER = "im.zuno.chat.HANDED_OVER"
         private var runningInstance: WeakReference<MainActivity>? = null

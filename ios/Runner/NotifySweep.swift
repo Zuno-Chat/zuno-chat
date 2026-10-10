@@ -1,9 +1,7 @@
 import Foundation
-import UIKit
 
 @MainActor
-final class NotifySweep: NSObject {
-  static let shared = NotifySweep()
+enum NotifySweep {
   static let markerName = "zuno-install-v1"
 
   static func markerURL() -> URL? {
@@ -18,42 +16,29 @@ final class NotifySweep: NSObject {
       return false
     } catch CocoaError.fileReadNoSuchFile {
     } catch {
+      CaughtErrors.record("sweep marker read", error)
       return false
     }
-    let written = FileManager.default.createFile(
-      atPath: marker.path, contents: Data([0x31]),
-      attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
-    guard written else {
-      NSLog("zuno/sweep: the install marker was not written; the notify and VoIP keys stay")
+    do {
+      try Data([0x31]).write(
+        to: marker, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    } catch {
+      CaughtErrors.record("sweep marker write", error)
       return false
     }
     var excluded = marker
     var values = URLResourceValues()
     values.isExcludedFromBackup = true
-    try? excluded.setResourceValues(values)
+    CaughtErrors.attempt("sweep marker exclude backup") { try excluded.setResourceValues(values) }
     _ = backend.delete(service: NotifyKeychain.service, accessGroup: nil)
     _ = backend.delete(service: VoipKeyStore.service, accessGroup: nil)
     return true
   }
 
-  func runWhenProtectedDataAvailable() {
-    guard UIApplication.shared.isProtectedDataAvailable else {
-      NotificationCenter.default.addObserver(
-        self, selector: #selector(protectedDataBecameAvailable),
-        name: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil)
-      return
+  static func sweepWhenProtectedDataAvailable() {
+    ProtectedDataGate.shared.run {
+      guard let marker = markerURL() else { return }
+      run(marker: marker, backend: SystemKeychain())
     }
-    sweep()
-  }
-
-  @objc private func protectedDataBecameAvailable() {
-    NotificationCenter.default.removeObserver(
-      self, name: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil)
-    sweep()
-  }
-
-  private func sweep() {
-    guard let marker = Self.markerURL() else { return }
-    Self.run(marker: marker, backend: SystemKeychain())
   }
 }

@@ -22,7 +22,7 @@ import '../../../core/calls/notifications/ring_notification.dart';
 import '../../../core/calls/notifications/ringing_call_provider.dart';
 import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/calls/platform/system_ring.dart';
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/errors/global_error_handler.dart';
 import '../../../core/matrix/communities.dart';
@@ -251,8 +251,8 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
         Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => pageForRoom(room)));
       }
-    } catch (e) {
-      logCaught('create or join room', e);
+    } catch (e, s) {
+      reportCaught('create or join room', e, s);
       messenger.showSnackBar(
         SnackBar(content: Text(failureMessage(e, failed: failed))),
       );
@@ -431,8 +431,8 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     }) async {
       try {
         await write();
-      } catch (e) {
-        logCaught('room action ${action.name}', e);
+      } catch (e, s) {
+        reportCaught('room action ${action.name}', e, s);
         messenger.showSnackBar(
           SnackBar(content: Text(failureMessage(e, failed: failed))),
         );

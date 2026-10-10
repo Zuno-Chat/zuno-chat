@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../calls/matrixrtc/call_summary_message.dart';
 import '../calls/notifications/call_notification_service.dart';
+import '../errors/caught_errors.dart';
 import '../matrix/currently_open_room_provider.dart';
 import '../matrix/event_display.dart';
 import '../matrix/matrix_client_provider.dart';
@@ -181,8 +182,8 @@ class MessageNotificationNotifier extends Notifier<void> {
         await SharedPreferences.getInstance(),
         notificationRoomEntriesOf(client),
       );
-    } catch (error) {
-      debugPrint('zuno/notifications: room cache not written: $error');
+    } catch (error, stack) {
+      reportCaught('notification room cache write', error, stack);
     }
   }
 

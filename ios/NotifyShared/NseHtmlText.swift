@@ -362,8 +362,7 @@ enum NseHtmlText {
     if let code = node.children.first, code.tag == "code" {
       text = code.textContent
       if let classes = code.attributes["class"],
-        let regex = try? NSRegularExpression(
-          pattern: "language-([A-Za-z0-9_]+)", options: [.caseInsensitive]),
+        let regex = languagePattern(),
         let match = regex.firstMatch(
           in: classes, range: NSRange(classes.startIndex..., in: classes)),
         let range = Range(match.range(at: 1), in: classes)
@@ -376,5 +375,11 @@ enum NseHtmlText {
       if text.unicodeScalars.last != "\n" { text += "\n" }
     }
     return language + text
+  }
+
+  private static func languagePattern() -> NSRegularExpression? {
+    CaughtErrors.attempt("nse html language regex") {
+      try NSRegularExpression(pattern: "language-([A-Za-z0-9_]+)", options: [.caseInsensitive])
+    }
   }
 }

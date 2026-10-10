@@ -83,23 +83,18 @@ final class EngineHostTests: XCTestCase {
 
 @MainActor
 final class LaunchPluginTests: XCTestCase {
-  func testTheWakeReasonAndDiagnosticsArePulledOnce() {
+  func testTheWakeReasonIsPulledOnce() {
     let host = EngineHost(
       launch: { _, _ in FlutterEngine(name: "test-launch", project: nil) }, canStart: { true })
     _ = host.start(.ring)
-    let defaults = UserDefaults(suiteName: "launch-\(UUID().uuidString)")!
-    let metrics = MetricsSubscriber(defaults: defaults, log: { _ in })
-    metrics.record(["pushkit_unreported code=0xbaadca11"])
-    let plugin = LaunchPlugin(host: host, diagnostics: metrics)
+    let plugin = LaunchPlugin(host: host)
 
-    let replies = ["takeWakeReason", "takeWakeReason", "takeDiagnostics", "takeDiagnostics"].map {
+    let replies = ["takeWakeReason", "takeWakeReason"].map {
       immediateReply(from: plugin, method: $0)
     }
 
     XCTAssertEqual(replies[0] as? String, "ring")
     XCTAssertNil(replies[1])
-    XCTAssertEqual(replies[2] as? [String], ["pushkit_unreported code=0xbaadca11"])
-    XCTAssertEqual(replies[3] as? [String], [])
   }
 }
 

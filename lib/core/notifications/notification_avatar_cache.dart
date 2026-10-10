@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+
+import '../errors/caught_errors.dart';
 
 class NotificationAvatarCache {
   NotificationAvatarCache({Future<Directory> Function()? directory})
@@ -23,9 +24,9 @@ class NotificationAvatarCache {
   Future<Directory?> _cacheDirectory() async {
     try {
       return await (_ready ??= _prepare());
-    } catch (e) {
+    } catch (e, s) {
       _ready = null;
-      debugPrint('zuno/notifications: avatar cache unavailable ($e)');
+      reportCaught('notification avatar cache dir', e, s);
       return null;
     }
   }
@@ -49,7 +50,8 @@ class NotificationAvatarCache {
     try {
       if (!await file.exists()) return null;
       return await file.readAsBytes();
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('notification avatar read', e, s);
       return null;
     }
   }
@@ -59,7 +61,8 @@ class NotificationAvatarCache {
     if (file == null) return false;
     try {
       return await file.exists();
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('notification avatar lookup', e, s);
       return false;
     }
   }
@@ -71,8 +74,8 @@ class NotificationAvatarCache {
       await file.writeAsBytes(bytes, flush: true);
     } on FileSystemException {
       await _writeAfterRecreating(file, bytes);
-    } catch (e) {
-      debugPrint('zuno/notifications: could not cache avatar ($e)');
+    } catch (e, s) {
+      reportCaught('notification avatar write', e, s);
     }
   }
 
@@ -80,8 +83,8 @@ class NotificationAvatarCache {
     try {
       await file.parent.create(recursive: true);
       await file.writeAsBytes(bytes, flush: true);
-    } catch (e) {
-      debugPrint('zuno/notifications: could not cache avatar ($e)');
+    } catch (e, s) {
+      reportCaught('notification avatar rewrite', e, s);
     }
   }
 }

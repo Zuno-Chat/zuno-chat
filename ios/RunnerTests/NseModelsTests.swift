@@ -121,7 +121,8 @@ final class NseModelsTests: XCTestCase {
   }
 
   func testJsonKeepsBooleansApartFromNumbers() throws {
-    let json = try XCTUnwrap(NseJson.parse(Data(#"{"a":true,"b":1,"c":1.5}"#.utf8)))
+    let json = try XCTUnwrap(
+      NseJson.parse(Data(#"{"a":true,"b":1,"c":1.5}"#.utf8), "test json parse"))
 
     XCTAssertEqual(json["a"], .bool(true))
     XCTAssertEqual(json["b"]?.int64, 1)

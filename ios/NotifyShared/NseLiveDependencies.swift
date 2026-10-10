@@ -13,7 +13,13 @@ struct LiveNseFiles: NseFiles {
   }
 
   func write(_ name: String, _ data: Data) -> Bool {
-    (try? store.write(name, plaintext: data, key: key)) != nil
+    do {
+      try store.write(name, plaintext: data, key: key)
+      return true
+    } catch {
+      CaughtErrors.record("nse file write", error)
+      return false
+    }
   }
 }
 
@@ -88,9 +94,15 @@ final class LiveNseTransport: NseTransport, @unchecked Sendable {
       case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .cannotFindHost,
         .cannotConnectToHost, .dnsLookupFailed, .internationalRoamingOff:
         return .offline
-      default: return .failure
+      case .cancelled: return .failure
+      default:
+        CaughtErrors.record("nse fetch", error)
+        return .failure
       }
+    } catch is CancellationError {
+      return .failure
     } catch {
+      CaughtErrors.record("nse fetch", error)
       return .failure
     }
   }

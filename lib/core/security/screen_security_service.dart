@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 
 const _channel = MethodChannel('zuno/calls');
@@ -22,6 +23,8 @@ class ScreenSecurityService {
       await _channel.invokeMethod('setPreventScreenshots', {
         'enabled': enabled,
       });
-    } on MissingPluginException catch (_) {}
+    } on MissingPluginException catch (e, s) {
+      reportCaught('set screenshot prevention', e, s);
+    }
   }
 }

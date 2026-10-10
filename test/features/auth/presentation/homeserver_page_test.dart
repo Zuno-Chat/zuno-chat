@@ -12,6 +12,7 @@ import 'package:zuno/core/matrix/homeserver_input.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/auth/presentation/homeserver_page.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_homeserver.dart';
 import '../../../helpers/pump_until.dart';
@@ -139,6 +140,24 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('an address that is not a Matrix server says so, and is no '
+      'failure to report', (tester) async {
+    await pumpHomeserverPage(
+      tester,
+      httpClient: MockClient((_) async => http.Response('<html></html>', 404)),
+      pushed: true,
+    );
+
+    final reports = await reportsDuring(() => submit(tester, 'blog.example'));
+
+    expect(find.byType(HomeserverPage), findsOneWidget);
+    expect(
+      find.text('That address is not a server Zuno can use. Check it.'),
+      findsOneWidget,
+    );
+    expect(reports, isEmpty);
   });
 
   testWidgets('a failure that lands after the page is gone is dropped', (

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show TextInput;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/registration_support.dart';
@@ -76,7 +77,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ),
           );
       TextInput.finishAutofillContext();
-    } catch (e) {
+    } catch (e, s) {
+      if (!isLoginRefusal(e)) reportCaught('sign in', e, s);
       if (!mounted) return;
       setState(() => _error = loginErrorMessage(e));
       holdRetriesFor(e, whenOver: () => _error = null);

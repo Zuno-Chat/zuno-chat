@@ -72,11 +72,13 @@ void main() {
       await expectLater(
         _fetch(mock),
         throwsA(
-          isA<CloudflareTurnException>().having(
-            (e) => e.statusCode,
-            'statusCode',
-            status,
-          ),
+          isA<CloudflareTurnException>()
+              .having((e) => e.statusCode, 'statusCode', status)
+              .having(
+                (e) => e.message,
+                'message',
+                'HTTP $status from TURN credentials: M_UNKNOWN',
+              ),
         ),
       );
       expect(calls, 1);
@@ -87,9 +89,23 @@ void main() {
     'throws CloudflareTurnException when the response has no iceServers field',
     () {
       final mock = MockClient(
-        (request) async => http.Response(jsonEncode({}), 201),
+        (request) async => http.Response(
+          jsonEncode({
+            'iceServers': {'username': 'u1', 'credential': 'c1'},
+          }),
+          201,
+        ),
       );
-      expect(_fetch(mock), throwsA(isA<CloudflareTurnException>()));
+      expect(
+        _fetch(mock),
+        throwsA(
+          isA<CloudflareTurnException>().having(
+            (e) => e.message,
+            'message',
+            'TURN credentials returned no ICE servers',
+          ),
+        ),
+      );
     },
   );
 

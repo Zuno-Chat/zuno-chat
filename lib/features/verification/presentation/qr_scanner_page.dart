@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 
 class QrScannerPage extends StatefulWidget {
   final String title;
@@ -40,8 +40,8 @@ class _QrScannerPageState extends State<QrScannerPage>
     var granted = false;
     try {
       granted = (await read()).isGranted;
-    } catch (e) {
-      logCaught('camera permission', e);
+    } catch (e, s) {
+      reportCaught('camera permission', e, s);
     }
     if (mounted) setState(() => _permitted = granted);
   }

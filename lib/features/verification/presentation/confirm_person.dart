@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_providers.dart';
@@ -96,8 +97,8 @@ Future<void> confirmPerson(
     if (client.userDeviceKeys[userId]?.masterKey?.directVerified ?? false) {
       await rememberConfirmedIdentity(confirmedIdentities, client, userId);
     }
-  } catch (e) {
-    logCaught('start verification', e);
+  } catch (e, s) {
+    reportCaught('start verification', e, s);
     messenger.showSnackBar(
       const SnackBar(content: Text('Could not start. Try again.')),
     );

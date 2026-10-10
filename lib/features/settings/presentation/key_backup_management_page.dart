@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 
@@ -41,8 +41,8 @@ class _KeyBackupManagementPageState
         _cachedOnThisDevice = cached;
         _loadFailed = false;
       });
-    } catch (e) {
-      logCaught('load key backup', e);
+    } catch (e, s) {
+      reportCaught('load key backup', e, s);
       if (mounted) setState(() => _loadFailed = true);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -91,8 +91,8 @@ class _KeyBackupManagementPageState
     setState(() => _deleting = true);
     try {
       await ref.read(matrixClientProvider).deleteRoomKeysVersion(info.version);
-    } catch (e) {
-      logCaught('delete key backup', e);
+    } catch (e, s) {
+      reportCaught('delete key backup', e, s);
       messenger.showSnackBar(
         SnackBar(
           content: Text(

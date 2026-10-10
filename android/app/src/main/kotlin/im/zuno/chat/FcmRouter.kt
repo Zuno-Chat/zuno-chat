@@ -27,7 +27,11 @@ object FcmRouter {
         val done: CountDownLatch,
     )
 
-    private class EngineHandle(val channel: MethodChannel, val headless: FlutterEngine?)
+    private class EngineHandle(
+        val channel: MethodChannel,
+        val headless: FlutterEngine?,
+        val context: Context,
+    )
 
     private val main = Handler(Looper.getMainLooper())
     private val routing = FcmRouting()
@@ -59,7 +63,7 @@ object FcmRouter {
         val attached = routing.appAttached(now())
         val channel = MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL)
         channel.setMethodCallHandler(FcmChannel(activity, attached.engineId, activity))
-        engines[attached.engineId] = EngineHandle(channel, null)
+        engines[attached.engineId] = EngineHandle(channel, null, activity.applicationContext)
         perform(attached.actions)
         return attached.engineId
     }
@@ -119,7 +123,7 @@ object FcmRouter {
                 },
             )
         } catch (e: Exception) {
-            Log.w(TAG, "Could not hand ${job.method} to engine ${action.engineId}", e)
+            CaughtErrors.record(handle.context, "fcm deliver ${job.method}", e)
             perform(routing.sendFailed(job.id, now()))
         }
     }
@@ -134,7 +138,7 @@ object FcmRouter {
                 if (routing.isStarting(engineId)) start(context, engineId)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not prepare Flutter for push engine $engineId", e)
+            CaughtErrors.record(context, "fcm push engine prepare", e)
             perform(routing.bootFailed(engineId, now()))
         }
     }
@@ -144,14 +148,14 @@ object FcmRouter {
             val engine = PushEnginePlugins.create(context)
             val channel = MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL)
             channel.setMethodCallHandler(FcmChannel(context, engineId, null))
-            engines[engineId] = EngineHandle(channel, engine)
+            engines[engineId] = EngineHandle(channel, engine, context)
             engine.localizationPlugin.sendLocalesToFlutter(context.resources.configuration)
             engine.dartExecutor.executeDartEntrypoint(
                 DartExecutor.DartEntrypoint.createDefault(),
                 listOf(HEADLESS_ARG),
             )
         } catch (e: Exception) {
-            Log.w(TAG, "Could not start push engine $engineId", e)
+            CaughtErrors.record(context, "fcm push engine start", e)
             destroy(engineId)
             perform(routing.bootFailed(engineId, now()))
         }
@@ -159,7 +163,7 @@ object FcmRouter {
 
     private fun retire(engineId: Int, attempt: Int = 0) {
         val handle = engines[engineId] ?: return perform(routing.gone(engineId, now()))
-        EngineQuiescence.ask(handle.channel, main) { quiet ->
+        EngineQuiescence.ask(handle.context, handle.channel, main) { quiet ->
             if (engines[engineId] !== handle) return@ask
             when {
                 quiet -> perform(routing.quiet(engineId, now()))
@@ -183,7 +187,7 @@ object FcmRouter {
             handle.headless?.destroy()
             Log.d(TAG, "Push engine $engineId destroyed")
         } catch (e: Exception) {
-            Log.w(TAG, "Could not destroy push engine $engineId", e)
+            CaughtErrors.record(handle.context, "fcm push engine destroy", e)
         }
     }
 

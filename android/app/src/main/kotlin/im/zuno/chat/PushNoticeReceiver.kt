@@ -54,7 +54,7 @@ class PushNoticeReceiver : BroadcastReceiver() {
             val loader = FlutterInjector.instance().flutterLoader()
             if (!loader.initialized()) loader.startInitialization(context)
         } catch (e: Exception) {
-            Log.d(TAG, "Flutter warm-up skipped: ${e.message}")
+            CaughtErrors.record(context, "push flutter warm-up", e)
         }
     }
 

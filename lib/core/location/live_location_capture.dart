@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 import 'geo_uri.dart';
 import 'live_location_policy.dart';
@@ -12,6 +13,7 @@ import 'live_location_protocol.dart';
 
 const _methods = MethodChannel('zuno/live_location');
 const _fixes = EventChannel('zuno/live_location/fixes');
+const _deniedCode = 'denied';
 
 @immutable
 class LiveFix {
@@ -119,8 +121,10 @@ class ChannelLiveLocationCapture implements LiveLocationCapture {
       });
     } on MissingPluginException {
       throw const LiveCaptureUnavailable();
-    } on PlatformException catch (error) {
-      logCaught('live location start', error.code);
+    } on PlatformException catch (error, stack) {
+      if (error.code != _deniedCode) {
+        reportCaught('live location start', error.code, stack);
+      }
       throw const LiveCaptureUnavailable();
     }
   }
@@ -163,8 +167,14 @@ final _captureEvents =
       handleData: (raw, sink) {
         if (_eventFrom(raw) case final event?) sink.add(event);
       },
-      handleError: (_, _, sink) =>
-          sink.add(const LiveCaptureLost(LiveCaptureFailure.failed)),
+      handleError: (error, stack, sink) {
+        if (error is PlatformException) {
+          reportCaught('live location capture', error.code, stack);
+        } else {
+          reportCaughtType('live location capture', error, stack);
+        }
+        sink.add(const LiveCaptureLost(LiveCaptureFailure.failed));
+      },
     );
 
 LiveCaptureEvent? _eventFrom(Object? raw) {
@@ -173,7 +183,7 @@ LiveCaptureEvent? _eventFrom(Object? raw) {
   if (error != null) {
     return LiveCaptureLost(switch (error) {
       'services_off' => LiveCaptureFailure.servicesOff,
-      'denied' => LiveCaptureFailure.denied,
+      _deniedCode => LiveCaptureFailure.denied,
       'ended' => LiveCaptureFailure.ended,
       _ => LiveCaptureFailure.failed,
     });

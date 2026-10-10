@@ -531,8 +531,7 @@ extension CallPictureInPicture: @preconcurrency AVPictureInPictureControllerDele
     _ pictureInPictureController: AVPictureInPictureController,
     failedToStartPictureInPictureWithError error: any Error
   ) {
-    Self.log.error(
-      "picture-in-picture did not start: \(error.localizedDescription, privacy: .public)")
+    CaughtErrors.record("call pip start", error)
     stopped()
   }
 

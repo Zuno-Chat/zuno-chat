@@ -56,7 +56,9 @@ struct NseStateFile: Equatable, Sendable {
   var version: String?
 
   static func decode(_ data: Data?) -> NseStateFile {
-    guard let data, let json = NseJson.parse(data) else { return NseStateFile() }
+    guard let data, let json = NseJson.parse(data, "nse state parse") else {
+      return NseStateFile()
+    }
     let utd = (json["utd"]?.array ?? []).compactMap { item -> NseUtd? in
       guard let room = item["room"]?.string, let event = item["event"]?.string,
         let ts = item["ts"]?.int64
@@ -75,7 +77,7 @@ struct NseStateFile: Equatable, Sendable {
       "utd": utd.map { ["room": $0.room, "event": $0.event, "ts": $0.ts] },
     ]
     if let version { object["version"] = version }
-    return (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
+    return NseJson.data(object, "nse state encode") ?? Data()
   }
 }
 
@@ -93,23 +95,22 @@ enum SeenSets {
   }
 
   static func tokens(_ data: Data?) -> [String] {
-    guard let data, let json = NseJson.parse(data) else { return [] }
+    guard let data, let json = NseJson.parse(data, "nse tokens parse") else { return [] }
     return json["e"]?.array?.compactMap(\.string) ?? []
   }
 
   static func encodeTokens(_ tokens: [String]) -> Data {
-    (try? JSONSerialization.data(withJSONObject: ["v": 1, "e": tokens], options: [.sortedKeys]))
-      ?? Data()
+    NseJson.data(["v": 1, "e": tokens], "nse tokens encode") ?? Data()
   }
 
   static func marks(_ data: Data?) -> [NseMark] {
-    guard let data, let json = NseJson.parse(data) else { return [] }
+    guard let data, let json = NseJson.parse(data, "nse marks parse") else { return [] }
     return (json["marks"]?.array ?? []).compactMap(NseMark.init)
   }
 
   static func encodeMarks(_ marks: [NseMark]) -> Data {
     let object: [String: Any] = ["v": 1, "marks": marks.map(\.json)]
-    return (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
+    return NseJson.data(object, "nse marks encode") ?? Data()
   }
 }
 

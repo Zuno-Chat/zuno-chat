@@ -12,7 +12,7 @@ are documented with that feature.
 | Chats & calls | Theme, typing indicator, prevent accidental calls | here; accidental calls in `calls.md` |
 | Data & storage | Reduce media size, less data for calls, clear cache, clear media cache | here; `chats-messaging.md`, `calls.md` |
 | Security | Status, recovery, devices, blocked people, on-device protections, Advanced | `security-verification.md`; blocked people in `rooms-membership.md`; on-device protections here |
-| About | Versions, donate (Android), privacy policy, terms, source, licenses, crash reports, hidden messages | here; `crash-reporting.md`, `chats-messaging.md` |
+| About | Versions, donate (Android), privacy policy, terms, source, licenses, crash and error reports, hidden messages | here; `crash-reporting.md`, `chats-messaging.md` |
 
 The root opens with the profile card, which leads to Account. Below the
 categories sit Send feedback (`crash-reporting.md`), then Sign out and

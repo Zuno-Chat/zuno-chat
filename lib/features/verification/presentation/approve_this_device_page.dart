@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/encryption.dart';
 
 import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/ui/step_hero.dart';
@@ -88,8 +89,8 @@ class _ApproveThisDevicePageState extends ConsumerState<ApproveThisDevicePage> {
       if (mounted && keyVerification.state == KeyVerificationState.done) {
         _finish();
       }
-    } catch (e) {
-      logCaught('start device approval', e);
+    } catch (e, s) {
+      reportCaught('start device approval', e, s);
       messenger.showSnackBar(
         const SnackBar(content: Text('Could not start. Try again.')),
       );

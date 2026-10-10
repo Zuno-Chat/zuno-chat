@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/end_call.dart';
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/matrix_ids.dart';
@@ -54,8 +54,8 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
           MaterialPageRoute(builder: (_) => pageForRoom(widget.room)),
         );
       }
-    } catch (e) {
-      logCaught('answer invitation', e);
+    } catch (e, s) {
+      reportCaught('answer invitation', e, s);
       if (mounted) setState(() => _busy = false);
       final failed = join ? 'Could not join.' : 'Could not decline.';
       messenger.showSnackBar(

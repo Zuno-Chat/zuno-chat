@@ -8,6 +8,9 @@ import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../errors/best_effort.dart';
+import '../errors/caught_errors.dart';
+
 String attachmentCacheKey(Event event, {required bool thumbnail}) =>
     '${event.eventId}:${thumbnail ? 'thumb' : 'full'}';
 
@@ -86,12 +89,18 @@ class DiskAttachmentCache {
       if (!await file.exists()) return null;
       final modified = (await file.stat()).modified;
       if (expires && DateTime.now().difference(modified) > _ttl) {
-        file.delete().ignore();
+        unawaited(_delete(file, label: 'drop an expired attachment'));
         return null;
       }
-      unawaited(file.setLastModified(DateTime.now()).catchError((_) {}));
+      unawaited(
+        runBestEffort(
+          () => file.setLastModified(DateTime.now()),
+          label: 'touch a cached attachment',
+        ),
+      );
       return file;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('find a cached attachment', e, s);
       return null;
     }
   }
@@ -101,7 +110,10 @@ class DiskAttachmentCache {
     if (cached == null) return null;
     try {
       return await cached.readAsBytes();
-    } catch (_) {
+    } on PathNotFoundException {
+      return null;
+    } catch (e, s) {
+      reportCaught('read a cached attachment', e, s);
       return null;
     }
   }
@@ -113,7 +125,8 @@ class DiskAttachmentCache {
           .writeAsBytes(bytes);
       unawaited(_enforceBudget());
       return file;
-    } catch (_) {
+    } catch (e, s) {
+      reportCaught('cache an attachment', e, s);
       return null;
     }
   }
@@ -122,7 +135,23 @@ class DiskAttachmentCache {
     try {
       final dir = await _directory();
       await File(p.join(dir.path, _fileNameFor(key))).delete();
-    } catch (_) {}
+    } on PathNotFoundException {
+      return;
+    } catch (e, s) {
+      reportCaught('remove a cached attachment', e, s);
+    }
+  }
+
+  Future<bool> _delete(File file, {required String label}) async {
+    try {
+      await file.delete();
+      return true;
+    } on PathNotFoundException {
+      return false;
+    } catch (e, s) {
+      reportCaught(label, e, s);
+      return false;
+    }
   }
 
   Future<void> _enforceBudget() {
@@ -151,12 +180,13 @@ class DiskAttachmentCache {
       entries.sort((a, b) => a.modified.compareTo(b.modified));
       for (final entry in entries) {
         if (total <= _maxTotalBytes) break;
-        try {
-          await entry.file.delete();
+        if (await _delete(entry.file, label: 'evict a cached attachment')) {
           total -= entry.size;
-        } catch (_) {}
+        }
       }
-    } catch (_) {}
+    } catch (e, s) {
+      reportCaught('sweep the attachment cache', e, s);
+    }
   }
 
   Future<void> clear() async {
@@ -164,7 +194,9 @@ class DiskAttachmentCache {
       final dir = await _directory();
       if (await dir.exists()) await dir.delete(recursive: true);
       _dir = null;
-    } catch (_) {}
+    } catch (e, s) {
+      reportCaught('clear the attachment cache', e, s);
+    }
   }
 }
 

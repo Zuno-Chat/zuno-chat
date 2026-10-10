@@ -5,8 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/security/password_strength.dart';
 import '../../../core/security/prepared_uia_password.dart';
 import '../../../core/security/recovery_code.dart';
@@ -30,6 +31,10 @@ typedef BootstrapFactory = Bootstrap Function(
 
 Bootstrap _sdkBootstrap(Client client, void Function(Bootstrap) onUpdate) =>
     Bootstrap(encryption: client.encryption!, onUpdate: onUpdate);
+
+bool _wrongRecoveryInput(Object error) =>
+    error is InvalidPassphraseException ||
+    (error is FormatException && error.message.contains('Base58'));
 
 const _buttonSpinner = SizedBox(
   width: 20,
@@ -83,10 +88,14 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
 
   void _onBootstrapUpdate(Bootstrap bootstrap) {
     if (bootstrap.state == BootstrapState.error) {
-      logCaught(
-        'recovery bootstrap',
-        bootstrap.errorResult?.error ?? 'unknown',
-      );
+      final error = bootstrap.errorResult?.error ?? 'unknown';
+      if (!isUiaCancel(error)) {
+        reportCaught(
+          'recovery bootstrap',
+          error,
+          bootstrap.errorResult?.stackTrace,
+        );
+      }
     }
     if (!mounted) return;
     setState(() {});
@@ -191,8 +200,8 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
       await key.unlock(keyOrPassphrase: _unlockInput());
       if (!mounted) return;
       await _bootstrap!.openExistingSsss();
-    } catch (e) {
-      logCaught('unlock recovery', e);
+    } catch (e, s) {
+      if (!_wrongRecoveryInput(e)) reportCaught('unlock recovery', e, s);
       if (!mounted) return;
       setState(
         () => _recoveryKeyInputError =
@@ -223,8 +232,8 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
       if (_nextLockedOldKey() == null) {
         _bootstrap?.unlockedSsss();
       }
-    } catch (e) {
-      logCaught('unlock older recovery', e);
+    } catch (e, s) {
+      if (!_wrongRecoveryInput(e)) reportCaught('unlock older recovery', e, s);
       if (!mounted) return;
       setState(
         () => _recoveryKeyInputError =

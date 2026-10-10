@@ -1,7 +1,8 @@
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../platform/platform_capabilities.dart';
+import '../keychain_unavailable.dart';
 
 const voipChannel = MethodChannel('zuno/voip');
 
@@ -84,8 +85,8 @@ class VoipChannel {
       return await voipChannel.invokeMethod<T>(method, arguments);
     } on MissingPluginException {
       return null;
-    } on PlatformException catch (e) {
-      debugPrint('zuno/voip: $method failed (${e.code})');
+    } on PlatformException catch (e, s) {
+      if (!isKeychainUnavailable(e)) reportCaught('voip $method', e.code, s);
       return null;
     }
   }

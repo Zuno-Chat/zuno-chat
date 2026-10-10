@@ -26,7 +26,8 @@ enum ModuleReply: Equatable, Sendable {
     case .timeout, .offline, .failure:
       return .network
     case .response(let status, let headers, let body):
-      guard headers["x-zuno-push"] == "1", let json = NseJson.parse(body), json.object != nil
+      guard headers["x-zuno-push"] == "1", let json = NseJson.parse(body, "nse module reply parse"),
+        json.object != nil
       else { return .route }
       return .reply(status: status, json: json)
     }
@@ -73,8 +74,7 @@ struct NseFetchClient: Sendable {
     async -> (reply: NseFetchReply, body: Data?)
   {
     guard let url = NseModuleUrl.endpoint(baseUrl, "nse/fetch"),
-      let body = try? JSONSerialization.data(
-        withJSONObject: ["room_id": roomId, "event_id": eventId], options: [.sortedKeys])
+      let body = NseJson.data(["room_id": roomId, "event_id": eventId], "nse fetch body")
     else { return (.route, nil) }
     let start = clock.nowMs()
     var attempt = 0

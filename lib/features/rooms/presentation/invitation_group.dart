@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/best_effort.dart';
+import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_invite.dart';
@@ -64,8 +64,8 @@ class _InvitationState extends State<_Invitation> {
     unawaited(cancelInviteNotification(widget.room));
     try {
       await action();
-    } catch (e) {
-      logCaught('answer invitation', e);
+    } catch (e, s) {
+      reportCaught('answer invitation', e, s);
       messenger.showSnackBar(
         SnackBar(content: Text(failureMessage(e, failed: failed))),
       );

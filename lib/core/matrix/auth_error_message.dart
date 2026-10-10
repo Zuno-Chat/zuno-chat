@@ -22,6 +22,17 @@ String loginErrorMessage(Object error) {
   return _unexpectedErrorMessage;
 }
 
+bool isLoginRefusal(Object error) =>
+    error is MatrixException &&
+    const {
+      MatrixError.M_FORBIDDEN,
+      MatrixError.M_USER_DEACTIVATED,
+      MatrixError.M_LIMIT_EXCEEDED,
+    }.contains(error.error);
+
+bool isPasswordRefusal(Object error) =>
+    error is MatrixException && error.error == MatrixError.M_FORBIDDEN;
+
 String registrationErrorMessage(Object error) {
   if (error is RegistrationCodeRefusedException) {
     return 'That code is not valid or has expired.';
@@ -39,6 +50,16 @@ String registrationErrorMessage(Object error) {
   }
   return _unexpectedErrorMessage;
 }
+
+bool isRegistrationRefusal(Object error) =>
+    error is MatrixException &&
+    const {
+      'M_USER_IN_USE',
+      'M_INVALID_USERNAME',
+      'M_EXCLUSIVE',
+      'M_WEAK_PASSWORD',
+      'M_LIMIT_EXCEEDED',
+    }.contains(error.errcode);
 
 String deactivateAccountErrorMessage(Object error) {
   final network = _networkErrorMessage(error);
@@ -95,16 +116,42 @@ String _sentence(String message) {
   return line[0].toUpperCase() + line.substring(1);
 }
 
-String homeserverErrorMessage(Object error) {
-  if (_networkErrorMessage(error) != null) {
-    return 'Cannot reach that server. Check the address and your connection.';
-  }
-  if (error is BadServerLoginTypesException) {
-    return 'That server does not support signing in with a password.';
-  }
-  if (error is MatrixException) return _sentence(error.errorMessage);
-  return 'That address is not a server Zuno can use. Check it.';
+enum HomeserverProblem {
+  unreachable,
+  noPasswordSignIn,
+  refused,
+  notAServer,
+  unexpected;
+
+  bool get reported => this == unexpected;
 }
+
+HomeserverProblem homeserverProblem(Object error) {
+  if (isConnectionError(error)) return HomeserverProblem.unreachable;
+  if (error is BadServerLoginTypesException) {
+    return HomeserverProblem.noPasswordSignIn;
+  }
+  if (error is MatrixException) return HomeserverProblem.refused;
+  if (error is FormatException ||
+      error is TypeError ||
+      '$error' == 'Exception: http error response') {
+    return HomeserverProblem.notAServer;
+  }
+  return HomeserverProblem.unexpected;
+}
+
+String homeserverErrorMessage(Object error) =>
+    switch (homeserverProblem(error)) {
+      HomeserverProblem.unreachable =>
+        'Cannot reach that server. Check the address and your connection.',
+      HomeserverProblem.noPasswordSignIn =>
+        'That server does not support signing in with a password.',
+      HomeserverProblem.refused => _sentence(
+        (error as MatrixException).errorMessage,
+      ),
+      HomeserverProblem.notAServer || HomeserverProblem.unexpected =>
+        'That address is not a server Zuno can use. Check it.',
+    };
 
 String? registrationCodeErrorMessage(RegistrationCodeOutcome outcome) {
   return switch (outcome) {

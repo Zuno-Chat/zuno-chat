@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:light_compressor/light_compressor.dart';
 
+import '../errors/caught_errors.dart';
 import 'media_processing_exception.dart';
 import 'media_quality.dart';
 
@@ -45,11 +46,13 @@ Future<String> reencodeVideo(
         videoHeight: target?.height,
       ),
     );
+    if (result is OnFailure) reportCaught('compress a video', result.message);
     if (result is! OnSuccess) throw videoSendFailure;
     return result.destinationPath;
   } on MediaProcessingException {
     rethrow;
-  } catch (_) {
+  } catch (e, s) {
+    reportCaught('compress a video', e, s);
     throw videoSendFailure;
   } finally {
     await progressSub?.cancel();

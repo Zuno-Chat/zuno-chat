@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:url_launcher/url_launcher.dart';
+
+import '../errors/caught_errors.dart';
 
 final donateUri = Uri.parse('https://zuno.chat/#donate');
 final privacyPolicyUri = Uri.parse('https://zuno.chat/privacy');
@@ -25,8 +28,13 @@ Future<void> openLink(
   var opened = false;
   try {
     opened = await openUrl(uri);
-  } catch (_) {}
+  } catch (e, s) {
+    if (!noAppOpensLink(e)) reportCaught('open a link', e, s);
+  }
   if (!opened) {
     messenger.showSnackBar(SnackBar(content: Text(linkNotOpenedMessage(uri))));
   }
 }
+
+bool noAppOpensLink(Object error) =>
+    error is PlatformException && error.code == 'ACTIVITY_NOT_FOUND';

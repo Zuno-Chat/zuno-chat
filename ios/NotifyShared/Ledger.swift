@@ -64,13 +64,14 @@ struct Ledger: Codable, Equatable, Sendable {
   func encoded() -> Data {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
-    return (try? encoder.encode(self)) ?? Data(#"{"calls":[],"v":1}"#.utf8)
+    return CaughtErrors.attempt("ledger encode") { try encoder.encode(self) }
+      ?? Data(#"{"calls":[],"v":1}"#.utf8)
   }
 
   static func decoded(_ data: Data) -> Ledger? {
-    guard let ledger = try? JSONDecoder().decode(Ledger.self, from: data), ledger.v == 1 else {
-      return nil
+    let ledger = CaughtErrors.attempt("ledger decode") {
+      try JSONDecoder().decode(Ledger.self, from: data)
     }
-    return ledger
+    return ledger?.v == 1 ? ledger : nil
   }
 }

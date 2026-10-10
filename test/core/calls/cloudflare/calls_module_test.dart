@@ -55,6 +55,41 @@ void main() {
     });
   });
 
+  group('moduleFailure', () {
+    test('names the status, the request and the error code', () {
+      expect(
+        moduleFailure(
+          http.Response(
+            '{"errorCode":"session_error","errorDescription":"x"}',
+            404,
+          ),
+          'POST /sessions/new',
+        ),
+        'HTTP 404 from POST /sessions/new: session_error',
+      );
+      expect(
+        moduleFailure(
+          http.Response('{"errcode":"M_UNKNOWN_TOKEN"}', 401),
+          'TURN credentials',
+        ),
+        'HTTP 401 from TURN credentials: M_UNKNOWN_TOKEN',
+      );
+    });
+
+    for (final (reason, body) in [
+      ('a body that is not JSON', '<html>/sessions/abc</html>'),
+      ('a code that is free text', '{"errorCode":"session abc is gone"}'),
+      ('a JSON body that is not an object', '["x"]'),
+    ]) {
+      test('leaves the code out for $reason', () {
+        expect(
+          moduleFailure(http.Response(body, 502), 'POST /sessions/new'),
+          'HTTP 502 from POST /sessions/new',
+        );
+      });
+    }
+  });
+
   group('retryAfterOf', () {
     test('reads retry_after_ms from a 429', () {
       final response = http.Response(
