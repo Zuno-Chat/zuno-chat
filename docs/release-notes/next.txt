@@ -7,4 +7,4 @@ New
 • Drag your own view to any corner of a video call.
 • Crash reports, when you turn them on, now cover errors too.
 
-Fixed 40 bugs.
+Fixed 43 bugs.

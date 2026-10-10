@@ -52,6 +52,11 @@ void main() {
       if (path.contains('/thumbnail/')) {
         return http.Response.bytes([1, 2, 3], 200);
       }
+      if (path.endsWith('/messages')) {
+        return refuse
+            ? http.Response('{"errcode":"M_UNKNOWN"}', 502)
+            : http.Response('{"start":"t_now","chunk":[]}', 200);
+      }
       return null;
     };
     harness.db.events = [harness.message(r'$m1')];
@@ -220,7 +225,7 @@ void main() {
   });
 
   group('Reload messages', () {
-    testWidgets('asks first, then reloads from scratch', (tester) async {
+    testWidgets('asks first, then reloads from the server', (tester) async {
       await openRoom(tester);
 
       await pick(tester, 'Reload messages');
@@ -228,7 +233,9 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Reload'));
       await harness.settle(tester);
 
+      expect(requestsEndingWith('/messages'), isNotEmpty);
       expect(db.deletedTimelines, [harness.room.id]);
+      expect(find.text('Messages not reloaded. Try again.'), findsNothing);
       expect(find.byType(MessageTile), findsOneWidget);
     });
 
@@ -243,12 +250,21 @@ void main() {
       expect(find.byType(MessageTile), findsOneWidget);
     });
 
-    testWidgets('a failure says so and still shows the messages', (
+    testWidgets('a room you are no longer in does not offer it', (
       tester,
     ) async {
       harness = makeHarness();
-      db.deleteTimelineError = StateError('database locked');
+      harness.room.membership = Membership.leave;
       await harness.pumpRoomPage(tester);
+
+      await openMenu(tester);
+
+      expect(find.text('Reload messages'), findsNothing);
+    });
+
+    testWidgets('a failure says so and keeps the messages', (tester) async {
+      refuse = true;
+      await openRoom(tester);
 
       await pick(tester, 'Reload messages');
       await tester.tap(find.widgetWithText(TextButton, 'Reload'));
@@ -256,6 +272,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('Messages not reloaded. Try again.'), findsOneWidget);
+      expect(db.deletedTimelines, isEmpty);
       expect(find.byType(MessageTile), findsOneWidget);
     });
   });

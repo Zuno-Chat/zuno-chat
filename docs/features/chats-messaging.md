@@ -44,8 +44,13 @@ in `features/chat/presentation/`.
   on scroll-up and after every timeline update, because a room whose
   synced window filters down to less than a screen has nothing to
   scroll.
-- **"Reload messages"** in the room menu wipes this room's local timeline
-  and rebuilds it from the server. Nothing changes on the server.
+- **"Reload messages"** in the room menu swaps this room's local timeline
+  for the server's latest page, with sync paused so no new message lands
+  mid-swap. Nothing changes on the server. The room's history position
+  resets with it; left stale, scrolling up resumes wherever history last
+  stopped and the newest messages never return. Only joined rooms offer
+  it, since the rebuild is stored as a joined-room update that would put
+  a left room back in the chat list.
 - **Reactions** allow one per person per message, a Zuno convention
   rather than a Matrix rule: picking another emoji redacts the old one.
 

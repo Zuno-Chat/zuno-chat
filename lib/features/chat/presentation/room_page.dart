@@ -48,9 +48,11 @@ import '../../../core/matrix/read_receipts.dart';
 import '../../../core/matrix/room_exit.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/room_permission.dart';
+import '../../../core/matrix/room_timeline_reload.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/matrix/send_failure.dart';
 import '../../../core/matrix/send_progress.dart';
+import '../../../core/matrix/sync_coordinator_provider.dart';
 import '../../../core/matrix/upload_foreground_service.dart';
 import '../../../core/matrix/video_send_preparation.dart';
 import '../../../core/matrix/voice_recording.dart';
@@ -429,10 +431,13 @@ class _RoomPageState extends ConsumerState<RoomPage>
     setState(() {
       _timeline = null;
       _replyTargets = _newReplyTargets();
+      _historyStalled = false;
     });
     try {
-      await widget.room.client.database.deleteTimelineForRoom(widget.room.id);
-      widget.room.lastEvent = null;
+      await reloadRoomTimeline(
+        widget.room,
+        sync: ref.read(syncCoordinatorProvider),
+      );
     } catch (e, s) {
       reportCaught('reload messages', e, s);
       if (mounted) _snack('Messages not reloaded. Try again.');
@@ -1697,10 +1702,11 @@ class _RoomPageState extends ConsumerState<RoomPage>
               onTap: () => unawaited(_addToHomeScreen()),
               child: const Text('Add to home screen'),
             ),
-          PopupMenuItem(
-            onTap: () => unawaited(_reinitializeConversation()),
-            child: const Text('Reload messages'),
-          ),
+          if (canReloadRoomTimeline(widget.room))
+            PopupMenuItem(
+              onTap: () => unawaited(_reinitializeConversation()),
+              child: const Text('Reload messages'),
+            ),
           PopupMenuItem(
             onTap: () async {
               if (!await confirmAndExitRoom(

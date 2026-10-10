@@ -24,7 +24,6 @@ import '../../../helpers/room_opening_channels.dart';
 class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi
     with SendCapableDatabase, MediaCapableDatabase {
   final deletedTimelines = <String>[];
-  Object? deleteTimelineError;
 
   @override
   Future<void> removeEvent(String eventId, String roomId) async {}
@@ -36,11 +35,15 @@ class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi
   Future<bool> deleteFile(Uri mxcUri) async => true;
 
   @override
-  Future<void> deleteTimelineForRoom(String roomId) async {
-    final error = deleteTimelineError;
-    if (error != null) throw error;
-    deletedTimelines.add(roomId);
-  }
+  Future<void> deleteTimelineForRoom(String roomId) async =>
+      deletedTimelines.add(roomId);
+
+  @override
+  Future<void> setRoomPrevBatch(
+    String? prevBatch,
+    String roomId,
+    Client client,
+  ) async {}
 }
 
 class _HarnessClient extends Client {
