@@ -82,7 +82,7 @@ void main() {
         'room_id': '!room:example.org',
         'content': 'Alice: the door code is 4471',
       });
-      await pumpEventQueue();
+      await reportsSent();
 
       expect(notification?.eventId, '\$abc:example.org');
       expect(transport.sentEvent.tags?['caught'], 'fcm payload parse');

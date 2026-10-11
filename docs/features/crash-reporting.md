@@ -155,3 +155,6 @@ native journal, drained ─────────┘     │ network failure? 
 - **With reporting on, release `debugPrint` stops printing**, because
   Sentry replaces it with a breadcrumb-only function, so attach any
   `debugPrint` hook after `SentryFlutter.init`.
+- **A test waits until every report has gone out, never a fixed number of
+  event-loop turns**, because Sentry's pipeline does real I/O on Linux, so
+  a guessed wait passes on a Mac and fails in CI.

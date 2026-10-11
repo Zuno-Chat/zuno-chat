@@ -9,11 +9,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/features/blocking/presentation/block_person.dart';
 
 import '../../../helpers/fake_matrix.dart';
-
-class _ClearingDatabase extends FakeDatabaseApi {
-  @override
-  Future<void> clearCache() async {}
-}
+import '../../../helpers/fake_sync_server.dart';
 
 void main() {
   late List<http.Request> requests;
@@ -29,10 +25,15 @@ void main() {
     refuseAccountData = false;
     client = buildTestClient(
       userId: '@me:example.org',
-      database: _ClearingDatabase(),
+      database: SyncingFakeDatabaseApi(),
       httpClient: MockClient((request) {
         if (request.url.path.endsWith('/sync')) {
           return Completer<http.Response>().future;
+        }
+        if (request.url.path.endsWith('/filter')) {
+          return Future.value(
+            http.Response(jsonEncode({'filter_id': '1'}), 200),
+          );
         }
         requests.add(request);
         if (refuseAccountData && request.url.path.contains('/account_data/')) {

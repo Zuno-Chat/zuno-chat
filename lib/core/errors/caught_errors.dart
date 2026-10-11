@@ -39,6 +39,16 @@ Future<void> captureCaught(
   StackTrace? stack, {
   bool typeOnly = false,
   String? detail,
+}) => trackReport(
+  _captureCaught(label, error, stack, typeOnly: typeOnly, detail: detail),
+);
+
+Future<void> _captureCaught(
+  String label,
+  Object error,
+  StackTrace? stack, {
+  required bool typeOnly,
+  required String? detail,
 }) async {
   await crashReportingStarted();
   if (!Sentry.isEnabled || isConnectionError(error)) return;

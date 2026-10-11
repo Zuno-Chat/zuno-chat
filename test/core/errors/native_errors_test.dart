@@ -23,7 +23,7 @@ void main() {
     ]);
 
     await drainNativeErrors();
-    await pumpEventQueue();
+    await reportsSent();
 
     final event = transport.sentEvent;
     expect(event.tags?['caught'], 'native: share import');
@@ -49,7 +49,7 @@ void main() {
       ]);
 
       await drainNativeErrors();
-      await pumpEventQueue();
+      await reportsSent();
 
       expect(transport.sentEvent.tags?['caught'], 'native nse: nse store open');
     },
@@ -61,7 +61,7 @@ void main() {
     ]);
 
     await drainNativeErrors();
-    await pumpEventQueue();
+    await reportsSent();
 
     expect(
       transport.sentEvent.throwable,
@@ -91,7 +91,7 @@ void main() {
       ]);
 
       await drainNativeErrors();
-      await pumpEventQueue();
+      await reportsSent();
 
       expect(transport.events, isEmpty);
     },
@@ -104,7 +104,7 @@ void main() {
     ]);
 
     await drainNativeErrors();
-    await pumpEventQueue();
+    await reportsSent();
 
     expect(transport.events.map((e) => e.tags?['caught']), [
       'native: first',

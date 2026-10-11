@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:zuno/core/errors/caught_errors.dart';
+import 'package:zuno/core/errors/crash_reporting.dart';
+
+export 'package:zuno/core/errors/crash_reporting.dart' show reportsSent;
 
 const testSentryDsn = 'https://key@o0.ingest.sentry.io/1';
 
@@ -26,10 +29,19 @@ class RecordingTransport implements Transport {
   SentryEvent get sentEvent => events.single;
 }
 
+class _SlowPipeline implements EventProcessor {
+  @override
+  Future<SentryEvent?> apply(SentryEvent event, Hint hint) async {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    return event;
+  }
+}
+
 Future<void> startRecordingSentry(RecordingTransport transport) =>
     Sentry.init((options) {
       options.dsn = testSentryDsn;
       options.transport = transport;
+      options.addEventProcessor(_SlowPipeline());
     });
 
 RecordingTransport useRecordingSentry() {
@@ -40,6 +52,7 @@ RecordingTransport useRecordingSentry() {
     await startRecordingSentry(transport);
   });
   tearDown(() async {
+    await reportsSent();
     await Sentry.close();
     forgetReportedLabels();
   });

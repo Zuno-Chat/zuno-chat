@@ -24,7 +24,7 @@ void main() {
 
     Logs().e('[Key Manager] Error uploading room keys', StateError('x'));
     Logs().wtf('Unable to migrate OLM sessions!');
-    await pumpEventQueue();
+    await reportsSent();
 
     expect(transport.events.map((e) => e.tags?['caught']), [
       'sdk: [Key Manager] Error uploading room keys',
@@ -39,7 +39,7 @@ void main() {
     Logs().w('a warning', StateError('w'));
     Logs().i('info');
     Logs().d('debug', StateError('d'));
-    await pumpEventQueue();
+    await reportsSent();
 
     expect(transport.events, isEmpty);
   });
@@ -48,7 +48,7 @@ void main() {
     handleSdkLogs();
 
     Logs().e('[Key Manager] Error uploading room keys', StateError('x'));
-    await pumpEventQueue();
+    await reportsSent();
 
     expect(
       transport.sentEvent.message?.formatted,
@@ -62,7 +62,7 @@ void main() {
     Logs().wtf('Client initialization failed', StateError('x'));
     Logs().e('Logout failed', StateError('x'));
     Logs().e('[Bootstrapping] Error setting up cross signing', StateError('x'));
-    await pumpEventQueue();
+    await reportsSent();
 
     expect(transport.events, isEmpty);
   });

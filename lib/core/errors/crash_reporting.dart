@@ -146,7 +146,24 @@ Future<void> setCrashReportingEnabled(
   return _pendingChange;
 }
 
-Future<void> captureCrash(Object error, StackTrace? stack) async {
+final _sending = <Future<void>>{};
+
+Future<void> trackReport(Future<void> report) {
+  _sending.add(report);
+  return report.whenComplete(() => _sending.remove(report));
+}
+
+@visibleForTesting
+Future<void> reportsSent() async {
+  while (_sending.isNotEmpty) {
+    await Future.wait(_sending.toList());
+  }
+}
+
+Future<void> captureCrash(Object error, StackTrace? stack) =>
+    trackReport(_captureCrash(error, stack));
+
+Future<void> _captureCrash(Object error, StackTrace? stack) async {
   if (!Sentry.isEnabled) return;
   await Sentry.captureException(error, stackTrace: stack);
 }

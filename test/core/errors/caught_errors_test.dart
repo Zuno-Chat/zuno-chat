@@ -56,14 +56,14 @@ void main() {
       reportFailureOf(Future<void>.error(StateError('x')), label: 'load list'),
       throwsStateError,
     );
-    await pumpEventQueue();
+    await reportsSent();
 
     expect(transport.sentEvent.tags?['caught'], 'load list');
   });
 
   test('only the type of a sensitive error is sent', () async {
     reportCaughtType('find location', const FormatException('51.5,-0.12'));
-    await pumpEventQueue();
+    await reportsSent();
 
     expect(transport.sentEvent.throwable.toString(), 'FormatException');
     expect(transport.sentEvent.fingerprint, [
@@ -74,7 +74,7 @@ void main() {
 
   test('a sensitive network failure is still never sent', () async {
     reportCaughtType('find location', const SocketException('offline'));
-    await pumpEventQueue();
+    await reportsSent();
 
     expect(transport.events, isEmpty);
   });

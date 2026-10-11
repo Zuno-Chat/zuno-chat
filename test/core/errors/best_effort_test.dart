@@ -38,7 +38,7 @@ void main() {
       () => throw StateError('no timeline'),
       label: 'mark read',
     );
-    await pumpEventQueue();
+    await reportsSent();
 
     expect(transport.sentEvent.tags?['caught'], 'mark read');
   });
