@@ -22,7 +22,6 @@ jobs:
     outputs:
       version: ${{ steps.guard.outputs.version }}
       build_number: ${{ steps.guard.outputs.build_number }}
-      sha: ${{ steps.guard.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -46,14 +45,11 @@ jobs:
           {
             echo "version=$version"
             echo "build_number=$build_number"
-            echo "sha=$(git rev-parse HEAD)"
           } >>"$GITHUB_OUTPUT"
 
   checks:
     needs: prepare
     uses: ./.github/workflows/checks.yml
-    with:
-      ref: ${{ needs.prepare.outputs.sha }}
 
   build-android:
     needs: [prepare, checks]
@@ -62,8 +58,6 @@ jobs:
     environment: release
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -106,8 +100,6 @@ jobs:
     environment: release
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '27.0'
@@ -151,8 +143,6 @@ jobs:
     environment: release
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '27.0'
@@ -182,8 +172,6 @@ jobs:
     environment: release
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
@@ -209,13 +197,10 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
       - env:
           VERSION: ${{ needs.prepare.outputs.version }}
-          SHA: ${{ needs.prepare.outputs.sha }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag --annotate "v$VERSION" --message "Zuno $VERSION" "$SHA"
+          git tag --annotate "v$VERSION" --message "Zuno $VERSION" "$GITHUB_SHA"
           git push origin "v$VERSION"
