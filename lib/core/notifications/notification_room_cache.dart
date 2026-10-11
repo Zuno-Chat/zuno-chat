@@ -16,11 +16,19 @@ String encodeNotificationRoomCache(Iterable<NotificationRoomEntry> rooms) => [
 String _singleLine(String name) =>
     name.replaceAll(RegExp(r'[\t\n\r]+'), ' ').trim();
 
-Iterable<NotificationRoomEntry> notificationRoomEntriesOf(Client client) => [
-  for (final room in client.rooms)
-    if (room.membership == Membership.join)
+Future<List<NotificationRoomEntry>> notificationRoomEntriesOf(
+  Client client,
+) async {
+  final joined = [
+    for (final room in client.rooms)
+      if (room.membership == Membership.join) room,
+  ];
+  await Future.wait(joined.map(loadRoomNameMembers));
+  return [
+    for (final room in joined)
       (id: room.id, name: roomTitle(room), isDirect: room.isDirectChat),
-];
+  ];
+}
 
 bool notificationRoomCacheDirty(SyncUpdate update) {
   if (update.accountData?.any((e) => e.type == 'm.direct') ?? false) {

@@ -73,6 +73,7 @@ import '../../location/presentation/live_location_text.dart';
 import '../../location/presentation/location_share_sheet.dart';
 import '../../reports/presentation/report_sheet.dart';
 import '../../room_info/presentation/room_info_page.dart';
+import '../data/discarded_sends.dart';
 import '../data/message_kinds.dart';
 import '../data/pending_attachment_send.dart';
 import '../data/sync_filter.dart';
@@ -322,7 +323,38 @@ class _RoomPageState extends ConsumerState<RoomPage>
       return;
     }
     _pendingTimeline = timeline;
+    unawaited(_settleDiscarded(timeline));
     if (routeSettled) _applyPendingTimeline();
+  }
+
+  Future<void> _settleDiscarded(Timeline timeline) async {
+    final discarded = ref.read(discardedSendsProvider);
+    final room = widget.room;
+    final kept = <Event>[];
+    for (final event in [...timeline.events]) {
+      final (:txid, :galleryId) = sendIdentity(event);
+      final dropped =
+          !event.status.isSent &&
+          event.senderId == room.client.userID &&
+          discarded.contains(room, [txid, galleryId]) &&
+          await runBestEffort(
+            () => _discardUnsent(discarded, event),
+            label: 'discard a deleted send',
+          );
+      if (!dropped) kept.add(event);
+    }
+    await discarded.prune(room, kept);
+  }
+
+  Future<void> _discardUnsent(DiscardedSends discarded, Event event) async {
+    final txid = sendIdentity(event).txid;
+    if (discarded.isSending(txid)) {
+      await discarded.add(widget.room, txid);
+      if (event.status.isError) await event.cancelSend();
+    } else {
+      await event.cancelSend();
+      await discarded.remove(widget.room, txid);
+    }
   }
 
   void _snack(String message) {
@@ -737,7 +769,10 @@ class _RoomPageState extends ConsumerState<RoomPage>
     });
   }
 
-  Future<void> _deleteMessages(List<Event> events) async {
+  Future<void> _deleteMessages(
+    List<Event> events, {
+    bool gallery = false,
+  }) async {
     final many = events.length > 1;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -745,11 +780,13 @@ class _RoomPageState extends ConsumerState<RoomPage>
         title: Text(
           many ? 'Delete ${events.length} items?' : 'Delete message?',
         ),
-        content: Text(
-          many
-              ? 'Deletes them for everyone. Nobody can undo this.'
-              : 'Deletes it for everyone. Nobody can undo this.',
-        ),
+        content: Text(switch (many) {
+          true => 'Deletes them for everyone. Nobody can undo this.',
+          false when isNotSent(events.single) =>
+            'It was not sent, so only this device has it. Nobody can '
+                'undo this.',
+          false => 'Deletes it for everyone. Nobody can undo this.',
+        }),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -766,11 +803,17 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
     final messenger = ScaffoldMessenger.of(context);
     final sharing = ref.read(liveLocationSharingProvider);
+    final discarded = ref.read(discardedSendsProvider);
+    if (gallery) await _stopGalleries(events, discarded);
     var failed = false;
-    for (final event in events) {
+    for (final event in events.map(_current)) {
       try {
         await sharing.stopShareStartedBy(event);
-        await widget.room.redactEvent(event.eventId);
+        if (event.status.isSent) {
+          await widget.room.redactEvent(event.eventId);
+        } else {
+          await _discardUnsent(discarded, event);
+        }
       } catch (e, s) {
         reportCaught('delete message', e, s);
         failed = true;
@@ -788,6 +831,31 @@ class _RoomPageState extends ConsumerState<RoomPage>
     );
   }
 
+  Future<void> _stopGalleries(
+    List<Event> events,
+    DiscardedSends discarded,
+  ) async {
+    final ids = {for (final event in events) ?sendIdentity(event).galleryId};
+    for (final id in ids) {
+      await discarded.add(widget.room, id);
+    }
+    final dropped = [
+      for (final failed in _failedSends)
+        if (ids.contains(failed.gallery?.id)) failed,
+    ];
+    if (dropped.isEmpty) return;
+    setState(() => _failedSends.removeWhere(dropped.contains));
+    unawaited(_releaseCopies([for (final failed in dropped) ?failed.path]));
+  }
+
+  Event _current(Event event) {
+    final id = sendIdentity(event).txid;
+    return _timeline?.events
+            .where((e) => e.matchesEventOrTransactionId(id))
+            .firstOrNull ??
+        event;
+  }
+
   Future<void> _showMessageActions(
     Event event, {
     List<Event>? galleryEvents,
@@ -795,11 +863,15 @@ class _RoomPageState extends ConsumerState<RoomPage>
     final timeline = _timeline;
     if (timeline == null || event.redacted) return;
     final isOwn = event.senderId == widget.room.client.userID;
-    final canDelete = isOwn || widget.room.canRedact;
+    final sent = event.status.isSent;
+    final canDelete =
+        (isOwn || widget.room.canRedact) &&
+        (sent || isNotSent(event) || galleryEvents != null);
     final displayEvent = event.getDisplayEvent(timeline);
     final canPost = canPostInRoom(widget.room);
     final canEdit =
         canPost &&
+        sent &&
         isOwn &&
         !event.hasAttachment &&
         displayEvent.messageType == MessageTypes.Text;
@@ -819,7 +891,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
     final action = await showMessageActionsSheet(
       context,
-      canPost: canPost,
+      canRespond: canPost && sent,
       canEdit: canEdit,
       canDelete: canDelete,
       isOwn: isOwn,
@@ -834,7 +906,11 @@ class _RoomPageState extends ConsumerState<RoomPage>
           ),
         MessageFact(
           icon: Icons.schedule_outlined,
-          child: Text('Sent ${_formatDateTime(event.originServerTs)}'),
+          child: Text(switch (displayEvent.status) {
+            EventStatus.error => 'Not sent',
+            EventStatus.sending => 'Sending…',
+            _ => 'Sent ${_formatDateTime(event.originServerTs)}',
+          }),
         ),
         if (!isOwn) SenderDeviceTile(event: event),
         if (isOwn) _SeenByTile(room: widget.room, event: event),
@@ -849,7 +925,10 @@ class _RoomPageState extends ConsumerState<RoomPage>
       case MessageAction.edit:
         _startEdit(event);
       case MessageAction.delete:
-        await _deleteMessages(galleryEvents ?? [event]);
+        await _deleteMessages(
+          galleryEvents ?? [event],
+          gallery: galleryEvents != null,
+        );
       case MessageAction.share:
         await _shareAttachments(galleryEvents ?? [displayEvent]);
       case MessageAction.save:
@@ -934,6 +1013,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     messenger: ScaffoldMessenger.of(context),
     reduceMediaSize: ref.read(reduceMediaSizeProvider),
     uploadProgress: ref.read(uploadProgressHttpClientProvider).onUploadProgress,
+    discarded: ref.read(discardedSendsProvider),
   );
 
   Future<void> _withSendProgress(
@@ -1097,25 +1177,28 @@ class _RoomPageState extends ConsumerState<RoomPage>
     final groupId = composed.length > 1
         ? widget.room.client.generateUniqueTransactionId()
         : null;
-    return _keepingUploadAlive(() async {
-      for (final (i, media) in composed.indexed) {
-        final gallery = groupId == null
-            ? null
-            : GalleryGroupRef(id: groupId, index: i, count: composed.length);
-        await switch (media) {
-          ComposedImageResult(:final image) => _sendPhoto(
-            session,
-            image,
-            gallery: gallery,
-          ),
-          ComposedVideoResult(:final video) => _sendVideoAttachment(
-            session,
-            video,
-            gallery: gallery,
-          ),
-        };
-      }
-    });
+    return _keepingUploadAlive(
+      () => session.discarded.whileSending([groupId], () async {
+        for (final (i, media) in composed.indexed) {
+          if (session.discarded.contains(widget.room, [groupId])) break;
+          final gallery = groupId == null
+              ? null
+              : GalleryGroupRef(id: groupId, index: i, count: composed.length);
+          await switch (media) {
+            ComposedImageResult(:final image) => _sendPhoto(
+              session,
+              image,
+              gallery: gallery,
+            ),
+            ComposedVideoResult(:final video) => _sendVideoAttachment(
+              session,
+              video,
+              gallery: gallery,
+            ),
+          };
+        }
+      }),
+    );
   }
 
   Future<void> _applyPendingShare(InboundShare share) async {
@@ -1224,7 +1307,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
             ),
             onProgress: progress.compression,
           );
-          await widget.room.sendFileEvent(
+          await _sendFileEvent(
+            session,
             prepared.file,
             txid: txid,
             thumbnail: prepared.thumbnail,
@@ -1232,6 +1316,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
               caption: composed.caption,
               gallery: gallery,
             ),
+            galleryId: gallery?.id,
           );
         },
       ),
@@ -1266,7 +1351,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
               reduceMediaSize: session.reduceMediaSize,
               onProgress: progress.compression,
             );
-            await widget.room.sendFileEvent(
+            await _sendFileEvent(
+              session,
               prepared.file,
               txid: txid,
               thumbnail: prepared.thumbnail,
@@ -1274,6 +1360,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
                 caption: image.caption,
                 gallery: gallery,
               ),
+              galleryId: gallery?.id,
             );
           },
         );
@@ -1284,6 +1371,57 @@ class _RoomPageState extends ConsumerState<RoomPage>
       ),
     );
   }
+
+  bool _isDiscarded(_SendSession session, String txid, String? galleryId) =>
+      session.discarded.contains(widget.room, [txid, galleryId]);
+
+  Future<void> _sendFileEvent(
+    _SendSession session,
+    MatrixFile file, {
+    required String txid,
+    MatrixImageFile? thumbnail,
+    Map<String, dynamic>? extraContent,
+    String? galleryId,
+  }) async {
+    if (_isDiscarded(session, txid, galleryId)) return;
+    await _sendThenDropIfDiscarded(
+      session,
+      txid: txid,
+      galleryId: galleryId,
+      send: () => widget.room.sendFileEvent(
+        file,
+        txid: txid,
+        thumbnail: thumbnail,
+        extraContent: extraContent,
+      ),
+    );
+  }
+
+  Future<void> _sendThenDropIfDiscarded(
+    _SendSession session, {
+    required String txid,
+    required String? galleryId,
+    required Future<String?> Function() send,
+  }) => session.discarded.whileSending([txid, galleryId], () async {
+    final eventId = await send();
+    if (!_isDiscarded(session, txid, galleryId)) return;
+    try {
+      if (eventId == null) {
+        await discardSendPlaceholder(widget.room, txid);
+      } else {
+        await widget.room.redactEvent(eventId);
+      }
+    } catch (e, s) {
+      reportCaught('delete a message that landed after its delete', e, s);
+      session.say(
+        galleryId == null
+            ? 'Message not deleted. Try again.'
+            : 'Some items not deleted. Try again.',
+      );
+    } finally {
+      await session.discarded.remove(widget.room, txid);
+    }
+  });
 
   Future<void> _sendFile(
     _SendSession session,
@@ -1298,10 +1436,10 @@ class _RoomPageState extends ConsumerState<RoomPage>
       () => _withSendProgress(
         session,
         PendingAttachmentSend(eventId: txid, kind: SendMediaKind.file),
-        (_) => widget.room.sendFileEvent(
+        (_) => _sendFileEvent(
+          session,
           MatrixFile.fromMimeType(bytes: bytes, name: name, mimeType: mimeType),
           txid: txid,
-          extraContent: _attachmentExtraContent(caption: null, gallery: null),
         ),
       ),
       onFailed: () => session.say('Not sent. Try again.'),
@@ -1325,6 +1463,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
   }
 
   void _recordFailedSend(FailedMediaSend failed, _SendSession session) {
+    if (session.discarded.contains(widget.room, [failed.gallery?.id])) return;
     if (!mounted) {
       session.say('Not sent. Try again.');
       return;
@@ -1346,8 +1485,26 @@ class _RoomPageState extends ConsumerState<RoomPage>
     });
   }
 
-  Future<void> _resend(Event event) =>
-      runBestEffort(event.sendAgain, label: 'sendAgain');
+  Future<void> _resend(Event event) async {
+    final session = _sendSession();
+    final (:txid, :galleryId) = sendIdentity(event);
+    if (_isDiscarded(session, txid, galleryId)) {
+      await runBestEffort(
+        () => _discardUnsent(session.discarded, event),
+        label: 'discard a deleted send',
+      );
+      return;
+    }
+    await runBestEffort(
+      () => _sendThenDropIfDiscarded(
+        session,
+        txid: txid,
+        galleryId: galleryId,
+        send: () => resendUnsent(event),
+      ),
+      label: 'sendAgain',
+    );
+  }
 
   void _retryAfterReconnect() {
     _markLatestRead();
@@ -1355,7 +1512,9 @@ class _RoomPageState extends ConsumerState<RoomPage>
     for (final failed in List<FailedMediaSend>.of(_failedSends)) {
       unawaited(_retryFailedSend(failed));
     }
-    for (final event in notSentOwnEvents(_timeline?.events ?? const [])) {
+    final timeline = _timeline;
+    if (timeline == null) return;
+    for (final event in notSentOwnEvents(timeline)) {
       unawaited(_resend(event));
     }
   }
@@ -1638,14 +1797,16 @@ class _RoomPageState extends ConsumerState<RoomPage>
       return;
     }
 
-    final messenger = ScaffoldMessenger.of(context);
+    final session = _sendSession();
     try {
-      await widget.room.sendFileEvent(
+      await _sendFileEvent(
+        session,
         MatrixFile(
           bytes: bytes,
           name: 'Voice message.ogg',
           mimeType: 'audio/ogg',
         ),
+        txid: widget.room.client.generateUniqueTransactionId(),
         extraContent: {
           'org.matrix.msc3245.voice': {},
           'org.matrix.msc1767.audio': {
@@ -1656,9 +1817,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       );
     } catch (e, s) {
       reportCaught('send voice message', e, s);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Voice message not sent. Try again.')),
-      );
+      session.say('Voice message not sent. Try again.');
     }
   }
 
@@ -1949,11 +2108,13 @@ class _SendSession {
   final ScaffoldMessengerState messenger;
   final bool reduceMediaSize;
   final Stream<double> uploadProgress;
+  final DiscardedSends discarded;
 
   const _SendSession({
     required this.messenger,
     required this.reduceMediaSize,
     required this.uploadProgress,
+    required this.discarded,
   });
 
   void say(String message) =>

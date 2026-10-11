@@ -41,6 +41,7 @@ enum NseComposer {
   static func names(room: NotifyRoomFile?, fetched: NseFetched?, senderId: String?) -> NseNames {
     let sender =
       nonEmpty(fetched?.senderName.map(CallerName.sanitize))
+      ?? nonEmpty(room?.chatPartner.map(CallerName.sanitize))
       ?? nonEmpty(senderId.map(formattedLocalpart).map(CallerName.sanitize)) ?? ""
     let title =
       nonEmpty(room.map { CallerName.sanitize($0.title) })

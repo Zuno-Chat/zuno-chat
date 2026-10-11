@@ -14,7 +14,7 @@ class LinkifiedText extends StatelessWidget {
   final TextStyle? style;
   final int? maxLines;
   final TextAlign? textAlign;
-  final Set<String>? mentionable;
+  final Set<String> mentionable;
   final InlineSpan? trailing;
 
   const LinkifiedText(
@@ -22,7 +22,7 @@ class LinkifiedText extends StatelessWidget {
     this.style,
     this.maxLines,
     this.textAlign,
-    this.mentionable,
+    this.mentionable = const {},
     this.trailing,
     super.key,
   });
@@ -30,7 +30,7 @@ class LinkifiedText extends StatelessWidget {
   static const _serverName = r'[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?';
 
   static final _userMentionPattern = RegExp(
-    '(?<![\\w@])(@(?:\\[[^\\]]+\\]|[$matrixLocalpartChars]+))'
+    '(?<![\\w@])(@(?:\\[[^\\[\\]]+\\]|[$matrixLocalpartChars]+))'
     '(?::$_serverName)?',
     caseSensitive: false,
   );
@@ -40,7 +40,6 @@ class LinkifiedText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mentionable = this.mentionable;
     final hits = <_Hit>[
       for (final link in linksIn(text))
         (
@@ -51,7 +50,7 @@ class LinkifiedText extends StatelessWidget {
         ),
       for (final m in roomMentionPattern.allMatches(text))
         (start: m.start, end: m.end, shown: m.group(0)!, link: null),
-      if (mentionable != null)
+      if (mentionable.isNotEmpty)
         for (final m in _userMentionPattern.allMatches(text))
           if (mentionable.contains(m.group(1)!.toLowerCase()))
             (start: m.start, end: m.end, shown: m.group(1)!, link: null),

@@ -49,6 +49,28 @@ void main() {
     test('skips a link with no host', () {
       expect(links('http://:80 and https://.'), isEmpty);
     });
+
+    test('keeps balanced brackets of every kind', () {
+      expect(links('https://x.org/a{b}[c](d)'), ['https://x.org/a{b}[c](d)']);
+    });
+
+    test('leaves out stray brackets mixed with punctuation', () {
+      expect(links('(https://x.org/a(b)).,)]}'), ['https://x.org/a(b)']);
+    });
+
+    test('a link trailed by a flood of brackets is found quickly', () {
+      final stopwatch = Stopwatch()..start();
+      final found = links('https://x.example/${')' * 100000}');
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 2)));
+      expect(found, ['https://x.example/']);
+    });
+
+    test('a link trailed by a flood of punctuation is found quickly', () {
+      final stopwatch = Stopwatch()..start();
+      final found = links('https://x.example/(a)${').' * 50000}');
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 2)));
+      expect(found, ['https://x.example/(a)']);
+    });
   });
 
   group('isSafeExternalUri', () {

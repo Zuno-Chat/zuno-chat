@@ -11,14 +11,11 @@ object PushEngineDecision {
     fun decide(
         appEngineAlive: Boolean,
         headlessEngineGeneration: Int?,
-        pluginCount: Int,
+        appEngineGeneration: Int,
     ): PushEngineAction = when {
         appEngineAlive -> PushEngineAction.UseExistingAppEngine
         headlessEngineGeneration == null -> PushEngineAction.BootHeadlessEngine
-        headlessEngineGeneration == pluginCount -> PushEngineAction.ReuseHeadlessEngine
+        headlessEngineGeneration == appEngineGeneration -> PushEngineAction.ReuseHeadlessEngine
         else -> PushEngineAction.ReplaceHeadlessEngine
     }
-
-    fun shouldHoldWakeLock(appEngineAlive: Boolean, hasHeadlessEngine: Boolean): Boolean =
-        appEngineAlive || hasHeadlessEngine
 }

@@ -219,7 +219,7 @@ enum CallerName {
   static func display(level: PreviewLevel, room: NotifyRoomFile?, ring: VoipRing) -> String {
     guard level != .none else { return generic }
     if let room, room.room == ring.room,
-      let chosen = named(room.dm && !room.partner.isEmpty ? room.partner : room.title)
+      let chosen = named(room.chatPartner ?? room.title)
     {
       return chosen
     }

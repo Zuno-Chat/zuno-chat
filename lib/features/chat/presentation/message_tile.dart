@@ -111,7 +111,8 @@ class MessageTile extends StatelessWidget {
     final isVoice = !unreadable && kind == AttachmentKind.voice;
     final tightWidth = isMedia || isLocation || isLiveMap || isFile || isVoice;
     final callSummary = unreadable ? null : CallSummary.fromEvent(displayEvent);
-    final notSent = isNotSent(event);
+    final unsent = notSentBehind(event, timeline);
+    final notSent = unsent != null;
     final caption = isMedia && !isGallery ? imageCaption(displayEvent) : null;
     final body = displayBody(event, timeline);
 
@@ -260,7 +261,7 @@ class MessageTile extends StatelessWidget {
               own: own,
             ),
       padding: bubblePadding,
-      onTap: notSent ? () => onResend(event) : null,
+      onTap: unsent == null ? null : () => onResend(unsent),
       onLongPress: unreadable ? null : onLongPress,
       child: Column(
         crossAxisAlignment: notSent

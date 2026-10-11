@@ -24,7 +24,7 @@ class OnboardingStore {
 
   OnboardingStore(this._prefs);
 
-  bool flowInProgress = false;
+  OnboardingFlow flow = OnboardingFlow.undecided;
 
   final Map<String, Set<OnboardingStep>> _shownInMemory = {};
 
@@ -100,7 +100,14 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
   await ref.watch(firstSyncProvider.future);
   final userId = client.userID;
   if (userId == null) return const [];
-  final facts = await ref.watch(accountSecurityFactsProvider.future);
+  final security = await ref.watch(
+    accountSecurityFactsProvider.selectAsync(
+      (facts) => (
+        recoveryExists: facts.recoveryExists,
+        thisDeviceHasIdentityKeys: facts.thisDeviceHasIdentityKeys,
+      ),
+    ),
+  );
   final store = ref.watch(onboardingStoreProvider);
   final lastPrompted = ref.watch(securityPromptStoreProvider).lastPrompted();
   final permission = await _notificationPermission();
@@ -118,7 +125,8 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
       capabilities: capabilities,
     ),
     needsAutostart: await BackgroundSyncService.instance.hasAutostartSettings(),
-    securityFacts: facts,
+    recoveryExists: security.recoveryExists,
+    thisDeviceHasIdentityKeys: security.thisDeviceHasIdentityKeys,
     hasConversations: client.rooms.any(
       (room) => room.membership == Membership.join && !room.isSpace,
     ),

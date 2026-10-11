@@ -1,5 +1,3 @@
-import '../security/account_security_status.dart';
-
 enum OnboardingStep {
   welcome,
   profile,
@@ -11,6 +9,8 @@ enum OnboardingStep {
   setUpRecovery,
   confirmPeople,
 }
+
+enum OnboardingFlow { undecided, open, done }
 
 const _deliverySteps = {
   OnboardingStep.deliveryMethod,
@@ -33,7 +33,8 @@ List<OnboardingStep> onboardingSteps({
   required bool canChooseDelivery,
   required bool needsBatteryExemption,
   required bool needsAutostart,
-  required AccountSecurityFacts securityFacts,
+  required bool recoveryExists,
+  required bool thisDeviceHasIdentityKeys,
   required bool hasConversations,
   required bool recoveryPromptOnCooldown,
   required Set<OnboardingStep> alreadyShown,
@@ -57,11 +58,11 @@ List<OnboardingStep> onboardingSteps({
     }
     if (needsAutostart) steps.add(OnboardingStep.autostart);
   }
-  if (!securityFacts.recoveryExists) {
+  if (!recoveryExists) {
     if (hasConversations && !recoveryPromptOnCooldown) {
       steps.add(OnboardingStep.setUpRecovery);
     }
-  } else if (!securityFacts.thisDeviceHasIdentityKeys) {
+  } else if (!thisDeviceHasIdentityKeys) {
     steps.add(OnboardingStep.approveDevice);
   }
   steps.add(OnboardingStep.confirmPeople);

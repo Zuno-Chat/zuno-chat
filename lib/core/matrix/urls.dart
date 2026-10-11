@@ -6,22 +6,30 @@ const _openerOf = {')': '(', ']': '[', '}': '{'};
 
 Iterable<({int start, int end, Uri uri})> linksIn(String text) sync* {
   for (final match in _linkCandidate.allMatches(text)) {
-    var link = match.group(0)!;
-    while (link.isNotEmpty && _endsInStrayPunctuation(link)) {
-      link = link.substring(0, link.length - 1);
-    }
-    final uri = Uri.tryParse(link);
+    final link = match.group(0)!;
+    final length = _lengthWithoutStrayPunctuation(link);
+    final uri = Uri.tryParse(link.substring(0, length));
     if (uri == null || !isSafeExternalUri(uri)) continue;
-    yield (start: match.start, end: match.start + link.length, uri: uri);
+    yield (start: match.start, end: match.start + length, uri: uri);
   }
 }
 
-bool _endsInStrayPunctuation(String link) {
-  final last = link[link.length - 1];
-  if (_sentencePunctuation.contains(last)) return true;
-  final opener = _openerOf[last];
-  if (opener == null) return false;
-  return last.allMatches(link).length > opener.allMatches(link).length;
+int _lengthWithoutStrayPunctuation(String link) {
+  final counts = <String, int>{};
+  for (var i = 0; i < link.length; i++) {
+    counts.update(link[i], (n) => n + 1, ifAbsent: () => 1);
+  }
+  var length = link.length;
+  while (length > 0) {
+    final last = link[length - 1];
+    if (!_sentencePunctuation.contains(last)) {
+      final opener = _openerOf[last];
+      if (opener == null || counts[last]! <= (counts[opener] ?? 0)) break;
+      counts[last] = counts[last]! - 1;
+    }
+    length--;
+  }
+  return length;
 }
 
 const _safeExternalSchemes = {'https', 'http', 'mailto'};

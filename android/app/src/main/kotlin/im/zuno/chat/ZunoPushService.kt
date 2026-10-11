@@ -10,6 +10,8 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONObject
+import org.unifiedpush.android.connector.FailedReason
+import org.unifiedpush.android.connector.data.PushEndpoint
 import org.unifiedpush.android.connector.data.PushMessage
 import org.unifiedpush.flutter.connector.Plugin
 import org.unifiedpush.flutter.connector.UnifiedPushService
@@ -38,7 +40,7 @@ class ZunoPushService : UnifiedPushService() {
         val action = PushEngineDecision.decide(
             appEngineAlive = AppEngine.alive,
             headlessEngineGeneration = headlessEngineGeneration,
-            pluginCount = Plugin.count,
+            appEngineGeneration = AppEngine.generation,
         )
         when (action) {
             PushEngineAction.UseExistingAppEngine,
@@ -62,7 +64,7 @@ class ZunoPushService : UnifiedPushService() {
         val registry = engine.plugins
         (registry.get(Plugin::class.java) as? Plugin) ?: Plugin().also { registry.add(it) }
         headlessEngine = engine
-        headlessEngineGeneration = Plugin.count
+        headlessEngineGeneration = AppEngine.generation
     }
 
     override fun onMessage(message: PushMessage, instance: String) {
@@ -79,12 +81,32 @@ class ZunoPushService : UnifiedPushService() {
 
             PushKind.BADGE -> Unit
         }
-        val hold = PushEngineDecision.shouldHoldWakeLock(
-            appEngineAlive = AppEngine.alive,
-            hasHeadlessEngine = headlessEngine != null,
-        )
-        if (hold) PushWakeLock.hold(applicationContext, eventId)
-        super.onMessage(message, instance)
+        PushWakeLock.hold(applicationContext, eventId)
+        deliver { super.onMessage(message, instance) }
+    }
+
+    override fun onNewEndpoint(endpoint: PushEndpoint, instance: String) {
+        deliver { super.onNewEndpoint(endpoint, instance) }
+    }
+
+    override fun onRegistrationFailed(reason: FailedReason, instance: String) {
+        deliver { super.onRegistrationFailed(reason, instance) }
+    }
+
+    override fun onUnregistered(instance: String) {
+        deliver { super.onUnregistered(instance) }
+    }
+
+    override fun onTempUnavailable(instance: String) {
+        deliver { super.onTempUnavailable(instance) }
+    }
+
+    private fun deliver(forward: () -> Unit) {
+        val run = {
+            ensureDeliveryEngine()
+            forward()
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) run() else main.post(run)
     }
 
     private fun notificationOf(message: PushMessage): JSONObject? = try {

@@ -53,6 +53,8 @@ Background sync has no push at all: a foreground service keeps `/sync` running.
 - **The fetch contract** (`getEventByPushNotification`). `null` means there is nothing to show, such as a message read on another device, and retracts any placeholder. Only a throw, meaning the fetch failed, keeps the placeholder.
 - **Read elsewhere is Synapse's receipt rule, as on iOS.** The client catches up beside the fetch, and once that sync has reached the event, a room notification count of 0 means the message was read on another device, so it stays silent.
 - **One poster for both producers.** The push handler and the sync path (`MessageNotificationNotifier`) both call `postMessageNotification`, never `showMessage`, with text from `event_display.dart`. Invitations, verification requests and join requests post through it too. The notified-events store makes each event notify once, whichever path posts first.
+- **Names wait for the members that name the chat.** The SDK loads no members at startup, and a chat whose members are not loaded names itself from usernames, so every notification name is computed only after those members are loaded from local storage: Dart's lines and "New message" placeholders, the Android name cache the instant notice reads, and the iOS read model's title and partner. A one-to-one chat's partner is loaded even when the chat has its own name, because the partner names the sender and the ring.
+- **The sync path clears a room read elsewhere only after that room's posts in flight**, and registers each post before any wait, so a post still loading names never lands after the clean-up of the same sync.
 - **Mentions-only** posts other messages quietly, and not at all while Zuno is in front.
 - **The sync path ignores the initial sync**, so a cache clear cannot replay old messages as new.
 - **An event not yet decrypted posts a "New message" placeholder from sync.** The real line replaces it when the key arrives soon after, and a decrypted event that needs no notification withdraws it.
@@ -98,7 +100,9 @@ FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart rea
 
 ### Android: UnifiedPush, background sync and push engines
 
-- **`ZunoPushService` replaces the UnifiedPush connector's service**, because the connector's bound-service delivery holds no wake lock. It posts the instant notice, holds a wake lock until Dart has handled the push, and delivers to the app engine, else to a headless engine (`--unifiedpush-bg`).
+- **`ZunoPushService` replaces the UnifiedPush connector's service**, because the connector's bound-service delivery holds no wake lock. It posts the instant notice and takes the push wake lock as the message arrives, before handing it on, and holds it until Dart has handled the push.
+- **The service picks the delivery engine for every connector event, on the main thread**: the app engine, else a headless engine (`--unifiedpush-bg`) it boots or replaces. The connector calls in on a background thread, and engines start only on the main thread.
+- **A headless engine is replaced only when an app engine attached after it booted**, because that engine's plugin took the pushes; an engine that merely registers the plugin, such as the notification-action engine, leaves it in place.
 - **Push engines register an explicit plugin allowlist** (`PushEnginePlugins`), not the generated registrant, because some plugins carry process-wide state. flutter_webrtc, for one, repoints its process-wide singleton at the newest engine that registers it, which would send a live call's WebRTC events to a push engine.
 - **Battery.** Both fallbacks need a battery exemption, and UnifiedPush needs one for the distributor as well. Where a maker's autostart screen exists, Delivery shows an Autostart row and onboarding asks once (`onboarding.md`).
 - **Background sync** is a foreground service keeping the app's `/sync` running, typed `specialUse` on Android 14+. In the background it uses the long long-poll and pauses while the device has no network (`app-foundation.md`).
@@ -111,6 +115,7 @@ FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart rea
 - **The pusher's `default_payload`** is a "New message" alert with `mutable-content: 1`, which runs the NSE. The static text shows only when the NSE cannot run. The payload names the message tone only while Message tone is on, so toggling the tone re-posts the pusher.
 - **Dropped pushers are counted.** Sygnal deletes a pusher only after APNs rejected its token, so the app counts each drop before re-posting and shows the count in the banner and diagnostics. A quiet re-post would hide a wrong environment, topic or encoding.
 - **The app presents in front, the NSE out of front.** In front, the app posts from sync and records what it showed, so no event shows twice, and a pushed alert that arrives in front shows nothing.
+- **The app refines its own "New message" placeholder even after it leaves the front**, because it already marked the event shown, so the extension never will.
 - **The badge is computed on the device**, from rooms with unread messages or an invitation. The app sets it from sync, and the NSE with each line. The iOS Sygnal apps need `send_badge_counts: false`, or receipt-driven badge pushes overwrite it.
 - **Alerts leave once read.** The app removes a read room's pushed alerts, and the NSE sweeps them on its next fetch.
 
@@ -133,6 +138,7 @@ The target is `ios/NotificationService/`, with its logic in `ios/NotifyShared/` 
 | Undecryptable, no credential, route failure | A loud floor |
 
 - **Every push shows something.** Without Apple's filtering entitlement an extension cannot drop a push, so passive lines stand in for silence.
+- **A one-to-one chat's sender is named after the stored partner** when the fetch brings no name, the same rule the ring uses, and after the username only when neither exists.
 - **Catch-up.** Each fetch reply also carries `missed` events and `read_rooms`, so the extension posts what it missed and takes down alerts for rooms read elsewhere. It exists because APNs keeps only one pending push per app for an offline device.
 - **Catch-up claims stay pending until their line is posted**, and the next run releases the pending claims of a run that died, so an event a killed run claimed but never posted can still show.
 - **Trimmed session export.** Per room, the app exports only recent sessions, each starting just past what it had already decrypted, so the extension can decrypt new messages but never history. Muted rooms, idle rooms, preview Nothing and notifications off export none.
@@ -207,6 +213,7 @@ Both platforms show the permission, this device's registration and the module's 
 ## Decisions
 
 - **FCM is app-owned Kotlin, not the Flutter Firebase plugins.** `firebase_messaging` builds its own background engine, so the app could not route a push to the running app, choose that engine's plugins or hold the service while Dart works. A Flutter plugin would also compile Firebase into iOS.
+- **UnifiedPush comes from its Android implementation package, not the `unifiedpush` umbrella**, because the umbrella also brings its Linux implementation, whose WebPush crypto library then builds into both mobile apps.
 - **Pushes go to the running app first.** While the app holds the client lease, a push engine cannot open a client at all, and the app's warm client skips an engine boot.
 - **FCM first, then UnifiedPush, then background sync.** Only a high-priority FCM message earns a temporary power allowlist, while the fallbacks depend on battery exemptions.
 - **An instant notice whenever the app is not in front.** A cold push takes seconds to reach the screen, while the notice lands at process start.

@@ -114,6 +114,29 @@ void main() {
     },
   );
 
+  testWidgets('only a delivered message can be swiped to reply', (
+    tester,
+  ) async {
+    Event own(String id, EventStatus status) => buildTestEvent(
+      room,
+      eventId: id,
+      senderId: me,
+      originServerTs: noon,
+      status: status,
+      content: {'msgtype': 'm.text', 'body': 'body of $id'},
+    );
+    final timeline = await timelineOf(tester, [
+      own('txn-failed', EventStatus.error),
+      own('txn-sending', EventStatus.sending),
+      own(r'$sent', EventStatus.sent),
+    ]);
+    await pumpList(tester, () => timeline);
+
+    expect(tile(tester, r'$sent').onSwipeReply, isNotNull);
+    expect(tile(tester, 'txn-sending').onSwipeReply, isNull);
+    expect(tile(tester, 'txn-failed').onSwipeReply, isNull);
+  });
+
   testWidgets('a reaction rebuilds only its message', (tester) async {
     final timeline = await timelineOf(tester, [text(r'$m2'), text(r'$m1')]);
     await pumpList(tester, () => timeline);

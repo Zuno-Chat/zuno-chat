@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
@@ -20,10 +21,12 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
+import 'package:zuno/features/chat/data/discarded_sends.dart';
 import 'package:zuno/features/chat/presentation/caption_bar.dart';
 import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/message_composer.dart';
+import 'package:zuno/features/chat/presentation/message_contents/file_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
@@ -36,10 +39,36 @@ import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_video_player.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/pump_until.dart';
+import '../../../helpers/route_launcher.dart';
 import 'room_page_harness.dart';
 
 XFile _video(String name) =>
     XFile('/picked/$name', name: name, mimeType: 'video/mp4');
+
+class _CachedFilesDatabase extends SendingFakeDatabaseApi {
+  @override
+  Future<Uint8List?> getFile(Uri mxcUri) async => Uint8List.fromList([1, 2, 3]);
+}
+
+class _StoringDatabase extends SendingFakeDatabaseApi {
+  @override
+  Future<void> storeEventUpdate(
+    String roomId,
+    StrippedStateEvent event,
+    EventUpdateType type,
+    Client client,
+  ) async {
+    if (event is! MatrixEvent) return;
+    final stored = Event.fromMatrixEvent(event, client.getRoomById(roomId)!);
+    final txid = stored.transactionId;
+    events.removeWhere(
+      (e) =>
+          e.eventId == stored.eventId ||
+          (txid != null && e.transactionId == txid),
+    );
+    events.insert(0, stored);
+  }
+}
 
 void main() {
   late RoomPageHarness harness;
@@ -49,8 +78,10 @@ void main() {
   late bool uploadsFail;
   late int? uploadLimit;
   late bool locationFails;
+  late Future<void> Function(String method) beforeVideoTool;
 
   setUp(() {
+    beforeVideoTool = (_) async {};
     picker = installFakeImagePicker();
     files = installFakeFilePicker();
     uploadsFail = false;
@@ -66,6 +97,7 @@ void main() {
     const video = MethodChannel('zuno/video');
     const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
     messenger.setMockMethodCallHandler(video, (call) async {
+      await beforeVideoTool(call.method);
       final args = call.arguments as Map;
       switch (call.method) {
         case 'probe':
@@ -131,6 +163,9 @@ void main() {
     WidgetTester tester, {
     List<Override> overrides = const [],
     bool encrypting = false,
+    bool reopenable = false,
+    SendingFakeDatabaseApi? db,
+    Map<String, Object> preferences = const {},
     void Function(Room room)? prepare,
   }) async {
     ambientCapabilities = capabilitiesLike(
@@ -139,11 +174,13 @@ void main() {
       nativeImageResize: false,
     );
     harness = RoomPageHarness(
-      db: SendingFakeDatabaseApi(),
+      db: db ?? (reopenable ? _StoringDatabase() : SendingFakeDatabaseApi()),
       capabilities: capabilitiesLike(iosCapabilities, nativeImageResize: false),
       overrides: overrides,
       encrypting: encrypting,
+      preferences: preferences,
     );
+    harness.db.events = [harness.message(r'$m1')];
     prepare?.call(harness.room);
     harness.respond = (request) {
       final path = request.url.path;
@@ -176,8 +213,19 @@ void main() {
       }
       return null;
     };
-    harness.db.events = [harness.message(r'$m1')];
-    await harness.pumpRoomPage(tester);
+    if (!reopenable) {
+      await harness.pumpRoomPage(tester);
+      return;
+    }
+    await tester.pumpWidget(
+      await harness.app(
+        home: Scaffold(
+          body: routeLauncher((_) => RoomPage(room: harness.room)),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await harness.settle(tester);
   }
 
   Future<void> openAttachMenu(WidgetTester tester) async {
@@ -665,6 +713,451 @@ void main() {
       );
 
       expect(harness.sent.single['msgtype'], 'm.image');
+    });
+  });
+
+  group('deleting while still sending', () {
+    late Completer<void> heldUpload;
+    late List<String> redacted;
+    late int uploads;
+    late int? uploadsWhenLastPosted;
+    late bool laterUploadsFail;
+    late int posted;
+    late bool held;
+    late List<Event> placeholders;
+
+    void holdUpload({required int afterPosts}) {
+      placeholders = [];
+      final sub = harness.client.onTimelineEvent.stream
+          .where((e) => e.status.isSending)
+          .map(
+            (e) => Event.fromJson(
+              jsonDecode(jsonEncode(e.toJson())) as Map<String, dynamic>,
+              e.room,
+            ),
+          )
+          .listen(placeholders.add);
+      addTearDown(sub.cancel);
+      heldUpload = Completer<void>();
+      redacted = [];
+      uploads = 0;
+      uploadsWhenLastPosted = null;
+      laterUploadsFail = false;
+      posted = 0;
+      held = false;
+      final respond = harness.respond!;
+      harness.respond = (request) async {
+        final path = request.url.path;
+        if (path.endsWith('/upload')) {
+          uploads++;
+          if (posted == afterPosts && !held) {
+            held = true;
+            await heldUpload.future;
+          }
+          if (posted == afterPosts && laterUploadsFail) {
+            return http.Response(
+              jsonEncode({'errcode': 'M_UNKNOWN', 'error': 'boom'}),
+              500,
+            );
+          }
+        }
+        if (path.contains('/send/m.room.message/')) {
+          harness.sent.add(jsonDecode(request.body) as Map<String, Object?>);
+          uploadsWhenLastPosted = uploads;
+          return http.Response(
+            jsonEncode({'event_id': '\$item${++posted}'}),
+            200,
+          );
+        }
+        if (path.contains('/redact/')) {
+          redacted.add(
+            Uri.decodeComponent(request.url.pathSegments.reversed.elementAt(1)),
+          );
+          return http.Response(jsonEncode({'event_id': r'$redaction'}), 200);
+        }
+        return respond(request);
+      };
+    }
+
+    Future<void> drain(WidgetTester tester) => harness.drive(tester, turns: 30);
+
+    Future<SharedPreferences> storedOnDisk() async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      return prefs;
+    }
+
+    Future<Map<String, Object>> storedPreferences() async {
+      final prefs = await storedOnDisk();
+      return {for (final key in prefs.getKeys()) key: prefs.get(key)!};
+    }
+
+    Future<DiscardedSends> discardRecord() async =>
+        DiscardedSends(await storedOnDisk());
+
+    Event asNotSent(Event placeholder) => Event.fromJson(
+      jsonDecode(
+        jsonEncode({
+          ...placeholder.toJson(),
+          'status': EventStatus.error.intValue,
+        }),
+      ) as Map<String, dynamic>,
+      harness.room,
+    );
+
+    Future<void> restartOffline(
+      WidgetTester tester, {
+      required Map<String, Object> preferences,
+      required List<Event> Function() events,
+      required StreamController<ConnectionStatus> status,
+    }) async {
+      await tester.pumpWidget(const SizedBox());
+      await openRoom(
+        tester,
+        db: _CachedFilesDatabase(),
+        preferences: preferences,
+        overrides: [
+          connectionStatusProvider.overrideWith((ref) => status.stream),
+        ],
+        prepare: (_) => harness.db.events = events(),
+      );
+      status.add(ConnectionStatus.noInternet);
+      await harness.drive(tester, turns: 2);
+    }
+
+    Iterable<String> sendsAfterRestart() => harness.requests.where(
+      (path) => path.endsWith('/upload') || path.contains('/send/'),
+    );
+
+    Future<void> confirmDelete(
+      WidgetTester tester,
+      Finder row,
+      String action,
+    ) async {
+      await tester.longPress(row, warnIfMissed: false);
+      await harness.settle(tester);
+      await tester.tap(find.widgetWithText(ListTile, action));
+      await harness.settle(tester);
+      await tester.tap(
+        find.widgetWithText(
+          TextButton,
+          action.startsWith('Delete all') ? 'Delete all' : 'Delete',
+        ),
+      );
+      await harness.settle(tester);
+    }
+
+    group('a gallery', () {
+      Future<void> sendGalleryHoldingSecond(
+        WidgetTester tester, {
+        int photos = 3,
+        bool reopenable = false,
+      }) async {
+        picker.answer = [for (var i = 0; i < photos; i++) photo('$i.jpg')];
+        await openRoom(tester, reopenable: reopenable);
+        holdUpload(afterPosts: 1);
+        await choose(tester, 'Choose from gallery');
+        await sendFromComposer(
+          tester,
+          tooltip: 'Send all',
+          awaiting: 'the second photo to start uploading',
+          until: () => held,
+        );
+        await harness.settle(tester);
+      }
+
+      Future<void> deleteGallery(WidgetTester tester, String action) =>
+          confirmDelete(tester, find.byType(GalleryMessage), action);
+
+      testWidgets('deletes what arrived and the photo on its way once it '
+          'lands, and sends nothing more', (tester) async {
+        await sendGalleryHoldingSecond(tester);
+
+        await deleteGallery(tester, 'Delete all (2)');
+        expect(redacted, [r'$item1']);
+
+        heldUpload.complete();
+        await pumpUntil(
+          tester,
+          () => redacted.length == 2,
+          reason: 'the late photo to be deleted',
+        );
+        await drain(tester);
+
+        expect(redacted, [r'$item1', r'$item2']);
+        expect(harness.sent, hasLength(2));
+        expect(uploads, uploadsWhenLastPosted);
+      });
+
+      testWidgets('Cancel lets every photo go', (tester) async {
+        await sendGalleryHoldingSecond(tester);
+
+        await tester.longPress(
+          find.byType(GalleryMessage),
+          warnIfMissed: false,
+        );
+        await harness.settle(tester);
+        await tester.tap(find.widgetWithText(ListTile, 'Delete all (2)'));
+        await harness.settle(tester);
+        await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+        await harness.settle(tester);
+        heldUpload.complete();
+        await pumpUntil(
+          tester,
+          () => harness.sent.length == 3,
+          reason: 'every photo to be sent',
+        );
+
+        expect(redacted, isEmpty);
+      });
+
+      testWidgets('drops its failed photos instead of offering them again', (
+        tester,
+      ) async {
+        await sendGalleryHoldingSecond(tester, photos: 2);
+        laterUploadsFail = true;
+        heldUpload.complete();
+        await pumpUntil(
+          tester,
+          () => failedTiles() == 1,
+          reason: 'the second photo to fail',
+        );
+
+        await deleteGallery(tester, 'Delete');
+        await drain(tester);
+
+        expect(redacted, [r'$item1']);
+        expect(failedTiles(), 0);
+        expect(harness.sent, hasLength(1));
+      });
+
+      testWidgets('works from the chat opened again while the batch runs', (
+        tester,
+      ) async {
+        await sendGalleryHoldingSecond(tester, reopenable: true);
+
+        await tester.pageBack();
+        await harness.settle(tester);
+        await tester.tap(find.text('open'));
+        await harness.settle(tester);
+        await deleteGallery(tester, 'Delete all (2)');
+        heldUpload.complete();
+        await pumpUntil(
+          tester,
+          () => redacted.length == 2,
+          reason: 'the late photo to be deleted',
+        );
+        await drain(tester);
+
+        expect(redacted, [r'$item1', r'$item2']);
+        expect(harness.sent, hasLength(2));
+      });
+
+      testWidgets('a photo going again after a restart is deleted once it '
+          'lands', (tester) async {
+        final status = StreamController<ConnectionStatus>.broadcast();
+        addTearDown(status.close);
+        Event galleryPhoto(String id, int index, EventStatus sendStatus) =>
+            buildTestEvent(
+              harness.room,
+              eventId: id,
+              senderId: '@me:example.org',
+              originServerTs: DateTime(2026, 9, 20, 12, 5 + index),
+              status: sendStatus,
+              content: {
+                'msgtype': 'm.image',
+                'body': 'photo.jpg',
+                'filename': 'photo.jpg',
+                if (sendStatus.isSent) 'url': 'mxc://example.org/p$index',
+                'info': {'w': 40, 'h': 30, 'mimetype': 'image/jpeg'},
+                ...galleryGroupContent(id: 'g', index: index, count: 2),
+              },
+            );
+        await openRoom(
+          tester,
+          db: _CachedFilesDatabase(),
+          overrides: [
+            connectionStatusProvider.overrideWith((ref) => status.stream),
+          ],
+          prepare: (_) => harness.db.events = [
+            galleryPhoto('txn-2', 1, EventStatus.error)
+              ..unsigned = {
+                'transaction_id': 'txn-2',
+                'extra_content': galleryGroupContent(
+                  id: 'g',
+                  index: 1,
+                  count: 2,
+                ),
+              },
+            galleryPhoto(r'$p1', 0, EventStatus.synced),
+          ],
+        );
+        holdUpload(afterPosts: 0);
+        status.add(ConnectionStatus.noInternet);
+        await harness.drive(tester, turns: 2);
+        status.add(ConnectionStatus.online);
+        await pumpUntil(
+          tester,
+          () => held,
+          reason: 'the photo to start uploading again',
+        );
+        await harness.settle(tester);
+
+        await deleteGallery(tester, 'Delete all (2)');
+        heldUpload.complete();
+        await pumpUntil(
+          tester,
+          () => redacted.length == 2,
+          reason: 'the photo sent again to be deleted',
+        );
+
+        expect(redacted, [r'$p1', r'$item1']);
+      });
+
+      testWidgets('stays deleted after a restart: the photo left on its way '
+          'is dropped, not sent again', (tester) async {
+        final status = StreamController<ConnectionStatus>.broadcast();
+        addTearDown(status.close);
+        await sendGalleryHoldingSecond(tester);
+        final onItsWay = placeholders.last;
+        await deleteGallery(tester, 'Delete all (2)');
+        final stored = await storedPreferences();
+
+        await restartOffline(
+          tester,
+          preferences: stored,
+          events: () => [asNotSent(onItsWay), harness.message(r'$m1')],
+          status: status,
+        );
+        status.add(ConnectionStatus.online);
+        await drain(tester);
+
+        expect(find.byType(NotSentRow), findsNothing);
+        expect(sendsAfterRestart(), isEmpty);
+        expect(
+          (await storedPreferences()).keys,
+          everyElement(isNot(startsWith('chat.'))),
+        );
+      });
+    });
+
+    testWidgets('deleting the one photo shown of a batch still being '
+        'prepared leaves the rest to go', (tester) async {
+      final probe = Completer<void>();
+      var probes = 0;
+      picker.answer = [photo('a.jpg'), _video('b.mp4'), photo('c.jpg')];
+      await openRoom(tester);
+      holdUpload(afterPosts: 99);
+      beforeVideoTool = (method) async {
+        if (method == 'probe' && posted == 1 && probes++ == 0) {
+          await probe.future;
+        }
+      };
+      await choose(tester, 'Choose from gallery');
+      await sendFromComposer(
+        tester,
+        tooltip: 'Send all',
+        awaiting: 'the video to start being prepared',
+        until: () => probes == 1,
+      );
+      await harness.settle(tester);
+
+      await confirmDelete(tester, find.byType(ImageMessage), 'Delete');
+      probe.complete();
+      await pumpUntil(
+        tester,
+        () => harness.sent.length == 3,
+        reason: 'the rest of the batch to be sent',
+      );
+
+      expect(redacted, [r'$item1']);
+    });
+
+    Future<Event> sendFileShownAsNotSent(WidgetTester tester) async {
+      files.picked = [
+        FakePickedFile('a.pdf', Uint8List.fromList([1])),
+      ];
+      await openRoom(tester);
+      holdUpload(afterPosts: 0);
+      await choose(tester, 'Choose file');
+      await pumpUntil(
+        tester,
+        () => held,
+        reason: 'the file to start uploading',
+      );
+      final onItsWay = placeholders.first;
+      harness.client.onTimelineEvent.add(asNotSent(onItsWay));
+      await harness.settle(tester);
+      return onItsWay;
+    }
+
+    testWidgets('a file shown as not sent while it still uploads is deleted '
+        'once it lands', (tester) async {
+      final onItsWay = await sendFileShownAsNotSent(tester);
+      expect(find.byType(NotSentRow), findsOneWidget);
+
+      await confirmDelete(tester, find.byType(FileMessage), 'Delete');
+      expect(redacted, isEmpty);
+      heldUpload.complete();
+      await pumpUntil(
+        tester,
+        () => redacted.isNotEmpty,
+        reason: 'the late file to be deleted',
+      );
+
+      expect(redacted, [r'$item1']);
+      expect(
+        (await discardRecord()).contains(harness.room, [onItsWay.eventId]),
+        isFalse,
+      );
+    });
+
+    testWidgets('a file deleted while it uploads stays deleted after a '
+        'restart, and is never sent again', (tester) async {
+      final status = StreamController<ConnectionStatus>.broadcast();
+      addTearDown(status.close);
+      final onItsWay = await sendFileShownAsNotSent(tester);
+      await confirmDelete(tester, find.byType(FileMessage), 'Delete');
+      final stored = await storedPreferences();
+
+      await restartOffline(
+        tester,
+        preferences: stored,
+        events: () => [asNotSent(onItsWay), harness.message(r'$m1')],
+        status: status,
+      );
+      expect(find.byType(FileMessage), findsNothing);
+      status.add(ConnectionStatus.online);
+      await drain(tester);
+
+      expect(sendsAfterRestart(), isEmpty);
+      expect(
+        (await discardRecord()).contains(harness.room, [onItsWay.eventId]),
+        isFalse,
+      );
+    });
+
+    testWidgets('a record that matches nothing unsent is cleared when the '
+        'chat opens', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final seeded = await SharedPreferences.getInstance();
+      final elsewhere = buildTestRoom(
+        buildTestClient(userId: '@me:example.org'),
+      );
+      await DiscardedSends(seeded).add(elsewhere, 'txn-long-gone');
+      final stored = await storedPreferences();
+      expect(stored, isNotEmpty);
+
+      await openRoom(tester, preferences: stored);
+
+      expect(
+        (await discardRecord()).contains(harness.room, ['txn-long-gone']),
+        isFalse,
+      );
+      expect(
+        (await storedPreferences()).keys,
+        everyElement(isNot(startsWith('chat.'))),
+      );
     });
   });
 

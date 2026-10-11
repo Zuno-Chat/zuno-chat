@@ -32,6 +32,10 @@ SecurityPromptDecision securityPromptDecision({
 }
 
 bool recoveryPromptDefersToOnboarding({
-  required bool flowInProgress,
+  required OnboardingFlow flow,
   required List<OnboardingStep> pendingSteps,
-}) => flowInProgress || pendingSteps.isNotEmpty;
+}) => switch (flow) {
+  OnboardingFlow.undecided => pendingSteps.isNotEmpty,
+  OnboardingFlow.open => true,
+  OnboardingFlow.done => false,
+};

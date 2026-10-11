@@ -101,9 +101,7 @@ dependencies:
   video_player: ^2.14.0
   image: ^4.10.1
   flutter_svg: ^2.3.0
-  unifiedpush: ^6.2.0
-  # unifiedpush_platform_interface types (PublicKeySet, PushEndpoint) are
-  # used directly for WebPush key sets and for registering callbacks.
+  unifiedpush_android: ^3.5.0
   unifiedpush_platform_interface: ^4.0.0
   # Verification QR codes (docs/features/security-verification.md). Both are
   # needed because the Matrix QR payload is raw bytes, not text: qr_flutter
@@ -152,17 +150,6 @@ dev_dependencies:
 # version that still has it until flutter_html publishes a fix upstream.
 dependency_overrides:
   html: 0.15.6
-  # webcrypto 0.6.1 switched from Flutter plugin scaffolding to Dart
-  # native build hooks — so it now needs a real cmake on whatever host
-  # runs `flutter test`, not just at an actual platform build. It only
-  # reaches this graph at all via unifiedpush's *Linux desktop* plugin
-  # (webpush_encryption, for the federated Linux implementation this
-  # Android and iOS app never uses), so it's only ever built for the host
-  # platform `flutter test` resolves against, never for a real Android
-  # build. Pinned to the last version that built without cmake until
-  # either cmake is available in every dev/CI environment or unifiedpush
-  # stops pulling in a desktop implementation for host-side tests.
-  webcrypto: 0.6.0
 
 hooks:
   user_defines:

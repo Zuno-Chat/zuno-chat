@@ -82,14 +82,14 @@ void main() {
     test('the dialog steps aside while onboarding still has steps to ask', () {
       expect(
         recoveryPromptDefersToOnboarding(
-          flowInProgress: false,
+          flow: OnboardingFlow.undecided,
           pendingSteps: const [OnboardingStep.setUpRecovery],
         ),
         isTrue,
       );
       expect(
         recoveryPromptDefersToOnboarding(
-          flowInProgress: false,
+          flow: OnboardingFlow.undecided,
           pendingSteps: const [OnboardingStep.notifications],
         ),
         isTrue,
@@ -99,7 +99,7 @@ void main() {
     test('the dialog steps aside while the flow is open', () {
       expect(
         recoveryPromptDefersToOnboarding(
-          flowInProgress: true,
+          flow: OnboardingFlow.open,
           pendingSteps: const [],
         ),
         isTrue,
@@ -109,8 +109,19 @@ void main() {
     test('the dialog goes ahead once onboarding has nothing left', () {
       expect(
         recoveryPromptDefersToOnboarding(
-          flowInProgress: false,
+          flow: OnboardingFlow.undecided,
           pendingSteps: const [],
+        ),
+        isFalse,
+      );
+    });
+
+    test('the dialog goes ahead once the flow has run, whatever is still '
+        'listed', () {
+      expect(
+        recoveryPromptDefersToOnboarding(
+          flow: OnboardingFlow.done,
+          pendingSteps: const [OnboardingStep.batteryExemption],
         ),
         isFalse,
       );

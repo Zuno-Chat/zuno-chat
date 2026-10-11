@@ -39,12 +39,23 @@ const _settled = AccountSecurityFacts(
   unapprovedOtherDevices: 0,
 );
 
+const _locked = AccountSecurityFacts(
+  recoveryExists: true,
+  thisDeviceHasIdentityKeys: false,
+  keyBackupExists: true,
+  keyBackupUsableHere: false,
+  unapprovedOtherDevices: 0,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  late FakePermissions permissions;
+  late RecordedMethodCalls backgroundSync;
+
   setUp(() {
-    installFakePermissions();
-    recordMethodChannel(
+    permissions = installFakePermissions();
+    backgroundSync = recordMethodChannel(
       'zuno/background_sync',
       reply: (call) => switch (call.method) {
         'isIgnoringBatteryOptimizations' => false,
@@ -59,12 +70,15 @@ void main() {
     PlatformCapabilities capabilities, {
     Map<String, Object> prefs = const {},
     AccountSecurityFacts facts = _settled,
+    Stream<AccountSecurityFacts>? factsOverTime,
     bool synced = false,
   }) => containerWithPreferences(
     prefs,
     overrides: [
       matrixClientProvider.overrideWithValue(client),
-      accountSecurityFactsProvider.overrideWith((ref) => Stream.value(facts)),
+      accountSecurityFactsProvider.overrideWith(
+        (ref) => factsOverTime ?? Stream.value(facts),
+      ),
       platformCapabilitiesProvider.overrideWithValue(capabilities),
       if (synced) firstSyncProvider.overrideWith((ref) async {}),
     ],
@@ -150,6 +164,117 @@ void main() {
 
       expect(seen, [
         [OnboardingStep.confirmPeople],
+      ]);
+    });
+
+    test('a new account on Android is asked what it needs, in flow '
+        'order', () async {
+      permissions.onCheck = permissionDenied;
+
+      final steps = await stepsOn(
+        androidCapabilities,
+        prefs: const {'onboarding.registered.$_userId': true},
+        facts: _locked,
+      );
+
+      expect(steps, [
+        OnboardingStep.welcome,
+        OnboardingStep.profile,
+        OnboardingStep.notifications,
+        OnboardingStep.deliveryMethod,
+        OnboardingStep.approveDevice,
+        OnboardingStep.confirmPeople,
+      ]);
+    });
+  });
+
+  group('a sync', () {
+    late StreamController<AccountSecurityFacts> syncs;
+    late List<List<OnboardingStep>> computed;
+
+    Future<void> settle() async {
+      ambientCapabilities = androidCapabilities;
+      syncs = StreamController<AccountSecurityFacts>();
+      addTearDown(syncs.close);
+      computed = [];
+      final client = buildTestClient(userId: _userId);
+      client.rooms.add(
+        buildTestRoom(client, id: '!chat:x')..membership = Membership.join,
+      );
+      final container = await containerFor(
+        client,
+        androidCapabilities,
+        prefs: const {
+          'settings.notification_delivery_mode': 'backgroundService',
+          'onboarding.shown.$_userId': ['deliveryMethod', 'confirmPeople'],
+        },
+        factsOverTime: syncs.stream,
+        synced: true,
+      );
+      container.listen(isLoggedInProvider, (_, _) {});
+      await container.read(isLoggedInProvider.future);
+      container.listen(onboardingStepsProvider, (_, next) {
+        if (!next.isLoading && next.hasValue) computed.add(next.requireValue);
+      });
+      syncs.add(_settled);
+      await container.read(onboardingStepsProvider.future);
+      await pumpEventQueue();
+    }
+
+    test("that leaves recovery and this device's keys alone neither "
+        'recomputes the steps nor checks the platform again', () async {
+      await settle();
+      final checks = [...permissions.calls, ...backgroundSync.methods];
+      expect(checks, isNotEmpty);
+
+      for (var i = 1; i <= 3; i++) {
+        syncs.add(
+          AccountSecurityFacts(
+            recoveryExists: true,
+            thisDeviceHasIdentityKeys: true,
+            keyBackupExists: true,
+            keyBackupUsableHere: true,
+            unapprovedOtherDevices: i,
+          ),
+        );
+        await pumpEventQueue();
+      }
+
+      expect(computed, [
+        [OnboardingStep.batteryExemption],
+      ]);
+      expect([...permissions.calls, ...backgroundSync.methods], checks);
+    });
+
+    test('that locks this device recomputes the steps', () async {
+      await settle();
+
+      syncs.add(_locked);
+      await pumpEventQueue();
+
+      expect(computed, [
+        [OnboardingStep.batteryExemption],
+        [OnboardingStep.batteryExemption, OnboardingStep.approveDevice],
+      ]);
+    });
+
+    test('that removes recovery recomputes the steps', () async {
+      await settle();
+
+      syncs.add(
+        const AccountSecurityFacts(
+          recoveryExists: false,
+          thisDeviceHasIdentityKeys: false,
+          keyBackupExists: false,
+          keyBackupUsableHere: false,
+          unapprovedOtherDevices: 0,
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(computed, [
+        [OnboardingStep.batteryExemption],
+        [OnboardingStep.batteryExemption, OnboardingStep.setUpRecovery],
       ]);
     });
   });

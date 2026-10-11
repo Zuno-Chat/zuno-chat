@@ -15,15 +15,11 @@ PODS:
   - SQLCipher/common (4.10.0)
   - SQLCipher/standard (4.10.0):
     - SQLCipher/common
-  - webcrypto (0.1.1):
-    - Flutter
-    - FlutterMacOS
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
   - light_compressor (from `.symlinks/plugins/light_compressor/ios`)
   - sqflite_sqlcipher (from `.symlinks/plugins/sqflite_sqlcipher/ios`)
-  - webcrypto (from `.symlinks/plugins/webcrypto/darwin`)
 
 SPEC REPOS:
   trunk:
@@ -37,8 +33,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/light_compressor/ios"
   sqflite_sqlcipher:
     :path: ".symlinks/plugins/sqflite_sqlcipher/ios"
-  webcrypto:
-    :path: ".symlinks/plugins/webcrypto/darwin"
 
 SPEC CHECKSUMS:
   Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
@@ -46,7 +40,6 @@ SPEC CHECKSUMS:
   light_compressor: 9ce7bab5b53220392d1f3e2708c2b1310229d0e5
   sqflite_sqlcipher: 8e5bdaae6b2c254f8a277a564f07bc4e2a8642a3
   SQLCipher: eb79c64049cb002b4e9fcb30edb7979bf4706dfc
-  webcrypto: a5f5eb3e375cf0a99993e207e97cdcab5c94ce2e
 
 PODFILE CHECKSUM: f33ed30d7d857419eae96b22f2256491591f5e6a
 

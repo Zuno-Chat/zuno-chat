@@ -11,6 +11,19 @@ class FakeDatabaseApi implements DatabaseApi {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class StoredMembersFakeDatabaseApi extends FakeDatabaseApi {
+  final Map<String, String> displayNames = {};
+  final List<String> lookups = [];
+
+  @override
+  Future<User?> getUser(String userId, Room room) async {
+    lookups.add(userId);
+    final name = displayNames[userId];
+    if (name == null) return null;
+    return User(userId, displayName: name, membership: 'join', room: room);
+  }
+}
+
 class SendCapableFakeDatabaseApi extends FakeDatabaseApi
     with SendCapableDatabase {}
 

@@ -39,6 +39,20 @@ void main() {
     );
   }
 
+  void nameRoom(String name) {
+    room.setState(
+      Event(
+        eventId: r'$name',
+        type: EventTypes.RoomName,
+        stateKey: '',
+        senderId: '@me:example.org',
+        originServerTs: DateTime.now(),
+        content: {'name': name},
+        room: room,
+      ),
+    );
+  }
+
   void setCounts({required int joined, int invited = 0}) {
     room.summary.mJoinedMemberCount = joined;
     room.summary.mInvitedMemberCount = invited;
@@ -68,17 +82,7 @@ void main() {
     });
 
     test('a named room is unchanged', () {
-      room.setState(
-        Event(
-          eventId: r'$name',
-          type: EventTypes.RoomName,
-          stateKey: '',
-          senderId: '@me:example.org',
-          originServerTs: DateTime.now(),
-          content: {'name': 'Team'},
-          room: room,
-        ),
-      );
+      nameRoom('Team');
       setCounts(joined: 1);
 
       expect(roomTitle(room), 'Team');
@@ -90,6 +94,84 @@ void main() {
       setCounts(joined: 1);
 
       expect(roomTitle(room), 'Empty chat');
+    });
+  });
+
+  group('loadRoomNameMembers', () {
+    late StoredMembersFakeDatabaseApi db;
+
+    setUp(() {
+      db = StoredMembersFakeDatabaseApi();
+      client = buildTestClient(userId: '@me:example.org', database: db);
+      room = buildTestRoom(client)..membership = Membership.join;
+      client.rooms.add(room);
+    });
+
+    test('names a direct chat after its partner as stored, not their '
+        'username', () async {
+      markDirectWith('@test2:example.org');
+      db.displayNames['@test2:example.org'] = 'George';
+
+      await loadRoomNameMembers(room);
+
+      expect(roomTitle(room), 'George');
+    });
+
+    test('names an unnamed group after its stored members', () async {
+      room.summary.mHeroes = ['@ann:example.org', '@ben:example.org'];
+      db.displayNames.addAll({
+        '@ann:example.org': 'Ann Lee',
+        '@ben:example.org': 'Ben Ode',
+      });
+
+      await loadRoomNameMembers(room);
+
+      expect(roomTitle(room), allOf(contains('Ann Lee'), contains('Ben Ode')));
+    });
+
+    test('a chat with a name still loads its partner, but not its other '
+        'members', () async {
+      markDirectWith('@test2:example.org');
+      nameRoom('Bridged');
+      room.summary.mHeroes = ['@ann:example.org'];
+      db.displayNames['@test2:example.org'] = 'George';
+
+      await loadRoomNameMembers(room);
+
+      expect(db.lookups, ['@test2:example.org']);
+      expect(
+        room
+            .unsafeGetUserFromMemoryOrFallback('@test2:example.org')
+            .calcDisplayname(),
+        'George',
+      );
+    });
+
+    test('looks nobody up for a room with a name', () async {
+      nameRoom('Team');
+      room.summary.mHeroes = ['@ann:example.org'];
+
+      await loadRoomNameMembers(room);
+
+      expect(db.lookups, isEmpty);
+    });
+
+    test('looks up neither me nor a member already loaded', () async {
+      room.summary.mHeroes = ['@me:example.org', '@ann:example.org'];
+      setMember('@ann:example.org', 'join', displayName: 'Ann Lee');
+
+      await loadRoomNameMembers(room);
+
+      expect(db.lookups, isEmpty);
+    });
+
+    test('a partner missing from storage keeps the fallback name', () async {
+      markDirectWith('@test2:example.org');
+
+      await loadRoomNameMembers(room);
+
+      expect(db.lookups, ['@test2:example.org']);
+      expect(roomTitle(room), isNot(contains('George')));
     });
   });
 

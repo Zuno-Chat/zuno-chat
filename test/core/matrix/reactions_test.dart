@@ -10,7 +10,10 @@ import 'package:zuno/core/matrix/reactions.dart';
 import '../../helpers/fake_matrix.dart';
 
 class _ReactionsDatabase extends StoredEventsFakeDatabaseApi
-    with SendCapableDatabase {}
+    with SendCapableDatabase {
+  @override
+  Future<void> removeEvent(String eventId, String roomId) async {}
+}
 
 void main() {
   late _ReactionsDatabase db;
@@ -45,12 +48,14 @@ void main() {
     String senderId,
     String? key, {
     bool redacted = false,
+    EventStatus? status,
   }) {
     final event = buildTestEvent(
       room,
       eventId: eventId,
       senderId: senderId,
       type: EventTypes.Reaction,
+      status: status,
       content: {
         'm.relates_to': {
           'rel_type': RelationshipTypes.reaction,
@@ -146,6 +151,59 @@ void main() {
 
       expect(redacted(), [r'$mine']);
       expect(sentKeys(), ['😂']);
+    });
+
+    test('a reaction of mine that never went out is dropped, not deleted on '
+        'the server', () async {
+      final timeline = await timelineWith([
+        reaction(
+          'txn-mine',
+          '@me:example.org',
+          '👍',
+          status: EventStatus.error,
+        ),
+      ]);
+
+      await toggleReaction(message, timeline, '😂');
+
+      expect(redacted(), isEmpty);
+      expect(sentKeys(), ['😂']);
+      expect(reactionSummaries(message, timeline).map((s) => s.key), ['😂']);
+    });
+
+    test(
+      'taking back a reaction of mine that never went out sends nothing',
+      () async {
+        final timeline = await timelineWith([
+          reaction(
+            'txn-mine',
+            '@me:example.org',
+            '👍',
+            status: EventStatus.error,
+          ),
+        ]);
+
+        await toggleReaction(message, timeline, '👍');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(requests, isEmpty);
+        expect(reactionSummaries(message, timeline), isEmpty);
+      },
+    );
+
+    test('a reaction of mine still on its way is left to land', () async {
+      final timeline = await timelineWith([
+        reaction(
+          'txn-mine',
+          '@me:example.org',
+          '👍',
+          status: EventStatus.sending,
+        ),
+      ]);
+
+      await toggleReaction(message, timeline, '😂');
+
+      expect(requests, isEmpty);
     });
 
     test('a reaction of mine already taken back is left alone', () async {

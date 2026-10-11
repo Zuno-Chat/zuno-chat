@@ -6,10 +6,11 @@ import 'package:flutter/foundation.dart'
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:unifiedpush/unifiedpush.dart';
+import 'package:unifiedpush_platform_interface/data/failed_reason.dart';
 import 'package:unifiedpush_platform_interface/data/public_key_set.dart';
-import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart'
-    show UnifiedPushPlatform;
+import 'package:unifiedpush_platform_interface/data/push_endpoint.dart';
+import 'package:unifiedpush_platform_interface/data/push_message.dart';
+import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
 import '../errors/caught_errors.dart';
 import '../matrix/session_display_name.dart';
@@ -30,6 +31,8 @@ import 'notification_permission.dart';
 
 export '../push/registration_retry.dart' show registrationRecheckInterval;
 export '../push/unified_push_pusher.dart' show unifiedPushViaHomeserverGateway;
+
+const _instance = 'default';
 
 enum UnifiedPushStatus {
   idle,
@@ -203,7 +206,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     _endpointUrl = stored.endpointUrl;
     _gatewayUrl = stored.gatewayUrl;
     _pushkey = stored.effectivePushkey;
-    savedDistributor = await UnifiedPush.getDistributor();
+    savedDistributor = await UnifiedPushPlatform.instance.getDistributor();
     status.value = UnifiedPushStatus.ready;
     _recheck.markChecked();
 
@@ -265,15 +268,18 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   Future<void> discoverDistributors() async {
     status.value = UnifiedPushStatus.findingDistributor;
-    if (await UnifiedPush.tryUseCurrentOrDefaultDistributor()) {
-      final chosen = await UnifiedPush.getDistributor();
+    if (await UnifiedPushPlatform.instance
+        .tryUseCurrentOrDefaultDistributor()) {
+      final chosen = await UnifiedPushPlatform.instance.getDistributor();
       if (chosen != null) {
         savedDistributor = chosen;
         status.value = UnifiedPushStatus.distributorSelected;
         return;
       }
     }
-    final installed = await UnifiedPush.getDistributors();
+    final installed = await UnifiedPushPlatform.instance.getDistributors(
+      const [],
+    );
     if (installed.isEmpty) {
       savedDistributor = null;
       status.value = UnifiedPushStatus.noDistributorFound;
@@ -303,7 +309,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
         reportCaught('unifiedpush pusher remove', e, s);
       }
     }
-    await UnifiedPush.unregister();
+    await UnifiedPushPlatform.instance.unregister(_instance);
     await clearUnifiedPushRegistration(await SharedPreferences.getInstance());
     _endpointUrl = null;
     _gatewayUrl = null;
@@ -316,13 +322,13 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
   }
 
   Future<void> _saveDistributor(String distributor) async {
-    await UnifiedPush.saveDistributor(distributor);
+    await UnifiedPushPlatform.instance.saveDistributor(distributor);
     savedDistributor = distributor;
     status.value = UnifiedPushStatus.distributorSelected;
   }
 
   Future<String?> knownDistributor() async =>
-      await UnifiedPush.getDistributor() ?? savedDistributor;
+      await UnifiedPushPlatform.instance.getDistributor() ?? savedDistributor;
 
   Future<void> registerNow(Client client) async {
     _runner.liveClient = client;
@@ -339,8 +345,11 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   Future<void> _registerWithSavedDistributor() async {
     status.value = UnifiedPushStatus.registering;
-    await UnifiedPush.register(
-      messageForDistributor: 'Zuno wants to receive notifications',
+    await UnifiedPushPlatform.instance.register(
+      _instance,
+      const [],
+      'Zuno wants to receive notifications',
+      null,
     );
   }
 
@@ -367,7 +376,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
         lastPusherError = 'Could not remove the push registration: $e';
       }
     }
-    await UnifiedPush.unregister();
+    await UnifiedPushPlatform.instance.unregister(_instance);
     await clearUnifiedPushRegistration(prefs);
     savedDistributor = null;
     distributorBatteryRestricted.value = false;
@@ -458,7 +467,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   @visibleForTesting
   Future<void> deliverPushForTest(PushMessage message) =>
-      _onMessage(message, 'default');
+      _onMessage(message, _instance);
 
   Future<void> _onMessage(PushMessage message, String instance) async {
     PushNotification? notification;

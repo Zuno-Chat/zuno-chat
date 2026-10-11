@@ -15,6 +15,7 @@ import '../calls/notifications/ringing_call_store.dart';
 import '../calls/platform/incoming_call_presenter.dart';
 import '../calls/platform/system_ring.dart';
 import '../errors/caught_errors.dart';
+import '../matrix/room_title.dart';
 import '../matrix/undecryptable_event.dart';
 import '../matrix/zuno_client.dart';
 import '../notifications/invite_notification_provider.dart';
@@ -278,6 +279,12 @@ class _Placeholder {
   }
 
   Future<bool> post() async {
+    if (_posted) return true;
+    if (notification.roomId case final roomId?) {
+      if (client.getRoomById(roomId) case final room?) {
+        await loadRoomNameMembers(room);
+      }
+    }
     if (_posted) return true;
     final content = unresolvedPushNotification(
       client,

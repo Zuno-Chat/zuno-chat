@@ -264,23 +264,19 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     WidgetRef ref,
     List<OnboardingStep> steps,
   ) async {
-    if (steps.isEmpty) return;
     final store = ref.read(onboardingStoreProvider);
-    if (store.flowInProgress) return;
-    final userId = ref.read(matrixClientProvider).userID;
-    if (userId == null) return;
-    final shown = store.shown(userId);
-    final pending = steps.where((s) => !shown.contains(s)).toList();
-    if (pending.isEmpty) return;
-    store.flowInProgress = true;
+    if (store.flow != OnboardingFlow.undecided) return;
+    if (steps.isEmpty) {
+      store.flow = OnboardingFlow.done;
+      return;
+    }
+    store.flow = OnboardingFlow.open;
     try {
       await Navigator.of(context).push(
-        ForwardExitPageRoute(
-          builder: (_) => OnboardingFlowPage(steps: pending),
-        ),
+        ForwardExitPageRoute(builder: (_) => OnboardingFlowPage(steps: steps)),
       );
     } finally {
-      store.flowInProgress = false;
+      store.flow = OnboardingFlow.done;
     }
   }
 
@@ -295,7 +291,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     final pendingSteps = await ref.read(onboardingStepsProvider.future);
     if (!context.mounted || store.promptInFlight) return;
     if (recoveryPromptDefersToOnboarding(
-      flowInProgress: ref.read(onboardingStoreProvider).flowInProgress,
+      flow: ref.read(onboardingStoreProvider).flow,
       pendingSteps: pendingSteps,
     )) {
       return;

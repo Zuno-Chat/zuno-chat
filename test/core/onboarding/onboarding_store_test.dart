@@ -22,7 +22,7 @@ void main() {
   test('nothing has been asked and nobody registered on a fresh install', () {
     expect(store.shown('@alex:example.org'), isEmpty);
     expect(store.justRegistered('@alex:example.org'), isFalse);
-    expect(store.flowInProgress, isFalse);
+    expect(store.flow, OnboardingFlow.undecided);
   });
 
   test('registering is remembered until the profile step is shown', () async {
@@ -95,6 +95,31 @@ void main() {
     expect(
       container.read(onboardingStoreProvider).shown('@alex:example.org'),
       isEmpty,
+    );
+  });
+
+  test('the flow is decided once per sign-in, and a new sign-in decides its '
+      'own', () async {
+    final logins = StreamController<bool>();
+    final container = await containerWithPreferences(
+      {},
+      overrides: [isLoggedInProvider.overrideWith((ref) => logins.stream)],
+    );
+    container.listen(onboardingStoreProvider, (_, _) {});
+    logins.add(true);
+    await pumpEventQueue();
+    container.read(onboardingStoreProvider).flow = OnboardingFlow.done;
+
+    expect(container.read(onboardingStoreProvider).flow, OnboardingFlow.done);
+
+    logins.add(false);
+    await pumpEventQueue();
+    logins.add(true);
+    await pumpEventQueue();
+
+    expect(
+      container.read(onboardingStoreProvider).flow,
+      OnboardingFlow.undecided,
     );
   });
 }

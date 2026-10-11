@@ -125,6 +125,35 @@ void main() {
     });
   });
 
+  test('a chat whose partner is stored but not loaded publishes their name, '
+      'never their username', () async {
+    final db = StoredMembersFakeDatabaseApi()
+      ..displayNames['@test2:zuno.im'] = 'George';
+    client = buildTestClient(
+      userId: '@me:zuno.im',
+      deviceId: 'PHONE',
+      database: db,
+    );
+    final room = Room(
+      id: '!dm:zuno.im',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    client.accountData['m.direct'] = BasicEvent(
+      type: 'm.direct',
+      content: {
+        '@test2:zuno.im': ['!dm:zuno.im'],
+      },
+    );
+
+    await ReadModelPublisher().start(client, _meta);
+
+    final file = json(written.lastWhere((c) => c.method == 'writeRoom'));
+    expect(file['title'], 'George');
+    expect(file['partner'], 'George');
+  });
+
   test('a new session wipes what an earlier one left, then publishes meta '
       'and every joined room', () async {
     joinedRoom('!a:zuno.im', name: 'A');

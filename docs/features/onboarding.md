@@ -15,7 +15,7 @@ moves between them.
 | `onboardingStepsProvider` | Waits for the first sync, gathers the facts (permissions, delivery mode, account security, joined chats, steps already shown) and recomputes as they change. |
 | `OnboardingStore` | Per account, in `SharedPreferences`: the steps already shown and whether the account registered on this device. |
 | `OnboardingFlowPage` | A `PageView` that cannot be swiped. Each page is an illustration, a title, one paragraph and one primary button on the shared `StepLayout` (`app-foundation.md`). |
-| `room_list_page.dart` | The trigger: pushes the flow over whatever is on top once the provider settles on a non-empty list, so `_AuthGate` keeps its single routing decision. |
+| `room_list_page.dart` | The trigger: decides the flow on the provider's first settled list and pushes it over whatever is on top when that list is not empty, so `_AuthGate` keeps its single routing decision. |
 
 The step list is computed, never stored; the flow page copies it into its
 own state so answers can add or remove steps while it runs. A step is marked
@@ -55,11 +55,14 @@ The flow adjusts itself in two places:
   known only after a sync, and deciding earlier would split onboarding in
   two, so the provider awaits `firstSyncProvider` as well as the sign-in
   hold.
+- **Decided once per session, a launch or a sign-in.** Later changes to the
+  delivery mode, recovery, keys or permissions never reopen the flow
+  mid-session, or a delivery change would open it over Settings.
 - **Registration is a stored flag, not "no display name"**, because Synapse
   sets the display name to the username at registration.
 - **Declining notifications answers the delivery steps too.** They are
   marked shown, not merely hidden, or turning notifications on later in
-  Settings would open the flow over Settings.
+  Settings would bring them back at the next launch.
 - **No information-only pages.** A step whose action is done advances by
   itself, except `welcome` and `confirmPeople`, because nobody looks for a
   protection they do not know exists.
@@ -68,11 +71,14 @@ The flow adjusts itself in two places:
 - **No swiping and no system back**, because steps have side effects such
   as OS dialogs and settings screens.
 - **The recovery dialog defers to the flow.** The room list's recovery
-  dialog stands down while the flow is open or pending, and both share one
-  cooldown, or the dialog would win the race after sign-in.
+  dialog stands down while the flow is open, or undecided with steps
+  pending, and both share one cooldown, or the dialog would win the race
+  after sign-in. Once the flow is done it never defers, since the flow
+  will not reopen that session.
 - **The provider reads raw `AccountSecurityFacts`, not the collapsed
-  status**, because onboarding asks only about recovery and this device's
-  keys.
+  status**, and only whether recovery exists and whether this device has
+  its identity keys, because onboarding asks about nothing else. A sync
+  that changes neither recomputes no steps and re-runs no platform checks.
 
 ## Gotchas
 

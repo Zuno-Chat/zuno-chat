@@ -23,7 +23,7 @@ PushruleEvaluator notifyOnMessagesEvaluator() => PushruleEvaluator.fromRuleset(
 );
 
 class NotifyingClient extends Client {
-  NotifyingClient() : super('test', database: FakeDatabaseApi());
+  NotifyingClient() : super('test', database: StoredMembersFakeDatabaseApi());
 
   @override
   String? prevBatch = 's1';

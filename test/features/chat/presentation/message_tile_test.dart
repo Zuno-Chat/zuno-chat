@@ -178,6 +178,53 @@ void main() {
     expect(resent, [failed]);
   });
 
+  group('a message drawn from an edit', () {
+    Event ownEdit(EventStatus status) => buildTestEvent(
+      room,
+      eventId: 'txn-edit',
+      senderId: me,
+      status: status,
+      originServerTs: noon.add(const Duration(minutes: 1)),
+      content: {
+        'msgtype': 'm.text',
+        'body': '* fixed',
+        'm.new_content': {'msgtype': 'm.text', 'body': 'fixed'},
+        'm.relates_to': {'rel_type': 'm.replace', 'event_id': r'$a'},
+      },
+    );
+
+    testWidgets('shows Not sent when the edit failed, and a tap resends the '
+        'edit itself', (tester) async {
+      final original = text(r'$a', sender: me, status: EventStatus.sent);
+      await pumpTile(
+        tester,
+        original,
+        events: [ownEdit(EventStatus.error), original],
+      );
+
+      expect(find.text('fixed'), findsOneWidget);
+      expect(find.byType(NotSentRow), findsOneWidget);
+      expect(find.byType(MessageMeta), findsNothing);
+
+      await tester.tap(find.text('fixed'));
+      expect(resent.single.eventId, 'txn-edit');
+      expect(resent.single.relationshipEventId, r'$a');
+    });
+
+    testWidgets('shows the clock while the edit is on its way', (tester) async {
+      final original = text(r'$a', sender: me, status: EventStatus.sent);
+      await pumpTile(
+        tester,
+        original,
+        events: [ownEdit(EventStatus.sending), original],
+      );
+
+      expect(find.byType(NotSentRow), findsNothing);
+      expect(find.byIcon(Icons.schedule), findsWidgets);
+      expect(find.text('edited'), findsWidgets);
+    });
+  });
+
   testWidgets(
     'the name and avatar show only on the first message of a run in a room',
     (tester) async {

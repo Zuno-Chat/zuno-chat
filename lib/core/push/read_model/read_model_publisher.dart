@@ -191,6 +191,7 @@ class ReadModelPublisher {
       reportCaughtType('nse room extras', e, s);
       return;
     }
+    if (titles) await loadRoomNameMembers(room);
     if (_held || _client == null) return;
     final json = roomJson(room, titles: titles, extras: extras);
     if (_published[room.id] == json) return;

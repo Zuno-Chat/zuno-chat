@@ -7,7 +7,7 @@ import 'package:zuno/features/chat/presentation/message_actions_sheet.dart';
 void main() {
   Future<Future<MessageAction?>> open(
     WidgetTester tester, {
-    bool canPost = true,
+    bool canRespond = true,
     bool canEdit = true,
     bool canDelete = true,
     bool isOwn = true,
@@ -32,7 +32,7 @@ void main() {
     );
     final result = showMessageActionsSheet(
       host,
-      canPost: canPost,
+      canRespond: canRespond,
       canEdit: canEdit,
       canDelete: canDelete,
       isOwn: isOwn,
@@ -67,9 +67,9 @@ void main() {
   );
 
   testWidgets(
-    'without permission to post there are no reactions, Reply or Edit',
+    'when it cannot be answered there are no reactions, Reply or Edit',
     (tester) async {
-      await open(tester, canPost: false, canEdit: false);
+      await open(tester, canRespond: false, canEdit: false);
 
       expect(find.text('👍'), findsNothing);
       expect(find.text('Reply'), findsNothing);

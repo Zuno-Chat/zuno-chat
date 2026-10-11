@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -17,11 +18,13 @@ import 'package:zuno/core/notifications/notification_avatar_cache.dart';
 import 'package:zuno/core/notifications/notified_events_store.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/read_model/opaque_thread_ids.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_encryption.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/notifying_client.dart';
 import '../../helpers/platform_capabilities.dart';
 import '../../helpers/preferences_container.dart';
@@ -95,6 +98,44 @@ void main() {
     await deliver(textEvent(body: 'are you around?'));
 
     expect(notifications.shown.single.body, contains('are you around?'));
+  });
+
+  test('a message read elsewhere in the same sync is taken down after it '
+      'posts, never before', () async {
+    client.rooms.add(room..membership = Membership.join);
+    client.onSync.add(SyncUpdate(nextBatch: 's1'));
+    await pumpEventQueue();
+    notifications.active = [
+      {
+        'id': messageNotificationIdFor(room.id),
+        'channelId': 'direct_messages',
+        'payload': '',
+      },
+    ];
+
+    client.onTimelineEvent.add(textEvent(body: 'read on the laptop'));
+    client.onSync.add(
+      SyncUpdate(
+        nextBatch: 's2',
+        rooms: RoomsUpdate(
+          join: {
+            room.id: JoinedRoomUpdate(
+              unreadNotifications: UnreadNotificationCounts(
+                notificationCount: 0,
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    await pumpEventQueue();
+
+    final methods = notifications.methods;
+    expect(methods, contains('show'));
+    expect(
+      methods.lastIndexOf('cancel'),
+      greaterThan(methods.lastIndexOf('show')),
+    );
   });
 
   group('with mentions only', () {
@@ -218,6 +259,41 @@ void main() {
       await pumpEventQueue();
     }
 
+    test('in a chat, is named after the partner as stored, not their '
+        'username', () async {
+      final dm = buildTestRoom(client, id: '!dm:x')
+        ..membership = Membership.join;
+      client.rooms.add(dm);
+      client.accountData['m.direct'] = BasicEvent(
+        type: 'm.direct',
+        content: {
+          '@test2:x': ['!dm:x'],
+        },
+      );
+      (client.database as StoredMembersFakeDatabaseApi)
+              .displayNames['@test2:x'] =
+          'George';
+
+      await deliver(
+        buildTestEvent(
+          dm,
+          eventId: r'$dm',
+          senderId: '@test2:x',
+          type: EventTypes.Encrypted,
+          content: {
+            'algorithm': AlgorithmTypes.megolmV1AesSha2,
+            'session_id': 'session',
+            'ciphertext': 'sealed',
+            'msgtype': MessageTypes.BadEncrypted,
+            'can_request_session': true,
+          },
+        ),
+      );
+
+      expect(notifications.single.title, 'George');
+      expect(linesOf(notifications.single), ['New message']);
+    });
+
     test('still shows, as "New message" in its room', () async {
       await deliver(locked());
 
@@ -304,6 +380,116 @@ void main() {
 
       expect(notifications.shown, isEmpty);
       expect(client.decryption.attempts, 0);
+    });
+
+    test('is no longer waited on after five minutes, so its line stays '
+        '"New message"', () async {
+      var now = DateTime(2026, 10, 11, 12);
+      container.invalidate(messageNotificationProvider);
+      withClock(
+        Clock(() => now),
+        () => container.read(messageNotificationProvider),
+      );
+      await deliver(locked());
+      client.decryption.decrypted.add(textEvent(body: 'are you around?'));
+      now = now.add(const Duration(minutes: 6));
+      client.onSync.add(SyncUpdate(nextBatch: 's2'));
+      await pumpEventQueue();
+
+      await keyArrives();
+
+      expect(client.decryption.attempts, 0);
+      expect(linesOf(notifications.single), ['New message']);
+      expect(notifications.cancelled, isEmpty);
+    });
+
+    group('on an iPhone, where the extension presents out of front', () {
+      void inFront(bool front) =>
+          TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+            front ? AppLifecycleState.resumed : AppLifecycleState.paused,
+          );
+
+      void stillShowing() => notifications.active = [
+        {'id': messageNotificationIdFor(room.id), 'payload': ''},
+      ];
+
+      setUp(() {
+        ambientCapabilities = iosCapabilities;
+        notifications = installFakeLocalNotifications(
+          platform: TargetPlatform.iOS,
+        );
+        recordMethodChannel(
+          'zuno/nse',
+          reply: (call) => call.method == 'threadKey' ? 'tok' : null,
+        );
+        addTearDown(OpaqueThreadIds.instance.reset);
+        addTearDown(() => inFront(true));
+      });
+
+      test('a line Zuno posted in front takes the message silently when the '
+          'key arrives after Zuno left the front', () async {
+        inFront(true);
+        await deliver(locked());
+        stillShowing();
+        inFront(false);
+        client.decryption.decrypted.add(textEvent(body: 'are you around?'));
+
+        await keyArrives();
+
+        expect(notifications.shown, hasLength(2));
+        final refined = notifications.shown.last;
+        expect(refined.id, messageNotificationIdFor(room.id));
+        expect(refined.body, contains('are you around?'));
+        expect(refined.android['presentAlert'], isFalse);
+        expect(notifications.cancelled, isEmpty);
+      });
+
+      test('a message that turns out to need no notification still takes '
+          'that line down', () async {
+        inFront(true);
+        await deliver(locked());
+        stillShowing();
+        inFront(false);
+        client.decryption.decrypted.add(
+          buildTestEvent(
+            room,
+            eventId: r'$1',
+            senderId: '@a:x',
+            content: {
+              'msgtype': MessageTypes.Text,
+              'body': '* fixed',
+              'm.relates_to': {'rel_type': 'm.replace', 'event_id': r'$0'},
+            },
+          ),
+        );
+
+        await keyArrives();
+
+        expect(notifications.shown, hasLength(1));
+        expect(notifications.cancelled, [messageNotificationIdFor(room.id)]);
+      });
+
+      test('a line the user already cleared is not brought back', () async {
+        inFront(true);
+        await deliver(locked());
+        inFront(false);
+        client.decryption.decrypted.add(textEvent(body: 'are you around?'));
+
+        await keyArrives();
+
+        expect(notifications.shown, hasLength(1));
+      });
+
+      test('a message that arrived out of front is left to the extension when '
+          'its key arrives', () async {
+        inFront(false);
+        await deliver(locked());
+        client.decryption.decrypted.add(textEvent(body: 'are you around?'));
+
+        await keyArrives();
+
+        expect(notifications.shown, isEmpty);
+      });
     });
   });
 

@@ -1,22 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
-import 'package:zuno/core/security/account_security_status.dart';
-
-AccountSecurityFacts facts({
-  bool recoveryExists = true,
-  bool thisDeviceHasIdentityKeys = true,
-  int unapprovedOtherDevices = 0,
-}) => AccountSecurityFacts(
-  recoveryExists: recoveryExists,
-  thisDeviceHasIdentityKeys: thisDeviceHasIdentityKeys,
-  keyBackupExists: recoveryExists,
-  keyBackupUsableHere: thisDeviceHasIdentityKeys,
-  unapprovedOtherDevices: unapprovedOtherDevices,
-);
-
-final lockedDevice = facts(thisDeviceHasIdentityKeys: false);
-
-final noRecovery = facts(recoveryExists: false);
 
 List<OnboardingStep> steps({
   bool justRegistered = false,
@@ -25,7 +8,8 @@ List<OnboardingStep> steps({
   bool canChooseDelivery = true,
   bool needsBatteryExemption = false,
   bool needsAutostart = false,
-  AccountSecurityFacts? securityFacts,
+  bool recoveryExists = true,
+  bool thisDeviceHasIdentityKeys = true,
   bool hasConversations = true,
   bool recoveryPromptOnCooldown = false,
   Set<OnboardingStep> alreadyShown = const {OnboardingStep.deliveryMethod},
@@ -37,7 +21,8 @@ List<OnboardingStep> steps({
   canChooseDelivery: canChooseDelivery,
   needsBatteryExemption: needsBatteryExemption,
   needsAutostart: needsAutostart,
-  securityFacts: securityFacts ?? facts(),
+  recoveryExists: recoveryExists,
+  thisDeviceHasIdentityKeys: thisDeviceHasIdentityKeys,
   hasConversations: hasConversations,
   recoveryPromptOnCooldown: recoveryPromptOnCooldown,
   alreadyShown: {
@@ -59,7 +44,7 @@ void main() {
           canAskNotifications: true,
           needsBatteryExemption: true,
           needsAutostart: true,
-          securityFacts: lockedDevice,
+          thisDeviceHasIdentityKeys: false,
           alreadyShown: const {
             OnboardingStep.welcome,
             OnboardingStep.profile,
@@ -94,7 +79,7 @@ void main() {
         steps(
           justRegistered: true,
           canAskNotifications: true,
-          securityFacts: noRecovery,
+          recoveryExists: false,
           hasConversations: false,
           confirmPeopleShown: false,
         ),
@@ -108,10 +93,10 @@ void main() {
     });
 
     test('a device waiting for approval sees it after the approval', () {
-      expect(steps(securityFacts: lockedDevice, confirmPeopleShown: false), [
-        OnboardingStep.approveDevice,
-        OnboardingStep.confirmPeople,
-      ]);
+      expect(
+        steps(thisDeviceHasIdentityKeys: false, confirmPeopleShown: false),
+        [OnboardingStep.approveDevice, OnboardingStep.confirmPeople],
+      );
     });
 
     test('comes after every other step', () {
@@ -120,7 +105,7 @@ void main() {
           justRegistered: true,
           canAskNotifications: true,
           needsAutostart: true,
-          securityFacts: noRecovery,
+          recoveryExists: false,
           alreadyShown: const {},
           confirmPeopleShown: false,
         ),
@@ -152,7 +137,7 @@ void main() {
         steps(
           alreadyShown: const {},
           canAskNotifications: true,
-          securityFacts: lockedDevice,
+          thisDeviceHasIdentityKeys: false,
         ),
         [
           OnboardingStep.notifications,
@@ -176,7 +161,7 @@ void main() {
           canAskNotifications: true,
           alreadyShown: const {},
           canChooseDelivery: false,
-          securityFacts: lockedDevice,
+          thisDeviceHasIdentityKeys: false,
         ),
         [
           OnboardingStep.welcome,
@@ -208,7 +193,7 @@ void main() {
           alreadyShown: const {},
           needsBatteryExemption: true,
           needsAutostart: true,
-          securityFacts: lockedDevice,
+          thisDeviceHasIdentityKeys: false,
         ),
         [OnboardingStep.approveDevice],
       );
@@ -312,7 +297,7 @@ void main() {
 
   group('signing in to an established account', () {
     test('offers recovery once there is history to lose', () {
-      expect(steps(securityFacts: noRecovery, hasConversations: true), [
+      expect(steps(recoveryExists: false, hasConversations: true), [
         OnboardingStep.setUpRecovery,
       ]);
     });
@@ -334,7 +319,7 @@ void main() {
         steps(
           needsBatteryExemption: true,
           needsAutostart: true,
-          securityFacts: lockedDevice,
+          thisDeviceHasIdentityKeys: false,
         ),
         [
           OnboardingStep.batteryExemption,
@@ -348,37 +333,8 @@ void main() {
   group('what is deliberately left out', () {
     test('no recovery step while the prompt is on cooldown', () {
       expect(
-        steps(securityFacts: noRecovery, recoveryPromptOnCooldown: true),
+        steps(recoveryExists: false, recoveryPromptOnCooldown: true),
         isEmpty,
-      );
-    });
-
-    test('nothing for the states that belong to the Security screen', () {
-      expect(steps(securityFacts: facts(unapprovedOtherDevices: 2)), isEmpty);
-      expect(
-        steps(
-          securityFacts: const AccountSecurityFacts(
-            recoveryExists: true,
-            thisDeviceHasIdentityKeys: true,
-            keyBackupExists: true,
-            keyBackupUsableHere: false,
-            unapprovedOtherDevices: 0,
-          ),
-        ),
-        isEmpty,
-      );
-    });
-
-    test('an unapproved *other* device does not mask this one being '
-        'locked', () {
-      expect(
-        steps(
-          securityFacts: facts(
-            thisDeviceHasIdentityKeys: false,
-            unapprovedOtherDevices: 3,
-          ),
-        ),
-        [OnboardingStep.approveDevice],
       );
     });
   });

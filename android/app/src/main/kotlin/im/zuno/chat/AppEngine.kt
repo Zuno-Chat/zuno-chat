@@ -11,10 +11,17 @@ object AppEngine {
     var callsChannel: MethodChannel? = null
         private set
 
+    @Volatile
+    var generation = 0
+        private set
+
     val alive: Boolean get() = current != null
 
     fun attach(engine: FlutterEngine) {
-        if (current !== engine) callsChannel = null
+        if (current !== engine) {
+            callsChannel = null
+            generation++
+        }
         current = engine
     }
 

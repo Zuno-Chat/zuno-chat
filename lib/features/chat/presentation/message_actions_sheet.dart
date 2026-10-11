@@ -8,7 +8,7 @@ const _quickEmoji = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 Future<MessageAction?> showMessageActionsSheet(
   BuildContext context, {
-  required bool canPost,
+  required bool canRespond,
   required bool canEdit,
   required bool canDelete,
   required bool isOwn,
@@ -46,7 +46,7 @@ Future<MessageAction?> showMessageActionsSheet(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (canPost)
+              if (canRespond)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                   child: Row(
@@ -74,7 +74,7 @@ Future<MessageAction?> showMessageActionsSheet(
                     ],
                   ),
                 ),
-              if (canPost)
+              if (canRespond)
                 action(MessageAction.reply, Icons.reply_outlined, 'Reply'),
               if (isTextMessage)
                 action(MessageAction.copy, Icons.copy_outlined, 'Copy'),

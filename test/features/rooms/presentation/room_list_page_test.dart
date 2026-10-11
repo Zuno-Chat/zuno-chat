@@ -476,13 +476,25 @@ void main() {
   });
 
   group('onboarding', () {
-    testWidgets('opens with the steps not yet shown', (tester) async {
+    Future<List<OnboardingStep>> Function() inTurn(
+      List<Future<List<OnboardingStep>>> lists,
+    ) {
+      var builds = 0;
+      return () => lists[builds++];
+    }
+
+    Future<void> finishFlow(WidgetTester tester) async {
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(find.byType(OnboardingFlowPage), findsNothing);
+    }
+
+    testWidgets('opens with the steps decided for this sign-in', (
+      tester,
+    ) async {
       final container = await pumpRoomList(
         tester,
-        onboarding: [OnboardingStep.welcome, OnboardingStep.confirmPeople],
-        stored: {
-          'onboarding.shown.@me:example.org': [OnboardingStep.welcome.name],
-        },
+        onboarding: [OnboardingStep.confirmPeople],
       );
 
       expect(find.byType(OnboardingFlowPage), findsOneWidget);
@@ -496,29 +508,55 @@ void main() {
             .steps,
         [OnboardingStep.confirmPeople],
       );
-      expect(container.read(onboardingStoreProvider).flowInProgress, isTrue);
+      expect(container.read(onboardingStoreProvider).flow, OnboardingFlow.open);
 
-      await tester.tap(find.text('Continue'));
-      await tester.pumpAndSettle();
+      await finishFlow(tester);
 
-      expect(find.byType(OnboardingFlowPage), findsNothing);
-      expect(container.read(onboardingStoreProvider).flowInProgress, isFalse);
+      expect(container.read(onboardingStoreProvider).flow, OnboardingFlow.done);
     });
 
-    testWidgets('a reload still under way opens nothing from the last list', (
-      tester,
-    ) async {
-      final reload = Completer<List<OnboardingStep>>();
-      var builds = 0;
+    testWidgets('stays closed when there is nothing to ask', (tester) async {
+      final container = await pumpRoomList(tester);
+
+      expect(find.byType(OnboardingFlowPage), findsNothing);
+      expect(container.read(onboardingStoreProvider).flow, OnboardingFlow.done);
+    });
+
+    testWidgets('a list that changes after the flow, as a new delivery mode '
+        'makes it, does not reopen the flow over Settings', (tester) async {
       final container = await pumpRoomList(
         tester,
-        onboardingBuild: () => builds++ == 0
-            ? Future.value(const [OnboardingStep.confirmPeople])
-            : reload.future,
+        onboardingBuild: inTurn([
+          Future.value(const [OnboardingStep.confirmPeople]),
+          Future.value(const [OnboardingStep.batteryExemption]),
+        ]),
       );
-      Navigator.of(tester.element(find.byType(OnboardingFlowPage))).pop();
+      await finishFlow(tester);
+      Navigator.of(tester.element(find.byType(RoomListPage))).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('Delivery')),
+        ),
+      );
       await tester.pumpAndSettle();
+
+      container.invalidate(onboardingStepsProvider);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
       expect(find.byType(OnboardingFlowPage), findsNothing);
+      expect(find.text('Delivery'), findsOneWidget);
+    });
+
+    testWidgets('a sign-in that had nothing to ask stays that way', (
+      tester,
+    ) async {
+      final container = await pumpRoomList(
+        tester,
+        onboardingBuild: inTurn([
+          Future.value(const []),
+          Future.value(const [OnboardingStep.batteryExemption]),
+        ]),
+      );
 
       container.invalidate(onboardingStepsProvider);
       await tester.pump();
@@ -527,16 +565,43 @@ void main() {
       expect(find.byType(OnboardingFlowPage), findsNothing);
     });
 
-    testWidgets('stays closed when every step was shown', (tester) async {
-      await pumpRoomList(
+    testWidgets('a new sign-in gets its own flow, from its own list', (
+      tester,
+    ) async {
+      final nextList = Completer<List<OnboardingStep>>();
+      final container = await pumpRoomList(
         tester,
-        onboarding: [OnboardingStep.welcome],
-        stored: {
-          'onboarding.shown.@me:example.org': [OnboardingStep.welcome.name],
-        },
+        onboardingBuild: inTurn([
+          Future.value(const [OnboardingStep.confirmPeople]),
+          nextList.future,
+        ]),
       );
+      await finishFlow(tester);
+
+      client.onLoginStateChanged.add(LoginState.loggedOut);
+      await tester.pump();
+      client.onLoginStateChanged.add(LoginState.loggedIn);
+      await tester.pump();
+      container.invalidate(onboardingStepsProvider);
+      await tester.pump();
+      await tester.pumpAndSettle();
 
       expect(find.byType(OnboardingFlowPage), findsNothing);
+      expect(
+        container.read(onboardingStoreProvider).flow,
+        OnboardingFlow.undecided,
+      );
+
+      nextList.complete(const [OnboardingStep.welcome]);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<OnboardingFlowPage>(find.byType(OnboardingFlowPage))
+            .steps,
+        [OnboardingStep.welcome],
+      );
     });
   });
 
@@ -601,6 +666,24 @@ void main() {
 
       expect(find.text(title), findsNothing);
       expect(find.byType(OnboardingFlowPage), findsOneWidget);
+    });
+
+    testWidgets('goes ahead once the flow has run, even with steps still '
+        'listed', (tester) async {
+      final container = await pumpRoomList(
+        tester,
+        prompt: SecurityPromptDecision.setUpRecovery,
+        onboarding: [OnboardingStep.confirmPeople],
+      );
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(find.text(title), findsNothing);
+
+      container.invalidate(securityPromptProvider);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.text(title), findsOneWidget);
     });
   });
 

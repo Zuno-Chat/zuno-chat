@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart' show Listenable;
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:unifiedpush/unifiedpush.dart';
+import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
 import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
@@ -26,7 +26,8 @@ final unifiedPushDistributorInstalledProvider =
       final lifecycle = AppLifecycleListener(onResume: ref.invalidateSelf);
       ref.onDispose(lifecycle.dispose);
       try {
-        return (await UnifiedPush.getDistributors()).isNotEmpty;
+        return (await UnifiedPushPlatform.instance.getDistributors(const []))
+            .isNotEmpty;
       } catch (e, s) {
         reportCaught('unifiedpush distributors list', e, s);
         return false;

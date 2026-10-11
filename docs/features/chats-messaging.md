@@ -53,7 +53,10 @@ in `features/chat/presentation/`.
   it, since the rebuild is stored as a joined-room update that would put
   a left room back in the chat list.
 - **Reactions** allow one per person per message, a Zuno convention
-  rather than a Matrix rule: picking another emoji redacts the old one.
+  rather than a Matrix rule: picking another emoji redacts the old one,
+  or discards it on this device if it never sent. While the old one is
+  still on its way the pick does nothing, since a send in flight cannot
+  be stopped.
 
 ## Event display
 
@@ -137,11 +140,42 @@ guesses on its own.
 - **Voice recording.** Holding the mic records and releasing sends; a
   short press locks recording on, and sliding up cancels. The message is
   an audio file marked as voice (MSC3245) with a duration and waveform.
-- **Failed sends** show tap-to-retry, and a reconnect pass resends them
-  all. For text it scans the timeline for unsent own events rather than
-  tracking transaction IDs, because the SDK can also give up silently on
-  a long 429 with no exception. Failed media sends are tracked by the
-  page as their own tiles.
+
+## Unsent messages
+
+An own message is sending until the server takes it, and not sent once
+the SDK gives up. Until then it has only a local ID, which no other
+client can resolve.
+
+- **Reply, react and edit act only on a sent message**, swipe-to-reply
+  included, because each points at its target by an ID other clients
+  must resolve.
+- **The actions sheet shows the real send state**: not sent, sending, or
+  the time it was sent.
+- **Failed sends** show as not sent with tap-to-retry, and a reconnect
+  pass resends them oldest first. It scans the timeline for unsent own
+  events rather than tracking transaction IDs, because the SDK can also
+  give up silently on a long 429 with no exception. Failed media sends
+  are tracked by the page as their own tiles.
+- **A failed edit** shows as not sent on its message and resends as an
+  edit. An edit a newer one replaced, or whose message was deleted, never
+  resends.
+- **Reactions resend as reactions**, because the SDK's own resend sends
+  everything as a message.
+
+| Delete on | Does |
+|---|---|
+| A failed message | Discards it on this device only, since the server never had it |
+| A single message still on its way | Not offered, because the SDK cannot stop a send in flight |
+| A gallery | Always offered; while its batch still sends, the rest of the batch stops |
+| One item of a batch that shows on its own | Deletes that item; the rest of the batch still goes |
+
+- **A deleted item still on its way is deleted once it lands**, a resend
+  after a restart included.
+- **Deleted sends are remembered per account across restarts**, so a
+  leftover unsent item is dropped when its chat opens and never resent.
+  The record is pruned against the chat's unsent items and cleared by the
+  sign-out wipe (`app-foundation.md`).
 
 ## Attachments
 
@@ -225,7 +259,8 @@ so the per-index passes (read ticks, day labels, runs) keep working. A
 group with one surviving member, or an unrecognized key, renders as an
 ordinary item, unless its other items are your own failed sends, which
 keep their retry tiles in the gallery. Share, save and delete on a
-gallery act on every item.
+gallery act on every item, and deleting a gallery whose batch still
+sends stops the batch (Unsent messages).
 
 ### Avatars
 
@@ -371,6 +406,9 @@ flowchart TD
   storage itself is never touched.
 - **The picker's "done" signal can arrive after the pick has returned**, so
   the attach spinner ends with the pick itself.
+- **Link and mention scanning stays linear in the message's length**,
+  because anyone can send a message built so that a backtracking pattern
+  or a repeated trim stalls the chat.
 - **Shared file names are attacker-controlled**, so both native sides
   strip separators, reject `.` and `..`, cap names at the filesystem's
   255 UTF-8 bytes keeping the extension, and refuse paths outside their

@@ -57,7 +57,12 @@ Future<void> toggleReaction(Event event, Timeline timeline, String key) async {
   }
 
   if (myExisting != null) {
-    await room.redactEvent(myExisting.eventId);
+    if (myExisting.status.isSending) return;
+    if (myExisting.status.isError) {
+      await myExisting.cancelSend();
+    } else {
+      await room.redactEvent(myExisting.eventId);
+    }
     if (_reactionKey(myExisting) == key) return;
   }
   await room.sendReaction(event.eventId, key);

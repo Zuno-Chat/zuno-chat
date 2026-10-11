@@ -107,6 +107,19 @@ final class NseComposerTests: XCTestCase {
     XCTAssertEqual(NseComposer.names(room: nil, fetched: nil, senderId: nil).title, "Zuno")
   }
 
+  func testAChatNamesItsSenderAfterTheStoredPartnerNotTheirUsername() {
+    let file = NotifyRoomFile(room: "!dm", title: "George", dm: true, partner: "George")
+
+    XCTAssertEqual(
+      NseComposer.names(room: file, fetched: nil, senderId: "@test2:zuno.im"),
+      NseNames(title: "George", sender: "George", isDm: true))
+    XCTAssertEqual(
+      NseComposer.names(
+        room: NotifyRoomFile(room: "!g", title: "Club", partner: "George"), fetched: nil,
+        senderId: "@test2:zuno.im"
+      ).sender, "Test2")
+  }
+
   func testNamesFromTheServerAreNormalizedLikeTheReadModel() {
     let event = NseEvent(
       eventId: "$e", roomId: "!r", type: "m.room.message", sender: "@sam:zuno.im",

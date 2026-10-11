@@ -37,7 +37,7 @@ import '../../helpers/native_method_calls.dart';
 import '../../helpers/notifying_client.dart';
 
 class _ScriptedClient extends ZunoClient {
-  _ScriptedClient() : super('test', database: FakeDatabaseApi());
+  _ScriptedClient() : super('test', database: StoredMembersFakeDatabaseApi());
 
   Event? resolved;
   final events = <String, Event>{};
@@ -707,6 +707,39 @@ void main() {
             .cast<Map>()
             .map((m) => m.cast<String, Object?>())
             .toList();
+
+    test('names a chat placeholder after the partner as stored, not their '
+        'username', () async {
+      final dm = buildTestRoom(client, id: '!dm:example.org')
+        ..membership = Membership.join;
+      client.rooms.add(dm);
+      client.accountData['m.direct'] = BasicEvent(
+        type: 'm.direct',
+        content: {
+          '@test2:example.org': ['!dm:example.org'],
+        },
+      );
+      (client.database as StoredMembersFakeDatabaseApi)
+              .displayNames['@test2:example.org'] =
+          'George';
+
+      time.run((_) {
+        handling = handleIncomingPushNotification(
+          client,
+          push(roomId: '!dm:example.org'),
+          notifyMe: NotifyMe.all,
+          placeholderAfter: after,
+        );
+      });
+      await time.advance(after * 3);
+
+      final placeholder = notifications.shown
+          .where((n) => n.id == messageNotificationIdFor('!dm:example.org'))
+          .single;
+      expect(placeholder.title, 'George');
+      pending.complete(null);
+      await outcome();
+    });
 
     test(
       'posts a routable placeholder first, then upgrades it in place',

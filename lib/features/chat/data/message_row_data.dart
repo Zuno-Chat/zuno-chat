@@ -152,7 +152,7 @@ MessageRowData messageRowDataFor({
   final displayEvent = event.getDisplayEvent(timeline);
   final sender = event.senderFromMemoryOrFallback;
   final isOwn = event.senderId == event.room.client.userID;
-  final showReadTick = isOwn && isLastOwn && event.status.isSent;
+  final showReadTick = isOwn && isLastOwn && displayEvent.status.isSent;
   final startsDay =
       older == null ||
       calendarDaysBetween(older.originServerTs, event.originServerTs) != 0;
@@ -163,7 +163,7 @@ MessageRowData messageRowDataFor({
 
   return MessageRowData(
     eventId: event.eventId,
-    status: event.status,
+    status: displayEvent.status,
     type: displayEvent.type,
     messageType: displayEvent.messageType,
     redacted: event.redacted,
@@ -202,6 +202,6 @@ MessageRowData messageRowDataFor({
       for (final member in gallery ?? const <Event>[]) member.status,
     ],
     galleryFailureIndexes: galleryFailureIndexes,
-    canReply: canReply,
+    canReply: canReply && event.status.isSent,
   );
 }

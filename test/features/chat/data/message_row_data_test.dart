@@ -59,11 +59,17 @@ void main() {
         },
       );
 
-  Event edit(String id, String target, {String sender = bob}) => buildTestEvent(
+  Event edit(
+    String id,
+    String target, {
+    String sender = bob,
+    EventStatus? status,
+  }) => buildTestEvent(
     room,
     eventId: id,
     senderId: sender,
     originServerTs: noon.add(const Duration(minutes: 1)),
+    status: status,
     content: {
       'msgtype': 'm.text',
       'body': '* fixed',
@@ -170,6 +176,50 @@ void main() {
     expect(edited.edited, isTrue);
     expect(edited.displayEventId, r'$e1');
     expect(plain, isNot(equals(edited)));
+  });
+
+  group('a row drawn from an edit carries the send state of that edit', () {
+    Future<MessageRowData> withEdit(EventStatus status) {
+      final event = text(r'$m1', sender: me, status: EventStatus.sent);
+      return record(
+        event,
+        events: [
+          edit('txn-e1', r'$m1', sender: me, status: status),
+          event,
+        ],
+        isLastOwn: true,
+      );
+    }
+
+    test('a failed edit is not sent and has no tick', () async {
+      final row = await withEdit(EventStatus.error);
+
+      expect(row.status, EventStatus.error);
+      expect(row.showReadTick, isFalse);
+      expect(row.metaStatus, MetaStatus.none);
+    });
+
+    test('an edit on its way shows the clock', () async {
+      final row = await withEdit(EventStatus.sending);
+
+      expect(row.status, EventStatus.sending);
+      expect(row.metaStatus, MetaStatus.sending);
+    });
+
+    test('a delivered edit shows the tick', () async {
+      final row = await withEdit(EventStatus.sent);
+
+      expect(row.status, EventStatus.sent);
+      expect(row.metaStatus, MetaStatus.sent);
+      expect(row.edited, isTrue);
+    });
+
+    test('the edit failing changes the record', () async {
+      expect(
+        await withEdit(EventStatus.sending),
+        isNot(equals(await withEdit(EventStatus.error))),
+      );
+    });
   });
 
   test('an edit by someone else neither shows nor counts', () async {
@@ -502,6 +552,24 @@ void main() {
     expect(
       await record(event),
       isNot(equals(await record(event, canReply: false))),
+    );
+  });
+
+  test('only a delivered message can be replied to', () async {
+    expect(
+      (await record(text(r'$m1', sender: me, status: EventStatus.sent)))
+          .canReply,
+      isTrue,
+    );
+    expect(
+      (await record(text('txn-1', sender: me, status: EventStatus.sending)))
+          .canReply,
+      isFalse,
+    );
+    expect(
+      (await record(text('txn-1', sender: me, status: EventStatus.error)))
+          .canReply,
+      isFalse,
     );
   });
 

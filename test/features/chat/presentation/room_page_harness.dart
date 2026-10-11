@@ -69,6 +69,7 @@ class RoomPageHarness {
   final PlatformCapabilities? capabilities;
   final List<Override> overrides;
   final bool encrypting;
+  final Map<String, Object> preferences;
   late final Client client;
   late final Room room;
   late final UploadProgressHttpClient httpClient;
@@ -78,6 +79,7 @@ class RoomPageHarness {
     this.capabilities,
     this.overrides = const [],
     this.encrypting = false,
+    this.preferences = const {},
   }) : db = db ?? StoredEventsFakeDatabaseApi() {
     installRoomOpeningChannels();
 
@@ -143,7 +145,7 @@ class RoomPageHarness {
 
   Future<Widget> app({required Widget home}) async {
     final container = await containerWithPreferences(
-      {},
+      preferences,
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         uploadProgressHttpClientProvider.overrideWithValue(httpClient),

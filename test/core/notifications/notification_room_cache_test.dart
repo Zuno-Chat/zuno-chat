@@ -3,6 +3,8 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/notification_room_cache.dart';
 
+import '../../helpers/fake_matrix.dart';
+
 void main() {
   test('encodes one room per line as id, kind, name', () {
     final encoded = encodeNotificationRoomCache([
@@ -104,6 +106,25 @@ void main() {
         isTrue,
       );
     });
+  });
+
+  test('names a direct chat after its partner as stored, never their '
+      'username', () async {
+    final db = StoredMembersFakeDatabaseApi()
+      ..displayNames['@test2:example.org'] = 'George';
+    final client = buildTestClient(userId: '@me:example.org', database: db);
+    final room = buildTestRoom(client)..membership = Membership.join;
+    client.rooms.add(room);
+    client.accountData['m.direct'] = BasicEvent(
+      type: 'm.direct',
+      content: {
+        '@test2:example.org': [room.id],
+      },
+    );
+
+    final entries = await notificationRoomEntriesOf(client);
+
+    expect(entries, [(id: room.id, name: 'George', isDirect: true)]);
   });
 
   test('writer reports whether it has written yet', () async {

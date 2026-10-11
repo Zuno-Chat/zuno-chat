@@ -67,6 +67,8 @@ struct NotifyRoomFile: Equatable, Sendable {
   var sessions: [NseSession] = []
   var notifiers: [String] = []
 
+  var chatPartner: String? { dm && !partner.isEmpty ? partner : nil }
+
   static func decoded(_ data: Data) -> NotifyRoomFile? {
     guard let json = NseJson.parse(data, "notify room file parse"), json["v"]?.int64 == 1,
       let room = json["room"]?.string

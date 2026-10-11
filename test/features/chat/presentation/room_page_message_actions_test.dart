@@ -1,15 +1,20 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/location/live_location_protocol.dart';
+import 'package:zuno/core/matrix/connection_monitor.dart';
+import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
+import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -38,20 +43,28 @@ void main() {
     );
   });
 
-  Event own(String id, String body) => buildTestEvent(
+  Event own(
+    String id,
+    String body, {
+    EventStatus status = EventStatus.synced,
+  }) => buildTestEvent(
     harness.room,
     eventId: id,
     senderId: '@me:example.org',
     originServerTs: DateTime(2026, 9, 20, 12, 5),
-    status: EventStatus.synced,
+    status: status,
     content: {'msgtype': 'm.text', 'body': body},
   );
 
   Future<void> openRoom(
     WidgetTester tester,
-    List<Event> Function() events,
-  ) async {
-    harness = RoomPageHarness(db: SendingFakeDatabaseApi());
+    List<Event> Function() events, {
+    List<Override> overrides = const [],
+  }) async {
+    harness = RoomPageHarness(
+      db: SendingFakeDatabaseApi(),
+      overrides: overrides,
+    );
     harness.respond = (request) {
       final path = request.url.path;
       if (path.contains('/state/$liveLocationStateType/')) {
@@ -243,6 +256,195 @@ void main() {
       await openActions(tester, 'hello');
 
       expect(find.widgetWithText(ListTile, 'Edit'), findsNothing);
+    });
+
+    group('that failed', () {
+      late StreamController<ConnectionStatus> status;
+
+      Event failedEdit(String id, String body, {required int minute}) =>
+          buildTestEvent(
+            harness.room,
+            eventId: id,
+            senderId: '@me:example.org',
+            originServerTs: DateTime(2026, 9, 20, 12, minute),
+            status: EventStatus.error,
+            content: {
+              'msgtype': 'm.text',
+              'body': '* $body',
+              'm.new_content': {'msgtype': 'm.text', 'body': body},
+              'm.relates_to': {'rel_type': 'm.replace', 'event_id': r'$mine'},
+            },
+          );
+
+      Future<void> openWithFailedEdit(WidgetTester tester) async {
+        status = StreamController<ConnectionStatus>.broadcast();
+        addTearDown(status.close);
+        await openRoom(
+          tester,
+          () => [
+            failedEdit('txn-edit', 'the plan', minute: 6),
+            own(r'$mine', 'teh plan'),
+          ],
+          overrides: [
+            connectionStatusProvider.overrideWith((ref) => status.stream),
+          ],
+        );
+        status.add(ConnectionStatus.noInternet);
+        await harness.drive(tester, turns: 2);
+      }
+
+      Future<void> comeBackOnline(WidgetTester tester) async {
+        status.add(ConnectionStatus.online);
+        await harness.drive(tester, turns: 4);
+      }
+
+      testWidgets('says so, and a tap sends it again as an edit', (
+        tester,
+      ) async {
+        await openWithFailedEdit(tester);
+
+        expect(find.byType(NotSentRow), findsOneWidget);
+        await tester.tap(find.text('the plan'));
+        await harness.settle(tester);
+
+        final sent = harness.sent.single;
+        expect((sent['m.new_content']! as Map)['body'], 'the plan');
+        expect((sent['m.relates_to']! as Map)['event_id'], r'$mine');
+      });
+
+      testWidgets('goes again as an edit once back online', (tester) async {
+        await openWithFailedEdit(tester);
+
+        await comeBackOnline(tester);
+
+        final sent = harness.sent.single;
+        expect((sent['m.new_content']! as Map)['body'], 'the plan');
+        expect((sent['m.relates_to']! as Map)['rel_type'], 'm.replace');
+      });
+
+      testWidgets('never goes again once a newer edit replaced it', (
+        tester,
+      ) async {
+        await openWithFailedEdit(tester);
+
+        await openActions(tester, 'the plan');
+        await tapAction(tester, 'Edit');
+        await sendTyped(tester, 'the real plan');
+        await comeBackOnline(tester);
+
+        expect(
+          [for (final s in harness.sent) (s['m.new_content']! as Map)['body']],
+          ['the real plan'],
+        );
+      });
+
+      testWidgets('never goes again once its message is deleted', (
+        tester,
+      ) async {
+        await openWithFailedEdit(tester);
+
+        await openActions(tester, 'the plan');
+        await tapAction(tester, 'Delete');
+        await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+        await harness.settle(tester);
+        harness.client.onTimelineEvent.add(
+          buildTestEvent(
+            harness.room,
+            eventId: r'$redaction',
+            senderId: '@me:example.org',
+            type: EventTypes.Redaction,
+            originServerTs: DateTime(2026, 9, 20, 12, 7),
+            content: {'redacts': r'$mine'},
+          )..redacts = r'$mine',
+        );
+        await harness.settle(tester);
+        await comeBackOnline(tester);
+
+        expect(requestsTo('/redact/'), hasLength(1));
+        expect(harness.sent, isEmpty);
+      });
+    });
+  });
+
+  group('a message not sent yet', () {
+    testWidgets('offers no reactions, Reply, Edit or Delete while on its way', (
+      tester,
+    ) async {
+      await openRoom(
+        tester,
+        () => [own('txn-1', 'on its way', status: EventStatus.sending)],
+      );
+
+      await openActions(tester, 'on its way');
+
+      expect(find.text('👍'), findsNothing);
+      expect(find.widgetWithText(ListTile, 'Reply'), findsNothing);
+      expect(find.widgetWithText(ListTile, 'Edit'), findsNothing);
+      expect(find.widgetWithText(ListTile, 'Delete'), findsNothing);
+      expect(find.widgetWithText(ListTile, 'Copy'), findsOneWidget);
+    });
+
+    testWidgets('a failed one offers no reactions, Reply or Edit', (
+      tester,
+    ) async {
+      await openRoom(
+        tester,
+        () => [own('txn-1', 'stuck', status: EventStatus.error)],
+      );
+
+      await openActions(tester, 'stuck');
+
+      expect(find.text('👍'), findsNothing);
+      expect(find.widgetWithText(ListTile, 'Reply'), findsNothing);
+      expect(find.widgetWithText(ListTile, 'Edit'), findsNothing);
+    });
+
+    testWidgets('the sheet says it was not sent, or is still sending, never '
+        'a sent time', (tester) async {
+      await openRoom(
+        tester,
+        () => [
+          own('txn-1', 'stuck', status: EventStatus.error),
+          own('txn-2', 'on its way', status: EventStatus.sending),
+        ],
+      );
+
+      await openActions(tester, 'stuck');
+      expect(find.text('Not sent'), findsOneWidget);
+      expect(find.textContaining('Sent '), findsNothing);
+      await tester.tapAt(const Offset(10, 10));
+      await harness.settle(tester);
+
+      await openActions(tester, 'on its way');
+      expect(find.text('Sending…'), findsOneWidget);
+      expect(find.textContaining('Sent '), findsNothing);
+    });
+
+    testWidgets('a failed one is deleted from this device only', (
+      tester,
+    ) async {
+      await openRoom(
+        tester,
+        () => [
+          own('txn-1', 'stuck', status: EventStatus.error),
+          harness.message(r'$m1'),
+        ],
+      );
+
+      await openActions(tester, 'stuck');
+      await tapAction(tester, 'Delete');
+      expect(
+        find.text(
+          'It was not sent, so only this device has it. Nobody can '
+          'undo this.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await harness.settle(tester);
+
+      expect(requestsTo('/redact/'), isEmpty);
+      expect(find.text('stuck'), findsNothing);
     });
   });
 

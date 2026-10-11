@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:unifiedpush/unifiedpush.dart';
+import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
 import '../errors/caught_errors.dart';
 import '../settings/app_preferences_provider.dart';
@@ -86,7 +86,9 @@ class DeliveryAutoFallbackNotifier extends Notifier<void> {
     }
     _switching = true;
     try {
-      final distributors = await UnifiedPush.getDistributors();
+      final distributors = await UnifiedPushPlatform.instance.getDistributors(
+        const [],
+      );
       final target = autoFallbackFor(
         fcm: fcmDeliveryProvider.status.value,
         fcmRegistered: fcmDeliveryProvider.registered,

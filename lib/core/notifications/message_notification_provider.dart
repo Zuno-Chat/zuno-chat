@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -214,7 +215,7 @@ class MessageNotificationNotifier extends Notifier<void> {
       for (final MapEntry(key: roomId, value: room) in joined.entries)
         if (room.unreadNotifications?.notificationCount == 0) roomId,
     ];
-    final now = DateTime.now();
+    final now = clock.now();
     _stopAwaiting(
       (awaited) =>
           readRooms.contains(awaited.roomId) ||
@@ -234,14 +235,14 @@ class MessageNotificationNotifier extends Notifier<void> {
     try {
       await _roomCache.write(
         await SharedPreferences.getInstance(),
-        notificationRoomEntriesOf(client),
+        await notificationRoomEntriesOf(client),
       );
     } catch (error, stack) {
       reportCaught('notification room cache write', error, stack);
     }
   }
 
-  void _awaitKey(Client client, Event event) {
+  void _awaitKey(Client client, Event event, {required bool floorPosted}) {
     final encryption = client.encryption;
     final sessionId = event.content.tryGet<String>('session_id');
     if (encryption == null || sessionId == null) return;
@@ -250,11 +251,14 @@ class MessageNotificationNotifier extends Notifier<void> {
         .where((received) => received == sessionId)
         .asyncMap((_) => encryption.decryptRoomEvent(event))
         .where((decrypted) => !isUndecryptableEvent(decrypted))
-        .listen((decrypted) => _handleLateKey(client, decrypted));
+        .listen(
+          (decrypted) =>
+              _handleLateKey(client, decrypted, floorPosted: floorPosted),
+        );
     _awaitingKeys[event.eventId] = (
       sub: sub,
       roomId: event.room.id,
-      since: DateTime.now(),
+      since: clock.now(),
     );
   }
 
@@ -265,65 +269,78 @@ class MessageNotificationNotifier extends Notifier<void> {
         return true;
       });
 
-  Future<void> _handleLateKey(Client client, Event decrypted) async {
+  Future<void> _handleLateKey(
+    Client client,
+    Event decrypted, {
+    required bool floorPosted,
+  }) async {
     final eventId = decrypted.eventId;
     unawaited(_awaitingKeys.remove(eventId)?.sub.cancel());
-    if (await _handleEvent(client, decrypted)) return;
+    if (await _handleEvent(client, decrypted, refinesFloor: floorPosted)) {
+      return;
+    }
     await CallNotificationService.instance.retractPlaceholder(
       decrypted.room.id,
       eventId,
     );
   }
 
-  Future<bool> _handleEvent(Client client, Event event) async {
+  Future<bool> _handleEvent(
+    Client client,
+    Event event, {
+    bool refinesFloor = false,
+  }) async {
     if (client.prevBatch == null) return false;
-    final presentsInFrontOnly = ref
-        .read(platformCapabilitiesProvider)
-        .nseNotifications;
-    final decision = messageNotificationFor(
-      client,
-      event,
-      pushRuleAction: client.pushruleEvaluator.match(event),
-      notifyMe: ref.read(notifyMeProvider),
-      currentlyOpenRoomId: ref.read(currentlyOpenRoomIdProvider),
-      preview: presentsInFrontOnly
-          ? ref.read(notificationPreviewProvider)
-          : NotificationPreview.full,
-    );
-    final content = decision.content;
-    if (decision.placeholder) _awaitKey(client, event);
-    final lifecycle = WidgetsBinding.instance.lifecycleState;
-    final inFront =
-        lifecycle == AppLifecycleState.resumed ||
-        (presentsInFrontOnly && lifecycle == AppLifecycleState.inactive);
-    void markShown() {
-      if (presentsInFrontOnly) {
-        unawaited(ref.read(nseAppChannelProvider).writeShown([event.eventId]));
-      }
-    }
-
-    if (decision.refusal == MessageNotificationRefusal.roomOpen) {
-      markShown();
-      return false;
-    }
-    if (content == null) return false;
-    if (content.quiet && inFront) {
-      markShown();
-      return false;
-    }
-    if (presentsInFrontOnly && !inFront) return false;
+    final roomId = event.room.id;
     final posted = Completer<void>();
-    final inRoom = _posting.putIfAbsent(content.roomId, () => {})
-      ..add(posted.future);
+    final inRoom = _posting.putIfAbsent(roomId, () => {})..add(posted.future);
     void settle() {
       if (!posted.isCompleted) posted.complete();
       inRoom.remove(posted.future);
-      if (inRoom.isEmpty && identical(_posting[content.roomId], inRoom)) {
-        _posting.remove(content.roomId);
+      if (inRoom.isEmpty && identical(_posting[roomId], inRoom)) {
+        _posting.remove(roomId);
       }
     }
 
     try {
+      await loadRoomNameMembers(event.room);
+      final presentsInFrontOnly = ref
+          .read(platformCapabilitiesProvider)
+          .nseNotifications;
+      final decision = messageNotificationFor(
+        client,
+        event,
+        pushRuleAction: client.pushruleEvaluator.match(event),
+        notifyMe: ref.read(notifyMeProvider),
+        currentlyOpenRoomId: ref.read(currentlyOpenRoomIdProvider),
+        preview: presentsInFrontOnly
+            ? ref.read(notificationPreviewProvider)
+            : NotificationPreview.full,
+      );
+      final content = decision.content;
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      final inFront =
+          lifecycle == AppLifecycleState.resumed ||
+          (presentsInFrontOnly && lifecycle == AppLifecycleState.inactive);
+      void markShown() {
+        if (presentsInFrontOnly) {
+          unawaited(
+            ref.read(nseAppChannelProvider).writeShown([event.eventId]),
+          );
+        }
+      }
+
+      if (decision.refusal == MessageNotificationRefusal.roomOpen) {
+        markShown();
+        return false;
+      }
+      if (content == null) return false;
+      final quietInFront = content.quiet && inFront;
+      final posts =
+          !quietInFront && (inFront || !presentsInFrontOnly || refinesFloor);
+      if (decision.placeholder) _awaitKey(client, event, floorPosted: posts);
+      if (quietInFront) markShown();
+      if (!posts) return false;
       await postMessageNotification(
         content,
         client: client,
@@ -332,9 +349,9 @@ class MessageNotificationNotifier extends Notifier<void> {
         onPosted: settle,
       );
       markShown();
+      return true;
     } finally {
       settle();
     }
-    return true;
   }
 }
