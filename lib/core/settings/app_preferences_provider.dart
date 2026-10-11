@@ -264,10 +264,7 @@ final encryptToVerifiedSessionsOnlyProvider =
 class EncryptToVerifiedSessionsOnlyNotifier extends Notifier<bool> {
   @override
   bool build() =>
-      ref
-          .watch(sharedPreferencesProvider)
-          .getBool(_encryptToVerifiedSessionsOnlyKey) ??
-      false;
+      readEncryptToVerifiedSessionsOnly(ref.watch(sharedPreferencesProvider));
 
   Future<void> set(bool value) async {
     state = value;
@@ -281,6 +278,7 @@ class EncryptToVerifiedSessionsOnlyNotifier extends Notifier<bool> {
 bool readEncryptToVerifiedSessionsOnly(SharedPreferences prefs) =>
     prefs.getBool(_encryptToVerifiedSessionsOnlyKey) ?? false;
 
+// shortcut: matrix 14.0.0's directlyVerifiedOnly skips a confirmed person's other devices, bump matrix once famedly/matrix-dart-sdk#2518 ships
 ShareKeysWith shareKeysWithFor(bool encryptToVerifiedSessionsOnly) =>
     encryptToVerifiedSessionsOnly
     ? ShareKeysWith.directlyVerifiedOnly

@@ -7,6 +7,7 @@ import '../errors/caught_errors.dart';
 final donateUri = Uri.parse('https://zuno.chat/#donate');
 final privacyPolicyUri = Uri.parse('https://zuno.chat/privacy');
 final termsUri = Uri.parse('https://zuno.chat/terms');
+final securityUri = Uri.parse('https://zuno.chat/security');
 final sourceCodeUri = Uri.parse('https://github.com/Zuno-Chat/zuno-chat');
 
 typedef UrlOpener = Future<bool> Function(Uri uri);

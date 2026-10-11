@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
@@ -218,6 +219,7 @@ void main() {
       var leases = 0;
       leaseAnswer = (kind) => '$kind-lease-${++leases}';
       forgetAppLeaseForTest();
+      SharedPreferences.setMockInitialValues({});
       messenger.setMockMethodCallHandler(lease, (call) async {
         leaseCalls.add(call);
         if (call.method != 'acquire') return null;
@@ -327,6 +329,37 @@ void main() {
     }
 
     Iterable<String> leaseMethods() => leaseCalls.map((c) => c.method);
+
+    group('confirmed people only', () {
+      test('the app starts with the SDK default when it is off', () async {
+        final client = await create();
+
+        expect(client.shareKeysWith, ShareKeysWith.crossVerifiedIfEnabled);
+      });
+
+      test('the app starts sharing keys only with confirmed people when it '
+          'is on', () async {
+        SharedPreferences.setMockInitialValues({
+          'settings.encrypt_to_verified_sessions_only': true,
+        });
+
+        final client = await create();
+
+        expect(client.shareKeysWith, ShareKeysWith.directlyVerifiedOnly);
+      });
+
+      test('a background client, which can send a notification reply, keeps '
+          'to it too', () async {
+        SharedPreferences.setMockInitialValues({
+          'settings.encrypt_to_verified_sessions_only': true,
+        });
+        await obtainDatabaseCipher();
+
+        final client = await create(backgroundSync: false);
+
+        expect(client.shareKeysWith, ShareKeysWith.directlyVerifiedOnly);
+      });
+    });
 
     group('the client lease', () {
       test('the app takes its lease before it opens the database, waiting '

@@ -81,9 +81,6 @@ Future<void> _runApp(List<String> args) async {
   if (ambientCapabilities.nativeNotificationActions) {
     nativeNotificationActionRunner.attach(client);
   }
-  client.shareKeysWith = shareKeysWithFor(
-    readEncryptToVerifiedSessionsOnly(preferences),
-  );
   unawaited(
     ScreenSecurityService.instance.setPreventScreenshots(
       readPreventScreenshots(preferences),

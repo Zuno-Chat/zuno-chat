@@ -13,6 +13,7 @@ class ZunoClient extends Client {
     super.roomPreviewLastEvents,
     super.nativeImplementations,
     super.onSoftLogout,
+    super.shareKeysWith,
     this.appClient = true,
     this.lease,
     this.keepAwake,

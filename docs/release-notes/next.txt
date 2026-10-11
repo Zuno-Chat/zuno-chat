@@ -6,5 +6,7 @@ New
 • Mute, use the speaker or turn your camera off while your call rings.
 • Drag your own view to any corner of a video call.
 • Crash reports, when you turn them on, now cover errors too.
+• Send only to people you have confirmed.
+• See every way Zuno protects you, from How this works.
 
 Fixed 114 bugs.

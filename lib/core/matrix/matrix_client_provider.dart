@@ -9,6 +9,7 @@ import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 
 import '../calls/matrixrtc/call_member_state.dart' show callMemberEventType;
@@ -18,6 +19,7 @@ import '../location/live_location_protocol.dart' show liveLocationStateType;
 import '../platform/platform_capabilities.dart';
 import '../push/read_model/session_exporter.dart';
 import '../push/send_keep_awake.dart';
+import '../settings/app_preferences_provider.dart';
 import 'atomic_batch_database.dart';
 import 'client_lease.dart';
 import 'client_startup.dart';
@@ -175,10 +177,15 @@ Future<StartedMatrixClient> _startClient(
         ? await openSessionExportingDatabase(sqlite)
         : await openZunoDatabase(sqlite);
     final databaseMs = watch.elapsedMilliseconds;
+    final preferences = await SharedPreferences.getInstance();
+    if (!backgroundSync) await preferences.reload();
 
     final started = client = ZunoClient(
       'Zuno',
       httpClient: uploadProgressHttpClient,
+      shareKeysWith: shareKeysWithFor(
+        readEncryptToVerifiedSessionsOnly(preferences),
+      ),
       database: database,
       nativeImplementations: backgroundSync
           ? NativeImplementationsIsolate(

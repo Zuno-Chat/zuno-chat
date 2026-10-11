@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/navigation/zuno_links.dart';
+
 class WhySecurityPage extends StatelessWidget {
-  const WhySecurityPage({super.key});
+  final UrlOpener openUrl;
+
+  const WhySecurityPage({this.openUrl = openExternally, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -69,12 +73,33 @@ class WhySecurityPage extends StatelessWidget {
             'server does not control. It only needs doing once per person, '
             'even if they change devices later.',
           ),
+          heading('Confirmed people only'),
+          para(
+            'Normally, everyone in a chat can read what you send, on every '
+            'device they have approved. If someone has not set up recovery, '
+            'all of their devices can.',
+          ),
+          para(
+            'Turn on Confirmed people only, and what you send from this device '
+            'can be read only by people you have confirmed and by your own '
+            'approved devices. Everyone else sees a message they cannot read. '
+            'Once you confirm them, they can read what you send after that.',
+          ),
           heading('When Zuno interrupts you'),
           para(
             'Almost never. A new sign-in on your own account, and a person '
             'whose security details changed after you confirmed them. Both '
             'mean something you can act on. Everything else stays out of your '
             'way.',
+          ),
+          const SizedBox(height: 16),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.shield_outlined),
+            title: const Text("All of Zuno's protections"),
+            subtitle: Text('${securityUri.host}${securityUri.path}'),
+            trailing: const Icon(Icons.open_in_new),
+            onTap: () => openLink(context, securityUri, openUrl: openUrl),
           ),
         ],
       ),

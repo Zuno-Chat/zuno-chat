@@ -164,12 +164,26 @@ person calls from a device they approved.
 new sign-in on the user's own account (a banner and a notification,
 `notifications.md`), and a new device for a contact without a master key (a
 banner in the chat). The default key policy sends that contact's new devices
-room keys, so it is the one case where a device can read along unnoticed.
+room keys, so it is the one case where a device can read along unnoticed,
+unless Confirmed people only is on.
 
 The first check for a user seeds the store silently. Only contacts sharing a
 non-public room are watched, because strangers' devices are noise. The
 warning fires on a device appearing rather than as a standing state, because
 "has no identity" is true of most contacts and would become wallpaper.
+
+### Confirmed people only
+
+A per-device switch in Security → On this device picks the SDK's key policy:
+off is the default `ShareKeysWith.crossVerifiedIfEnabled`, and on is
+`directlyVerifiedOnly`, so new room keys from this device reach only
+confirmed people and the user's own approved devices. Every client takes the
+stored choice when it is built, background ones included, because a
+notification reply is sent from a background client. Turning it on needs
+recovery and an approved device, since without them this device trusts
+nobody and its messages would reach no one; turning it off is always
+allowed. "How this works" explains it and links to the site's full list of
+protections.
 
 ### Undecryptable messages
 
@@ -317,6 +331,12 @@ the commonest words of ordinary prose break any run.
 - **A contact with a master key gets no room keys on an unapproved device**,
   so messages stay undecryptable there until they approve it, which is the
   default key policy working, not a bug.
+- **matrix 14.0.0's `directlyVerifiedOnly` counts only devices checked one by
+  one**, not a confirmed person's other devices as its own doc promises, so
+  Confirmed people only reaches fewer devices than it says until
+  famedly/matrix-dart-sdk#2518 ships.
+- **A background isolate holds a stale copy of `SharedPreferences`**, so a
+  client built there reloads them before reading the key policy.
 - **The file picker leaves a copy of an opened file in the app's temporary
   storage**, so the copy is deleted after reading, or the code lingers there
   in plaintext; only a copy inside that storage is ever deleted, never the

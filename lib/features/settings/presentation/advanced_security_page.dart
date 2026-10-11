@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/settings/app_preferences_provider.dart';
 import 'key_backup_management_page.dart';
 import 'secure_backup_page.dart';
 import 'session_key_format.dart';
@@ -58,19 +57,10 @@ class _AdvancedSecurityPageState extends ConsumerState<AdvancedSecurityPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final encryptToVerifiedOnly = ref.watch(
-      encryptToVerifiedSessionsOnlyProvider,
-    );
     final client = ref.watch(matrixClientProvider);
     final encryption = client.encryption;
     final crossSigningEnabled = encryption?.crossSigning.enabled ?? false;
     final backupEnabled = encryption?.keyManager.enabled ?? false;
-
-    final ownDevices =
-        client.userDeviceKeys[client.userID]?.deviceKeys.values ?? [];
-    final anyVerifiedDevice = ownDevices.any(
-      (d) => d.deviceId != client.deviceID && d.directVerified,
-    );
 
     final crossSigningSubtitle = switch ((
       crossSigningEnabled,
@@ -131,24 +121,6 @@ class _AdvancedSecurityPageState extends ConsumerState<AdvancedSecurityPage> {
               onPressed: () =>
                   _copyToClipboard('Session key', client.fingerprintKey),
             ),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.gpp_good_outlined),
-            title: const Text('Encrypt to verified sessions only'),
-            subtitle: Text(
-              anyVerifiedDevice
-                  ? "Don't send encrypted messages to other sessions from "
-                        "this session until they're verified"
-                  : 'Unavailable until you have approved another device — '
-                        'turning this on now would stop your messages '
-                        'reaching anyone at all, including you.',
-            ),
-            value: encryptToVerifiedOnly && anyVerifiedDevice,
-            onChanged: anyVerifiedDevice
-                ? (value) => ref
-                      .read(encryptToVerifiedSessionsOnlyProvider.notifier)
-                      .set(value)
-                : null,
           ),
           const TemporarySessionTokenTile(),
           const Divider(),

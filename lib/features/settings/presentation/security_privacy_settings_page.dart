@@ -10,6 +10,7 @@ import '../../../core/ui/card_list_view.dart';
 import '../../blocking/presentation/blocked_people_page.dart';
 import '../../verification/presentation/approve_this_device_page.dart';
 import 'active_sessions_page.dart';
+import 'confirmed_people_only_tile.dart';
 import 'secure_backup_page.dart';
 import 'security_status_card.dart';
 import 'settings_widgets.dart';
@@ -96,45 +97,43 @@ class _SecurityPrivacySettingsPageState
               ),
             ],
           ),
-          if (capabilities.keyboardLearningOptOut ||
-              capabilities.screenSecurity)
-            CardGroup(
-              title: 'On this device',
-              children: [
-                if (capabilities.keyboardLearningOptOut)
-                  SwitchListTile(
-                    secondary: const Icon(Icons.keyboard_alt_outlined),
-                    title: const Text('Incognito keyboard'),
-                    subtitle: const Text(
-                      'Asks the keyboard not to learn from what you type',
-                    ),
-                    value: incognitoKeyboard,
-                    onChanged: (value) =>
-                        ref.read(incognitoKeyboardProvider.notifier).set(value),
+          CardGroup(
+            title: 'On this device',
+            children: [
+              if (capabilities.keyboardLearningOptOut)
+                SwitchListTile(
+                  secondary: const Icon(Icons.keyboard_alt_outlined),
+                  title: const Text('Incognito keyboard'),
+                  subtitle: const Text(
+                    'Asks the keyboard not to learn from what you type',
                   ),
-                if (capabilities.screenSecurity)
-                  SwitchListTile(
-                    secondary: const Icon(Icons.screenshot_outlined),
-                    title: Text(
-                      capabilities.screenshotBlocking
-                          ? 'Prevent screenshots'
-                          : 'Hide screen content',
-                    ),
-                    subtitle: Text(
-                      capabilities.screenshotBlocking
-                          ? 'Blocks screenshots and screen recording, and '
-                                'hides Zuno in the recent apps preview'
-                          : 'Hides Zuno in the app switcher and while the '
-                                'screen is recorded or shared. Screenshots '
-                                'still work.',
-                    ),
-                    value: preventScreenshots,
-                    onChanged: (value) => ref
-                        .read(preventScreenshotsProvider.notifier)
-                        .set(value),
+                  value: incognitoKeyboard,
+                  onChanged: (value) =>
+                      ref.read(incognitoKeyboardProvider.notifier).set(value),
+                ),
+              if (capabilities.screenSecurity)
+                SwitchListTile(
+                  secondary: const Icon(Icons.screenshot_outlined),
+                  title: Text(
+                    capabilities.screenshotBlocking
+                        ? 'Prevent screenshots'
+                        : 'Hide screen content',
                   ),
-              ],
-            ),
+                  subtitle: Text(
+                    capabilities.screenshotBlocking
+                        ? 'Blocks screenshots and screen recording, and '
+                              'hides Zuno in the recent apps preview'
+                        : 'Hides Zuno in the app switcher and while the '
+                              'screen is recorded or shared. Screenshots '
+                              'still work.',
+                  ),
+                  value: preventScreenshots,
+                  onChanged: (value) =>
+                      ref.read(preventScreenshotsProvider.notifier).set(value),
+                ),
+              const ConfirmedPeopleOnlyTile(),
+            ],
+          ),
           CardGroup(
             children: [
               ListTile(
