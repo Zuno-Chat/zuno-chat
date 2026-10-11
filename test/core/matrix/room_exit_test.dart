@@ -55,6 +55,24 @@ void main() {
   Room joinedRoom(Client client) =>
       buildTestRoom(client)..membership = Membership.join;
 
+  Room asLastAdmin(Room room) {
+    room.setState(
+      Event(
+        eventId: '\$power-${room.id}',
+        type: EventTypes.RoomPowerLevels,
+        senderId: '@me:example.org',
+        originServerTs: DateTime(2026),
+        content: {
+          'users': {'@me:example.org': 100, '@bob:example.org': 0},
+        },
+        room: room,
+        stateKey: '',
+      ),
+    );
+    room.summary.mJoinedMemberCount = 3;
+    return room;
+  }
+
   Iterable<String> leaveRequests() =>
       requests.where((r) => r.endsWith('/leave'));
 
@@ -231,6 +249,43 @@ void main() {
     });
   });
 
+  group('last admin', () {
+    test('leaving a room as its last admin says to hand it on first', () async {
+      final room = asLastAdmin(joinedRoom(exitClient()));
+
+      expect(
+        await roomExitMessage(room),
+        'You will stop getting messages here. Make someone else an admin of '
+        'this room first, or nobody can manage it again.',
+      );
+    });
+
+    test('a room with nobody else in it needs no warning', () async {
+      final room = asLastAdmin(joinedRoom(exitClient()));
+      room.summary.mJoinedMemberCount = 1;
+
+      expect(
+        await roomExitMessage(room),
+        'You will stop getting messages here.',
+      );
+    });
+
+    test('deleting a chat never warns about admins', () async {
+      final room = asLastAdmin(direct(joinedRoom(exitClient())));
+
+      expect(await roomExitMessage(room), isNot(contains('admin')));
+    });
+
+    testWidgets('the leave prompt carries the warning', (tester) async {
+      await tapExit(tester, asLastAdmin(joinedRoom(exitClient())));
+
+      expect(
+        find.textContaining('Make someone else an admin of this room first'),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('labels', () {
     test('a direct chat reads as deleting', () {
       final room = direct(joinedRoom(exitClient()));
@@ -278,6 +333,19 @@ void main() {
             stateKey: room.id,
           ),
         );
+        room.setState(
+          Event(
+            eventId: '\$parent-${room.id}',
+            type: EventTypes.SpaceParent,
+            senderId: '@me:example.org',
+            originServerTs: DateTime(2026),
+            content: {
+              'via': ['example.org'],
+            },
+            room: room,
+            stateKey: space.id,
+          ),
+        );
       }
       client.rooms.add(space);
       return space;
@@ -313,7 +381,7 @@ void main() {
       },
     );
 
-    test('a community reads as leaving, and names what else is left', () {
+    test('a community reads as leaving, and names what else is left', () async {
       final client = exitClient();
       final gear = member(client, '!gear:example.org', 'Gear swap');
       final general = member(client, '!general:example.org', 'General');
@@ -322,14 +390,37 @@ void main() {
       expect(roomExitLabel(empty), 'Leave community');
       expect(roomExitTitle(empty), 'Leave community?');
       expect(roomExitConfirmLabel(empty), 'Leave');
-      expect(roomExitMessage(empty), 'You will stop seeing its rooms.');
+      expect(await roomExitMessage(empty), 'You will stop seeing its rooms.');
 
       final one = community(client, rooms: [gear]);
-      expect(roomExitMessage(one), 'You also leave Gear swap.');
+      expect(await roomExitMessage(one), 'You also leave Gear swap.');
 
       client.rooms.remove(one);
       final two = community(client, rooms: [gear, general]);
-      expect(roomExitMessage(two), 'You also leave 2 of its rooms.');
+      expect(await roomExitMessage(two), 'You also leave 2 of its rooms.');
+    });
+
+    test('a community names what it would leave without an admin', () async {
+      final client = exitClient();
+      final gear = asLastAdmin(
+        member(client, '!gear:example.org', 'Gear swap'),
+      );
+      final general = member(client, '!general:example.org', 'General');
+
+      final one = community(client, rooms: [gear, general]);
+      expect(
+        await roomExitMessage(one),
+        'You also leave 2 of its rooms. Make someone else an admin of Gear '
+        'swap first, or nobody can manage it again.',
+      );
+
+      asLastAdmin(one);
+      asLastAdmin(general);
+      expect(
+        await roomExitMessage(one),
+        'You also leave 2 of its rooms. Make someone else an admin of this '
+        'community and 2 of its rooms first, or nobody can manage them again.',
+      );
     });
 
     testWidgets('leaving a community ends a call in any room it takes along', (

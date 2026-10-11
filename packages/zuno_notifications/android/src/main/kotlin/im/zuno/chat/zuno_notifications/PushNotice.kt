@@ -5,13 +5,12 @@ import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.media.AudioAttributes
 import android.os.Build
 import android.os.VibrationAttributes
 import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -134,15 +133,7 @@ object PushNotice {
             val channelExists = manager.getNotificationChannel(MISSED_CHANNEL) != null
             val enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
             if (!PushNoticeDecision.shouldPostMissed(enabled, channelExists)) return
-            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            val tap = launch?.let {
-                PendingIntent.getActivity(
-                    context,
-                    MISSED_NOTIFICATION_ID,
-                    it,
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-                )
-            }
+            val tap = AppLaunchIntent.pending(context, MISSED_NOTIFICATION_ID)
             val notification = NotificationCompat.Builder(context, MISSED_CHANNEL)
                 .setSmallIcon(smallIcon(context))
                 .setContentTitle(MISSED_TITLE)
@@ -167,15 +158,7 @@ object PushNotice {
                 manager.getNotificationChannel(PushNoticeDecision.DIRECT_CHANNEL) != null
             val enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
             if (!PushNoticeDecision.shouldPostMissed(enabled, channelExists)) return false
-            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            val tap = launch?.let {
-                PendingIntent.getActivity(
-                    context,
-                    NotificationIds.TEST_NOTIFICATION_ID,
-                    it,
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-                )
-            }
+            val tap = AppLaunchIntent.pending(context, NotificationIds.TEST_NOTIFICATION_ID)
             val alert = alertFor(context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE))
             val notification = NotificationCompat.Builder(
                 context,
@@ -217,16 +200,7 @@ object PushNotice {
 
     private fun vibrate(context: Context) {
         try {
-            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                (
-                    context.getSystemService(
-                        Context.VIBRATOR_MANAGER_SERVICE,
-                    ) as? VibratorManager
-                    )?.defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-            }
+            val vibrator = Vibration.vibrator(context)
             if (vibrator == null || !vibrator.hasVibrator()) return
             val effect = VibrationEffect.createWaveform(vibrationPattern, -1)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

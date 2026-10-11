@@ -140,6 +140,58 @@ void main() {
     expect(messagesOf(lastRoomPost()).map((m) => m['text']), ['hi', 'there?']);
   });
 
+  test('a chat still on screen keeps its lines however many other chats '
+      'came and went since', () async {
+    await post(eventId: r'$1', text: 'hi');
+    showing();
+    for (var i = 0; i < maxNotificationThreads; i++) {
+      await post(room: '!other$i:x', eventId: '\$o$i', text: 'other');
+    }
+
+    await post(eventId: r'$2', text: 'there?');
+
+    expect(messagesOf(lastRoomPost()).map((m) => m['text']), ['hi', 'there?']);
+  });
+
+  test('a post under a thread of its own keeps apart from the room\'s '
+      'notification, its lines and its instant notice', () async {
+    const own = 'knock:$roomId:@ines:x';
+    await post(eventId: r'$1', text: 'hi');
+    showing();
+    final noticed = installFakeConversationsChannel(noticed: {roomId: r'$m'});
+    final forget = CallNotificationService.instance.expectPushNotice(
+      roomId,
+      r'$m',
+    );
+    addTearDown(forget);
+
+    await CallNotificationService.instance.showMessage(
+      MessageNotificationContent(
+        roomId: roomId,
+        threadKey: own,
+        title: 'Beginners',
+        body: 'Ines asks to join',
+        text: 'Ines asks to join',
+        eventId: r'$knock',
+        isDirectChat: false,
+        senderId: '@ines:x',
+        senderName: 'Ines',
+        timestamp: noon,
+      ),
+    );
+
+    final knock = notifications.shown.last;
+    expect(knock.id, messageNotificationIdFor(own));
+    expect(jsonDecode(knock.payload)['roomId'], roomId);
+    expect(messagesOf(knock.android).map((m) => m['text']), [
+      'Ines asks to join',
+    ]);
+    expect(noticed.takenNotices, isEmpty);
+    final prefs = await SharedPreferences.getInstance();
+    expect(readNotificationThread(prefs, roomId)?.lines, hasLength(1));
+    expect(readNotificationThread(prefs, own)?.roomId, roomId);
+  });
+
   test('starts afresh once the user has swiped the old thread away', () async {
     await post(eventId: r'$1', text: 'hi');
     await post(eventId: r'$2', text: 'there?');

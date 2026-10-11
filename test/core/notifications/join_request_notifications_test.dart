@@ -2,9 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/invite_notification_provider.dart';
 import 'package:zuno/core/notifications/join_request_notification_provider.dart';
+import 'package:zuno/core/notifications/message_notification_provider.dart';
 
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
@@ -139,6 +141,134 @@ void main() {
       final shown = notifications.shown.single;
       expect(shown.title, contains('Beginners'));
       expect(shown.body, 'Maya asks to join');
+    });
+
+    group('on screen', () {
+      final maya = joinRequestThread('!beginners:x', '@maya:x');
+      final mayasId = messageNotificationIdFor(maya);
+      final roomsId = messageNotificationIdFor('!beginners:x');
+
+      Event member(String userId, String membership, {String? eventId}) =>
+          Event(
+            eventId: eventId ?? '\$$membership-$userId',
+            type: EventTypes.RoomMember,
+            stateKey: userId,
+            senderId: membership == 'knock' ? userId : _me,
+            originServerTs: DateTime.now(),
+            content: {'membership': membership, 'displayname': 'Maya'},
+            room: room,
+          );
+
+      Future<void> sync({
+        List<Event> timeline = const [],
+        List<Event> state = const [],
+        int? unread,
+      }) async {
+        client.onSync.add(
+          SyncUpdate(
+            nextBatch: 's2',
+            rooms: RoomsUpdate(
+              join: {
+                room.id: JoinedRoomUpdate(
+                  state: [
+                    for (final e in state) MatrixEvent.fromJson(e.toJson()),
+                  ],
+                  timeline: TimelineUpdate(
+                    events: [
+                      for (final e in timeline)
+                        MatrixEvent.fromJson(e.toJson()),
+                    ],
+                  ),
+                  unreadNotifications: unread == null
+                      ? null
+                      : UnreadNotificationCounts(notificationCount: unread),
+                ),
+              },
+            ),
+          ),
+        );
+        await pumpEventQueue();
+      }
+
+      Future<void> knockFromMaya() async {
+        final c = await container();
+        c.read(joinRequestNotificationProvider);
+        c.read(messageNotificationProvider);
+        client.onTimelineEvent.add(member('@maya:x', 'knock'));
+        await pumpEventQueue();
+        notifications.active = [
+          {'id': mayasId, 'channelId': 'group_messages', 'payload': ''},
+          {'id': roomsId, 'channelId': 'group_messages', 'payload': ''},
+        ];
+      }
+
+      test('a request has a notification of its own, apart from the room\'s '
+          'messages', () async {
+        await knockFromMaya();
+
+        expect(notifications.shown.single.id, mayasId);
+        expect(notifications.shown.single.payload, contains('!beginners:x'));
+      });
+
+      test('stays when the room\'s messages are read elsewhere', () async {
+        await knockFromMaya();
+
+        await sync(unread: 0);
+
+        expect(notifications.cancelled, contains(roomsId));
+        expect(notifications.cancelled, isNot(contains(mayasId)));
+      });
+
+      test('comes down once the request is answered', () async {
+        await knockFromMaya();
+
+        await sync(timeline: [member('@maya:x', 'invite')]);
+
+        expect(notifications.cancelled, [mayasId]);
+      });
+
+      test('comes down once the requester gives up, even when only the '
+          'room state says so', () async {
+        await knockFromMaya();
+
+        await sync(state: [member('@maya:x', 'leave')]);
+
+        expect(notifications.cancelled, [mayasId]);
+      });
+
+      test('a request answered in the sync that brought it comes down after '
+          'its post lands, never before', () async {
+        final c = await container();
+        c.read(joinRequestNotificationProvider);
+        notifications.active = [
+          {'id': mayasId, 'channelId': 'group_messages', 'payload': ''},
+        ];
+
+        client.onTimelineEvent.add(member('@maya:x', 'knock'));
+        await sync(timeline: [member('@maya:x', 'invite')]);
+
+        final methods = notifications.methods;
+        expect(notifications.cancelled, [mayasId]);
+        expect(
+          methods.lastIndexOf('cancel'),
+          greaterThan(methods.lastIndexOf('show')),
+        );
+      });
+
+      test('stays while the requester still waits, and for someone else\'s '
+          'change', () async {
+        await knockFromMaya();
+
+        await sync(
+          timeline: [
+            member('@maya:x', 'leave', eventId: r'$gave-up'),
+            member('@maya:x', 'knock', eventId: r'$again'),
+            member('@sam:x', 'join'),
+          ],
+        );
+
+        expect(notifications.cancelled, isEmpty);
+      });
     });
 
     test('a new request tells those who can answer it', () {

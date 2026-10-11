@@ -8,7 +8,6 @@ import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/security/account_security_status.dart';
-import '../../../core/security/security_providers.dart';
 import '../../settings/presentation/secure_backup_page.dart';
 import 'verification_page.dart';
 
@@ -20,7 +19,6 @@ Future<void> confirmPerson(
   bool picturesFirst = false,
 }) async {
   final client = ref.read(matrixClientProvider);
-  final confirmedIdentities = ref.read(confirmedIdentityStoreProvider);
   final messenger = ScaffoldMessenger.of(context);
 
   final facts = await accountSecurityFactsOf(client);
@@ -94,9 +92,6 @@ Future<void> confirmPerson(
         ),
       ),
     );
-    if (client.userDeviceKeys[userId]?.masterKey?.directVerified ?? false) {
-      await rememberConfirmedIdentity(confirmedIdentities, client, userId);
-    }
   } catch (e, s) {
     reportCaught('start verification', e, s);
     messenger.showSnackBar(

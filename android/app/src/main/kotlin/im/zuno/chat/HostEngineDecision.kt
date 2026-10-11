@@ -9,6 +9,7 @@ enum class HostEngineFate {
 enum class EngineKeepReason {
     Call,
     LiveLocation,
+    BackgroundSync,
 }
 
 class EngineKeepReasons {

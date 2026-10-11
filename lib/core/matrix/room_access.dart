@@ -24,8 +24,11 @@ extension RoomAccessX on RoomAccess {
 }
 
 class RoomListingRefused implements Exception {
+  static const message =
+      'Public access is turned off here. Choose another option.';
+
   @override
-  String toString() => 'Public rooms cannot be listed here';
+  String toString() => message;
 }
 
 RoomAccess roomAccessOf(Room room) => switch (room.joinRules) {

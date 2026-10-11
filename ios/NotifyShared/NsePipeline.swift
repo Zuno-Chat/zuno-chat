@@ -48,11 +48,11 @@ struct NseContext: Sendable {
   let keys: NotifySecrets
   let store: NseStateStore
   let hashing: NseHashing
-  let meta: NseMeta
+  let meta: NotifyMeta
   let t: String
   let e: String
   let start: Int64
-  var room: NseRoomFile?
+  var room: NotifyRoomFile?
   var catchUpBody: Data? = nil
   var originMs: Int64? = nil
 
@@ -75,7 +75,7 @@ final class NsePipeline: Sendable {
   func run(_ push: NsePush, best: @escaping @Sendable (NseDelivery) -> Void) async -> NseResult {
     let start = env.clock.nowMs()
     if push.isTest {
-      let result = test()
+      let result = NseResult(delivery: NseComposer.test(), outcome: .test)
       record(result, context: nil, start: start, safeMode: false)
       return result
     }
@@ -102,13 +102,6 @@ final class NsePipeline: Sendable {
     env.signals.log("nse_\(result.outcome.rawValue)", fields)
   }
 
-  private func test() -> NseResult {
-    if let keys = Self.ready(env.keychain.secrets()) {
-      NseStateStore(files: env.files(keys)).appendMark(NseMark(kind: "test", ts: env.clock.nowMs()))
-    }
-    return NseResult(delivery: NseComposer.test(), outcome: .test)
-  }
-
   private func process(
     _ push: NsePush, start: Int64, safeMode: Bool, best: @Sendable (NseDelivery) -> Void
   ) async -> (NseResult, NseContext?) {
@@ -121,10 +114,11 @@ final class NsePipeline: Sendable {
       return (NseResult(delivery: .passthrough, outcome: .noMeta), nil)
     }
     let store = NseStateStore(files: env.files(keys))
+    store.releaseAbandoned(process: env.processStart)
     if store.state().version != env.version {
       store.updateState { $0.version = env.version }
     }
-    guard let meta = store.meta() else {
+    guard let meta = store.meta(), !meta.baseUrl.isEmpty else {
       return (NseResult(delivery: .passthrough, outcome: .noMeta), nil)
     }
     let hashing = env.hashing(keys)
@@ -138,7 +132,6 @@ final class NsePipeline: Sendable {
       NseComposer.floor(
         names: names, level: meta.level, loud: true, tone: meta.tone, tokens: context.tokens()))
     let decided = await decide(&context, safeMode: safeMode, best: best)
-    store.recordShown([context.e], in: NotifyFile.shownNse)
     let caughtUp = await catchUp(context, safeMode: safeMode)
     return (await withBadge(decided, context, caughtUp: caughtUp), context)
   }
@@ -146,8 +139,9 @@ final class NsePipeline: Sendable {
   private func decide(
     _ context: inout NseContext, safeMode: Bool, best: @Sendable (NseDelivery) -> Void
   ) async -> NseResult {
-    if context.meta.level == .none { return nothing(context) }
-    if context.store.isShown(context.e) { return await duplicate(context) }
+    let claimed = context.store.claim(context.e)
+    if context.meta.level == .none { return nothing(context, alreadyShown: !claimed) }
+    guard claimed else { return await duplicate(context) }
     let baseUrl = context.meta.baseUrl
     guard let credential = context.keys.credential,
       (context.keys.credentialExpiresTs ?? .max) > env.clock.nowMs()
@@ -213,7 +207,12 @@ final class NsePipeline: Sendable {
         }
       }
     }
-    switch NseClassifier.classify(event, ownUserId: context.meta.user, nowMs: now) {
+    let serverNow =
+      fetched.serverTs ?? ServerClock(offsetMs: context.meta.serverOffsetMs).now(deviceMs: now)
+    switch NseClassifier.classify(
+      event, ownUserId: context.meta.user, nowMs: serverNow,
+      askedToJoin: context.meta.askedToJoin)
+    {
     case .hidden:
       let isInvite = NseClassifier.messageType(event) == NseClassifier.callInviteType
       let video = isInvite ? event.content["kind"]?.string == "video" : nil
@@ -274,10 +273,7 @@ final class NsePipeline: Sendable {
     guard let session = context.room?.session(sessionId),
       let index = MegolmIndex.messageIndex(ofCiphertext: ciphertext),
       Int(index) >= session.firstIndex
-    else {
-      recordUtd(context)
-      return .floor(.utd)
-    }
+    else { return .floor(.utd) }
     if let owner = session.sender, owner != envelope.sender { return .floor(.mismatch) }
     if let claimed = envelope.content["sender_key"]?.string, let known = session.senderKey,
       claimed != known
@@ -289,10 +285,7 @@ final class NsePipeline: Sendable {
     guard
       case .plaintext(let text) = env.decryptor.decrypt(
         pickle: session.pickle, userId: context.meta.user, ciphertext: ciphertext)
-    else {
-      recordUtd(context)
-      return .floor(.utd)
-    }
+    else { return .floor(.utd) }
     guard let json = NseJson.parse(Data(text.utf8), "nse decrypted event parse"),
       json["room_id"]?.string == context.roomId,
       let type = json["type"]?.string
@@ -309,14 +302,6 @@ final class NsePipeline: Sendable {
     event.type = type
     event.content = content
     return .event(event)
-  }
-
-  private func recordUtd(_ context: NseContext) {
-    let entry = NseUtd(room: context.roomId, event: context.eventId, ts: env.clock.nowMs())
-    context.store.updateState { state in
-      state.utd = Array(
-        (state.utd.filter { $0.event != entry.event } + [entry]).suffix(SeenSets.utdLimit))
-    }
   }
 
   private func isMention(
@@ -342,15 +327,14 @@ final class NsePipeline: Sendable {
       outcome: outcome)
   }
 
-  private func nothing(_ context: NseContext) -> NseResult {
+  private func nothing(_ context: NseContext, alreadyShown: Bool) -> NseResult {
     let now = env.clock.nowMs()
     let ringing = context.store.ledger().calls.contains {
       $0.t == context.t && now - $0.ts <= Self.nothingRingWindowMs
     }
     return NseResult(
       delivery: NseComposer.nothing(
-        tokens: context.tokens(), quiet: ringing || context.store.isShown(context.e),
-        tone: context.meta.tone),
+        tokens: context.tokens(), quiet: ringing || alreadyShown, tone: context.meta.tone),
       outcome: .nothing)
   }
 

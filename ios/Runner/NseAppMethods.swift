@@ -33,7 +33,7 @@ enum NseAppRequest: Sendable {
       let suite = NotifyStore.groupIdentifier().flatMap { UserDefaults(suiteName: $0) }
       let now = Int64(Date().timeIntervalSince1970 * 1000)
       return UncheckedSendable(
-        NseAppStore.current()?.readOutcomes(.standard, counters: suite, nowMs: now) ?? [])
+        NseAppStore.current()?.readOutcomes(counters: suite, nowMs: now) ?? [])
     case .setCredential(let credential, let expiresMs):
       let stored = await MainActor.run {
         NseAppStore.setCredential(credential, expiresMs: expiresMs)

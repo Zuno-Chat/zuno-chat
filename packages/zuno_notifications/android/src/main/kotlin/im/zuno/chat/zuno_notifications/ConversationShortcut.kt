@@ -48,6 +48,21 @@ object ConversationShortcut {
         }
     }
 
+    fun retain(context: Context, roomIds: Collection<String>) {
+        try {
+            val kept = roomIds.toSet()
+            val left = ShortcutManagerCompat.getShortcuts(
+                context,
+                ShortcutManagerCompat.FLAG_MATCH_DYNAMIC or ShortcutManagerCompat.FLAG_MATCH_CACHED,
+            )
+                .filter { it.categories?.contains(CATEGORY) == true && it.id !in kept }
+                .map { it.id }
+            if (left.isNotEmpty()) ShortcutManagerCompat.removeLongLivedShortcuts(context, left)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not remove the shortcuts of rooms left", e)
+        }
+    }
+
     fun exists(context: Context, roomId: String): Boolean = try {
         ShortcutManagerCompat.getShortcuts(
             context,

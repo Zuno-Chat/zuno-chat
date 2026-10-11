@@ -38,12 +38,6 @@ import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/pump_until.dart';
 import 'room_page_harness.dart';
 
-XFile _photo(String name) => XFile.fromData(
-  img.encodeJpg(img.Image(width: 64, height: 48)),
-  path: '/picked/$name',
-  mimeType: 'image/jpeg',
-);
-
 XFile _video(String name) =>
     XFile('/picked/$name', name: name, mimeType: 'video/mp4');
 
@@ -106,6 +100,32 @@ void main() {
       temp.deleteSync(recursive: true);
     });
   });
+
+  File pickerCopy(String name, List<int> bytes) =>
+      File('${temp.path}/picker-$name/$name')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(bytes);
+
+  XFile photo(String name, {List<int>? bytes}) {
+    final copy = pickerCopy(
+      name,
+      bytes ?? img.encodeJpg(img.Image(width: 64, height: 48)),
+    );
+    return XFile(copy.path, mimeType: 'image/jpeg');
+  }
+
+  bool pickerCopyLeft(XFile picked) =>
+      File(picked.path).existsSync() || File(picked.path).parent.existsSync();
+
+  Uint8List tooLargePhoto() {
+    final noise = img.Image(width: 900, height: 900);
+    var seed = 7;
+    for (final pixel in noise) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      pixel.setRgb(seed & 255, (seed >> 8) & 255, (seed >> 16) & 255);
+    }
+    return img.encodeJpg(noise, quality: 100);
+  }
 
   Future<void> openRoom(
     WidgetTester tester, {
@@ -209,7 +229,7 @@ void main() {
     });
 
     testWidgets('a camera photo is captioned and sent', (tester) async {
-      picker.answer = [_photo('IMG_1.jpg')];
+      picker.answer = [photo('IMG_1.jpg')];
       await openRoom(tester);
 
       await choose(tester, 'Take photo');
@@ -240,7 +260,7 @@ void main() {
     });
 
     testWidgets('leaving the caption screen sends nothing', (tester) async {
-      picker.answer = [_photo('IMG_1.jpg')];
+      picker.answer = [photo('IMG_1.jpg')];
       await openRoom(tester);
       await choose(tester, 'Take photo');
 
@@ -253,7 +273,7 @@ void main() {
     testWidgets('several gallery photos go out as one gallery, in order', (
       tester,
     ) async {
-      picker.answer = [_photo('a.jpg'), _photo('b.jpg')];
+      picker.answer = [photo('a.jpg'), photo('b.jpg')];
       await openRoom(tester);
 
       await choose(tester, 'Choose from gallery');
@@ -275,23 +295,20 @@ void main() {
     });
 
     testWidgets('a photo that cannot be read says so', (tester) async {
-      picker.answer = [
-        XFile.fromData(
-          Uint8List(64),
-          path: '/picked/broken.jpg',
-          mimeType: 'image/jpeg',
-        ),
-      ];
+      picker.answer = [photo('broken.jpg', bytes: Uint8List(64))];
       await openRoom(tester);
 
       await choose(tester, 'Take photo');
-      expect(find.byIcon(Icons.broken_image_outlined), findsOneWidget);
+      await pumpUntil(
+        tester,
+        () => find.byIcon(Icons.broken_image_outlined).evaluate().isNotEmpty,
+        reason: 'the preview to show the photo cannot be read',
+      );
       await sendFromComposer(
         tester,
         awaiting: 'the photo to be refused',
         until: () => shows('Cannot send this photo'),
       );
-      expect(tester.takeException(), isA<Exception>());
 
       expect(harness.sent, isEmpty);
       expect(find.text('Cannot send this photo'), findsOneWidget);
@@ -301,19 +318,7 @@ void main() {
       tester,
     ) async {
       uploadLimit = 1024 * 1024;
-      final noise = img.Image(width: 900, height: 900);
-      var seed = 7;
-      for (final pixel in noise) {
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        pixel.setRgb(seed & 255, (seed >> 8) & 255, (seed >> 16) & 255);
-      }
-      picker.answer = [
-        XFile.fromData(
-          img.encodeJpg(noise, quality: 100),
-          path: '/picked/huge.jpg',
-          mimeType: 'image/jpeg',
-        ),
-      ];
+      picker.answer = [photo('huge.jpg', bytes: tooLargePhoto())];
       await openRoom(tester);
 
       await choose(tester, 'Take photo');
@@ -334,7 +339,7 @@ void main() {
       tester,
     ) async {
       uploadsFail = true;
-      picker.answer = [_photo('a.jpg'), _photo('b.jpg')];
+      picker.answer = [photo('a.jpg'), photo('b.jpg')];
       await openRoom(tester);
 
       await choose(tester, 'Choose from gallery');
@@ -365,7 +370,7 @@ void main() {
       tester,
     ) async {
       final upload = Completer<void>();
-      picker.answer = [_photo('IMG_1.jpg')];
+      picker.answer = [photo('IMG_1.jpg')];
       await openRoom(tester);
       final respond = harness.respond!;
       harness.respond = (request) async {
@@ -398,11 +403,208 @@ void main() {
       expect(find.text('Not sent. Try again.'), findsOneWidget);
     });
 
+    group('when you leave the chat mid-way', () {
+      Future<void> sendThenLeave(
+        WidgetTester tester, {
+        required String option,
+        String? tooltip,
+      }) async {
+        final firstUpload = Completer<void>();
+        final respond = harness.respond!;
+        var uploads = 0;
+        harness.respond = (request) async {
+          if (request.url.path.contains('/upload') && uploads++ == 0) {
+            await firstUpload.future;
+          }
+          return respond(request);
+        };
+        await choose(tester, option);
+        bool uploading() =>
+            harness.httpRequests.any((r) => r.url.path.contains('/upload'));
+        if (tooltip == null) {
+          await pumpUntil(tester, uploading, reason: 'the first upload');
+        } else {
+          await sendFromComposer(
+            tester,
+            tooltip: tooltip,
+            awaiting: 'the first upload',
+            until: uploading,
+          );
+        }
+        await tester.pumpWidget(
+          await harness.app(home: const Scaffold(body: SizedBox())),
+        );
+        firstUpload.complete();
+      }
+
+      testWidgets('every photo still goes', (tester) async {
+        picker.answer = [photo('a.jpg'), photo('b.jpg'), photo('c.jpg')];
+        await openRoom(tester);
+
+        await sendThenLeave(
+          tester,
+          option: 'Choose from gallery',
+          tooltip: 'Send all',
+        );
+        await pumpUntil(
+          tester,
+          () => harness.sent.length == 3,
+          reason: 'every photo to be sent',
+        );
+
+        expect(find.byType(RoomPage), findsNothing);
+        expect(
+          [for (final s in harness.sent) galleryOf(s)!['index']],
+          [0, 1, 2],
+        );
+      });
+
+      testWidgets('a photo that cannot be sent still says so', (tester) async {
+        picker.answer = [
+          photo('a.jpg'),
+          photo('broken.jpg', bytes: Uint8List(64)),
+        ];
+        await openRoom(tester);
+
+        await sendThenLeave(
+          tester,
+          option: 'Choose from gallery',
+          tooltip: 'Send all',
+        );
+        await pumpUntil(
+          tester,
+          () => shows('Cannot send this photo'),
+          reason: 'the refused photo to be named',
+        );
+
+        expect(harness.sent, hasLength(1));
+      });
+
+      testWidgets('a photo over the upload limit still says so', (
+        tester,
+      ) async {
+        uploadLimit = 1024 * 1024;
+        picker.answer = [
+          photo('a.jpg'),
+          photo('huge.jpg', bytes: tooLargePhoto()),
+        ];
+        await openRoom(tester);
+
+        await sendThenLeave(
+          tester,
+          option: 'Choose from gallery',
+          tooltip: 'Send all',
+        );
+        await pumpUntil(
+          tester,
+          () => shows('Too large to send. The limit is 1 MB.'),
+          reason: 'the upload limit to be named',
+        );
+
+        expect(harness.sent, hasLength(1));
+      });
+
+      testWidgets('every picked file still goes', (tester) async {
+        files.picked = [
+          FakePickedFile('a.pdf', Uint8List.fromList([1])),
+          FakePickedFile('b.pdf', Uint8List.fromList([2])),
+        ];
+        await openRoom(tester);
+
+        await sendThenLeave(tester, option: 'Choose file');
+        await pumpUntil(
+          tester,
+          () => harness.sent.length == 2,
+          reason: 'both files to be sent',
+        );
+
+        expect([for (final s in harness.sent) s['body']], ['a.pdf', 'b.pdf']);
+      });
+    });
+
+    group('picker copies', () {
+      testWidgets('a sent photo leaves no copy behind', (tester) async {
+        final picked = photo('IMG_1.jpg');
+        picker.answer = [picked];
+        await openRoom(tester);
+
+        await choose(tester, 'Take photo');
+        await sendFromComposer(
+          tester,
+          awaiting: 'the photo to be sent and its copy removed',
+          until: () => harness.sent.isNotEmpty && !pickerCopyLeft(picked),
+        );
+
+        expect(pickerCopyLeft(picked), isFalse);
+      });
+
+      testWidgets('leaving the caption screen removes the copies', (
+        tester,
+      ) async {
+        final picked = [photo('a.jpg'), photo('b.jpg')];
+        picker.answer = picked;
+        await openRoom(tester);
+        await choose(tester, 'Choose from gallery');
+
+        await tester.pageBack();
+        await pumpUntil(
+          tester,
+          () => !picked.any(pickerCopyLeft),
+          reason: 'the copies to be removed',
+        );
+
+        expect(harness.sent, isEmpty);
+      });
+
+      testWidgets('a failed photo keeps its copy until it goes again', (
+        tester,
+      ) async {
+        uploadsFail = true;
+        final picked = photo('IMG_1.jpg');
+        picker.answer = [picked];
+        await openRoom(tester);
+
+        await choose(tester, 'Take photo');
+        await sendFromComposer(
+          tester,
+          awaiting: 'the photo to fail',
+          until: () => failedTiles() == 1,
+        );
+        await harness.drive(tester, turns: 2);
+        expect(pickerCopyLeft(picked), isTrue);
+
+        uploadsFail = false;
+        await tester.tap(find.byType(GalleryFailedThumbnail));
+        await pumpUntil(
+          tester,
+          () => harness.sent.isNotEmpty && !pickerCopyLeft(picked),
+          reason: 'the photo to go again and its copy to be removed',
+        );
+
+        expect(harness.sent.single['msgtype'], 'm.image');
+      });
+
+      testWidgets('a recorded video leaves no copy behind', (tester) async {
+        final recorded = pickerCopy('rec.mp4', [0, 0, 0, 24]);
+        picker.answer = [XFile(recorded.path, mimeType: 'video/mp4')];
+        await openRoom(tester);
+
+        await choose(tester, 'Record video');
+        await sendFromComposer(
+          tester,
+          awaiting: 'the video to be sent and its copy removed',
+          until: () => harness.sent.isNotEmpty && !recorded.existsSync(),
+        );
+
+        expect(recorded.parent.existsSync(), isFalse);
+      });
+    });
+
     testWidgets('a single failed photo goes again when its tile is tapped', (
       tester,
     ) async {
       uploadsFail = true;
-      picker.answer = [_photo('IMG_1.jpg')];
+      picker.answer = [photo('IMG_1.jpg')];
       await openRoom(tester);
 
       await choose(tester, 'Take photo');
@@ -430,7 +632,7 @@ void main() {
       final status = StreamController<ConnectionStatus>.broadcast();
       addTearDown(status.close);
       uploadsFail = true;
-      picker.answer = [_photo('IMG_1.jpg')];
+      picker.answer = [photo('IMG_1.jpg')];
       await openRoom(
         tester,
         overrides: [
@@ -562,7 +764,7 @@ void main() {
 
     testWidgets('a photo and a video share one caption screen and one '
         'gallery', (tester) async {
-      picker.answer = [_photo('a.jpg'), _video('b.mp4')];
+      picker.answer = [photo('a.jpg'), _video('b.mp4')];
       await openRoom(tester);
 
       await choose(tester, 'Choose from gallery');
@@ -585,7 +787,7 @@ void main() {
       tester,
     ) async {
       uploadsFail = true;
-      picker.answer = [_photo('a.jpg'), _video('b.mp4')];
+      picker.answer = [photo('a.jpg'), _video('b.mp4')];
       await openRoom(tester);
 
       await choose(tester, 'Choose from gallery');

@@ -99,8 +99,8 @@ void main() {
     expect(decision.refusal, MessageNotificationRefusal.notDisplayable);
   });
 
-  test('does not notify for an event that never decrypted', () {
-    final event = buildTestEvent(
+  group('an event that has not decrypted yet', () {
+    Event locked() => buildTestEvent(
       room,
       eventId: r'$enc',
       senderId: '@a:x',
@@ -108,10 +108,34 @@ void main() {
       content: {'algorithm': 'm.megolm.v1.aes-sha2', 'ciphertext': 'AAAA'},
     );
 
-    final decision = decide(event);
+    test('notifies "New message" in its room, as a line to replace once it '
+        'decrypts', () {
+      final decision = decide(locked());
 
-    expect(decision.content, isNull);
-    expect(decision.refusal, MessageNotificationRefusal.notAMessage);
+      expect(decision.placeholder, isTrue);
+      expect(
+        decision.content,
+        messageFloor(room.id, room: room, eventId: r'$enc'),
+      );
+    });
+
+    test('is quiet under mentions only, since no mention can be read in '
+        'it', () {
+      final decision = decide(locked(), notifyMe: NotifyMe.mentionsOnly);
+
+      expect(decision.content?.quiet, isTrue);
+    });
+
+    test('stays silent where the push rules say so', () {
+      final decision = decide(locked(), pushRuleAction: actionWith());
+
+      expect(decision.content, isNull);
+      expect(decision.refusal, MessageNotificationRefusal.pushRule);
+    });
+  });
+
+  test('a decided message is not a placeholder', () {
+    expect(decide(textEvent()).placeholder, isFalse);
   });
 
   test('does not notify for an edit', () {

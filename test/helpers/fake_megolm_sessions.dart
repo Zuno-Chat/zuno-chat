@@ -14,11 +14,12 @@ class SessionStoreFakeDatabaseApi extends FakeDatabaseApi {
     String sessionId, {
     String indexes = '{}',
     String senderKey = 'curve-a',
+    String content = '{}',
   }) => sessions[sessionId] = StoredInboundGroupSession(
     roomId: roomId,
     sessionId: sessionId,
     pickle: 'pickle-$sessionId',
-    content: '{}',
+    content: content,
     indexes: indexes,
     allowedAtIndex: '{}',
     senderKey: senderKey,
@@ -51,7 +52,13 @@ class SessionStoreFakeDatabaseApi extends FakeDatabaseApi {
     String senderClaimedKey,
   ) async {
     if (failWrites) throw StateError('disk full');
-    put(roomId, sessionId, indexes: indexes, senderKey: senderKey);
+    put(
+      roomId,
+      sessionId,
+      indexes: indexes,
+      senderKey: senderKey,
+      content: content,
+    );
   }
 
   @override
@@ -61,7 +68,8 @@ class SessionStoreFakeDatabaseApi extends FakeDatabaseApi {
     String sessionId,
   ) async {
     if (failWrites) throw StateError('disk full');
-    put(roomId, sessionId, indexes: indexes);
+    final stored = sessions[sessionId];
+    put(roomId, sessionId, indexes: indexes, content: stored?.content ?? '{}');
   }
 }
 

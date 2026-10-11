@@ -111,6 +111,9 @@ people (over in-room events in a DM). Scanning a QR code comes first, offered
 only in the directions both sides support, and comparing emoji ("pictures" in
 the UI) is the fallback.
 
+A check request from another device of your own account opens as approving
+a device, and one from anyone else as confirming a person.
+
 `ApproveThisDevicePage` offers another device before the recovery code, since
 most people still have the old phone. It closes only once this device is
 approved, so a stopped check keeps the other ways open.
@@ -135,8 +138,10 @@ account and minting a sign-in code all ask for the password (UIA) through
 `confirmPerson` is the one entry point for confirming a contact. Without
 recovery on this device it first offers to set it up inline, because the
 device cannot sign the result otherwise. It then runs the in-room check (in
-person, scan their code; apart, compare pictures on a call in the app) and
-records the contact's master key in `ConfirmedIdentityStore`.
+person, scan their code; apart, compare pictures on a call in the app).
+When any check with another account completes and leaves its master key
+directly verified, the verification page records that key in
+`ConfirmedIdentityStore`, whichever side started the check.
 
 `userTrustState` compares the contact's master key, the SDK's verification of
 it, their devices' signatures and the key we stored:
@@ -282,8 +287,9 @@ the commonest words of ordinary prose break any run.
 - **In-room verification events carry a fallback body that reads as a
   failure**, so the whole `m.key.verification.*` family is hidden from the
   timeline and notifications, whatever the show-hidden toggle says.
-- **Never render `canceledReason` raw**, because it is free text from the
-  other side; map the code and give a real mismatch its own alarming copy.
+- **The other side's cancel reason is never shown**, because it is free text
+  from the other side: known codes map to Zuno's copy, a real mismatch gets
+  its own alarming copy, and unknown codes get a generic line.
 - **The SDK marks this device's own keys `directVerified`**, which says
   nothing about whether the account vouched for it, so `sessionApproval`
   ignores it.
@@ -315,6 +321,9 @@ the commonest words of ordinary prose break any run.
   storage**, so the copy is deleted after reading, or the code lingers there
   in plaintext; only a copy inside that storage is ever deleted, never the
   user's original.
+- **Android 10 and later lets only the focused app read the clipboard**, so
+  clearing a copied recovery code that comes due in the background waits for
+  the next resume.
 - **Replacing a code asks for the password first**, because `Bootstrap`
   reaches the password checkpoint only after the old code is gone.
 - **Two `onUiaRequest` listeners open two dialogs**, so a listening page

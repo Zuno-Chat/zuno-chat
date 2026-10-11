@@ -1,5 +1,6 @@
 package im.zuno.chat.zuno_notifications
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 
@@ -19,4 +20,11 @@ object AppLaunchIntent {
         this.action = action
         addFlags(TO_RUNNING_APP)
     }
+
+    fun pending(context: Context, requestCode: Int): PendingIntent = PendingIntent.getActivity(
+        context,
+        requestCode,
+        of(context, Intent.ACTION_MAIN),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
 }

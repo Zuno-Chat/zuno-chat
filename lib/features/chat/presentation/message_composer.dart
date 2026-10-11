@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/format/human_units.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../../core/ui/zuno_theme.dart';
-import '../data/message_kinds.dart';
 import 'send_icon.dart';
 
 class MessageComposer extends StatelessWidget {

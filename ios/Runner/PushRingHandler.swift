@@ -103,7 +103,7 @@ final class PushRingHandler: NSObject {
     }
     let meta = locked ? nil : cache.meta()
     var snapshot = calls.snapshot()
-    var roomFile: RoomTitleFile?
+    var roomFile: NotifyRoomFile?
     if !locked {
       snapshot.resolved.formUnion(cache.ledger().resolved)
       if case .opened(_, let ring) = opened {

@@ -75,7 +75,7 @@ struct RingInput: Sendable {
   var unknownKidRecent: Int
   var level: PreviewLevel
   var placeholder: UUID
-  var room: @Sendable (String) -> RoomTitleFile?
+  var room: @Sendable (String) -> NotifyRoomFile?
 }
 
 enum RingDecision {
@@ -91,7 +91,7 @@ enum RingDecision {
     case .signedOut:
       return end(input, log: "signed_out", reason: .remoteEnded, disablePushTypes: true)
     case .noSession:
-      return end(input, log: "no_session", reason: .remoteEnded, disablePushTypes: true)
+      return end(input, log: "no_session", reason: .remoteEnded)
     case .signedIn(let userId):
       switch input.blob {
       case .forged:
@@ -216,7 +216,7 @@ enum CallerName {
   static let generic = "Zuno call"
   static let byteLimit = 64
 
-  static func display(level: PreviewLevel, room: RoomTitleFile?, ring: VoipRing) -> String {
+  static func display(level: PreviewLevel, room: NotifyRoomFile?, ring: VoipRing) -> String {
     guard level != .none else { return generic }
     if let room, room.room == ring.room,
       let chosen = named(room.dm && !room.partner.isEmpty ? room.partner : room.title)

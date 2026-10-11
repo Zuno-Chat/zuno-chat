@@ -48,13 +48,13 @@ final class CatchUpComposerTests: XCTestCase {
     XCTAssertNil(content.sound)
   }
 
-  func testActionsAttachOnlyToMessagesAtNameAndMessageOnceRoutedNatively() throws {
+  func testActionsAttachOnlyToMessagesAtNameAndMessage() throws {
     let event = try planned()
     func category(_ kind: String, _ level: String) -> String {
       CatchUpComposer.request(for: event, title: "A", body: "B", kind: kind, level: level)
         .content.categoryIdentifier
     }
-    XCTAssertEqual(category("msg", "full"), NotificationCategories.shown("message"))
+    XCTAssertEqual(category("msg", "full"), "message")
     XCTAssertEqual(category("msg", "name"), "")
   }
 

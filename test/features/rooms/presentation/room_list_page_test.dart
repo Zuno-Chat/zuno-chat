@@ -630,6 +630,22 @@ void main() {
 
       expect(request.calls, ['acceptVerification']);
       expect(find.byType(VerificationPage), findsOneWidget);
+      expect(find.text('Confirm it is them'), findsOneWidget);
+    });
+
+    testWidgets('from my own other device, opens it as approving a device', (
+      tester,
+    ) async {
+      await pumpRoomList(tester);
+      final request = FakeKeyVerification(userId: '@me:example.org');
+
+      verifications.add(request);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Accept'));
+      await bounded(tester);
+
+      expect(find.text('Approve this device'), findsOneWidget);
+      expect(find.text('Confirm it is them'), findsNothing);
     });
   });
 }

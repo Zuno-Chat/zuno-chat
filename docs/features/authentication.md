@@ -100,7 +100,7 @@ sequenceDiagram
 
 | Path | Steps, in order |
 |---|---|
-| Sign out (Settings, or this device in Your devices) | End the active call and clear live location shares (each bounded), `stopAllNotificationDelivery`, then `client.logout()` |
+| Sign out (Settings, or this device in Your devices) | Refused while offline. End the active call and clear live location shares (each bounded), `stopAllNotificationDelivery`, then `client.logout()` |
 | Delete account | Warning, typed username, password, ending the active call and clearing live location shares, `deactivateAccount(erase: true)`, best-effort push teardown, then `client.clear()` |
 
 Both paths end in `client.clear`, which triggers the `_AuthGate` wipe;
@@ -213,6 +213,10 @@ What the push teardown does is in `notifications.md`.
   cleared first for the same reason: only a working token can write their
   end. Both are read when the wind-down runs, so a call answered meanwhile
   ends too.
+- **Sign-out is refused offline, and a server failure inside `logout()`
+  still counts as signed out**, because the SDK clears the device whatever
+  the server answers: offline that would strand a live server session, and
+  after a failure "not signed out" would be false.
 - **Deletion ends the call and the shares at the password Confirm, whatever
   the server answers**, because the server checks the password and deletes
   in one request with no dry run. The prompt says so whenever something is

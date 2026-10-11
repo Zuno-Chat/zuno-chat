@@ -91,6 +91,13 @@ class _ScriptedClient extends ZunoClient {
   }
 }
 
+void caughtUp(Room room, {required Event lastEvent, required int unread}) {
+  room
+    ..lastEvent = lastEvent
+    ..notificationCount = unread;
+  if (room.client.getRoomById(room.id) == null) room.client.rooms.add(room);
+}
+
 void main() {
   late _ScriptedClient client;
   late Room room;
@@ -916,6 +923,22 @@ void main() {
     expect(notifications.single.android['onlyAlertOnce'], isTrue);
   });
 
+  test('the approval of a request to join stays quiet and takes back the '
+      'notice its push put up, since Zuno joins by itself', () async {
+    SharedPreferences.setMockInitialValues({
+      'communities.asked.@me:example.org': [room.id],
+    });
+    final conversations = installFakeConversationsChannel(
+      noticed: {room.id: r'$event'},
+    );
+    client.resolved = invitation();
+
+    expect(await handle(), IncomingPushOutcome.ignored);
+    expect(notifications.shown, isEmpty);
+    expect(conversations.takenNotices, ['${room.id}/\$event']);
+    expect(notifications.cancelled, [messageNotificationIdFor(room.id)]);
+  });
+
   test('a room invitation gets no Reply/Mark-as-read actions', () async {
     client.resolved = invitation();
 
@@ -1092,6 +1115,9 @@ void main() {
   });
 
   group('an invitation another path already announced', () {
+    Future<bool> claimed() async =>
+        (await claimInviteAnnouncement(room.id, userId: client.userID)).won;
+
     void roomNotificationShowing() => notifications.active = [
       {
         'id': messageNotificationIdFor(room.id),
@@ -1101,7 +1127,7 @@ void main() {
     ];
 
     test('is not announced again by its push', () async {
-      expect((await claimInviteAnnouncement(room.id)).won, isTrue);
+      expect(await claimed(), isTrue);
       client.resolved = invitation();
 
       expect(await handle(), IncomingPushOutcome.ignored);
@@ -1110,7 +1136,7 @@ void main() {
 
     test('moments ago leaves the room\'s notification standing, though the '
         'push put a notice there', () async {
-      await claimInviteAnnouncement(room.id);
+      await claimed();
       final conversations = installFakeConversationsChannel(
         noticed: {room.id: r'$event'},
       );
@@ -1147,7 +1173,7 @@ void main() {
 
       expect(await handle(), IncomingPushOutcome.message);
 
-      expect((await claimInviteAnnouncement(room.id)).won, isFalse);
+      expect(await claimed(), isFalse);
     });
   });
 
@@ -1183,13 +1209,68 @@ void main() {
     });
 
     test('a message read on another device during the quiet stays silent '
-        'once the catch-up brings the read marker', () async {
-      client.onCaughtUp = () => room.roomAccountData['m.fully_read'] =
-          BasicEvent(type: 'm.fully_read', content: {'event_id': r'$event'});
-      client.resolved = message();
+        'once the catch-up shows nothing unread in its room', () async {
+      final read = message();
+      client.onCaughtUp = () => caughtUp(room, lastEvent: read, unread: 0);
+      client.resolved = read;
 
       expect(await handle(), IncomingPushOutcome.ignored);
       expect(notifications.shown, isEmpty);
+    });
+
+    test('a message the catch-up shows still unread notifies', () async {
+      final unread = message();
+      client.onCaughtUp = () => caughtUp(room, lastEvent: unread, unread: 1);
+      client.resolved = unread;
+
+      expect(await handle(), IncomingPushOutcome.message);
+      expect(notifications.shown, hasLength(1));
+    });
+
+    test('a catch-up that has not reached the message yet does not count it '
+        'as read', () async {
+      final pushed = message();
+      final older = buildTestEvent(
+        room,
+        eventId: r'$older',
+        senderId: '@bob:example.org',
+        originServerTs: pushed.originServerTs.subtract(
+          const Duration(minutes: 1),
+        ),
+        content: {'msgtype': 'm.text', 'body': 'earlier'},
+      );
+      client.onCaughtUp = () => caughtUp(room, lastEvent: older, unread: 0);
+      client.resolved = pushed;
+
+      expect(await handle(), IncomingPushOutcome.message);
+    });
+
+    test('a read marker without a read receipt is not a read, as on '
+        'iPhone', () async {
+      final pushed = message();
+      client.onCaughtUp = () {
+        caughtUp(room, lastEvent: pushed, unread: 1);
+        room.roomAccountData['m.fully_read'] = BasicEvent(
+          type: 'm.fully_read',
+          content: {'event_id': r'$event'},
+        );
+      };
+      client.resolved = pushed;
+
+      expect(await handle(), IncomingPushOutcome.message);
+    });
+
+    test('that synced moments ago judges a message read on what it already '
+        'knows', () async {
+      client.onSync.add(SyncUpdate(nextBatch: 's2'));
+      await pumpEventQueue();
+      client.firstSyncReceived = Future<void>.value();
+      final read = message();
+      caughtUp(room, lastEvent: read, unread: 0);
+      client.resolved = read;
+
+      expect(await handle(), IncomingPushOutcome.ignored);
+      expect(client.steps, ['fetch']);
     });
 
     test('a ring never waits for the catch-up', () async {
@@ -1274,6 +1355,65 @@ void main() {
       await time.advance(const Duration(seconds: 1));
       expect(outcome, IncomingPushOutcome.message);
       expect(notifications.shown, hasLength(1));
+    });
+  });
+
+  group('a client the push built for itself', () {
+    test('waits for its own first sync, then stays silent for a message read '
+        'on another device', () async {
+      final firstSync = Completer<void>();
+      client.firstSyncReceived = firstSync.future;
+      final read = message();
+      client.resolved = read;
+
+      final outcome = handle();
+      await pumpEventQueue();
+      expect(notifications.shown, isEmpty);
+
+      caughtUp(room, lastEvent: read, unread: 0);
+      firstSync.complete();
+
+      expect(await outcome, IncomingPushOutcome.ignored);
+      expect(notifications.shown, isEmpty);
+    });
+
+    test('notifies a message its first sync shows unread', () async {
+      final unread = message();
+      client.firstSyncReceived = Future<void>.value();
+      caughtUp(room, lastEvent: unread, unread: 2);
+      client.resolved = unread;
+
+      expect(await handle(), IncomingPushOutcome.message);
+    });
+
+    test('whose first sync hangs decides on what it knew, after a short '
+        'wait', () async {
+      client.firstSyncReceived = Completer<void>().future;
+      final read = message();
+      caughtUp(
+        room,
+        lastEvent: buildTestEvent(
+          room,
+          eventId: r'$older',
+          senderId: '@bob:example.org',
+          originServerTs: read.originServerTs.subtract(
+            const Duration(hours: 1),
+          ),
+        ),
+        unread: 0,
+      );
+      client.resolved = read;
+      final time = FakeAsync();
+
+      IncomingPushOutcome? outcome;
+      time.run((_) {
+        handle().then((o) => outcome = o);
+      });
+      await time.advance(const Duration(seconds: 1));
+      expect(outcome, isNull);
+
+      await time.advance(const Duration(seconds: 1));
+      expect(outcome, IncomingPushOutcome.message);
     });
   });
 

@@ -33,6 +33,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import im.zuno.chat.zuno_notifications.AppLaunchIntent
 import im.zuno.chat.zuno_notifications.RoomLaunchIntent
 import java.lang.ref.WeakReference
 
@@ -355,15 +356,13 @@ class LiveLocationService : Service() {
 
         private fun buildNotification(context: Context, notice: LiveLocationNotice): Notification {
             val open = notice.roomId?.let { RoomLaunchIntent.forRoom(context, it) }
-                ?: context.packageManager.getLaunchIntentForPackage(context.packageName)
-            val contentIntent = open?.let {
-                PendingIntent.getActivity(
-                    context,
-                    OPEN_REQUEST_CODE,
-                    it,
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-                )
-            }
+                ?: AppLaunchIntent.of(context, Intent.ACTION_MAIN)
+            val contentIntent = PendingIntent.getActivity(
+                context,
+                OPEN_REQUEST_CODE,
+                open,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
             val stopIntent = PendingIntent.getBroadcast(
                 context,
                 STOP_REQUEST_CODE,

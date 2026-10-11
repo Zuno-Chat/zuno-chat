@@ -27,14 +27,11 @@ class NseOutcomeReader {
 
   static const countersKey = 'nse.counters';
   static const generationKey = 'nse.generation';
-  static const testAckKey = 'nse.test_ack_ms';
-  static const lateKeysKey = 'nse.late_keys';
-  static const missingKeysKey = 'nse.missing_keys';
 
   final NseAppChannel channel;
   final SharedPreferences prefs;
 
-  Future<NseOutcomeSummary> read(Client client) async {
+  Future<NseOutcomeSummary> read() async {
     for (final mark in await channel.takeMarks()) {
       final room = mark.room;
       if (mark.kind == 'invite' && room != null) {
@@ -44,43 +41,28 @@ class NseOutcomeReader {
           now: DateTime.fromMillisecondsSinceEpoch(mark.ts),
         );
       }
-      if (mark.kind == 'test') await prefs.setInt(testAckKey, mark.ts);
     }
     final report = await channel.readOutcomes();
-    final before = counters();
-    final merged = {...before, ...report.counters};
-    await prefs.setString(countersKey, jsonEncode(merged));
-    var late = 0;
-    var missing = 0;
-    for (final miss in report.utd) {
-      final room = client.getRoomById(miss.room);
-      final event = room == null
-          ? null
-          : await client.database.getEventById(miss.event, room);
-      if (event == null) continue;
-      if (event.type == EventTypes.Encrypted) {
-        missing++;
-      } else {
-        late++;
-      }
-    }
-    await prefs.setInt(lateKeysKey, (prefs.getInt(lateKeysKey) ?? 0) + late);
-    await prefs.setInt(
-      missingKeysKey,
-      (prefs.getInt(missingKeysKey) ?? 0) + missing,
-    );
+    final before = _authCounts();
+    final auth = {
+      for (final MapEntry(:key, :value) in report.counters.entries)
+        if (key.endsWith('.o.auth')) key: value,
+    };
+    await prefs.setString(countersKey, jsonEncode(auth));
     final generation = report.generation;
     final previous = prefs.getString(generationKey);
     final changed =
         generation != null && previous != null && generation != previous;
     if (generation != null) await prefs.setString(generationKey, generation);
     return NseOutcomeSummary(
-      authFailed: _auth(merged) > _auth(before),
+      authFailed: auth.entries.any(
+        (entry) => entry.value > (before[entry.key] ?? 0),
+      ),
       generationChanged: changed,
     );
   }
 
-  Map<String, int> counters() {
+  Map<String, int> _authCounts() {
     final Object? decoded;
     try {
       decoded = jsonDecode(prefs.getString(countersKey) ?? '{}');
@@ -96,10 +78,6 @@ class NseOutcomeReader {
         if (key is String && value is int) key: value,
     };
   }
-
-  int _auth(Map<String, int> counters) => counters.entries
-      .where((entry) => entry.key.endsWith('.o.auth'))
-      .fold(0, (sum, entry) => sum + entry.value);
 }
 
 List<String> badgeRoomIds(Client client, Map<String, int> corrections) => [
@@ -118,6 +96,7 @@ Future<Map<String, Object?>> nseMetaFields({
   required List<String> unreadRoomIds,
   required OpaqueThreadIds threadIds,
   required String? displayName,
+  required Set<String> askedToJoin,
 }) async => {
   'base_url': client.homeserver?.toString(),
   'level': preview.wire,
@@ -129,4 +108,5 @@ Future<Map<String, Object?>> nseMetaFields({
     mxid: client.userID ?? '',
     displayName: displayName,
   ),
+  'asked': [...askedToJoin]..sort(),
 };

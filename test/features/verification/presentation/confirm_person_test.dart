@@ -8,7 +8,6 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/security/confirmed_identity_store.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 import 'package:zuno/features/verification/presentation/confirm_person.dart';
@@ -305,42 +304,6 @@ void main() {
         find.byType(VerificationPage),
       );
       expect(page.picturesFirst, isTrue);
-    });
-
-    testWidgets('a confirmed person is remembered with their identity', (
-      tester,
-    ) async {
-      final verification = FakeKeyVerification();
-      fakeDeviceKeysOf(client, _bob).onStart = () async => verification;
-      final identity = testMasterKey(client, _bob);
-      await start(tester);
-
-      await identity.setVerified(true, false);
-      verification.moveTo(KeyVerificationState.done);
-      await tester.pump();
-      await tap(tester, 'Back to chat');
-
-      expect(
-        ConfirmedIdentityStore(preferences).confirmedIdentityKey(_bob),
-        identity.ed25519Key,
-      );
-      expect(find.byType(SnackBar), findsNothing);
-    });
-
-    testWidgets('backing out remembers nobody', (tester) async {
-      final verification = FakeKeyVerification();
-      fakeDeviceKeysOf(client, _bob).onStart = () async => verification;
-      testMasterKey(client, _bob);
-      await start(tester);
-
-      await tester.pageBack();
-      await settle(tester);
-
-      expect(verification.calls, ['cancel(m.user)']);
-      expect(
-        ConfirmedIdentityStore(preferences).confirmedIdentityKey(_bob),
-        isNull,
-      );
     });
 
     testWidgets('a check that started after the caller went away is '

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -36,14 +38,20 @@ void main() {
     _shareRoom(client, [_me, _alice, _bob]);
   });
 
-  Future<ProviderContainer> watching() async {
+  Future<ProviderContainer> watching({Stream<bool>? logins}) async {
     final container = ProviderContainer(
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         sharedPreferencesProvider.overrideWithValue(prefs),
+        if (logins != null)
+          isLoggedInProvider.overrideWith((ref) => logins)
+        else
+          isLoggedInProvider.overrideWithValue(const AsyncData(true)),
       ],
     );
     addTearDown(container.dispose);
+    container.listen(isLoggedInProvider, (_, _) {});
+    await pumpEventQueue();
     container.listen(unvouchedDeviceWarningProvider, (_, _) {});
     await pumpEventQueue();
     return container;
@@ -108,6 +116,23 @@ void main() {
     container.read(unvouchedDeviceWarningProvider.notifier).dismiss(_alice);
 
     expect(flagged(container), {_bob});
+  });
+
+  test('a sign-in after a sign-out in the same run starts with no '
+      'warnings', () async {
+    await store.remember(_alice, {'A1'});
+    setTestDevices(client, _alice, {'A1': null, 'A2': null});
+    final logins = StreamController<bool>()..add(true);
+    addTearDown(logins.close);
+    final container = await watching(logins: logins.stream);
+    expect(flagged(container), {_alice});
+
+    logins.add(false);
+    await pumpEventQueue();
+    logins.add(true);
+    await pumpEventQueue();
+
+    expect(flagged(container), isEmpty);
   });
 
   test('signed out, nobody is looked at', () async {

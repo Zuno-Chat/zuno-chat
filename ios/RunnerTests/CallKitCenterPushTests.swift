@@ -486,6 +486,35 @@ final class CallKitCenterPushTests: XCTestCase {
     XCTAssertEqual(harness.provider.ended.map(\.1), [.failed])
   }
 
+  func testAProviderResetEndsARingAsOverAndTellsDart() {
+    let harness = CallKitHarness()
+    harness.center.reportPush(harness.pushRing()) { _ in }
+    harness.provider.complete()
+    harness.attachDart()
+
+    harness.center.providerDidReset(CXProvider(configuration: CXProviderConfiguration()))
+
+    XCTAssertEqual(harness.sink.methods, ["ringEnded"])
+    XCTAssertEqual(harness.ledger.map(\.state), [.ringing, .ended])
+    XCTAssertNil(harness.center.snapshot().ringing)
+  }
+
+  func testAProviderResetHangsUpAnAnsweredCall() {
+    let harness = CallKitHarness()
+    harness.center.reportPush(harness.pushRing()) { _ in }
+    harness.provider.complete()
+    harness.center.answer(uuid, action: FakeAnswerAction())
+    harness.attachDart()
+    harness.center.connected(roomId: "!r:zuno.im", callId: "c1")
+
+    harness.center.providerDidReset(CXProvider(configuration: CXProviderConfiguration()))
+
+    XCTAssertEqual(harness.sink.methods.last, "hangUpCall")
+    XCTAssertFalse(harness.sink.methods.contains("ringEnded"))
+    XCTAssertEqual(harness.ledger.map(\.state), [.ringing, .answered, .ended])
+    XCTAssertNil(harness.center.snapshot().active)
+  }
+
   func testSigningOutEndsEveryCall() {
     let harness = CallKitHarness()
     harness.center.reportPush(harness.pushRing()) { _ in }

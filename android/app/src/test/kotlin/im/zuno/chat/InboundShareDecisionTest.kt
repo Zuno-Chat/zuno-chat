@@ -2,7 +2,9 @@ package im.zuno.chat
 
 import im.zuno.chat.InboundShareDecision.SharedFile
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class InboundShareDecisionTest {
@@ -48,6 +50,81 @@ class InboundShareDecisionTest {
         assertEquals("shared", InboundShareDecision.safeFileName("."))
         assertEquals("shared", InboundShareDecision.safeFileName(""))
         assertEquals(".env", InboundShareDecision.safeFileName(".env"))
+    }
+
+    @Test
+    fun `a long name is cut to the filesystem's 255 bytes, keeping its extension`() {
+        val safe = InboundShareDecision.safeFileName("照".repeat(100) + ".jpg")
+
+        assertEquals("照".repeat(83) + ".jpg", safe)
+        assertTrue(safe.toByteArray(Charsets.UTF_8).size <= 255)
+    }
+
+    @Test
+    fun `a cut never splits a character`() {
+        assertEquals(
+            "a" + "😀".repeat(63),
+            InboundShareDecision.safeFileName("a" + "😀".repeat(70)),
+        )
+    }
+
+    @Test
+    fun `a name that fits is left whole`() {
+        val name = "a".repeat(251) + ".jpg"
+
+        assertEquals(name, InboundShareDecision.safeFileName(name))
+    }
+
+    @Test
+    fun `an extension too long to keep is cut with the rest of the name`() {
+        assertEquals(
+            "a." + "b".repeat(253),
+            InboundShareDecision.safeFileName("a." + "b".repeat(300)),
+        )
+    }
+
+    @Test
+    fun `only content from a provider outside Zuno may be read`() {
+        val own = "im.zuno.chat"
+        val gallery = "com.example.gallery"
+
+        assertTrue(InboundShareDecision.mayRead("content", "$gallery.files", gallery, own))
+        assertTrue(InboundShareDecision.mayRead("content", "unseen.provider", null, own))
+        assertFalse(
+            InboundShareDecision.mayRead("content", "im.zuno.chat.zuno_notifications", own, own),
+        )
+        assertFalse(InboundShareDecision.mayRead("file", null, null, own))
+        assertFalse(InboundShareDecision.mayRead("android.resource", gallery, gallery, own))
+        assertFalse(InboundShareDecision.mayRead("CONTENT", "$gallery.files", gallery, own))
+        assertFalse(InboundShareDecision.mayRead(null, null, null, own))
+    }
+
+    @Test
+    fun `a file Zuno itself shared out may come back in`() {
+        val own = "im.zuno.chat"
+        val shareOut = "im.zuno.chat.flutter.share_provider"
+
+        assertTrue(InboundShareDecision.mayRead("content", shareOut, own, own))
+        assertFalse(InboundShareDecision.mayRead("file", shareOut, own, own))
+        assertFalse(
+            InboundShareDecision.mayRead(
+                "content",
+                "com.example.flutter.share_provider",
+                own,
+                own,
+            ),
+        )
+    }
+
+    @Test
+    fun `a provider is named the way the content resolver finds it`() {
+        assertEquals(
+            "im.zuno.chat.zuno_notifications",
+            InboundShareDecision.providerAuthority("0@im.zuno.chat.zuno_notifications"),
+        )
+        assertEquals("media", InboundShareDecision.providerAuthority("media"))
+        assertEquals("media", InboundShareDecision.providerAuthority("a@10@media"))
+        assertNull(InboundShareDecision.providerAuthority(null))
     }
 
     @Test

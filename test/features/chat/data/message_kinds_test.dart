@@ -158,7 +158,7 @@ void main() {
       });
       expect(
         attachmentInfoText(event, AttachmentKind.video),
-        '640 × 360 · 01:23 · 3.0 MB',
+        '640 × 360 · 1:23 · 3.0 MB',
       );
     });
 
@@ -218,21 +218,6 @@ void main() {
     expect(isHiddenTimelineEvent(message({'msgtype': 'm.text'})), isFalse);
   });
 
-  group('formatDuration', () {
-    test('pads minutes and seconds', () {
-      expect(formatDuration(const Duration(seconds: 7)), '00:07');
-      expect(formatDuration(const Duration(minutes: 12, seconds: 5)), '12:05');
-    });
-
-    test('keeps the hours of a long call or video', () {
-      expect(
-        formatDuration(const Duration(hours: 1, minutes: 5, seconds: 3)),
-        '1:05:03',
-      );
-      expect(formatDuration(const Duration(hours: 12)), '12:00:00');
-    });
-  });
-
   group('dateDividerLabel', () {
     final now = DateTime(2026, 9, 2, 15);
 
@@ -242,6 +227,19 @@ void main() {
 
     test('the day before is "Yesterday"', () {
       expect(dateDividerLabel(DateTime(2026, 9, 1, 23, 59), now), 'Yesterday');
+    });
+
+    test('a 23-hour day is still the day before', () {
+      for (final (day, morningAfter) in [
+        (DateTime(2026, 3, 8, 12), DateTime(2026, 3, 9, 0, 30)),
+        (DateTime(2026, 3, 29, 12), DateTime(2026, 3, 30, 0, 30)),
+      ]) {
+        expect(dateDividerLabel(day, morningAfter), 'Yesterday');
+        expect(
+          dateDividerLabel(day.subtract(const Duration(days: 1)), morningAfter),
+          isNot('Yesterday'),
+        );
+      }
     });
 
     test('earlier this year: month + day, no year', () {

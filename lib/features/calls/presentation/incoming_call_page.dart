@@ -8,7 +8,6 @@ import 'package:matrix/matrix.dart' hide CallSession;
 import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/active_call_provider.dart';
 import '../../../core/calls/matrixrtc/call_decline.dart';
-import '../../../core/calls/matrixrtc/call_session.dart';
 import '../../../core/calls/matrixrtc/call_summary_message.dart';
 import '../../../core/calls/matrixrtc/incoming_call.dart';
 import '../../../core/calls/matrixrtc/resolved_call_ids_provider.dart';
@@ -18,10 +17,10 @@ import '../../../core/calls/notifications/pending_call_notification_action_provi
 import '../../../core/calls/notifications/ringing_call_provider.dart';
 import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/calls/platform/system_ring.dart';
+import '../../../core/errors/best_effort.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_user_display.dart';
 import '../../../core/platform/platform_capabilities.dart';
-import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'call_page.dart';
@@ -60,14 +59,12 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
       _resolved = true;
       _dismiss();
     });
-    if (ref.read(resolvedCallIdsProvider).contains(widget.call.callId)) {
+    final answeredHere =
+        ref.read(activeCallProvider)?.callId == widget.call.callId;
+    if (answeredHere ||
+        ref.read(resolvedCallIdsProvider).contains(widget.call.callId)) {
       _resolved = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _dismiss());
-      return;
-    }
-    if (ref.read(activeCallProvider)?.callId == widget.call.callId) {
-      _resolved = true;
-      _handedOffToCall = true;
+      _handedOffToCall = answeredHere;
       WidgetsBinding.instance.addPostFrameCallback((_) => _dismiss());
       return;
     }
@@ -162,19 +159,10 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     }
   }
 
-  Future<void> _accept() async {
+  void _accept() {
     if (_resolved) return;
     _resolved = true;
-    final session = ref
-        .read(activeCallProvider.notifier)
-        .start(
-          () => CallSession.forIncoming(
-            room: widget.call.room,
-            callId: widget.call.callId,
-            kind: widget.call.kind,
-            lowDataMode: ref.read(lowDataCallsProvider),
-          ),
-        );
+    final session = ref.read(activeCallProvider.notifier).answer(widget.call);
     _handedOffToCall = true;
     if (session == null) {
       _dismiss();
@@ -189,11 +177,18 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     session.accept().ignore();
   }
 
-  Future<void> _decline() async {
+  void _decline() {
     if (_resolved) return;
     _resolved = true;
-    await declineCall(widget.call.room, widget.call.callId);
+    final IncomingCall(:room, :callId) = widget.call;
+    ref.read(resolvedCallIdsProvider.notifier).markResolved(callId);
     _dismiss();
+    unawaited(
+      runBestEffort(
+        () => declineCall(room, callId),
+        label: 'decline a call from its ring screen',
+      ),
+    );
   }
 
   @override

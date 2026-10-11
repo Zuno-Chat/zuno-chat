@@ -15,24 +15,16 @@ struct NseTokens: Equatable, Sendable {
 enum NseComposer {
   static let fixedThread = "zuno"
   static let maxCharacters = 300
-  static let maxNameBytes = CallerName.byteLimit
   static let nothingTitle = "Zuno"
   static let newMessage = "New message"
   static let testBody = "Notifications work"
 
   static func sanitize(_ text: String) -> String {
     let kept = String(
-      String.UnicodeScalarView(text.unicodeScalars.filter { $0 == "\n" || !isStripped($0) }))
+      String.UnicodeScalarView(
+        text.unicodeScalars.filter { $0 == "\n" || !CallerName.isStripped($0) }))
     guard kept.unicodeScalars.count > maxCharacters else { return kept }
     return String(String.UnicodeScalarView(kept.unicodeScalars.prefix(maxCharacters - 1))) + "…"
-  }
-
-  static func name(_ text: String) -> String {
-    CallerName.sanitize(text)
-  }
-
-  static func isStripped(_ scalar: Unicode.Scalar) -> Bool {
-    CallerName.isStripped(scalar)
   }
 
   static func formattedLocalpart(_ mxid: String) -> String {
@@ -46,20 +38,21 @@ enum NseComposer {
     return words.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  static func names(room: NseRoomFile?, fetched: NseFetched?, senderId: String?) -> NseNames {
+  static func names(room: NotifyRoomFile?, fetched: NseFetched?, senderId: String?) -> NseNames {
     let sender =
-      nonEmpty(fetched?.senderName.map(name))
-      ?? nonEmpty(senderId.map(formattedLocalpart).map(name)) ?? ""
+      nonEmpty(fetched?.senderName.map(CallerName.sanitize))
+      ?? nonEmpty(senderId.map(formattedLocalpart).map(CallerName.sanitize)) ?? ""
     let title =
-      nonEmpty(room?.title.map(name)) ?? nonEmpty(fetched?.roomName.map(name))
+      nonEmpty(room.map { CallerName.sanitize($0.title) })
+      ?? nonEmpty(fetched?.roomName.map(CallerName.sanitize))
       ?? (sender.isEmpty ? nothingTitle : sender)
     return NseNames(title: title, sender: sender, isDm: room?.dm ?? fetched?.isDm ?? false)
   }
 
   static func inviter(event: NseEvent, fetched: NseFetched?) -> String {
-    nonEmpty(NseClassifier.inviterName(event).map(name))
-      ?? nonEmpty(fetched?.senderName.map(name))
-      ?? nonEmpty(name(formattedLocalpart(event.sender))) ?? nothingTitle
+    nonEmpty(NseClassifier.inviterName(event).map(CallerName.sanitize))
+      ?? nonEmpty(fetched?.senderName.map(CallerName.sanitize))
+      ?? nonEmpty(CallerName.sanitize(formattedLocalpart(event.sender))) ?? nothingTitle
   }
 
   static func messageLines(text: String, names: NseNames) -> (title: String, body: String) {
@@ -68,7 +61,7 @@ enum NseComposer {
   }
 
   static func invitationLines(inviter: String, roomName: String?) -> (title: String, body: String) {
-    let room = nonEmpty(roomName.map(name)) ?? ""
+    let room = nonEmpty(roomName.map(CallerName.sanitize)) ?? ""
     return (inviter, room.isEmpty ? "Invited you to chat" : "Invited you to \(room)")
   }
 

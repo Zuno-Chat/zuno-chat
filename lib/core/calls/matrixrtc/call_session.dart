@@ -39,6 +39,7 @@ enum CallSessionPhase { ringing, connecting, active, ended }
 enum CallEndReason { hungUp, declinedByThem, missed, failed }
 
 const _ringTimeout = Duration(seconds: 45);
+const emptyCallTimeout = Duration(seconds: 15);
 const _membershipTtl = Duration(seconds: 120);
 const _membershipRefreshInterval = Duration(seconds: 50);
 const _membershipDebounce = Duration(seconds: 1);
@@ -49,6 +50,8 @@ const callDidNotConnectMessage = 'Call did not connect';
 const _foregroundWait = Duration(seconds: 3);
 const _callFullMessage =
     'This call is full. Up to $maxCallParticipants people can join a call.';
+const _onAnotherDeviceMessage =
+    'You are in this call on another device. Hang up there to join here.';
 
 class CallSession {
   final Client client;
@@ -91,12 +94,13 @@ class CallSession {
   String? failedMessage;
 
   DateTime? _activeAt;
-  Timer? _ringTimeoutTimer;
+  Timer? _aloneTimer;
   Timer? _membershipRefreshTimer;
   StreamSubscription<SyncUpdate>? _roomSub;
   StreamSubscription<SyncUpdate>? _syncSub;
   StreamSubscription<ToDeviceEvent>? _toDeviceSub;
   StreamSubscription<Event>? _declineSub;
+  StreamSubscription<Event>? _summarySub;
   StreamSubscription<void>? _localStateSub;
   StreamSubscription<CallEngineStatus>? _statusSub;
   StreamSubscription<LoginState>? _loginSub;
@@ -284,7 +288,7 @@ class CallSession {
     if (_ending) return;
     try {
       await _connect();
-      _startRingTimeout();
+      _hangUpIfStillAlone(after: ringTimeout);
     } catch (e, s) {
       if (!_shownToUser(e)) reportCaught('connect an outgoing call', e, s);
       await hangUp();
@@ -358,17 +362,34 @@ class CallSession {
         pictureInPictureCamera: pictureInPictureCamera,
       )
       .._encryptionKey = initialEncryptionKeyForTesting
-      .._followSignInAndRoom();
+      .._followSignInAndRoom()
+      .._endOnceSummarizedUnjoined();
+  }
+
+  void _endOnceSummarizedUnjoined() {
+    _summarySub = client.onTimelineEvent.stream.listen((event) {
+      if (_everHadRemote || _phase == CallSessionPhase.ended) return;
+      if (event.room.id != _roomId) return;
+      if (!isCallSummaryMessage(event.messageType)) return;
+      if (event.content.tryGet<String>('call_id') != callId) return;
+      unawaited(hangUp(summarized: true));
+    });
   }
 
   Future<void> accept() async {
+    if (answeredOnAnotherDevice(room, callId)) {
+      _refuse(_onAnotherDeviceMessage);
+      await _end('a call taken on another device');
+      return;
+    }
     if (isCallFull(room, callId, excludeUserId: _myUserId)) {
-      _markCallFull();
+      _refuse(_callFullMessage);
       await _end('a call that was full');
       return;
     }
     try {
       await _connect();
+      _hangUpIfStillAlone(after: emptyCallTimeout);
     } catch (e, s) {
       if (!_shownToUser(e)) reportCaught('accept a call', e, s);
       await hangUp();
@@ -376,8 +397,8 @@ class CallSession {
     }
   }
 
-  void _markCallFull() {
-    failedMessage = _callFullMessage;
+  void _refuse(String message) {
+    failedMessage = message;
     endReason = CallEndReason.failed;
   }
 
@@ -553,9 +574,10 @@ class CallSession {
     await runBestEffort(built.dispose, label: 'dispose engine after $why');
   }
 
-  void _startRingTimeout() {
-    _ringTimeoutTimer = Timer(ringTimeout, () {
-      if (_knownRemote.isEmpty) hangUp();
+  void _hangUpIfStillAlone({required Duration after}) {
+    if (_ending || _everHadRemote) return;
+    _aloneTimer = Timer(after, () {
+      if (!_everHadRemote) unawaited(hangUp());
     });
   }
 
@@ -730,7 +752,10 @@ class CallSession {
         if (_pendingKeys.remove(id) case final pending?) {
           _applyEncryptionKey(pending);
         }
-        final remoteSessionId = membership.fociActive['sessionId'] as String?;
+        final remoteSessionId = switch (membership.fociActive['sessionId']) {
+          final String sessionId => sessionId,
+          _ => null,
+        };
         final isNewDevice = _knownRemote.add(id);
         if (isNewDevice || _knownRemoteSessions[id] != remoteSessionId) {
           _knownRemoteSessions[id] = remoteSessionId;
@@ -742,13 +767,13 @@ class CallSession {
             _remoteJoinedController.add(null);
           }
         }
-        _ringTimeoutTimer?.cancel();
+        _aloneTimer?.cancel();
         eng.updateRemoteParticipant(id, membership.fociActive);
       }
     }
 
     if (_hangUp == null && isOverCallCapacity(room, callId, _myUserId)) {
-      _markCallFull();
+      _refuse(_callFullMessage);
       unawaited(hangUp());
       return;
     }
@@ -778,7 +803,7 @@ class CallSession {
   }
 
   void _cancelTimers() {
-    _ringTimeoutTimer?.cancel();
+    _aloneTimer?.cancel();
     _membershipRefreshTimer?.cancel();
     _membershipDebounceTimer?.cancel();
     _remoteLeftConfirmTimer?.cancel();
@@ -789,6 +814,7 @@ class CallSession {
     _syncSub,
     _toDeviceSub,
     _declineSub,
+    _summarySub,
     _localStateSub,
     _statusSub,
     _loginSub,
@@ -808,6 +834,8 @@ class CallSession {
   bool _summarized = false;
 
   bool get endedByUser => _endedByUser;
+
+  Future<void> get hangUpFinished => _hangUp ?? Future<void>.value();
 
   Future<void> hangUp({bool byUser = false, bool summarized = false}) {
     if (_hangUp case final pending?) return pending;

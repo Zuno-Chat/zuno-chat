@@ -10,16 +10,9 @@ enum NseAppLogic {
     return (fresh.map(\.json), fresh.map(\.ts).max() ?? pointer)
   }
 
-  static func outcomes(
-    counters: [String: Int], utd: [NseUtd], after pointer: Int64, generation: String
-  ) -> (records: [[String: Any]], pointer: Int64) {
-    let fresh = utd.filter { $0.ts > pointer }
-    var records: [[String: Any]] = counters.keys.sorted().map {
-      ["kind": "counter", "key": $0, "count": counters[$0] ?? 0]
-    }
-    records += fresh.map { ["kind": "utd", "room": $0.room, "event": $0.event, "ts": $0.ts] }
-    records.append(["kind": "generation", "value": generation])
-    return (records, fresh.map(\.ts).max() ?? pointer)
+  static func outcomes(counters: [String: Int], generation: String) -> [[String: Any]] {
+    counters.keys.sorted().map { ["kind": "counter", "key": $0, "count": counters[$0] ?? 0] }
+      + [["kind": "generation", "value": generation]]
   }
 
   static func closedDays(_ keys: [String], today: String) -> [String] {

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -17,8 +16,8 @@ sealed class PickedMedia {
 }
 
 class PickedImage extends PickedMedia {
-  final Uint8List bytes;
-  const PickedImage({required super.name, required this.bytes});
+  final String path;
+  const PickedImage({required super.name, required this.path});
 }
 
 class PickedVideo extends PickedMedia {
@@ -53,8 +52,10 @@ class MediaCaptionComposerPage extends StatefulWidget {
 class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
   late final List<PickedMedia> _items;
   late final List<TextEditingController> _captionControllers;
-  late final List<VideoPlayerController?> _videoControllers;
-  late final List<Future<void>?> _videoInitFutures;
+  final _seenVideos = <PickedVideo, VideoPlayerValue>{};
+  PickedVideo? _shownVideo;
+  VideoPlayerController? _player;
+  Future<void>? _playerReady;
   final _pageController = PageController();
   int _page = 0;
 
@@ -66,20 +67,7 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
       _items.length,
       (_) => TextEditingController(),
     );
-    _videoControllers = [
-      for (final item in _items)
-        item is PickedVideo
-            ? VideoPlayerController.file(File(item.path))
-            : null,
-    ];
-    _videoInitFutures = [
-      for (final controller in _videoControllers)
-        if (controller != null)
-          reportFailureOf(controller.initialize(), label: 'preview video')
-            ..ignore()
-        else
-          null,
-    ];
+    _showPlayerFor(_items[_page]);
   }
 
   @override
@@ -87,11 +75,38 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
     for (final controller in _captionControllers) {
       controller.dispose();
     }
-    for (final controller in _videoControllers) {
-      controller?.dispose();
-    }
+    _player?.dispose();
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _showPlayerFor(PickedMedia item) {
+    if (identical(item, _shownVideo)) return;
+    _releasePlayer();
+    if (item is! PickedVideo) return;
+    final player = VideoPlayerController.file(File(item.path));
+    _shownVideo = item;
+    _player = player;
+    _playerReady = reportFailureOf(player.initialize(), label: 'preview video')
+      ..ignore();
+  }
+
+  void _releasePlayer() {
+    final shown = _shownVideo;
+    final player = _player;
+    if (shown != null && player != null && player.value.isInitialized) {
+      _seenVideos[shown] = player.value;
+    }
+    player?.dispose();
+    _shownVideo = null;
+    _player = null;
+    _playerReady = null;
+  }
+
+  VideoPlayerValue _valueOf(PickedVideo video) {
+    final live = identical(video, _shownVideo) ? _player?.value : null;
+    if (live != null && live.isInitialized) return live;
+    return _seenVideos[video] ?? const VideoPlayerValue.uninitialized();
   }
 
   void _removeCurrent() {
@@ -101,27 +116,28 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
     }
     setState(() {
       _captionControllers.removeAt(_page).dispose();
-      _videoControllers.removeAt(_page)?.dispose();
-      _videoInitFutures.removeAt(_page);
-      _items.removeAt(_page);
+      final removed = _items.removeAt(_page);
+      if (identical(removed, _shownVideo)) _releasePlayer();
+      _seenVideos.remove(removed);
       if (_page >= _items.length) _page = _items.length - 1;
+      _showPlayerFor(_items[_page]);
     });
   }
 
   ComposedMedia _composeItem(int i) {
     final caption = _captionControllers[i].text.trim();
     switch (_items[i]) {
-      case PickedImage(:final bytes, :final name):
+      case PickedImage(:final path, :final name):
         return ComposedImageResult(
-          ComposedImage(bytes: bytes, name: name, caption: caption),
+          ComposedImage(path: path, name: name, caption: caption),
         );
-      case PickedVideo(:final path, :final name):
+      case final PickedVideo video:
         return ComposedVideoResult(
           composeVideo(
-            path: path,
-            name: name,
+            path: video.path,
+            name: video.name,
             caption: caption,
-            value: _videoControllers[i]!.value,
+            value: _valueOf(video),
           ),
         );
     }
@@ -157,7 +173,10 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
               child: PageView.builder(
                 controller: _pageController,
                 itemCount: _items.length,
-                onPageChanged: (page) => setState(() => _page = page),
+                onPageChanged: (page) => setState(() {
+                  _page = page;
+                  _showPlayerFor(_items[page]);
+                }),
                 itemBuilder: (context, i) => _buildPage(i),
               ),
             ),
@@ -198,8 +217,8 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
     if (item is PickedImage) {
       return InteractiveViewer(
         child: Center(
-          child: Image.memory(
-            item.bytes,
+          child: Image.file(
+            File(item.path),
             cacheWidth: previewDecodeWidth(context),
             errorBuilder: (_, _, _) =>
                 const Icon(Icons.broken_image_outlined, size: 64),
@@ -207,9 +226,10 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
         ),
       );
     }
-    return ComposerVideoPreview(
-      controller: _videoControllers[i]!,
-      loading: _videoInitFutures[i],
-    );
+    final player = _player;
+    if (!identical(item, _shownVideo) || player == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return ComposerVideoPreview(controller: player, loading: _playerReady);
   }
 }

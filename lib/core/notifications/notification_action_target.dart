@@ -14,9 +14,6 @@ TimedEvent? _newest(Iterable<TimedEvent> events, int boundMs) {
   return newest;
 }
 
-String? newestAtOrBefore(Iterable<TimedEvent> events, int boundMs) =>
-    _newest(events, boundMs)?.id;
-
 Future<String?> resolveMarkReadEvent({
   required String? eventId,
   required int? eventSeconds,

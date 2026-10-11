@@ -279,12 +279,13 @@ void main() {
         if (copyFailure case final failure?) throw failure;
         final names = (call.arguments as Map)['names'] as List;
         return [
-          for (final name in names)
+          for (final (i, name) in names.indexed)
             unreadable.contains(name)
                 ? null
-                : (File(
-                    '${temp.path}/$name',
-                  )..writeAsBytesSync([1, 2, 3])).path,
+                : (File('${temp.path}/$i/$name')
+                        ..createSync(recursive: true)
+                        ..writeAsBytesSync([1, 2, 3]))
+                      .path,
         ];
       });
       messenger.setMockMethodCallHandler(video, (call) async {
@@ -374,7 +375,8 @@ void main() {
     }
 
     List<String> copies() => [
-      for (final file in temp.listSync()) file.uri.pathSegments.last,
+      for (final file in temp.listSync(recursive: true).whereType<File>())
+        file.uri.pathSegments.last,
     ];
 
     const sharedVideo = InboundShare(
@@ -470,6 +472,36 @@ void main() {
       );
 
       expect(find.byType(ImageCaptionComposerPage), findsOneWidget);
+    });
+
+    testWidgets('a shared photo the other app gave no type still goes to the '
+        'caption screen', (tester) async {
+      await openWithShare(
+        tester,
+        const InboundShare(
+          files: [SharedFile(uri: 'content://media/1', name: 'IMG_1.jpg')],
+        ),
+        awaiting: 'the caption screen for the photo',
+        until: () =>
+            find.byType(ImageCaptionComposerPage).evaluate().isNotEmpty,
+      );
+
+      expect(find.byType(ImageCaptionComposerPage), findsOneWidget);
+      expect(harness.sent, isEmpty);
+    });
+
+    testWidgets('a shared file the other app calls a document goes out as a '
+        'file, whatever its name', (tester) async {
+      await openWithShare(
+        tester,
+        InboundShare(files: [document('scan.jpg')]),
+        awaiting: 'the document to be sent',
+        until: () => harness.sent.isNotEmpty,
+      );
+
+      final sent = harness.sent.single;
+      expect(sent['msgtype'], 'm.file');
+      expect((sent['info']! as Map)['mimetype'], 'application/pdf');
     });
 
     testWidgets('a shared video that fails keeps its copy, and a retry sends '

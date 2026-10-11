@@ -183,7 +183,7 @@ void main() {
       );
 
       expect(find.text('Ann Lindqvist'), findsOneWidget);
-      expect(find.text('02:41'), findsOneWidget);
+      expect(find.text('2:41'), findsOneWidget);
       expect(find.byIcon(Icons.lock_outline), findsOneWidget);
       expect(find.text(EncryptingLabel.label), findsNothing);
     });

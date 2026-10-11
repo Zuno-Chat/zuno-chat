@@ -206,6 +206,25 @@ void main() {
     },
   );
 
+  test('a decline for the call already in progress declines nothing', () async {
+    final session = startOngoingCall('call1');
+
+    await router().handle(
+      CallNotificationResponse(
+        action: CallNotificationAction.decline,
+        call: (
+          roomId: room.id,
+          callId: 'call1',
+          callerId: '@bob:example.org',
+          isVideo: false,
+        ),
+      ),
+    );
+
+    expect(container.read(resolvedCallIdsProvider), isNot(contains('call1')));
+    expect(container.read(activeCallProvider), same(session));
+  });
+
   group('ongoing-call hang up', () {
     Future<void> sendHangUpFromPlatform([String? callId]) => sendFromNative(
       'hangUpCall',

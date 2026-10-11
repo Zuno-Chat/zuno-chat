@@ -92,8 +92,6 @@ class _CountedHomeserver extends HomeserverNotifier {
 }
 
 class _RecordingWipe extends SignOutWipe {
-  _RecordingWipe(super.prefs);
-
   final states = <bool>[];
 
   @override
@@ -184,7 +182,8 @@ void main() {
     Stream<bool>? loginStates,
     bool? notificationsAllowed,
     NotificationDeliveryMode? deliveryMode,
-    SignOutWipe Function(SharedPreferences prefs)? signOutWipe,
+    SignOutWipe Function()? signOutWipe,
+    Future<void> Function()? wipeAppData,
     RingingCallInfo? pendingRing,
     HomeserverNotifier Function()? homeserver,
   }) async {
@@ -216,8 +215,9 @@ void main() {
         connectionStatusProvider.overrideWith((ref) => connection.stream),
         onboardingStepsProvider.overrideWith((ref) async => const []),
         notificationsAllowedProvider.overrideWith(() => permission),
-        if (signOutWipe != null)
-          signOutWipeProvider.overrideWithValue(signOutWipe(prefs)),
+        if (signOutWipe != null) signOutWipeProvider.overrideWith(signOutWipe),
+        if (wipeAppData != null)
+          appDataWipeProvider.overrideWithValue(wipeAppData),
         homeserverProvider.overrideWith(
           homeserver ?? () => FixedHomeserver(officialHomeserver),
         ),
@@ -524,7 +524,11 @@ void main() {
   group('signing out', () {
     testWidgets('closes open screens and shows sign-in', (tester) async {
       final logins = StreamController<bool>();
-      await pumpApp(tester, loginStates: logins.stream);
+      await pumpApp(
+        tester,
+        loginStates: logins.stream,
+        signOutWipe: _RecordingWipe.new,
+      );
       logins.add(true);
       await settle(tester);
       CallNotificationService.instance.onNewDeviceTapForTest();
@@ -547,6 +551,7 @@ void main() {
       await pumpApp(
         tester,
         loginStates: logins.stream,
+        signOutWipe: _RecordingWipe.new,
         homeserver: () => _CountedHomeserver(() => checks++),
       );
       logins.add(false);
@@ -563,6 +568,48 @@ void main() {
       expect(find.byType(SignedOutEntry), findsOneWidget);
     });
 
+    testWidgets('the splash stays up while the wipe runs, so no sign-in can '
+        'start mid-wipe', (tester) async {
+      final wiping = Completer<void>();
+      final logins = StreamController<bool>();
+      await pumpApp(
+        tester,
+        loginStates: logins.stream,
+        wipeAppData: () => wiping.future,
+      );
+      logins.add(true);
+      await settle(tester);
+
+      logins.add(false);
+      await settle(tester);
+      await pumpRoute(tester);
+
+      expect(find.byType(ZunoSplash), findsOneWidget);
+      expect(find.byType(SignedOutEntry), findsNothing);
+
+      wiping.complete();
+      await settle(tester);
+
+      expect(find.byType(SignedOutEntry), findsOneWidget);
+    });
+
+    testWidgets('a wipe that fails still leads to sign-in', (tester) async {
+      final logins = StreamController<bool>();
+      await pumpApp(
+        tester,
+        loginStates: logins.stream,
+        wipeAppData: () async => throw StateError('declined'),
+      );
+      logins.add(true);
+      await settle(tester);
+
+      logins.add(false);
+      await settle(tester);
+      await pumpRoute(tester);
+
+      expect(find.byType(SignedOutEntry), findsOneWidget);
+    });
+
     testWidgets('a start signed out is handed to the wipe at once', (
       tester,
     ) async {
@@ -570,7 +617,7 @@ void main() {
       await pumpApp(
         tester,
         loggedIn: const AsyncData(false),
-        signOutWipe: (prefs) => wipe = _RecordingWipe(prefs),
+        signOutWipe: () => wipe = _RecordingWipe(),
       );
       await tester.pump();
 

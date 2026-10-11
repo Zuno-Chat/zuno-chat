@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/invite_notification_provider.dart';
 
@@ -109,6 +110,33 @@ void main() {
     expect(inviteNotificationFor(client, event)?.eventId, isNull);
   });
 
+  group('an invitation to a room you asked to join', () {
+    setUp(
+      () => SharedPreferences.setMockInitialValues({
+        'communities.asked.@me:example.org': [room.id],
+      }),
+    );
+
+    test('is never claimed, so no path announces the approval', () async {
+      final claim = await claimInviteAnnouncement(
+        room.id,
+        userId: '@me:example.org',
+      );
+
+      expect(claim.won, isFalse);
+      expect(claim.announcedAt, isNull);
+    });
+
+    test('is claimed for another account on this device', () async {
+      final claim = await claimInviteAnnouncement(
+        room.id,
+        userId: '@other:example.org',
+      );
+
+      expect(claim.won, isTrue);
+    });
+  });
+
   group('announced once, whichever path is first', () {
     late RecordedNotifications notifications;
 
@@ -143,9 +171,12 @@ void main() {
       await pumpEventQueue();
     }
 
+    Future<bool> claimed() async =>
+        (await claimInviteAnnouncement(room.id, userId: client.userID)).won;
+
     test('an invitation the push already announced is not announced again '
         'from sync', () async {
-      expect((await claimInviteAnnouncement(room.id)).won, isTrue);
+      expect(await claimed(), isTrue);
 
       await deliver();
 
@@ -157,7 +188,7 @@ void main() {
       await deliver();
 
       expect(notifications.shown, hasLength(1));
-      expect((await claimInviteAnnouncement(room.id)).won, isFalse);
+      expect(await claimed(), isFalse);
     });
 
     test('once the invitation is settled, a new one to the same room is '
@@ -184,12 +215,12 @@ void main() {
         ),
       );
 
-      expect((await claimInviteAnnouncement(room.id)).won, isTrue);
+      expect(await claimed(), isTrue);
     });
 
     test('joining from another device settles an invitation another path '
         'announced', () async {
-      await claimInviteAnnouncement(room.id);
+      await claimed();
       await sync(
         SyncUpdate(
           nextBatch: 's2',
@@ -214,7 +245,7 @@ void main() {
         ),
       );
 
-      expect((await claimInviteAnnouncement(room.id)).won, isTrue);
+      expect(await claimed(), isTrue);
     });
 
     test('a sync about other rooms settles nothing', () async {

@@ -32,15 +32,27 @@ class RtcMembership {
 
   bool get isExpired => DateTime.now().millisecondsSinceEpoch > expiresAtMs;
 
-  factory RtcMembership.fromJson(Map<String, Object?> json) => RtcMembership(
-    callId: json['call_id'] as String,
-    deviceId: json['device_id'] as String,
-    kind: json['kind'] as String,
-    expiresAtMs: json['expires_ts'] as int,
-    createdAtMs: json['created_ts'] as int? ?? 0,
-    fociActive:
-        (json['foci_active'] as Map?)?.cast<String, Object?>() ?? const {},
-  );
+  static RtcMembership? tryParse(Object? json) {
+    if (json case {
+      'call_id': final String callId,
+      'device_id': final String deviceId,
+      'kind': final String kind,
+      'expires_ts': final int expiresAtMs,
+    }) {
+      final createdAtMs = json['created_ts'] ?? 0;
+      final fociActive = json['foci_active'] ?? const <String, Object?>{};
+      if (createdAtMs is! int || fociActive is! Map) return null;
+      return RtcMembership(
+        callId: callId,
+        deviceId: deviceId,
+        kind: kind,
+        expiresAtMs: expiresAtMs,
+        createdAtMs: createdAtMs,
+        fociActive: fociActive.cast<String, Object?>(),
+      );
+    }
+    return null;
+  }
 
   Map<String, Object?> toJson() => {
     'call_id': callId,
@@ -63,12 +75,22 @@ String? callMembershipEventId(Room room, String callId, {String? excluding}) {
   return null;
 }
 
-List<RtcMembership> parseRtcMemberships(Map<String, Object?>? content) {
+List<RtcMembership> parseRtcMemberships(
+  Map<String, Object?>? content, {
+  bool includeExpired = false,
+}) {
   final raw = content?['memberships'];
   if (raw is! List) return [];
-  return raw
-      .whereType<Map>()
-      .map((m) => RtcMembership.fromJson(m.cast<String, Object?>()))
-      .where((m) => !m.isExpired)
-      .toList();
+  return [
+    for (final entry in raw)
+      if (RtcMembership.tryParse(entry) case final membership?)
+        if (includeExpired || !membership.isExpired) membership,
+  ];
+}
+
+bool answeredOnAnotherDevice(Room room, String callId) {
+  final client = room.client;
+  final own = room.states[callMemberEventType]?[client.userID];
+  return parseRtcMemberships(own?.content)
+      .any((m) => m.callId == callId && m.deviceId != client.deviceID);
 }

@@ -1,11 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/active_call_marker.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
+import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
+import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_call_session.dart';
 import '../../helpers/fake_matrix.dart';
@@ -92,6 +98,58 @@ void main() {
       final next = session();
 
       expect(line().start(() => next), same(next));
+    });
+  });
+
+  group('answering a ringing call', () {
+    late ProviderContainer answering;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      answering = ProviderContainer(
+        overrides: [
+          matrixClientProvider.overrideWithValue(room.client),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+      );
+      addTearDown(answering.dispose);
+      RingingCall.instance.set('c1');
+      addTearDown(() => RingingCall.instance.callId = null);
+    });
+
+    IncomingCall ringing(String callId) => IncomingCall(
+      room: room,
+      callId: callId,
+      callerId: '@bob:example.org',
+      kind: CallKind.video,
+    );
+
+    test('starts it as the callee, settles it and takes back its ring '
+        'screen\'s claim', () {
+      final answered = answering
+          .read(activeCallProvider.notifier)
+          .answer(ringing('c1'));
+
+      expect(answered?.callId, 'c1');
+      expect(answered?.role, CallSessionRole.callee);
+      expect(answered?.kind, CallKind.video);
+      expect(answering.read(activeCallProvider), same(answered));
+      expect(answering.read(resolvedCallIdsProvider), {'c1'});
+      expect(RingingCall.instance.callId, isNull);
+    });
+
+    test('while another call is on settles nothing', () {
+      final live = fakeCall();
+      answering.read(activeCallProvider.notifier).start(() => live);
+
+      expect(
+        answering.read(activeCallProvider.notifier).answer(ringing('c1')),
+        isNull,
+      );
+      expect(answering.read(activeCallProvider), same(live));
+      expect(answering.read(resolvedCallIdsProvider), isEmpty);
+      expect(RingingCall.instance.callId, 'c1');
     });
   });
 

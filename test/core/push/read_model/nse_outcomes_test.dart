@@ -18,7 +18,6 @@ void main() {
   const channel = MethodChannel('zuno/nse');
   late Map<String, Object?> replies;
   late SharedPreferences prefs;
-  late StoredEventsFakeDatabaseApi database;
   late Client client;
   late Room room;
 
@@ -35,8 +34,7 @@ void main() {
     );
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
-    database = StoredEventsFakeDatabaseApi();
-    client = buildTestClient(userId: '@mwong:zuno.im', database: database);
+    client = buildTestClient(userId: '@mwong:zuno.im');
     room = buildTestRoom(client, id: '!r:zuno.im');
     client.rooms.add(room);
   });
@@ -52,16 +50,14 @@ void main() {
     final shownAt = DateTime.now().millisecondsSinceEpoch;
     replies['takeMarks'] = [
       {'kind': 'invite', 'room': room.id, 'ts': shownAt},
-      {'kind': 'test', 'ts': 42},
     ];
 
-    await reader().read(client);
+    await reader().read();
 
     expect(
       inviteAnnouncedAt(prefs, room.id),
       DateTime.fromMillisecondsSinceEpoch(shownAt),
     );
-    expect(prefs.getInt(NseOutcomeReader.testAckKey), 42);
   });
 
   test(
@@ -71,8 +67,8 @@ void main() {
         {'kind': 'counter', 'key': 'nse.c.20261002.o.auth', 'count': 1},
         {'kind': 'generation', 'value': 'g1'},
       ];
-      final first = await reader().read(client);
-      final again = await reader().read(client);
+      final first = await reader().read();
+      final again = await reader().read();
 
       expect(first.authFailed, isTrue);
       expect(again.authFailed, isFalse);
@@ -87,42 +83,36 @@ void main() {
       replies['readOutcomes'] = [
         {'kind': 'generation', 'value': 'g1'},
       ];
-      await reader().read(client);
+      await reader().read();
       replies['readOutcomes'] = [
         {'kind': 'generation', 'value': 'g2'},
       ];
 
-      expect((await reader().read(client)).generationChanged, isTrue);
+      expect((await reader().read()).generationChanged, isTrue);
     },
   );
 
-  test('a fallback that the app later read counts as a late key, one that '
-      'stayed sealed as missing', () async {
-    database.events = [
-      buildTestEvent(
-        room,
-        eventId: r'$late',
-        senderId: '@a:zuno.im',
-        content: {'body': 'hi'},
-      ),
-      buildTestEvent(
-        room,
-        eventId: r'$sealed',
-        senderId: '@a:zuno.im',
-        type: EventTypes.Encrypted,
-        content: {'ciphertext': 'x'},
-      ),
-    ];
+  test('only the auth counts of days the extension still keeps are stored, '
+      'and a rise on any of them is noticed', () async {
     replies['readOutcomes'] = [
-      {'kind': 'utd', 'room': room.id, 'event': r'$late', 'ts': 1},
-      {'kind': 'utd', 'room': room.id, 'event': r'$sealed', 'ts': 2},
-      {'kind': 'utd', 'room': '!gone:zuno.im', 'event': r'$x', 'ts': 3},
+      {'kind': 'counter', 'key': 'nse.c.20261001.o.auth', 'count': 2},
+      {'kind': 'counter', 'key': 'nse.c.20261001.o.shown', 'count': 40},
+      {'kind': 'counter', 'key': 'nse.c.20261002.o.auth', 'count': 1},
     ];
+    await reader().read();
+    replies['readOutcomes'] = [
+      {'kind': 'counter', 'key': 'nse.c.20261002.o.auth', 'count': 1},
+    ];
+    final steady = await reader().read();
+    final stored = prefs.getString(NseOutcomeReader.countersKey);
+    replies['readOutcomes'] = [
+      {'kind': 'counter', 'key': 'nse.c.20261002.o.auth', 'count': 2},
+    ];
+    final risen = await reader().read();
 
-    await reader().read(client);
-
-    expect(prefs.getInt(NseOutcomeReader.lateKeysKey), 1);
-    expect(prefs.getInt(NseOutcomeReader.missingKeysKey), 1);
+    expect(steady.authFailed, isFalse);
+    expect(stored, '{"nse.c.20261002.o.auth":1}');
+    expect(risen.authFailed, isTrue);
   });
 
   test('the badge counts unread rooms and invitations only', () {
@@ -146,26 +136,26 @@ void main() {
     expect(badgeRoomIds(client, {corrected.id: 1}), [unread.id, invited.id]);
   });
 
-  test(
-    'meta carries the level, notify mode, tone, unread tokens and mentions',
-    () async {
-      client.homeserver = Uri.parse('https://zuno.im');
-      final fields = await nseMetaFields(
-        client: client,
-        preview: NotificationPreview.nameOnly,
-        notifyMe: NotifyMe.mentionsOnly,
-        messageTone: false,
-        unreadRoomIds: [room.id],
-        threadIds: OpaqueThreadIds(threadKey: (id) async => 'tok-$id'),
-        displayName: 'Mia',
-      );
+  test('meta carries the level, notify mode, tone, unread tokens, mentions and '
+      'the rooms asked to join', () async {
+    client.homeserver = Uri.parse('https://zuno.im');
+    final fields = await nseMetaFields(
+      client: client,
+      preview: NotificationPreview.nameOnly,
+      notifyMe: NotifyMe.mentionsOnly,
+      messageTone: false,
+      unreadRoomIds: [room.id],
+      threadIds: OpaqueThreadIds(threadKey: (id) async => 'tok-$id'),
+      displayName: 'Mia',
+      askedToJoin: {'!b:zuno.im', '!a:zuno.im'},
+    );
 
-      expect(fields['base_url'], 'https://zuno.im');
-      expect(fields['level'], 'name');
-      expect(fields['notify'], 'mentions');
-      expect(fields['tone'], isFalse);
-      expect(fields['unread'], ['tok-${room.id}']);
-      expect((fields['mention'] as Map)['mxid'], '@mwong:zuno.im');
-    },
-  );
+    expect(fields['base_url'], 'https://zuno.im');
+    expect(fields['level'], 'name');
+    expect(fields['notify'], 'mentions');
+    expect(fields['tone'], isFalse);
+    expect(fields['unread'], ['tok-${room.id}']);
+    expect((fields['mention'] as Map)['mxid'], '@mwong:zuno.im');
+    expect(fields['asked'], ['!a:zuno.im', '!b:zuno.im']);
+  });
 }

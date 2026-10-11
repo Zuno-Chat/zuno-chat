@@ -10,14 +10,8 @@ class VerificationCancelMessage {
   });
 }
 
-bool _isProtocolToken(String? text) {
-  final trimmed = text?.trim() ?? '';
-  return trimmed.isEmpty || trimmed.startsWith('m.');
-}
-
 VerificationCancelMessage verificationCancelMessage({
   required String? code,
-  required String? reason,
   required bool isOwnDevice,
 }) {
   switch (code) {
@@ -67,12 +61,11 @@ VerificationCancelMessage verificationCancelMessage({
             'it was started with. Nothing was confirmed.',
       );
     default:
-      return VerificationCancelMessage(
+      return const VerificationCancelMessage(
         title: 'That did not finish',
-        body: _isProtocolToken(reason)
-            ? 'The two devices stopped agreeing partway through. Nothing '
-                  'changed. Starting again usually fixes it.'
-            : reason!.trim(),
+        body:
+            'The two devices stopped agreeing partway through. Nothing '
+            'changed. Starting again usually fixes it.',
       );
   }
 }

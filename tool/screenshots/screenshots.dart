@@ -19,6 +19,7 @@ import 'package:zuno/core/calls/call_audio_route.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/call_quality.dart';
+import 'package:zuno/core/calls/models/call_status.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -87,7 +88,7 @@ Future<void> _loadFont(String family, List<String> paths) async {
   await loader.load();
 }
 
-Future<void> _loadFonts() async {
+Future<void> _loadFonts(ScreenshotDevice device) async {
   final artifacts = File(Platform.resolvedExecutable).parent.parent.parent.path;
   final material = '$artifacts/material_fonts';
   await _loadFont('MaterialIcons', ['$material/MaterialIcons-Regular.otf']);
@@ -95,6 +96,7 @@ Future<void> _loadFonts() async {
     for (final weight in ['Light', 'Regular', 'Medium', 'Bold', 'Black'])
       '$material/Roboto-$weight.ttf',
   ]);
+  if (device.platform != TargetPlatform.iOS) return;
   for (final family in ['CupertinoSystemText', 'CupertinoSystemDisplay']) {
     await _loadFont(family, ['/System/Library/Fonts/SFNS.ttf']);
   }
@@ -121,16 +123,10 @@ void _mockChannels() {
     prefs,
     (call) async => call.method == 'getAll' ? <String, Object>{} : true,
   );
-  const network = EventChannel('zuno/network');
-  messenger.setMockStreamHandler(
-    network,
-    MockStreamHandler.inline(onListen: (_, _) {}),
-  );
   addTearDown(() {
     for (final channel in [...channels, prefs]) {
       messenger.setMockMethodCallHandler(channel, null);
     }
-    messenger.setMockStreamHandler(network, null);
   });
 }
 
@@ -634,7 +630,7 @@ Widget _voiceCall(_World w) {
       room: room,
       kind: CallKind.voice,
       connecting: false,
-      calling: false,
+      status: CallStatus.talking,
       local: person(_me, local: true),
       remote: [person(maya, local: false)],
       talkingSince: DateTime.now().subtract(
@@ -736,7 +732,7 @@ Future<void> _pump(
 }
 
 void screenshotTests(ScreenshotDevice device) {
-  setUpAll(_loadFonts);
+  setUpAll(() => _loadFonts(device));
   final variant = TargetPlatformVariant.only(device.platform);
 
   for (final mode in [ThemeMode.light, ThemeMode.dark]) {

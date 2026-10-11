@@ -90,6 +90,15 @@ final class SystemKeychainTests: XCTestCase {
     XCTAssertEqual(keychain.read(service: service, account: "a", accessGroup: nil), .missing)
   }
 
+  func testEveryStatusTheProbeTakesForBeforeFirstUnlockReadsAsLocked() {
+    for status in [errSecInteractionNotAllowed, errSecNotAvailable] {
+      XCTAssertFalse(FirstUnlockProbe.passed(status: status))
+      XCTAssertEqual(SystemKeychain.read(status: status, result: nil, label: "test"), .locked)
+    }
+    XCTAssertEqual(
+      SystemKeychain.read(status: errSecItemNotFound, result: nil, label: "test"), .missing)
+  }
+
   func testDeletingAServiceLeavesOtherServicesAlone() {
     let keychain = SystemKeychain()
     let other = service + ".other"

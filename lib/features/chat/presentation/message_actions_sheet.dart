@@ -93,7 +93,11 @@ Future<MessageAction?> showMessageActionsSheet(
                 ),
               ],
               if (canDelete)
-                action(MessageAction.delete, Icons.delete_outline, 'Delete'),
+                action(
+                  MessageAction.delete,
+                  Icons.delete_outline,
+                  isGallery ? 'Delete all ($galleryCount)' : 'Delete',
+                ),
               if (!isOwn)
                 action(MessageAction.report, Icons.flag_outlined, 'Report'),
               if (facts.isNotEmpty) ...[

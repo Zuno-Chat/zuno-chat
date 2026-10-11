@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/matrix/join_requests.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/notification_preview.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -20,6 +21,13 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_megolm_sessions.dart';
 import '../../../helpers/platform_capabilities.dart';
+
+class _AskedToJoin extends JoinRequestsNotifier {
+  @override
+  Set<String> build() => {};
+
+  void asked(Set<String> roomIds) => state = roomIds;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -88,6 +96,7 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(prefs),
         platformCapabilitiesProvider.overrideWithValue(capabilities),
         isLoggedInProvider.overrideWith((ref) => logins.stream),
+        joinRequestsProvider.overrideWith(_AskedToJoin.new),
       ],
     );
     addTearDown(container.dispose);
@@ -109,5 +118,20 @@ void main() {
     expect(metas.first['base_url'], 'https://zuno.im');
     expect(rooms, isNotEmpty);
     expect(rooms.map((room) => room['title']), everyElement(''));
+  });
+
+  test('asking to join a room rewrites the meta with it', () async {
+    container.listen(nseServicesProvider, (_, _) {});
+    container.listen(readModelPublisherProvider, (_, _) {});
+    logins.add(true);
+    await pumpEventQueue(times: 50);
+    calls.clear();
+
+    (container.read(joinRequestsProvider.notifier) as _AskedToJoin).asked({
+      '!knock:zuno.im',
+    });
+    await pumpEventQueue(times: 50);
+
+    expect(written('writeMeta').last['asked'], ['!knock:zuno.im']);
   });
 }

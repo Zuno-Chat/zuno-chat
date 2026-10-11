@@ -7,7 +7,9 @@ final class NseCatchUpPlatform: CatchUpPlatform {
     let roomToken: (String) -> String?
     let eventToken: (String) -> String?
     let alreadyShown: (String) -> Bool
-    let recordShown: ([String]) -> Void
+    let claim: (String) -> Bool
+    let release: (String) -> Void
+    let settle: (String) -> Void
     let render: (MissedEvent, Bool) -> CatchUpRender
   }
 
@@ -51,6 +53,8 @@ final class NseCatchUpPlatform: CatchUpPlatform {
     }
   }
 
-  func recordShown(_ eventTokens: [String]) { sources.recordShown(eventTokens) }
+  func claim(_ eventToken: String) -> Bool { sources.claim(eventToken) }
+  func release(_ eventToken: String) { sources.release(eventToken) }
+  func settle(_ eventToken: String) { sources.settle(eventToken) }
   func now() -> Date { Date() }
 }

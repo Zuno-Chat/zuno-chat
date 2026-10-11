@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/format/human_units.dart';
-import '../../../core/matrix/cached_attachment_image.dart';
+import '../../chat/presentation/message_contents/media_message.dart';
 
 class RoomMediaThumb extends StatelessWidget {
   final Event event;
@@ -22,14 +22,14 @@ class RoomMediaThumb extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            CachedAttachmentImage(
-              event: event,
-              thumbnail: true,
-              placeholder: ColoredBox(
-                color: theme.colorScheme.surfaceContainerHighest,
+            LayoutBuilder(
+              builder: (context, cell) => attachmentThumbnail(
+                event,
+                placeholder: ColoredBox(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                ),
+                shownAt: cell.maxWidth,
               ),
-              builder: (context, bytes) =>
-                  Image.memory(bytes, fit: BoxFit.cover),
             ),
             if (isVideo)
               Positioned(
@@ -65,7 +65,7 @@ class _VideoBadge extends StatelessWidget {
           const Icon(Icons.play_arrow, size: 14, color: Colors.white),
           if (durationMs != null)
             Text(
-              formatClock(Duration(milliseconds: durationMs)),
+              formatDuration(Duration(milliseconds: durationMs)),
               style: theme.textTheme.labelSmall?.copyWith(color: Colors.white),
             ),
         ],

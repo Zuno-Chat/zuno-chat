@@ -17,16 +17,16 @@ Matrix spaces, called communities in the app: a family, club or team with severa
 | Bucket | Contains | Shown in |
 |---|---|---|
 | Chat invitations | Invitations to rooms that are not communities, except approvals of your own join requests | The Chats tab |
-| Chats | Joined rooms that are not communities and not inside a joined community | The Chats tab |
+| Chats | Joined rooms that are not communities and that no joined community holds | The Chats tab |
 | Community invitations | Invitations to communities | The Communities tab |
 | Communities | Joined communities, ordered by the activity of their newest room | The Communities tab |
-| Community rooms | Each community's joined child rooms except direct chats, newest first | Community rows and `CommunityPage` |
+| Community rooms | The joined rooms each community holds, except direct chats, newest first | Community rows and `CommunityPage` |
 
 **Flows**
 - **Joinable rooms.** `/hierarchy`, one level deep, runs when the page opens and on pull to refresh, and only when the community lists a child you have not joined.
 - **New community.** One `createRoom` call with the space type and the community's power levels. A public community is listed in the same call, so a server that refuses the listing creates nothing.
 - **New room in a community.** The room carries its join rule and `m.space.parent` in its initial state, and then the community gets an `m.space.child` event. If that second write fails, the room exists outside the community, and the user is told so.
-- **Directory.** Find public communities asks the directory for spaces only, and Find public rooms drops them.
+- **Directory.** The server filters by room type: Find public communities asks for spaces only, and Find public rooms for rooms without a type.
 
 **Ask to join**
 
@@ -44,11 +44,12 @@ A joinable room shows Join when its join rule is not `knock`, and Ask or Request
 
 ## Decisions
 
-- **Chats never shows a community or a room inside a joined community.** A direct chat listed in a community stays in Chats, and so does a room whose community you have not joined.
+- **A community holds a room only when both sides link it**: the community lists the room (`m.space.child`) and the room names the community (`m.space.parent`), each with a `via`, as Matrix requires. This one rule decides home placement, the community page, Community access, the access label and what leaving takes along.
+- **Chats never shows a community or a room a joined community holds.** A direct chat listed in a community stays in Chats, and so do a room whose community you have not joined and a room linked one way only.
 - **A community is Public or Private**, and its access works like a room's.
 - **New communities lock everything except rooms and invites.** Settings and messages are admin-only, adding rooms needs a moderator, and any member can invite.
 - **A community room is Community, Ask to join or Private, never Public** (what each maps to: `rooms-membership.md`). This is an app rule only, so another client can still publish such a room.
-- **Leaving a community also leaves the rooms that no other joined community holds**, and the confirmation says how many.
+- **Leaving a community also leaves the rooms that no other joined community holds**, and the confirmation says how many and warns when you are the last admin of the community or of a room leaving with it.
 - **Rooms inherit neither roles nor access.** Matrix has no inheritance, so community admins are not admins of its rooms.
 - **Only moderators and admins answer requests**, because declining is a kick, which Zuno's default levels give to moderators and up.
 - **An approved request is joined automatically.** Zuno remembers which rooms you asked for, and while a request is pending its approval is not shown as an invitation. If the automatic join fails, the approval shows as a normal invitation.

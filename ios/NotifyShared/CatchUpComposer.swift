@@ -24,8 +24,8 @@ enum CatchUpComposer {
     if floor { userInfo["f"] = "1" }
     content.userInfo = userInfo
     content.interruptionLevel = .passive
-    content.categoryIdentifier = NotificationCategories.shown(
-      NotificationCategories.identifier(forKind: kind, level: level))
+    content.categoryIdentifier =
+      NotificationCategories.identifier(forKind: kind, level: level) ?? ""
     return UNNotificationRequest(
       identifier: identifierPrefix + event.eventToken, content: content, trigger: nil)
   }

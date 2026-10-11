@@ -19,11 +19,70 @@ void main() {
 
   Future<void> stopDelivery() async => calls.add('stop');
 
+  ProviderContainer wipingWith(Future<void> Function() wipeAppData) {
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        appDataWipeProvider.overrideWithValue(wipeAppData),
+      ],
+    );
+    addTearDown(container.dispose);
+    return container;
+  }
+
+  SignOutWipe wipeWith(Future<void> Function() wipeAppData) =>
+      wipingWith(wipeAppData).read(signOutWipeProvider.notifier);
+
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
     calls = [];
-    wipe = SignOutWipe(prefs, () async => calls.add('wipe'));
+    wipe = wipeWith(() async => calls.add('wipe'));
+  });
+
+  test('it reads as wiping from the sign-out until the wipe is over, so '
+      'nobody can sign in mid-wipe', () async {
+    await prefs.setBool(signedInMarkerKey, true);
+    final gate = Completer<void>();
+    final container = wipingWith(() => gate.future);
+    final states = <bool>[];
+    container.listen(
+      signOutWipeProvider,
+      (_, wiping) => states.add(wiping),
+      fireImmediately: true,
+    );
+
+    final wiped = container
+        .read(signOutWipeProvider.notifier)
+        .onLoginState(false, stopDelivery: stopDelivery);
+    expect(container.read(signOutWipeProvider), isTrue);
+    gate.complete();
+    await wiped;
+
+    expect(states, [false, true, false]);
+  });
+
+  test('a refused wipe stops reading as wiping', () async {
+    await prefs.setBool(signedInMarkerKey, true);
+    final container = wipingWith(() async => throw Exception('no'));
+
+    await container
+        .read(signOutWipeProvider.notifier)
+        .onLoginState(false, stopDelivery: stopDelivery);
+
+    expect(container.read(signOutWipeProvider), isFalse);
+  });
+
+  test('a device that never signed in never reads as wiping', () async {
+    final container = wipingWith(() async => calls.add('wipe'));
+    final states = <bool>[];
+    container.listen(signOutWipeProvider, (_, wiping) => states.add(wiping));
+
+    await container
+        .read(signOutWipeProvider.notifier)
+        .onLoginState(false, stopDelivery: stopDelivery);
+
+    expect(states, isEmpty);
   });
 
   test('a signed-in device is remembered and nothing is wiped', () async {
@@ -111,7 +170,7 @@ void main() {
   test('a refused wipe is not fatal and keeps the session marked, so the next '
       'launch tries again', () async {
     await prefs.setBool(signedInMarkerKey, true);
-    final refusing = SignOutWipe(prefs, () async => throw Exception('no'));
+    final refusing = wipeWith(() async => throw Exception('no'));
 
     await refusing.onLoginState(false, stopDelivery: stopDelivery);
 
@@ -121,7 +180,7 @@ void main() {
   test('after a refused wipe, the next sign-out in the same run stops '
       'delivery and tries the wipe again', () async {
     await prefs.setBool(signedInMarkerKey, true);
-    final refusing = SignOutWipe(prefs, () async {
+    final refusing = wipeWith(() async {
       calls.add('wipe');
       throw Exception('no');
     });
@@ -164,7 +223,7 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
-      return container.read(signOutWipeProvider);
+      return container.read(signOutWipeProvider.notifier);
     }
 
     test('a wipe the platform declines keeps the session marked, so the next '

@@ -15,7 +15,7 @@ private final class FakeCatchUpPlatform: CatchUpPlatform {
   private(set) var decrypted: [String: Bool] = [:]
   private(set) var posted: [UNNotificationRequest] = []
   private(set) var removed: [[String]] = []
-  private(set) var recorded: [[String]] = []
+  private(set) var released: [String] = []
   private(set) var deliveredReads = 0
   private(set) var log: [String] = []
 
@@ -51,7 +51,20 @@ private final class FakeCatchUpPlatform: CatchUpPlatform {
     return true
   }
 
-  func recordShown(_ eventTokens: [String]) { recorded.append(eventTokens) }
+  func claim(_ eventToken: String) -> Bool {
+    log.append("claim")
+    return shown.insert(eventToken).inserted
+  }
+
+  func release(_ eventToken: String) {
+    shown.remove(eventToken)
+    released.append(eventToken)
+  }
+
+  func settle(_ eventToken: String) {
+    log.append("settle")
+  }
+
   func now() -> Date { clock }
 }
 
@@ -101,18 +114,20 @@ final class CatchUpTests: XCTestCase {
       })
   }
 
-  func testPostedEventsAreRecordedAsShownInOneWrite() async {
+  func testEachEventIsClaimedBeforeItPostsSoNoOtherRunShowsItToo() async {
     let platform = FakeCatchUpPlatform(now: start)
     _ = await run(platform, body([("!a:hs", "$a1", 100, false), ("!b:hs", "$b1", 90, false)]))
-    XCTAssertEqual(platform.recorded, [["e$b1", "e$a1"]])
+    XCTAssertEqual(platform.log, ["claim", "post", "settle", "claim", "post", "settle"])
+    XCTAssertEqual(platform.shown, ["e$b1", "e$a1"])
+    XCTAssertTrue(platform.released.isEmpty)
   }
 
-  func testHiddenEventsAreNeitherPostedNorRecorded() async {
+  func testHiddenEventsAreNeitherPostedNorKeptAsShown() async {
     let platform = FakeCatchUpPlatform(now: start)
     platform.renders["$a1"] = .hidden
     _ = await run(platform, body([("!a:hs", "$a1", 100, false), ("!b:hs", "$b1", 90, false)]))
     XCTAssertEqual(platform.posted.map(\.identifier), ["zuno.catchup.e$b1"])
-    XCTAssertEqual(platform.recorded, [["e$b1"]])
+    XCTAssertEqual(platform.shown, ["e$b1"])
   }
 
   func testBelowSixMegabytesOfFreeMemoryEventsAreShownWithoutDecrypting() async {
@@ -145,7 +160,7 @@ final class CatchUpTests: XCTestCase {
     let outcome = await run(
       platform, body([("!x:hs", "$x1", 400, false)], reads: [("!r:hs", 200_999)]))
     XCTAssertEqual(platform.removed, [["old"]])
-    XCTAssertEqual(platform.log, ["remove", "post"])
+    XCTAssertEqual(platform.log, ["remove", "claim", "post", "settle"])
     XCTAssertEqual(outcome.readRoomTokens, ["t!r:hs"])
     XCTAssertEqual(outcome.removed, ["old"])
   }
@@ -165,7 +180,7 @@ final class CatchUpTests: XCTestCase {
     let platform = FakeCatchUpPlatform(now: start)
     let outcome = await run(platform, body([("!a:hs", "$a1", 100, false)]), level: "none")
     XCTAssertTrue(platform.posted.isEmpty)
-    XCTAssertTrue(platform.recorded.isEmpty)
+    XCTAssertTrue(platform.shown.isEmpty)
     XCTAssertEqual(outcome.unreadRoomTokens, ["t!a:hs"])
   }
 
@@ -211,16 +226,16 @@ final class CatchUpTests: XCTestCase {
     let outcome = await run(
       platform, body([("!a:hs", "$a1", 100, false), ("!a:hs", "$a2", 200, false)]))
     XCTAssertEqual(platform.posted.map(\.identifier), ["zuno.catchup.e$a1"])
-    XCTAssertEqual(platform.recorded, [["e$a1"]])
     XCTAssertEqual(outcome.posted, 1)
     XCTAssertEqual(outcome.hidden, 0)
   }
 
-  func testAPostTheSystemRefusedIsNotRecordedAsShown() async {
+  func testAPostTheSystemRefusedGivesUpItsClaim() async {
     let platform = FakeCatchUpPlatform(now: start)
     platform.refusesPosts = true
     let outcome = await run(platform, body([("!a:hs", "$a1", 100, false)]))
-    XCTAssertTrue(platform.recorded.isEmpty)
+    XCTAssertTrue(platform.shown.isEmpty)
+    XCTAssertEqual(platform.released, ["e$a1"])
     XCTAssertEqual(outcome.posted, 0)
   }
 

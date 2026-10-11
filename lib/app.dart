@@ -37,6 +37,7 @@ import 'core/push/read_model/nse_services.dart';
 import 'core/push/read_model/opaque_thread_ids.dart';
 import 'core/settings/app_preferences_provider.dart';
 import 'core/share/inbound_share.dart';
+import 'core/shortcuts/conversation_shortcuts.dart';
 import 'core/shortcuts/home_screen_shortcut.dart';
 import 'core/ui/zuno_splash.dart';
 import 'core/ui/zuno_theme.dart';
@@ -166,6 +167,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     );
     ref.listenManual(pushRingServicesProvider, (_, _) {});
     ref.listenManual(syncReasonsProvider, (_, _) {});
+    ref.listenManual(conversationShortcutsProvider, (_, _) {});
     bindAppStateToPushDelivery(
       currentlyOpenRoomId: () =>
           mounted ? ref.read(currentlyOpenRoomIdProvider) : null,
@@ -210,7 +212,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
       if (loggedIn == null) return;
       unawaited(
         ref
-            .read(signOutWipeProvider)
+            .read(signOutWipeProvider.notifier)
             .onLoginState(
               loggedIn,
               stopDelivery: () =>
@@ -469,6 +471,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   Widget build(BuildContext context) {
     final loginState = ref.watch(isLoggedInProvider);
     final signingIn = ref.watch(signInInFlightProvider);
+    final wiping = ref.watch(signOutWipeProvider);
     final deliveryMode = ref.watch(notificationDeliveryModeProvider);
     final notificationsAllowed = ref.watch(notificationsAllowedProvider);
     return loginState.when(
@@ -481,7 +484,9 @@ class _AuthGateState extends ConsumerState<_AuthGate>
           unawaited(_handleLaunch());
         }
         _syncNotificationDelivery(loggedIn, deliveryMode, notificationsAllowed);
-        if (!showHome) return const SignedOutEntry();
+        if (!showHome) {
+          return wiping ? const ZunoSplash() : const SignedOutEntry();
+        }
         return _launchHandled ? const RoomListPage() : const ZunoSplash();
       },
       loading: () => const ZunoSplash(),

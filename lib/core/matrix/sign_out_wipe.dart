@@ -22,33 +22,36 @@ Future<void> _wipeAppData([Map<String, Object?>? arguments]) async {
 
 Future<void> _keepAppData() async {}
 
-class SignOutWipe {
-  final SharedPreferences _prefs;
-  final Future<void> Function() _wipe;
-  bool _wiping = false;
+final signOutWipeProvider = NotifierProvider<SignOutWipe, bool>(
+  SignOutWipe.new,
+);
 
-  SignOutWipe(this._prefs, [this._wipe = _wipeAppData]);
+class SignOutWipe extends Notifier<bool> {
+  @override
+  bool build() => false;
 
   Future<void> onLoginState(
     bool loggedIn, {
     required Future<void> Function() stopDelivery,
   }) async {
-    final hadSession = _prefs.getBool(signedInMarkerKey) ?? false;
+    final prefs = ref.read(sharedPreferencesProvider);
+    final hadSession = prefs.getBool(signedInMarkerKey) ?? false;
     if (loggedIn) {
-      if (!hadSession) await _prefs.setBool(signedInMarkerKey, true);
+      if (!hadSession) await prefs.setBool(signedInMarkerKey, true);
       return;
     }
-    if (!hadSession || _wiping) return;
-    _wiping = true;
+    if (!hadSession || state) return;
+    state = true;
     try {
       await runBestEffort(
         () => stopDelivery().timeout(stopDeliveryBeforeWipeBudget),
         label: 'stop notification delivery before wipe',
       );
-      if (!await runBestEffort(_wipe, label: 'wipe app data')) return;
-      await _prefs.remove(signedInMarkerKey);
+      final wipe = ref.read(appDataWipeProvider);
+      if (!await runBestEffort(wipe, label: 'wipe app data')) return;
+      await prefs.remove(signedInMarkerKey);
     } finally {
-      _wiping = false;
+      state = false;
     }
   }
 }
@@ -80,19 +83,13 @@ Future<void> Function() _wipeKeepingProcess(
   await prefs.reload();
 };
 
-final signOutWipeProvider = Provider<SignOutWipe>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
+final appDataWipeProvider = Provider<Future<void> Function()>((ref) {
   final capabilities = ref.watch(platformCapabilitiesProvider);
-  if (!capabilities.nativeSignOutWipe) return SignOutWipe(prefs, _keepAppData);
-  if (!capabilities.signOutWipeKeepsProcess) {
-    return SignOutWipe(prefs, _wipeAppData);
-  }
-  return SignOutWipe(
-    prefs,
-    _wipeKeepingProcess(
-      ref.watch(databaseVacuumProvider),
-      ref.watch(liveDatabasePathProvider),
-      prefs,
-    ),
+  if (!capabilities.nativeSignOutWipe) return _keepAppData;
+  if (!capabilities.signOutWipeKeepsProcess) return _wipeAppData;
+  return _wipeKeepingProcess(
+    ref.watch(databaseVacuumProvider),
+    ref.watch(liveDatabasePathProvider),
+    ref.watch(sharedPreferencesProvider),
   );
 });

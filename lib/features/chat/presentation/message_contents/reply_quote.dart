@@ -101,6 +101,7 @@ class _ReplyQuoteState extends State<ReplyQuote> {
         AttachmentKind.image || AttachmentKind.video => attachmentThumbnail(
           displayEvent,
           placeholder: ColoredBox(color: theme.colorScheme.surfaceContainer),
+          shownAt: quotedThumbnailSize,
         ),
         _ => null,
       },

@@ -68,7 +68,12 @@ void main() {
     client.rooms.add(room);
   });
 
-  void setMember(String userId, String membership, {required String sender}) {
+  void setMember(
+    String userId,
+    String membership, {
+    required String sender,
+    bool isDirect = false,
+  }) {
     room.setState(
       buildTestEvent(
         room,
@@ -76,14 +81,23 @@ void main() {
         senderId: sender,
         type: EventTypes.RoomMember,
         stateKey: userId,
-        content: {'membership': membership, 'displayname': userId},
+        content: {
+          'membership': membership,
+          'displayname': userId,
+          if (isDirect) 'is_direct': true,
+        },
       ),
     );
   }
 
-  void inviteFromBob() {
+  void inviteFromBob({bool isDirect = false}) {
     setMember('@bob:example.org', 'join', sender: '@bob:example.org');
-    setMember('@me:example.org', 'invite', sender: '@bob:example.org');
+    setMember(
+      '@me:example.org',
+      'invite',
+      sender: '@bob:example.org',
+      isDirect: isDirect,
+    );
   }
 
   Future<void> settleNetwork(WidgetTester tester) async {
@@ -205,6 +219,52 @@ void main() {
     expect(jsonDecode(report.body), {'reason': 'spam (room ${room.id})'});
     expect(requestedPaths().where((p) => p.endsWith('/leave')), hasLength(1));
     expect(find.byType(RoomInvitePage), findsNothing);
+  });
+
+  testWidgets('declining a chat invitation forgets it', (tester) async {
+    inviteFromBob(isDirect: true);
+    await openInvite(tester);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Decline'));
+    await settleNetwork(tester);
+
+    expect(
+      requestedPaths()
+          .map((path) => path.split('/').last)
+          .where((last) => last == 'leave' || last == 'forget'),
+      ['leave', 'forget'],
+    );
+    expect(find.byType(RoomInvitePage), findsNothing);
+  });
+
+  testWidgets('declining a room invitation leaves it without forgetting', (
+    tester,
+  ) async {
+    inviteFromBob();
+    await openInvite(tester);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Decline'));
+    await settleNetwork(tester);
+
+    expect(requestedPaths().where((p) => p.endsWith('/leave')), hasLength(1));
+    expect(requestedPaths().where((p) => p.endsWith('/forget')), isEmpty);
+  });
+
+  testWidgets('reporting a chat invitation forgets it once declined', (
+    tester,
+  ) async {
+    inviteFromBob(isDirect: true);
+    await openInvite(tester);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Report and decline'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Spam'));
+    await tester.pump();
+    await tester.tap(sheetSendButton);
+    await settleNetwork(tester);
+
+    expect(requestedPaths().where((p) => p.endsWith('/leave')), hasLength(1));
+    expect(requestedPaths().where((p) => p.endsWith('/forget')), hasLength(1));
   });
 
   testWidgets('a refused report leaves the invitation alone', (tester) async {

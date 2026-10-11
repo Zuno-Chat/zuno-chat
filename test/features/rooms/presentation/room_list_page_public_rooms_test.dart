@@ -12,6 +12,7 @@ import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/public_rooms_fixture.dart';
 import '../../../helpers/room_list_page_harness.dart';
@@ -21,6 +22,7 @@ void main() {
   late Client client;
   late List<http.Request> requests;
   late bool offline;
+  late bool refusePublishing;
 
   Iterable<http.Request> directoryRequests() =>
       requests.where((r) => r.url.pathSegments.last == 'publicRooms');
@@ -32,6 +34,7 @@ void main() {
     installRoomOpeningChannels();
     requests = [];
     offline = false;
+    refusePublishing = false;
     client = buildTestClient(
       userId: '@me:example.org',
       database: TimelineCapableFakeDatabaseApi(),
@@ -44,13 +47,26 @@ void main() {
           );
         }
         final segments = request.url.pathSegments;
+        if (refusePublishing && segments.last == 'createRoom') {
+          return http.Response(
+            jsonEncode({
+              'errcode': 'M_FORBIDDEN',
+              'error': 'Not allowed to publish room',
+            }),
+            403,
+          );
+        }
         if (segments.last == 'publicRooms') {
           final body = request.body.isEmpty
               ? const <String, Object?>{}
               : jsonDecode(request.body) as Map;
           final filter = body['filter'] as Map?;
           final term = filter?['generic_search_term'] as String?;
-          return http.Response(publicRoomsFixtureJson(term: term), 200);
+          final roomTypes = filter?['room_types'] as List?;
+          return http.Response(
+            publicRoomsFixtureJson(term: term, roomTypes: roomTypes),
+            200,
+          );
         }
         if (segments.contains('join')) {
           return http.Response(jsonEncode({'room_id': segments.last}), 200);
@@ -162,6 +178,26 @@ void main() {
     expect(createRoomBody()['visibility'], 'public');
   });
 
+  testWidgets('a public room the server will not list says so, and is not '
+      'reported', (tester) async {
+    refusePublishing = true;
+    await openNewRoomDialog(tester);
+    await tester.tap(find.text('Public'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Chess club');
+
+    final reports = await reportsDuring(() async {
+      await tester.tap(find.text('Create'));
+      await settle(tester);
+    });
+
+    expect(
+      find.text('Public access is turned off here. Choose another option.'),
+      findsOneWidget,
+    );
+    expect(reports, isEmpty);
+  });
+
   testWidgets('cancelling the new room dialog creates nothing', (tester) async {
     await openNewRoomDialog(tester);
 
@@ -182,7 +218,9 @@ void main() {
 
     expect(directoryRequests(), hasLength(1));
     expect(directoryRequests().single.method, 'POST');
-    expect(jsonDecode(directoryRequests().single.body)['limit'], 20);
+    final body = jsonDecode(directoryRequests().single.body) as Map;
+    expect(body['limit'], 20);
+    expect((body['filter'] as Map)['room_types'], [null]);
     expect(find.text('Chess club'), findsOneWidget);
     expect(find.text('Gardening'), findsOneWidget);
     expect(find.text('Knitting circle'), findsOneWidget);
@@ -198,7 +236,10 @@ void main() {
     await settle(tester);
 
     final body = jsonDecode(directoryRequests().last.body) as Map;
-    expect((body['filter'] as Map)['generic_search_term'], 'chess');
+    expect(body['filter'], {
+      'generic_search_term': 'chess',
+      'room_types': [null],
+    });
     expect(find.text('Chess club'), findsOneWidget);
     expect(find.text('Gardening'), findsNothing);
   });

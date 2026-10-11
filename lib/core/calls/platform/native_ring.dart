@@ -17,8 +17,6 @@ class NativeRing {
   final bool video;
   final NativeRingSource source;
 
-  bool get bound => roomId != null && callId != null;
-
   static NativeRing? tryParse(Object? arguments) {
     if (arguments is! Map) return null;
     final uuid = arguments['uuid'];

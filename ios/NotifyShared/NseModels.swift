@@ -52,6 +52,11 @@ enum NseJson: Equatable, Sendable {
     return nil
   }
 
+  var double: Double? {
+    if case .number(let value) = self { return value }
+    return nil
+  }
+
   var int64: Int64? {
     guard case .number(let value) = self, value.rounded() == value, abs(value) < 9e15 else {
       return nil
@@ -124,71 +129,12 @@ struct NseMentionSpec: Equatable, Sendable {
   }
 }
 
-struct NseMeta: Equatable, Sendable {
-  let user: String
-  let baseUrl: String
-  let level: PreviewLevel
-  let mentionsOnly: Bool
-  let tone: Bool
-  let ringtone: Bool
-  let unread: [String]?
-  let heartbeatMs: Int64?
-  let mention: NseMentionSpec?
-
-  static func decode(_ data: Data) -> NseMeta? {
-    guard let json = NseJson.parse(data, "nse meta parse"), json["v"]?.int64 == 1,
-      let user = json["user"]?.string, let baseUrl = json["base_url"]?.string, !baseUrl.isEmpty
-    else { return nil }
-    return NseMeta(
-      user: user,
-      baseUrl: baseUrl,
-      level: PreviewLevel(meta: json["level"]?.string, stated: json["level"] != nil),
-      mentionsOnly: json["notify"]?.string == "mentions",
-      tone: json["tone"]?.bool ?? true,
-      ringtone: json["ringtone"]?.bool ?? true,
-      unread: json["unread"]?.array?.compactMap(\.string),
-      heartbeatMs: json["heartbeat_ms"]?.int64,
-      mention: NseMentionSpec(json["mention"]))
-  }
-}
-
 struct NseSession: Equatable, Sendable {
   let sessionId: String
   let sender: String?
   let senderKey: String?
   let firstIndex: Int
   let pickle: String
-}
-
-struct NseRoomFile: Equatable, Sendable {
-  let room: String
-  let title: String?
-  let dm: Bool
-  let partner: String?
-  let sessions: [NseSession]
-  let notifiers: [String]
-
-  static func decode(_ data: Data) -> NseRoomFile? {
-    guard let json = NseJson.parse(data, "nse room file parse"), json["v"]?.int64 == 1,
-      let room = json["room"]?.string
-    else { return nil }
-    let sessions = (json["sessions"]?.array ?? []).compactMap { item -> NseSession? in
-      guard let id = item["session_id"]?.string, let pickle = item["pickle"]?.string,
-        let first = item["first_index"]?.int64
-      else { return nil }
-      return NseSession(
-        sessionId: id, sender: item["sender"]?.string, senderKey: item["sender_key"]?.string,
-        firstIndex: Int(first), pickle: pickle)
-    }
-    return NseRoomFile(
-      room: room, title: json["title"]?.string, dm: json["dm"]?.bool ?? false,
-      partner: json["partner"]?.string, sessions: sessions,
-      notifiers: json["notifiers"]?.array?.compactMap(\.string) ?? [])
-  }
-
-  func session(_ id: String) -> NseSession? {
-    sessions.first { $0.sessionId == id }
-  }
 }
 
 struct NseEvent: Equatable, Sendable {

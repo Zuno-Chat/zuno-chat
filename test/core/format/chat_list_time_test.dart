@@ -47,6 +47,36 @@ void main() {
     expect(label(DateTime(2026, 9, 21, 0, 10)), '00:10');
   });
 
+  group('calendarDaysBetween', () {
+    test('counts calendar days, not 24-hour spans', () {
+      final evening = DateTime(2026, 9, 19, 23, 59);
+      expect(calendarDaysBetween(evening, DateTime(2026, 9, 19, 0, 1)), 0);
+      expect(calendarDaysBetween(evening, DateTime(2026, 9, 20, 0, 1)), 1);
+      expect(calendarDaysBetween(evening, DateTime(2026, 9, 26, 23, 59)), 7);
+    });
+
+    test('is negative for a later day', () {
+      expect(
+        calendarDaysBetween(DateTime(2026, 9, 21), DateTime(2026, 9, 20)),
+        -1,
+      );
+    });
+
+    test('crosses a clock change as one day', () {
+      expect(
+        calendarDaysBetween(
+          DateTime(2026, 3, 8, 12),
+          DateTime(2026, 3, 9, 0, 30),
+        ),
+        1,
+      );
+      expect(
+        calendarDaysBetween(DateTime(2026, 10, 25), DateTime(2026, 10, 26, 23)),
+        1,
+      );
+    });
+  });
+
   test('a day that is 23 hours long still counts as a day', () {
     expect(
       label(DateTime(2026, 3, 28, 23), asOf: DateTime(2026, 3, 29, 12)),

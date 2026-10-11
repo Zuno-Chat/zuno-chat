@@ -1,23 +1,41 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/security/confirmed_identity_store.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/verification/presentation/qr_scanner_page.dart';
 import 'package:zuno/features/verification/presentation/verification_page.dart';
 
+import '../../../helpers/fake_device_keys.dart';
+import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_permissions.dart';
 import '../../../helpers/route_launcher.dart';
 import 'verification_harness.dart';
 
 const _waiting = 'Waiting for the other device…';
 const _compare = 'Not together? Compare pictures instead';
+const _me = '@me:example.org';
+const _bob = '@bob:example.org';
 
 void main() {
+  late Client client;
+  late SharedPreferences preferences;
+
+  setUp(() async {
+    client = buildTestClient(userId: _me);
+    SharedPreferences.setMockInitialValues({});
+    preferences = await SharedPreferences.getInstance();
+  });
+
   Future<void> open(
     WidgetTester tester,
     FakeKeyVerification verification, {
@@ -25,13 +43,19 @@ void main() {
     bool picturesFirst = false,
   }) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: routeLauncher(
-            (_) => VerificationPage(
-              keyVerification: verification,
-              isOwnDevice: isOwnDevice,
-              picturesFirst: picturesFirst,
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: routeLauncher(
+              (_) => VerificationPage(
+                keyVerification: verification,
+                isOwnDevice: isOwnDevice,
+                picturesFirst: picturesFirst,
+              ),
             ),
           ),
         ),
@@ -553,6 +577,67 @@ void main() {
     });
   });
 
+  group('remembering who was confirmed', () {
+    String? remembered(String userId) =>
+        ConfirmedIdentityStore(preferences).confirmedIdentityKey(userId);
+
+    for (final finish in [
+      KeyVerificationState.done,
+      KeyVerificationState.askSSSS,
+    ]) {
+      testWidgets('a match with someone else at ${finish.name} remembers '
+          'their identity, whoever started the check', (tester) async {
+        final identity = testMasterKey(client, _bob);
+        final verification = FakeKeyVerification(userId: _bob);
+        await open(tester, verification);
+
+        identity.setDirectVerified(true);
+        verification.moveTo(finish);
+        await settle(tester);
+
+        expect(remembered(_bob), identity.ed25519Key);
+      });
+    }
+
+    testWidgets('a finish that did not confirm their identity remembers '
+        'nobody', (tester) async {
+      testMasterKey(client, _bob);
+      final verification = FakeKeyVerification(userId: _bob);
+      await open(tester, verification);
+
+      verification.moveTo(KeyVerificationState.done);
+      await settle(tester);
+
+      expect(remembered(_bob), isNull);
+    });
+
+    testWidgets('a check that stopped remembers nobody', (tester) async {
+      final identity = testMasterKey(client, _bob);
+      final verification = FakeKeyVerification(userId: _bob);
+      await open(tester, verification);
+
+      identity.setDirectVerified(true);
+      verification.stopWith('m.user');
+      await settle(tester);
+
+      expect(remembered(_bob), isNull);
+    });
+
+    testWidgets('an own-device check never remembers this account', (
+      tester,
+    ) async {
+      final identity = testMasterKey(client, _me);
+      final verification = FakeKeyVerification(userId: _me);
+      await open(tester, verification);
+
+      identity.setDirectVerified(true);
+      verification.moveTo(KeyVerificationState.done);
+      await settle(tester);
+
+      expect(remembered(_me), isNull);
+    });
+  });
+
   group('stopped', () {
     testWidgets('a cancel from either side reads as canceled', (tester) async {
       final verification = FakeKeyVerification();
@@ -564,6 +649,23 @@ void main() {
       expect(find.text('Canceled'), findsOneWidget);
       expect(find.byIcon(Icons.cancel_outlined), findsOneWidget);
       expect(find.textContaining('m.user'), findsNothing);
+    });
+
+    testWidgets('the other side\'s own words never show, only Zuno\'s', (
+      tester,
+    ) async {
+      final verification = FakeKeyVerification();
+      await open(tester, verification);
+
+      verification.stopWith(
+        'm.unknown',
+        reason: 'Zuno security: re-enter your recovery code at https://x.test',
+      );
+      await tester.pump();
+
+      expect(find.text('That did not finish'), findsOneWidget);
+      expect(find.textContaining('recovery code'), findsNothing);
+      expect(find.textContaining('stopped agreeing'), findsOneWidget);
     });
 
     testWidgets('a mismatch carries the attention mark', (tester) async {

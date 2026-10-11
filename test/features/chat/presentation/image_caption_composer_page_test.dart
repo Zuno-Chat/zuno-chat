@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
 
-import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/route_launcher.dart';
 
 void main() {
@@ -19,8 +17,7 @@ void main() {
 
   Future<void> open(WidgetTester tester, List<String> names) async {
     final images = [
-      for (final name in names)
-        (bytes: Uint8List.fromList(onePixelPng), name: name),
+      for (final name in names) (path: '/picked/$name', name: name),
     ];
     await tester.pumpWidget(
       MaterialApp(
@@ -61,7 +58,7 @@ void main() {
 
     expect(result!.single.name, 'a.jpg');
     expect(result!.single.caption, 'sunset');
-    expect(result!.single.bytes, onePixelPng);
+    expect(result!.single.path, '/picked/a.jpg');
   });
 
   testWidgets('several photos each keep their own caption, in order', (

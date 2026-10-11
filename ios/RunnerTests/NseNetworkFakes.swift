@@ -61,6 +61,7 @@ final class NseFakeTransport: NseTransport, @unchecked Sendable {
   private let lock = NSLock()
   private var scripted: [String: [(NseHttpResult, Int64)]] = [:]
   private var recorded: [Request] = []
+  private var hook: (@Sendable () -> Void)?
   private let clock: NseFakeClock?
 
   init(clock: NseFakeClock? = nil) {
@@ -73,6 +74,12 @@ final class NseFakeTransport: NseTransport, @unchecked Sendable {
     return recorded
   }
 
+  func onRequest(_ hook: @escaping @Sendable () -> Void) {
+    lock.lock()
+    self.hook = hook
+    lock.unlock()
+  }
+
   func reply(_ path: String, _ result: NseHttpResult, after ms: Int64 = 0) {
     lock.lock()
     scripted[path, default: []].append((result, ms))
@@ -82,13 +89,15 @@ final class NseFakeTransport: NseTransport, @unchecked Sendable {
   func post(_ url: URL, authorization: String, body: Data, timeoutMs: Int) async
     -> NseHttpResult
   {
-    let next = take(url, authorization: authorization, body: body, timeoutMs: timeoutMs)
-    clock?.advance(next.1)
-    return next.0
+    let (result, delay, hook) = take(
+      url, authorization: authorization, body: body, timeoutMs: timeoutMs)
+    hook?()
+    clock?.advance(delay)
+    return result
   }
 
   private func take(_ url: URL, authorization: String, body: Data, timeoutMs: Int) -> (
-    NseHttpResult, Int64
+    NseHttpResult, Int64, (@Sendable () -> Void)?
   ) {
     let path = url.path.components(separatedBy: "/push/v1/").last ?? url.path
     lock.lock()
@@ -100,7 +109,7 @@ final class NseFakeTransport: NseTransport, @unchecked Sendable {
     var queue = scripted[path] ?? []
     let next = queue.isEmpty ? (NseHttpResult.failure, Int64(0)) : queue.removeFirst()
     scripted[path] = queue
-    return next
+    return (next.0, next.1, hook)
   }
 
   static func module(_ status: Int, _ object: [String: Any]) -> NseHttpResult {

@@ -130,7 +130,7 @@ String? releaseProblem({
 }) {
   final tagList = tags.toList();
   if (tagList.contains(version.tag)) {
-    return '${version.tag} already exists, so $version has shipped';
+    return '${version.tag} already exists, so $version is spent';
   }
   final latest = highestRelease(tagList);
   if (latest != null && version.compareTo(latest) <= 0) {

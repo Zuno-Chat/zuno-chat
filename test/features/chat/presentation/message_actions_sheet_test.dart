@@ -11,6 +11,8 @@ void main() {
     bool canEdit = true,
     bool canDelete = true,
     bool isOwn = true,
+    bool isAttachment = false,
+    int galleryCount = 0,
     List<Widget> facts = const [Text('Sent 20 Sep, 09:30')],
     void Function(String key)? onReact,
   }) async {
@@ -34,9 +36,9 @@ void main() {
       canEdit: canEdit,
       canDelete: canDelete,
       isOwn: isOwn,
-      isTextMessage: true,
-      isAttachment: false,
-      galleryCount: 0,
+      isTextMessage: !isAttachment,
+      isAttachment: isAttachment,
+      galleryCount: galleryCount,
       facts: facts,
       onReact: onReact ?? (_) {},
       onMoreReactions: () {},
@@ -102,5 +104,19 @@ void main() {
     expect(picked, ['❤️']);
     expect(await result, isNull);
     expect(find.text('Reply'), findsNothing);
+  });
+
+  testWidgets('a gallery offers to share, save and delete all of it', (
+    tester,
+  ) async {
+    final result = await open(tester, isAttachment: true, galleryCount: 3);
+
+    expect(find.text('Share all (3)'), findsOneWidget);
+    expect(find.text('Save all (3)'), findsOneWidget);
+    expect(find.text('Delete'), findsNothing);
+
+    await tester.tap(find.text('Delete all (3)'));
+    await tester.pumpAndSettle();
+    expect(await result, MessageAction.delete);
   });
 }

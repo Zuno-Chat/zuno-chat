@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 
+import '../../../helpers/call_membership.dart';
 import '../../../helpers/fake_matrix.dart';
 
 Map<String, Object?> _membershipJson({
@@ -49,17 +50,60 @@ void main() {
     expect(parseRtcMemberships({'memberships': 'not a list'}), isEmpty);
   });
 
-  test('toJson/fromJson round-trips every field', () {
+  test('an entry of the wrong shape is skipped and the rest are kept', () {
     final future = DateTime.now()
         .add(const Duration(minutes: 5))
         .millisecondsSinceEpoch;
-    final original = RtcMembership.fromJson({
+    final memberships = parseRtcMemberships({
+      'memberships': [
+        <String, Object?>{},
+        'junk',
+        {
+          'application': 'm.call',
+          'call_id': '',
+          'scope': 'm.room',
+          'device_id': 'ELEMENT',
+          'expires': 3600000,
+          'expires_ts': future,
+          'foci_active': [
+            {'type': 'livekit', 'livekit_service_url': 'https://lk'},
+          ],
+        },
+        {..._membershipJson(expiresAtMs: future), 'call_id': 3},
+        {..._membershipJson(expiresAtMs: future), 'kind': null},
+        {..._membershipJson(expiresAtMs: future), 'expires_ts': '1'},
+        {..._membershipJson(expiresAtMs: future), 'created_ts': 'early'},
+        {..._membershipJson(expiresAtMs: future), 'foci_active': []},
+        _membershipJson(callId: 'good', expiresAtMs: future),
+      ],
+    });
+
+    expect(memberships.map((m) => m.callId), ['good']);
+  });
+
+  test('expired memberships are kept only when asked for', () {
+    final content = {
+      'memberships': [_membershipJson(expiresAtMs: 1)],
+    };
+
+    expect(parseRtcMemberships(content), isEmpty);
+    expect(
+      parseRtcMemberships(content, includeExpired: true).single.callId,
+      'call1',
+    );
+  });
+
+  test('toJson and parsing round-trip every field', () {
+    final future = DateTime.now()
+        .add(const Duration(minutes: 5))
+        .millisecondsSinceEpoch;
+    final original = RtcMembership.tryParse({
       ..._membershipJson(kind: 'video', expiresAtMs: future),
       'created_ts': 1234,
       'foci_active': {'sessionId': 's1'},
-    });
+    })!;
 
-    final roundTripped = RtcMembership.fromJson(original.toJson());
+    final roundTripped = RtcMembership.tryParse(original.toJson())!;
 
     expect(roundTripped.callId, 'call1');
     expect(roundTripped.deviceId, 'device1');
@@ -74,9 +118,52 @@ void main() {
         .add(const Duration(minutes: 5))
         .millisecondsSinceEpoch;
     expect(
-      RtcMembership.fromJson(_membershipJson(expiresAtMs: future)).createdAtMs,
+      RtcMembership.tryParse(_membershipJson(expiresAtMs: future))?.createdAtMs,
       0,
     );
+  });
+
+  group('answered on another device', () {
+    late Room room;
+
+    setUp(() {
+      room = buildTestRoom(
+        buildTestClient(userId: '@me:example.org', deviceId: 'THISPHONE'),
+      );
+    });
+
+    test('is true once my membership on another device joins the call', () {
+      joinCall(room, userId: '@me:example.org', deviceId: 'LAPTOP');
+
+      expect(answeredOnAnotherDevice(room, 'c1'), isTrue);
+    });
+
+    test('is false for my membership on this device', () {
+      joinCall(room, userId: '@me:example.org', deviceId: 'THISPHONE');
+
+      expect(answeredOnAnotherDevice(room, 'c1'), isFalse);
+    });
+
+    test('is false when my other device is in a different call', () {
+      joinCall(
+        room,
+        userId: '@me:example.org',
+        deviceId: 'LAPTOP',
+        callId: 'c2',
+      );
+
+      expect(answeredOnAnotherDevice(room, 'c1'), isFalse);
+    });
+
+    test('is false when someone else joins, as the caller does', () {
+      joinCall(room, userId: '@bob:example.org', deviceId: 'LAPTOP');
+
+      expect(answeredOnAnotherDevice(room, 'c1'), isFalse);
+    });
+
+    test('is false with no call membership at all', () {
+      expect(answeredOnAnotherDevice(room, 'c1'), isFalse);
+    });
   });
 
   group('canPublishCallMemberState', () {

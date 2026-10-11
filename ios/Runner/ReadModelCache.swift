@@ -15,7 +15,7 @@ final class ReadModelCache {
   private var secretsCache: NotifySecrets?
   private var metaCache: NotifyMeta??
   private var ledgerCache: Ledger?
-  private var rooms: [String: RoomTitleFile?] = [:]
+  private var rooms: [String: NotifyRoomFile?] = [:]
 
   init(
     store: NotifyStore?, keychain: NotifyKeychain,
@@ -54,7 +54,7 @@ final class ReadModelCache {
     guard let store, let secrets = readySecrets() else { return nil }
     var meta: NotifyMeta?
     if case .found(let data) = store.read(NotifyFile.meta, key: secrets.readModelKey) {
-      meta = NotifyMeta.decoded(data, reporting: "notify meta decode")
+      meta = NotifyMeta.decoded(data)
     }
     metaCache = .some(meta)
     return meta
@@ -64,13 +64,13 @@ final class ReadModelCache {
     readySecrets().map { OpaqueIds.roomToken(roomId, installKey: $0.tokenKey) }
   }
 
-  func room(_ roomId: String) -> RoomTitleFile? {
+  func room(_ roomId: String) -> NotifyRoomFile? {
     if let cached = rooms[roomId] { return cached }
     guard let store, let secrets = readySecrets() else { return nil }
     let name = NotifyFile.room(OpaqueIds.roomToken(roomId, installKey: secrets.tokenKey))
-    var file: RoomTitleFile?
+    var file: NotifyRoomFile?
     if case .found(let data) = store.read(name, key: secrets.readModelKey) {
-      file = RoomTitleFile.decoded(data, roomId: roomId, reporting: "room title decode")
+      file = NotifyRoomFile.decoded(data, roomId: roomId)
     }
     rooms[roomId] = .some(file)
     return file
@@ -117,7 +117,7 @@ final class ReadModelCache {
   func writeRoom(roomId: String, json: Data) throws {
     guard let store else { throw CocoaError(.fileWriteUnknown) }
     guard let secrets = writableSecrets() else { throw SecretsUnavailable() }
-    guard let file = RoomTitleFile.decoded(json, roomId: roomId) else {
+    guard let file = NotifyRoomFile.decoded(json, roomId: roomId) else {
       throw CocoaError(.coderReadCorrupt)
     }
     let name = NotifyFile.room(OpaqueIds.roomToken(roomId, installKey: secrets.tokenKey))

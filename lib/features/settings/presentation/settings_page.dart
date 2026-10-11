@@ -160,10 +160,7 @@ class SettingsPage extends ConsumerWidget {
           MaterialPageRoute(builder: (_) => const SecureBackupPage()),
         );
       case _LogOutChoice.logOut:
-        await signOutThisDevice(
-          ref.read(matrixClientProvider),
-          windDown: ref.read(signOutWindDownProvider),
-        );
+        if (context.mounted) await signOutThisDeviceOrExplain(context, ref);
     }
   }
 }

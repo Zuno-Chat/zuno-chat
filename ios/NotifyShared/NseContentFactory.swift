@@ -14,7 +14,7 @@ enum NseContentFactory {
       (original.mutableCopy() as? UNMutableNotificationContent) ?? UNMutableNotificationContent()
     content.userInfo = delivery.userInfo
     content.threadIdentifier = delivery.threadId
-    content.categoryIdentifier = NotificationCategories.shown(delivery.category)
+    content.categoryIdentifier = delivery.category ?? ""
     if let badge = delivery.badge { content.badge = NSNumber(value: badge) }
     content.title = delivery.title
     content.subtitle = ""

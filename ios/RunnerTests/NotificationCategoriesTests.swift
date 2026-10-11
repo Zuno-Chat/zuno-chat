@@ -55,10 +55,4 @@ final class NotificationCategoriesTests: XCTestCase {
         NotificationCategories.identifier(forKind: kind, level: level), "\(kind) \(level)")
     }
   }
-
-  func testLinesShowTheirActionsOnceTheyAreRoutedNatively() {
-    XCTAssertTrue(NotificationCategories.nativeActions)
-    XCTAssertEqual(NotificationCategories.shown("message"), "message")
-    XCTAssertEqual(NotificationCategories.shown(nil), "")
-  }
 }

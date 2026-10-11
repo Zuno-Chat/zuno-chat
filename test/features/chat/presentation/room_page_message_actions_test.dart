@@ -97,6 +97,9 @@ void main() {
   Iterable<http.Request> requestsTo(String part) =>
       harness.httpRequests.where((r) => r.url.path.contains(part));
 
+  String composerText(WidgetTester tester) =>
+      tester.widget<TextField>(find.byType(TextField)).controller!.text;
+
   group('reply', () {
     testWidgets('quotes the message and sends the answer as a reply', (
       tester,
@@ -127,6 +130,20 @@ void main() {
       await tester.pump();
 
       expect(find.text('Replying to Bob'), findsNothing);
+    });
+
+    testWidgets('dropping it keeps what you typed', (tester) async {
+      await openRoom(tester, () => [harness.message(r'$m1', body: 'hello')]);
+
+      await openActions(tester, 'hello');
+      await tapAction(tester, 'Reply');
+      await tester.enterText(find.byType(TextField), 'on second thought');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Cancel'));
+      await tester.pump();
+
+      expect(find.text('Replying to Bob'), findsNothing);
+      expect(composerText(tester), 'on second thought');
     });
   });
 
@@ -164,6 +181,60 @@ void main() {
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         '',
       );
+    });
+
+    testWidgets('what you were typing comes back when the edit is cancelled', (
+      tester,
+    ) async {
+      await openRoom(tester, () => [own(r'$mine', 'teh plan')]);
+      await tester.enterText(find.byType(TextField), 'a long draft');
+      await tester.pump();
+
+      await openActions(tester, 'teh plan');
+      await tapAction(tester, 'Edit');
+      expect(composerText(tester), 'teh plan');
+      await tester.tap(find.byTooltip('Cancel'));
+      await tester.pump();
+
+      expect(composerText(tester), 'a long draft');
+      expect(harness.sent, isEmpty);
+    });
+
+    testWidgets('what you were typing comes back once the edit is sent', (
+      tester,
+    ) async {
+      await openRoom(tester, () => [own(r'$mine', 'teh plan')]);
+      await tester.enterText(find.byType(TextField), 'a long draft');
+      await tester.pump();
+
+      await openActions(tester, 'teh plan');
+      await tapAction(tester, 'Edit');
+      await sendTyped(tester, 'the plan');
+
+      expect(
+        (harness.sent.single['m.new_content']! as Map)['body'],
+        'the plan',
+      );
+      expect(composerText(tester), 'a long draft');
+      expect(find.text('Editing message'), findsNothing);
+    });
+
+    testWidgets('replying instead of editing brings back the draft, not the '
+        'edit', (tester) async {
+      await openRoom(
+        tester,
+        () => [own(r'$mine', 'teh plan'), harness.message(r'$m1')],
+      );
+      await tester.enterText(find.byType(TextField), 'a long draft');
+      await tester.pump();
+
+      await openActions(tester, 'teh plan');
+      await tapAction(tester, 'Edit');
+      await openActions(tester, 'hello');
+      await tapAction(tester, 'Reply');
+
+      expect(find.text('Replying to Bob'), findsOneWidget);
+      expect(composerText(tester), 'a long draft');
     });
 
     testWidgets("someone else's message cannot be edited", (tester) async {
@@ -266,6 +337,54 @@ void main() {
       await harness.settle(tester);
 
       expect(find.text('Message not deleted. Try again.'), findsOneWidget);
+    });
+
+    group('a gallery', () {
+      Event ownPhoto(String id, int index) => buildTestEvent(
+        harness.room,
+        eventId: id,
+        senderId: '@me:example.org',
+        originServerTs: DateTime(2026, 9, 20, 12, 5),
+        status: EventStatus.synced,
+        content: {
+          'msgtype': 'm.image',
+          'body': 'photo.jpg',
+          'url': 'mxc://example.org/${id.substring(1)}',
+          'info': {'w': 40, 'h': 30, 'mimetype': 'image/jpeg'},
+          ...galleryGroupContent(id: 'g', index: index, count: 3),
+        },
+      );
+
+      Future<void> deleteGallery(WidgetTester tester) async {
+        await openRoom(
+          tester,
+          () => [ownPhoto(r'$p3', 2), ownPhoto(r'$p2', 1), ownPhoto(r'$p1', 0)],
+        );
+        await tester.longPress(find.byType(GalleryMessage));
+        await harness.settle(tester);
+        await tapAction(tester, 'Delete all (3)');
+        expect(find.text('Delete 3 items?'), findsOneWidget);
+        await tester.tap(find.widgetWithText(TextButton, 'Delete all'));
+        await harness.settle(tester);
+      }
+
+      testWidgets('is deleted whole, not just its newest item', (tester) async {
+        await deleteGallery(tester);
+
+        final redacted = [
+          for (final request in requestsTo('/redact/'))
+            Uri.decodeComponent(request.url.pathSegments.reversed.elementAt(1)),
+        ];
+        expect(redacted, unorderedEquals([r'$p1', r'$p2', r'$p3']));
+      });
+
+      testWidgets('a refusal says not everything was deleted', (tester) async {
+        refuse = true;
+
+        await deleteGallery(tester);
+
+        expect(find.text('Some items not deleted. Try again.'), findsOneWidget);
+      });
     });
   });
 

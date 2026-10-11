@@ -7,15 +7,14 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
-import android.os.VibratorManager
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
+import im.zuno.chat.zuno_notifications.Vibration
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
@@ -25,10 +24,13 @@ object IncomingRing {
     const val NOTIFICATION_ID = 4002
     const val ACTION_TIMED_OUT = "im.zuno.chat.zuno_call_style.RING_TIMED_OUT"
     const val ACTION_DISMISSED = "im.zuno.chat.zuno_call_style.RING_DISMISSED"
+    const val ACTION_DECLINED = "im.zuno.chat.zuno_call_style.RING_DECLINED"
     const val EXTRA_CALL_ID = "callId"
     private const val TAG = "IncomingRing"
     private const val PREFERENCES = "FlutterSharedPreferences"
     private const val REMEMBERED_RING_KEY = "flutter.calls.ringing_notification"
+    private const val RING_PREFERENCES = "zuno_ring"
+    private const val TOKEN_KEY = "token"
     private const val BACKSTOP_WINDOW_MS = 5_000L
     private const val TIMEOUT_REQUEST_CODE = NOTIFICATION_ID * 16 + 2
     private const val DISMISS_REQUEST_CODE = NOTIFICATION_ID * 16 + 3
@@ -44,12 +46,14 @@ object IncomingRing {
     fun present(
         context: Context,
         callId: String,
+        token: String,
         notification: Notification,
         toneKey: String?,
         vibrationPattern: LongArray?,
     ) {
         val app = context.applicationContext
         silence(app)
+        ringPreferences(app).edit().putString(TOKEN_KEY, token).apply()
         NotificationManagerCompat.from(app).notify(NOTIFICATION_ID, notification)
         ringingCallId = callId
         player = toneKey?.let { startTone(app, it) }
@@ -83,6 +87,20 @@ object IncomingRing {
         silence(app)
     }
 
+    @Synchronized
+    fun admitsLaunch(context: Context, intent: Intent): Boolean {
+        val claimsRing = RingDecisions.claimsRing(
+            intent.action,
+            intent.getIntExtra(RingDecisions.NOTIFICATION_ID_EXTRA, -1),
+            intent.getStringExtra(RingDecisions.ACTION_ID_EXTRA),
+        )
+        if (!claimsRing) return true
+        return RingDecisions.tokenMatches(
+            intent.getStringExtra(RingDecisions.TOKEN_EXTRA),
+            ringPreferences(context.applicationContext).getString(TOKEN_KEY, null),
+        )
+    }
+
     fun dismissIntent(context: Context, callId: String): PendingIntent = PendingIntent.getBroadcast(
         context,
         DISMISS_REQUEST_CODE,
@@ -104,6 +122,7 @@ object IncomingRing {
 
     private fun silence(app: Context) {
         ringingCallId = null
+        ringPreferences(app).edit().remove(TOKEN_KEY).apply()
         player?.release()
         player = null
         try {
@@ -116,6 +135,9 @@ object IncomingRing {
         timeout = null
         cancelTimeoutAlarm(app)
     }
+
+    private fun ringPreferences(app: Context) =
+        app.getSharedPreferences(RING_PREFERENCES, Context.MODE_PRIVATE)
 
     private fun remembered(stored: String?): RememberedRing? {
         if (stored == null) return null
@@ -174,9 +196,9 @@ object IncomingRing {
 
     @Suppress("DEPRECATION")
     private fun startVibration(app: Context, pattern: LongArray): Vibrator? = try {
-        systemVibrator(app)?.takeIf { it.hasVibrator() }?.also {
+        Vibration.vibrator(app)?.takeIf { it.hasVibrator() }?.also {
             it.vibrate(
-                VibrationEffect.createWaveform(pattern, RingDecisions.amplitudes(pattern), 0),
+                VibrationEffect.createWaveform(pattern, Vibration.amplitudes(pattern), 0),
                 AudioAttributes.Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
@@ -187,15 +209,6 @@ object IncomingRing {
         Log.w(TAG, "Could not vibrate for the ring", e)
         null
     }
-
-    private fun systemVibrator(app: Context): Vibrator? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            (app.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)
-                ?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            app.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        }
 
     private fun armTimeout(app: Context, callId: String) {
         val stop = Runnable { stopFor(app, callId, takeDownNotification = true) }

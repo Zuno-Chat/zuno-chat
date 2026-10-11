@@ -123,7 +123,6 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
   }
 
   Future<void> _signOutCurrentSession() async {
-    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await _confirmSignOut(
       title: 'Sign out of this device?',
       body:
@@ -131,17 +130,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
           'Without a recovery code, the messages on it are gone for good.',
     );
     if (confirmed != true || !mounted) return;
-    try {
-      await signOutThisDevice(
-        ref.read(matrixClientProvider),
-        windDown: ref.read(signOutWindDownProvider),
-      );
-    } catch (e, s) {
-      reportCaught('sign out', e, s);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Not signed out. Try again.')),
-      );
-    }
+    await signOutThisDeviceOrExplain(context, ref);
   }
 
   Future<void> _showSignInCode() async {

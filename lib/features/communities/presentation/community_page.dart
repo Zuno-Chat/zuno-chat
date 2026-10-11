@@ -339,6 +339,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     return _memo.obtain(
       room.id,
       data,
+      source: room,
       () => ChatRow(
         key: ValueKey(room.id),
         data: data,

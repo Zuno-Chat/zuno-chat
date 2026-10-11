@@ -51,6 +51,9 @@ class FakeCallSession implements CallSession {
   @override
   String? failedMessage;
 
+  @override
+  Future<void> hangUpFinished = Future<void>.value();
+
   bool microphoneGranted = true;
   bool disposed = false;
   int membershipRefreshes = 0;

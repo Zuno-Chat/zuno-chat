@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
+import '../../matrix/join_requests.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../notifications/notification_permission_provider.dart';
 import '../../notifications/notification_preview.dart';
@@ -39,6 +40,7 @@ class NseServices {
     required this.prefs,
     required this.settings,
     required this.unreadRoomIds,
+    required this.askedToJoin,
     required Future<ZunoPushResult<NseCredentialGrant>> Function() mint,
     SessionExporter? exporter,
     OpaqueThreadIds? threadIds,
@@ -63,6 +65,7 @@ class NseServices {
   final SharedPreferences prefs;
   final NseSettings Function() settings;
   final List<String> Function() unreadRoomIds;
+  final Set<String> Function() askedToJoin;
   final SessionExporter exporter;
   final OpaqueThreadIds threadIds;
   final Future<String> Function() _appVersion;
@@ -123,7 +126,7 @@ class NseServices {
     final summary = await NseOutcomeReader(
       channel: channel,
       prefs: prefs,
-    ).read(client);
+    ).read();
     if (summary.generationChanged) {
       threadIds.reset();
       _unread = null;
@@ -167,6 +170,7 @@ class NseServices {
       unreadRoomIds: unreadRoomIds(),
       threadIds: threadIds,
       displayName: _name,
+      askedToJoin: askedToJoin(),
     );
   }
 
@@ -248,6 +252,7 @@ final nseServicesProvider = Provider<void>((ref) {
     ),
     unreadRoomIds: () =>
         badgeRoomIds(client, ref.read(callUnreadCorrectionProvider)),
+    askedToJoin: () => ref.read(joinRequestsProvider),
     mint: () => mintNseCredential(client),
   );
   void changed() => _safely('settings', services.settingsChanged);
@@ -255,6 +260,10 @@ final nseServicesProvider = Provider<void>((ref) {
   ref.listen(notifyMeProvider, (_, _) => changed());
   ref.listen(messageToneEnabledProvider, (_, _) => changed());
   ref.listen(notificationsAllowedProvider, (_, _) => changed());
+  ref.listen(
+    joinRequestsProvider,
+    (_, _) => _safely('asked', publisher.refreshMeta),
+  );
   final sync = client.onSync.stream.listen(
     (update) => _safely('sync', () => services.synced(update)),
   );

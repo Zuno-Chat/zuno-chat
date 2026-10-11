@@ -51,7 +51,7 @@ class _PendingAttachmentPreview extends StatelessWidget {
     final preview = pendingSend.previewBytes;
     final Widget media;
     if (preview != null) {
-      media = Image.memory(preview, fit: BoxFit.cover);
+      media = MediaImage.memory(preview);
     } else if (pendingSend.width != null && pendingSend.height != null) {
       media = const AspectRatioPlaceholder();
     } else {

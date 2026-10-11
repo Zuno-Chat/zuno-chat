@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.content.FileProvider
-import androidx.core.content.pm.ShortcutManagerCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -67,11 +66,13 @@ class ZunoNotificationsPlugin :
                 result.success(publishImage(bytes, mimeType))
             }
 
-            "removeConversationShortcut" -> {
-                val roomId = call.argument<String>("roomId")
-                if (roomId != null) {
-                    ShortcutManagerCompat.removeLongLivedShortcuts(context, listOf(roomId))
+            "retainConversationShortcuts" -> {
+                val roomIds = call.argument<List<String>>("roomIds")
+                if (roomIds == null) {
+                    result.error("bad_args", "roomIds are required", null)
+                    return
                 }
+                ConversationShortcut.retain(context, roomIds)
                 result.success(null)
             }
 

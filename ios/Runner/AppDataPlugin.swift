@@ -33,13 +33,36 @@ final class AppDataPlugin: NSObject, @preconcurrency FlutterPlugin {
 
   private nonisolated static func wipe(keeping databases: [String]) -> Bool {
     let files = FileManager.default
+    let library = files.urls(for: .libraryDirectory, in: .userDomainMask).first
+    let wiped = empty(
+      required: [
+        files.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
+        files.urls(for: .documentDirectory, in: .userDomainMask).first,
+        files.urls(for: .cachesDirectory, in: .userDomainMask).first,
+        files.temporaryDirectory,
+      ],
+      optional: [
+        ShareInbox.root(), library?.appendingPathComponent("SplashBoard/Snapshots"),
+        library?.appendingPathComponent("Saved Application State"),
+      ],
+      keeping: databases)
+    if let domain = Bundle.main.bundleIdentifier {
+      UserDefaults.standard.removePersistentDomain(forName: domain)
+    }
+    return wiped
+  }
+
+  nonisolated static func empty(required: [URL?], optional: [URL?], keeping databases: [String])
+    -> Bool
+  {
+    let files = FileManager.default
     let kept = Set(
       databases.flatMap { path in
         databaseSidecars.map { URL(fileURLWithPath: path + $0).standardizedFileURL.path }
       })
     var wiped = true
 
-    func empty(_ directory: URL?, required: Bool = true) {
+    func clear(_ directory: URL?, required: Bool) {
       guard let directory else { return }
       let items: [URL]
       do {
@@ -66,17 +89,8 @@ final class AppDataPlugin: NSObject, @preconcurrency FlutterPlugin {
       }
     }
 
-    empty(files.urls(for: .applicationSupportDirectory, in: .userDomainMask).first)
-    empty(files.urls(for: .documentDirectory, in: .userDomainMask).first)
-    empty(files.urls(for: .cachesDirectory, in: .userDomainMask).first)
-    empty(files.temporaryDirectory)
-    empty(ShareInbox.root(), required: false)
-    let library = files.urls(for: .libraryDirectory, in: .userDomainMask).first
-    empty(library?.appendingPathComponent("SplashBoard/Snapshots"), required: false)
-    empty(library?.appendingPathComponent("Saved Application State"), required: false)
-    if let domain = Bundle.main.bundleIdentifier {
-      UserDefaults.standard.removePersistentDomain(forName: domain)
-    }
+    for directory in required { clear(directory, required: true) }
+    for directory in optional { clear(directory, required: false) }
     return wiped
   }
 }

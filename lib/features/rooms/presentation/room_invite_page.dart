@@ -84,7 +84,7 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
     );
     if (!sent || !mounted) return;
     messenger.showSnackBar(const SnackBar(content: Text('Report sent')));
-    await _answer(room.leave, join: false);
+    await _answer(() => declineInvite(room), join: false);
   }
 
   Future<void> _blockAndDecline(String inviter, String name) async {
@@ -177,7 +177,7 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
               OutlinedButton(
                 onPressed: _busy
                     ? null
-                    : () => _answer(room.leave, join: false),
+                    : () => _answer(() => declineInvite(room), join: false),
                 child: const Text('Decline'),
               ),
               if (inviter != null) ...[

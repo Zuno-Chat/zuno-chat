@@ -3,22 +3,21 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/matrix/linkified_text.dart';
 import '../../../../core/matrix/mention_fragments.dart';
 import '../../../../core/matrix/mention_only_html.dart';
-import '../../../../core/matrix/room_mention_highlight.dart';
 import '../../../../core/matrix/sanitize_message_html.dart';
 import '../../../../core/matrix/urls.dart';
+import '../../../../core/navigation/zuno_links.dart';
+import '../../../../core/ui/row_memo.dart';
 import '../../../../core/ui/zuno_colors.dart';
 import '../expandable_message.dart';
 import '../message_html_style.dart';
 import '../message_meta.dart';
 import '../text_width_estimate.dart';
-import '../widget_memo.dart';
 
-final _htmlMessages = WidgetMemo(capacity: 200);
+final _htmlMessages = RowMemo<String>(capacity: 200);
 
 class _HtmlMessage extends StatelessWidget {
   final String html;
@@ -26,12 +25,6 @@ class _HtmlMessage extends StatelessWidget {
   final bool collapsed;
 
   const _HtmlMessage({required this.html, this.collapsed = false});
-
-  static final _mxReply = RegExp(
-    r'<mx-reply>.*</mx-reply>',
-    caseSensitive: false,
-    dotAll: true,
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -52,12 +45,8 @@ class _HtmlMessage extends StatelessWidget {
 
   Widget _buildHtml(BuildContext context, TextStyle bodyStyle) {
     final colors = Theme.of(context).colorScheme;
-    final sanitized = sanitizeMessageHtml(html.replaceAll(_mxReply, ''));
     return Html(
-      data: highlightUserMentionsInHtml(
-        highlightRoomMentionsInHtml(sanitized, colors.primary),
-        colors.primary,
-      ),
+      data: sanitizeMessageHtml(html, mentionColor: colors.primary),
       doNotRenderTheseTags: const {'img'},
       shrinkWrap: true,
       style: messageHtmlStyle(
@@ -66,12 +55,9 @@ class _HtmlMessage extends StatelessWidget {
         link: ZunoColors.of(context).link,
       ),
       onLinkTap: (url, attributes, element) {
-        if (url == null) return;
-        final uri = Uri.tryParse(url);
-        if (uri == null || uri.host == 'matrix.to' || !isSafeExternalUri(uri)) {
-          return;
-        }
-        launchUrl(uri, mode: LaunchMode.externalApplication);
+        final uri = url == null ? null : Uri.tryParse(url);
+        if (uri == null || !isSafeExternalUri(uri)) return;
+        openLink(context, uri, openUrl: openExternally);
       },
     );
   }
@@ -109,7 +95,8 @@ class TextMessage extends StatelessWidget {
             child: ExpandableMessage(
               text: body,
               builder: (context, maxLines) => _htmlMessages.obtain(
-                '${displayEvent.eventId}|${maxLines != null}|${html.hashCode}',
+                '${displayEvent.eventId}|${maxLines != null}',
+                html,
                 () => _HtmlMessage(html: html, collapsed: maxLines != null),
               ),
             ),

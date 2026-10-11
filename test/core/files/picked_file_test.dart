@@ -21,29 +21,25 @@ void main() {
     });
   });
 
-  FakePickedFile pickedAt(Directory directory) {
-    final file = File(p.join(directory.path, 'notes.txt'))
+  String copyAt(Directory directory) {
+    final copy = File(p.join(directory.path, 'notes.txt'))
       ..writeAsBytesSync([1]);
-    return FakePickedFile(
-      'notes.txt',
-      Uint8List.fromList([1]),
-      path: file.path,
-    );
+    return copy.path;
   }
 
   test('deletes a copy in temporary storage', () async {
-    final picked = pickedAt(temporaryRoot);
+    final copy = copyAt(temporaryRoot);
 
-    await discardPickedCopy(picked, temporaryRoots: [temporaryRoot]);
+    await discardTemporaryCopy(copy, temporaryRoots: [temporaryRoot]);
 
-    expect(File(picked.path!).existsSync(), isFalse);
+    expect(File(copy).existsSync(), isFalse);
     expect(temporaryRoot.existsSync(), isTrue);
   });
 
-  test('deletes the folder the picker made for its copy', () async {
+  test('deletes the folder made for the copy', () async {
     final folder = Directory(p.join(temporaryRoot.path, 'pick'))..createSync();
 
-    await discardPickedCopy(pickedAt(folder), temporaryRoots: [temporaryRoot]);
+    await discardTemporaryCopy(copyAt(folder), temporaryRoots: [temporaryRoot]);
 
     expect(folder.existsSync(), isFalse);
     expect(temporaryRoot.existsSync(), isTrue);
@@ -52,33 +48,33 @@ void main() {
   test('never deletes a temporary root inside another', () async {
     final inner = Directory(p.join(temporaryRoot.path, 'cache'))..createSync();
 
-    await discardPickedCopy(
-      pickedAt(inner),
+    await discardTemporaryCopy(
+      copyAt(inner),
       temporaryRoots: [temporaryRoot, inner],
     );
 
     expect(inner.existsSync(), isTrue);
   });
 
-  test('keeps a picker folder that still holds another copy', () async {
+  test('keeps a folder that still holds another copy', () async {
     final folder = Directory(p.join(temporaryRoot.path, 'pick'))..createSync();
     final other = File(p.join(folder.path, 'other.txt'))..writeAsBytesSync([2]);
 
-    await discardPickedCopy(pickedAt(folder), temporaryRoots: [temporaryRoot]);
+    await discardTemporaryCopy(copyAt(folder), temporaryRoots: [temporaryRoot]);
 
     expect(other.existsSync(), isTrue);
   });
 
   test('never deletes a file outside temporary storage', () async {
-    final picked = pickedAt(elsewhere);
+    final original = copyAt(elsewhere);
 
-    await discardPickedCopy(picked, temporaryRoots: [temporaryRoot]);
+    await discardTemporaryCopy(original, temporaryRoots: [temporaryRoot]);
 
-    expect(File(picked.path!).existsSync(), isTrue);
+    expect(File(original).existsSync(), isTrue);
   });
 
   test('a path that climbs out of temporary storage is kept', () async {
-    final original = pickedAt(elsewhere);
+    final original = copyAt(elsewhere);
     final climbing = p.join(
       temporaryRoot.path,
       '..',
@@ -86,12 +82,29 @@ void main() {
       'notes.txt',
     );
 
-    await discardPickedCopy(
-      FakePickedFile('notes.txt', Uint8List.fromList([1]), path: climbing),
+    await discardTemporaryCopy(climbing, temporaryRoots: [temporaryRoot]);
+
+    expect(File(original).existsSync(), isTrue);
+  });
+
+  test('a copy already gone is ignored', () async {
+    await discardTemporaryCopy(
+      p.join(temporaryRoot.path, 'gone.txt'),
       temporaryRoots: [temporaryRoot],
     );
 
-    expect(File(original.path!).existsSync(), isTrue);
+    expect(temporaryRoot.existsSync(), isTrue);
+  });
+
+  test('a file picker copy is discarded the same way', () async {
+    final copy = copyAt(temporaryRoot);
+
+    await discardPickedCopy(
+      FakePickedFile('notes.txt', Uint8List.fromList([1]), path: copy),
+      temporaryRoots: [temporaryRoot],
+    );
+
+    expect(File(copy).existsSync(), isFalse);
   });
 
   group('trackPickerCopy', () {

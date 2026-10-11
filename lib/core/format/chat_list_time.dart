@@ -15,15 +15,22 @@ const _months = [
   'Dec',
 ];
 
+int calendarDaysBetween(DateTime from, DateTime to) {
+  DateTime day(DateTime time) {
+    final local = time.toLocal();
+    return DateTime.utc(local.year, local.month, local.day);
+  }
+
+  return day(to).difference(day(from)).inDays;
+}
+
 String chatListTimeLabel(
   DateTime at, {
   required DateTime now,
   required bool use24Hour,
 }) {
   final local = at.toLocal();
-  final today = DateTime.utc(now.year, now.month, now.day);
-  final day = DateTime.utc(local.year, local.month, local.day);
-  final daysAgo = today.difference(day).inDays;
+  final daysAgo = calendarDaysBetween(at, now);
 
   if (daysAgo <= 0) return clockLabel(local, use24Hour);
   if (daysAgo == 1) return 'Yesterday';

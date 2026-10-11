@@ -78,7 +78,7 @@ void main() {
     WidgetTester tester, {
     CallKind kind = CallKind.voice,
     bool connecting = false,
-    bool calling = false,
+    CallStatus? status,
     bool withLocal = true,
     bool localCamera = false,
     bool localEncrypting = false,
@@ -93,6 +93,11 @@ void main() {
     tester.view.physicalSize = size;
     tester.view.padding = const FakeViewPadding(top: 24, bottom: 48);
     addTearDown(tester.view.reset);
+    final plainStatus = switch ((connecting, remote.isEmpty)) {
+      (true, _) => CallStatus.connecting,
+      (false, true) => CallStatus.waiting,
+      (false, false) => CallStatus.talking,
+    };
     await tester.pumpWidget(
       MaterialApp(
         theme: zunoDarkTheme,
@@ -100,7 +105,7 @@ void main() {
           room: room,
           kind: kind,
           connecting: connecting,
-          calling: calling,
+          status: status ?? plainStatus,
           local: withLocal
               ? person(
                   'Me',
@@ -140,7 +145,12 @@ void main() {
         'an empty video, and every button works before the call connects', (
       tester,
     ) async {
-      await pump(tester, kind: CallKind.video, connecting: true, calling: true);
+      await pump(
+        tester,
+        kind: CallKind.video,
+        connecting: true,
+        status: CallStatus.calling,
+      );
 
       expect(find.byType(VoiceCallStage), findsOneWidget);
       expect(find.byType(VideoCallHeader), findsNothing);
@@ -160,7 +170,12 @@ void main() {
     testWidgets('until your own state is known only End call works', (
       tester,
     ) async {
-      await pump(tester, connecting: true, calling: true, withLocal: false);
+      await pump(
+        tester,
+        connecting: true,
+        status: CallStatus.calling,
+        withLocal: false,
+      );
 
       await tester.tap(find.byTooltip('Mute'), warnIfMissed: false);
       await tester.tap(find.byTooltip('End call'));
@@ -174,7 +189,7 @@ void main() {
         tester,
         kind: CallKind.video,
         connecting: true,
-        calling: true,
+        status: CallStatus.calling,
         localCamera: true,
       );
 
@@ -216,14 +231,6 @@ void main() {
       await pump(tester);
       expect(shownTone(), '@ann:example.org');
     });
-
-    testWidgets('connected with nobody there yet says it is waiting', (
-      tester,
-    ) async {
-      await pump(tester);
-
-      expect(shownStatus(tester), CallStatus.waiting);
-    });
   });
 
   group('a voice call with one person', () {
@@ -240,7 +247,11 @@ void main() {
     testWidgets('says Encrypting while either side still lacks the keys', (
       tester,
     ) async {
-      await pump(tester, remote: [person('Ann', encrypting: true)]);
+      await pump(
+        tester,
+        remote: [person('Ann', encrypting: true)],
+        status: CallStatus.encrypting,
+      );
       expect(shownStatus(tester), CallStatus.encrypting);
       expect(find.byType(CallTimer), findsNothing);
 
@@ -295,6 +306,7 @@ void main() {
         tester,
         kind: CallKind.video,
         remote: [person('Ann', encrypting: true)],
+        status: CallStatus.encrypting,
       );
 
       expect(find.text('Encrypting…'), findsOneWidget);
@@ -304,22 +316,6 @@ void main() {
           matching: find.text('Encrypting…'),
         ),
         findsOneWidget,
-      );
-    });
-
-    testWidgets('your own missing keys also count as Encrypting', (
-      tester,
-    ) async {
-      await pump(
-        tester,
-        kind: CallKind.video,
-        localEncrypting: true,
-        remote: [person('Ann')],
-      );
-
-      expect(
-        tester.widget<VideoCallHeader>(find.byType(VideoCallHeader)).status,
-        CallStatus.encrypting,
       );
     });
   });
@@ -450,7 +446,7 @@ void main() {
       await pump(
         tester,
         kind: CallKind.video,
-        calling: true,
+        status: CallStatus.calling,
         localCamera: true,
       );
 
@@ -465,7 +461,7 @@ void main() {
     testWidgets('with your camera off it shows your own picture', (
       tester,
     ) async {
-      await pump(tester, kind: CallKind.video, calling: true);
+      await pump(tester, kind: CallKind.video, status: CallStatus.calling);
 
       final self = tester.widget<ParticipantTile>(find.byType(ParticipantTile));
       expect(self.user?.id, '@me:example.org');
@@ -479,7 +475,7 @@ void main() {
     });
 
     testWidgets('a voice call has no such view', (tester) async {
-      await pump(tester, calling: true);
+      await pump(tester, status: CallStatus.calling);
 
       expect(find.byType(ParticipantTile), findsNothing);
     });
@@ -490,7 +486,7 @@ void main() {
       await pump(
         tester,
         kind: CallKind.video,
-        calling: true,
+        status: CallStatus.calling,
         localCamera: true,
       );
       final before = tester.state(find.byType(ParticipantTile));
@@ -552,7 +548,12 @@ void main() {
       tester,
     ) async {
       final ann = person('Ann', encrypting: true);
-      await pump(tester, kind: CallKind.video, remote: [ann]);
+      await pump(
+        tester,
+        kind: CallKind.video,
+        remote: [ann],
+        status: CallStatus.encrypting,
+      );
       await tester.pump(const Duration(seconds: 6));
 
       await pump(
@@ -560,19 +561,11 @@ void main() {
         kind: CallKind.video,
         remote: [ann],
         quality: CallQuality.poor,
+        status: CallStatus.encrypting,
       );
       await tester.pump(const Duration(seconds: 3));
 
       expect(find.text(EncryptingLabel.hint), findsOneWidget);
-    });
-
-    testWidgets('a view with no record of you never claims the lock', (
-      tester,
-    ) async {
-      await pump(tester, withLocal: false, remote: [person('Ann')]);
-
-      expect(shownStatus(tester), CallStatus.encrypting);
-      expect(find.bySemanticsLabel('Encrypted'), findsNothing);
     });
   });
 
@@ -602,6 +595,7 @@ void main() {
           person('Ben', muted: true),
           person('Cat', encrypting: true),
         ],
+        status: CallStatus.encrypting,
       );
 
       expect(find.byType(CallGrid), findsOneWidget);
@@ -742,6 +736,7 @@ void main() {
         tester,
         localEncrypting: true,
         remote: [person('Ann')],
+        status: CallStatus.encrypting,
         confirmName: '@ann',
       );
 
@@ -812,7 +807,7 @@ void main() {
       room: room,
       kind: kind,
       connecting: false,
-      calling: false,
+      status: CallStatus.encrypting,
       local: person('Me', local: true, muted: true),
       remote: [
         for (final name in others)

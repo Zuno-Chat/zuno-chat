@@ -14,14 +14,14 @@ void main() {
     id: VoipParticipantId(userId: '@a:x', deviceId: 'A'),
     isLocal: false,
   );
-  const remoteB = CallEngineParticipant(
-    id: VoipParticipantId(userId: '@b:x', deviceId: 'B'),
-    isLocal: false,
-  );
 
   group('pictureInPictureRemote', () {
     test('picks the remote whose camera is on', () {
-      final on = remoteA.copyWith(videoEnabled: true);
+      const on = CallEngineParticipant(
+        id: VoipParticipantId(userId: '@a:x', deviceId: 'A'),
+        isLocal: false,
+        videoEnabled: true,
+      );
       expect(pictureInPictureRemote([local, on]), on);
     });
 
@@ -30,7 +30,11 @@ void main() {
     });
 
     test('skips a camera-off remote in favour of a later one with video', () {
-      final on = remoteB.copyWith(videoEnabled: true);
+      const on = CallEngineParticipant(
+        id: VoipParticipantId(userId: '@b:x', deviceId: 'B'),
+        isLocal: false,
+        videoEnabled: true,
+      );
       expect(pictureInPictureRemote([local, remoteA, on]), on);
     });
 

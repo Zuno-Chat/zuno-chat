@@ -2,7 +2,6 @@ package im.zuno.chat
 
 import android.app.Notification
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -11,6 +10,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import im.zuno.chat.zuno_notifications.AppLaunchIntent
 
 class UploadForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
@@ -82,15 +82,7 @@ class UploadForegroundService : Service() {
         }
 
         private fun buildNotification(context: Context, progress: Progress): Notification {
-            val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            val contentIntent = launchIntent?.let {
-                PendingIntent.getActivity(
-                    context,
-                    0,
-                    it,
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-                )
-            }
+            val contentIntent = AppLaunchIntent.pending(context, 0)
             val percent = progress.percent
             return NotificationCompat.Builder(context, CHANNEL_ID)
                 .setContentTitle(progress.label)

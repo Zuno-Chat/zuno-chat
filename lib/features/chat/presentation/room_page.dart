@@ -123,6 +123,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
   Timeline? _timeline;
   Timeline? _pendingTimeline;
   Event? _editingEvent;
+  String _draftBeforeEdit = '';
   Event? _replyingToEvent;
 
   StreamSubscription<SyncUpdate>? _syncSub;
@@ -137,8 +138,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
   bool _activeCallBannerShown = false;
 
   final List<FailedMediaSend> _failedSends = [];
-  final _shareCopies = <String>{};
-  final _shareCopyUses = <String, int>{};
+  final _copies = <String>{};
+  final _copyUses = <String, int>{};
 
   final _recorder = AudioRecorder();
   bool _recording = false;
@@ -253,12 +254,9 @@ class _RoomPageState extends ConsumerState<RoomPage>
     _recorder.dispose();
     _typingRefreshTimer?.cancel();
     _typingIdleTimer?.cancel();
-    unawaited(
-      discardSharedCopies([
-        for (final path in _shareCopies)
-          if (!_shareCopyUses.containsKey(path)) XFile(path),
-      ]),
-    );
+    for (final path in _copies) {
+      if (!_copyUses.containsKey(path)) unawaited(discardTemporaryCopy(path));
+    }
     if (_isTypingSent) {
       unawaited(
         runBestEffort(
@@ -577,9 +575,9 @@ class _RoomPageState extends ConsumerState<RoomPage>
       final send = await confirmSendingRecoveryCode(context);
       if (!send || !mounted) return;
     }
-    _input.clear();
     setState(() {
-      _editingEvent = null;
+      if (_editingEvent == null) _input.clear();
+      _leaveEdit();
       _replyingToEvent = null;
     });
     await _sendText(text, editing: editing, replyingTo: replyingTo);
@@ -704,35 +702,54 @@ class _RoomPageState extends ConsumerState<RoomPage>
     session?.accept().ignore();
   }
 
+  void _showInComposer(String text) {
+    _input.text = text;
+    _input.selection = TextSelection.collapsed(offset: text.length);
+  }
+
+  void _leaveEdit() {
+    if (_editingEvent == null) return;
+    _editingEvent = null;
+    _showInComposer(_draftBeforeEdit);
+    _draftBeforeEdit = '';
+  }
+
   void _startReply(Event event) {
     setState(() {
-      _editingEvent = null;
+      _leaveEdit();
       _replyingToEvent = event;
     });
   }
 
   void _startEdit(Event event) {
     setState(() {
+      if (_editingEvent == null) _draftBeforeEdit = _input.text;
       _replyingToEvent = null;
       _editingEvent = event;
-      _input.text = displayBody(event, _timeline!);
+      _showInComposer(displayBody(event, _timeline!));
     });
   }
 
   void _cancelCompose() {
     setState(() {
-      _editingEvent = null;
+      _leaveEdit();
       _replyingToEvent = null;
-      _input.clear();
     });
   }
 
-  Future<void> _deleteMessage(Event event) async {
+  Future<void> _deleteMessages(List<Event> events) async {
+    final many = events.length > 1;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete message?'),
-        content: const Text('Deletes it for everyone. Nobody can undo this.'),
+        title: Text(
+          many ? 'Delete ${events.length} items?' : 'Delete message?',
+        ),
+        content: Text(
+          many
+              ? 'Deletes them for everyone. Nobody can undo this.'
+              : 'Deletes it for everyone. Nobody can undo this.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -740,7 +757,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
+            child: Text(many ? 'Delete all' : 'Delete'),
           ),
         ],
       ),
@@ -748,15 +765,27 @@ class _RoomPageState extends ConsumerState<RoomPage>
     if (confirmed != true || !mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
-    try {
-      await ref.read(liveLocationSharingProvider).stopShareStartedBy(event);
-      await widget.room.redactEvent(event.eventId);
-    } catch (e, s) {
-      reportCaught('delete message', e, s);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Message not deleted. Try again.')),
-      );
+    final sharing = ref.read(liveLocationSharingProvider);
+    var failed = false;
+    for (final event in events) {
+      try {
+        await sharing.stopShareStartedBy(event);
+        await widget.room.redactEvent(event.eventId);
+      } catch (e, s) {
+        reportCaught('delete message', e, s);
+        failed = true;
+      }
     }
+    if (!failed) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          many
+              ? 'Some items not deleted. Try again.'
+              : 'Message not deleted. Try again.',
+        ),
+      ),
+    );
   }
 
   Future<void> _showMessageActions(
@@ -820,7 +849,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       case MessageAction.edit:
         _startEdit(event);
       case MessageAction.delete:
-        await _deleteMessage(event);
+        await _deleteMessages(galleryEvents ?? [event]);
       case MessageAction.share:
         await _shareAttachments(galleryEvents ?? [displayEvent]);
       case MessageAction.save:
@@ -901,7 +930,14 @@ class _RoomPageState extends ConsumerState<RoomPage>
     }
   }
 
+  _SendSession _sendSession() => _SendSession(
+    messenger: ScaffoldMessenger.of(context),
+    reduceMediaSize: ref.read(reduceMediaSizeProvider),
+    uploadProgress: ref.read(uploadProgressHttpClientProvider).onUploadProgress,
+  );
+
   Future<void> _withSendProgress(
+    _SendSession session,
     PendingAttachmentSend pending,
     Future<void> Function(_SendProgressSink progress) send,
   ) {
@@ -922,10 +958,9 @@ class _RoomPageState extends ConsumerState<RoomPage>
           publish(current.withStage(stage, fraction));
 
       publish(pending);
-      final sub = ref
-          .read(uploadProgressHttpClientProvider)
-          .onUploadProgress
-          .listen((fraction) => advance(SendStage.uploading, fraction));
+      final sub = session.uploadProgress.listen(
+        (fraction) => advance(SendStage.uploading, fraction),
+      );
       try {
         await send(
           _SendProgressSink(
@@ -943,21 +978,22 @@ class _RoomPageState extends ConsumerState<RoomPage>
   }
 
   Future<void> _guardedSend(
+    _SendSession session,
     String txid,
     Future<void> Function() send, {
-    required void Function(Object error) onFailed,
+    required VoidCallback onFailed,
   }) async {
     try {
       await send();
     } on MediaProcessingException catch (e) {
-      _snack(e.message);
+      session.say(e.message);
     } on FileTooBigMatrixException catch (e) {
       await discardSendPlaceholder(widget.room, txid);
-      if (mounted) _snack(tooLargeToSendMessage(e));
+      session.say(tooLargeToSendMessage(e));
     } catch (e, s) {
       reportCaught('send attachment', e, s);
       await discardSendPlaceholder(widget.room, txid);
-      onFailed(e);
+      onFailed();
     }
   }
 
@@ -970,6 +1006,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       );
 
   Future<void> _pickAndSendImages(ImageSource source) async {
+    final session = _sendSession();
     final limits = _pickerImageLimits();
     final file = await ImagePicker().pickImage(
       source: source,
@@ -977,211 +1014,196 @@ class _RoomPageState extends ConsumerState<RoomPage>
       maxHeight: limits.maxDimension,
       imageQuality: limits.quality,
     );
-    if (file == null || !mounted) return;
-    await _sendImageBatch([file]);
+    if (file == null) return;
+    await _composeAndSend(session, [file], isVideo: (_) => false);
   }
-
-  Future<void> _sendImageBatch(List<XFile> picked) async {
-    final images = await Future.wait(
-      picked.map(
-        (file) async => (bytes: await file.readAsBytes(), name: file.name),
-      ),
-    );
-    if (!mounted) return;
-
-    final composed = await Navigator.of(context).push<List<ComposedImage>>(
-      MaterialPageRoute(
-        builder: (_) => ImageCaptionComposerPage(images: images),
-      ),
-    );
-    if (composed == null || !mounted) return;
-
-    final groupId = composed.length > 1 ? _newGalleryGroupId() : null;
-    await _keepingUploadAlive(() async {
-      for (var i = 0; i < composed.length; i++) {
-        if (!mounted) return;
-        final image = composed[i];
-        await _sendPhoto(
-          image.bytes,
-          caption: image.caption,
-          gallery: groupId == null
-              ? null
-              : GalleryGroupRef(id: groupId, index: i, count: composed.length),
-        );
-      }
-    });
-  }
-
-  String _newGalleryGroupId() =>
-      widget.room.client.generateUniqueTransactionId();
 
   Future<void> _pickAndSendGalleryMedia() async {
+    final session = _sendSession();
     final limits = _pickerImageLimits();
     final picked = await ImagePicker().pickMultipleMedia(
       maxWidth: limits.maxDimension,
       maxHeight: limits.maxDimension,
       imageQuality: limits.quality,
     );
-    if (picked.isEmpty || !mounted) return;
-    await _sendPickedMedia(picked);
+    await _composeAndSend(session, picked);
   }
 
-  Future<void> _sendPickedMedia(List<XFile> picked) async {
-    final images = <XFile>[];
-    final videos = <XFile>[];
-    for (final file in picked) {
-      (looksLikeVideo(file) ? videos : images).add(file);
-    }
+  Future<void> _pickAndSendVideo(ImageSource source) async {
+    final session = _sendSession();
+    final picked = await ImagePicker().pickVideo(source: source);
+    if (picked == null) return;
+    await _composeAndSend(session, [picked], isVideo: (_) => true);
+  }
 
-    if (videos.length > 1 || (images.isNotEmpty && videos.isNotEmpty)) {
-      await _sendMixedMediaBatch(picked);
-      return;
-    }
+  Future<void> _composeAndSend(
+    _SendSession session,
+    List<XFile> picked, {
+    bool Function(XFile file) isVideo = looksLikeVideo,
+  }) => _withCopies([for (final file in picked) file.path], () async {
+    if (picked.isEmpty || !mounted) return;
+    final composed = await _compose(picked, isVideo);
+    if (composed == null) return;
+    await _sendComposed(session, composed);
+  });
 
-    if (images.isNotEmpty) await _sendImageBatch(images);
-    for (final video in videos) {
-      if (!mounted) return;
-      await _pickAndSendVideoFile(video);
+  Future<List<ComposedMedia>?> _compose(
+    List<XFile> picked,
+    bool Function(XFile file) isVideo,
+  ) async {
+    final navigator = Navigator.of(context);
+    final videos = picked.where(isVideo).toList();
+    if (videos.isEmpty) {
+      final images = await navigator.push<List<ComposedImage>>(
+        MaterialPageRoute(
+          builder: (_) => ImageCaptionComposerPage(
+            images: [
+              for (final file in picked) (path: file.path, name: file.name),
+            ],
+          ),
+        ),
+      );
+      return images?.map(ComposedImageResult.new).toList();
     }
+    if (picked.length == 1) {
+      final video = await navigator.push<ComposedVideo>(
+        MaterialPageRoute(
+          builder: (_) => VideoCaptionComposerPage(
+            path: videos.single.path,
+            name: videos.single.name,
+          ),
+        ),
+      );
+      return video == null ? null : [ComposedVideoResult(video)];
+    }
+    return navigator.push<List<ComposedMedia>>(
+      MaterialPageRoute(
+        builder: (_) => MediaCaptionComposerPage(
+          items: [
+            for (final file in picked)
+              isVideo(file)
+                  ? PickedVideo(path: file.path, name: file.name)
+                  : PickedImage(path: file.path, name: file.name),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendComposed(
+    _SendSession session,
+    List<ComposedMedia> composed,
+  ) {
+    final groupId = composed.length > 1
+        ? widget.room.client.generateUniqueTransactionId()
+        : null;
+    return _keepingUploadAlive(() async {
+      for (final (i, media) in composed.indexed) {
+        final gallery = groupId == null
+            ? null
+            : GalleryGroupRef(id: groupId, index: i, count: composed.length);
+        await switch (media) {
+          ComposedImageResult(:final image) => _sendPhoto(
+            session,
+            image,
+            gallery: gallery,
+          ),
+          ComposedVideoResult(:final video) => _sendVideoAttachment(
+            session,
+            video,
+            gallery: gallery,
+          ),
+        };
+      }
+    });
   }
 
   Future<void> _applyPendingShare(InboundShare share) async {
     if (!mounted) return;
     final text = share.text;
-    if (text != null) {
-      _input.text = text;
-      _input.selection = TextSelection.collapsed(offset: text.length);
-    }
+    if (text != null) _showInComposer(text);
     if (share.files.isEmpty) return;
 
+    final session = _sendSession();
     final copies = await copySharedFilesToCache(share.files);
-    final paths = [for (final copy in copies) copy.path];
-    _shareCopies.addAll(paths);
-    paths.forEach(_useShareCopy);
-    try {
+    await _withCopies([for (final copy in copies) copy.path], () async {
       if (!mounted) return;
       final unopened = share.files.length - copies.length;
-      if (unopened > 0) _snack(_unopenedSharesMessage(unopened));
-      final (:media, :others) = partitionSharedFiles(copies);
-      if (media.isNotEmpty) await _sendPickedMedia(media);
+      if (unopened > 0) session.say(_unopenedSharesMessage(unopened));
+      final (:media, :others) = await partitionSharedFiles(copies);
+      if (media.isNotEmpty) await _composeAndSend(session, media);
       for (final file in others) {
-        if (!mounted) return;
-        await _sendFile(await file.readAsBytes(), name: file.name);
-      }
-    } finally {
-      paths.forEach(_doneWithShareCopy);
-      await _releaseShareCopies(paths);
-    }
-  }
-
-  void _useShareCopy(String path) =>
-      _shareCopyUses.update(path, (uses) => uses + 1, ifAbsent: () => 1);
-
-  void _doneWithShareCopy(String path) {
-    final uses = (_shareCopyUses[path] ?? 1) - 1;
-    if (uses > 0) {
-      _shareCopyUses[path] = uses;
-    } else {
-      _shareCopyUses.remove(path);
-    }
-  }
-
-  Future<void> _releaseShareCopies(Iterable<String> paths) async {
-    final unused = <XFile>[];
-    for (final path in paths) {
-      if (!_shareCopies.contains(path) || _shareCopyUses.containsKey(path)) {
-        continue;
-      }
-      if (mounted && _failedSends.any((failed) => failed.video?.path == path)) {
-        continue;
-      }
-      _shareCopies.remove(path);
-      unused.add(XFile(path));
-    }
-    await discardSharedCopies(unused);
-  }
-
-  Future<void> _sendMixedMediaBatch(List<XFile> picked) async {
-    final items = <PickedMedia>[
-      for (final file in picked)
-        if (looksLikeVideo(file))
-          PickedVideo(path: file.path, name: file.name)
-        else
-          PickedImage(bytes: await file.readAsBytes(), name: file.name),
-    ];
-    if (!mounted) return;
-
-    final composed = await Navigator.of(context).push<List<ComposedMedia>>(
-      MaterialPageRoute(builder: (_) => MediaCaptionComposerPage(items: items)),
-    );
-    if (composed == null) return;
-
-    final groupId = composed.length > 1 ? _newGalleryGroupId() : null;
-    await _keepingUploadAlive(() async {
-      for (var i = 0; i < composed.length; i++) {
-        if (!mounted) return;
-        final gallery = groupId == null
-            ? null
-            : GalleryGroupRef(id: groupId, index: i, count: composed.length);
-        switch (composed[i]) {
-          case ComposedImageResult(:final image):
-            await _sendPhoto(
-              image.bytes,
-              caption: image.caption,
-              gallery: gallery,
-            );
-          case ComposedVideoResult(:final video):
-            await _sendVideoAttachment(video, gallery: gallery);
-        }
+        await _sendFile(
+          session,
+          await file.readAsBytes(),
+          name: file.name,
+          mimeType: file.mimeType,
+        );
       }
     });
   }
 
+  Future<void> _withCopies(
+    List<String> paths,
+    Future<void> Function() body,
+  ) async {
+    _copies.addAll(paths);
+    for (final path in paths) {
+      _copyUses.update(path, (uses) => uses + 1, ifAbsent: () => 1);
+    }
+    try {
+      await body();
+    } finally {
+      for (final path in paths) {
+        final uses = _copyUses[path]! - 1;
+        if (uses > 0) {
+          _copyUses[path] = uses;
+        } else {
+          _copyUses.remove(path);
+        }
+      }
+      await _releaseCopies(paths);
+    }
+  }
+
+  Future<void> _releaseCopies(List<String> paths) async {
+    final unused = [
+      for (final path in paths)
+        if (_copies.contains(path) &&
+            !_copyUses.containsKey(path) &&
+            !(mounted && _failedSends.any((failed) => failed.path == path)))
+          path,
+    ];
+    _copies.removeAll(unused);
+    await Future.wait(unused.map(discardTemporaryCopy));
+  }
+
   Future<void> _pickAndSendFile() async {
+    final session = _sendSession();
     final files = await trackPickerCopy(
       (onFileLoading) => FilePicker.pickFiles(onFileLoading: onFileLoading),
       onCopying: (copying) {
         if (mounted) setState(() => _gettingFile = copying);
       },
     );
-    try {
+    await _withCopies([for (final file in files) ?file.path], () async {
       for (final file in files) {
-        final bytes = await file.readAsBytes();
-        if (!mounted) return;
-        await _sendFile(bytes, name: file.name);
+        await _sendFile(session, await file.readAsBytes(), name: file.name);
       }
-    } finally {
-      await Future.wait(files.map(discardPickedCopy));
-    }
-  }
-
-  Future<void> _pickAndSendVideo(ImageSource source) async {
-    final picked = await ImagePicker().pickVideo(source: source);
-    if (picked == null || !mounted) return;
-    await _pickAndSendVideoFile(picked);
-  }
-
-  Future<void> _pickAndSendVideoFile(XFile picked) async {
-    final composed = await Navigator.of(context).push<ComposedVideo>(
-      MaterialPageRoute(
-        builder: (_) =>
-            VideoCaptionComposerPage(path: picked.path, name: picked.name),
-      ),
-    );
-    if (composed == null || !mounted) return;
-
-    await _sendVideoAttachment(composed);
+    });
   }
 
   Future<void> _sendVideoAttachment(
+    _SendSession session,
     ComposedVideo composed, {
     GalleryGroupRef? gallery,
   }) {
-    final messenger = ScaffoldMessenger.of(context);
     final txid = widget.room.client.generateUniqueTransactionId();
     return _guardedSend(
+      session,
       txid,
       () => _withSendProgress(
+        session,
         PendingAttachmentSend(
           eventId: txid,
           width: composed.width,
@@ -1191,7 +1213,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
         (progress) async {
           final prepared = await prepareVideoForSend(
             composed.path,
-            reduceMediaSize: ref.read(reduceMediaSizeProvider),
+            reduceMediaSize: session.reduceMediaSize,
             fallbackWidth: composed.width,
             fallbackHeight: composed.height,
             fallbackDurationMs: composed.durationMs,
@@ -1213,74 +1235,76 @@ class _RoomPageState extends ConsumerState<RoomPage>
           );
         },
       ),
-      onFailed: (error) => _recordFailedSend(
-        FailedMediaSend(
-          gallery: gallery,
-          video: composed,
-          caption: composed.caption,
-        ),
-        error: error,
-        messenger: messenger,
+      onFailed: () => _recordFailedSend(
+        FailedMediaSend(gallery: gallery, video: composed),
+        session,
       ),
     );
   }
 
   Future<void> _sendPhoto(
-    Uint8List bytes, {
-    String? caption,
+    _SendSession session,
+    ComposedImage image, {
     GalleryGroupRef? gallery,
   }) {
-    final messenger = ScaffoldMessenger.of(context);
     final txid = widget.room.client.generateUniqueTransactionId();
     return _guardedSend(
+      session,
       txid,
-      () => _withSendProgress(
-        PendingAttachmentSend(
-          eventId: txid,
-          previewBytes: bytes,
-          kind: SendMediaKind.photo,
-        ),
-        (progress) async {
-          final prepared = await prepareImageForSend(
-            bytes,
-            reduceMediaSize: ref.read(reduceMediaSizeProvider),
-            onProgress: progress.compression,
-          );
-          await widget.room.sendFileEvent(
-            prepared.file,
-            txid: txid,
-            thumbnail: prepared.thumbnail,
-            extraContent: _attachmentExtraContent(
-              caption: caption,
-              gallery: gallery,
-            ),
-          );
-        },
-      ),
-      onFailed: (error) => _recordFailedSend(
-        FailedMediaSend(gallery: gallery, bytes: bytes, caption: caption),
-        error: error,
-        messenger: messenger,
+      () async {
+        final bytes = await File(image.path).readAsBytes();
+        await _withSendProgress(
+          session,
+          PendingAttachmentSend(
+            eventId: txid,
+            previewBytes: bytes,
+            kind: SendMediaKind.photo,
+          ),
+          (progress) async {
+            final prepared = await prepareImageForSend(
+              bytes,
+              reduceMediaSize: session.reduceMediaSize,
+              onProgress: progress.compression,
+            );
+            await widget.room.sendFileEvent(
+              prepared.file,
+              txid: txid,
+              thumbnail: prepared.thumbnail,
+              extraContent: _attachmentExtraContent(
+                caption: image.caption,
+                gallery: gallery,
+              ),
+            );
+          },
+        );
+      },
+      onFailed: () => _recordFailedSend(
+        FailedMediaSend(gallery: gallery, photo: image),
+        session,
       ),
     );
   }
 
-  Future<void> _sendFile(Uint8List bytes, {required String name}) {
-    final messenger = ScaffoldMessenger.of(context);
+  Future<void> _sendFile(
+    _SendSession session,
+    Uint8List bytes, {
+    required String name,
+    String? mimeType,
+  }) {
     final txid = widget.room.client.generateUniqueTransactionId();
     return _guardedSend(
+      session,
       txid,
       () => _withSendProgress(
+        session,
         PendingAttachmentSend(eventId: txid, kind: SendMediaKind.file),
         (_) => widget.room.sendFileEvent(
-          MatrixFile.fromMimeType(bytes: bytes, name: name),
+          MatrixFile.fromMimeType(bytes: bytes, name: name, mimeType: mimeType),
           txid: txid,
           extraContent: _attachmentExtraContent(caption: null, gallery: null),
         ),
       ),
-      onFailed: (error) => messenger.showSnackBar(
-        const SnackBar(content: Text('Not sent. Try again.')),
-      ),
+      onFailed: () => session.say('Not sent. Try again.'),
     );
   }
 
@@ -1300,15 +1324,9 @@ class _RoomPageState extends ConsumerState<RoomPage>
     return content.isEmpty ? null : content;
   }
 
-  void _recordFailedSend(
-    FailedMediaSend failed, {
-    required Object error,
-    required ScaffoldMessengerState messenger,
-  }) {
+  void _recordFailedSend(FailedMediaSend failed, _SendSession session) {
     if (!mounted) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Not sent. Try again.')),
-      );
+      session.say('Not sent. Try again.');
       return;
     }
     setState(() => _failedSends.add(failed));
@@ -1316,28 +1334,16 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   Future<void> _retryFailedSend(FailedMediaSend failed) async {
     if (!_failedSends.contains(failed)) return;
+    final session = _sendSession();
     setState(() => _failedSends.remove(failed));
-    switch (failed) {
-      case FailedMediaSend(video: final video?):
-        final shared = _shareCopies.contains(video.path);
-        if (shared) _useShareCopy(video.path);
-        try {
-          await _sendVideoAttachment(video, gallery: failed.gallery);
-        } finally {
-          if (shared) {
-            _doneWithShareCopy(video.path);
-            await _releaseShareCopies([video.path]);
-          }
-        }
-      case FailedMediaSend(bytes: final bytes?):
-        await _sendPhoto(
-          bytes,
-          caption: failed.caption,
-          gallery: failed.gallery,
-        );
-      default:
-        return;
-    }
+    await _withCopies([?failed.path], () async {
+      switch (failed) {
+        case FailedMediaSend(photo: final photo?):
+          await _sendPhoto(session, photo, gallery: failed.gallery);
+        case FailedMediaSend(video: final video?):
+          await _sendVideoAttachment(session, video, gallery: failed.gallery);
+      }
+    });
   }
 
   Future<void> _resend(Event event) =>
@@ -1659,7 +1665,6 @@ class _RoomPageState extends ConsumerState<RoomPage>
   @override
   Widget build(BuildContext context) {
     final incognitoKeyboard = ref.watch(incognitoKeyboardProvider);
-    final linkPreviewsEnabled = ref.watch(linkPreviewsEnabledProvider);
     final showHiddenMessages = ref.watch(showHiddenMessagesProvider);
     final capabilities = ref.watch(platformCapabilitiesProvider);
     ref.listen<AsyncValue<bool>>(isOfflineProvider, (previous, next) {
@@ -1749,7 +1754,6 @@ class _RoomPageState extends ConsumerState<RoomPage>
                                 timeline: timeline,
                                 controller: _scrollController,
                                 showHiddenMessages: showHiddenMessages,
-                                linkPreviews: linkPreviewsEnabled,
                                 canReply: canPost,
                                 failedSends: _failedSends,
                                 pendingSend: _pendingSend,
@@ -1939,6 +1943,21 @@ class _SeenByTileState extends State<_SeenByTile> {
       ),
     );
   }
+}
+
+class _SendSession {
+  final ScaffoldMessengerState messenger;
+  final bool reduceMediaSize;
+  final Stream<double> uploadProgress;
+
+  const _SendSession({
+    required this.messenger,
+    required this.reduceMediaSize,
+    required this.uploadProgress,
+  });
+
+  void say(String message) =>
+      messenger.showSnackBar(SnackBar(content: Text(message)));
 }
 
 class _SendProgressSink {

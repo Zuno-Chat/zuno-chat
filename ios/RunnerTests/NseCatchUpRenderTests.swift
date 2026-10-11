@@ -130,7 +130,9 @@ private final class RecordingCatchUpPlatform: CatchUpPlatform {
     return true
   }
 
-  func recordShown(_ eventTokens: [String]) { sources.recordShown(eventTokens) }
+  func claim(_ eventToken: String) -> Bool { sources.claim(eventToken) }
+  func release(_ eventToken: String) { sources.release(eventToken) }
+  func settle(_ eventToken: String) { sources.settle(eventToken) }
   func now() -> Date { Date() }
 }
 
@@ -184,6 +186,20 @@ final class NsePipelineCatchUpTests: XCTestCase {
     XCTAssertEqual(calls.runs, 1)
     XCTAssertEqual(calls.posted.map(\.identifier), ["zuno.catchup.e$m1:zuno.im"])
     XCTAssertTrue(NseStateStore(files: harness.files).isShown("e$m1:zuno.im"))
+    XCTAssertTrue(NseStateStore(files: harness.files).state().pending.isEmpty)
+  }
+
+  func testAnEventWhoseProcessDiedBeforePostingItIsCaughtUpByTheNextOne() async {
+    let harness = harness()
+    _ = NseStateStore(files: harness.files).claimPending("e$m1:zuno.im", process: 50)
+    harness.transport.reply(
+      "nse/fetch", reply(extras: ["missed": [missed("$m1:zuno.im", in: otherRoom)]]))
+    let calls = CatchUpCalls()
+
+    _ = await run(harness, calls)
+
+    XCTAssertEqual(calls.posted.map(\.identifier), ["zuno.catchup.e$m1:zuno.im"])
+    XCTAssertTrue(NseStateStore(files: harness.files).state().pending.isEmpty)
   }
 
   func testTheBadgeDropsRoomsReadElsewhereAndKeepsThePushedRoom() async {

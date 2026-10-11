@@ -1,12 +1,13 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../navigation/zuno_links.dart';
 import '../ui/zuno_colors.dart';
 import 'matrix_ids.dart';
+import 'mention_fragments.dart';
 import 'urls.dart';
 
-typedef _Hit = ({int start, int end, String shown, bool isMention});
+typedef _Hit = ({int start, int end, String shown, Uri? link});
 
 class LinkifiedText extends StatelessWidget {
   final String text;
@@ -26,11 +27,6 @@ class LinkifiedText extends StatelessWidget {
     super.key,
   });
 
-  static final _roomMentionPattern = RegExp(
-    r'(?<![\w@])@room(?![\w])',
-    caseSensitive: false,
-  );
-
   static const _serverName = r'[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?';
 
   static final _userMentionPattern = RegExp(
@@ -46,14 +42,19 @@ class LinkifiedText extends StatelessWidget {
   Widget build(BuildContext context) {
     final mentionable = this.mentionable;
     final hits = <_Hit>[
-      for (final m in urlPattern.allMatches(text))
-        (start: m.start, end: m.end, shown: m.group(0)!, isMention: false),
-      for (final m in _roomMentionPattern.allMatches(text))
-        (start: m.start, end: m.end, shown: m.group(0)!, isMention: true),
+      for (final link in linksIn(text))
+        (
+          start: link.start,
+          end: link.end,
+          shown: text.substring(link.start, link.end),
+          link: link.uri,
+        ),
+      for (final m in roomMentionPattern.allMatches(text))
+        (start: m.start, end: m.end, shown: m.group(0)!, link: null),
       if (mentionable != null)
         for (final m in _userMentionPattern.allMatches(text))
           if (mentionable.contains(m.group(1)!.toLowerCase()))
-            (start: m.start, end: m.end, shown: m.group(1)!, isMention: true),
+            (start: m.start, end: m.end, shown: m.group(1)!, link: null),
     ]..sort((a, b) => a.start.compareTo(b.start));
     final trailing = this.trailing;
     if (hits.isEmpty && trailing == null) {
@@ -80,19 +81,16 @@ class LinkifiedText extends StatelessWidget {
       if (hit.start > last) {
         spans.add(TextSpan(text: text.substring(last, hit.start)));
       }
-      if (hit.isMention) {
+      final link = hit.link;
+      if (link == null) {
         spans.add(TextSpan(text: hit.shown, style: mentionStyle));
       } else {
-        final uri = Uri.tryParse(hit.shown);
         spans.add(
           TextSpan(
             text: hit.shown,
             style: linkStyle,
-            recognizer: uri == null || !isSafeExternalUri(uri)
-                ? null
-                : (TapGestureRecognizer()
-                    ..onTap = () =>
-                        launchUrl(uri, mode: LaunchMode.externalApplication)),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () => openLink(context, link, openUrl: openExternally),
           ),
         );
       }

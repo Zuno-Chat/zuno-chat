@@ -26,16 +26,20 @@ struct SystemKeychain: KeychainBackend {
     query[kSecMatchLimit as String] = kSecMatchLimitOne
     var result: CFTypeRef?
     let status = SecItemCopyMatching(query as CFDictionary, &result)
+    return Self.read(status: status, result: result, label: "keychain read \(service)")
+  }
+
+  static func read(status: OSStatus, result: CFTypeRef?, label: String) -> KeychainRead {
     switch status {
     case errSecSuccess:
       guard let data = result as? Data else { return .failed(status) }
       return .found(data)
     case errSecItemNotFound:
       return .missing
-    case errSecInteractionNotAllowed:
+    case _ where isLocked(status):
       return .locked
     default:
-      Self.checked(status, "keychain read \(service)")
+      checked(status, label)
       return .failed(status)
     }
   }

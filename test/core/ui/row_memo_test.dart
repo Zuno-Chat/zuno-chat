@@ -28,6 +28,45 @@ void main() {
     expect(identical(first, second), isFalse);
   });
 
+  test('the same source with equal data returns the identical widget', () {
+    final memo = RowMemo<String>();
+    final source = Object();
+
+    final first = memo.obtain(
+      'a',
+      'same',
+      () => SizedBox(key: UniqueKey()),
+      source: source,
+    );
+    final second = memo.obtain(
+      'a',
+      'same',
+      () => SizedBox(key: UniqueKey()),
+      source: source,
+    );
+
+    expect(identical(first, second), isTrue);
+  });
+
+  test('a new source builds a new widget even with equal data', () {
+    final memo = RowMemo<String>();
+
+    final first = memo.obtain(
+      'a',
+      'same',
+      () => SizedBox(key: UniqueKey()),
+      source: Object(),
+    );
+    final second = memo.obtain(
+      'a',
+      'same',
+      () => SizedBox(key: UniqueKey()),
+      source: Object(),
+    );
+
+    expect(identical(first, second), isFalse);
+  });
+
   test('ids are independent', () {
     final memo = RowMemo<String>();
 

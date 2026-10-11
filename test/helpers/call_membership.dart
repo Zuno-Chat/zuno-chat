@@ -52,3 +52,14 @@ Event callMemberEvent(
     ],
   },
 );
+
+void leaveCalls(Room room, {required String userId}) => room.setState(
+  buildTestEvent(
+    room,
+    eventId: '\$left-$userId',
+    senderId: userId,
+    stateKey: userId,
+    type: callMemberEventType,
+    content: {'memberships': <Object?>[]},
+  ),
+);

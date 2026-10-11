@@ -44,11 +44,11 @@ final class NseContentFactoryTests: XCTestCase {
     XCTAssertEqual(content.userInfo["room_id"] as? String, "!abc:zuno.im")
   }
 
-  func testTheCategoryReachesTheNotificationOnlyOnceActionsAreRoutedNatively() {
+  func testTheCategoryReachesTheNotification() {
     var delivery = NseComposer.test()
     delivery.category = "message"
     let content = NseContentFactory.content(for: delivery, original: UNNotificationContent())
-    XCTAssertEqual(content.categoryIdentifier, NotificationCategories.shown("message"))
+    XCTAssertEqual(content.categoryIdentifier, "message")
   }
 
   func testRingsUseTheBundledSounds() {

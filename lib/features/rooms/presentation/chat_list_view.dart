@@ -116,7 +116,7 @@ class _ChatListViewState extends State<ChatListView> {
       slivers: [
         if (invitations.isNotEmpty) ...[
           const SliverToBoxAdapter(child: SectionLabel('Invitations')),
-          SliverToBoxAdapter(child: InvitationGroup(invitations: invitations)),
+          InvitationGroup(invitations: invitations),
           if (rows.isNotEmpty)
             SliverToBoxAdapter(child: SectionLabel(widget.rowsLabel)),
         ],
@@ -143,6 +143,7 @@ class _ChatListViewState extends State<ChatListView> {
               return _memo.obtain(
                 room.id,
                 data,
+                source: room,
                 () => ChatRow(
                   key: ValueKey(room.id),
                   data: data,

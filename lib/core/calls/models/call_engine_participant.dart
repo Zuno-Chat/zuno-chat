@@ -25,30 +25,6 @@ class CallEngineParticipant {
     this.frontCamera = false,
   });
 
-  CallEngineParticipant copyWith({
-    MediaStream? audioStream,
-    bool clearAudioStream = false,
-    MediaStream? videoStream,
-    bool clearVideoStream = false,
-    bool? audioMuted,
-    bool? videoEnabled,
-    bool? encrypted,
-    bool? lowBandwidth,
-    bool? frontCamera,
-  }) {
-    return CallEngineParticipant(
-      id: id,
-      isLocal: isLocal,
-      audioStream: clearAudioStream ? null : (audioStream ?? this.audioStream),
-      videoStream: clearVideoStream ? null : (videoStream ?? this.videoStream),
-      audioMuted: audioMuted ?? this.audioMuted,
-      videoEnabled: videoEnabled ?? this.videoEnabled,
-      encrypted: encrypted ?? this.encrypted,
-      lowBandwidth: lowBandwidth ?? this.lowBandwidth,
-      frontCamera: frontCamera ?? this.frontCamera,
-    );
-  }
-
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

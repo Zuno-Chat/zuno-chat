@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
@@ -14,12 +18,26 @@ class CallUnreadCorrectionNotifier extends Notifier<Map<String, int>> {
   @override
   Map<String, int> build() {
     final client = ref.watch(matrixClientProvider);
-    final sub = client.onTimelineEvent.stream.listen(_handleEvent);
-    ref.onDispose(sub.cancel);
+    final events = client.onTimelineEvent.stream.listen(_handleEvent);
+    final syncs = client.onSync.stream.listen((_) => _keepWithinCount(client));
+    ref.onDispose(() {
+      unawaited(events.cancel());
+      unawaited(syncs.cancel());
+    });
     return {};
   }
 
+  void _keepWithinCount(Client client) {
+    final kept = <String, int>{};
+    for (final MapEntry(key: roomId, value: correction) in state.entries) {
+      final counted = client.getRoomById(roomId)?.notificationCount ?? 0;
+      if (counted > 0) kept[roomId] = min(correction, counted);
+    }
+    if (!mapEquals(kept, state)) state = kept;
+  }
+
   void _handleEvent(Event event) {
+    if (event.senderId == event.room.client.userID) return;
     if (event.relationshipType == RelationshipTypes.reference) return;
     final hidesFromTimeline =
         event.type == EventTypes.Message &&

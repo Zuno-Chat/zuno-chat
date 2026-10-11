@@ -58,14 +58,12 @@ void main() {
     final marks = await nse.takeMarks();
     reply = [
       {'kind': 'counter', 'key': 'nse.c.20260921.o.utd', 'count': 2},
-      {'kind': 'utd', 'room': '!r:x', 'event': r'$e', 'ts': 7},
       {'kind': 'generation', 'value': 'g1'},
     ];
     final report = await nse.readOutcomes();
 
     expect(marks.single.room, '!r:x');
     expect(report.counters, {'nse.c.20260921.o.utd': 2});
-    expect(report.utd.single.event, r'$e');
     expect(report.generation, 'g1');
   });
 

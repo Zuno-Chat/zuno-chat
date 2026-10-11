@@ -13,11 +13,25 @@ import '../../helpers/fake_matrix.dart';
 
 const _me = '@me:example.org';
 
+void nameParent(Room room, String parentId) => room.setState(
+  buildTestEvent(
+    room,
+    eventId: '\$parent-${room.id}-$parentId',
+    senderId: _me,
+    type: EventTypes.SpaceParent,
+    stateKey: parentId,
+    content: {
+      'via': ['example.org'],
+    },
+  ),
+);
+
 Room addSpace(
   Client client,
   String id, {
   List<String> children = const [],
   Membership membership = Membership.join,
+  bool named = true,
 }) {
   final room = buildTestRoom(client, id: id)..membership = membership;
   room.setState(
@@ -44,6 +58,8 @@ Room addSpace(
         },
       ),
     );
+    final listed = client.getRoomById(child);
+    if (named && listed != null) nameParent(listed, id);
   }
   client.rooms.add(room);
   return room;
@@ -55,9 +71,13 @@ Room addRoom(
   DateTime? at,
   int unread = 0,
   Membership membership = Membership.join,
+  List<String> parents = const [],
 }) {
   final room = buildTestRoom(client, id: id, notificationCount: unread)
     ..membership = membership;
+  for (final parent in parents) {
+    nameParent(room, parent);
+  }
   if (at != null) {
     room.lastEvent = buildTestEvent(
       room,
@@ -136,6 +156,18 @@ void main() {
       );
 
       expect(communityRooms(community), isEmpty);
+    });
+
+    test('leaves out a room it lists that does not name it', () {
+      final gear = addRoom(client, '!gear:example.org', at: at(10));
+      final mallory = addSpace(
+        client,
+        '!mallory:example.org',
+        children: [gear.id],
+        named: false,
+      );
+
+      expect(communityRooms(mallory), isEmpty);
     });
   });
 
@@ -219,6 +251,38 @@ void main() {
       expect(layout.communityRooms[club.id], isEmpty);
     });
 
+    test('a room a community lists without being named stays in chats', () {
+      final gear = addRoom(client, '!gear:example.org', at: at(9));
+      final mallory = addSpace(
+        client,
+        '!mallory:example.org',
+        children: [gear.id],
+        named: false,
+      );
+
+      final layout = arrangeHome([gear, mallory]);
+
+      expect(layout.chats, [gear]);
+      expect(layout.communityRooms[mallory.id], isEmpty);
+    });
+
+    test('a room shows only under the communities it names', () {
+      final gear = addRoom(client, '!gear:example.org', at: at(9));
+      final club = addSpace(client, '!club:example.org', children: [gear.id]);
+      final other = addSpace(
+        client,
+        '!other:example.org',
+        children: [gear.id],
+        named: false,
+      );
+
+      final layout = arrangeHome([gear, club, other]);
+
+      expect(layout.chats, isEmpty);
+      expect(layout.communityRooms[club.id], [gear]);
+      expect(layout.communityRooms[other.id], isEmpty);
+    });
+
     test('a room in two communities shows under both', () {
       final shared = addRoom(client, '!shared:example.org', at: at(9));
       final a = addSpace(client, '!a:example.org', children: [shared.id]);
@@ -294,8 +358,16 @@ void main() {
   });
 
   group('communitiesOf', () {
-    test('names the joined communities that list the room', () {
-      final room = addRoom(client, '!gear:example.org');
+    test('names the joined communities that list the room it names', () {
+      final room = addRoom(
+        client,
+        '!gear:example.org',
+        parents: [
+          '!club:example.org',
+          '!other:example.org',
+          '!invited:example.org',
+        ],
+      );
       final club = addSpace(client, '!club:example.org', children: [room.id]);
       addSpace(client, '!other:example.org');
       addSpace(
@@ -307,11 +379,28 @@ void main() {
 
       expect(communitiesOf(room), [club]);
     });
+
+    test('a community listing a room that does not name it holds nothing', () {
+      final room = addRoom(client, '!gear:example.org');
+      addSpace(
+        client,
+        '!mallory:example.org',
+        children: [room.id],
+        named: false,
+      );
+
+      expect(communitiesOf(room), isEmpty);
+      expect(communityNameOf(room), isNull);
+    });
   });
 
   group('communityNameOf', () {
     test('names the community a room belongs to, or nothing', () {
-      final room = addRoom(client, '!gear:example.org');
+      final room = addRoom(
+        client,
+        '!gear:example.org',
+        parents: ['!club:example.org'],
+      );
       expect(communityNameOf(room), isNull);
 
       final club = addSpace(client, '!club:example.org', children: [room.id]);
@@ -332,8 +421,18 @@ void main() {
 
   group('roomsLeavingWith', () {
     test('takes the rooms no other joined community holds', () {
-      final only = addRoom(client, '!only:example.org', at: at(10));
-      final shared = addRoom(client, '!shared:example.org', at: at(9));
+      final only = addRoom(
+        client,
+        '!only:example.org',
+        at: at(10),
+        parents: ['!club:example.org'],
+      );
+      final shared = addRoom(
+        client,
+        '!shared:example.org',
+        at: at(9),
+        parents: ['!club:example.org', '!other:example.org'],
+      );
       final club = addSpace(
         client,
         '!club:example.org',
@@ -342,6 +441,37 @@ void main() {
       addSpace(client, '!other:example.org', children: [shared.id]);
 
       expect(roomsLeavingWith(club), [only]);
+    });
+
+    test('keeps a room the community lists but the room does not name', () {
+      final gear = addRoom(client, '!gear:example.org', at: at(10));
+      final mallory = addSpace(
+        client,
+        '!mallory:example.org',
+        children: [gear.id],
+        named: false,
+      );
+
+      expect(roomsLeavingWith(mallory), isEmpty);
+    });
+
+    test('another community listing the room does not keep it', () {
+      final gear = addRoom(
+        client,
+        '!gear:example.org',
+        at: at(10),
+        parents: ['!club:example.org'],
+      );
+      final club = addSpace(client, '!club:example.org', children: [gear.id]);
+      final mallory = addSpace(
+        client,
+        '!mallory:example.org',
+        children: [gear.id],
+        named: false,
+      );
+
+      expect(roomsLeavingWith(club), [gear]);
+      expect(arrangeHome(client.rooms).communityRooms[mallory.id], isEmpty);
     });
   });
 
@@ -586,8 +716,18 @@ void main() {
 
     test('leaving a community leaves the rooms only it holds, then the '
         'community', () async {
-      final only = addRoom(client, '!only:example.org', at: at(10));
-      final shared = addRoom(client, '!shared:example.org', at: at(9));
+      final only = addRoom(
+        client,
+        '!only:example.org',
+        at: at(10),
+        parents: ['!club:example.org'],
+      );
+      final shared = addRoom(
+        client,
+        '!shared:example.org',
+        at: at(9),
+        parents: ['!club:example.org', '!other:example.org'],
+      );
       final club = addSpace(
         client,
         '!club:example.org',
@@ -608,7 +748,12 @@ void main() {
     });
 
     test('a room that cannot be left keeps the community joined', () async {
-      final only = addRoom(client, '!only:example.org', at: at(10));
+      final only = addRoom(
+        client,
+        '!only:example.org',
+        at: at(10),
+        parents: ['!club:example.org'],
+      );
       final club = addSpace(client, '!club:example.org', children: [only.id]);
       respond = (request) =>
           Uri.decodeComponent(request.url.path).contains(only.id)

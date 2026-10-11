@@ -62,25 +62,73 @@ void main() {
   });
 
   group('partitionSharedFiles', () {
-    test('splits by mime, with a video-extension fallback', () {
-      final result = partitionSharedFiles([
-        XFile('/c/a.jpg', mimeType: 'image/jpeg'),
-        XFile('/c/b.mp4', mimeType: 'video/mp4'),
-        XFile('/c/c.pdf', mimeType: 'application/pdf'),
-        XFile('/c/d.mov'),
-        XFile('/c/e.txt'),
-        XFile('/c/f.jpg', mimeType: 'application/octet-stream'),
+    late Directory dir;
+    const jpegHeader = [0xFF, 0xD8, 0xFF, 0xE0, 0, 0x10, 0x4A, 0x46];
+
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('zuno_partition_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+    });
+
+    XFile shared(String name, {String? mimeType, List<int> bytes = const []}) {
+      final file = File('${dir.path}/$name')..writeAsBytesSync(bytes);
+      return XFile(file.path, name: name, mimeType: mimeType);
+    }
+
+    List<(String, String?)> typed(List<XFile> files) => [
+      for (final f in files) (f.name, f.mimeType),
+    ];
+
+    test('a declared photo, video or document keeps its type', () async {
+      final result = await partitionSharedFiles([
+        shared('a.jpg', mimeType: 'image/jpeg'),
+        shared('b.mp4', mimeType: 'video/mp4'),
+        shared('c.pdf', mimeType: 'application/pdf'),
       ]);
-      expect(result.media.map((f) => f.path), [
-        '/c/a.jpg',
-        '/c/b.mp4',
-        '/c/d.mov',
+
+      expect(typed(result.media), [
+        ('a.jpg', 'image/jpeg'),
+        ('b.mp4', 'video/mp4'),
       ]);
-      expect(result.others.map((f) => f.path), [
-        '/c/c.pdf',
-        '/c/e.txt',
-        '/c/f.jpg',
+      expect(typed(result.others), [('c.pdf', 'application/pdf')]);
+    });
+
+    test('a photo without a usable type is still a photo', () async {
+      final result = await partitionSharedFiles([
+        shared('IMG_1.jpg'),
+        shared('IMG_2.jpg', mimeType: 'application/octet-stream'),
+        shared('scan', bytes: jpegHeader),
+        shared('clip.mov'),
       ]);
+
+      expect(typed(result.media), [
+        ('IMG_1.jpg', 'image/jpeg'),
+        ('IMG_2.jpg', 'image/jpeg'),
+        ('scan', 'image/jpeg'),
+        ('clip.mov', 'video/quicktime'),
+      ]);
+      expect(result.others, isEmpty);
+    });
+
+    test('a file nothing recognizes stays a file, typed', () async {
+      final result = await partitionSharedFiles([
+        shared('notes.txt'),
+        shared('blob', bytes: [1, 2, 3]),
+      ]);
+
+      expect(result.media, isEmpty);
+      expect(typed(result.others), [
+        ('notes.txt', 'text/plain'),
+        ('blob', 'application/octet-stream'),
+      ]);
+    });
+
+    test('a copy that cannot be read is typed by its name', () async {
+      final result = await partitionSharedFiles([
+        XFile('${dir.path}/gone.jpg', name: 'gone.jpg'),
+      ]);
+
+      expect(typed(result.media), [('gone.jpg', 'image/jpeg')]);
     });
   });
 
@@ -261,13 +309,5 @@ void main() {
       expect(replied, isTrue);
       expect(reply, isNull);
     });
-  });
-
-  test('discardSharedCopies deletes files and ignores missing ones', () async {
-    final dir = await Directory.systemTemp.createTemp('zuno_share_');
-    addTearDown(() => dir.delete(recursive: true));
-    final file = File('${dir.path}/a.txt')..writeAsStringSync('x');
-    await discardSharedCopies([XFile(file.path), XFile('${dir.path}/gone')]);
-    expect(file.existsSync(), isFalse);
   });
 }

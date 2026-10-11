@@ -12,7 +12,7 @@ the only source of truth.
 | Area | Components |
 |---|---|
 | Chat list | `RoomListPage` owns the new-chat flows and the long-press sheet, and `ChatListView` draws the list. The Chats and Communities tabs share one `arrangeHome` split per sync (`communities.md`). |
-| Rows | Each visible room is read into a value-equal `ChatRowData`, and `RowMemo` hands back the identical `ChatRow` for an unchanged record (pattern: `app-foundation.md`). Incoming invitations sit above the rows. |
+| Rows | Each visible room is read into a value-equal `ChatRowData`, and `RowMemo` hands back the identical `ChatRow` for an unchanged record (pattern: `app-foundation.md`). Incoming invitations sit above the rows, built lazily and memoized the same way. |
 | Directory | `public_rooms_sheet.dart` searches the server directory. The chat list joins the chosen room and opens it once sync brings it. |
 | Access | `room_access.dart` treats access as one concept over two server facts, the join rule and the directory listing (table under Decisions). |
 | Room info | `lib/features/room_info/`: header, quick actions, members, settings, permissions and media. Which sections show depends on the kind of room (table below). |
@@ -65,7 +65,8 @@ files.
 ## Decisions
 
 **Rooms and access**
-- **One kind-aware exit, not Leave plus Delete.** Both make the row vanish, so a user cannot tell them apart. `exitRoom` forgets a direct chat, which has no history to come back to, but only leaves a group, which persists without you and may be rejoinable. Declining an invitation goes through the same rule.
+- **One kind-aware exit, not Leave plus Delete.** Both make the row vanish, so a user cannot tell them apart. `exitRoom` forgets a direct chat, which has no history to come back to, but only leaves a group, which persists without you and may be rejoinable. Declining an invitation, from its card or its page, goes through the same rule.
+- **The last admin leaving is warned to make someone else admin first**, because nobody can manage a room again once its last admin is gone.
 - **Leaving, deleting or blocking ends that room's call first**, while the user is still a member, so the call's summary and membership clear still go out (`calls.md`).
 - **Access is one of four choices**, and each maps to a join rule and a directory listing:
 
@@ -95,7 +96,7 @@ files.
 - **Gate on "can do X" through the SDK getter, never on "will the server accept".** Each catalog entry agrees with its getter (`canBan`, `canSendEvent` and so on), which already handle cases such as encrypted and tombstoned rooms. A new permission-gated surface gets a catalog entry, never a hand-rolled power-level check.
 - **Some permissions are deliberately absent from the catalog.** Server ACLs are left out because Zuno has no federation, room upgrade because it needs its own design, and widgets because they are ruled out (`../decisions/excluded.md`).
 - **Permission editing is admin-only**, stricter than the room's own level. Every value the page writes is at most 100, so Matrix's rule that the sender must outrank both the old and the new value holds by construction.
-- **Member actions narrow the server's rule.** Only admins make admins, moderators can only move someone down, and nobody edits themselves, so the UI never offers an action the server would refuse.
+- **Member actions narrow the server's rule.** Only admins make admins, moderators can only move someone down, nobody edits themselves, and role changes need the power-levels permission (admin-only by default), so the UI never offers an action the server would refuse.
 - **The owner is the sender of the create event**, listed first and badged, but still an admin underneath. Ownership is a label, never a permission gate, because below room version 12 the creator can be demoted.
 - **Calls need someone to call.** Call buttons require both the call permission and at least one other joined member, read from the room summary, so calls are never offered in pending or emptied rooms.
 
@@ -131,7 +132,7 @@ files.
 - **A field missing from `ChatRowData` is a stale row**: the record must hold everything the row or its preview shows.
 - **The list delegate needs `findChildIndexCallback` keyed on the room ID**, or a chat jumping to the top remounts every row in between.
 - **Every text line in a row is strut-locked** (`core/ui/line_strut.dart`), because the list is fixed-extent and fallback fonts would otherwise grow a row.
-- **Synapse refuses directory publishing by default** (`room_list_publication_rules`), so Public fails until the server allows it, and the app keeps the room private.
+- **Synapse refuses directory publishing by default** (`room_list_publication_rules`), so Public fails until the server allows it: the app keeps the room private and says so in one message, never reporting it as an error.
 - **The access label reads the join rule, not the directory listing**, which costs a request per room, so an invite-only room listed by other means reads as private.
 - **Blocking clears the local cache**, which makes every open `Room` stale, so every Block entry point returns to the chat list.
 - **Blocked people show as usernames**, because servers refuse profile lookups for people you share no room with.

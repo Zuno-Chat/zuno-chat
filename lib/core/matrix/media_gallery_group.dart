@@ -46,19 +46,27 @@ class GalleryGrouping {
   const GalleryGrouping({required this.messages, required this.galleries});
 }
 
+String? ownGalleryId(Event event, String? ownUserId) =>
+    ownUserId != null && event.senderId == ownUserId
+    ? galleryGroupOf(event)?.id
+    : null;
+
 GalleryGrouping groupGalleries(
   List<Event> messages, {
-  Set<String> forceGroupIds = const {},
+  String? ownUserId,
+  Set<String> ownFailedGalleryIds = const {},
 }) {
-  final members = <String, List<Event>>{};
+  final members = <(String, String), List<Event>>{};
   for (final event in messages) {
     if (!isGalleryMedia(event)) continue;
     final ref = galleryGroupOf(event);
     if (ref == null) continue;
-    members.putIfAbsent(ref.id, () => []).add(event);
+    members.putIfAbsent((event.senderId, ref.id), () => []).add(event);
   }
   members.removeWhere(
-    (id, group) => group.length < 2 && !forceGroupIds.contains(id),
+    (_, group) =>
+        group.length < 2 &&
+        !ownFailedGalleryIds.contains(ownGalleryId(group.single, ownUserId)),
   );
   if (members.isEmpty) {
     return GalleryGrouping(messages: messages, galleries: const {});

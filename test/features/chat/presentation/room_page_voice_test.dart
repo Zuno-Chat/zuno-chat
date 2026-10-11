@@ -190,7 +190,7 @@ void main() {
     expect(find.text('Slide up to cancel'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('00:01'), findsOneWidget);
+    expect(find.text('0:01'), findsOneWidget);
 
     await realWait(tester, 350);
     await gesture.up();

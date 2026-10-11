@@ -21,6 +21,13 @@ void main() {
         );
       });
     }
+
+    test('names the address of an email link', () {
+      expect(
+        linkNotOpenedMessage(Uri.parse('mailto:a@example.org')),
+        'Email not opened. Write to a@example.org from your email.',
+      );
+    });
   });
 
   group('openLink', () {

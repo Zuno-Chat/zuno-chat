@@ -1,5 +1,9 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/attachment_cache.dart';
@@ -9,6 +13,7 @@ import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/send_progress.dart';
 import 'package:zuno/core/matrix/video_viewer_page.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
+import 'package:zuno/features/chat/data/composed_image.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/pending_attachment_tile.dart';
@@ -110,6 +115,101 @@ void main() {
     return context;
   }
 
+  double screenWidth(WidgetTester tester) =>
+      tester.view.physicalSize.width / tester.view.devicePixelRatio;
+
+  double? shownAt(WidgetTester tester, Finder within) => tester
+      .widget<MediaImage>(
+        find.descendant(of: within, matching: find.byType(MediaImage)),
+      )
+      .shownAt;
+
+  group('MediaImage', () {
+    Uint8List photo(int width, int height) =>
+        img.encodePng(img.Image(width: width, height: height));
+
+    Future<(int, int)> decode(
+      WidgetTester tester,
+      Uint8List bytes, {
+      double? shownAt,
+    }) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox.square(
+              dimension: 120,
+              child: MediaImage.memory(bytes, shownAt: shownAt),
+            ),
+          ),
+        ),
+      );
+      for (var i = 0; i < 100; i++) {
+        final image = tester.widget<RawImage>(find.byType(RawImage)).image;
+        if (image != null) return (image.width, image.height);
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump();
+      }
+      fail('the image never decoded');
+    }
+
+    testWidgets('a wide photo is decoded tall enough to cover its box', (
+      tester,
+    ) async {
+      expect(await decode(tester, photo(1600, 1200), shownAt: 120), (480, 360));
+    });
+
+    testWidgets('a tall photo is decoded wide enough to cover its box', (
+      tester,
+    ) async {
+      expect(await decode(tester, photo(1200, 1600), shownAt: 120), (360, 480));
+    });
+
+    testWidgets('a panorama is decoded no longer than twice its box', (
+      tester,
+    ) async {
+      expect(await decode(tester, photo(4000, 400), shownAt: 120), (720, 72));
+      expect(await decode(tester, photo(400, 4000), shownAt: 120), (72, 720));
+    });
+
+    testWidgets('a photo smaller than its box is never enlarged', (
+      tester,
+    ) async {
+      expect(await decode(tester, photo(64, 48), shownAt: 120), (64, 48));
+    });
+
+    testWidgets('without a size it covers the width of the screen', (
+      tester,
+    ) async {
+      expect(await decode(tester, photo(1600, 1200)), (1440, 1080));
+    });
+
+    testWidgets('a photo that cannot be decoded raises no error', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox.square(
+            dimension: 120,
+            child: MediaImage.memory(Uint8List(64), shownAt: 120),
+          ),
+        ),
+      );
+      for (var i = 0; i < 10; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump();
+      }
+
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('mediaAspectRatio', () {
     test('is unknown without sensible dimensions', () {
       expect(mediaAspectRatio(null, 300), isNull);
@@ -151,6 +251,20 @@ void main() {
         4 / 3,
       );
       expect(find.text('09:41'), findsOneWidget);
+    });
+
+    testWidgets('a photo is decoded to cover the width of the screen', (
+      tester,
+    ) async {
+      final event = media('photo');
+      thumbnailOnPhone(event);
+
+      await pumpIn(
+        tester,
+        ImageMessage(event: event, mediaMeta: _meta, showTimeOverlay: true),
+      );
+
+      expect(shownAt(tester, find.byType(ImageMessage)), isNull);
     });
 
     testWidgets('a captioned photo leaves the time to the caption', (
@@ -227,6 +341,7 @@ void main() {
       await tester.tap(find.byType(AspectRatio));
 
       expect(find.byType(Image), findsOneWidget);
+      expect(shownAt(tester, find.byType(ImageMessage)), isNull);
       expect(find.byType(AttachmentProgressBar), findsOneWidget);
       expect(pushes.routes, isEmpty);
     });
@@ -256,7 +371,7 @@ void main() {
       );
 
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
-      expect(find.text('00:42'), findsOneWidget);
+      expect(find.text('0:42'), findsOneWidget);
       expect(find.text('09:41'), findsOneWidget);
       expect(find.byType(Image), findsOneWidget);
     });
@@ -301,7 +416,7 @@ void main() {
         VideoMessage(event: video(), mediaMeta: _meta, showTimeOverlay: false),
       );
 
-      expect(find.text('00:42'), findsNothing);
+      expect(find.text('0:42'), findsNothing);
       expect(find.text('09:41'), findsNothing);
     });
 
@@ -335,7 +450,7 @@ void main() {
       await tester.tap(find.byType(AspectRatio));
 
       expect(find.byIcon(Icons.play_arrow), findsNothing);
-      expect(find.text('00:42'), findsNothing);
+      expect(find.text('0:42'), findsNothing);
       expect(find.byType(Image), findsOneWidget);
       expect(
         tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio,
@@ -405,6 +520,24 @@ void main() {
       for (var i = 0; i < count; i++) galleryItem('g$i', i, count),
     ];
 
+    testWidgets('side by side items decode at half the screen, an odd one '
+        'out at the full screen', (tester) async {
+      final events = items(3);
+      events.forEach(thumbnailOnPhone);
+
+      await pumpIn(tester, gallery(events));
+
+      expect(
+        [
+          for (final image in tester.widgetList<MediaImage>(
+            find.byType(MediaImage),
+          ))
+            image.shownAt,
+        ],
+        [screenWidth(tester) / 2, screenWidth(tester) / 2, screenWidth(tester)],
+      );
+    });
+
     testWidgets('two items sit side by side as squares', (tester) async {
       await pumpIn(tester, gallery(items(2)));
 
@@ -462,9 +595,11 @@ void main() {
     testWidgets('a failed item sits in its place and retries when tapped', (
       tester,
     ) async {
+      final saved = File('${server.root.path}/photo.png')
+        ..writeAsBytesSync(onePixelPng);
       final failure = FailedMediaSend(
         gallery: const GalleryGroupRef(id: 'g', index: 1, count: 3),
-        bytes: onePixelPng,
+        photo: ComposedImage(path: saved.path, name: 'photo.png', caption: ''),
       );
       await pumpIn(
         tester,
@@ -478,6 +613,10 @@ void main() {
 
       expect(retried, [same(failure)]);
       expect(pushes.routes, isEmpty);
+      expect(
+        shownAt(tester, find.byType(GalleryFailedThumbnail)),
+        screenWidth(tester) / 2,
+      );
     });
 
     testWidgets('a failed item without a preview is a plain tile', (
@@ -508,5 +647,16 @@ void main() {
       expect(spinner.value, 0.75);
       expect(pushes.routes, isEmpty);
     });
+  });
+
+  testWidgets('a photo on its way is decoded no wider than the screen', (
+    tester,
+  ) async {
+    await pumpIn(
+      tester,
+      PendingAttachmentTile(pendingSend: sending(media('photo'))),
+    );
+
+    expect(shownAt(tester, find.byType(PendingAttachmentTile)), isNull);
   });
 }

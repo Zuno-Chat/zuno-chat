@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
+import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/quoted_message_box.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/date_divider.dart';
@@ -11,12 +12,14 @@ import 'package:zuno/features/chat/presentation/file_name_text.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
 import 'package:zuno/features/chat/presentation/message_contents/call_summary_tile.dart';
 import 'package:zuno/features/chat/presentation/message_contents/file_message.dart';
+import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/reactions_row.dart';
 import 'package:zuno/features/chat/presentation/message_contents/reply_quote.dart';
 import 'package:zuno/features/chat/presentation/message_contents/voice_message.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
 import 'package:zuno/features/chat/presentation/reply_target_cache.dart';
 
+import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/zuno_app.dart';
 
@@ -79,7 +82,7 @@ void main() {
     );
     expect(find.byIcon(Icons.videocam_outlined), findsOneWidget);
     expect(find.text('Video call'), findsOneWidget);
-    final length = tester.widget<Text>(find.text('04:12'));
+    final length = tester.widget<Text>(find.text('4:12'));
     expect(length.style!.color, colors.onSurfaceVariant);
     expect(find.byType(MessageMeta), findsOneWidget);
   });
@@ -209,6 +212,49 @@ void main() {
     final name = tester.widget<Text>(find.text('Bob'));
     expect(name.style!.color, colors.primary);
     expect(name.style!.fontWeight, FontWeight.w500);
+  });
+
+  testWidgets('a quoted photo is decoded at the size it is shown', (
+    tester,
+  ) async {
+    final target = buildTestEvent(
+      room,
+      eventId: r'$photo',
+      senderId: bob,
+      originServerTs: noon,
+      status: EventStatus.synced,
+      content: {
+        'msgtype': 'm.image',
+        'body': 'photo.png',
+        'url': 'mxc://example.org/photo',
+        'info': {'w': 4000, 'h': 3000},
+      },
+    );
+    AttachmentCache.instance.put(
+      attachmentCacheKey(target, thumbnail: true),
+      onePixelPng,
+    );
+    addTearDown(AttachmentCache.instance.clear);
+    db.events = [target];
+    final timeline = (await tester.runAsync(room.getTimeline))!;
+    addTearDown(timeline.cancelSubscriptions);
+
+    await tester.pumpWidget(
+      inZunoApp(
+        ReplyQuote(
+          timeline: timeline,
+          eventId: r'$photo',
+          target: target,
+          cache: ReplyTargetCache((_) async => null),
+          own: false,
+        ),
+      ),
+    );
+
+    expect(
+      tester.widget<MediaImage>(find.byType(MediaImage)).shownAt,
+      quotedThumbnailSize,
+    );
   });
 
   testWidgets('a reply quote never looks up from build', (tester) async {

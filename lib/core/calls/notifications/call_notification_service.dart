@@ -236,7 +236,8 @@ class CallNotificationService {
   final _plugin = FlutterLocalNotificationsPlugin();
   final _actionController =
       StreamController<CallNotificationResponse>.broadcast();
-  bool _initialized = false;
+  bool _ready = false;
+  Future<void>? _setup;
 
   final _messageTapController = StreamController<String>.broadcast();
   final _newDeviceTapController = StreamController<void>.broadcast();
@@ -310,9 +311,16 @@ class CallNotificationService {
       _ownsLiveRoutes = true;
       reclaimLiveRoutes();
     }
-    if (_initialized) return;
-    _initialized = true;
+    if (_ready) return;
+    final setup = _setup ??= _setUp();
+    try {
+      await setup;
+    } finally {
+      if (identical(_setup, setup)) _setup = null;
+    }
+  }
 
+  Future<void> _setUp() async {
     _channel.setMethodCallHandler((call) async {
       _handleNativeCall(call.method, call.arguments);
       return null;
@@ -353,6 +361,7 @@ class CallNotificationService {
     for (final channelId in _retiredChannelIds) {
       await android?.deleteNotificationChannel(channelId: channelId);
     }
+    _ready = true;
   }
 
   static const _markReadCategoryId = 'message';
@@ -700,7 +709,7 @@ class CallNotificationService {
     await initialize(claimDeclinePort: false);
     timing?.mark('init');
     await _rooms.run(
-      content.roomId,
+      content.thread,
       () => _showMessageInRoom(
         content,
         includeMessageActions: includeMessageActions,
@@ -725,6 +734,8 @@ class CallNotificationService {
     required PushTiming? timing,
   }) async {
     final roomId = content.roomId;
+    final key = content.thread;
+    final inRoomThread = key == roomId;
     final title = content.title;
     final eventId = content.eventId;
     final senderAvatarUrl = content.senderAvatarUrl;
@@ -733,21 +744,22 @@ class CallNotificationService {
         alreadyShown: eventId != null && wasEventNotified(prefs, eventId),
         placeholderDealtWith:
             eventId != null && wasPlaceholderShown(prefs, eventId),
-        lines: readNotificationThread(prefs, roomId)?.lines,
+        lines: readNotificationThread(prefs, key)?.lines,
         sound: readNotificationSoundSettings(prefs),
       ),
     );
     if (eventId != null && !refine && (stored?.alreadyShown ?? false)) {
       debugPrint('zuno/notifications: $eventId already shown, skipping');
-      await _retractPushNoticeInRoom(roomId, eventId);
+      if (inRoomThread) await _retractPushNoticeInRoom(roomId, eventId);
       return;
     }
-    final noticed = !refine && await _takeNoticeFor(roomId, eventId);
+    final noticed =
+        !refine && inRoomThread && await _takeNoticeFor(roomId, eventId);
     timing?.mark('prefs');
-    final notificationId = messageNotificationIdFor(roomId);
-    final showing = (await _activeNotifications()).any(
-      (n) => n.id == notificationId,
-    );
+    final active = {
+      for (final notification in await _activeNotifications()) ?notification.id,
+    };
+    final showing = active.contains(messageNotificationIdFor(key));
     final lines = [if (showing && !noticed) ...?stored?.lines];
     timing?.mark('thread');
     final index = eventId == null
@@ -807,6 +819,7 @@ class CallNotificationService {
     timing?.mark('sound');
     final thread = NotificationThread(
       roomId: roomId,
+      key: key,
       title: title,
       isGroupChat: !content.isDirectChat,
       lines: placed,
@@ -827,7 +840,7 @@ class CallNotificationService {
       timing: timing,
     );
     await _withStore((prefs) async {
-      await writeNotificationThread(prefs, thread);
+      await writeNotificationThread(prefs, thread, showing: active);
       if (eventId == null || refine) return;
       if (placeholder) {
         await markPlaceholderShownOnDisk(prefs, eventId);
@@ -883,7 +896,7 @@ class CallNotificationService {
             .toList();
         if (kept.length == thread.lines.length) return;
         if (kept.isEmpty) {
-          await _cancelInRoom(roomId);
+          await _cancelThread(roomId);
           return;
         }
         final remaining = NotificationThread(
@@ -1005,7 +1018,7 @@ class CallNotificationService {
       _ => await _threadIds.tokenFor(roomId) ?? previewThread,
     };
     await _plugin.show(
-      id: messageNotificationIdFor(roomId),
+      id: messageNotificationIdFor(thread.key),
       title: hidden ? previewNothingTitle : thread.title,
       body: hidden ? previewHiddenText : body,
       notificationDetails: NotificationDetails(
@@ -1137,12 +1150,12 @@ class CallNotificationService {
   int _newDeviceNotificationId(String deviceId) =>
       ('device:$deviceId').hashCode & 0x7fffffff;
 
-  Future<void> cancelMessageNotification(String roomId) =>
-      _rooms.run(roomId, () => _cancelInRoom(roomId));
+  Future<void> cancelMessageNotification(String thread) =>
+      _rooms.run(thread, () => _cancelThread(thread));
 
-  Future<void> _cancelInRoom(String roomId) async {
-    await _plugin.cancel(id: messageNotificationIdFor(roomId));
-    await _withStore((prefs) => clearNotificationThread(prefs, roomId));
+  Future<void> _cancelThread(String thread) async {
+    await _plugin.cancel(id: messageNotificationIdFor(thread));
+    await _withStore((prefs) => clearNotificationThread(prefs, thread));
   }
 
   Future<bool> takePushNotice(String roomId, String eventId) async {
@@ -1165,16 +1178,16 @@ class CallNotificationService {
   Future<void> _retractPushNoticeInRoom(String roomId, String eventId) async {
     if (!await takePushNotice(roomId, eventId)) return;
     debugPrint('zuno/notifications: cancelling the instant notice for $roomId');
-    await _cancelInRoom(roomId);
+    await _cancelThread(roomId);
   }
 
   Future<void> cancelMessageNotificationsIfShowing(
-    Iterable<String> roomIds,
+    Iterable<String> threads,
   ) async {
     final showing = (await _activeNotifications()).map((n) => n.id).toSet();
-    for (final roomId in roomIds) {
-      if (!showing.contains(messageNotificationIdFor(roomId))) continue;
-      await cancelMessageNotification(roomId);
+    for (final thread in threads) {
+      if (!showing.contains(messageNotificationIdFor(thread))) continue;
+      await cancelMessageNotification(thread);
     }
   }
 

@@ -12,24 +12,6 @@ import '../../helpers/fake_matrix.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('newestAtOrBefore', () {
-    test('picks the newest event at or before the bound', () {
-      expect(
-        newestAtOrBefore([
-          (id: r'$a', ts: 1000),
-          (id: r'$b', ts: 1999),
-          (id: r'$c', ts: 2000),
-        ], 1999),
-        r'$b',
-      );
-    });
-
-    test('nothing at or before the bound picks nothing', () {
-      expect(newestAtOrBefore([(id: r'$a', ts: 5000)], 1999), isNull);
-      expect(newestAtOrBefore(const [], 1999), isNull);
-    });
-  });
-
   group('resolveMarkReadEvent', () {
     late int localCalls;
     late List<int> asked;

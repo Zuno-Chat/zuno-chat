@@ -8,16 +8,45 @@ final class NseStateTests: XCTestCase {
     XCTAssertEqual(SeenSets.appending("d", to: ["a", "b", "c"], limit: 3), ["b", "c", "d"])
   }
 
-  func testShownTokensComeFromBothWriters() {
+  func testShownTokensComeFromBothWritersAndEachIsClaimedOnce() {
     let files = NseFakeFiles()
     files.put(NotifyFile.shownApp, ["v": 1, "e": ["eApp"]])
     let store = NseStateStore(files: files)
-    store.recordShown(["eNse"], in: NotifyFile.shownNse)
 
+    XCTAssertTrue(store.claim("eNse"))
+    XCTAssertFalse(store.claim("eNse"))
+    XCTAssertFalse(store.claim("eApp"))
     XCTAssertTrue(store.isShown("eApp"))
     XCTAssertTrue(store.isShown("eNse"))
     XCTAssertFalse(store.isShown("eOther"))
     XCTAssertEqual(files.json(NotifyFile.shownNse)?["e"], .array([.string("eNse")]))
+  }
+
+  func testAReleasedClaimCanBeTakenAgain() {
+    let store = NseStateStore(files: NseFakeFiles())
+    _ = store.claimPending("eNse", process: 1)
+
+    store.release("eNse")
+
+    XCTAssertFalse(store.isShown("eNse"))
+    XCTAssertTrue(store.state().pending.isEmpty)
+    XCTAssertTrue(store.claim("eNse"))
+  }
+
+  func testAPendingClaimLeftByADeadProcessIsReleasedButASettledOneStays() {
+    let store = NseStateStore(files: NseFakeFiles())
+    XCTAssertTrue(store.claimPending("eDied", process: 1))
+    XCTAssertTrue(store.claimPending("ePosted", process: 1))
+    store.settle("ePosted")
+    XCTAssertTrue(store.claimPending("eLive", process: 2))
+    XCTAssertFalse(store.claimPending("eLive", process: 2))
+
+    store.releaseAbandoned(process: 2)
+
+    XCTAssertFalse(store.isShown("eDied"))
+    XCTAssertTrue(store.isShown("ePosted"))
+    XCTAssertTrue(store.isShown("eLive"))
+    XCTAssertEqual(store.state().pending, ["eLive": 2])
   }
 
   func testARoomFileForAnotherRoomIsIgnored() {
@@ -40,16 +69,15 @@ final class NseStateTests: XCTestCase {
     let store = NseStateStore(files: NseFakeFiles())
     store.updateState {
       $0.replay = ["s|1"]
-      $0.utd = [NseUtd(room: "!r", event: "$e", ts: 3)]
       $0.missed = ["U"]
+      $0.pending = ["eP": 1_790_000_000.25]
       $0.version = "2.1 (40)"
     }
 
     XCTAssertEqual(
       store.state(),
       NseStateFile(
-        replay: ["s|1"], utd: [NseUtd(room: "!r", event: "$e", ts: 3)], missed: ["U"],
-        version: "2.1 (40)"))
+        replay: ["s|1"], missed: ["U"], pending: ["eP": 1_790_000_000.25], version: "2.1 (40)"))
     XCTAssertEqual(NseStateFile.decode(Data("garbage".utf8)), NseStateFile())
   }
 

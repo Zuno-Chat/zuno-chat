@@ -251,6 +251,59 @@ void main() {
       expect(ghLog.existsSync(), isFalse);
     });
 
+    test('refuses a merge commit', () async {
+      git(work, ['switch', '--quiet', '--create', 'side']);
+      write('lib/a.txt', 'fixed\n');
+      commit('fix: crash');
+      git(work, ['switch', '--quiet', 'master']);
+      git(work, ['merge', '--quiet', '--no-ff', 'side', '--message', 'Merge']);
+      push();
+
+      final result = await script('hotfix.sh', {
+        'COMMITS': git(work, ['rev-parse', 'HEAD']),
+        'NOTES': 'Fixes.',
+      });
+
+      expect(result.exitCode, isNot(0));
+      expect(result.stderr, contains('is a merge commit'));
+      expect(git(origin, ['branch', '--list', 'rc/*']), '');
+      expect(ghLog.existsSync(), isFalse);
+    });
+
+    test('a pick that fails without a conflict stops the hotfix', () async {
+      write('lib/a.txt', 'fixed\n');
+      commit('fix: crash');
+      final first = git(work, ['rev-parse', 'HEAD']);
+      write('lib/b.txt', 'fixed\n');
+      commit('fix: hang');
+      final second = git(work, ['rev-parse', 'HEAD']);
+      push();
+      git(work, ['switch', '--quiet', '--detach', 'v1.3.0']);
+      write('lib/b.txt', 'stray\n');
+
+      final result = await script('hotfix.sh', {
+        'COMMITS': '$first $second',
+        'NOTES': 'Fixes.',
+      });
+
+      expect(result.exitCode, isNot(0));
+      expect(result.stderr, contains('$second could not be cherry-picked'));
+      expect(git(origin, ['branch', '--list', 'rc/*']), '');
+      expect(ghLog.existsSync(), isFalse);
+    });
+
+    test('a fix the base tag already has stops the hotfix', () async {
+      final result = await script('hotfix.sh', {
+        'COMMITS': git(work, ['rev-parse', 'v1.3.0']),
+        'NOTES': 'Fixes.',
+      });
+
+      expect(result.exitCode, isNot(0));
+      expect(result.stderr, contains('Nothing to hotfix'));
+      expect(git(origin, ['branch', '--list', 'rc/*']), '');
+      expect(ghLog.existsSync(), isFalse);
+    });
+
     test('a conflicting fix aborts with nothing pushed', () async {
       write('lib/a.txt', 'one\n');
       commit('chore: add a');

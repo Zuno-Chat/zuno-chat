@@ -10,7 +10,9 @@ protocol CatchUpPlatform: AnyObject {
   func delivered() async -> [DeliveredNote]
   func remove(_ identifiers: [String])
   func post(_ request: UNNotificationRequest) async -> Bool
-  func recordShown(_ eventTokens: [String])
+  func claim(_ eventToken: String) -> Bool
+  func release(_ eventToken: String)
+  func settle(_ eventToken: String)
   func now() -> Date
 }
 
@@ -63,29 +65,30 @@ enum CatchUp {
     {
       _ = await platform.post(summary)
     }
-    var shown: [String] = []
     posting: for room in plan.rooms.reversed() {
       for event in room.events {
         guard platform.now() < deadline else { break posting }
+        guard platform.claim(event.eventToken) else { continue }
         let decrypt = platform.availableMemory() >= decryptFloorBytes
         guard
           case .shown(let title, let text, let kind, let floor) = platform.render(
             event.missed, decrypt: decrypt)
         else {
+          platform.release(event.eventToken)
           outcome.hidden += 1
           continue
         }
-        guard !platform.alreadyShown(event.eventToken) else { continue }
         let request = CatchUpComposer.request(
           for: event, title: title, body: text, kind: kind, floor: floor, level: level)
-        if await platform.post(request) {
-          shown.append(event.eventToken)
-          if floor { outcome.floors += 1 }
+        guard await platform.post(request) else {
+          platform.release(event.eventToken)
+          continue
         }
+        platform.settle(event.eventToken)
+        outcome.posted += 1
+        if floor { outcome.floors += 1 }
       }
     }
-    if !shown.isEmpty { platform.recordShown(shown) }
-    outcome.posted = shown.count
     return outcome
   }
 }

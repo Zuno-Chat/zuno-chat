@@ -29,6 +29,7 @@ class NewDeviceAlertNotifier extends Notifier<List<NewDeviceAlert>> {
 
   @override
   List<NewDeviceAlert> build() {
+    ref.watch(isLoggedInProvider);
     final client = ref.watch(matrixClientProvider);
     final sub = onSyncFinished(client).listen((_) => unawaited(_check(client)));
     ref.onDispose(sub.cancel);

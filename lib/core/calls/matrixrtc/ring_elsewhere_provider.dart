@@ -10,13 +10,6 @@ import 'call_member_state.dart';
 import 'call_summary_message.dart';
 import 'resolved_call_ids_provider.dart';
 
-bool answeredOnAnotherDevice(Room room, String callId) {
-  final client = room.client;
-  final own = room.states[callMemberEventType]?[client.userID];
-  return parseRtcMemberships(own?.content)
-      .any((m) => m.callId == callId && m.deviceId != client.deviceID);
-}
-
 bool declinedByMe(Event event, SystemRingingCall ring) =>
     event.room.id == ring.roomId &&
     event.senderId == event.room.client.userID &&
@@ -37,25 +30,38 @@ final ringElsewhereProvider = Provider<void>((ref) {
     );
   }
 
-  void checkAnswered() {
+  String? callerSeenIn;
+
+  void checkRing() {
     final ring = SystemRing.instance.ringing.value;
     if (ring == null) return;
     final room = client.getRoomById(ring.roomId);
-    if (room == null || !answeredOnAnotherDevice(room, ring.callId)) return;
-    resolve(ring, RingEnd.answeredElsewhere);
+    if (room == null) return;
+    if (answeredOnAnotherDevice(room, ring.callId)) {
+      resolve(ring, RingEnd.answeredElsewhere);
+      return;
+    }
+    final callerHere =
+        callMembershipEventId(room, ring.callId, excluding: client.userID) !=
+        null;
+    if (callerHere) {
+      callerSeenIn = ring.callId;
+    } else if (callerSeenIn == ring.callId) {
+      resolve(ring, RingEnd.remoteEnded);
+    }
   }
 
-  void checkAnsweredSoon() => scheduleMicrotask(checkAnswered);
+  void checkRingSoon() => scheduleMicrotask(checkRing);
 
-  final syncSub = client.onSync.stream.listen((_) => checkAnswered());
-  SystemRing.instance.ringing.addListener(checkAnsweredSoon);
+  final syncSub = client.onSync.stream.listen((_) => checkRing());
+  SystemRing.instance.ringing.addListener(checkRingSoon);
   final declineSub = client.onTimelineEvent.stream.listen((event) {
     final ring = SystemRing.instance.ringing.value;
     if (ring == null || !declinedByMe(event, ring)) return;
     resolve(ring, RingEnd.declinedElsewhere);
   });
   ref.onDispose(() {
-    SystemRing.instance.ringing.removeListener(checkAnsweredSoon);
+    SystemRing.instance.ringing.removeListener(checkRingSoon);
     unawaited(syncSub.cancel());
     unawaited(declineSub.cancel());
   });

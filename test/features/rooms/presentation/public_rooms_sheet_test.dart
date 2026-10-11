@@ -205,35 +205,17 @@ void main() {
     );
   });
 
-  testWidgets('rooms leave communities out', (tester) async {
+  testWidgets('communities show in their own shape', (tester) async {
     await _open(
       tester,
       ({term, since}) async => _page([
         _room('!s:example.org', name: 'Climbing club', roomType: 'm.space'),
-        _room('!a:example.org', name: 'Chess club'),
-      ]),
-    );
-
-    expect(find.text('Public rooms'), findsOneWidget);
-    expect(find.text('Climbing club'), findsNothing);
-    expect(find.text('Chess club'), findsOneWidget);
-  });
-
-  testWidgets('communities list only communities, in their own shape', (
-    tester,
-  ) async {
-    await _open(
-      tester,
-      ({term, since}) async => _page([
-        _room('!s:example.org', name: 'Climbing club', roomType: 'm.space'),
-        _room('!a:example.org', name: 'Chess club'),
       ]),
       communities: true,
     );
 
     expect(find.text('Public communities'), findsOneWidget);
     expect(find.text('Climbing club'), findsOneWidget);
-    expect(find.text('Chess club'), findsNothing);
     expect(
       tester.widget<RoomKindAvatar>(find.byType(RoomKindAvatar)).community,
       isTrue,

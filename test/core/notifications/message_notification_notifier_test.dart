@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,14 +19,40 @@ import 'package:zuno/core/notifications/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import '../../helpers/fake_encryption.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/notifying_client.dart';
 import '../../helpers/platform_capabilities.dart';
 import '../../helpers/preferences_container.dart';
 
+class _DecryptingClient extends NotifyingClient {
+  final decryption = FakeRoomDecryption();
+
+  @override
+  Encryption? get encryption => decryption;
+
+  @override
+  PushruleEvaluator get pushruleEvaluator => PushruleEvaluator.fromRuleset(
+    PushRuleSet(
+      underride: [
+        for (final type in [EventTypes.Message, EventTypes.Encrypted])
+          PushRule(
+            ruleId: type,
+            default$: true,
+            enabled: true,
+            conditions: [
+              PushCondition(kind: 'event_match', key: 'type', pattern: type),
+            ],
+            actions: ['notify'],
+          ),
+      ],
+    ),
+  );
+}
+
 void main() {
-  late NotifyingClient client;
+  late _DecryptingClient client;
   late Room room;
   late ProviderContainer container;
   late RecordedNotifications notifications;
@@ -33,7 +60,7 @@ void main() {
   setUp(() async {
     notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
-    client = NotifyingClient();
+    client = _DecryptingClient();
     client.setUserId('@me:x');
     room = buildTestRoom(client);
     room.setState(User('@a:x', displayName: 'Alice', room: room));
@@ -162,6 +189,123 @@ void main() {
       expect(shown.android['style'], AndroidNotificationStyle.messaging.index);
     },
   );
+
+  group('a message whose key has not arrived yet', () {
+    Event locked({String senderId = '@a:x', String sessionId = 'session'}) =>
+        buildTestEvent(
+          room,
+          eventId: r'$1',
+          senderId: senderId,
+          type: EventTypes.Encrypted,
+          content: {
+            'algorithm': AlgorithmTypes.megolmV1AesSha2,
+            'session_id': sessionId,
+            'ciphertext': 'sealed',
+            'msgtype': MessageTypes.BadEncrypted,
+            'can_request_session': true,
+          },
+        );
+
+    List<String?> linesOf(ShownNotification shown) => [
+      for (final message
+          in ((shown.android['styleInformation'] as Map)['messages'] as List)
+              .cast<Map>())
+        message['text'] as String?,
+    ];
+
+    Future<void> keyArrives([String sessionId = 'session']) async {
+      room.onSessionKeyReceived.add(sessionId);
+      await pumpEventQueue();
+    }
+
+    test('still shows, as "New message" in its room', () async {
+      await deliver(locked());
+
+      expect(linesOf(notifications.single), ['New message']);
+    });
+
+    test('once its key arrives, the message takes that line\'s place without '
+        'alerting again', () async {
+      await deliver(locked());
+      notifications.active = [
+        {
+          'id': messageNotificationIdFor(room.id),
+          'channelId': 'direct_messages',
+          'payload': '',
+        },
+      ];
+      client.decryption.decrypted.add(textEvent(body: 'are you around?'));
+
+      await keyArrives();
+
+      final refined = notifications.shown.last;
+      expect(refined.id, messageNotificationIdFor(room.id));
+      expect(linesOf(refined), ['are you around?']);
+      expect(refined.android['onlyAlertOnce'], isTrue);
+    });
+
+    test('a key for another conversation leaves it waiting', () async {
+      await deliver(locked());
+
+      await keyArrives('another');
+
+      expect(client.decryption.attempts, 0);
+      expect(notifications.shown, hasLength(1));
+    });
+
+    test('a message that turns out to need no notification takes the line '
+        'down', () async {
+      await deliver(locked());
+      client.decryption.decrypted.add(
+        buildTestEvent(
+          room,
+          eventId: r'$1',
+          senderId: '@a:x',
+          content: {
+            'msgtype': MessageTypes.Text,
+            'body': '* fixed',
+            'm.relates_to': {'rel_type': 'm.replace', 'event_id': r'$0'},
+          },
+        ),
+      );
+
+      await keyArrives();
+
+      expect(notifications.cancelled, [messageNotificationIdFor(room.id)]);
+    });
+
+    test('is not waited on once its room is read', () async {
+      await deliver(locked());
+      client.onSync.add(
+        SyncUpdate(
+          nextBatch: 's2',
+          rooms: RoomsUpdate(
+            join: {
+              room.id: JoinedRoomUpdate(
+                unreadNotifications: UnreadNotificationCounts(
+                  notificationCount: 0,
+                ),
+              ),
+            },
+          ),
+        ),
+      );
+      await pumpEventQueue();
+
+      await keyArrives();
+
+      expect(client.decryption.attempts, 0);
+      expect(notifications.shown, hasLength(1));
+    });
+
+    test('is not shown when you sent it yourself', () async {
+      await deliver(locked(senderId: '@me:x'));
+      await keyArrives();
+
+      expect(notifications.shown, isEmpty);
+      expect(client.decryption.attempts, 0);
+    });
+  });
 
   group('read elsewhere', () {
     late int roomNotificationId;

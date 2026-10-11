@@ -1,5 +1,6 @@
 import 'package:matrix/matrix.dart';
 
+import '../errors/caught_errors.dart';
 import 'optimistic_room_state.dart';
 
 enum RoomRole { readOnly, member, moderator, admin }
@@ -39,13 +40,47 @@ bool canManageMember(Room room, String targetUserId) {
 }
 
 List<RoomRole> assignableRolesFor(Room room, {required String targetUserId}) {
-  if (!canManageMember(room, targetUserId)) return const [];
+  if (!room.canChangePowerLevel || !canManageMember(room, targetUserId)) {
+    return const [];
+  }
 
   return switch (ownRoomRole(room)) {
     RoomRole.admin => RoomRole.values,
     RoomRole.moderator => const [RoomRole.readOnly, RoomRole.member],
     RoomRole.member || RoomRole.readOnly => const [],
   };
+}
+
+Future<bool> isLastAdmin(Room room) async {
+  final me = room.client.userID;
+  if (me == null || ownRoomRole(room) != RoomRole.admin) return false;
+  if ((room.summary.mJoinedMemberCount ?? 0) < 2) return false;
+  final powerLevels = room.getState(EventTypes.RoomPowerLevels)?.content;
+  final everyone = powerLevels?.tryGet<int>('users_default') ?? 0;
+  if (roomRoleForLevel(everyone) == RoomRole.admin) return false;
+  final others = {
+    ...?powerLevels?.tryGetMap<String, Object?>('users')?.keys,
+    ...room.creatorUserIds,
+  }..remove(me);
+  for (final id in others) {
+    if (roomRoleOfUser(room, id) != RoomRole.admin) continue;
+    final membership = (await _memberOf(room, id))?.content['membership'];
+    if (membership == null || membership == 'join' || membership == 'invite') {
+      return false;
+    }
+  }
+  return true;
+}
+
+Future<StrippedStateEvent?> _memberOf(Room room, String userId) async {
+  final known = room.getState(EventTypes.RoomMember, userId);
+  if (known != null) return known;
+  try {
+    return await room.client.database.getUser(userId, room);
+  } catch (e, s) {
+    reportCaught('read a member for the last admin check', e, s);
+    return null;
+  }
 }
 
 List<String> bannedUserIds(Room room) {

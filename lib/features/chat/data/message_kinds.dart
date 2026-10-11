@@ -1,5 +1,6 @@
 import 'package:matrix/matrix.dart' hide CallSession;
 
+import '../../../core/format/chat_list_time.dart';
 import '../../../core/format/human_units.dart';
 import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/reply_fallback.dart';
@@ -52,12 +53,6 @@ bool isHiddenTimelineEvent(Event e) =>
 
 const runGap = Duration(minutes: 5);
 
-bool isSameLocalDay(DateTime a, DateTime b) {
-  final la = a.toLocal();
-  final lb = b.toLocal();
-  return la.year == lb.year && la.month == lb.month && la.day == lb.day;
-}
-
 const _dateDividerMonthNames = [
   'January',
   'February',
@@ -74,19 +69,12 @@ const _dateDividerMonthNames = [
 ];
 
 String dateDividerLabel(DateTime time, DateTime now) {
-  if (isSameLocalDay(time, now)) return 'Today';
-  if (isSameLocalDay(time, now.subtract(const Duration(days: 1)))) {
-    return 'Yesterday';
-  }
+  final daysAgo = calendarDaysBetween(time, now);
+  if (daysAgo == 0) return 'Today';
+  if (daysAgo == 1) return 'Yesterday';
   final local = time.toLocal();
   final month = _dateDividerMonthNames[local.month - 1];
   return local.year == now.toLocal().year
       ? '$month ${local.day}'
       : '$month ${local.day}, ${local.year}';
-}
-
-String formatDuration(Duration d) {
-  final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-  final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-  return d.inHours > 0 ? '${d.inHours}:$minutes:$seconds' : '$minutes:$seconds';
 }

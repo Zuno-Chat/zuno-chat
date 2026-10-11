@@ -77,6 +77,33 @@ void main() {
       expect(voiceMessageWaveform(event), [0, 512, 1024]);
     });
 
+    test('skips entries that are not numbers', () {
+      final event = audio({
+        'org.matrix.msc1767.audio': {
+          'waveform': ['x', 100, null, 200.5, true],
+        },
+      });
+      expect(voiceMessageWaveform(event), [100, 200]);
+    });
+
+    test('keeps every bar within 0 to 1024', () {
+      final event = audio({
+        'org.matrix.msc1767.audio': {
+          'waveform': [-5, 2000, 512],
+        },
+      });
+      expect(voiceMessageWaveform(event), [0, 1024, 512]);
+    });
+
+    test('is none when no entry is a number', () {
+      final event = audio({
+        'org.matrix.msc1767.audio': {
+          'waveform': ['x', null],
+        },
+      });
+      expect(voiceMessageWaveform(event), isNull);
+    });
+
     test('is none when missing or empty', () {
       expect(voiceMessageWaveform(audio({})), isNull);
       expect(

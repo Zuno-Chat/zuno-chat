@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 
 import '../../../core/matrix/media_gallery_group.dart';
 import '../../../core/matrix/send_progress.dart';
+import 'composed_image.dart';
 import 'composed_video.dart';
 
 class PendingAttachmentSend {
@@ -65,18 +66,14 @@ class PendingAttachmentSend {
 
 class FailedMediaSend {
   final GalleryGroupRef? gallery;
-  final Uint8List? bytes;
+  final ComposedImage? photo;
   final ComposedVideo? video;
-  final String? caption;
 
-  const FailedMediaSend({
-    required this.gallery,
-    this.bytes,
-    this.video,
-    this.caption,
-  });
+  const FailedMediaSend({required this.gallery, this.photo, this.video});
 
   int get index => gallery?.index ?? 0;
+
+  String? get path => photo?.path ?? video?.path;
 }
 
 bool pendingSendNeedsSyntheticTile({

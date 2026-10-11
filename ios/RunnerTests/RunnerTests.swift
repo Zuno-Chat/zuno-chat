@@ -971,3 +971,73 @@ private final class LeaseHarness {
     return reply
   }
 }
+
+final class AppDataWipeTests: XCTestCase {
+  private var root: URL!
+
+  override func setUpWithError() throws {
+    try super.setUpWithError()
+    root = FileManager.default.temporaryDirectory
+      .appendingPathComponent("app-data-wipe-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+  }
+
+  override func tearDownWithError() throws {
+    try? FileManager.default.removeItem(at: root)
+    try super.tearDownWithError()
+  }
+
+  private func make(_ path: String) throws -> URL {
+    let url = root.appendingPathComponent(path)
+    try FileManager.default.createDirectory(
+      at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("x".utf8).write(to: url)
+    return url
+  }
+
+  private func exists(_ path: String) -> Bool {
+    FileManager.default.fileExists(atPath: root.appendingPathComponent(path).path)
+  }
+
+  func testEverythingGoesButTheOpenDatabaseItsSidecarsAndTheSystemsFiles() throws {
+    for path in [
+      "support/zuno.db", "support/zuno.db-wal", "support/zuno.db-shm", "support/zuno.db-journal",
+      "support/zuno.db.bak", "support/other.db", "support/media/photo.jpg",
+      "support/com.apple.state", "documents/export.txt", "inbox/share.json",
+    ] {
+      _ = try make(path)
+    }
+    let keptPath = root.appendingPathComponent("support/media/../zuno.db").path
+
+    let wiped = AppDataPlugin.empty(
+      required: [root.appendingPathComponent("support"), root.appendingPathComponent("documents")],
+      optional: [root.appendingPathComponent("inbox")], keeping: [keptPath])
+
+    XCTAssertTrue(wiped)
+    for path in [
+      "support/zuno.db", "support/zuno.db-wal", "support/zuno.db-shm", "support/zuno.db-journal",
+      "support/com.apple.state",
+    ] {
+      XCTAssertTrue(exists(path), path)
+    }
+    for path in [
+      "support/zuno.db.bak", "support/other.db", "support/media", "documents/export.txt",
+      "inbox/share.json",
+    ] {
+      XCTAssertFalse(exists(path), path)
+    }
+  }
+
+  func testAMissingDirectoryIsAlreadyEmpty() {
+    XCTAssertTrue(
+      AppDataPlugin.empty(
+        required: [root.appendingPathComponent("absent"), nil], optional: [], keeping: ["/x"]))
+  }
+
+  func testAnUnreadableRequiredDirectoryFailsTheWipeButAnOptionalOneDoesNot() throws {
+    let file = try make("plain-file")
+
+    XCTAssertTrue(AppDataPlugin.empty(required: [], optional: [file], keeping: ["/x"]))
+    XCTAssertFalse(AppDataPlugin.empty(required: [file], optional: [], keeping: ["/x"]))
+  }
+}

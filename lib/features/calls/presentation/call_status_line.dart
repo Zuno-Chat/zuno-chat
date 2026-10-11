@@ -3,15 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/calls/models/call_status.dart';
+import '../../../core/format/human_units.dart';
 import 'call_status_widgets.dart';
-
-String callClock(Duration elapsed) {
-  final seconds = elapsed.isNegative ? 0 : elapsed.inSeconds;
-  String two(int value) => value.toString().padLeft(2, '0');
-  final hours = seconds ~/ 3600;
-  final clock = '${two(seconds % 3600 ~/ 60)}:${two(seconds % 60)}';
-  return hours == 0 ? clock : '$hours:$clock';
-}
 
 class CallStatusLine extends StatelessWidget {
   final CallStatus status;
@@ -141,7 +134,7 @@ class _CallTimerState extends State<CallTimer> {
   @override
   Widget build(BuildContext context) => RepaintBoundary(
     child: Text(
-      callClock(widget.now().difference(widget.since)),
+      formatDuration(widget.now().difference(widget.since)),
       style: widget.style,
     ),
   );

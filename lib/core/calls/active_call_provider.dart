@@ -1,8 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../settings/app_preferences_provider.dart';
 import 'active_call_marker.dart';
 import 'matrixrtc/call_session.dart';
+import 'matrixrtc/incoming_call.dart';
+import 'matrixrtc/resolved_call_ids_provider.dart';
+import 'notifications/ringing_call_provider.dart';
 
 final activeCallProvider = NotifierProvider<ActiveCallNotifier, CallSession?>(
   ActiveCallNotifier.new,
@@ -27,6 +31,21 @@ class ActiveCallNotifier extends Notifier<CallSession?> {
     if (live != null && live.phase != CallSessionPhase.ended) return null;
     final session = create();
     _hold(session);
+    return session;
+  }
+
+  CallSession? answer(IncomingCall call) {
+    final session = start(
+      () => CallSession.forIncoming(
+        room: call.room,
+        callId: call.callId,
+        kind: call.kind,
+        lowDataMode: ref.read(lowDataCallsProvider),
+      ),
+    );
+    if (session == null) return null;
+    ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
+    RingingCall.instance.clear(call.callId);
     return session;
   }
 

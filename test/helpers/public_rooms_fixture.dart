@@ -41,18 +41,24 @@ final publicRoomsFixture = <PublishedRoomsChunk>[
   ),
 ];
 
-List<PublishedRoomsChunk> publicRoomsMatching(String? term) {
-  if (term == null || term.isEmpty) return publicRoomsFixture;
-  final needle = term.toLowerCase();
+List<PublishedRoomsChunk> publicRoomsMatching(
+  String? term, {
+  List<Object?>? roomTypes,
+}) {
+  final needle = term?.toLowerCase() ?? '';
   return publicRoomsFixture
       .where(
         (r) =>
-            (r.name ?? '').toLowerCase().contains(needle) ||
-            (r.topic ?? '').toLowerCase().contains(needle),
+            (roomTypes == null || roomTypes.contains(r.roomType)) &&
+            ((r.name ?? '').toLowerCase().contains(needle) ||
+                (r.topic ?? '').toLowerCase().contains(needle)),
       )
       .toList();
 }
 
-String publicRoomsFixtureJson({String? term}) => jsonEncode(
-  QueryPublicRoomsResponse(chunk: publicRoomsMatching(term)).toJson(),
-);
+String publicRoomsFixtureJson({String? term, List<Object?>? roomTypes}) =>
+    jsonEncode(
+      QueryPublicRoomsResponse(
+        chunk: publicRoomsMatching(term, roomTypes: roomTypes),
+      ).toJson(),
+    );

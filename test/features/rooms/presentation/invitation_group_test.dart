@@ -45,8 +45,13 @@ void main() {
     client.bearerToken = 'test-token';
   });
 
-  Room invitation({String? name, bool direct = false, String? inviter}) {
-    final room = buildTestRoom(client)
+  Room invitation({
+    String id = '!room:example.org',
+    String? name,
+    bool direct = false,
+    String? inviter,
+  }) {
+    final room = buildTestRoom(client, id: id)
       ..membership = Membership.invite
       ..partial = false;
     if (inviter != null) {
@@ -88,7 +93,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: zunoLightTheme,
-        home: Scaffold(body: InvitationGroup(invitations: rooms)),
+        home: Scaffold(
+          body: CustomScrollView(
+            slivers: [InvitationGroup(invitations: rooms)],
+          ),
+        ),
       ),
     );
     await tester.pump();
@@ -167,6 +176,73 @@ void main() {
 
     await pumpGroup(tester, [invitation(name: 'Book club')]);
     expect(find.text('Someone invited you'), findsOneWidget);
+  });
+
+  testWidgets('only the invitations in view are built', (tester) async {
+    await pumpGroup(tester, [
+      for (var i = 0; i < 200; i++)
+        invitation(id: '!spam$i:example.org', inviter: '@bob:example.org'),
+    ]);
+
+    expect(
+      find.text('Join', skipOffstage: false).evaluate().length,
+      lessThan(20),
+    );
+  });
+
+  testWidgets('a sync that changes nothing rebuilds no invitation', (
+    tester,
+  ) async {
+    final rooms = [invitation(inviter: '@bob:example.org')];
+    await pumpGroup(tester, rooms);
+    InkWell row() => tester.widget<InkWell>(
+      find.ancestor(of: find.text('Bob'), matching: find.byType(InkWell)),
+    );
+    final before = row();
+
+    await pumpGroup(tester, rooms);
+
+    expect(identical(row(), before), isTrue);
+  });
+
+  testWidgets('a renamed invitation shows its new name', (tester) async {
+    final room = invitation(name: 'Book club', inviter: '@bob:example.org');
+    await pumpGroup(tester, [room]);
+
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomName,
+        senderId: '@bob:example.org',
+        stateKey: '',
+        content: {'name': 'Reading circle'},
+      ),
+    );
+    await pumpGroup(tester, [room]);
+
+    expect(find.text('Reading circle'), findsOneWidget);
+    expect(find.text('Book club'), findsNothing);
+  });
+
+  testWidgets('the first and last invitations round off the group', (
+    tester,
+  ) async {
+    await pumpGroup(tester, [
+      invitation(id: '!a:example.org', name: 'First'),
+      invitation(id: '!b:example.org', name: 'Middle'),
+      invitation(id: '!c:example.org', name: 'Last'),
+    ]);
+    BorderRadiusGeometry? radiusOf(String name) => tester
+        .widget<Material>(
+          find
+              .ancestor(of: find.text(name), matching: find.byType(Material))
+              .first,
+        )
+        .borderRadius;
+    const corner = Radius.circular(ZunoRadius.large);
+
+    expect(radiusOf('First'), const BorderRadius.vertical(top: corner));
+    expect(radiusOf('Middle'), BorderRadius.zero);
+    expect(radiusOf('Last'), const BorderRadius.vertical(bottom: corner));
   });
 
   testWidgets('tapping it opens the invitation', (tester) async {

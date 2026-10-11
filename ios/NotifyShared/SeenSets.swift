@@ -43,38 +43,26 @@ struct NseMark: Equatable, Sendable {
   }
 }
 
-struct NseUtd: Equatable, Sendable {
-  let room: String
-  let event: String
-  let ts: Int64
-}
-
 struct NseStateFile: Equatable, Sendable {
   var replay: [String] = []
-  var utd: [NseUtd] = []
   var missed: [String] = []
+  var pending: [String: Double] = [:]
   var version: String?
 
   static func decode(_ data: Data?) -> NseStateFile {
     guard let data, let json = NseJson.parse(data, "nse state parse") else {
       return NseStateFile()
     }
-    let utd = (json["utd"]?.array ?? []).compactMap { item -> NseUtd? in
-      guard let room = item["room"]?.string, let event = item["event"]?.string,
-        let ts = item["ts"]?.int64
-      else { return nil }
-      return NseUtd(room: room, event: event, ts: ts)
-    }
     return NseStateFile(
-      replay: json["replay"]?.array?.compactMap(\.string) ?? [], utd: utd,
+      replay: json["replay"]?.array?.compactMap(\.string) ?? [],
       missed: json["missed"]?.array?.compactMap(\.string) ?? [],
+      pending: json["pending"]?.object?.compactMapValues(\.double) ?? [:],
       version: json["version"]?.string)
   }
 
   func encoded() -> Data {
     var object: [String: Any] = [
-      "v": 1, "replay": replay, "missed": missed,
-      "utd": utd.map { ["room": $0.room, "event": $0.event, "ts": $0.ts] },
+      "v": 1, "replay": replay, "missed": missed, "pending": pending,
     ]
     if let version { object["version"] = version }
     return NseJson.data(object, "nse state encode") ?? Data()
@@ -84,7 +72,6 @@ struct NseStateFile: Equatable, Sendable {
 enum SeenSets {
   static let shownLimit = 256
   static let replayLimit = 512
-  static let utdLimit = 200
   static let missedLimit = 64
   static let marksLimit = 64
 
@@ -122,15 +109,12 @@ final class NseStateStore: Sendable {
     self.files = files
   }
 
-  func meta() -> NseMeta? {
-    files.read(NotifyFile.meta).flatMap(NseMeta.decode)
+  func meta() -> NotifyMeta? {
+    files.read(NotifyFile.meta).flatMap(NotifyMeta.decoded)
   }
 
-  func room(token: String, roomId: String) -> NseRoomFile? {
-    guard let room = files.read(NotifyFile.room(token)).flatMap(NseRoomFile.decode),
-      room.room == roomId
-    else { return nil }
-    return room
+  func room(token: String, roomId: String) -> NotifyRoomFile? {
+    files.read(NotifyFile.room(token)).flatMap { NotifyRoomFile.decoded($0, roomId: roomId) }
   }
 
   func ledger() -> Ledger {
@@ -153,6 +137,56 @@ final class NseStateStore: Sendable {
       }
       _ = files.write(name, SeenSets.encodeTokens(list))
     }
+  }
+
+  func claim(_ token: String) -> Bool {
+    locked { take(token) }
+  }
+
+  func claimPending(_ token: String, process: Double) -> Bool {
+    locked {
+      guard take(token) else { return false }
+      var state = self.state()
+      state.pending[token] = process
+      _ = files.write(NotifyFile.state, state.encoded())
+      return true
+    }
+  }
+
+  func settle(_ token: String) {
+    locked {
+      var state = self.state()
+      guard state.pending.removeValue(forKey: token) != nil else { return }
+      _ = files.write(NotifyFile.state, state.encoded())
+    }
+  }
+
+  func release(_ token: String) {
+    locked { give(back: [token]) }
+  }
+
+  func releaseAbandoned(process: Double) {
+    locked {
+      let abandoned = state().pending.filter { $0.value != process }.keys
+      if !abandoned.isEmpty { give(back: Set(abandoned)) }
+    }
+  }
+
+  private func take(_ token: String) -> Bool {
+    guard !isShown(token) else { return false }
+    let list = SeenSets.appending(
+      token, to: shown(NotifyFile.shownNse), limit: SeenSets.shownLimit)
+    _ = files.write(NotifyFile.shownNse, SeenSets.encodeTokens(list))
+    return true
+  }
+
+  private func give(back tokens: Set<String>) {
+    let list = shown(NotifyFile.shownNse).filter { !tokens.contains($0) }
+    _ = files.write(NotifyFile.shownNse, SeenSets.encodeTokens(list))
+    var state = self.state()
+    let before = state.pending.count
+    state.pending = state.pending.filter { !tokens.contains($0.key) }
+    if state.pending.count != before { _ = files.write(NotifyFile.state, state.encoded()) }
   }
 
   func state() -> NseStateFile {
@@ -180,9 +214,9 @@ final class NseStateStore: Sendable {
     }
   }
 
-  private func locked(_ body: () -> Void) {
+  private func locked<Result>(_ body: () -> Result) -> Result {
     Self.lock.lock()
     defer { Self.lock.unlock() }
-    body()
+    return body()
   }
 }

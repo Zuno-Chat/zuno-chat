@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/join_requests.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -72,6 +73,24 @@ void main() {
       rooms: RoomsUpdate(leave: leave),
     ),
   );
+
+  group('the rooms asked to join, read without the app', () {
+    test('are the ones asking remembered', () async {
+      final c = await container();
+      await c.read(joinRequestsProvider.notifier).ask(_asked);
+      await settle();
+
+      expect(askedToJoin(await SharedPreferences.getInstance(), _me), {_asked});
+    });
+
+    test('are only this account\'s', () async {
+      await container(stored: [_asked]);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(askedToJoin(prefs, '@someone:example.org'), isEmpty);
+      expect(askedToJoin(prefs, null), isEmpty);
+    });
+  });
 
   group('asking', () {
     test('knocks through the given servers and remembers the room', () async {

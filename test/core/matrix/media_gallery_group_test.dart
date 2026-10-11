@@ -17,10 +17,11 @@ void main() {
     String? groupId,
     int index = 0,
     int count = 2,
+    String sender = '@me:example.org',
   }) => buildTestEvent(
     room,
     eventId: eventId,
-    senderId: '@me:example.org',
+    senderId: sender,
     content: {
       'msgtype': msgtype,
       'body': eventId,
@@ -68,6 +69,27 @@ void main() {
     });
   });
 
+  group('ownGalleryId', () {
+    test('is the gallery id of your own media', () {
+      expect(ownGalleryId(media('a', groupId: 'g1'), '@me:example.org'), 'g1');
+    });
+
+    test(
+      "is null for someone else's media and for media outside a gallery",
+      () {
+        expect(
+          ownGalleryId(
+            media('a', groupId: 'g1', sender: '@mal:evil.org'),
+            '@me:example.org',
+          ),
+          isNull,
+        );
+        expect(ownGalleryId(media('b'), '@me:example.org'), isNull);
+        expect(ownGalleryId(media('c', groupId: 'g1'), null), isNull);
+      },
+    );
+  });
+
   group('groupGalleries', () {
     test('folds a multi-file send into one anchored tile', () {
       final newest = media('b', groupId: 'g1', index: 1);
@@ -104,11 +126,49 @@ void main() {
     test('keeps a one-item group when its other item failed to send', () {
       final result = groupGalleries(
         [media('a', groupId: 'g1', index: 0)],
-        forceGroupIds: {'g1'},
+        ownUserId: '@me:example.org',
+        ownFailedGalleryIds: {'g1'},
       );
 
       expect(result.galleries.keys, ['a']);
       expect(result.galleries['a']!.map((e) => e.eventId), ['a']);
+    });
+
+    test('another sender cannot join a gallery by reusing its id', () {
+      final result = groupGalleries([
+        media('x', groupId: 'g1', index: 2, count: 3, sender: '@mal:evil.org'),
+        media('b', groupId: 'g1', index: 1, count: 3),
+        media('a', groupId: 'g1', index: 0, count: 3),
+      ]);
+
+      expect(result.messages.map((e) => e.eventId), ['x', 'b']);
+      expect(result.galleries.keys, ['b']);
+      expect(result.galleries['b']!.map((e) => e.eventId), ['a', 'b']);
+    });
+
+    test('two senders with the same id each keep their own gallery', () {
+      final result = groupGalleries([
+        media('y', groupId: 'g1', index: 1, sender: '@mal:evil.org'),
+        media('x', groupId: 'g1', index: 0, sender: '@mal:evil.org'),
+        media('b', groupId: 'g1', index: 1),
+        media('a', groupId: 'g1', index: 0),
+      ]);
+
+      expect(result.messages.map((e) => e.eventId), ['y', 'b']);
+      expect(result.galleries['y']!.map((e) => e.eventId), ['x', 'y']);
+      expect(result.galleries['b']!.map((e) => e.eventId), ['a', 'b']);
+    });
+
+    test('a failed send keeps only your own one-item group, not one from '
+        'someone else with the same id', () {
+      final result = groupGalleries(
+        [media('x', groupId: 'g1', index: 1, sender: '@mal:evil.org')],
+        ownUserId: '@me:example.org',
+        ownFailedGalleryIds: {'g1'},
+      );
+
+      expect(result.galleries, isEmpty);
+      expect(result.messages.map((e) => e.eventId), ['x']);
     });
 
     test('keeps unrelated messages between two galleries in place', () {

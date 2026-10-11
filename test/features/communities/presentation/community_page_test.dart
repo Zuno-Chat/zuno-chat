@@ -83,6 +83,9 @@ void main() {
     putState(club, EventTypes.SpaceChild, {
       'via': ['example.org'],
     }, stateKey: id);
+    putState(room, EventTypes.SpaceParent, {
+      'via': ['example.org'],
+    }, stateKey: club.id);
     return room;
   }
 
@@ -338,6 +341,28 @@ void main() {
     await tester.tap(find.text('Gear swap'));
 
     expect(opened, gear);
+  });
+
+  testWidgets('a room the client rebuilt opens as the new room', (
+    tester,
+  ) async {
+    final gear = member('!gear:example.org', 'Gear swap');
+    await pump(tester);
+    more.complete(const []);
+
+    client.rooms.remove(gear);
+    final rebuilt = member('!gear:example.org', 'Gear swap')
+      ..lastEvent = gear.lastEvent;
+    client.onSync.add(
+      SyncUpdate(
+        nextBatch: 'rebuilt',
+        rooms: RoomsUpdate(join: {gear.id: JoinedRoomUpdate()}),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Gear swap'));
+
+    expect(opened, same(rebuilt));
   });
 
   testWidgets('rooms that fail to load say so and try again', (tester) async {

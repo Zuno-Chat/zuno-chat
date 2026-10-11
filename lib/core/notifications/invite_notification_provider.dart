@@ -46,19 +46,24 @@ typedef InviteClaim = ({bool won, DateTime? announcedAt});
 
 final _announcements = SerialLock();
 
-Future<InviteClaim> claimInviteAnnouncement(String roomId) =>
-    _announcements.run(() async {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.reload();
-        final announcedAt = inviteAnnouncedAt(prefs, roomId);
-        if (announcedAt != null) return (won: false, announcedAt: announcedAt);
-        await markInviteAnnouncedOnDisk(prefs, roomId);
-      } catch (e, s) {
-        reportCaught('invite announcement claim', e, s);
-      }
-      return (won: true, announcedAt: null);
-    });
+Future<InviteClaim> claimInviteAnnouncement(
+  String roomId, {
+  required String? userId,
+}) => _announcements.run(() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    if (askedToJoin(prefs, userId).contains(roomId)) {
+      return (won: false, announcedAt: null);
+    }
+    final announcedAt = inviteAnnouncedAt(prefs, roomId);
+    if (announcedAt != null) return (won: false, announcedAt: announcedAt);
+    await markInviteAnnouncedOnDisk(prefs, roomId);
+  } catch (e, s) {
+    reportCaught('invite announcement claim', e, s);
+  }
+  return (won: true, announcedAt: null);
+});
 
 Future<void> forgetInviteAnnouncements(Iterable<String> roomIds) =>
     _announcements.run(() async {
@@ -95,7 +100,6 @@ class RoomInviteNotificationNotifier extends Notifier<void> {
   Future<void> _handleEvent(Client client, Event event) async {
     final content = inviteNotificationFor(client, event);
     if (content == null) return;
-    if (ref.read(joinRequestsProvider).contains(content.roomId)) return;
     final presentsInFrontOnly = ref
         .read(platformCapabilitiesProvider)
         .nseNotifications;
@@ -105,7 +109,11 @@ class RoomInviteNotificationNotifier extends Notifier<void> {
         lifecycle != AppLifecycleState.inactive) {
       return;
     }
-    if (!(await claimInviteAnnouncement(content.roomId)).won) return;
+    final claim = await claimInviteAnnouncement(
+      content.roomId,
+      userId: client.userID,
+    );
+    if (!claim.won) return;
     try {
       await postMessageNotification(
         content,

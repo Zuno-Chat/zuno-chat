@@ -11,7 +11,6 @@ import '../../matrix/matrix_client_provider.dart';
 import '../../navigation/global_navigator.dart';
 import '../../navigation/launch_route.dart';
 import '../../platform/platform_capabilities.dart';
-import '../../settings/app_preferences_provider.dart';
 import '../active_call_controller.dart';
 import '../active_call_provider.dart';
 import '../matrixrtc/call_decline.dart';
@@ -218,6 +217,10 @@ class CallNotificationRouter extends Notifier<void> {
     }
 
     if (response.action == CallNotificationAction.decline) {
+      if (ref.read(activeCallProvider)?.callId == call.callId) {
+        _log('already on ${call.callId}; not declining it');
+        return;
+      }
       await declineCall(room, call.callId);
       ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
       await releaseLockscreenIfIdle();
@@ -254,20 +257,18 @@ class CallNotificationRouter extends Notifier<void> {
       _reportFailure('Could not open the call screen.');
       return;
     }
-    RingingCall.instance.set(call.callId);
     final session = ref
         .read(activeCallProvider.notifier)
-        .start(
-          () => CallSession.forIncoming(
+        .answer(
+          IncomingCall(
             room: room,
             callId: call.callId,
+            callerId: call.callerId,
             kind: call.isVideo ? CallKind.video : CallKind.voice,
-            lowDataMode: ref.read(lowDataCallsProvider),
           ),
         );
     if (session == null) {
       _log('already on a call; ignoring accept for ${call.callId}');
-      RingingCall.instance.clear(call.callId);
       _releaseSystemCall(call, SystemCallEnd.failed);
       return;
     }

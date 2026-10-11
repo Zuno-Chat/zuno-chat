@@ -119,10 +119,12 @@ struct ShareManifest: Codable, Equatable, Sendable {
 }
 
 enum ShareFileName {
+  private static let maxBytes = 255
+
   static func safe(_ name: String) -> String {
     let cleaned = name.replacingOccurrences(of: "/", with: "_")
       .replacingOccurrences(of: "\\", with: "_")
-    return ["", ".", ".."].contains(cleaned) ? "shared" : cleaned
+    return ["", ".", ".."].contains(cleaned) ? "shared" : fitted(cleaned)
   }
 
   static func named(_ suggested: String?, typeIdentifier: String) -> String {
@@ -130,7 +132,29 @@ enum ShareFileName {
     guard (name as NSString).pathExtension.isEmpty,
       let fileExtension = UTType(typeIdentifier)?.preferredFilenameExtension
     else { return name }
-    return "\(name).\(fileExtension)"
+    return safe("\(name).\(fileExtension)")
+  }
+
+  private static func fitted(_ name: String) -> String {
+    guard name.utf8.count > maxBytes else { return name }
+    let scalars = name.unicodeScalars
+    if let dot = scalars.lastIndex(of: "."), dot > scalars.startIndex {
+      let fileExtension = String(scalars[dot...])
+      let stem = prefix(scalars[..<dot], bytes: maxBytes - fileExtension.utf8.count)
+      if !stem.isEmpty { return stem + fileExtension }
+    }
+    return prefix(scalars[...], bytes: maxBytes)
+  }
+
+  private static func prefix(_ scalars: Substring.UnicodeScalarView, bytes limit: Int) -> String {
+    var used = 0
+    var kept = String.UnicodeScalarView()
+    for scalar in scalars {
+      used += UTF8.width(scalar)
+      guard used <= limit else { break }
+      kept.append(scalar)
+    }
+    return String(kept)
   }
 
   static func mimeType(name: String, typeIdentifier: String) -> String? {

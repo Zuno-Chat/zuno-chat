@@ -46,6 +46,9 @@ void main() {
     put(club, EventTypes.SpaceChild, {
       'via': ['example.org'],
     }, key: room.id);
+    put(room, EventTypes.SpaceParent, {
+      'via': ['example.org'],
+    }, key: club.id);
     client.rooms.add(club);
 
     await pump(tester);

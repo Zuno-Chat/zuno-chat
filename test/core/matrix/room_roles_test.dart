@@ -5,9 +5,23 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/matrix/communities.dart';
+import 'package:zuno/core/matrix/room_permission.dart';
 import 'package:zuno/core/matrix/room_roles.dart';
 
 import '../../helpers/fake_matrix.dart';
+
+class _StoredMembers extends FakeDatabaseApi {
+  final users = <String, String>{};
+
+  @override
+  Future<User?> getUser(String userId, Room room) async {
+    final membership = users[userId];
+    return membership == null
+        ? null
+        : User(userId, membership: membership, room: room);
+  }
+}
 
 void main() {
   void setPowerLevels(Room room, Map<String, Object?> content) {
@@ -68,6 +82,32 @@ void main() {
       },
     );
 
+    test('a moderator cannot assign roles where only admins change them', () {
+      for (final levels in [defaultGroupPowerLevels(), communityPowerLevels]) {
+        final room = buildTestRoom(buildTestClient(userId: '@mod:example.org'));
+        setPowerLevels(room, {
+          ...levels,
+          'users': {'@mod:example.org': 50, '@bob:example.org': 0},
+        });
+        expect(
+          assignableRolesFor(room, targetUserId: '@bob:example.org'),
+          isEmpty,
+        );
+      }
+    });
+
+    test('an admin keeps every role under the default power levels', () {
+      final room = buildTestRoom(buildTestClient(userId: '@admin:example.org'));
+      setPowerLevels(room, {
+        ...defaultGroupPowerLevels(),
+        'users': {'@admin:example.org': 100, '@bob:example.org': 0},
+      });
+      expect(
+        assignableRolesFor(room, targetUserId: '@bob:example.org'),
+        containsAll(RoomRole.values),
+      );
+    });
+
     test('a member or read-only user cannot assign any role', () {
       final room = roomAs('@member:example.org', {
         '@member:example.org': 0,
@@ -86,6 +126,67 @@ void main() {
         isEmpty,
       );
     });
+  });
+
+  group('isLastAdmin', () {
+    late _StoredMembers stored;
+
+    Room adminRoom({
+      Map<String, int> users = const {},
+      int joined = 5,
+      String me = '@admin:example.org',
+    }) {
+      stored = _StoredMembers();
+      final room = buildTestRoom(buildTestClient(userId: me, database: stored));
+      setPowerLevels(room, {
+        ...defaultGroupPowerLevels(),
+        'users': {'@admin:example.org': 100, '@bob:example.org': 0, ...users},
+      });
+      room.summary.mJoinedMemberCount = joined;
+      return room;
+    }
+
+    void setMembership(Room room, String userId, String membership) =>
+        room.setState(User(userId, membership: membership, room: room));
+
+    test('the only admin among other members is the last one', () async {
+      expect(await isLastAdmin(adminRoom()), isTrue);
+    });
+
+    test('an admin who left, here or only on record, does not count', () async {
+      final room = adminRoom(
+        users: {'@gone:example.org': 100, '@banned:example.org': 100},
+      );
+      setMembership(room, '@gone:example.org', 'leave');
+      stored.users['@banned:example.org'] = 'ban';
+
+      expect(await isLastAdmin(room), isTrue);
+    });
+
+    test('another admin who is still here or invited does', () async {
+      final joined = adminRoom(users: {'@carol:example.org': 100});
+      setMembership(joined, '@carol:example.org', 'join');
+      expect(await isLastAdmin(joined), isFalse);
+
+      final invited = adminRoom(users: {'@carol:example.org': 100});
+      stored.users['@carol:example.org'] = 'invite';
+      expect(await isLastAdmin(invited), isFalse);
+    });
+
+    test('an admin whose membership is unknown is taken to be here', () async {
+      expect(
+        await isLastAdmin(adminRoom(users: {'@carol:example.org': 100})),
+        isFalse,
+      );
+    });
+
+    test(
+      'nobody else left, or not being an admin, is never the last admin',
+      () async {
+        expect(await isLastAdmin(adminRoom(joined: 1)), isFalse);
+        expect(await isLastAdmin(adminRoom(me: '@bob:example.org')), isFalse);
+      },
+    );
   });
 
   group('canManageMember', () {

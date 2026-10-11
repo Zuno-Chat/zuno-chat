@@ -86,7 +86,6 @@ void main() {
     List<Event>? gallery,
     List<int> galleryFailureIndexes = const [],
     bool canReply = true,
-    bool linkPreviews = false,
     DateTime? now,
     bool use24Hour = true,
   }) async {
@@ -103,7 +102,6 @@ void main() {
       gallery: gallery,
       galleryFailureIndexes: galleryFailureIndexes,
       canReply: canReply,
-      linkPreviews: linkPreviews,
       now: now ?? noon,
       use24Hour: use24Hour,
     );
@@ -172,6 +170,33 @@ void main() {
     expect(edited.edited, isTrue);
     expect(edited.displayEventId, r'$e1');
     expect(plain, isNot(equals(edited)));
+  });
+
+  test('an edit by someone else neither shows nor counts', () async {
+    final event = text(r'$m1');
+    final row = await record(
+      event,
+      events: [
+        edit(r'$e1', r'$m1', sender: cat),
+        event,
+      ],
+    );
+    expect(row.edited, isFalse);
+    expect(row.displayEventId, r'$m1');
+  });
+
+  test('the author edit counts even after a stranger edits too', () async {
+    final event = text(r'$m1');
+    final row = await record(
+      event,
+      events: [
+        edit(r'$e2', r'$m1', sender: cat),
+        edit(r'$e1', r'$m1'),
+        event,
+      ],
+    );
+    expect(row.edited, isTrue);
+    expect(row.displayEventId, r'$e1');
   });
 
   test('timeLabel follows the 24-hour setting', () async {
@@ -472,15 +497,11 @@ void main() {
     );
   });
 
-  test('canReply and linkPreviews change the record', () async {
+  test('canReply changes the record', () async {
     final event = text(r'$m1');
     expect(
       await record(event),
       isNot(equals(await record(event, canReply: false))),
-    );
-    expect(
-      await record(event),
-      isNot(equals(await record(event, linkPreviews: true))),
     );
   });
 

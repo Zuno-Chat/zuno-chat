@@ -90,36 +90,6 @@ void main() {
     return container;
   }
 
-  group('answered on another device', () {
-    test('is true once my membership on another device joins the call', () {
-      joinCall(room, userId: _me, deviceId: _laptop);
-
-      expect(answeredOnAnotherDevice(room, 'c1'), isTrue);
-    });
-
-    test('is false for my membership on this device', () {
-      joinCall(room, userId: _me, deviceId: _thisPhone);
-
-      expect(answeredOnAnotherDevice(room, 'c1'), isFalse);
-    });
-
-    test('is false when my other device is in a different call', () {
-      joinCall(room, userId: _me, deviceId: _laptop, callId: 'c2');
-
-      expect(answeredOnAnotherDevice(room, 'c1'), isFalse);
-    });
-
-    test('is false when someone else joins, as the caller does', () {
-      joinCall(room, userId: _bob, deviceId: _laptop);
-
-      expect(answeredOnAnotherDevice(room, 'c1'), isFalse);
-    });
-
-    test('is false with no call membership at all', () {
-      expect(answeredOnAnotherDevice(room, 'c1'), isFalse);
-    });
-  });
-
   group('declined by me', () {
     SystemRingingCall ringing() => (roomId: room.id, callId: 'c1');
 
@@ -232,6 +202,49 @@ void main() {
       expect(presenter.ends, isEmpty);
       expect(SystemRing.instance.ringing.value, isNotNull);
       expect(container.read(resolvedCallIdsProvider), isEmpty);
+    });
+
+    test('the caller leaving the call it rang ends the ring here as ended by '
+        'them and resolves the call', () async {
+      await ring();
+      joinCall(room, userId: _bob, deviceId: 'BOBPHONE');
+      await sync();
+      expect(presenter.ends, isEmpty);
+
+      leaveCalls(room, userId: _bob);
+      await sync();
+
+      expect(presenter.ends, [
+        (roomId: room.id, callId: 'c1', end: RingEnd.remoteEnded),
+      ]);
+      expect(SystemRing.instance.ringing.value, isNull);
+      expect(container.read(resolvedCallIdsProvider), {'c1'});
+    });
+
+    test('a ring whose caller was never seen in the call stays up', () async {
+      await ring();
+      joinCall(room, userId: _bob, deviceId: 'BOBPHONE', callId: 'other');
+
+      await sync();
+      leaveCalls(room, userId: _bob);
+      await sync();
+
+      expect(presenter.ends, isEmpty);
+      expect(SystemRing.instance.ringing.value, isNotNull);
+    });
+
+    test('the caller seen in another ring does not end this one', () async {
+      await ring(callId: 'c0');
+      joinCall(room, userId: _bob, deviceId: 'BOBPHONE', callId: 'c0');
+      await sync();
+      SystemRing.instance.reset();
+      await ring();
+
+      leaveCalls(room, userId: _bob);
+      await sync();
+
+      expect(presenter.ends, isEmpty);
+      expect(SystemRing.instance.ringing.value, isNotNull);
     });
 
     test('a ring in a room this client does not know is left alone', () async {

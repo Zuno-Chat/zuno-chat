@@ -179,7 +179,7 @@ class _CallPageState extends ConsumerState<CallPage> {
       room: call.session.room,
       kind: call.session.kind,
       connecting: call.connecting,
-      calling: call.calling,
+      status: call.status,
       local: local == null ? null : _viewOf(local),
       remote: [for (final participant in call.remotes) _viewOf(participant)],
       talkingSince: call.talkingSince,

@@ -91,8 +91,7 @@ final class NseComposerTests: XCTestCase {
   }
 
   func testNamesComeFromTheReadModelThenTheServerThenTheLocalpart() {
-    let file = NseRoomFile(
-      room: "!r", title: "Book club", dm: false, partner: nil, sessions: [], notifiers: [])
+    let file = NotifyRoomFile(room: "!r", title: "Book club")
     let event = NseEvent(
       eventId: "$e", roomId: "!r", type: "m.room.message", sender: "@sam_lee:zuno.im",
       originServerTs: 0)
@@ -137,8 +136,7 @@ final class NseComposerTests: XCTestCase {
   }
 
   func testBlankNamesFallBackLikeEmptyOnes() {
-    let file = NseRoomFile(
-      room: "!r", title: " ", dm: false, partner: nil, sessions: [], notifiers: [])
+    let file = NotifyRoomFile(room: "!r", title: " ")
     let event = NseEvent(
       eventId: "$e", roomId: "!r", type: "m.room.message", sender: "@sam_lee:zuno.im",
       originServerTs: 0)

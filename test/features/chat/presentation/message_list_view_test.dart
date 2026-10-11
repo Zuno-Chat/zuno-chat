@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/send_progress.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
+import 'package:zuno/features/chat/data/composed_image.dart';
 import 'package:zuno/features/chat/data/composed_video.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 import 'package:zuno/features/chat/presentation/date_divider.dart';
@@ -16,7 +17,6 @@ import 'package:zuno/features/chat/presentation/message_tile.dart';
 import 'package:zuno/features/chat/presentation/reply_target_cache.dart';
 import 'package:zuno/features/chat/presentation/swipe_to_reply.dart';
 
-import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
 
 const me = '@me:example.org';
@@ -79,7 +79,6 @@ void main() {
                   timeline: timeline(),
                   controller: controller,
                   showHiddenMessages: false,
-                  linkPreviews: false,
                   canReply: true,
                   failedSends: failedSends,
                   pendingSend: pendingSend,
@@ -233,7 +232,12 @@ void main() {
     await pumpList(
       tester,
       () => timeline,
-      failedSends: [FailedMediaSend(gallery: null, bytes: onePixelPng)],
+      failedSends: const [
+        FailedMediaSend(
+          gallery: null,
+          photo: ComposedImage(path: '/p.png', name: 'p.png', caption: ''),
+        ),
+      ],
     );
 
     expect(find.byType(FailedMediaTile), findsOneWidget);
@@ -280,10 +284,65 @@ void main() {
     expect(find.byKey(const ValueKey(r'$m1')), findsOneWidget);
   });
 
+  testWidgets("someone else's photo with your gallery's id stays out of your "
+      'gallery and its failed item', (tester) async {
+    Event photo(String id, String sender, int index) => buildTestEvent(
+      room,
+      eventId: id,
+      senderId: sender,
+      originServerTs: noon,
+      status: EventStatus.synced,
+      content: {
+        'msgtype': MessageTypes.Image,
+        'body': 'photo.jpg',
+        'url': 'mxc://example.org/${id.substring(1)}',
+        ...galleryGroupContent(id: 'g1', index: index, count: 3),
+      },
+    );
+    final timeline = await timelineOf(tester, [
+      photo(r'$x', bob, 2),
+      photo(r'$a', me, 0),
+    ]);
+    await pumpList(
+      tester,
+      () => timeline,
+      failedSends: const [
+        FailedMediaSend(
+          gallery: GalleryGroupRef(id: 'g1', index: 1, count: 3),
+          video: ComposedVideo(
+            path: '/tmp/clip.mp4',
+            name: 'clip.mp4',
+            caption: '',
+          ),
+        ),
+      ],
+    );
+
+    Finder inRow(String id, Type type) => find.descendant(
+      of: find.byKey(ValueKey(id)),
+      matching: find.byType(type),
+    );
+    expect(inRow(r'$a', GalleryMessage), findsOneWidget);
+    expect(inRow(r'$a', GalleryFailedThumbnail), findsOneWidget);
+    expect(inRow(r'$x', GalleryMessage), findsNothing);
+    expect(inRow(r'$x', GalleryFailedThumbnail), findsNothing);
+    expect(find.byType(FailedMediaTile), findsNothing);
+
+    timeline.events.removeWhere((e) => e.eventId == r'$a');
+    rebuild();
+    await tester.pump();
+
+    expect(inRow(r'$x', GalleryFailedThumbnail), findsNothing);
+    expect(find.byType(FailedMediaTile), findsOneWidget);
+  });
+
   testWidgets('a failed single photo or video gets its own tile, and a tap '
       'retries just that one', (tester) async {
     final timeline = await timelineOf(tester, [text(r'$m1')]);
-    final photo = FailedMediaSend(gallery: null, bytes: onePixelPng);
+    const photo = FailedMediaSend(
+      gallery: null,
+      photo: ComposedImage(path: '/p.png', name: 'p.png', caption: ''),
+    );
     const video = FailedMediaSend(
       gallery: null,
       video: ComposedVideo(

@@ -22,7 +22,6 @@ struct Ledger: Codable, Equatable, Sendable {
     var ts: Int64
   }
 
-  static let fileName = "ledger"
   static let limit = 64
 
   var v: Int

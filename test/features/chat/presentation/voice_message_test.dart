@@ -26,7 +26,7 @@ void main() {
 
   Event voice({
     int? durationMs = 42000,
-    List<int>? waveform = const [100, 600, 1024, 300],
+    List<Object?>? waveform = const [100, 600, 1024, 300],
   }) => buildTestEvent(
     server.room,
     eventId: r'$voice',
@@ -99,7 +99,7 @@ void main() {
   voiceTest('shows the length before it plays', (tester) async {
     await pumpVoice(tester, voice());
 
-    expect(find.text('00:42'), findsOneWidget);
+    expect(find.text('0:42'), findsOneWidget);
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
   });
 
@@ -249,7 +249,7 @@ void main() {
     audio.positionMs = 5000;
     await pressPlayPause(tester);
 
-    expect(find.text('00:05'), findsOneWidget);
+    expect(find.text('0:05'), findsOneWidget);
   });
 
   voiceTest('the player\'s own length wins over the one in the message', (
@@ -266,7 +266,7 @@ void main() {
     audio.finishPlaying();
     await settle(tester);
 
-    expect(find.text('01:00'), findsOneWidget);
+    expect(find.text('1:00'), findsOneWidget);
   });
 
   voiceTest('finishing goes back to showing the full length', (tester) async {
@@ -279,7 +279,7 @@ void main() {
     audio.finishPlaying();
     await settle(tester);
 
-    expect(find.text('00:42'), findsOneWidget);
+    expect(find.text('0:42'), findsOneWidget);
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
     expect(
       tester.widget<CustomPaint>(find.byType(CustomPaint).last).painter,
@@ -360,6 +360,26 @@ void main() {
         .widget<CustomPaint>(find.byType(CustomPaint).last)
         .painter;
     expect((painter as dynamic).samples, [900, 800, 700]);
+  });
+
+  List<int> drawnBars(WidgetTester tester) {
+    final bars = tester.widget<CustomPaint>(find.byType(CustomPaint).last);
+    return (bars.painter as dynamic).samples as List<int>;
+  }
+
+  voiceTest('a waveform with a broken entry still draws the rest', (
+    tester,
+  ) async {
+    await pumpVoice(tester, voice(waveform: const ['x', 300, 600]));
+
+    expect(tester.takeException(), isNull);
+    expect(drawnBars(tester), [300, 600]);
+  });
+
+  voiceTest('a very long waveform draws at most fifty bars', (tester) async {
+    await pumpVoice(tester, voice(waveform: List.filled(20000, 512)));
+
+    expect(drawnBars(tester), List.filled(50, 512));
   });
 
   voiceTest('without a waveform it shows a plain progress bar', (tester) async {

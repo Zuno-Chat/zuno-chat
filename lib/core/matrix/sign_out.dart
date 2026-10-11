@@ -1,11 +1,15 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../calls/active_call_provider.dart';
 import '../calls/end_call.dart';
 import '../calls/matrixrtc/call_session.dart';
+import '../errors/caught_errors.dart';
 import '../location/live_location_sharing.dart';
 import '../notifications/notification_delivery_provider.dart';
+import 'connectivity_provider.dart';
+import 'matrix_client_provider.dart';
 
 const _liveShareStopBound = Duration(seconds: 5);
 
@@ -27,6 +31,24 @@ Future<void> windDownBeforeSignOut({
   await liveLocation.stopAll(within: _liveShareStopBound);
 }
 
+Future<void> signOutThisDeviceOrExplain(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  if (ref.read(isOfflineProvider).value ?? false) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Not signed out. Check your connection and try again.'),
+      ),
+    );
+    return;
+  }
+  await signOutThisDevice(
+    ref.read(matrixClientProvider),
+    windDown: ref.read(signOutWindDownProvider),
+  );
+}
+
 Future<void> signOutThisDevice(
   Client client, {
   required SignOutWindDown windDown,
@@ -35,5 +57,9 @@ Future<void> signOutThisDevice(
 }) async {
   await windDown();
   await stopDelivery(client);
-  await client.logout();
+  try {
+    await client.logout();
+  } catch (e, s) {
+    reportCaught('sign out', e, s);
+  }
 }

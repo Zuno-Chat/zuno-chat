@@ -92,8 +92,14 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
       if (mounted) {
         messenger.showSnackBar(SnackBar(content: Text(success)));
       }
+    } on RoomListingRefused {
+      if (mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text(RoomListingRefused.message)),
+        );
+      }
     } catch (e, s) {
-      if (e is! RoomListingRefused) reportCaught(failure, e, s);
+      reportCaught(failure, e, s);
       if (mounted) {
         messenger.showSnackBar(SnackBar(content: Text('$failure. Try again.')));
       }
@@ -281,8 +287,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
     final room = widget.room;
     final current = roomAccessOf(room);
     final communities = _community ? const <Room>[] : communitiesOf(room);
-    final inCommunity =
-        !_community && (communities.isNotEmpty || room.spaceParents.isNotEmpty);
+    final inCommunity = !_community && room.spaceParents.isNotEmpty;
     final choices = [
       if (!inCommunity) RoomAccess.public,
       if (communities.isNotEmpty) RoomAccess.community,

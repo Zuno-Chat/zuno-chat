@@ -6,12 +6,11 @@ import 'package:path_provider/path_provider.dart';
 
 import '../errors/best_effort.dart';
 
-Future<void> discardPickedCopy(
-  PlatformFile file, {
+Future<void> discardTemporaryCopy(
+  String path, {
   List<Directory>? temporaryRoots,
 }) async {
-  final path = file.path;
-  if (path == null || !File(path).existsSync()) return;
+  if (!File(path).existsSync()) return;
   await runBestEffort(() async {
     final roots = temporaryRoots ?? await _appTemporaryRoots();
     bool insideTemporary(String entry) =>
@@ -23,7 +22,16 @@ Future<void> discardPickedCopy(
     if (insideTemporary(folder.path) && folder.listSync().isEmpty) {
       folder.deleteSync();
     }
-  }, label: 'discard picked copy');
+  }, label: 'discard a temporary copy');
+}
+
+Future<void> discardPickedCopy(
+  PlatformFile file, {
+  List<Directory>? temporaryRoots,
+}) async {
+  final path = file.path;
+  if (path == null) return;
+  await discardTemporaryCopy(path, temporaryRoots: temporaryRoots);
 }
 
 Future<T> trackPickerCopy<T>(

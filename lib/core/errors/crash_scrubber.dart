@@ -4,8 +4,13 @@ const _redacted = '[redacted]';
 
 final _jsonObjectPattern = RegExp(r'\{.*\}', dotAll: true);
 
-final _urlHostPattern = RegExp(
-  r'\b([a-z][a-z0-9+.-]*://)[^/\s?#"\x27]+',
+final _webHostPattern = RegExp(
+  r'\b(https?://)[^/\s?#"\x27]+',
+  caseSensitive: false,
+);
+
+final _otherUriPattern = RegExp(
+  r'\b(?!https?://)([a-z][a-z0-9+.-]*://)[^\s"]*',
   caseSensitive: false,
 );
 
@@ -36,7 +41,8 @@ String? scrubText(String? input) {
   if (input == null || input.isEmpty) return input;
   return input
       .replaceAll(_jsonObjectPattern, '{$_redacted}')
-      .replaceAllMapped(_urlHostPattern, (m) => '${m[1]}$_redacted')
+      .replaceAllMapped(_otherUriPattern, (m) => '${m[1]}$_redacted')
+      .replaceAllMapped(_webHostPattern, (m) => '${m[1]}$_redacted')
       .replaceAll(_geoPattern, 'geo:$_redacted')
       .replaceAll(_filePathPattern, '[path]')
       .replaceAll(_quotedNamePattern, '“$_redacted”')

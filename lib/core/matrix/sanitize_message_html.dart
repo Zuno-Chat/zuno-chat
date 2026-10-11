@@ -1,6 +1,10 @@
+import 'dart:ui' show Color;
+
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' show parseFragment;
 
+import 'matrix_ids.dart';
+import 'mention_fragments.dart';
 import 'urls.dart';
 
 const _allowedTags = {
@@ -57,6 +61,7 @@ const _droppedSubtrees = {
   'link',
   'math',
   'meta',
+  'mx-reply',
   'noscript',
   'object',
   'script',
@@ -81,27 +86,31 @@ final _languageClass = RegExp(r'^language-[A-Za-z0-9_+-]{1,32}$');
 
 final _colorValue = RegExp(r'^(#[0-9A-Fa-f]{3,8}|[A-Za-z]{1,20})$');
 
-String sanitizeMessageHtml(String html) {
-  final source = parseFragment(html);
+String sanitizeMessageHtml(String html, {required Color mentionColor}) {
+  final hex = mentionColor.toARGB32().toRadixString(16).padLeft(8, '0');
+  final mentionStyle = 'color: #${hex.substring(2)}; font-weight: bold;';
   final out = DocumentFragment();
-  for (final node in List<Node>.from(source.nodes)) {
-    out.nodes.addAll(_sanitizeNode(node));
+  for (final node in List<Node>.from(parseFragment(html).nodes)) {
+    out.nodes.addAll(_sanitizeNode(node, mentionStyle));
   }
   return out.outerHtml;
 }
 
-List<Node> _sanitizeNode(Node node) {
-  if (node is Text) return [Text(node.data)];
+List<Node> _sanitizeNode(Node node, String mentionStyle) {
+  if (node is Text) return _markRoomMentions(node.data, mentionStyle);
 
   if (node is! Element) return const [];
 
   final tag = node.localName?.toLowerCase();
   if (tag == null) return const [];
   if (_droppedSubtrees.contains(tag)) return const [];
+  if (tag == 'a' && isUserPillHref(node.attributes['href'])) {
+    return [_mention(withoutServer(node.text.trim()), mentionStyle)];
+  }
 
   final children = <Node>[];
   for (final child in List<Node>.from(node.nodes)) {
-    children.addAll(_sanitizeNode(child));
+    children.addAll(_sanitizeNode(child, mentionStyle));
   }
   if (!_allowedTags.contains(tag)) return children;
 
@@ -117,6 +126,31 @@ List<Node> _sanitizeNode(Node node) {
   element.nodes.addAll(children);
   return [element];
 }
+
+bool isUserPillHref(String? href) {
+  final uri = href == null ? null : Uri.tryParse(href.trim());
+  if (uri == null || uri.host != 'matrix.to') return false;
+  final target = uri.fragment.toLowerCase();
+  return target.startsWith('/@') || target.startsWith('/%40');
+}
+
+List<Node> _markRoomMentions(String text, String mentionStyle) {
+  final nodes = <Node>[];
+  var last = 0;
+  for (final match in roomMentionPattern.allMatches(text)) {
+    if (match.start > last) nodes.add(Text(text.substring(last, match.start)));
+    nodes.add(_mention(match.group(0)!, mentionStyle));
+    last = match.end;
+  }
+  if (last < text.length || nodes.isEmpty) {
+    nodes.add(Text(text.substring(last)));
+  }
+  return nodes;
+}
+
+Element _mention(String name, String mentionStyle) => Element.tag('span')
+  ..attributes['style'] = mentionStyle
+  ..nodes.add(Text(name));
 
 bool _isAcceptableValue({
   required String tag,

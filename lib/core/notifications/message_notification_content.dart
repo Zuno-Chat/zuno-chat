@@ -1,5 +1,6 @@
 class MessageNotificationContent {
   final String roomId;
+  final String? threadKey;
   final String title;
   final String body;
 
@@ -19,6 +20,7 @@ class MessageNotificationContent {
 
   const MessageNotificationContent({
     required this.roomId,
+    this.threadKey,
     required this.title,
     required this.body,
     this.text,
@@ -37,6 +39,7 @@ class MessageNotificationContent {
   bool operator ==(Object other) =>
       other is MessageNotificationContent &&
       other.roomId == roomId &&
+      other.threadKey == threadKey &&
       other.title == title &&
       other.body == body &&
       other.text == text &&
@@ -53,6 +56,7 @@ class MessageNotificationContent {
   @override
   int get hashCode => Object.hash(
     roomId,
+    threadKey,
     title,
     body,
     text,
@@ -66,4 +70,6 @@ class MessageNotificationContent {
     isPhoto,
     quiet,
   );
+
+  String get thread => threadKey ?? roomId;
 }

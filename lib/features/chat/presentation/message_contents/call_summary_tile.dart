@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/calls/matrixrtc/call_summary_message.dart';
-import '../../data/message_kinds.dart';
+import '../../../../core/format/human_units.dart';
 import '../message_bubble.dart';
 
 class CallSummaryTile extends StatelessWidget {

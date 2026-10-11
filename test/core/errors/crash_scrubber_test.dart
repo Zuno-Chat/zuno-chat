@@ -75,13 +75,26 @@ void main() {
       );
     });
 
-    test('redacts the host of a URL, which names the homeserver', () {
+    test('redacts the host of a web address, which names the homeserver, '
+        'and keeps its path', () {
+      expect(
+        scrubText('timed out: https://matrix.example.org/_matrix/sync'),
+        'timed out: https://[redacted]/_matrix/sync',
+      );
+    });
+
+    test('redacts every other address whole, since its path can name what '
+        'the user shared', () {
       expect(
         scrubText(
-          'timed out: https://matrix.example.org/_matrix/sync, '
+          'Permission Denial: reading uri content://com.other.fileprovider/'
+          "shared/Mom's%20Tax%20return%202025.pdf from pid=1, uid=2 requires "
+          'grantUriPermission(), file:///home/x/Photo.jpg, '
           'mxc://example.org/abc',
         ),
-        'timed out: https://[redacted]/_matrix/sync, mxc://[redacted]/abc',
+        'Permission Denial: reading uri content://[redacted] from pid=1, '
+        'uid=2 requires grantUriPermission(), file://[redacted] '
+        'mxc://[redacted]',
       );
     });
 
@@ -91,7 +104,7 @@ void main() {
           "Cannot open file, path = '/data/user/0/im.zuno.chat/cache/a/Tax "
           "return.pdf' and file:///private/var/mobile/Containers/x/Photo.jpg",
         ),
-        "Cannot open file, path = '[path]' and file://[path]",
+        "Cannot open file, path = '[path]' and file://[redacted]",
       );
     });
 

@@ -88,7 +88,7 @@ Shared pieces:
 |---|---|
 | `CardListView`, `CardGroup`, `CircleIcon` | The grouped-card look of Settings, room info and the pages under them. |
 | `StepLayout`, `StepHero` | One-question screens, with the actions pinned at the bottom above the keyboard. |
-| `RowMemo` | Returns the identical widget for an equal record, so a list row rebuilds only when its value-equal record changes. |
+| `RowMemo` | Returns the identical widget for an equal record from the same SDK object, so a list row rebuilds only when its value-equal record changes, and never keeps a `Room` the SDK has replaced. |
 | `RouteSettled` | `onRouteSettled()` fires once the push slide has finished, for work that would otherwise land mid-slide. |
 | `TopBannerFrame` | App-wide top banners (the call bar, the offline notice). They stack and slide in and out, and the content keeps its own status-bar inset, moving only by what that inset cannot hide. The slide re-lays out the content each frame, as the keyboard does: the one exception to animating position only. |
 | `KeepClearArea`, `showSheet` | Bottom chrome the floating call window keeps clear of: the composer, the home bar, caption bars. Every bottom sheet opens through `showSheet`, which marks the whole sheet. |
@@ -224,6 +224,7 @@ flowchart TD
   F --> H["iOS: wipe everything but the open database, clear the marker"]
 ```
 
+- **The splash covers the wipe**, so no sign-in can start on a device that is still being wiped.
 - The marker separates a sign-out from a device that never signed in, and it catches a remote sign-out at the next launch. A wipe that fails keeps the marker, so the next sign-out or launch retries.
 - **Android** drops files, preferences, keys, notifications, channels, shortcuts and permissions, so the next launch is a fresh install.
 - **iOS keeps the process, so it keeps the open database** (`signOutWipeKeepsProcess`). An iOS app cannot quit itself, and deleting the live SQLCipher file or its key would strand a same-session sign-in. The SDK has already emptied the database, so Dart `VACUUM`s it, the native wipe empties everything else the app owns, and Dart reloads `SharedPreferences`.
@@ -251,7 +252,7 @@ stateDiagram-v2
 
 - A sync connection failure is never trusted alone, only probed, because a cancelled request and network handoffs throw stray errors. A finished sync clears to `online`.
 - **The banner** sits above the `Navigator`, so it shows over every screen and dialog, and it stays exactly as long as the problem.
-- Core Matrix traffic stays ungated offline, since the SDK queues and retries it. Only doomed extras are gated: link-preview images, history requests and starting a call.
+- Core Matrix traffic stays ungated offline, since the SDK queues and retries it. Only doomed extras are gated: history requests and starting a call. Sign-out is refused offline too (`authentication.md`).
 
 **`SyncCoordinator` is the only owner of the app client's `/sync`.** It runs the loop itself, one `oneShotSync` per round, from the reasons it holds and the device network; the SDK's own loop never runs.
 

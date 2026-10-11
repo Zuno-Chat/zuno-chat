@@ -33,6 +33,7 @@ import 'serial_lock.dart';
 
 const _videoDrainDelay = Duration(milliseconds: 500);
 const _callConfirmPromptDelay = Duration(seconds: 30);
+const endMessagesWait = Duration(seconds: 15);
 
 typedef _PictureInPictureOffer = ({
   bool eligible,
@@ -156,7 +157,7 @@ class ActiveCallController extends ChangeNotifier {
   CallStatus get status {
     final local = _local;
     return callStatus(
-      calling: calling,
+      calling: session.role == CallSessionRole.caller && !session.everHadRemote,
       connecting: connecting,
       someoneHere: !connecting && _remotes.isNotEmpty,
       keysPending:
@@ -167,9 +168,6 @@ class ActiveCallController extends ChangeNotifier {
   bool get finished => _finished;
 
   bool get connecting => session.phase != CallSessionPhase.active;
-
-  bool get calling =>
-      session.role == CallSessionRole.caller && !session.everHadRemote;
 
   bool get reconnecting => _engineStatus == CallEngineStatus.reconnecting;
 
@@ -630,6 +628,7 @@ class ActiveCallController extends ChangeNotifier {
       );
     }
     _releaseIfDone();
+    await _stopOngoingCallOnceSent();
   }
 
   Future<void> _releaseDevice() async {
@@ -647,13 +646,23 @@ class ActiveCallController extends ChangeNotifier {
     ));
     _sendProximityScreenOff(false);
     await runBestEffort(_audioOutput.end, label: 'stop call audio');
-    await runBestEffort(
-      _ongoingCall.stop,
-      label: 'stop the ongoing-call notice',
-    );
     _sentShowOverLockscreen = false;
     await _setShowOverLockscreen(false);
     await runBestEffort(WakelockPlus.disable, label: 'let the screen sleep');
+  }
+
+  Future<void> _stopOngoingCallOnceSent() async {
+    await runBestEffort(
+      () => session.hangUpFinished.timeout(endMessagesWait, onTimeout: () {}),
+      label: 'wait for the call\'s last messages',
+    );
+    await _deviceEffects.run(() async {
+      if (!_ownsDevice()) return;
+      await runBestEffort(
+        _ongoingCall.stop,
+        label: 'stop the ongoing-call notice',
+      );
+    });
   }
 
   void _releaseMedia() {

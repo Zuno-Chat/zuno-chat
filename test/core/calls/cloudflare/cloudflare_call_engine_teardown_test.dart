@@ -68,6 +68,28 @@ void main() {
   });
 
   group('sad paths', () {
+    test('a membership with fields of the wrong type is read with defaults, '
+        'never thrown on', () async {
+      final engine = _buildEngine();
+
+      engine.updateRemoteParticipant(remoteId, {'sessionId': 7});
+      expect(engine.participants.where((p) => !p.isLocal), isEmpty);
+
+      engine.updateRemoteParticipant(remoteId, {
+        'sessionId': 'remote-session',
+        'tracks': ['audio'],
+        'audioMuted': 'yes',
+        'videoEnabled': 1,
+        'lowBandwidth': 'no',
+      });
+      await pumpEventQueue();
+
+      final remote = engine.participants.singleWhere((p) => !p.isLocal);
+      expect(remote.audioMuted, isFalse);
+      expect(remote.videoEnabled, isFalse);
+      expect(remote.lowBandwidth, isFalse);
+    });
+
     test('leaving after dispose does not throw', () async {
       final engine = _buildEngine();
       engine.dispose();

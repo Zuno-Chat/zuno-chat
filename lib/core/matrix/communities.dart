@@ -32,6 +32,13 @@ Set<String> communityChildIds(Room community) => {
   for (final child in community.spaceChildren) ?child.roomId,
 };
 
+bool _holds(Room community, Room room) =>
+    _linked(community.getState(EventTypes.SpaceChild, room.id)) &&
+    _linked(room.getState(EventTypes.SpaceParent, community.id));
+
+bool _linked(StrippedStateEvent? link) =>
+    link?.content.tryGetList<String>('via')?.isNotEmpty ?? false;
+
 bool _belongsInCommunity(Room room) =>
     room.membership == Membership.join && !room.isSpace && !room.isDirectChat;
 
@@ -42,15 +49,15 @@ List<Room> communityRooms(Room community, {Room? Function(String id)? lookup}) {
   final find = lookup ?? community.client.getRoomById;
   return [
     for (final id in communityChildIds(community))
-      if (find(id) case final room? when _belongsInCommunity(room)) room,
+      if (find(id) case final room?
+          when _belongsInCommunity(room) && _holds(community, room))
+        room,
   ]..sort(_newestFirst);
 }
 
 List<Room> communitiesOf(Room room) => [
   for (final candidate in room.client.rooms)
-    if (isJoinedCommunity(candidate) &&
-        communityChildIds(candidate).contains(room.id))
-      candidate,
+    if (isJoinedCommunity(candidate) && _holds(candidate, room)) candidate,
 ];
 
 String? communityNameOf(Room room) {
@@ -133,17 +140,11 @@ HomeLayout arrangeHome(
   );
 }
 
-List<Room> roomsLeavingWith(Room community) {
-  final others = [
-    for (final other in community.client.rooms)
-      if (other.id != community.id && isJoinedCommunity(other))
-        communityChildIds(other),
-  ];
-  return [
-    for (final room in communityRooms(community))
-      if (!others.any((ids) => ids.contains(room.id))) room,
-  ];
-}
+List<Room> roomsLeavingWith(Room community) => [
+  for (final room in communityRooms(community))
+    if (communitiesOf(room) case [final only] when only.id == community.id)
+      room,
+];
 
 Future<void> leaveCommunity(Room community) async {
   await Future.wait(roomsLeavingWith(community).map((room) => room.leave()));

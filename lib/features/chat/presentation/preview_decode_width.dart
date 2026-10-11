@@ -2,8 +2,10 @@ import 'package:flutter/widgets.dart';
 
 const _zoomHeadroom = 1.5;
 
-int previewDecodeWidth(BuildContext context) =>
-    (MediaQuery.sizeOf(context).width *
-            MediaQuery.devicePixelRatioOf(context) *
-            _zoomHeadroom)
+int decodeWidth(BuildContext context, {double? shownAt}) =>
+    ((shownAt ?? MediaQuery.sizeOf(context).width) *
+            MediaQuery.devicePixelRatioOf(context))
         .round();
+
+int previewDecodeWidth(BuildContext context) =>
+    (decodeWidth(context) * _zoomHeadroom).round();

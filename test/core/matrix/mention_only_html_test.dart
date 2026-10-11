@@ -42,6 +42,31 @@ void main() {
     );
   });
 
+  test('a pill is recognised by the same rule the sanitizer uses', () {
+    expect(
+      isMentionOnlyHtml(
+        html:
+            'hi <a href="https://matrix.to/#/%40alice:example.org">@Alice</a>',
+        body: 'hi @Alice',
+      ),
+      isTrue,
+    );
+    expect(
+      isMentionOnlyHtml(
+        html: 'hi <a title="a>b" href="https://matrix.to/#/@alice:example.org">@Alice</a>',
+        body: 'hi @Alice',
+      ),
+      isTrue,
+    );
+    expect(
+      isMentionOnlyHtml(
+        html: 'hi <a href="https://matrix.to/#/@alice:example.org"><b>@Alice</b></a>',
+        body: 'hi @Alice',
+      ),
+      isFalse,
+    );
+  });
+
   test('a reply fallback block is ignored', () {
     expect(
       isMentionOnlyHtml(

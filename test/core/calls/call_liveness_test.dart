@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/call_liveness.dart';
-import 'package:zuno/core/calls/models/call_kind.dart';
 
 import '../../helpers/fake_matrix.dart';
 
@@ -135,23 +134,5 @@ void main() {
       CallLiveness.unknown,
     );
     expect(asked, isFalse);
-  });
-
-  test('reads memberships without trusting their shape', () {
-    expect(rawMemberships({'memberships': 'nope'}), isEmpty);
-    expect(
-      rawMemberships({
-        'memberships': [
-          'junk',
-          {'call_id': 3},
-          {'call_id': 'c1', 'kind': 'video', 'created_ts': 42},
-          {'call_id': 'c2'},
-        ],
-      }),
-      [
-        (callId: 'c1', kind: CallKind.video, createdTs: 42),
-        (callId: 'c2', kind: CallKind.voice, createdTs: 0),
-      ],
-    );
   });
 }

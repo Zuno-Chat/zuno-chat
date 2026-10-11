@@ -39,17 +39,31 @@ data class RingCancel(val forget: Boolean, val dismiss: Boolean)
 
 object RingDecisions {
     const val RING_TIMEOUT_MS = 60_000L
-    const val SELECT_NOTIFICATION_ACTION = "SELECT_FOREGROUND_NOTIFICATION"
+    const val SELECT_FOREGROUND_ACTION = "SELECT_FOREGROUND_NOTIFICATION"
+    const val SELECT_ACTION = "SELECT_NOTIFICATION"
     const val ANSWER_ACTION_ID = "accept"
+    const val DECLINE_ACTION_ID = "decline"
     const val NOTIFICATION_ID_EXTRA = "notificationId"
+    const val ACTION_ID_EXTRA = "actionId"
+    const val TOKEN_EXTRA = "im.zuno.chat.zuno_call_style.RING_TOKEN"
     private const val REMEMBERED_RING_MAX_AGE_MS = 45_000L
-    private const val FULL_STRENGTH = 255
 
     fun ringLaunch(action: String?, notificationId: Int): Boolean =
-        action == SELECT_NOTIFICATION_ACTION && notificationId == IncomingRing.NOTIFICATION_ID
+        action == SELECT_FOREGROUND_ACTION && notificationId == IncomingRing.NOTIFICATION_ID
 
     fun answered(action: String?, notificationId: Int, actionId: String?): Boolean =
         ringLaunch(action, notificationId) && actionId == ANSWER_ACTION_ID
+
+    fun claimsRing(action: String?, notificationId: Int, actionId: String?): Boolean {
+        val notificationLaunch = action == SELECT_FOREGROUND_ACTION || action == SELECT_ACTION
+        val ringTarget = notificationId == IncomingRing.NOTIFICATION_ID ||
+            actionId == ANSWER_ACTION_ID ||
+            actionId == DECLINE_ACTION_ID
+        return notificationLaunch && ringTarget
+    }
+
+    fun tokenMatches(presented: String?, ringToken: String?): Boolean =
+        ringToken != null && presented == ringToken
 
     fun cancel(
         requestedCallId: String?,
@@ -65,9 +79,6 @@ object RingDecisions {
 
     fun stops(ringingCallId: String?, requestedCallId: String?): Boolean =
         ringingCallId == null || requestedCallId == null || ringingCallId == requestedCallId
-
-    fun amplitudes(pattern: LongArray): IntArray =
-        IntArray(pattern.size) { if (it % 2 == 1) FULL_STRENGTH else 0 }
 
     private fun remembersAnotherCall(
         remembered: RememberedRing?,

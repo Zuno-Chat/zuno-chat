@@ -11,7 +11,7 @@ final class NseAppLogicTests: XCTestCase {
 
   func testMarksAreHandedOverOnlyOnce() {
     let marks = [
-      NseMark(kind: "invite", room: "!a", ts: 5), NseMark(kind: "test", ts: 9),
+      NseMark(kind: "invite", room: "!a", ts: 5), NseMark(kind: "summary", ts: 9),
     ]
 
     let first = NseAppLogic.marks(marks, after: 0)
@@ -24,15 +24,13 @@ final class NseAppLogicTests: XCTestCase {
     XCTAssertEqual(again.pointer, 9)
   }
 
-  func testOutcomesCarryCountersNewMissesAndTheGeneration() {
-    let result = NseAppLogic.outcomes(
-      counters: ["nse.c.20260921.o.utd": 2],
-      utd: [NseUtd(room: "!a", event: "$old", ts: 3), NseUtd(room: "!a", event: "$new", ts: 8)],
-      after: 3, generation: "g1")
+  func testOutcomesCarryCountersAndTheGeneration() {
+    let records = NseAppLogic.outcomes(
+      counters: ["nse.c.20260921.o.utd": 2], generation: "g1")
 
-    XCTAssertEqual(result.records.map { $0["kind"] as? String }, ["counter", "utd", "generation"])
-    XCTAssertEqual(result.records[1]["event"] as? String, "$new")
-    XCTAssertEqual(result.pointer, 8)
+    XCTAssertEqual(records.map { $0["kind"] as? String }, ["counter", "generation"])
+    XCTAssertEqual(records.first?["count"] as? Int, 2)
+    XCTAssertEqual(records.last?["value"] as? String, "g1")
   }
 
   func testOnlyFinishedDaysOfCountersAreCleared() {

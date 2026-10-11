@@ -39,12 +39,10 @@ PublicRoomsSearch _directorySearch(
   required bool communities,
 }) =>
     ({term, since}) => client.queryPublicRooms(
-      filter: term == null && !communities
-          ? null
-          : PublicRoomQueryFilter(
-              genericSearchTerm: term,
-              roomTypes: communities ? [RoomCreationTypes.mSpace] : null,
-            ),
+      filter: PublicRoomQueryFilter(
+        genericSearchTerm: term,
+        roomTypes: [communities ? RoomCreationTypes.mSpace : null],
+      ),
       since: since,
       limit: _pageSize,
     );
@@ -122,7 +120,7 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
       final page = await widget.search(term: _term);
       if (_isStale(generation)) return;
       setState(() {
-        _rooms = _ofKind(page.chunk);
+        _rooms = page.chunk;
         _nextBatch = page.nextBatch;
         _loading = false;
       });
@@ -145,7 +143,7 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
       final page = await widget.search(term: _term, since: since);
       if (_isStale(generation)) return;
       setState(() {
-        _rooms = [..._rooms, ..._ofKind(page.chunk)];
+        _rooms = [..._rooms, ...page.chunk];
         _nextBatch = page.nextBatch;
       });
     } catch (e, s) {
@@ -158,12 +156,6 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
   }
 
   bool _isStale(int generation) => generation != _generation || !mounted;
-
-  List<PublishedRoomsChunk> _ofKind(List<PublishedRoomsChunk> rooms) => [
-    for (final room in rooms)
-      if ((room.roomType == RoomCreationTypes.mSpace) == widget.communities)
-        room,
-  ];
 
   @override
   Widget build(BuildContext context) {

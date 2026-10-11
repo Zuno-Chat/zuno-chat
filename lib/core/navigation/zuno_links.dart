@@ -15,6 +15,9 @@ Future<bool> openExternally(Uri uri) =>
     launchUrl(uri, mode: LaunchMode.externalApplication);
 
 String linkNotOpenedMessage(Uri uri) {
+  if (uri.scheme.toLowerCase() == 'mailto') {
+    return 'Email not opened. Write to ${uri.path} from your email.';
+  }
   final target = uri.hasFragment ? '${uri.path}#${uri.fragment}' : uri.path;
   return 'Link not opened. Visit ${uri.host}$target in a browser.';
 }

@@ -16,7 +16,7 @@ final class RingDecisionTests: XCTestCase {
     _ blob: VoipBlobOpen? = nil, mustReport: Bool? = nil, locked: Bool = false,
     session: RingSession = .signedIn(userId: "@me:zuno.im"), now: Int64 = 1_790_000_001_000,
     offset: Int64? = 0, calls: CallsSnapshot = CallsSnapshot(), unknownKid: Int = 0,
-    level: PreviewLevel = .full, room: RoomTitleFile? = nil
+    level: PreviewLevel = .full, room: NotifyRoomFile? = nil
   ) -> RingOutcome {
     RingDecision.decide(
       RingInput(
@@ -111,16 +111,17 @@ final class RingDecisionTests: XCTestCase {
       decide(mustReport: false, session: .signedIn(userId: "@alice:zuno.im")).action, .complete)
   }
 
-  func testSignedOutOrNoSessionReportsThenEndsAndStopsVoip() {
+  func testSignedOutOrNoSessionReportsThenEndsButOnlySigningOutStopsVoip() {
     for session in [RingSession.signedOut, .noSession] {
+      let stops = session == .signedOut
       for mustReport in delegates {
         let outcome = decide(mustReport: mustReport, session: session)
         XCTAssertEqual(outcome.action, .reportThenEnd(uuid: placeholder, reason: .remoteEnded))
-        XCTAssertTrue(outcome.disablePushTypes)
+        XCTAssertEqual(outcome.disablePushTypes, stops)
       }
       let skipped = decide(mustReport: false, session: session)
       XCTAssertEqual(skipped.action, .complete)
-      XCTAssertTrue(skipped.disablePushTypes)
+      XCTAssertEqual(skipped.disablePushTypes, stops)
     }
   }
 
@@ -220,8 +221,8 @@ final class RingDecisionTests: XCTestCase {
   }
 
   func testAChatNamesItsPartnerAndARoomItsTitle() {
-    let chat = RoomTitleFile(room: "!abc:zuno.im", title: "Alice B.", dm: true, partner: "Alice")
-    let group = RoomTitleFile(room: "!abc:zuno.im", title: "Design team", dm: false, partner: "")
+    let chat = NotifyRoomFile(room: "!abc:zuno.im", title: "Alice B.", dm: true, partner: "Alice")
+    let group = NotifyRoomFile(room: "!abc:zuno.im", title: "Design team", dm: false, partner: "")
 
     XCTAssertEqual(decide(room: chat).action.ringName, "Alice")
     XCTAssertEqual(decide(room: group).action.ringName, "Design team")
@@ -237,7 +238,7 @@ final class RingDecisionTests: XCTestCase {
   }
 
   func testAtNothingEveryRingIsAZunoCall() {
-    let chat = RoomTitleFile(room: "!abc:zuno.im", title: "Alice", dm: true, partner: "Alice")
+    let chat = NotifyRoomFile(room: "!abc:zuno.im", title: "Alice", dm: true, partner: "Alice")
 
     XCTAssertEqual(decide(level: .none, room: chat).action.ringName, "Zuno call")
   }
@@ -288,7 +289,7 @@ final class RingDecisionTests: XCTestCase {
     let sealed = VoipRing(
       room: "!abc:zuno.im", call: "c1", caller: "@alice:zuno.im", cname: "\u{202E}Alice\u{200F}",
       rname: "", kind: .voice, ts: 1_790_000_000_000, rts: 1_790_000_000_000)
-    let room = RoomTitleFile(
+    let room = NotifyRoomFile(
       room: "!abc:zuno.im", title: "\u{2067}Design\u{0000} team", dm: false, partner: "")
 
     XCTAssertEqual(decide(.opened(header, sealed)).action.ringName, "Alice")

@@ -39,7 +39,6 @@ class MessageRowData {
   final List<EventStatus> galleryStatuses;
   final List<int> galleryFailureIndexes;
   final bool canReply;
-  final bool linkPreviews;
 
   const MessageRowData({
     required this.eventId,
@@ -71,7 +70,6 @@ class MessageRowData {
     required this.galleryStatuses,
     required this.galleryFailureIndexes,
     required this.canReply,
-    required this.linkPreviews,
   });
 
   MetaStatus get metaStatus {
@@ -109,7 +107,6 @@ class MessageRowData {
     showReadTick,
     isRead,
     canReply,
-    linkPreviews,
     reactions.length,
     ...reactions,
     galleryIds.length,
@@ -133,7 +130,9 @@ bool _startsRun(Event event, Event? older) {
   if (isHiddenTimelineEvent(older) || older.senderId != event.senderId) {
     return true;
   }
-  if (!isSameLocalDay(event.originServerTs, older.originServerTs)) return true;
+  if (calendarDaysBetween(older.originServerTs, event.originServerTs) != 0) {
+    return true;
+  }
   return event.originServerTs.difference(older.originServerTs).abs() > runGap;
 }
 
@@ -147,7 +146,6 @@ MessageRowData messageRowDataFor({
   required List<Event>? gallery,
   required List<int> galleryFailureIndexes,
   required bool canReply,
-  required bool linkPreviews,
   required DateTime now,
   required bool use24Hour,
 }) {
@@ -157,7 +155,7 @@ MessageRowData messageRowDataFor({
   final showReadTick = isOwn && isLastOwn && event.status.isSent;
   final startsDay =
       older == null ||
-      !isSameLocalDay(event.originServerTs, older.originServerTs);
+      calendarDaysBetween(older.originServerTs, event.originServerTs) != 0;
   final replyToId = event.inReplyToEventId();
   final replyTarget = replyToId == null ? null : index[replyToId];
   final replyDisplay = replyTarget?.getDisplayEvent(timeline);
@@ -170,9 +168,7 @@ MessageRowData messageRowDataFor({
     messageType: displayEvent.messageType,
     redacted: event.redacted,
     displayEventId: displayEvent.eventId,
-    edited:
-        !event.redacted &&
-        event.hasAggregatedEvents(timeline, RelationshipTypes.edit),
+    edited: displayEvent.eventId != event.eventId,
     timeLabel: clockLabel(event.originServerTs.toLocal(), use24Hour),
     dayLabel: startsDay ? dateDividerLabel(event.originServerTs, now) : null,
     isOwn: isOwn,
@@ -207,6 +203,5 @@ MessageRowData messageRowDataFor({
     ],
     galleryFailureIndexes: galleryFailureIndexes,
     canReply: canReply,
-    linkPreviews: linkPreviews,
   );
 }

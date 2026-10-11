@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/active_room_call.dart';
+import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 
 import '../../../helpers/call_membership.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -28,6 +29,25 @@ void main() {
     kind: kind,
     createdAtMs: createdAtMs,
   );
+
+  test('a malformed membership in the room is passed over, not thrown on', () {
+    room.setState(
+      buildTestEvent(
+        room,
+        eventId: r'$broken',
+        senderId: '@broken:x',
+        type: callMemberEventType,
+        stateKey: '@broken:x',
+        content: {
+          'memberships': [<String, Object?>{}],
+        },
+      ),
+    );
+    publishMembership('@ann:x', callId: 'c1');
+
+    expect(findActiveRoomCall(room, excludeUserId: '@me:x')?.callId, 'c1');
+    expect(isCallFull(room, 'c1', excludeUserId: '@me:x'), isFalse);
+  });
 
   group('call capacity', () {
     void fill(int count, {String callId = 'c1'}) {

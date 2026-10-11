@@ -2,9 +2,10 @@ import 'dart:io';
 
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter/services.dart';
+import 'package:matrix/matrix.dart' show MatrixFile, MessageTypes;
+import 'package:mime/mime.dart';
 
 import '../errors/caught_errors.dart';
-import '../matrix/looks_like_video.dart';
 import '../navigation/held_broadcast.dart';
 import '../platform/platform_capabilities.dart';
 
@@ -55,21 +56,37 @@ class InboundShare {
   }
 }
 
-bool isSharedMedia(XFile file) {
-  final mime = file.mimeType;
-  if (mime != null) {
-    return mime.startsWith('image/') || mime.startsWith('video/');
-  }
-  return looksLikeVideo(file);
+const _unknownType = 'application/octet-stream';
+
+Future<String> _sharedFileType(XFile file) async {
+  final declared = file.mimeType;
+  if (declared != null && declared != _unknownType) return declared;
+  return lookupMimeType(file.name, headerBytes: await _headerOf(file)) ??
+      _unknownType;
 }
 
-({List<XFile> media, List<XFile> others}) partitionSharedFiles(
+Future<List<int>?> _headerOf(XFile file) async {
+  try {
+    return [
+      await for (final chunk in file.openRead(0, defaultMagicNumbersMaxLength))
+        ...chunk,
+    ];
+  } on FileSystemException {
+    return null;
+  }
+}
+
+Future<({List<XFile> media, List<XFile> others})> partitionSharedFiles(
   List<XFile> files,
-) {
+) async {
   final media = <XFile>[];
   final others = <XFile>[];
   for (final file in files) {
-    (isSharedMedia(file) ? media : others).add(file);
+    final type = await _sharedFileType(file);
+    final typed = XFile(file.path, mimeType: type);
+    final kind = MatrixFile.msgTypeFromMime(type);
+    (kind == MessageTypes.Image || kind == MessageTypes.Video ? media : others)
+        .add(typed);
   }
   return (media: media, others: others);
 }
@@ -121,17 +138,4 @@ Future<List<XFile>> copySharedFilesToCache(
       if (paths[i] case final path?)
         XFile(path, name: files[i].name, mimeType: files[i].mimeType),
   ];
-}
-
-Future<void> discardSharedCopies(List<XFile> copies) async {
-  for (final copy in copies) {
-    try {
-      await File(copy.path).delete();
-    } on PathNotFoundException {
-      continue;
-    } on FileSystemException catch (e, s) {
-      reportCaught('discard a shared copy', e, s);
-      continue;
-    }
-  }
 }

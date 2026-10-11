@@ -207,7 +207,6 @@ class CloudflareApiClient {
     final pending = switch (method) {
       'POST' => httpClient.post(uri, headers: headers, body: encoded),
       'PUT' => httpClient.put(uri, headers: headers, body: encoded),
-      'GET' => httpClient.get(uri, headers: headers),
       _ => throw ArgumentError('Unsupported method $method'),
     };
     return pending.timeout(_requestDeadline);

@@ -30,8 +30,25 @@ final class NseClassifierTests: XCTestCase {
         eventId: "$i", roomId: "!abc:zuno.im", type: "m.room.message", sender: "@alice:zuno.im",
         originServerTs: now, content: content)
       XCTAssertEqual(
-        NseClassifier.classify(invite, ownUserId: "@mwong:zuno.im", nowMs: now), .hidden)
+        NseClassifier.classify(invite, ownUserId: "@mwong:zuno.im", nowMs: now, askedToJoin: []),
+        .hidden)
     }
+  }
+
+  func testAnInvitationToARoomIAskedToJoinIsNotAnnounced() {
+    let invitation = NseEvent(
+      eventId: "$m", roomId: "!knock:zuno.im", type: "m.room.member", sender: "@admin:zuno.im",
+      originServerTs: now, stateKey: "@mwong:zuno.im",
+      content: .object(["membership": .string("invite")]))
+
+    XCTAssertEqual(
+      NseClassifier.classify(
+        invitation, ownUserId: "@mwong:zuno.im", nowMs: now, askedToJoin: ["!knock:zuno.im"]),
+      .hidden)
+    XCTAssertEqual(
+      NseClassifier.classify(
+        invitation, ownUserId: "@mwong:zuno.im", nowMs: now, askedToJoin: ["!other:zuno.im"]),
+      .invitation(roomName: nil))
   }
 
   func testAnEndedCallReadsItsLength() {

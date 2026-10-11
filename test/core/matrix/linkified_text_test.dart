@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/matrix/linkified_text.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 
+import '../../helpers/fake_url_launcher.dart';
 import '../../helpers/zuno_app.dart';
 
 List<TextSpan> _spans(WidgetTester tester) {
@@ -163,6 +164,51 @@ void main() {
 
     expect(find.text('hi @alice'), findsOneWidget);
     expect(tester.widget<Text>(find.byType(Text)).textSpan, isNull);
+  });
+
+  Future<void> tapLink(WidgetTester tester, String shown) async {
+    final link = _spans(tester).firstWhere((s) => s.text == shown);
+    (link.recognizer! as TapGestureRecognizer).onTap!();
+    await tester.pump();
+    await tester.pump();
+  }
+
+  testWidgets('tapping a link opens it outside the app', (tester) async {
+    final launched = mockUrlLauncher(tester);
+    await tester.pumpWidget(
+      inZunoApp(const LinkifiedText('see https://example.com/a now')),
+    );
+
+    await tapLink(tester, 'https://example.com/a');
+
+    expect(launched, ['https://example.com/a']);
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('a link nothing opens says where to go', (tester) async {
+    mockUrlLauncher(tester, answer: () async => false);
+    await tester.pumpWidget(
+      inZunoApp(const LinkifiedText('see https://example.com/a now')),
+    );
+
+    await tapLink(tester, 'https://example.com/a');
+
+    expect(
+      find.text('Link not opened. Visit example.com/a in a browser.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a link ending a sentence leaves the period out', (tester) async {
+    final launched = mockUrlLauncher(tester);
+    await tester.pumpWidget(
+      inZunoApp(const LinkifiedText('See https://zuno.chat/privacy.')),
+    );
+
+    await tapLink(tester, 'https://zuno.chat/privacy');
+
+    expect(launched, ['https://zuno.chat/privacy']);
+    expect(_spans(tester).last.text, '.');
   });
 
   testWidgets('a trailing span is appended after plain text', (tester) async {

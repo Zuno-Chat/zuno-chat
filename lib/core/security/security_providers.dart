@@ -68,15 +68,5 @@ final deviceApprovedByOwnerProvider =
       );
     });
 
-Future<void> rememberConfirmedIdentity(
-  ConfirmedIdentityStore store,
-  Client client,
-  String userId,
-) async {
-  final key = client.userDeviceKeys[userId]?.masterKey?.ed25519Key;
-  if (key == null) return;
-  await store.remember(userId, key);
-}
-
 RecoveryWordlist? maybeWordlist(WidgetRef ref) =>
     ref.watch(recoveryWordlistProvider).value;

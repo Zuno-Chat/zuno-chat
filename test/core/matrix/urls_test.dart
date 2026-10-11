@@ -3,29 +3,52 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/matrix/urls.dart';
 
 void main() {
-  test('no link in plain text', () {
-    expect(firstLinkIn('just some text'), isNull);
-  });
+  group('linksIn', () {
+    List<String> links(String text) => [
+      for (final link in linksIn(text)) text.substring(link.start, link.end),
+    ];
 
-  test('finds a single http(s) link', () {
-    expect(
-      firstLinkIn('check this out: https://example.org/page'),
-      Uri.parse('https://example.org/page'),
-    );
-  });
+    test('no link in plain text', () {
+      expect(links('just some text'), isEmpty);
+    });
 
-  test('finds only the first of several links', () {
-    expect(
-      firstLinkIn('https://a.example/one and https://b.example/two'),
-      Uri.parse('https://a.example/one'),
-    );
-  });
+    test('finds every http(s) link with its place in the text', () {
+      const text = 'https://a.example/one and http://b.example/two';
+      expect(links(text), ['https://a.example/one', 'http://b.example/two']);
+      expect(linksIn(text).first.uri, Uri.parse('https://a.example/one'));
+    });
 
-  test('a link glued to trailing punctuation/markup is not swallowed', () {
-    expect(
-      firstLinkIn('see <https://example.org/page>'),
-      Uri.parse('https://example.org/page'),
-    );
+    test('stops at markup around a link', () {
+      expect(links('see <https://example.org/page>'), [
+        'https://example.org/page',
+      ]);
+    });
+
+    test('leaves out punctuation that ends the sentence', () {
+      expect(links('See https://zuno.chat/privacy.'), [
+        'https://zuno.chat/privacy',
+      ]);
+      expect(links('Really? https://x.org/a?! Yes'), ['https://x.org/a']);
+      expect(links("'https://x.org/a', then"), ['https://x.org/a']);
+    });
+
+    test('leaves out a bracket the link did not open', () {
+      expect(links('(https://x.org/a)'), ['https://x.org/a']);
+      expect(links('[https://x.org/a].'), ['https://x.org/a']);
+    });
+
+    test('keeps a bracket that belongs to the link', () {
+      expect(links('(https://en.wikipedia.org/wiki/Mercury_(planet)).'), [
+        'https://en.wikipedia.org/wiki/Mercury_(planet)',
+      ]);
+      expect(links('https://x.org/a?q=1&b=2#top'), [
+        'https://x.org/a?q=1&b=2#top',
+      ]);
+    });
+
+    test('skips a link with no host', () {
+      expect(links('http://:80 and https://.'), isEmpty);
+    });
   });
 
   group('isSafeExternalUri', () {

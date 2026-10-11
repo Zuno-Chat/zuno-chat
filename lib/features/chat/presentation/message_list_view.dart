@@ -18,7 +18,6 @@ class MessageListView extends StatefulWidget {
   final Timeline timeline;
   final ScrollController controller;
   final bool showHiddenMessages;
-  final bool linkPreviews;
   final bool canReply;
   final List<FailedMediaSend> failedSends;
   final ValueListenable<PendingAttachmentSend?> pendingSend;
@@ -34,7 +33,6 @@ class MessageListView extends StatefulWidget {
     required this.timeline,
     required this.controller,
     required this.showHiddenMessages,
-    required this.linkPreviews,
     required this.canReply,
     required this.failedSends,
     required this.pendingSend,
@@ -71,9 +69,11 @@ class _MessageListViewState extends State<MessageListView> {
           ),
         )
         .toList();
+    final ownUserId = widget.room.client.userID;
     final grouping = groupGalleries(
       visible,
-      forceGroupIds: {
+      ownUserId: ownUserId,
+      ownFailedGalleryIds: {
         for (final failed in widget.failedSends)
           if (failed.gallery != null) failed.gallery!.id,
       },
@@ -82,7 +82,7 @@ class _MessageListViewState extends State<MessageListView> {
     final orphaned = widget.failedSends.where((failed) {
       final id = failed.gallery?.id;
       if (id == null) return false;
-      return !visible.any((e) => galleryGroupOf(e)?.id == id);
+      return !visible.any((e) => ownGalleryId(e, ownUserId) == id);
     }).toList();
     final singles = [
       for (final failed in widget.failedSends.reversed)
@@ -90,7 +90,6 @@ class _MessageListViewState extends State<MessageListView> {
     ];
     final loadingMore = timeline.isRequestingHistory;
     final exhausted = !loadingMore && !timeline.canRequestHistory;
-    final ownUserId = widget.room.client.userID;
     final lastOwnId = messages
         .where((e) => e.senderId == ownUserId)
         .firstOrNull
@@ -107,7 +106,7 @@ class _MessageListViewState extends State<MessageListView> {
 
     List<FailedMediaSend> failuresFor(List<Event>? gallery) {
       if (gallery == null || gallery.isEmpty) return const [];
-      final id = galleryGroupOf(gallery.first)?.id;
+      final id = ownGalleryId(gallery.first, ownUserId);
       if (id == null) return const [];
       return [
         for (final failed in widget.failedSends)
@@ -176,7 +175,6 @@ class _MessageListViewState extends State<MessageListView> {
           gallery: gallery,
           galleryFailureIndexes: [for (final failed in failures) failed.index],
           canReply: widget.canReply,
-          linkPreviews: widget.linkPreviews,
           now: now,
           use24Hour: use24Hour,
         );

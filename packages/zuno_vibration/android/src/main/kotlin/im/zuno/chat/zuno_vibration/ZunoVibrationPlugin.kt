@@ -2,10 +2,9 @@ package im.zuno.chat.zuno_vibration
 
 import android.content.Context
 import android.media.AudioAttributes
-import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
-import android.os.VibratorManager
+import im.zuno.chat.zuno_notifications.Vibration
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -30,7 +29,7 @@ class ZunoVibrationPlugin :
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
-            "hasVibrator" -> result.success(vibrator()?.hasVibrator() == true)
+            "hasVibrator" -> result.success(Vibration.vibrator(context)?.hasVibrator() == true)
 
             "vibrate" -> {
                 val pattern = call.argument<List<Int>>("pattern")
@@ -38,26 +37,12 @@ class ZunoVibrationPlugin :
                     result.error("bad_args", "pattern is required", null)
                     return
                 }
-                vibrate(vibrator(), pattern, call.argument<Int>("repeat") ?: -1)
-                result.success(null)
-            }
-
-            "cancel" -> {
-                vibrator()?.cancel()
+                vibrate(Vibration.vibrator(context), pattern, call.argument<Int>("repeat") ?: -1)
                 result.success(null)
             }
 
             else -> result.notImplemented()
         }
-    }
-
-    private fun vibrator(): Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val manager =
-            context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-        manager?.defaultVibrator
-    } else {
-        @Suppress("DEPRECATION")
-        context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     }
 
     @Suppress("DEPRECATION")
@@ -71,7 +56,7 @@ class ZunoVibrationPlugin :
         vibrator.vibrate(
             VibrationEffect.createWaveform(
                 patternLong,
-                VibrationAmplitudes.forPattern(patternLong),
+                Vibration.amplitudes(patternLong),
                 repeat,
             ),
             attributes,

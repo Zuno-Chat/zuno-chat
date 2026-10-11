@@ -413,11 +413,6 @@ void main() {
           read: (c) => c.read(sendTypingIndicatorProvider),
           set: (c, v) => c.read(sendTypingIndicatorProvider.notifier).set(v),
         ),
-        'settings.link_previews_enabled': (
-          defaultValue: true,
-          read: (c) => c.read(linkPreviewsEnabledProvider),
-          set: (c, v) => c.read(linkPreviewsEnabledProvider.notifier).set(v),
-        ),
         'settings.low_data_calls': (
           defaultValue: true,
           read: (c) => c.read(lowDataCallsProvider),

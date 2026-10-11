@@ -12,6 +12,7 @@ import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.graphics.drawable.Icon
@@ -30,6 +31,7 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.cloudwebrtc.webrtc.audio.AudioSwitchManager
+import im.zuno.chat.zuno_call_style.IncomingRing
 import im.zuno.chat.zuno_call_style.RingDecisions
 import im.zuno.chat.zuno_notifications.AppLaunchIntent
 import im.zuno.chat.zuno_notifications.RoomLaunchIntent
@@ -64,18 +66,22 @@ class MainActivity : FlutterActivity() {
         }
         runningInstance = WeakReference(this)
         val launch = intent
-        if (launch != null &&
-            !LaunchIntentDecision.carriesLaunchTarget(launch.flags, savedInstanceState != null)
-        ) {
-            intent = Intent(launch).apply {
-                action = Intent.ACTION_MAIN
-                data = null
-                clipData = null
-                replaceExtras(Bundle())
+        if (launch != null) {
+            val carriesTarget =
+                LaunchIntentDecision.carriesLaunchTarget(launch.flags, savedInstanceState != null)
+            if (!carriesTarget || !IncomingRing.admitsLaunch(this, launch)) {
+                intent = bareLaunch(launch)
             }
         }
         super.onCreate(savedInstanceState)
         showRingOverLockscreen(intent)
+    }
+
+    private fun bareLaunch(launch: Intent): Intent = Intent(launch).apply {
+        action = Intent.ACTION_MAIN
+        data = null
+        clipData = null
+        replaceExtras(Bundle())
     }
 
     override fun onDestroy() {
@@ -417,6 +423,11 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "clearClipboardIfMatches" -> {
+                    val focused = hasWindowFocus()
+                    if (!SensitiveClipboardDecision.canRead(Build.VERSION.SDK_INT, focused)) {
+                        result.success(true)
+                        return@setMethodCallHandler
+                    }
                     val text = call.argument<String>("text")
                     val clipboard =
                         getSystemService(CLIPBOARD_SERVICE) as? ClipboardManager
@@ -425,14 +436,14 @@ class MainActivity : FlutterActivity() {
                         ?.getItemAt(0)
                         ?.coerceToText(this)
                         ?.toString()
-                    if (clipboard != null && text != null && current == text) {
+                    if (clipboard != null && SensitiveClipboardDecision.clears(text, current)) {
                         val empty = ClipData.newPlainText("", "")
                         empty.description.extras = PersistableBundle().apply {
                             putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
                         }
                         clipboard.setPrimaryClip(empty)
                     }
-                    result.success(null)
+                    result.success(false)
                 }
 
                 else -> result.notImplemented()
@@ -535,10 +546,12 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "startBackgroundSyncService" -> {
                     BackgroundSyncService.start(this)
+                    KeptEngine.hold(EngineKeepReason.BackgroundSync)
                     result.success(null)
                 }
 
                 "stopBackgroundSyncService" -> {
+                    KeptEngine.release(EngineKeepReason.BackgroundSync)
                     BackgroundSyncService.stop(this)
                     result.success(null)
                 }
@@ -664,7 +677,10 @@ class MainActivity : FlutterActivity() {
             applyPreventScreenshots()
             if (host.showOverLockscreen) setShowOverLockscreen(true)
             applyPictureInPictureParams()
-            intent?.let { deliverLaunch(it) }
+            intent?.let {
+                flutterEngine.activityControlSurface.onNewIntent(it)
+                deliverLaunch(it)
+            }
         }
         claimBack()
     }
@@ -776,9 +792,10 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        showRingOverLockscreen(intent)
-        deliverLaunch(intent)
+        val admitted = if (IncomingRing.admitsLaunch(this, intent)) intent else bareLaunch(intent)
+        super.onNewIntent(admitted)
+        showRingOverLockscreen(admitted)
+        deliverLaunch(admitted)
     }
 
     private fun deliverLaunch(intent: Intent) {
@@ -832,16 +849,41 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun copySharedFile(dir: File, uri: String, name: String): String? = runCatching {
+        val source = Uri.parse(uri)
+        if (!mayReadShared(source)) return@runCatching null
         dir.mkdirs()
         val target = File(dir, InboundShareDecision.safeFileName(name))
         if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
             return@runCatching null
         }
-        contentResolver.openInputStream(Uri.parse(uri))?.use { source ->
-            target.outputStream().use { source.copyTo(it) }
+        contentResolver.openInputStream(source)?.use { stream ->
+            target.outputStream().use { stream.copyTo(it) }
             target.path
         }
     }.onFailure { CaughtErrors.record(this, "share copy to cache", it) }.getOrNull()
+
+    private fun mayReadShared(uri: Uri): Boolean {
+        val authority = InboundShareDecision.providerAuthority(uri.authority)
+        return InboundShareDecision.mayRead(
+            uri.scheme,
+            authority,
+            authority?.let(::providerPackage),
+            packageName,
+        )
+    }
+
+    private fun providerPackage(authority: String): String? {
+        val provider = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.resolveContentProvider(
+                authority,
+                PackageManager.ComponentInfoFlags.of(0),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.resolveContentProvider(authority, 0)
+        }
+        return provider?.packageName
+    }
 
     private fun pinShortcut(
         id: String,

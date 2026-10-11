@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -60,7 +61,10 @@ class _RecordingNavigatorObserver extends NavigatorObserver {
 
 Future<void> tapAndRunAsync(WidgetTester tester, Finder icon) async {
   final button = iconButtonFor(tester, icon);
-  await tester.runAsync(() => button.onPressed!.call() as dynamic);
+  await tester.runAsync(() async {
+    button.onPressed!.call();
+    await Future<void>.delayed(Duration.zero);
+  });
 }
 
 IconButton iconButtonFor(WidgetTester tester, Finder icon) =>
@@ -85,8 +89,12 @@ void main() {
   late _RecordingNavigatorObserver observer;
   late RecordedMethodCalls callsLog;
   late List<String> sentEvents;
+  Completer<void>? sendGate;
+  http.Response? sendReply;
 
   setUp(() async {
+    sendGate = null;
+    sendReply = null;
     callsLog = installFakeCallsChannel();
     installFakeLocalNotifications();
 
@@ -102,6 +110,8 @@ void main() {
       httpClient: MockClient((request) async {
         if (request.method == 'PUT' && request.url.path.contains('/send/')) {
           sentEvents.add(request.url.path);
+          await sendGate?.future;
+          if (sendReply case final reply?) return reply;
         }
         return http.Response(jsonEncode({'event_id': r'$evt'}), 200);
       }),
@@ -166,6 +176,23 @@ void main() {
   }
 
   group('synchronous initState guards (race with something else)', () {
+    testWidgets('a ring screen for the call answered here hands off to it, '
+        'though answering settled the call', (tester) async {
+      final container = await pumpShell(tester);
+      final answered = container
+          .read(activeCallProvider.notifier)
+          .answer(call())!;
+      addTearDown(answered.dispose);
+      expect(container.read(resolvedCallIdsProvider), contains('call1'));
+
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IncomingCallPage), findsNothing);
+      expect(lockscreenShows(), isNot(contains(false)));
+      expect(container.read(activeCallProvider), same(answered));
+    });
+
     testWidgets('dismisses immediately, never taking the system ring, when '
         'resolvedCallIdsProvider already has this call_id', (tester) async {
       final container = await pumpShell(tester);
@@ -407,6 +434,46 @@ void main() {
       expect(sentEvents.single, endsWith('/${callDeclineTxid('call1')}'));
     });
 
+    testWidgets('stops ringing and closes before the decline is sent', (
+      tester,
+    ) async {
+      final container = await pumpShell(tester);
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+      sendGate = Completer<void>();
+
+      await tester.tap(find.byIcon(Icons.call_end));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IncomingCallPage), findsNothing);
+      expect(RingingCall.instance.callId, isNull);
+      expect(container.read(resolvedCallIdsProvider), contains('call1'));
+      expect(sentEvents.single, endsWith('/${callDeclineTxid('call1')}'));
+      sendGate!.complete();
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    });
+
+    testWidgets('a decline the server refuses still closes the page', (
+      tester,
+    ) async {
+      await pumpShell(tester);
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+      sendReply = http.Response(
+        jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'no'}),
+        403,
+      );
+
+      await tester.tap(find.byIcon(Icons.call_end));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IncomingCallPage), findsNothing);
+      expect(find.text('room list'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('a fast double-tap only sends one decline and dismisses once', (
       tester,
     ) async {
@@ -415,11 +482,9 @@ void main() {
       await tester.pumpAndSettle();
 
       final button = iconButtonFor(tester, find.byIcon(Icons.call_end));
-      await tester.runAsync(() async {
-        final first = button.onPressed!.call() as Future<void>;
-        final second = button.onPressed!.call() as Future<void>;
-        await Future.wait([first, second]);
-      });
+      button.onPressed!.call();
+      button.onPressed!.call();
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pumpAndSettle();
 
       expect(sentEvents, hasLength(1));
@@ -444,29 +509,10 @@ void main() {
           tester,
           find.byIcon(Icons.call_end),
         );
-        await (declineButton.onPressed!.call() as Future<void>);
+        declineButton.onPressed!.call();
 
         expect(container.read(activeCallProvider), same(session));
         expect(observer.events.where((e) => e == 'replace'), hasLength(1));
-      },
-    );
-
-    testWidgets(
-      'dispose() while the decline send is still outstanding does not crash',
-      (tester) async {
-        await pumpShell(tester);
-        pushIncomingCall(call());
-        await tester.pumpAndSettle();
-
-        final button = iconButtonFor(tester, find.byIcon(Icons.call_end));
-        button.onPressed!.call();
-
-        navigatorKey.currentState!.pop();
-        await tester.pumpAndSettle();
-
-        expect(find.byType(IncomingCallPage), findsNothing);
-        expect(RingingCall.instance.callId, isNull);
-        expect(tester.takeException(), isNull);
       },
     );
   });

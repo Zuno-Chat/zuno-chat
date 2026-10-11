@@ -5,11 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../../core/errors/caught_errors.dart';
+import '../../../../core/format/human_units.dart';
 import '../../../../core/matrix/attachment_cache.dart';
 import '../../../../core/matrix/voice_message.dart';
 import '../../../../core/matrix/voice_recording.dart';
 import '../../../../core/platform/platform_capabilities.dart';
-import '../../data/message_kinds.dart';
 import '../message_bubble.dart';
 
 class VoiceMessage extends StatefulWidget {
@@ -26,6 +26,14 @@ class VoiceMessage extends StatefulWidget {
 
   @override
   State<VoiceMessage> createState() => _VoiceMessageState();
+}
+
+const _waveformBars = 50;
+
+List<int>? _drawnBars(Event event) {
+  final samples = voiceMessageWaveform(event);
+  if (samples == null || samples.length <= _waveformBars) return samples;
+  return resampleWaveform([for (final sample in samples) sample / 1024]);
 }
 
 class _VoiceMessageState extends State<VoiceMessage> {
@@ -47,7 +55,7 @@ class _VoiceMessageState extends State<VoiceMessage> {
   void initState() {
     super.initState();
     _duration = voiceMessageDuration(widget.event);
-    _waveform = voiceMessageWaveform(widget.event);
+    _waveform = _drawnBars(widget.event);
     _stateSub = _player.onPlayerStateChanged.listen((state) {
       if (mounted) setState(() => _state = state);
     });
@@ -71,7 +79,7 @@ class _VoiceMessageState extends State<VoiceMessage> {
   void didUpdateWidget(VoiceMessage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.event, widget.event)) {
-      _waveform = voiceMessageWaveform(widget.event);
+      _waveform = _drawnBars(widget.event);
     }
   }
 
@@ -323,7 +331,10 @@ double normalizedAmplitude(double db) {
   return (clamped - floor) / -floor;
 }
 
-List<int> resampleWaveform(List<double> samples, {int buckets = 50}) {
+List<int> resampleWaveform(
+  List<double> samples, {
+  int buckets = _waveformBars,
+}) {
   if (samples.isEmpty) return List.filled(buckets, 0);
   final result = <int>[];
   for (var i = 0; i < buckets; i++) {

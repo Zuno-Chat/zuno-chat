@@ -1,5 +1,10 @@
 import 'package:matrix/matrix.dart';
 
+final roomMentionPattern = RegExp(
+  r'(?<![\w@])@room(?![\w])',
+  caseSensitive: false,
+);
+
 final _plainName = RegExp(r'^\w+$');
 const _nameSeparators = {'[', ']', ':'};
 

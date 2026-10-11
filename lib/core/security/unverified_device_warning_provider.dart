@@ -17,6 +17,7 @@ class UnvouchedDeviceWarningNotifier extends Notifier<Set<String>> {
 
   @override
   Set<String> build() {
+    ref.watch(isLoggedInProvider);
     final client = ref.watch(matrixClientProvider);
     final sub = onSyncFinished(client).listen((_) => unawaited(_check(client)));
     ref.onDispose(sub.cancel);

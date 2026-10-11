@@ -36,7 +36,7 @@ class CallView extends StatefulWidget {
   final Room room;
   final CallKind kind;
   final bool connecting;
-  final bool calling;
+  final CallStatus status;
   final CallViewParticipant? local;
   final List<CallViewParticipant> remote;
   final DateTime? talkingSince;
@@ -59,7 +59,7 @@ class CallView extends StatefulWidget {
     required this.room,
     required this.kind,
     required this.connecting,
-    required this.calling,
+    required this.status,
     required this.local,
     required this.remote,
     required this.talkingSince,
@@ -79,17 +79,6 @@ class CallView extends StatefulWidget {
   });
 
   List<CallViewParticipant> get present => connecting ? const [] : remote;
-
-  CallStatus get status {
-    final local = this.local;
-    return callStatus(
-      calling: calling,
-      connecting: connecting,
-      someoneHere: present.isNotEmpty,
-      keysPending:
-          local == null || [...present, local].any((p) => p.encrypting),
-    );
-  }
 
   @override
   State<CallView> createState() => _CallViewState();

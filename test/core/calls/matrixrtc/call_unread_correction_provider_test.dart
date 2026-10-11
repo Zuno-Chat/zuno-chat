@@ -14,8 +14,9 @@ void main() {
   late ProviderContainer container;
 
   setUp(() {
-    client = buildTestClient();
+    client = buildTestClient(userId: '@me:x');
     room = buildTestRoom(client, notificationCount: 3);
+    client.rooms.add(room);
     container = ProviderContainer(
       overrides: [matrixClientProvider.overrideWithValue(client)],
     );
@@ -25,15 +26,24 @@ void main() {
 
   var events = 0;
 
-  Future<void> receive(Map<String, Object?> content, {Room? inRoom}) async {
+  Future<void> receive(
+    Map<String, Object?> content, {
+    Room? inRoom,
+    String senderId = '@a:x',
+  }) async {
     client.onTimelineEvent.add(
       buildTestEvent(
         inRoom ?? room,
         eventId: '\$event-${events++}',
-        senderId: '@a:x',
+        senderId: senderId,
         content: content,
       ),
     );
+    await pumpEventQueue();
+  }
+
+  Future<void> sync() async {
+    client.onSync.add(SyncUpdate(nextBatch: 'next'));
     await pumpEventQueue();
   }
 
@@ -129,6 +139,47 @@ void main() {
       expect(shown(), 3);
     },
   );
+
+  test('my own hidden messages correct nothing, the server never counted '
+      'them', () async {
+    await receive({'msgtype': callInviteMsgtype}, senderId: '@me:x');
+
+    expect(shown(), 3);
+  });
+
+  test('a room read on another device drops its correction, so the next '
+      'message shows', () async {
+    room.notificationCount = 1;
+    await receive({'msgtype': callInviteMsgtype});
+    expect(shown(), 0);
+
+    room.notificationCount = 0;
+    await sync();
+    room.notificationCount = 1;
+
+    expect(shown(), 1);
+  });
+
+  test('a room read elsewhere while a new hidden message arrives keeps only '
+      'what the server still counts', () async {
+    room.notificationCount = 1;
+    await receive({'msgtype': callInviteMsgtype});
+
+    await receive({'msgtype': callInviteMsgtype});
+    room.notificationCount = 1;
+    await sync();
+    expect(shown(), 0);
+    room.notificationCount = 2;
+
+    expect(shown(), 1);
+  });
+
+  test('a sync keeps every correction the server count still covers', () async {
+    await receive({'msgtype': callInviteMsgtype});
+    await sync();
+
+    expect(shown(), 2);
+  });
 
   test('displayedUnreadCount never goes negative', () async {
     final emptyRoom = buildTestRoom(client, id: '!empty:x');

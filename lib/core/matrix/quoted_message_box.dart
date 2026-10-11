@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+const quotedThumbnailSize = 36.0;
+
 class QuotedMessageBox extends StatelessWidget {
   final String senderName;
   final String snippet;
@@ -89,7 +91,10 @@ class QuotedMessageBox extends StatelessWidget {
                   const SizedBox(width: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: SizedBox(width: 36, height: 36, child: thumbnail),
+                    child: SizedBox.square(
+                      dimension: quotedThumbnailSize,
+                      child: thumbnail,
+                    ),
                   ),
                 ],
               ],

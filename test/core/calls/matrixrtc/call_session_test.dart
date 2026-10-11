@@ -1107,6 +1107,30 @@ void main() {
     );
   });
 
+  test('a membership of the wrong shape never breaks the call', () async {
+    final session = incoming();
+    await session.accept();
+    await pumpEventQueue();
+
+    room.setState(
+      buildTestEvent(
+        room,
+        eventId: r'$broken',
+        senderId: _mallory,
+        type: callMemberEventType,
+        stateKey: _mallory,
+        content: {
+          'memberships': [<String, Object?>{}],
+        },
+      ),
+    );
+    joinTheCall(room, _bob, fociActive: {'sessionId': 7});
+    await sync();
+
+    expect(session.phase, CallSessionPhase.active);
+    expect(session.everHadRemote, isTrue);
+  });
+
   group('the start of an outgoing call', () {
     test('opens the microphone while its invite is still being sent', () async {
       final r = sendRoom()..sendGate = Completer<void>();
@@ -1484,7 +1508,9 @@ void main() {
     _CountingSession startCountingSessionIn(FakeAsync async) {
       final c = _PublishCountingClient();
       final engine = FakeCallEngine();
-      final session = incoming(inRoom: buildTestRoom(c), engine: engine);
+      final r = buildTestRoom(c);
+      joinTheCall(r, _bob);
+      final session = incoming(inRoom: r, engine: engine);
       unawaited(session.accept());
       async.elapse(Duration.zero);
       return (
@@ -1932,6 +1958,41 @@ void main() {
     });
   });
 
+  group('a call already taken on another of my devices', () {
+    test('is refused with a message, writing nothing that would push that '
+        'device out', () async {
+      final memberPuts = <String>[];
+      final r = sendRoom(loggingMemberPuts(memberPuts));
+      joinTheCall(r, _me, deviceId: 'TABLET');
+      final engine = FakeCallEngine();
+      final session = incoming(inRoom: r, engine: engine);
+
+      await session.accept();
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.ended);
+      expect(session.endReason, CallEndReason.failed);
+      expect(
+        session.failedMessage,
+        'You are in this call on another device. Hang up there to join here.',
+      );
+      expect(engine.joined, isFalse);
+      expect(memberPuts, isEmpty);
+      expect(r.attempts, isEmpty);
+    });
+
+    test('a membership this device left behind does not count', () async {
+      final r = sendRoom();
+      joinTheCall(r, _me, deviceId: 'TESTDEVICE');
+      final session = incoming(inRoom: r);
+
+      await session.accept();
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.active);
+    });
+  });
+
   group('call capacity', () {
     const callFull = 'This call is full. Up to 6 people can join a call.';
 
@@ -2045,6 +2106,132 @@ void main() {
     );
   });
 
+  group('a callee nobody joined', () {
+    Event summaryOf(Room r, String callId) => buildTestEvent(
+      r,
+      eventId: '\$summary-$callId-${r.id}',
+      senderId: _bob,
+      content: CallSummary(
+        callId: callId,
+        kind: 'voice',
+        status: CallSummaryStatus.missed,
+        durationMs: 0,
+      ).toMessageContent(),
+    );
+
+    int summariesIn(SendRecordingRoom r) => r.sentEvents
+        .where((content) => content['msgtype'] == callSummaryMsgtype)
+        .length;
+
+    test('hangs up once its call is summarised, posting no summary of its '
+        'own', () async {
+      final r = sendRoom();
+      final session = incoming(inRoom: r);
+      await session.accept();
+      await pumpEventQueue();
+
+      client.onTimelineEvent.add(summaryOf(r, 'call1'));
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.ended);
+      expect(session.endedByUser, isFalse);
+      expect(summariesIn(r), 0);
+    });
+
+    test('only counts a summary of its own call in its own room', () async {
+      final r = sendRoom();
+      final session = incoming(inRoom: r);
+      await session.accept();
+      await pumpEventQueue();
+
+      client.onTimelineEvent.add(summaryOf(r, 'call2'));
+      client.onTimelineEvent.add(
+        summaryOf(buildTestRoom(client, id: '!other:example.org'), 'call1'),
+      );
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.active);
+    });
+
+    test('is left alone by the summary once someone joined', () async {
+      final r = sendRoom();
+      joinTheCall(r, _bob);
+      final session = incoming(inRoom: r);
+      await session.accept();
+      await pumpEventQueue();
+      expect(session.everHadRemote, isTrue);
+
+      client.onTimelineEvent.add(summaryOf(r, 'call1'));
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.active);
+    });
+
+    test('rule does not apply to a caller', () async {
+      final r = sendRoom();
+      final session = outgoing(r);
+      await untilPhase(session, CallSessionPhase.active);
+
+      client.onTimelineEvent.add(summaryOf(r, session.callId));
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.active);
+    });
+  });
+
+  group('the empty call timeout', () {
+    test('hangs up a callee still alone that long after the call went live, '
+        'not counting the time spent connecting', () {
+      fakeAsync((async) {
+        final joinGate = Completer<void>();
+        final session = incoming(
+          inRoom: sendRoom(_PublishCountingClient()),
+          engine: FakeCallEngine(joinGate: joinGate),
+        );
+        unawaited(session.accept());
+        async.elapse(emptyCallTimeout * 2);
+        expect(session.phase, CallSessionPhase.connecting);
+
+        joinGate.complete();
+        async.elapse(emptyCallTimeout - const Duration(seconds: 1));
+        expect(session.phase, CallSessionPhase.active);
+
+        async.elapse(const Duration(seconds: 1));
+        expect(session.phase, CallSessionPhase.ended);
+        expect(session.endedByUser, isFalse);
+      });
+    });
+
+    test('keeps a callee someone joined before it ran out', () {
+      fakeAsync((async) {
+        final c = _PublishCountingClient();
+        final r = sendRoom(c);
+        final session = incoming(inRoom: r);
+        unawaited(session.accept());
+        async.elapse(emptyCallTimeout - const Duration(seconds: 1));
+        expect(session.phase, CallSessionPhase.active);
+
+        joinTheCall(r, _bob);
+        c.onSync.add(SyncUpdate(nextBatch: 'joined'));
+        async.elapse(emptyCallTimeout * 2);
+
+        expect(session.phase, CallSessionPhase.active);
+      });
+    });
+
+    test('never applies to a caller, which has its ring timeout instead', () {
+      fakeAsync((async) {
+        final session = outgoing(
+          sendRoom(_PublishCountingClient()),
+          ringTimeout: emptyCallTimeout * 4,
+        );
+        async.elapse(emptyCallTimeout * 2);
+
+        expect(session.phase, CallSessionPhase.active);
+      });
+    });
+  });
+
   group('ringing and declines', () {
     Future<CallSession> ringing(SendRecordingRoom r) async {
       final session = outgoing(r);
@@ -2100,6 +2287,25 @@ void main() {
       await pumpEventQueue();
 
       expect(session.phase, CallSessionPhase.active);
+    });
+
+    test('a call hung up while it connects leaves no ring timeout behind', () {
+      fakeAsync((async) {
+        final joinGate = Completer<void>();
+        final session = outgoing(
+          sendRoom(_PublishCountingClient()),
+          engine: FakeCallEngine(joinGate: joinGate),
+        );
+        async.flushMicrotasks();
+        unawaited(session.hangUp(byUser: true));
+        async.flushMicrotasks();
+
+        joinGate.complete();
+        async.flushMicrotasks();
+
+        expect(session.phase, CallSessionPhase.ended);
+        expect(async.pendingTimers, isEmpty);
+      });
     });
 
     test('someone joining stops the ring timeout', () {

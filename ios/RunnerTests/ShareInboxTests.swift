@@ -15,6 +15,38 @@ final class ShareFileNameTests: XCTestCase {
     XCTAssertEqual(ShareFileName.safe(".."), "shared")
   }
 
+  func testALongNameIsCutToTheFilesystems255BytesKeepingItsExtensionAsOnAndroid() {
+    let safe = ShareFileName.safe(String(repeating: "照", count: 100) + ".jpg")
+
+    XCTAssertEqual(safe, String(repeating: "照", count: 83) + ".jpg")
+    XCTAssertLessThanOrEqual(safe.utf8.count, 255)
+  }
+
+  func testACutNeverSplitsACharacter() {
+    XCTAssertEqual(
+      ShareFileName.safe("a" + String(repeating: "😀", count: 70)),
+      "a" + String(repeating: "😀", count: 63))
+  }
+
+  func testANameThatFitsIsLeftWhole() {
+    let name = String(repeating: "a", count: 251) + ".jpg"
+
+    XCTAssertEqual(ShareFileName.safe(name), name)
+  }
+
+  func testAnExtensionTooLongToKeepIsCutWithTheRestOfTheName() {
+    XCTAssertEqual(
+      ShareFileName.safe("a." + String(repeating: "b", count: 300)),
+      "a." + String(repeating: "b", count: 253))
+  }
+
+  func testAnExtensionFromTheTypeStillFitsTheCap() {
+    XCTAssertEqual(
+      ShareFileName.named(
+        String(repeating: "x", count: 300), typeIdentifier: UTType.png.identifier),
+      String(repeating: "x", count: 251) + ".png")
+  }
+
   func testANameWithoutAnExtensionGetsOneFromItsType() {
     XCTAssertEqual(
       ShareFileName.named("IMG_0001", typeIdentifier: UTType.png.identifier), "IMG_0001.png")

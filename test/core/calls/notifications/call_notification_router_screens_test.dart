@@ -176,9 +176,33 @@ void main() {
       );
       expect(opened, isA<CallPage>());
       expect((opened as CallPage).call.session, same(session));
-      expect(RingingCall.instance.callId, 'call1');
+      expect(RingingCall.instance.callId, isNull);
+      expect(container.read(resolvedCallIdsProvider), contains('call1'));
       expect(callStyle.methods, contains('cancelIncomingCallStyle'));
 
+      await tester.pump(const Duration(seconds: 6));
+    });
+
+    testWidgets('once the answered call is over, an accept for a ring that '
+        'is already over takes Zuno off the lock screen', (tester) async {
+      final container = await pumpApp(tester);
+      final answered = <CallSession>[];
+      container.listen(activeCallProvider, (_, session) {
+        if (session != null) answered.add(session);
+      });
+      await router(container).handle(response(CallNotificationAction.accept));
+      await tester.pump();
+      await tester.runAsync(() => answered.single.hangUp(byUser: true));
+      await tester.pump(const Duration(seconds: 1));
+      expect(container.read(activeCallProvider), isNull);
+      container.read(resolvedCallIdsProvider.notifier).markResolved('call2');
+      native.clear();
+
+      await router(container)
+          .handle(response(CallNotificationAction.accept, callId: 'call2'));
+      await tester.pump();
+
+      expect(lockscreenShown(), isFalse);
       await tester.pump(const Duration(seconds: 6));
     });
 

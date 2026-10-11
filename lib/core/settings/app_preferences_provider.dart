@@ -26,7 +26,6 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
 const _themeModeKey = 'settings.theme_mode';
 const _incognitoKeyboardKey = 'settings.incognito_keyboard';
 const _sendTypingIndicatorKey = 'settings.send_typing_indicator';
-const _linkPreviewsEnabledKey = 'settings.link_previews_enabled';
 const _lowDataCallsKey = 'settings.low_data_calls';
 const _confirmBeforeCallingKey = 'settings.confirm_before_calling';
 const _showHiddenMessagesKey = 'settings.show_hidden_messages';
@@ -96,27 +95,6 @@ class SendTypingIndicatorNotifier extends Notifier<bool> {
     await ref
         .read(sharedPreferencesProvider)
         .setBool(_sendTypingIndicatorKey, value);
-  }
-}
-
-const linkPreviewsFeatureAvailable = false;
-
-final linkPreviewsEnabledProvider =
-    NotifierProvider<LinkPreviewsEnabledNotifier, bool>(
-      LinkPreviewsEnabledNotifier.new,
-    );
-
-class LinkPreviewsEnabledNotifier extends Notifier<bool> {
-  @override
-  bool build() =>
-      ref.watch(sharedPreferencesProvider).getBool(_linkPreviewsEnabledKey) ??
-      true;
-
-  Future<void> set(bool value) async {
-    state = value;
-    await ref
-        .read(sharedPreferencesProvider)
-        .setBool(_linkPreviewsEnabledKey, value);
   }
 }
 

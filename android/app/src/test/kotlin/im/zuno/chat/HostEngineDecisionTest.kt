@@ -70,4 +70,16 @@ class HostEngineDecisionTest {
         reasons.hold(EngineKeepReason.Call)
         assertTrue(reasons.holds(EngineKeepReason.Call))
     }
+
+    @Test
+    fun `background sync delivery keeps the engine without counting as a call`() {
+        val reasons = EngineKeepReasons()
+
+        reasons.hold(EngineKeepReason.BackgroundSync)
+
+        assertTrue(reasons.any)
+        assertFalse(reasons.holds(EngineKeepReason.Call))
+        reasons.release(EngineKeepReason.BackgroundSync)
+        assertFalse(reasons.any)
+    }
 }

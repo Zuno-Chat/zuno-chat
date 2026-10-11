@@ -7,12 +7,9 @@ import '../../../core/calls/matrixrtc/call_summary_message.dart';
 import '../../../core/location/live_location_viewing.dart';
 import '../../../core/location/location_message.dart';
 import '../../../core/matrix/image_caption.dart';
-import '../../../core/matrix/link_preview_card.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/state_event_description.dart';
 import '../../../core/matrix/undecryptable_event.dart';
-import '../../../core/matrix/urls.dart';
-import '../../../core/settings/app_preferences_provider.dart';
 import '../../location/presentation/live_location_map_page.dart';
 import '../../location/presentation/live_location_tile.dart';
 import '../../location/presentation/location_bubble.dart';
@@ -238,14 +235,6 @@ class MessageTile extends StatelessWidget {
       );
     }
 
-    final linkUrl =
-        (linkPreviewsFeatureAvailable &&
-            data.linkPreviews &&
-            kind == AttachmentKind.none &&
-            !unreadable)
-        ? firstLinkIn(body)
-        : null;
-
     final replyToId = data.replyToId;
     final EdgeInsets bubblePadding;
     if (isMedia || isLocation || isLiveMap) {
@@ -289,8 +278,6 @@ class MessageTile extends StatelessWidget {
                     Text.rich(TextSpan(text: caption, children: [spacer])),
               ),
             ),
-          if (linkUrl != null)
-            LinkPreviewCard(url: linkUrl, client: event.room.client),
           if (notSent)
             const Padding(
               padding: EdgeInsets.only(top: 2),

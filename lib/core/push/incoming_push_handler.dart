@@ -15,7 +15,6 @@ import '../calls/notifications/ringing_call_store.dart';
 import '../calls/platform/incoming_call_presenter.dart';
 import '../calls/platform/system_ring.dart';
 import '../errors/caught_errors.dart';
-import '../matrix/room_title.dart';
 import '../matrix/undecryptable_event.dart';
 import '../matrix/zuno_client.dart';
 import '../notifications/invite_notification_provider.dart';
@@ -31,19 +30,13 @@ const defaultPlaceholderAfter = Duration(seconds: 3);
 const messageCatchUpWait = Duration(milliseconds: 1500);
 const _noticeReplacedWithin = Duration(seconds: 30);
 
-Future<bool> _readSince(Client client, Event event) async {
+bool _readElsewhere(Client client, Event event) {
   final room = client.getRoomById(event.room.id) ?? event.room;
-  final fullyRead = room.fullyRead;
-  if (fullyRead.isEmpty) return false;
-  if (fullyRead == event.eventId) return true;
-  try {
-    final marker = await client.database.getEventById(fullyRead, room);
-    return marker != null &&
-        marker.originServerTs.isAfter(event.originServerTs);
-  } catch (e, s) {
-    reportCaught('push fully read lookup', e, s);
-    return false;
-  }
+  if (room.notificationCount > 0) return false;
+  final last = room.lastEvent;
+  return last != null &&
+      (last.eventId == event.eventId ||
+          !last.originServerTs.isBefore(event.originServerTs));
 }
 
 Future<IncomingPushOutcome> handleIncomingPushNotification(
@@ -101,6 +94,8 @@ Future<IncomingPushOutcome> _handle(
   final catchUp = client is ZunoClient
       ? client.syncCoordinator?.catchUp()
       : null;
+  final synced =
+      catchUp ?? client.firstSyncReceived?.then<void>((_) {}, onError: (_) {});
   final Event? event;
   try {
     event = await placeholder.race(
@@ -166,9 +161,14 @@ Future<IncomingPushOutcome> _handle(
 
   final invite = inviteNotificationFor(client, event);
   if (invite != null) {
-    final claim = await claimInviteAnnouncement(invite.roomId);
+    final claim = await claimInviteAnnouncement(
+      invite.roomId,
+      userId: client.userID,
+    );
     if (!claim.won) {
-      debugPrint('zuno/push: invitation to ${invite.roomId} already shown');
+      debugPrint(
+        'zuno/push: invitation to ${invite.roomId} not announced here',
+      );
       final announcedAt = claim.announcedAt;
       await placeholder.settleAfterAnnounced(
         replacedNotice:
@@ -204,9 +204,9 @@ Future<IncomingPushOutcome> _handle(
     return IncomingPushOutcome.message;
   }
 
-  if (catchUp != null &&
-      await placeholder.caughtUp(catchUp) &&
-      await _readSince(client, event)) {
+  if (synced != null &&
+      await placeholder.caughtUp(synced) &&
+      _readElsewhere(client, event)) {
     debugPrint('zuno/push: read on another device, as the catch-up showed');
     await placeholder.retract();
     return IncomingPushOutcome.ignored;
@@ -390,25 +390,14 @@ MessageNotificationContent? unresolvedPushNotification(
 }) {
   final roomId = notification.roomId;
   if (roomId == null) return null;
-  final room = client.getRoomById(roomId);
-  final localName = room == null ? null : roomTitle(room).trim().nullIfEmpty;
-  final name = notification.roomName?.trim().nullIfEmpty;
-  final sender = notification.senderDisplayName?.trim().nullIfEmpty;
-  final title = name ?? localName ?? sender ?? 'New message';
-  return MessageNotificationContent(
-    roomId: roomId,
-    title: title,
-    body: 'Tap to open',
-    text: 'New message',
+  return messageFloor(
+    roomId,
+    room: client.getRoomById(roomId),
     eventId: notification.eventId,
-    isDirectChat: room?.isDirectChat ?? true,
-    senderName: title,
+    roomName: notification.roomName,
+    senderName: notification.senderDisplayName,
     quiet: quiet,
   );
-}
-
-extension on String {
-  String? get nullIfEmpty => isEmpty ? null : this;
 }
 
 enum IncomingPushOutcome { ignored, message, callRinging, badge }

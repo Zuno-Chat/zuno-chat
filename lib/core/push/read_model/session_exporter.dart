@@ -14,7 +14,11 @@ import '../../matrix/ephemeral_to_device.dart';
 import 'mention_spec.dart';
 
 abstract interface class InboundSessionEvents {
-  void sessionStored({required String roomId, required String sessionId});
+  void sessionStored({
+    required String roomId,
+    required String sessionId,
+    required String content,
+  });
 
   void sessionIndexesUpdated({
     required String roomId,
@@ -49,7 +53,11 @@ mixin InboundSessionHooks on DatabaseApi {
       senderClaimedKey,
     );
     try {
-      inboundSessionEvents.sessionStored(roomId: roomId, sessionId: sessionId);
+      inboundSessionEvents.sessionStored(
+        roomId: roomId,
+        sessionId: sessionId,
+        content: content,
+      );
     } catch (e, s) {
       reportCaughtType('nse session stored hook', e, s);
     }
@@ -206,6 +214,16 @@ Map<int, int> decryptedIndexes(String? indexes) {
   return result;
 }
 
+bool _isForwarded(String content) {
+  try {
+    final decoded = jsonDecode(content);
+    return decoded is Map &&
+        decoded.containsKey('forwarding_curve25519_key_chain');
+  } on FormatException {
+    return false;
+  }
+}
+
 int? trimPoint({
   required Map<int, int> decrypted,
   required Map<int, DateTime> firstSeen,
@@ -249,8 +267,13 @@ class SessionExporter implements InboundSessionEvents {
   void Function()? onDirty;
 
   @override
-  void sessionStored({required String roomId, required String sessionId}) {
-    _remember(roomId, sessionId, _now().millisecondsSinceEpoch);
+  void sessionStored({
+    required String roomId,
+    required String sessionId,
+    required String content,
+  }) {
+    final recency = _isForwarded(content) ? 0 : _now().millisecondsSinceEpoch;
+    _remember(roomId, sessionId, recency);
     _changed(roomId);
   }
 
@@ -274,6 +297,10 @@ class SessionExporter implements InboundSessionEvents {
 
   Set<String> takeDirtyRooms() {
     final now = _now();
+    _firstSeen.removeWhere((_, seen) {
+      seen.removeWhere((_, at) => now.difference(at) >= grace);
+      return seen.isEmpty;
+    });
     final expired = [
       for (final MapEntry(:key, :value) in _graceUntil.entries)
         if (!now.isBefore(value)) key,
@@ -286,8 +313,6 @@ class SessionExporter implements InboundSessionEvents {
     _dirty.clear();
     return rooms;
   }
-
-  Set<String> get indexedRooms => _index.keys.toSet();
 
   void load(SharedPreferences prefs) {
     final Object? decoded;
@@ -364,8 +389,9 @@ class SessionExporter implements InboundSessionEvents {
         sessionId,
       );
       if (session == null || session.roomId != room.id) continue;
-      stored[sessionId] = session;
       final decrypted = decryptedIndexes(session.indexes);
+      if (decrypted.isEmpty && _isForwarded(session.content)) continue;
+      stored[sessionId] = session;
       candidates.add(
         SessionCandidate(
           sessionId: sessionId,

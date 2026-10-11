@@ -147,7 +147,12 @@ void main() {
     stateReply = (_) => http.Response(
       jsonEncode({
         'memberships': [
-          {'call_id': 'call1', 'device_id': 'BOBPHONE', 'kind': 'voice'},
+          {
+            'call_id': 'call1',
+            'device_id': 'BOBPHONE',
+            'kind': 'voice',
+            'expires_ts': 1,
+          },
         ],
       }),
       200,
@@ -250,33 +255,6 @@ void main() {
       expect(find.byType(IncomingCallPage), findsOneWidget);
     });
 
-    testWidgets('a second call while one rings is declined and announced as '
-        'missed', (tester) async {
-      final container = await tester.runAsync(startCoordinator);
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container!,
-          child: MaterialApp(
-            scaffoldMessengerKey: globalScaffoldMessengerKey,
-            home: const Scaffold(),
-          ),
-        ),
-      );
-      SystemRing.instance.set(roomId: room.id, callId: 'ringing-call');
-      final declined = declinedCallIds();
-
-      await tester.runAsync(
-        () => deliver(invite('call2', senderId: '@carol:example.org')),
-      );
-      await tester.pump();
-
-      expect(declined, ['call2']);
-      expect(container.read(resolvedCallIdsProvider), contains('call2'));
-      expect(native.argsOf('reportIncomingCall'), isEmpty);
-      expect(find.text('Missed call from Carol'), findsOneWidget);
-      SystemRing.instance.clear('ringing-call');
-    });
-
     test('a call already in progress declines the new one', () async {
       final container = await startCoordinator();
       final session = CallSession.forIncoming(
@@ -291,33 +269,6 @@ void main() {
       await deliver(invite('call2'));
 
       expect(declined, ['call2']);
-      expect(native.argsOf('reportIncomingCall'), isEmpty);
-    });
-
-    test('a call my other device answered never rings', () async {
-      final container = await startCoordinator();
-      joinCall(
-        room,
-        userId: '@me:example.org',
-        deviceId: 'LAPTOP',
-        callId: 'call1',
-      );
-
-      await deliver(invite('call1'));
-
-      expect(native.argsOf('reportIncomingCall'), isEmpty);
-      expect(native.argsOf('endIncomingCall'), [
-        {'roomId': room.id, 'callId': 'call1', 'reason': 'answeredElsewhere'},
-      ]);
-      expect(container.read(resolvedCallIdsProvider), contains('call1'));
-    });
-
-    test('a call another part of the app already ended never rings', () async {
-      await startCoordinator();
-      await markCallResolvedOnDisk(prefs, 'call1');
-
-      await deliver(invite('call1'));
-
       expect(native.argsOf('reportIncomingCall'), isEmpty);
     });
   });
@@ -351,6 +302,27 @@ void main() {
           'video': true,
         },
       ]);
+    });
+
+    test('a call CallKit already rings is never declined as busy while the '
+        'call before it is still ending', () async {
+      final container = await startCoordinator();
+      final ending = CallSession.forIncoming(
+        room: room,
+        callId: 'ending',
+        kind: CallKind.voice,
+      );
+      addTearDown(ending.dispose);
+      container.read(activeCallProvider.notifier).set(ending);
+      final declined = declinedCallIds();
+
+      await sendFromNative('ringing', pushRing('call1'));
+      await pumpEventQueue();
+      await deliver(invite('call1'));
+
+      expect(declined, isEmpty);
+      expect(container.read(resolvedCallIdsProvider), isNot(contains('call1')));
+      expect(native.argsOf('updateIncoming'), hasLength(1));
     });
 
     test('a pushed ring for a call already over is taken down', () async {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 
 import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
@@ -22,6 +23,7 @@ class SensitiveClipboard {
       _injectedCapabilities ?? ambientCapabilities;
 
   Timer? _clearTimer;
+  AppLifecycleListener? _clearOnResume;
 
   Future<void> copy(String text) async {
     if (!_capabilities.sensitiveClipboard) {
@@ -37,7 +39,7 @@ class SensitiveClipboard {
       reportCaught('copy sensitive text', e, s);
       await Clipboard.setData(ClipboardData(text: text));
     }
-    _clearTimer?.cancel();
+    cancelPendingClear();
     _clearTimer = Timer(sensitiveClipboardLifetime, () {
       unawaited(_clearIfMatches(text));
     });
@@ -45,7 +47,11 @@ class SensitiveClipboard {
 
   Future<void> _clearIfMatches(String text) async {
     try {
-      await _channel.invokeMethod('clearClipboardIfMatches', {'text': text});
+      final unreadable = await _channel.invokeMethod<bool>(
+        'clearClipboardIfMatches',
+        {'text': text},
+      );
+      if (unreadable == true) _clearOnNextResume(text);
     } on MissingPluginException catch (e, s) {
       reportCaught('clear the sensitive clipboard', e, s);
     } on PlatformException catch (e, s) {
@@ -53,8 +59,24 @@ class SensitiveClipboard {
     }
   }
 
+  void _clearOnNextResume(String text) {
+    _stopClearOnResume();
+    _clearOnResume = AppLifecycleListener(
+      onResume: () {
+        _stopClearOnResume();
+        unawaited(_clearIfMatches(text));
+      },
+    );
+  }
+
+  void _stopClearOnResume() {
+    _clearOnResume?.dispose();
+    _clearOnResume = null;
+  }
+
   void cancelPendingClear() {
     _clearTimer?.cancel();
     _clearTimer = null;
+    _stopClearOnResume();
   }
 }

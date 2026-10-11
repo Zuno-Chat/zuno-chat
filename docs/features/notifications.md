@@ -51,15 +51,20 @@ Background sync has no push at all: a foreground service keeps `/sync` running.
 - **The runner drops a push** while the app is resumed, syncing and really in front, and when the user is signed out or the lease is denied. A locked keyguard never counts as in front, so a hang-up push still stops a ring shown over the lock screen.
 - **Post first, refine later.** When the fetch is slow, a "New message" placeholder posts for the room, and the real content replaces it silently. Avatars and photo thumbnails refine the posted line afterwards, so the FCM ack never waits for them.
 - **The fetch contract** (`getEventByPushNotification`). `null` means there is nothing to show, such as a message read on another device, and retracts any placeholder. Only a throw, meaning the fetch failed, keeps the placeholder.
-- **A stale app client catches up beside the fetch**, so a message already read on another device stays silent.
+- **Read elsewhere is Synapse's receipt rule, as on iOS.** The client catches up beside the fetch, and once that sync has reached the event, a room notification count of 0 means the message was read on another device, so it stays silent.
 - **One poster for both producers.** The push handler and the sync path (`MessageNotificationNotifier`) both call `postMessageNotification`, never `showMessage`, with text from `event_display.dart`. Invitations, verification requests and join requests post through it too. The notified-events store makes each event notify once, whichever path posts first.
 - **Mentions-only** posts other messages quietly, and not at all while Zuno is in front.
 - **The sync path ignores the initial sync**, so a cache clear cannot replay old messages as new.
+- **An event not yet decrypted posts a "New message" placeholder from sync.** The real line replaces it when the key arrives soon after, and a decrypted event that needs no notification withdraws it.
+- **An invitation to a room the user asked to join is never announced**, since it answers their own request, on every path: sync, Android push and the iOS extension, which reads those rooms from the read model.
 
 ### Android presentation
 
 - **One notification per room.** Its id is an FNV-1a hash of the room id, because Dart's `String.hashCode` is not Java's and native code must hit the same id.
+- **Each join request gets its own notification**, apart from the room's conversation, and it clears once the request is answered.
 - **Each room is a `MessagingStyle` conversation**: a thread of its latest lines plus a long-lived conversation shortcut, which puts it in Android's Conversations section.
+- **Stored threads are capped**, and a full store drops threads whose notification no longer shows first, so a showing conversation keeps its lines.
+- **Shortcuts of rooms the user is no longer in are removed**, after the first sync and whenever a sync reports a room left.
 - **New sign-in alerts** post for every new own device on the `security` channel, which chat mute cannot silence.
 - **Reply and Mark as read** run in flutter_local_notifications' (FLN) action engine. They go to the running app first, through its live route (`calls.md`). With no live app, they open a one-shot client under a background lease.
 - **The native plugins in `packages/` are real `FlutterPlugin`s** (`zuno_notifications`, `zuno_vibration`, `zuno_call_style`), because a hand-attached channel exists only on the engine that attached it. On an engine without the handler, a call throws `MissingPluginException`, which best-effort callers swallow: no ring, no vibration, no error.
@@ -97,6 +102,7 @@ FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart rea
 - **Push engines register an explicit plugin allowlist** (`PushEnginePlugins`), not the generated registrant, because some plugins carry process-wide state. flutter_webrtc, for one, repoints its process-wide singleton at the newest engine that registers it, which would send a live call's WebRTC events to a push engine.
 - **Battery.** Both fallbacks need a battery exemption, and UnifiedPush needs one for the distributor as well. Where a maker's autostart screen exists, Delivery shows an Autostart row and onboarding asks once (`onboarding.md`).
 - **Background sync** is a foreground service keeping the app's `/sync` running, typed `specialUse` on Android 14+. In the background it uses the long long-poll and pauses while the device has no network (`app-foundation.md`).
+- **The service keeps the Flutter engine alive while it runs**, so Back or a swipe from Recents never stops delivery. It is not sticky, so a service the system kills ends with its notification instead of returning with no engine to sync.
 - **Designed, off: UnifiedPush over WebPush** through the homeserver's own Sygnal instead of a third-party Matrix gateway. It needs a WebPush pushkin in Sygnal first.
 
 ### iOS: APNs alerts
@@ -110,10 +116,10 @@ FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart rea
 
 ### iOS: the notification service extension
 
-The target is `ios/NotificationService/`, with its logic in `ios/NotifyShared/` (`NsePipeline`), Swift only. Every notification rule the app and the extension both apply, such as payload parsing, the preview level and which delivered lines a read clears, has one owner there, so the two sides never disagree.
+The target is `ios/NotificationService/`, with its logic in `ios/NotifyShared/` (`NsePipeline`), Swift only. Every notification rule the app and the extension both apply, such as payload parsing, decoding each App Group file, the preview level and which delivered lines a read clears, has one owner there, so the two sides never disagree.
 
 1. With no read model (before first unlock, or signed out), Apple's static alert passes through.
-2. A floor goes in first, the room's name and "New message", so a timeout still shows names. At preview Nothing it stops there, with no network call.
+2. A floor goes in first, the room's name and "New message", so a timeout still shows names. The event is then claimed, once across concurrent runs, so a second push for it shows only a passive line. At preview Nothing it stops there, with no network call.
 3. `POST nse/fetch` returns the event only if it is recent, unread and notified this user, else `read` or `gone`.
 4. An encrypted event decrypts with a Megolm session the app exported, through the app's own vodozemac.
 5. `NseClassifier`, a Swift twin of the Dart decisions, picks the line. Catch-up and the badge follow.
@@ -121,24 +127,26 @@ The target is `ios/NotificationService/`, with its logic in `ios/NotifyShared/` 
 | Outcome | Shows |
 |---|---|
 | Message, invitation, verification request | The line at the preview level. Under mentions-only, other messages show passively, with mentions in encrypted events matched on the device |
-| Call invite | A passive line once CallKit rang, else the fallback ring (`calls.md`) |
+| Call invite, recent by the server clock | A passive line once CallKit rang, else the fallback ring (`calls.md`) |
 | Read, duplicate, or nothing to show (edits, reactions, own events) | A passive line |
 | `gone`, rate limited | A quiet floor |
 | Undecryptable, no credential, route failure | A loud floor |
 
 - **Every push shows something.** Without Apple's filtering entitlement an extension cannot drop a push, so passive lines stand in for silence.
 - **Catch-up.** Each fetch reply also carries `missed` events and `read_rooms`, so the extension posts what it missed and takes down alerts for rooms read elsewhere. It exists because APNs keeps only one pending push per app for an offline device.
+- **Catch-up claims stay pending until their line is posted**, and the next run releases the pending claims of a run that died, so an event a killed run claimed but never posted can still show.
 - **Trimmed session export.** Per room, the app exports only recent sessions, each starting just past what it had already decrypted, so the extension can decrypt new messages but never history. Muted rooms, idle rooms, preview Nothing and notifications off export none.
+- **A forwarded or backup-restored session is exported only once something decrypts with it**, because its arrival says nothing about new messages and exporting it would hand history to the extension.
 - **The extension's credential** is minted by the app (`POST nse/credential`) and re-minted well inside its expiry, so the extension never holds a Matrix token.
 
 **The read model** (`zuno-nse/` in the notify App Group) is written by the app over `zuno/nse` and read by the extension. `ReadModelPublisher` writes it after syncs and at pause, and `NseServices` keeps the credential, the badge and the extension's outcomes.
 
 | File | Written by | Holds |
 |---|---|---|
-| `meta` | App | The account, settings, unread rooms and mention rules |
+| `meta` | App | The account, settings, unread rooms, mention rules and rooms the user asked to join |
 | `rooms/<t>` | App | Title, DM partner and exported sessions |
 | `ledger` | App | Recent CallKit calls (`calls.md`) |
-| `shown.app`, `shown.nse` | Each side | Events already shown, so nothing shows twice |
+| `shown.app`, `shown.nse` | Each side | Events already shown, or claimed by the extension, so nothing shows twice |
 | `nse.marks` | Extension | What the app must act on, such as call summaries and invitations |
 
 Files are sealed under the notify Keychain item and named by HMAC tokens, and thread ids, `userInfo` and the CallKit handle carry only tokens. Dart never sees the key.
@@ -179,7 +187,7 @@ What the app relies on:
 - **Failures.** Route, network, startup (`IM.ZUNO.STARTING`), 5xx and rate-limit failures back off quietly, while a refusal such as `IM.ZUNO.PUSH_DISABLED` surfaces to the user. Starting has its own code so a module still running its startup checks never reads as disabled. `DELETE voip` and `DELETE device` are never held back by startup, so sign-out always reaches the module.
 - **Server routing.** The homeserver's proxy must route `/_matrix/push/v1/notify` to Sygnal. Without that route Synapse answers with a 404, and every alert push is dropped while Delivery still looks healthy. The module posts rings to Sygnal directly, so rings and message pushes can fail independently, and `GET health` shows which.
 - **VoIP push transport.** The module watches `m.call.member` and sends one VoIP push per target device through Sygnal's VoIP apps (`im.zuno.chat.ios.voip`, `.ios.dev.voip`). The payload is one sealed, fixed-size blob (`VoipBlob`): ChaCha20-Poly1305 under the device's own key, with the key id and expiry as associated data.
-- **VoIP registration.** The app sends its PushKit token and payload key at sign-in, and again when either changes or the registration has aged. It never depends on notification permission. The key is new for each session and token, and the previous key still opens blobs for a grace period.
+- **VoIP registration.** The app sends its PushKit token and payload key at sign-in, and again when either changes or the registration has aged. It never depends on notification permission. The key is new for each session and token, and the previous key still opens blobs for a grace period. Only a signed-out device turns its VoIP pushes off, so a locked Keychain or a missing read model never silences later calls.
 - **Shared vectors** in `test/fixtures/push/` (the VoIP blob, opaque ids, sealed files, the extension's decisions) run in both Dart and Swift tests, and the module must pass the same files.
 
 ### Push diagnostics hub
@@ -228,4 +236,5 @@ Both platforms show the permission, this device's registration and the module's 
 - **Background sync must not be `dataSync` on Android 14+**, because Android 15 caps that type at 6 h a day and crashes the app past it.
 - **FLN on iOS must never prompt and gets no categories**, because its prompt would stall cold start and its categories would replace the set native code registers.
 - **On iOS, Runner handles any response FLN did not complete synchronously**, so an FLN upgrade that completes asynchronously would open a tapped room twice.
+- **iOS reports a Keychain unavailable before first unlock under more than one error, and each counts as locked**, so the extension passes Apple's alert through and a ring stays generic, never reading as signed out.
 - **The extension needs `flutter_vodozemac`'s `ios_decrypt_event` and `ios_free_result`**, and an upgrade that drops them turns every encrypted push into a floor, which `VodozemacMegolmTests` catches.

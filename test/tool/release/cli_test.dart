@@ -89,6 +89,45 @@ void main() {
     expect(result.stderr, contains('docs/release-notes/1.3.1.txt is missing'));
   });
 
+  group('guard and a fix a lower hotfix shipped', () {
+    late String fix;
+
+    setUp(() async {
+      await release(['bump', '1.4.0']);
+      File('${repo.path}/docs/release-notes/1.4.0.txt')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('Maps.\n');
+      git(['add', '.']);
+      commit('chore: release 1.4.0');
+      git(['branch', 'rc/1.4.0']);
+      commit('fix: crash');
+      fix = git(['rev-parse', 'HEAD']);
+      git(['switch', '--quiet', '--create', 'rc/1.3.1', 'v1.3.0']);
+      git(['cherry-pick', '-x', '--allow-empty', fix]);
+      git(['tag', 'v1.3.1']);
+    });
+
+    test('fails a release that lacks it', () async {
+      git(['switch', '--quiet', 'rc/1.4.0']);
+      final result = await release(['guard', 'rc/1.4.0']);
+      expect(result.exitCode, 1);
+      expect(result.stderr, contains(fix));
+    });
+
+    test('passes a release that cherry-picked it', () async {
+      git(['switch', '--quiet', 'rc/1.4.0']);
+      git(['cherry-pick', '-x', '--allow-empty', fix]);
+      final result = await release(['guard', 'rc/1.4.0']);
+      expect(result.stdout, '1.4.0\n', reason: '${result.stderr}');
+    });
+
+    test('passes a release cut after it landed', () async {
+      git(['switch', '--quiet', 'master']);
+      final result = await release(['guard', 'rc/1.4.0']);
+      expect(result.stdout, '1.4.0\n', reason: '${result.stderr}');
+    });
+  });
+
   test('guard fails a branch that is not rc/X.Y.Z', () async {
     final result = await release(['guard', 'master']);
     expect(result.exitCode, 1);

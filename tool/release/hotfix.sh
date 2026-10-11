@@ -8,6 +8,7 @@ main() {
   tool=$(mktemp -d)
   cp "$(dirname "$0")"/*.dart "$tool"/
   release() { dart "$tool/cli.dart" "$@"; }
+  conflicted() { [ -n "$(git diff --name-only --diff-filter=U)" ]; }
 
   local plan version base
   plan=$(release hotfix)
@@ -33,15 +34,23 @@ main() {
       echo "$input is not on master. Land the fix on master first." >&2
       return 1
     fi
+    if git rev-parse --quiet --verify "$commit^2" >/dev/null; then
+      echo "$input is a merge commit. Pass the commits it merged instead." >&2
+      return 1
+    fi
     picks+=("$commit")
   done
 
   local draft=docs/release-notes/next.txt
   git switch --quiet --create "$branch" "$base"
   for commit in "${picks[@]}"; do
-    git cherry-pick --no-commit "$commit" >/dev/null 2>&1 || true
+    if ! git cherry-pick --no-commit "$commit" >"$tool/pick" 2>&1 && ! conflicted; then
+      cat "$tool/pick" >&2
+      echo "$commit could not be cherry-picked onto $base." >&2
+      return 1
+    fi
     git checkout --quiet "$base" -- "$draft"
-    if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+    if conflicted; then
       git reset --quiet --hard HEAD
       echo "$commit does not apply cleanly on $base. Resolve it by hand on $branch." >&2
       return 1
@@ -55,6 +64,10 @@ main() {
     } >"$tool/message"
     git commit --quiet --file "$tool/message" --author "$(git log -1 --format='%an <%ae>' "$commit")"
   done
+  if [ "$(git rev-parse HEAD)" = "$(git rev-parse "$base^{commit}")" ]; then
+    echo "$base already has every change in $COMMITS. Nothing to hotfix." >&2
+    return 1
+  fi
 
   mkdir -p docs/release-notes
   cp "$tool/notes.txt" "docs/release-notes/$version.txt"

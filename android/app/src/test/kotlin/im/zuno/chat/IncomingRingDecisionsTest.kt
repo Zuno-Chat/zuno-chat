@@ -195,11 +195,33 @@ class IncomingRingDecisionsTest {
     }
 
     @Test
-    fun `the buzz runs at full strength and its pauses stay silent`() {
-        assertArrayEquals(
-            intArrayOf(0, 255, 0, 255, 0),
-            RingDecisions.amplitudes(longArrayOf(0, 800, 500, 800, 2000)),
-        )
+    fun `a ring launch passes only with the token of the ring being shown`() {
+        assertTrue(RingDecisions.tokenMatches(presented = "t1", ringToken = "t1"))
+        assertFalse(RingDecisions.tokenMatches(presented = "t2", ringToken = "t1"))
+        assertFalse(RingDecisions.tokenMatches(presented = null, ringToken = "t1"))
+        assertFalse(RingDecisions.tokenMatches(presented = "t1", ringToken = null))
+        assertFalse(RingDecisions.tokenMatches(presented = null, ringToken = null))
+    }
+
+    @Test
+    fun `every launch the app could read as a ring must prove it came from one`() {
+        val select = "SELECT_FOREGROUND_NOTIFICATION"
+        val tap = "SELECT_NOTIFICATION"
+
+        assertTrue(RingDecisions.claimsRing(select, 4002, null))
+        assertTrue(RingDecisions.claimsRing(select, 4002, "accept"))
+        assertTrue(RingDecisions.claimsRing(select, 1234, "accept"))
+        assertTrue(RingDecisions.claimsRing(select, -1, "decline"))
+        assertTrue(RingDecisions.claimsRing(tap, 1234, "accept"))
+        assertTrue(RingDecisions.claimsRing(tap, 4002, null))
+    }
+
+    @Test
+    fun `a message tap or a plain launch needs no ring token`() {
+        assertFalse(RingDecisions.claimsRing("SELECT_NOTIFICATION", 1234, null))
+        assertFalse(RingDecisions.claimsRing("SELECT_FOREGROUND_NOTIFICATION", 1234, "mark_read"))
+        assertFalse(RingDecisions.claimsRing("android.intent.action.MAIN", 4002, "accept"))
+        assertFalse(RingDecisions.claimsRing(null, 4002, "accept"))
     }
 
     @Test

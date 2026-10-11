@@ -207,35 +207,62 @@ final class DarwinHintTests: XCTestCase {
 }
 
 final class ReadModelFilesTests: XCTestCase {
-  func testPhaseTwoMetaDecodesWithTheFullLevelByDefault() throws {
+  private func data(_ object: Any) -> Data {
+    (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
+  }
+
+  func testMetaReadsEveryField() throws {
     let meta = try XCTUnwrap(
       NotifyMeta.decoded(
-        Data(
-          #"{"v":1,"user":"@me:zuno.im","device":"PHONE","server_offset_ms":1000,"ringtone":false,"voip_current":true,"heartbeat_ms":7}"#
-            .utf8)))
+        data([
+          "v": 1, "user": "@mwong:zuno.im", "device": "D", "server_offset_ms": 1_000,
+          "ringtone": false, "voip_current": true, "heartbeat_ms": 1_790_000_000_000,
+          "base_url": "https://zuno.im", "level": "name", "notify": "mentions", "tone": false,
+          "unread": ["t1", "t2"], "asked": ["!knock:zuno.im"],
+          "mention": [
+            "mxid": "@mwong:zuno.im", "display_name": "Mia",
+            "keywords": [["pattern": "zuno", "highlight": true]],
+            "rules": [".m.rule.roomnotif": false],
+          ],
+        ])))
 
-    XCTAssertEqual(
-      meta,
-      NotifyMeta(
-        user: "@me:zuno.im", device: "PHONE", serverOffsetMs: 1_000, ringtone: false,
-        voipCurrent: true, heartbeatMs: 7, level: .full))
+    XCTAssertEqual(meta.user, "@mwong:zuno.im")
+    XCTAssertEqual(meta.baseUrl, "https://zuno.im")
+    XCTAssertEqual(meta.serverOffsetMs, 1_000)
+    XCTAssertEqual(meta.level, .name)
+    XCTAssertTrue(meta.mentionsOnly)
+    XCTAssertFalse(meta.tone)
+    XCTAssertFalse(meta.ringtone)
+    XCTAssertEqual(meta.unread, ["t1", "t2"])
+    XCTAssertEqual(meta.heartbeatMs, 1_790_000_000_000)
+    XCTAssertEqual(meta.askedToJoin, ["!knock:zuno.im"])
+    XCTAssertEqual(meta.mention?.keywords, [.init(pattern: "zuno", highlight: true)])
+    XCTAssertEqual(meta.mention?.rules, [".m.rule.roomnotif": false])
+  }
+
+  func testAMetaWithOnlyItsUserIsASessionWithEveryDefault() throws {
+    let meta = try XCTUnwrap(NotifyMeta.decoded(data(["v": 1, "user": "@mwong:zuno.im"])))
+
+    XCTAssertEqual(meta.baseUrl, "")
+    XCTAssertNil(meta.serverOffsetMs)
+    XCTAssertEqual(meta.level, .full)
+    XCTAssertFalse(meta.mentionsOnly)
+    XCTAssertTrue(meta.tone)
+    XCTAssertTrue(meta.ringtone)
+    XCTAssertNil(meta.unread)
+    XCTAssertNil(meta.heartbeatMs)
+    XCTAssertNil(meta.mention)
+    XCTAssertTrue(meta.askedToJoin.isEmpty)
   }
 
   func testTheLevelIsReadFromTheMetaAndANonStringOneStillCountsAsStated() {
-    let none = NotifyMeta.decoded(
-      Data(
-        #"{"v":1,"user":"@me:zuno.im","device":"D","ringtone":true,"heartbeat_ms":1,"level":"none"}"#
-          .utf8))
-    let absent = NotifyMeta.decoded(Data(#"{"v":1,"user":"@me:zuno.im","device":"D"}"#.utf8))
+    let none = NotifyMeta.decoded(data(["v": 1, "user": "@me:zuno.im", "level": "none"]))
 
     XCTAssertEqual(none?.level, PreviewLevel.none)
-    XCTAssertNil(none?.serverOffsetMs)
-    XCTAssertEqual(absent?.level, PreviewLevel.full)
-    for level in ["7", "null"] {
-      let odd = NotifyMeta.decoded(
-        Data(#"{"v":1,"user":"@me:zuno.im","device":"D","level":\#(level)}"#.utf8))
+    for level: Any in [7, NSNull()] {
+      let odd = NotifyMeta.decoded(data(["v": 1, "user": "@me:zuno.im", "level": level]))
 
-      XCTAssertEqual(odd?.level, PreviewLevel.none, level)
+      XCTAssertEqual(odd?.level, PreviewLevel.none, "\(level)")
     }
   }
 
@@ -257,8 +284,9 @@ final class ReadModelFilesTests: XCTestCase {
   }
 
   func testMetaOfAnotherVersionOrWithoutItsUserIsNoMeta() {
-    XCTAssertNil(NotifyMeta.decoded(Data(#"{"v":2,"user":"@me:zuno.im","device":"D"}"#.utf8)))
-    XCTAssertNil(NotifyMeta.decoded(Data(#"{"v":1,"device":"D"}"#.utf8)))
+    XCTAssertNil(NotifyMeta.decoded(data(["v": 2, "user": "@me:zuno.im", "base_url": "https://x"])))
+    XCTAssertNil(NotifyMeta.decoded(data(["v": 1, "device": "D", "base_url": "https://x"])))
+    XCTAssertNil(NotifyMeta.decoded(Data("not json".utf8)))
   }
 
   func testARoomFileIsReadOnlyForTheRoomItNames() {
@@ -266,9 +294,48 @@ final class ReadModelFilesTests: XCTestCase {
       #"{"v":1,"room":"!abc:zuno.im","title":"Alice","dm":true,"partner":"Alice"}"#.utf8)
 
     XCTAssertEqual(
-      RoomTitleFile.decoded(json, roomId: "!abc:zuno.im"),
-      RoomTitleFile(room: "!abc:zuno.im", title: "Alice", dm: true, partner: "Alice"))
-    XCTAssertNil(RoomTitleFile.decoded(json, roomId: "!other:zuno.im"))
+      NotifyRoomFile.decoded(json, roomId: "!abc:zuno.im"),
+      NotifyRoomFile(room: "!abc:zuno.im", title: "Alice", dm: true, partner: "Alice"))
+    XCTAssertNil(NotifyRoomFile.decoded(json, roomId: "!other:zuno.im"))
+  }
+
+  func testARoomFileKeepsItsSessionsAndNotifiers() throws {
+    let room = try XCTUnwrap(
+      NotifyRoomFile.decoded(
+        data([
+          "v": 1, "room": "!abc:zuno.im", "title": "Design team", "dm": false, "partner": "",
+          "sessions": [
+            [
+              "session_id": "s1", "sender": "@alice:zuno.im", "sender_key": "k1",
+              "first_index": 4, "pickle": "p1",
+            ]
+          ],
+          "notifiers": ["@admin:zuno.im"],
+        ])))
+
+    XCTAssertEqual(room.title, "Design team")
+    XCTAssertEqual(
+      room.session("s1"),
+      NseSession(
+        sessionId: "s1", sender: "@alice:zuno.im", senderKey: "k1", firstIndex: 4, pickle: "p1"))
+    XCTAssertNil(room.session("s2"))
+    XCTAssertEqual(room.notifiers, ["@admin:zuno.im"])
+  }
+
+  func testARoomFileSkipsSessionsMissingAPickleOrIndex() throws {
+    let room = try XCTUnwrap(
+      NotifyRoomFile.decoded(
+        data([
+          "v": 1, "room": "!abc:zuno.im",
+          "sessions": [
+            ["session_id": "s1", "first_index": 0], ["session_id": "s2", "pickle": "p"],
+          ],
+        ])))
+
+    XCTAssertTrue(room.sessions.isEmpty)
+    XCTAssertEqual(room.title, "")
+    XCTAssertFalse(room.dm)
+    XCTAssertEqual(room.partner, "")
   }
 
   func testFileNamesFollowTheContract() {

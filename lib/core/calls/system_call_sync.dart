@@ -1,20 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../matrix/room_title.dart';
 import '../platform/platform_capabilities.dart';
 import 'active_call_provider.dart';
 import 'matrixrtc/call_session.dart';
-import 'matrixrtc/call_summary_message.dart';
 import 'models/call_engine_participant.dart';
 import 'models/call_kind.dart';
 import 'notifications/call_notification_service.dart';
 import 'platform/system_call.dart';
 import 'platform/system_ring.dart';
-
-const emptyCallTimeout = Duration(seconds: 15);
 
 final systemCallSyncProvider = Provider<void>((ref) {
   if (!ref.watch(platformCapabilitiesProvider).callKit) return;
@@ -52,11 +48,6 @@ class _SystemCallBinding {
     _videoShown = session.kind == CallKind.video;
     _phaseSub = session.phaseStream.listen(_onPhase);
     _remoteJoinedSub = session.remoteJoinedStream.listen((_) => _connected());
-    if (session.role == CallSessionRole.callee) {
-      _timelineSub = session.room.client.onTimelineEvent.stream.listen(
-        _onTimelineEvent,
-      );
-    }
     unawaited(_begin());
   }
 
@@ -66,9 +57,7 @@ class _SystemCallBinding {
 
   StreamSubscription<CallSessionPhase>? _phaseSub;
   StreamSubscription<void>? _remoteJoinedSub;
-  StreamSubscription<Event>? _timelineSub;
   StreamSubscription<List<CallEngineParticipant>>? _participantsSub;
-  Timer? _emptyCallTimer;
   bool _muted = false;
   bool _videoShown = false;
   bool _connectedSent = false;
@@ -94,7 +83,6 @@ class _SystemCallBinding {
 
   void _onPhase(CallSessionPhase phase) {
     if (_ended) return;
-    if (phase == CallSessionPhase.active) _startEmptyCallTimer();
     if (phase == CallSessionPhase.ended) _end();
   }
 
@@ -103,12 +91,6 @@ class _SystemCallBinding {
     final engine = session.engine;
     _participantsSub = engine.participantsStream.listen(_onParticipants);
     _onParticipants(engine.participants);
-  }
-
-  void _startEmptyCallTimer() {
-    if (session.role != CallSessionRole.callee || session.everHadRemote) return;
-    if (_connectedSent || _emptyCallTimer != null) return;
-    _emptyCallTimer = Timer(emptyCallTimeout, _endIfEmpty);
   }
 
   void _onParticipants(List<CallEngineParticipant> participants) {
@@ -148,26 +130,9 @@ class _SystemCallBinding {
     unawaited(session.hangUp());
   }
 
-  void _onTimelineEvent(Event event) {
-    if (_ended || session.everHadRemote) return;
-    if (event.room.id != _roomId) return;
-    if (!isCallSummaryMessage(event.messageType)) return;
-    if (event.content.tryGet<String>('call_id') != session.callId) return;
-    unawaited(session.hangUp(summarized: true));
-  }
-
-  void _endIfEmpty() {
-    if (_ended || session.everHadRemote) return;
-    unawaited(session.hangUp());
-  }
-
   void _connected() {
     if (_connectedSent || _ended) return;
     _connectedSent = true;
-    _emptyCallTimer?.cancel();
-    _emptyCallTimer = null;
-    unawaited(_timelineSub?.cancel());
-    _timelineSub = null;
     unawaited(_remoteJoinedSub?.cancel());
     _remoteJoinedSub = null;
     unawaited(_systemCall.connected(roomId: _roomId, callId: session.callId));
@@ -201,15 +166,11 @@ class _SystemCallBinding {
 
   void dispose() {
     _ended = true;
-    _emptyCallTimer?.cancel();
-    _emptyCallTimer = null;
     unawaited(_phaseSub?.cancel());
     unawaited(_remoteJoinedSub?.cancel());
-    unawaited(_timelineSub?.cancel());
     unawaited(_participantsSub?.cancel());
     _phaseSub = null;
     _remoteJoinedSub = null;
-    _timelineSub = null;
     _participantsSub = null;
   }
 }

@@ -1,9 +1,11 @@
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/security/sensitive_clipboard.dart';
 
+import '../../helpers/app_lifecycle.dart';
 import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/platform_capabilities.dart';
 
@@ -15,14 +17,20 @@ void main() {
   late List<MethodCall> native;
   late List<String> clipboardWrites;
   Object? nativeError;
+  late List<bool?> clearReplies;
 
   setUp(() {
     clipboardWrites = [];
     nativeError = null;
+    clearReplies = [];
     native = installFakeCallsChannel(
-      reply: (_) {
+      reply: (call) {
         final error = nativeError;
         if (error != null) throw error;
+        if (call.method == 'clearClipboardIfMatches' &&
+            clearReplies.isNotEmpty) {
+          return clearReplies.removeAt(0);
+        }
         return null;
       },
     ).calls;
@@ -55,6 +63,67 @@ void main() {
         'clearClipboardIfMatches',
       ]);
       expect(native.last.arguments, {'text': 'recovery code'});
+    });
+  });
+
+  List<String> clears() => [
+    for (final call in native)
+      if (call.method == 'clearClipboardIfMatches')
+        (call.arguments as Map)['text'] as String,
+  ];
+
+  void resumeFromBackground(FakeAsync async) {
+    final binding = WidgetsBinding.instance;
+    moveLifecycleTo(binding, AppLifecycleState.paused);
+    moveLifecycleTo(binding, AppLifecycleState.resumed);
+    async.flushMicrotasks();
+  }
+
+  test('a clipboard native code cannot read yet is cleared on the next '
+      'resume, still only if it holds the code', () {
+    fakeAsync((async) {
+      clearReplies = [true, false];
+      SensitiveClipboard.instance.copy('recovery code');
+      async.elapse(sensitiveClipboardLifetime);
+
+      expect(clears(), ['recovery code']);
+
+      async.elapse(const Duration(minutes: 10));
+      expect(clears(), ['recovery code']);
+
+      resumeFromBackground(async);
+      expect(clears(), ['recovery code', 'recovery code']);
+
+      resumeFromBackground(async);
+      expect(clears(), hasLength(2));
+    });
+  });
+
+  test('a clear the native side ran is never repeated on resume', () {
+    fakeAsync((async) {
+      SensitiveClipboard.instance.copy('recovery code');
+      async.elapse(sensitiveClipboardLifetime);
+
+      resumeFromBackground(async);
+
+      expect(clears(), ['recovery code']);
+    });
+  });
+
+  test('a new copy replaces a clear still waiting for a resume', () {
+    fakeAsync((async) {
+      clearReplies = [true];
+      SensitiveClipboard.instance.copy('old code');
+      async.elapse(sensitiveClipboardLifetime);
+
+      SensitiveClipboard.instance.copy('new code');
+      async.flushMicrotasks();
+      resumeFromBackground(async);
+
+      expect(clears(), ['old code']);
+
+      async.elapse(sensitiveClipboardLifetime);
+      expect(clears(), ['old code', 'new code']);
     });
   });
 

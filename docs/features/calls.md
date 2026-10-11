@@ -31,7 +31,7 @@ flowchart LR
 | `calls_module.dart` | same | Speaks Cloudflare's own API to the module, which adds the app id and credentials server-side. Only signaling goes through it; media flows straight between the device and the SFU |
 | `ActiveCallController` | `lib/core/calls/` | The device side of the active call for its whole life: renderers, audio route, ringback, foreground service, wake lock, lock-screen display, ear sensor, picture-in-picture and teardown. It starts when `activeCallProvider` gets a session, with no frame |
 | `CallPage` → `CallView`, `CallLayer` | `lib/features/calls/presentation/` | `CallPage` is the call screen and only draws. `CallLayer` sits above the Navigator and shows a minimized call and Android picture-in-picture. `CallView` only lays out plain values |
-| Ring routing | `lib/core/calls/notifications/`; iOS `RingCoordinator` | Presenting, cancelling, answering and declining rings |
+| Ring routing | `IncomingCallGate`, `lib/core/calls/notifications/`; iOS `RingCoordinator` | Deciding whether an invite rings, then presenting, cancelling, answering and declining rings |
 
 **Platform seams** (`lib/core/calls/platform/`). Whatever the OS shows or
 plays for a call goes through one of six interfaces, each built by a
@@ -78,9 +78,15 @@ stateDiagram-v2
 - **A call ends** as hung up, declined by either side, missed (the
   caller's ring timed out with nobody joined) or failed. A failure carries
   a user-facing message.
+- **A callee left alone ends the call by itself**, on both platforms: it
+  hangs up when nobody else is there a short while after it connects, and
+  ends when the call's summary arrives before anyone was, since the caller
+  has already given up.
 - **Ended means torn down locally.** The membership clear and the end
-  notice go out after the phase turns ended, and iOS holds a short
-  background task once CallKit ends the call so they still leave.
+  notice go out after the phase turns ended, so each platform keeps the
+  process alive until they leave, for a bounded time: Android keeps the
+  ongoing-call foreground service, iOS holds a short background task once
+  CallKit ends the call.
 - **A caller that fails after its invite went out ends as a hang-up does**,
   so its summary stops the other side ringing.
 - **It also ends, without writing anything, once its room is left** (from
@@ -93,12 +99,19 @@ stateDiagram-v2
 
 ### Signaling
 
-- **`m.call.member` state is the only roster**: one entry per device in the
-  call, never a client-local list. Each entry's `fociInfo` carries the
-  Cloudflare session, the published tracks and media flags such as
-  `videoEnabled`, `encrypted` and `lowBandwidth`. The room's "call in
-  progress" banner reads the same state, so a missed ring or a closed app
-  still finds the call.
+- **`m.call.member` state is the only roster**, never a client-local list:
+  each account's state event holds one entry, for its device in the call.
+  Each entry's `fociInfo` carries the Cloudflare session, the published
+  tracks and media flags such as `videoEnabled`, `encrypted` and
+  `lowBandwidth`. The room's "call in progress" banner reads the same
+  state, so a missed ring or a closed app still finds the call.
+- **An account is in a call from one device at a time.** Each device
+  writes its account's whole event with only its own entry, so answering
+  or joining is refused ("Hang up there to join here") while another of
+  my devices is in the call.
+- **A malformed entry is skipped, and a malformed `fociInfo` field reads
+  as absent, never cast**, because one client's bad state would otherwise
+  break the call for everyone in the room.
 - **Membership is published only once the session listens for to-device
   call keys**, so a key sent in reply is never lost; refreshes before that
   are ignored. After that it is republished periodically and on every
@@ -114,6 +127,10 @@ stateDiagram-v2
   summary renders.
 - **They are sent without a local pending copy, and the chat's not-sent
   retry skips call messages**, so a call that is over is never resent.
+- **The chat list leaves hidden call messages out of a room's unread
+  count.** The correction counts only others' events, the only ones the
+  server counts, and never exceeds the server's count, so a read on
+  another device never leaves it hiding new messages.
 - **Every end sends one end notice**, the one signal both sides can rely
   on: the callee learns of an early cancel from it, the caller of a late
   decline.
@@ -124,6 +141,8 @@ stateDiagram-v2
   | A caller whose invite was never delivered | Nothing, so hanging up during the microphone prompt is silent |
   | A callee that never joined | A decline |
   | A callee whose connect failed before it joined | Nothing, so its other phones can still answer |
+  | A callee the summary reached before anyone joined | Nothing: the call is already summarized |
+  | A caller giving up its call for a crossed one (see Ringing) | Nothing, so no false missed call is posted |
   | Anyone else | The summary: declined, missed or ended |
 - **Declines and answered summaries carry an `m.reference`**, which stays
   cleartext in encrypted rooms, so a push rule keeps them off the push path
@@ -295,15 +314,18 @@ A visible window keeps the camera sending, so the app does not count as in
 the background. With "Hide screen content" on, iOS also hides the window's
 video while the screen is recorded or mirrored.
 
-### The Android engine during a call
+### Keeping the Android engine
 
 Closing the picture-in-picture window or swiping the task away destroys the
 activity, which would take the Flutter engine and the call with it. While a
-call or a live location share runs, `MainActivity` hands the engine to
-`KeptEngine` instead, which keeps it for as long as any of those reasons
-holds; the call carries on behind `CallForegroundService` until it ends or
-the system kills it. The next activity adopts the engine and re-applies its
-per-engine state, such as lock-screen display, the wake lock and call audio.
+call, a live location share or background-sync delivery runs,
+`MainActivity` hands the engine to `KeptEngine` instead, which keeps it for
+as long as any of those reasons holds; the call carries on behind
+`CallForegroundService` until it ends or the system kills it. The next
+activity adopts the engine, re-applies its per-engine state, such as
+lock-screen display, the wake lock and call audio, and passes its launch
+intent to the engine's plugins too, so a notification tap that created the
+activity is still handled, such as opening its room.
 An old activity can finish after a new one has set up its engine, so
 engine-wide state (the push flag, the calls channel, live location
 capture) is released only by the engine that set it. Back on the first
@@ -332,13 +354,31 @@ session to CallKit.
 
 **Rules for both platforms**
 
+`IncomingCallGate` alone decides whether an invite from sync rings,
+checking in order:
+
+| Invite | Outcome |
+|---|---|
+| Settled: resolved, its ring screen open, or the call answered here | Left alone, never declined |
+| Answered on another of my devices | Never rings; marked resolved, and a ring already up ends as answered elsewhere |
+| Crossing my own unanswered call in the same room | The lower call id wins (below) |
+| Already ringing in CallKit from a push | Rings, never turned away as busy, since native code already chose to ring it, even while the previous call is still ending |
+| While on a call or while another call rings | Declined, with a "Missed call" notice |
+| Anything else | Rings |
+
+**Crossed calls.** When two people call each other in one room before
+either answers, the lower call id wins, the matrix SDK's own rule, so both
+sides pick the same call with no coordination. The loser hangs up its own
+call and answers the other; the winner ignores the other's invite without
+declining it.
+
 | Rule | Why |
 |---|---|
 | The ringing-call store is written before a ring is presented | Written after, a decline in the gap misses the cancel and the ring sounds on |
 | A ring is idempotent per call id across push and sync, and every cancel names its call | Push and sync often deliver the same invite, and one call's end must never take down another's ring |
 | A resolved call (summary, decline, answer elsewhere or unanswered ring) never rings again | A late push would otherwise ring a finished call |
-| A second call while on one, or while another rings, is auto-declined with a "missed call" notice | Isolates cannot see the active call, so they read a process-wide marker instead |
 | A ring ends when another of my devices joins or declines | Nothing about an answer elsewhere pushes, so only sync tells, and sync keeps running during a ring (`app-foundation.md`) |
+| A ring ends when the call's other memberships, once seen, are all gone | A caller that crashes or loses its connection sends no end notice |
 
 **Android ring**
 
@@ -353,11 +393,19 @@ session to CallKit.
 - **Only a ring's own launch shows Zuno over a locked keyguard.** Every
   other lock-screen decision belongs to the ring page and the call
   controller, so no other launch can show chats over the lock screen.
+- **A launch that claims a ring must carry that ring's token**, minted per
+  ring and dropped when it stops, or Zuno opens plainly, so a stale
+  notification or another app's intent can neither answer a call nor show
+  Zuno over the lock screen.
 - **The ring's sound and vibration are native and process-wide**
   (`IncomingRing`), because Dart audio dies with its engine and freezes
   with the process. Several stops back each other up (cancel, the
-  notification's delete intent, Answer, an alarm and a timer), and every
-  one names its call.
+  notification's delete intent, Answer, Decline, an alarm and a timer),
+  and every one names its call. Decline silences the ring natively before
+  handing the tap to Dart, so a slow engine start never keeps it ringing.
+- **A push engine never rings a second call while the app is on one**,
+  because isolates cannot see the active call, so they read a process-wide
+  marker; the app's own gate turns the invite away from sync.
 - **Ringback is a tone on the voice-call stream inside native call audio**,
   so it follows the chosen route. It stops when the other side's
   membership appears, not when our own join finishes. Neither the ring nor
@@ -412,6 +460,7 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | Unknown key | A generic ring that Dart binds to the newest recent call or ends, plus a re-registration |
 | Before first unlock | A generic ring that stays native; the blob is opened once protected data is available |
 | Signed out | Reported, ended, and VoIP pushes turned off |
+| No cached account details, and no sign-out recorded | Reported and ended; VoIP pushes stay on, since only a sign-out proves the account is gone |
 
 - **Answering a pushed ring** first re-reads the caller's membership from
   the server, since local state is stale after suspension. CallKit's

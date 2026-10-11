@@ -38,7 +38,7 @@ final class NsePipelineTests: XCTestCase {
     #"{"type":"m.room.message","content":{"msgtype":"m.text","body":"\#(body)"},"room_id":"\#(room)"}"#
   }
 
-  func testATestPushSaysNotificationsWorkAndLeavesAnAck() async {
+  func testATestPushSaysNotificationsWorkAndWritesNothing() async {
     let harness = harness()
 
     let result = await harness.run(
@@ -46,19 +46,9 @@ final class NsePipelineTests: XCTestCase {
 
     XCTAssertEqual(result.outcome, .test)
     XCTAssertEqual(result.delivery.body, "Notifications work")
-    XCTAssertEqual(SeenSets.marks(harness.files.read(NotifyFile.marks)).map(\.kind), ["test"])
+    XCTAssertNil(harness.files.read(NotifyFile.marks))
     XCTAssertTrue(harness.transport.requests.isEmpty)
     XCTAssertEqual(harness.signals.logged, ["nse_test t=- ms=0 safe=0"])
-  }
-
-  func testATestPushBeforeFirstUnlockStillShowsButWritesNothing() async {
-    let harness = harness(keychain: .locked)
-
-    let result = await harness.run(
-      NsePush(id: "p", roomId: nil, eventId: "$zuno_test_1", receivedMs: NseTestData.now))
-
-    XCTAssertEqual(result.outcome, .test)
-    XCTAssertNil(harness.files.read(NotifyFile.marks))
   }
 
   func testBeforeFirstUnlockTheOriginalContentShowsAndNothingIsWritten() async {
@@ -107,6 +97,27 @@ final class NsePipelineTests: XCTestCase {
 
     XCTAssertEqual(NseStateFile.decode(harness.files.read(NotifyFile.state)).version, "2.1 (40)")
     XCTAssertEqual(harness.files.writes(NotifyFile.state), 1)
+  }
+
+  func testThePushedEventIsClaimedBeforeTheFetchSoNoOtherRunCatchesItUp() async {
+    let harness = harness()
+    let store = NseStateStore(files: harness.files)
+    let token = eventToken
+    let claimedDuringFetch = Recorder<Bool>()
+    harness.transport.onRequest { claimedDuringFetch.add(store.isShown(token)) }
+    harness.transport.reply("nse/fetch", NseFakeTransport.module(200, ["status": "gone"]))
+
+    let result = await harness.run()
+
+    XCTAssertEqual(claimedDuringFetch.values, [true])
+    XCTAssertEqual(result.outcome, .gone)
+    XCTAssertFalse(store.claim(eventToken))
+  }
+
+  func testAMetaThatNamesNoServerLeavesTheStaticAlert() async {
+    let result = await harness(meta: NseTestData.meta(["base_url": ""])).run()
+
+    XCTAssertEqual(result, NseResult(delivery: .passthrough, outcome: .noMeta))
   }
 
   func testTheNamesFloorIsTheBestAttemptBeforeAnyNetwork() async {
@@ -314,7 +325,7 @@ final class NsePipelineTests: XCTestCase {
     let ciphertext = NseTestData.ciphertext(index: 5, tag: 1)
     let harness = harness(
       room: NseTestData.room(sessions: [session()]), plaintexts: [ciphertext: plaintext("Hi")])
-    harness.files.put(NotifyFile.state, ["v": 1, "replay": ["s1|5"], "utd": [], "missed": []])
+    harness.files.put(NotifyFile.state, ["v": 1, "replay": ["s1|5"], "missed": []])
     harness.transport.reply("nse/fetch", NseTestData.ok(encrypted(5)))
 
     let result = await harness.run()
@@ -323,7 +334,7 @@ final class NsePipelineTests: XCTestCase {
     XCTAssertEqual(harness.decryptor.calls, 0)
   }
 
-  func testAMissingKeyIsALoudNamesFloorRecordedForGroundTruth() async {
+  func testAMissingKeyIsALoudNamesFloor() async {
     let harness = harness()
     harness.transport.reply("nse/fetch", NseTestData.ok(encrypted(5)))
 
@@ -332,9 +343,6 @@ final class NsePipelineTests: XCTestCase {
     XCTAssertEqual(result.outcome, .utd)
     XCTAssertEqual(result.delivery.body, "Alice: New message")
     XCTAssertEqual(result.delivery.interruption, .active)
-    XCTAssertEqual(
-      NseStateFile.decode(harness.files.read(NotifyFile.state)).utd,
-      [NseUtd(room: NseTestData.roomId, event: NseTestData.eventId, ts: NseTestData.now)])
   }
 
   func testAMessageBeforeTheTrimPointIsAMissingKey() async {

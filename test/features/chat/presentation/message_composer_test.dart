@@ -128,13 +128,13 @@ void main() {
 
   testWidgets('a recording tick rebuilds only the timer text', (tester) async {
     await tester.pumpWidget(harness(recording: true));
-    expect(find.text('00:00'), findsOneWidget);
+    expect(find.text('0:00'), findsOneWidget);
     final before = probeBuilds;
 
     duration.value = const Duration(seconds: 7);
     await tester.pump();
 
-    expect(find.text('00:07'), findsOneWidget);
+    expect(find.text('0:07'), findsOneWidget);
     expect(probeBuilds, before);
   });
 

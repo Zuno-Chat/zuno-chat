@@ -3,10 +3,11 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../errors/caught_errors.dart';
+import 'notification_ids.dart';
 
 const notificationThreadsKey = 'notifications.threads';
 const maxNotificationLines = 8;
-const _maxThreads = 32;
+const maxNotificationThreads = 32;
 
 class NotificationLine {
   final String? eventId;
@@ -69,6 +70,7 @@ class NotificationLine {
 }
 
 class NotificationThread {
+  final String key;
   final String roomId;
   final String title;
   final bool isGroupChat;
@@ -76,22 +78,26 @@ class NotificationThread {
 
   const NotificationThread({
     required this.roomId,
+    String? key,
     required this.title,
     required this.isGroupChat,
     required this.lines,
-  });
+  }) : key = key ?? roomId;
 
   Map<String, Object?> toJson() => {
+    'roomId': roomId,
     'title': title,
     'isGroupChat': isGroupChat,
     'lines': lines.map((l) => l.toJson()).toList(),
   };
 
-  static NotificationThread? fromJson(String roomId, Object? json) {
+  static NotificationThread? fromJson(String key, Object? json) {
     if (json is! Map) return null;
     final rawLines = json['lines'];
+    final roomId = json['roomId'];
     return NotificationThread(
-      roomId: roomId,
+      key: key,
+      roomId: roomId is String ? roomId : key,
       title: json['title'] as String? ?? '',
       isGroupChat: json['isGroupChat'] == true,
       lines: rawLines is List
@@ -118,35 +124,42 @@ Future<void> _writeAll(SharedPreferences prefs, Map<String, Object?> all) =>
 
 NotificationThread? readNotificationThread(
   SharedPreferences prefs,
-  String roomId,
-) => NotificationThread.fromJson(roomId, _readAll(prefs)[roomId]);
+  String key,
+) => NotificationThread.fromJson(key, _readAll(prefs)[key]);
 
 Future<void> writeNotificationThread(
   SharedPreferences prefs,
-  NotificationThread thread,
-) async {
-  final all = _readAll(prefs)..remove(thread.roomId);
+  NotificationThread thread, {
+  Set<int> showing = const {},
+}) async {
+  final all = _readAll(prefs)..remove(thread.key);
   final trimmed = thread.lines.length > maxNotificationLines
       ? thread.lines.sublist(thread.lines.length - maxNotificationLines)
       : thread.lines;
-  all[thread.roomId] = NotificationThread(
+  all[thread.key] = NotificationThread(
     roomId: thread.roomId,
+    key: thread.key,
     title: thread.title,
     isGroupChat: thread.isGroupChat,
     lines: trimmed,
   ).toJson();
-  while (all.length > _maxThreads) {
-    all.remove(all.keys.first);
+  final gone = [
+    for (final key in all.keys)
+      if (key != thread.key && !showing.contains(messageNotificationIdFor(key)))
+        key,
+  ];
+  while (all.length > maxNotificationThreads) {
+    all.remove(gone.isEmpty ? all.keys.first : gone.removeAt(0));
   }
   await _writeAll(prefs, all);
 }
 
 Future<void> clearNotificationThread(
   SharedPreferences prefs,
-  String roomId,
+  String key,
 ) async {
   final all = _readAll(prefs);
-  if (all.remove(roomId) == null) return;
+  if (all.remove(key) == null) return;
   await _writeAll(prefs, all);
 }
 

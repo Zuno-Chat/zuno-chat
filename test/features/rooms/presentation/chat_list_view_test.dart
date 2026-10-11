@@ -134,7 +134,7 @@ void main() {
     expect(find.text('Join'), findsOneWidget);
     expect(find.text('Decline'), findsOneWidget);
     expect(
-      tester.getTopLeft(find.byType(InvitationGroup)).dy,
+      tester.getTopLeft(find.text('Join')).dy,
       lessThan(tester.getTopLeft(find.byType(ChatRow)).dy),
     );
   });
@@ -203,6 +203,31 @@ void main() {
     expect(actedOn, same(room));
   });
 
+  testWidgets('a room the client rebuilt opens as the new room, though its '
+      'row reads the same', (tester) async {
+    Room? opened;
+    Room? actedOn;
+    await pump(
+      tester,
+      [joined('!a:example.org', 'hello')],
+      onOpen: (r) => opened = r,
+      onActions: (r) => actedOn = r,
+    );
+
+    final rebuilt = joined('!a:example.org', 'hello');
+    await pump(
+      tester,
+      [rebuilt],
+      onOpen: (r) => opened = r,
+      onActions: (r) => actedOn = r,
+    );
+    await tester.tap(find.byType(ChatRow));
+    await tester.longPress(find.byType(ChatRow));
+
+    expect(opened, same(rebuilt));
+    expect(actedOn, same(rebuilt));
+  });
+
   Room community(String id, String name, List<Room> rooms) {
     final space = buildTestRoom(client, id: id)..partial = false;
     space.setState(
@@ -234,6 +259,18 @@ void main() {
           senderId: '@me:example.org',
           type: EventTypes.SpaceChild,
           stateKey: room.id,
+          content: {
+            'via': ['example.org'],
+          },
+        ),
+      );
+      room.setState(
+        buildTestEvent(
+          room,
+          eventId: '\$parent-${room.id}',
+          senderId: '@me:example.org',
+          type: EventTypes.SpaceParent,
+          stateKey: id,
           content: {
             'via': ['example.org'],
           },
@@ -299,7 +336,7 @@ void main() {
     expect(find.text('Invitations'), findsOneWidget);
     expect(find.text('Communities'), findsOneWidget);
     expect(
-      tester.getTopLeft(find.byType(InvitationGroup)).dy,
+      tester.getTopLeft(find.text('Join')).dy,
       lessThan(tester.getTopLeft(find.byType(ChatRow)).dy),
     );
   });

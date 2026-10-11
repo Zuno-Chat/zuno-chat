@@ -5,26 +5,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/calls/active_call_provider.dart';
 import '../../../core/calls/end_call.dart';
+import '../../../core/calls/incoming_call_gate.dart';
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
-import '../../../core/calls/matrixrtc/call_waiting.dart';
 import '../../../core/calls/matrixrtc/incoming_call.dart';
 import '../../../core/calls/matrixrtc/incoming_call_provider.dart';
 import '../../../core/calls/matrixrtc/resolved_call_ids_provider.dart';
-import '../../../core/calls/matrixrtc/resolved_call_ids_store.dart';
 import '../../../core/calls/matrixrtc/ring_elsewhere_provider.dart';
 import '../../../core/calls/notifications/call_notification_router.dart';
 import '../../../core/calls/notifications/headless_call_decline_provider.dart';
 import '../../../core/calls/notifications/headless_message_action_provider.dart';
 import '../../../core/calls/notifications/pending_call_notification_action_provider.dart';
 import '../../../core/calls/notifications/ring_notification.dart';
-import '../../../core/calls/notifications/ringing_call_provider.dart';
 import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/calls/platform/system_ring.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
-import '../../../core/errors/global_error_handler.dart';
 import '../../../core/matrix/communities.dart';
 import '../../../core/matrix/join_requests.dart';
 import '../../../core/matrix/join_room.dart';
@@ -251,6 +247,10 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
         Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => pageForRoom(room)));
       }
+    } on RoomListingRefused {
+      messenger.showSnackBar(
+        const SnackBar(content: Text(RoomListingRefused.message)),
+      );
     } catch (e, s) {
       reportCaught('create or join room', e, s);
       messenger.showSnackBar(
@@ -373,7 +373,11 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     if (context.mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => VerificationPage(keyVerification: keyVerification),
+          builder: (_) => VerificationPage(
+            keyVerification: keyVerification,
+            isOwnDevice:
+                keyVerification.userId == ref.read(matrixClientProvider).userID,
+          ),
         ),
       );
     }
@@ -465,66 +469,16 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     }
   }
 
-  bool _systemRingBusy(String callId) {
-    final ringing = SystemRing.instance.ringing.value;
-    return ringing != null && ringing.callId != callId;
-  }
-
   Future<void> _onIncomingCall(IncomingCall call) async {
-    bool settled() =>
-        RingingCall.instance.callId == call.callId ||
-        ref.read(resolvedCallIdsProvider).contains(call.callId);
-    if (settled() || await isCallResolved(call.callId)) return;
-    if (!mounted || settled()) return;
-
-    if (answeredOnAnotherDevice(call.room, call.callId)) {
-      ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
-      unawaited(
-        ref
-            .read(incomingCallPresenterProvider)
-            .cancelIncoming(
-              roomId: call.room.id,
-              callId: call.callId,
-              end: RingEnd.answeredElsewhere,
-            ),
-      );
-      return;
-    }
-
-    if (ref.read(activeCallProvider) != null || _systemRingBusy(call.callId)) {
-      unawaited(autoDeclineIncomingCall(call));
-      ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
-      final callerName = call.room
-          .unsafeGetUserFromMemoryOrFallback(call.callerId)
-          .calcDisplayname();
-      globalScaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text('Missed call from $callerName')),
-      );
-      return;
-    }
-
+    final gate = ref.read(incomingCallGateProvider.notifier);
+    if (!await gate.shouldRing(call) || !mounted) return;
     SystemRing.instance.set(roomId: call.room.id, callId: call.callId);
-    final presenter = ref.read(incomingCallPresenterProvider);
-    if (ref.read(platformCapabilitiesProvider).callKit) {
-      unawaited(_ringThroughSystem(call, presenter));
-      return;
-    }
-    unawaited(postRingNotification(call, presenter: presenter));
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => IncomingCallPage(call: call)));
-  }
-
-  Future<void> _ringThroughSystem(
-    IncomingCall call,
-    IncomingCallPresenter presenter,
-  ) async {
-    var outcome = RingOutcome.unavailable;
-    try {
-      outcome = await postRingNotification(call, presenter: presenter);
-    } finally {
-      if (outcome != RingOutcome.shown) SystemRing.instance.clear(call.callId);
-    }
-    if (outcome != RingOutcome.unavailable || !mounted) return;
+    unawaited(
+      postRingNotification(
+        call,
+        presenter: ref.read(incomingCallPresenterProvider),
+      ),
+    );
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => IncomingCallPage(call: call)));
   }

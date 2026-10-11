@@ -108,7 +108,8 @@ native journal, drained ─────────┘     │ network failure? 
   | User, room (with or without a server name) and alias IDs, event IDs, tokens | Identity and access |
   | JSON objects | SDK error logs can carry event content |
   | `geo:` URIs | Locations |
-  | URL hosts | An iOS network error names the homeserver |
+  | Web URL hosts, keeping the path | An iOS network error names the homeserver |
+  | Every other URI (`content://`, `file://`, `mxc://`), whole | Its path can name a file the user shared or a media item |
   | Device file paths and Apple's “quoted” file names | They can name what the user shared |
   | A `FormatException` past its first line | The rest is the text it failed to parse |
 

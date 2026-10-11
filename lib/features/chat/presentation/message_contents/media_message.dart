@@ -1,13 +1,20 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
+import '../../../../core/format/human_units.dart';
 import '../../../../core/matrix/cached_attachment_image.dart';
 import '../../../../core/matrix/gallery_viewer_page.dart';
 import '../../../../core/matrix/image_viewer_page.dart';
 import '../../../../core/matrix/media_gallery_group.dart';
 import '../../../../core/matrix/video_viewer_page.dart';
-import '../../data/message_kinds.dart';
 import '../../data/pending_attachment_send.dart';
+import '../preview_decode_width.dart';
 import 'pending_attachment_tile.dart';
 
 const mediaInset = 4.0;
@@ -37,9 +44,72 @@ Widget _mediaOverlayBadge(String text) {
   );
 }
 
+class MediaImage extends StatelessWidget {
+  final ImageProvider image;
+  final double? shownAt;
+
+  MediaImage.memory(Uint8List bytes, {this.shownAt, super.key})
+    : image = MemoryImage(bytes);
+
+  MediaImage.file(String path, {this.shownAt, super.key})
+    : image = FileImage(File(path));
+
+  @override
+  Widget build(BuildContext context) => Image(
+    image: _CoverDecode(image, decodeWidth(context, shownAt: shownAt)),
+    fit: BoxFit.cover,
+  );
+}
+
+const _widestCoverBox = 2;
+
+class _CoverDecode extends ImageProvider<(Object, int)> {
+  final ImageProvider image;
+  final int side;
+
+  const _CoverDecode(this.image, this.side);
+
+  @override
+  Future<(Object, int)> obtainKey(ImageConfiguration configuration) =>
+      image.obtainKey(configuration).then((key) => (key, side));
+
+  @override
+  ImageStreamCompleter loadImage(
+    (Object, int) key,
+    ImageDecoderCallback decode,
+  ) =>
+      image.loadImage(
+        key.$1,
+        (buffer, {getTargetSize}) => decode(buffer, getTargetSize: _coverSize),
+      )..addEphemeralErrorListener(
+        (_, _) => scheduleMicrotask(
+          () => PaintingBinding.instance.imageCache.evict(key),
+        ),
+      );
+
+  ui.TargetImageSize _coverSize(int width, int height) {
+    final scale = [
+      1.0,
+      side / math.min(width, height),
+      side * _widestCoverBox / math.max(width, height),
+    ].reduce(math.min);
+    return ui.TargetImageSize(
+      width: math.max(1, (width * scale).round()),
+      height: math.max(1, (height * scale).round()),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _CoverDecode && other.image == image && other.side == side;
+
+  @override
+  int get hashCode => Object.hash(image, side);
+}
+
 Widget _videoBubbleMedia(Event event, PendingAttachmentSend? pending) {
   final preview = pending?.previewBytes;
-  if (preview != null) return Image.memory(preview, fit: BoxFit.cover);
+  if (preview != null) return MediaImage.memory(preview);
   if (pending != null && pending.width != null && pending.height != null) {
     return const AspectRatioPlaceholder();
   }
@@ -54,13 +124,14 @@ Widget attachmentThumbnail(
   Event event, {
   required Widget placeholder,
   Widget? noThumbnail,
+  double? shownAt,
 }) {
   return CachedAttachmentImage(
     event: event,
     thumbnail: true,
     placeholder: placeholder,
     noThumbnail: noThumbnail,
-    builder: (context, bytes) => Image.memory(bytes, fit: BoxFit.cover),
+    builder: (context, bytes) => MediaImage.memory(bytes, shownAt: shownAt),
   );
 }
 
@@ -111,10 +182,12 @@ class GalleryMessage extends StatelessWidget {
     final entries = _entries;
     final layout = galleryTileLayout(entries.length);
     const gap = 2.0;
+    final screenWidth = MediaQuery.sizeOf(context).width;
 
-    Widget tileAt(int i) => _GalleryThumbnail(
+    Widget tileAt(int i, {required double shownAt}) => _GalleryThumbnail(
       entry: entries[i],
       overflow: i == layout.visible - 1 ? layout.overflow : 0,
+      shownAt: shownAt,
       pendingSend: pendingSend,
       onRetry: onRetry,
       onOpen: () {
@@ -135,16 +208,26 @@ class GalleryMessage extends StatelessWidget {
     var i = 0;
     while (i < layout.visible) {
       if (layout.visible - i == 1) {
-        rows.add(AspectRatio(aspectRatio: 2, child: tileAt(i)));
+        rows.add(
+          AspectRatio(aspectRatio: 2, child: tileAt(i, shownAt: screenWidth)),
+        );
         i += 1;
       } else {
         rows.add(
           Row(
             children: [
-              Expanded(child: AspectRatio(aspectRatio: 1, child: tileAt(i))),
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: tileAt(i, shownAt: screenWidth / 2),
+                ),
+              ),
               const SizedBox(width: gap),
               Expanded(
-                child: AspectRatio(aspectRatio: 1, child: tileAt(i + 1)),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: tileAt(i + 1, shownAt: screenWidth / 2),
+                ),
               ),
             ],
           ),
@@ -185,6 +268,7 @@ class _GalleryEntry {
 class _GalleryThumbnail extends StatelessWidget {
   final _GalleryEntry entry;
   final int overflow;
+  final double shownAt;
   final PendingAttachmentSend? pendingSend;
   final void Function(FailedMediaSend) onRetry;
   final VoidCallback onOpen;
@@ -192,6 +276,7 @@ class _GalleryThumbnail extends StatelessWidget {
   const _GalleryThumbnail({
     required this.entry,
     required this.overflow,
+    required this.shownAt,
     required this.pendingSend,
     required this.onRetry,
     required this.onOpen,
@@ -202,7 +287,11 @@ class _GalleryThumbnail extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final failed = entry.failed;
     if (failed != null) {
-      return GalleryFailedThumbnail(failed: failed, onRetry: onRetry);
+      return GalleryFailedThumbnail(
+        failed: failed,
+        onRetry: onRetry,
+        shownAt: shownAt,
+      );
     }
 
     final event = entry.event!;
@@ -213,10 +302,11 @@ class _GalleryThumbnail extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           pending?.previewBytes != null
-              ? Image.memory(pending!.previewBytes!, fit: BoxFit.cover)
+              ? MediaImage.memory(pending!.previewBytes!, shownAt: shownAt)
               : attachmentThumbnail(
                   event,
                   placeholder: Container(color: colors.surfaceContainerHighest),
+                  shownAt: shownAt,
                 ),
           if (event.messageType == MessageTypes.Video && pending == null)
             const Center(
@@ -264,23 +354,26 @@ class _GalleryThumbnail extends StatelessWidget {
 class GalleryFailedThumbnail extends StatelessWidget {
   final FailedMediaSend failed;
   final void Function(FailedMediaSend) onRetry;
+  final double? shownAt;
 
   const GalleryFailedThumbnail({
     super.key,
     required this.failed,
     required this.onRetry,
+    this.shownAt,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final photo = failed.photo;
     return GestureDetector(
       onTap: () => onRetry(failed),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (failed.bytes != null)
-            Image.memory(failed.bytes!, fit: BoxFit.cover)
+          if (photo != null)
+            MediaImage.file(photo.path, shownAt: shownAt)
           else
             ColoredBox(color: colors.surfaceContainerHighest),
           ColoredBox(
@@ -337,7 +430,7 @@ class ImageMessage extends StatelessWidget {
         children: [
           Positioned.fill(
             child: pending?.previewBytes != null
-                ? Image.memory(pending!.previewBytes!, fit: BoxFit.cover)
+                ? MediaImage.memory(pending!.previewBytes!)
                 : attachmentThumbnail(event, placeholder: _thumbnailSpinner),
           ),
           if (showTimeOverlay)

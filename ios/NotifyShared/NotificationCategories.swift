@@ -1,7 +1,6 @@
 import UserNotifications
 
 enum NotificationCategories {
-  static let nativeActions = true
   static let message = "message"
   static let replyOnly = "reply"
   static let replyAction = "reply"
@@ -23,10 +22,6 @@ enum NotificationCategories {
 
   static func identifier(forKind kind: String, level: String) -> String? {
     kind == "msg" && level == "full" ? message : nil
-  }
-
-  static func shown(_ category: String?) -> String {
-    nativeActions ? category ?? "" : ""
   }
 
   static func register(on center: UNUserNotificationCenter = .current()) {

@@ -121,6 +121,35 @@ void main() {
       room = buildTestRoom(client);
     });
 
+    Room addListingCommunity(String id, {required String sender}) {
+      final community = buildTestRoom(room.client, id: id)
+        ..membership = Membership.join;
+      community.setState(
+        buildTestEvent(
+          community,
+          eventId: r'$create',
+          senderId: sender,
+          type: EventTypes.RoomCreate,
+          stateKey: '',
+          content: {'type': 'm.space'},
+        ),
+      );
+      community.setState(
+        buildTestEvent(
+          community,
+          eventId: r'$child',
+          senderId: sender,
+          type: EventTypes.SpaceChild,
+          stateKey: room.id,
+          content: {
+            'via': ['example.org'],
+          },
+        ),
+      );
+      room.client.rooms.add(community);
+      return community;
+    }
+
     test('public lists the room, then sets the join rule', () async {
       await setRoomAccess(room, RoomAccess.public);
 
@@ -147,32 +176,22 @@ void main() {
 
     test('community opens the room to members of its communities, then '
         'unlists it', () async {
-      final client = room.client;
-      final club = buildTestRoom(client, id: '!club:example.org')
-        ..membership = Membership.join;
-      club.setState(
-        buildTestEvent(
-          club,
-          eventId: r'$create',
-          senderId: '@me:example.org',
-          type: EventTypes.RoomCreate,
-          stateKey: '',
-          content: {'type': 'm.space'},
-        ),
+      final club = addListingCommunity(
+        '!club:example.org',
+        sender: '@me:example.org',
       );
-      club.setState(
+      room.setState(
         buildTestEvent(
-          club,
-          eventId: r'$child',
+          room,
+          eventId: r'$parent',
           senderId: '@me:example.org',
-          type: EventTypes.SpaceChild,
-          stateKey: room.id,
+          type: EventTypes.SpaceParent,
+          stateKey: club.id,
           content: {
             'via': ['example.org'],
           },
         ),
       );
-      client.rooms.add(club);
       setJoinRule(room, 'public');
 
       await setRoomAccess(room, RoomAccess.community);
@@ -202,6 +221,20 @@ void main() {
     });
 
     test('community is refused for a room no community holds', () async {
+      await expectLater(
+        setRoomAccess(room, RoomAccess.community),
+        throwsA(isA<StateError>()),
+      );
+      expect(requests, isEmpty);
+    });
+
+    test('a community listing the room without the room naming it is never '
+        'let in', () async {
+      addListingCommunity(
+        '!mallory:example.org',
+        sender: '@mallory:example.org',
+      );
+
       await expectLater(
         setRoomAccess(room, RoomAccess.community),
         throwsA(isA<StateError>()),

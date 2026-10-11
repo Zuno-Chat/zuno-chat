@@ -89,7 +89,6 @@ void main() {
       gallery: null,
       galleryFailureIndexes: const [],
       canReply: canReply,
-      linkPreviews: false,
       now: noon,
       use24Hour: true,
     );

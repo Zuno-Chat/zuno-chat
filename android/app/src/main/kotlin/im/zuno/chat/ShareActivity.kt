@@ -20,7 +20,11 @@ class ShareActivity : Activity() {
             .onFailure { CaughtErrors.record(this, "share read files", it) }
             .getOrDefault(emptyList())
         if (InboundShareDecision.payload(text, files) != null) {
-            startActivity(forwardIntent(text, files))
+            try {
+                startActivity(forwardIntent(text, files))
+            } catch (error: SecurityException) {
+                CaughtErrors.record(this, "share forward", error)
+            }
         }
         finish()
     }

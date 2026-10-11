@@ -1196,10 +1196,12 @@ class CloudflareCallEngine implements CallEngine {
     Map<String, Object?> fociInfo,
   ) {
     if (_left) return;
-    final remoteSessionId = fociInfo['sessionId'] as String?;
-    if (remoteSessionId == null) return;
-    final tracks =
-        (fociInfo['tracks'] as Map?)?.cast<String, Object?>() ?? const {};
+    final remoteSessionId = fociInfo['sessionId'];
+    if (remoteSessionId is! String) return;
+    final tracks = switch (fociInfo['tracks']) {
+      final Map tracks => tracks.cast<String, Object?>(),
+      _ => const <String, Object?>{},
+    };
     final remote =
         _remote[id] ?? _RemoteParticipant(id: id, sessionId: remoteSessionId);
     _remote[id] = remote;
@@ -1207,10 +1209,10 @@ class CloudflareCallEngine implements CallEngine {
     remote
       ..sessionId = remoteSessionId
       ..advertisedTracks = tracks
-      ..audioMuted = fociInfo['audioMuted'] as bool? ?? false
-      ..videoEnabled = fociInfo['videoEnabled'] as bool? ?? false
+      ..audioMuted = fociInfo['audioMuted'] == true
+      ..videoEnabled = fociInfo['videoEnabled'] == true
       ..encrypted = fociInfo['encrypted'] == true;
-    final lowBandwidth = fociInfo['lowBandwidth'] as bool? ?? false;
+    final lowBandwidth = fociInfo['lowBandwidth'] == true;
     if (remote.lowBandwidth != lowBandwidth) {
       remote.lowBandwidth = lowBandwidth;
       unawaited(_reapplyVideoEncoding());

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/send_progress.dart';
+import 'package:zuno/features/chat/data/composed_image.dart';
 import 'package:zuno/features/chat/data/composed_video.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 
@@ -67,14 +68,27 @@ void main() {
       gallery: GalleryGroupRef(id: 'g', index: 2, count: 3),
       video: ComposedVideo(path: '/v.mp4', name: 'v.mp4', caption: ''),
     );
-    final single = FailedMediaSend(
+    const single = FailedMediaSend(
       gallery: null,
-      bytes: Uint8List(0),
-      caption: 'hi',
+      photo: ComposedImage(path: '/p.jpg', name: 'p.jpg', caption: 'hi'),
     );
 
     expect(inGallery.index, 2);
     expect(single.index, 0);
+  });
+
+  test('a failed send names the copy it needs for a retry', () {
+    const photo = FailedMediaSend(
+      gallery: null,
+      photo: ComposedImage(path: '/p.jpg', name: 'p.jpg', caption: ''),
+    );
+    const video = FailedMediaSend(
+      gallery: null,
+      video: ComposedVideo(path: '/v.mp4', name: 'v.mp4', caption: ''),
+    );
+
+    expect(photo.path, '/p.jpg');
+    expect(video.path, '/v.mp4');
   });
 
   test('a pending send gets a synthetic tile only until its event is in the '

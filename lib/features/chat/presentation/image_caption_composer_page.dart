@@ -1,24 +1,15 @@
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../data/composed_image.dart';
 import 'caption_bar.dart';
 import 'preview_decode_width.dart';
 
-class ComposedImage {
-  final Uint8List bytes;
-  final String name;
-  final String caption;
-
-  const ComposedImage({
-    required this.bytes,
-    required this.name,
-    required this.caption,
-  });
-}
+export '../data/composed_image.dart';
 
 class ImageCaptionComposerPage extends StatefulWidget {
-  final List<({Uint8List bytes, String name})> images;
+  final List<({String path, String name})> images;
 
   const ImageCaptionComposerPage({required this.images, super.key});
 
@@ -28,7 +19,7 @@ class ImageCaptionComposerPage extends StatefulWidget {
 }
 
 class _ImageCaptionComposerPageState extends State<ImageCaptionComposerPage> {
-  late final List<({Uint8List bytes, String name})> _images;
+  late final List<({String path, String name})> _images;
   late final List<TextEditingController> _captionControllers;
   final _pageController = PageController();
   int _page = 0;
@@ -68,7 +59,7 @@ class _ImageCaptionComposerPageState extends State<ImageCaptionComposerPage> {
     final result = [
       for (var i = 0; i < _images.length; i++)
         ComposedImage(
-          bytes: _images[i].bytes,
+          path: _images[i].path,
           name: _images[i].name,
           caption: _captionControllers[i].text.trim(),
         ),
@@ -104,8 +95,8 @@ class _ImageCaptionComposerPageState extends State<ImageCaptionComposerPage> {
                 onPageChanged: (page) => setState(() => _page = page),
                 itemBuilder: (context, i) => InteractiveViewer(
                   child: Center(
-                    child: Image.memory(
-                      _images[i].bytes,
+                    child: Image.file(
+                      File(_images[i].path),
                       cacheWidth: previewDecodeWidth(context),
                       errorBuilder: (_, _, _) =>
                           const Icon(Icons.broken_image_outlined, size: 64),

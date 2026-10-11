@@ -37,11 +37,15 @@ enum NseClassifier {
   static let liveLocationType = "im.zuno.live_location"
   static let verificationRequestType = "m.key.verification.request"
 
-  static func classify(_ event: NseEvent, ownUserId: String, nowMs: Int64) -> NseClass {
+  static func classify(
+    _ event: NseEvent, ownUserId: String, nowMs: Int64, askedToJoin: Set<String>
+  ) -> NseClass {
     let msgtype = messageType(event)
     if msgtype == callSummaryType, callSummary(event)?.status != "missed" { return .hidden }
     if let ring = ring(event, ownUserId: ownUserId, nowMs: nowMs) { return ring }
-    if let invitation = invitation(event, ownUserId: ownUserId) { return invitation }
+    if let invitation = invitation(event, ownUserId: ownUserId) {
+      return askedToJoin.contains(event.roomId) ? .hidden : invitation
+    }
     if isVerificationRequest(event, ownUserId: ownUserId) { return .verification }
     return message(event, ownUserId: ownUserId)
   }

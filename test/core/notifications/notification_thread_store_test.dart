@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/notifications/notification_ids.dart';
 import 'package:zuno/core/notifications/notification_thread_store.dart';
 
 NotificationLine _line(String eventId, {String text = 'hi'}) =>
@@ -108,6 +109,60 @@ void main() {
     final stored = readNotificationThread(prefs, '!r:x')!;
     expect(stored.lines, hasLength(maxNotificationLines));
     expect(stored.lines.last.eventId, '\$${maxNotificationLines + 2}');
+  });
+
+  group('past the cap', () {
+    Future<void> fill() async {
+      for (var i = 0; i < maxNotificationThreads; i++) {
+        await writeNotificationThread(prefs, _thread('!$i:x', [_line('\$$i')]));
+      }
+    }
+
+    Set<int> showingAllBut(Iterable<int> gone) => {
+      for (var i = 0; i < maxNotificationThreads; i++)
+        if (!gone.contains(i)) messageNotificationIdFor('!$i:x'),
+    };
+
+    test('a thread no longer on screen goes before older ones still '
+        'showing', () async {
+      await fill();
+
+      await writeNotificationThread(
+        prefs,
+        _thread('!new:x', [_line(r'$new')]),
+        showing: showingAllBut([5, 9]),
+      );
+
+      expect(readNotificationThread(prefs, '!0:x'), isNotNull);
+      expect(readNotificationThread(prefs, '!5:x'), isNull);
+      expect(readNotificationThread(prefs, '!9:x'), isNotNull);
+      expect(readNotificationThread(prefs, '!new:x'), isNotNull);
+    });
+
+    test('with every thread still showing, the least recently written '
+        'goes', () async {
+      await fill();
+
+      await writeNotificationThread(
+        prefs,
+        _thread('!new:x', [_line(r'$new')]),
+        showing: showingAllBut(const []),
+      );
+
+      expect(readNotificationThread(prefs, '!0:x'), isNull);
+      expect(readNotificationThread(prefs, '!1:x'), isNotNull);
+      expect(readNotificationThread(prefs, '!new:x'), isNotNull);
+    });
+
+    test('rewriting a room already kept evicts nothing', () async {
+      await fill();
+
+      await writeNotificationThread(prefs, _thread('!0:x', [_line(r'$again')]));
+
+      for (var i = 0; i < maxNotificationThreads; i++) {
+        expect(readNotificationThread(prefs, '!$i:x'), isNotNull);
+      }
+    });
   });
 
   test('clearing one room leaves the others', () async {

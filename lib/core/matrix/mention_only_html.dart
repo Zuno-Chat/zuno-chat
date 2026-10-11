@@ -1,33 +1,35 @@
-final _replyFallback = RegExp(
-  r'<mx-reply>.*?</mx-reply>',
-  caseSensitive: false,
-  dotAll: true,
-);
-final _pill = RegExp(
-  r'<a\s[^>]*href="https://matrix\.to/#/@[^"]*"[^>]*>(.*?)</a>',
-  caseSensitive: false,
-  dotAll: true,
-);
-final _lineBreak = RegExp(r'<br\s*/?>', caseSensitive: false);
-final _paragraph = RegExp(r'^<p>(.*)</p>$', dotAll: true);
-final _anyTag = RegExp('<[^>]+>');
+import 'package:html/dom.dart';
+import 'package:html/parser.dart' show parseFragment;
+
+import 'sanitize_message_html.dart';
 
 bool isMentionOnlyHtml({required String html, required String body}) {
-  var text = html
-      .replaceAll(_replyFallback, '')
-      .trim()
-      .replaceAllMapped(_pill, (m) => m.group(1)!);
-  final wrapped = _paragraph.firstMatch(text);
-  if (wrapped != null) text = wrapped.group(1)!;
-  text = text.replaceAll(_lineBreak, '\n');
-  if (_anyTag.hasMatch(text)) return false;
-  return _unescape(text).trim() == body.trim();
+  final nodes = [
+    for (final node in parseFragment(html).nodes)
+      if (!(node is Element && node.localName == 'mx-reply')) node,
+  ];
+  final content = [
+    for (final node in nodes)
+      if (node is! Text || node.data.trim().isNotEmpty) node,
+  ];
+  final inline = switch (content) {
+    [Element(localName: 'p') && final paragraph] => paragraph.nodes,
+    _ => nodes,
+  };
+  final text = StringBuffer();
+  for (final node in inline) {
+    switch (node) {
+      case Text():
+        text.write(node.data);
+      case Element(localName: 'br'):
+        text.write('\n');
+      case Element(localName: 'a')
+          when isUserPillHref(node.attributes['href']) &&
+              node.nodes.every((child) => child is Text):
+        text.write(node.text);
+      default:
+        return false;
+    }
+  }
+  return text.toString().trim() == body.trim();
 }
-
-String _unescape(String text) => text
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'")
-    .replaceAll('&#x27;', "'")
-    .replaceAll('&amp;', '&');

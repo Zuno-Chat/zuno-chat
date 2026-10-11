@@ -17,6 +17,9 @@ List<int>? voiceMessageWaveform(Event event) {
   final raw = event.content
       .tryGetMap<String, dynamic>('org.matrix.msc1767.audio')
       ?.tryGetList<Object?>('waveform');
-  if (raw == null || raw.isEmpty) return null;
-  return raw.map((v) => (v as num).toInt()).toList();
+  final bars = [
+    for (final value in raw ?? const <Object?>[])
+      if (value is num && value.isFinite) value.toInt().clamp(0, 1024),
+  ];
+  return bars.isEmpty ? null : bars;
 }

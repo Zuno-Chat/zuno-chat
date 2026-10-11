@@ -59,7 +59,6 @@ class _DevicesClient extends Client {
   final passwords = <String>[];
   Object? deleteError;
   int logouts = 0;
-  Object? logoutError;
   final journal = <String>[];
   int tokenRequests = 0;
 
@@ -102,8 +101,6 @@ class _DevicesClient extends Client {
   @override
   Future<void> logout() async {
     logouts++;
-    final error = logoutError;
-    if (error != null) throw error;
     journal.add('logged out');
   }
 
@@ -412,18 +409,6 @@ void main() {
       await confirm(tester, 'Cancel');
 
       expect(client.logouts, 0);
-    });
-
-    testWidgets('a failed sign-out says so', (tester) async {
-      threeDevices();
-      client.logoutError = Exception('offline');
-      await pumpPage(tester);
-
-      await tester.tap(find.text('Sign out this device'));
-      await tester.pumpAndSettle();
-      await confirm(tester, 'Sign out');
-
-      expect(find.text('Not signed out. Try again.'), findsOneWidget);
     });
   });
 

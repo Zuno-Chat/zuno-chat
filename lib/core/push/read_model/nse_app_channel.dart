@@ -35,28 +35,14 @@ class NseMark {
   }
 }
 
-class NseUtd {
-  const NseUtd({required this.room, required this.event, required this.ts});
-
-  final String room;
-  final String event;
-  final int ts;
-}
-
 class NseOutcomeReport {
-  const NseOutcomeReport({
-    this.counters = const {},
-    this.utd = const [],
-    this.generation,
-  });
+  const NseOutcomeReport({this.counters = const {}, this.generation});
 
   final Map<String, int> counters;
-  final List<NseUtd> utd;
   final String? generation;
 
   static NseOutcomeReport fromChannel(Object? value) {
     final counters = <String, int>{};
-    final utd = <NseUtd>[];
     String? generation;
     for (final record in value is List ? value : const []) {
       if (record is! Map) continue;
@@ -65,22 +51,11 @@ class NseOutcomeReport {
           final key = record['key'];
           final count = record['count'];
           if (key is String && count is int) counters[key] = count;
-        case 'utd':
-          final room = record['room'];
-          final event = record['event'];
-          final ts = record['ts'];
-          if (room is String && event is String && ts is int) {
-            utd.add(NseUtd(room: room, event: event, ts: ts));
-          }
         case 'generation':
           generation = record['value'] as String?;
       }
     }
-    return NseOutcomeReport(
-      counters: counters,
-      utd: utd,
-      generation: generation,
-    );
+    return NseOutcomeReport(counters: counters, generation: generation);
   }
 }
 

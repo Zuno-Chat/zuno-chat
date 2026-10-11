@@ -4,7 +4,9 @@ import XCTest
 
 final class NseCatchUpPlatformTests: XCTestCase {
   private final class Calls {
-    var recorded: [[String]] = []
+    var claimed: [String] = []
+    var released: [String] = []
+    var settled: [String] = []
     var renders: [(String, Bool)] = []
   }
 
@@ -13,7 +15,12 @@ final class NseCatchUpPlatformTests: XCTestCase {
       sources: NseCatchUpPlatform.Sources(
         roomToken: { "t" + $0 }, eventToken: { "e" + $0 },
         alreadyShown: { $0 == "e$seen" },
-        recordShown: { calls.recorded.append($0) },
+        claim: { token in
+          calls.claimed.append(token)
+          return token != "e$seen"
+        },
+        release: { calls.released.append($0) },
+        settle: { calls.settled.append($0) },
         render: { event, decrypt in
           calls.renders.append((event.eventId, decrypt))
           return .hidden
@@ -37,9 +44,14 @@ final class NseCatchUpPlatformTests: XCTestCase {
     ]
     let event = try XCTUnwrap(MissedEvent(json: item))
     XCTAssertEqual(subject.render(event, decrypt: false), .hidden)
-    subject.recordShown(["e$e"])
+    XCTAssertTrue(subject.claim("e$e"))
+    XCTAssertFalse(subject.claim("e$seen"))
+    subject.release("e$e")
+    subject.settle("e$f")
     XCTAssertEqual(calls.renders.map { $0.0 }, ["$e"])
     XCTAssertEqual(calls.renders.map { $0.1 }, [false])
-    XCTAssertEqual(calls.recorded, [["e$e"]])
+    XCTAssertEqual(calls.claimed, ["e$e", "e$seen"])
+    XCTAssertEqual(calls.released, ["e$e"])
+    XCTAssertEqual(calls.settled, ["e$f"])
   }
 }

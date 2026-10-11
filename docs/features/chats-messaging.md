@@ -24,6 +24,7 @@ in `features/chat/presentation/`.
 | `core/matrix/mxc_avatar.dart` | Avatars |
 | `core/matrix/media_gallery_group.dart` | Gallery grouping |
 | `core/matrix/sanitize_message_html.dart` | The sanitizer for formatted (HTML) messages |
+| `core/matrix/urls.dart`, `core/navigation/zuno_links.dart` | What counts as a link in a message, and the one link opener |
 | `core/share/inbound_share.dart`, `features/share/` | Inbound share: the `zuno/share` channel and the chat picker |
 
 ## Timeline
@@ -92,11 +93,27 @@ guesses on its own.
   an invisible twin of the row, and the visible row sits over it. If the
   twin does not fit, the paragraph wraps it, and the row lands below the
   text with no extra code.
-- **Formatted (HTML) messages** lose their reply fallback, pass through
-  `sanitizeMessageHtml` and are drawn by `flutter_html`. The sanitizer
-  keeps an allowlist of formatting tags, drops scripts, forms, images and
-  media with their contents, and keeps only safe external links. They
-  cannot reserve room on their last line, so their time row sits below.
+- **Formatted (HTML) messages** pass through `sanitizeMessageHtml` and
+  are drawn by `flutter_html`. The sanitizer drops the reply fallback,
+  scripts, forms, images and media with their contents, keeps an
+  allowlist of formatting tags and only safe external links, and turns
+  `@room` and user pills into highlighted names rather than links. It
+  marks mentions in its single pass over the parsed tree, never by
+  matching the HTML string, so markup inside an attribute never comes
+  alive. They cannot reserve room on their last line, so their time row
+  sits below.
+- **Links.** Plain and formatted messages share one rule for what may
+  open (http, https or mailto with a target) and one opener, which says
+  where to go when no app can open the link. Trailing sentence
+  punctuation and a closing bracket the link did not open are not part
+  of a link.
+- **"edited"** shows only when the drawn text comes from an edit, and
+  the SDK takes edits only from the message's author, so an edit from
+  anyone else changes nothing.
+- **Images decode at display size.** A bubble, gallery tile, reply quote
+  or media grid cell decodes so the shorter side fills its box and the
+  longer side stays bounded, never enlarged; full-screen viewers decode
+  full size for zoom.
 - **Reply quotes** fetch their target once per room visit through
   `getEventById`, which decrypts a stored event with the keys held now. A
   target still encrypted is fetched again once the room's late keys arrive
@@ -111,6 +128,8 @@ guesses on its own.
   (`@Name`, or `@[Full Name]`), the only shape `sendTextEvent` turns into
   `m.mentions`. The full member list is fetched at most once per room per
   session, and only when someone types a mention.
+- **Editing** sets the draft aside and puts it back when the edit is sent
+  or cancelled.
 - **Recovery code check.** Sending what looks like the recovery code asks
   for confirmation first (`security-verification.md`). It warns rather
   than blocks, since blocking would also stop someone saving it to their
@@ -138,6 +157,11 @@ prepared file, thumbnail and blurhash go to `sendFileEvent`.
   already H.264 near the target size and bitrate, or else re-encoded by
   `light_compressor`.
 - **Files** from the file picker go byte-for-byte with their own names.
+- **Shared files** are typed by the SDK's own rule: the type the sending
+  app declared, else one guessed from the name and header bytes. Photos
+  and videos then go through the caption screen and preparation, so a
+  shared image loses its metadata even when the sending app gave no
+  type; anything else goes byte-for-byte with its name and that type.
 - **One dispatch** picks the caption screen for the camera, the gallery
   picker and inbound share alike, and more than one item becomes a
   gallery.
@@ -166,6 +190,13 @@ named the Android way.
   stands in until the real row exists. Both draw the preview from memory
   until the upload finishes, because the SDK has no thumbnail for a
   pending event.
+- **Temporary copies.** Inbound share and both pickers leave a copy of
+  each file in the app's temporary storage. The page owns them all and
+  deletes each once it is sent or dropped, or sent files pile up, but
+  keeps it while a failed photo or video can still be retried.
+- **A batch outlives the chat screen.** A send reads its settings and
+  the snackbar host when it starts, never the page afterwards, so leaving
+  mid-batch still sends every item and still shows any error.
 
 ### Attachment cache
 
@@ -188,9 +219,13 @@ whole disk tier.
 A batch of more than one item gets a gallery ID, and each item goes out
 as a normal `m.image` or `m.video` carrying
 `im.zuno.gallery: {id, index, count}`. On display, `groupGalleries`
-folds each group onto its newest member, so the per-index passes (read
-ticks, day labels, runs) keep working. A group with one surviving member,
-or an unrecognized key, renders as an ordinary item.
+groups by sender and gallery ID, so nobody joins another person's
+gallery by reusing its ID, and folds each group onto its newest member,
+so the per-index passes (read ticks, day labels, runs) keep working. A
+group with one surviving member, or an unrecognized key, renders as an
+ordinary item, unless its other items are your own failed sends, which
+keep their retry tiles in the gallery. Share, save and delete on a
+gallery act on every item.
 
 ### Avatars
 
@@ -230,6 +265,10 @@ flowchart TD
   inbox before it closes, and the app collects the inbox on activation.
   The URL it opens carries nothing, so a cold start needs no URL
   handling, and an unopened share expires so it never pops up later.
+- **On Android only `content:` files from another app's provider are
+  read**, plus Zuno's own outbound share folder (sharing a Zuno
+  attachment back into Zuno), so a share can never make Zuno send its
+  own private files.
 - **Not built**: Direct Share targets in the Android share sheet. They
   would be additive and could reuse the pinned-shortcut code.
 
@@ -254,8 +293,8 @@ flowchart TD
   why preparation is app-side.
 - **No location leaves with media.** Sent media gets generic names, since
   original names carry timestamps, and the native resizers and encoders
-  write no location. Files from the file picker stay byte-for-byte by
-  design.
+  write no location. Files from the file picker, and shared files that
+  are not photos or videos, stay byte-for-byte by design.
 - **Video bitrate is fixed by output size**, never a fraction of the
   source's, because a fraction of a 4K clip's bitrate still makes a file
   too large for the server.
@@ -327,14 +366,14 @@ flowchart TD
   repeat: every photo Zuno sends is `photo.jpg`.
 - **Cache expiry deletes are fire-and-forget**, because two readers can
   meet the same stale entry and the loser's delete would throw.
-- **The file picker leaves a copy of each picked file in a folder of its
-  own in the app's temporary storage**, so the copy and that folder are
-  deleted after reading, or sent files pile up; only what lies inside that
-  storage is ever deleted, never an original or the storage itself.
+- **A temporary copy is deleted only if it lies inside the app's
+  temporary storage**, with its folder once empty, so an original or the
+  storage itself is never touched.
 - **The picker's "done" signal can arrive after the pick has returned**, so
   the attach spinner ends with the pick itself.
 - **Shared file names are attacker-controlled**, so both native sides
-  strip separators, reject `.` and `..`, and refuse paths outside their
+  strip separators, reject `.` and `..`, cap names at the filesystem's
+  255 UTF-8 bytes keeping the extension, and refuse paths outside their
   share folder; keep the Kotlin and Swift checks in step.
 - **The iOS share extension cannot cold-launch a debug build**, so test
   sharing into a closed app with a profile or release build.

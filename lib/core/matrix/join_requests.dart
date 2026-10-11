@@ -14,7 +14,11 @@ final joinRequestsProvider =
       JoinRequestsNotifier.new,
     );
 
-String _askedKey(Client client) => 'communities.asked.${client.userID}';
+String _askedKey(String? userId) => 'communities.asked.$userId';
+
+Set<String> askedToJoin(SharedPreferences prefs, String? userId) => {
+  if (userId != null) ...?prefs.getStringList(_askedKey(userId)),
+};
 
 class JoinRequestsNotifier extends Notifier<Set<String>> {
   late Client _client;
@@ -26,17 +30,17 @@ class JoinRequestsNotifier extends Notifier<Set<String>> {
   Set<String> build() {
     _client = ref.watch(matrixClientProvider);
     _prefs = ref.watch(sharedPreferencesProvider);
-    _key = _askedKey(_client);
+    _key = _askedKey(_client.userID);
     final sub = _client.onSync.stream.listen(_settle);
     final accounts = _client.onLoginStateChanged.stream.listen((_) {
-      if (_key != _askedKey(_client)) ref.invalidateSelf();
+      if (_key != _askedKey(_client.userID)) ref.invalidateSelf();
     });
     ref.onDispose(() {
       sub.cancel();
       accounts.cancel();
     });
     scheduleMicrotask(() => _settle(null));
-    return {...?_prefs.getStringList(_key)};
+    return askedToJoin(_prefs, _client.userID);
   }
 
   Future<void> ask(String roomId, {List<String>? via}) async {

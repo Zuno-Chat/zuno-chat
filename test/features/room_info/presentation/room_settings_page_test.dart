@@ -12,6 +12,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/features/room_info/presentation/room_settings_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/pump_until.dart';
@@ -141,6 +142,34 @@ void main() {
     expect(find.text('Room access updated'), findsOneWidget);
   });
 
+  testWidgets('a server that will not list public rooms says so, and it is '
+      'not reported', (tester) async {
+    setOwnLevel(100);
+    respond = (r) => r.url.pathSegments.contains('directory')
+        ? http.Response(
+            jsonEncode({
+              'errcode': 'M_FORBIDDEN',
+              'error': 'Not allowed to publish room',
+            }),
+            403,
+          )
+        : null;
+    await pumpPage(tester);
+    await pickAccess(tester, 'Public');
+
+    final reports = await reportsDuring(() async {
+      await tester.tap(find.text('Make public'));
+      await settle(tester);
+    });
+
+    expect(
+      find.text('Public access is turned off here. Choose another option.'),
+      findsOneWidget,
+    );
+    expect(find.text('Private'), findsOneWidget);
+    expect(reports, isEmpty);
+  });
+
   testWidgets('cancelling the confirmation changes nothing', (tester) async {
     setOwnLevel(100);
     await pumpPage(tester);
@@ -179,7 +208,7 @@ void main() {
   });
 
   group('a room inside a community', () {
-    void addToCommunity() {
+    void addToCommunity({bool named = true}) {
       final community = buildTestRoom(client, id: '!club:example.org')
         ..membership = Membership.join;
       community.setState(
@@ -205,6 +234,19 @@ void main() {
         ),
       );
       client.rooms.add(community);
+      if (!named) return;
+      room.setState(
+        buildTestEvent(
+          room,
+          eventId: r'$parent',
+          senderId: '@creator:example.org',
+          type: EventTypes.SpaceParent,
+          stateKey: community.id,
+          content: {
+            'via': ['example.org'],
+          },
+        ),
+      );
     }
 
     Future<List<String?>> accessChoices(WidgetTester tester) async {
@@ -254,6 +296,15 @@ void main() {
       await pumpPage(tester);
 
       expect(await accessChoices(tester), ['Ask to join', 'Private']);
+    });
+
+    testWidgets('a community listing a room that does not name it cannot be '
+        'let in', (tester) async {
+      setOwnLevel(100);
+      addToCommunity(named: false);
+      await pumpPage(tester);
+
+      expect(await accessChoices(tester), ['Public', 'Private']);
     });
 
     testWidgets('switching to Ask to join says what changes, then lets '

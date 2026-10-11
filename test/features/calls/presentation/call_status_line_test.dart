@@ -14,17 +14,6 @@ void main() {
     ),
   );
 
-  test('the call clock shows minutes and seconds, and hours once needed', () {
-    expect(callClock(Duration.zero), '00:00');
-    expect(callClock(const Duration(seconds: 161)), '02:41');
-    expect(callClock(const Duration(minutes: 59, seconds: 59)), '59:59');
-    expect(
-      callClock(const Duration(hours: 1, minutes: 2, seconds: 3)),
-      '1:02:03',
-    );
-    expect(callClock(const Duration(seconds: -5)), '00:00');
-  });
-
   for (final (status, text) in [
     (CallStatus.calling, 'Calling…'),
     (CallStatus.connecting, 'Connecting…'),
@@ -76,13 +65,13 @@ void main() {
       ),
     );
 
-    expect(find.text('00:41'), findsOneWidget);
+    expect(find.text('0:41'), findsOneWidget);
     expect(find.byIcon(Icons.lock_outline), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('Encrypted')), findsOneWidget);
 
     now = now.add(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('00:42'), findsOneWidget);
+    expect(find.text('0:42'), findsOneWidget);
     expect(outerBuilds, 1);
   });
 

@@ -99,8 +99,26 @@ String _guard(String root, String branch) {
     pubspec: File('$root/pubspec.yaml').readAsStringSync(),
   );
   if (problem != null) throw ReleaseFailure(problem);
+  final dropped = _droppedFixes(root);
+  if (dropped.isNotEmpty) {
+    throw ReleaseFailure(
+      'a tagged release has fixes $version lacks; '
+      'cherry-pick -x each onto ${version.branch}: ${dropped.join(' ')}',
+    );
+  }
   _checkNotes('$root/docs/release-notes/$version.txt');
   return '$version';
+}
+
+Set<String> _droppedFixes(String root) {
+  final shipped = cherryPickSources(
+    _git(root, ['log', '--format=%B', '--tags=v*', '--not', 'HEAD']),
+  );
+  final carried = {
+    ..._gitLines(root, ['rev-list', 'HEAD']),
+    ...cherryPickSources(_git(root, ['log', '--format=%B', 'HEAD'])),
+  };
+  return shipped.difference(carried);
 }
 
 Version _parse(String text) =>

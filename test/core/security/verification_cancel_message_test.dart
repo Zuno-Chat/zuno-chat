@@ -2,8 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/security/verification_cancel_message.dart';
 
 void main() {
-  VerificationCancelMessage message(String? code, {String? reason}) =>
-      verificationCancelMessage(code: code, reason: reason, isOwnDevice: false);
+  VerificationCancelMessage message(String? code) =>
+      verificationCancelMessage(code: code, isOwnDevice: false);
 
   test('a plain cancel says cancelled, and says nothing happened', () {
     final result = message('m.user');
@@ -42,24 +42,16 @@ void main() {
       'm.accepted',
       'something.new.in.a.future.spec',
     ]) {
-      final result = message(code, reason: code);
+      final result = message(code);
       expect(result.title, isNot(startsWith('m.')), reason: '$code');
       expect(result.body, isNot(startsWith('m.')), reason: '$code');
       expect(result.body, isNot(contains('m.unknown')), reason: '$code');
     }
   });
 
-  test('real prose from the other side is passed through', () {
-    expect(
-      message('m.unknown', reason: 'The other phone ran out of battery.').body,
-      'The other phone ran out of battery.',
-    );
-  });
-
   test('own-device copy talks about devices, not people', () {
     final own = verificationCancelMessage(
       code: 'm.key_mismatch',
-      reason: null,
       isOwnDevice: true,
     );
 

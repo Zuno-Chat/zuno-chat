@@ -32,7 +32,6 @@ void main() {
               case 'hasVibrator':
                 return hasVibrator;
               case 'vibrate':
-              case 'cancel':
                 final error = vibrateError;
                 if (error != null) throw error;
                 return null;

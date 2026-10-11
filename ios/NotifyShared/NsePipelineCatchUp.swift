@@ -14,7 +14,9 @@ extension NsePipeline {
         roomToken: { context.hashing.t($0) },
         eventToken: { context.hashing.e($0) },
         alreadyShown: { context.store.isShown($0) },
-        recordShown: { context.store.recordShown($0, in: NotifyFile.shownNse) },
+        claim: { context.store.claimPending($0, process: self.env.processStart) },
+        release: { context.store.release($0) },
+        settle: { context.store.settle($0) },
         render: { item, decrypt in
           self.renderCatchUp(item, decrypt: decrypt && !safeMode, context: context)
         }))
@@ -86,14 +88,13 @@ extension NsePipeline {
         }
       }
     }
-    switch NseClassifier.classify(event, ownUserId: context.meta.user, nowMs: now) {
+    switch NseClassifier.classify(
+      event, ownUserId: context.meta.user, nowMs: now, askedToJoin: context.meta.askedToJoin)
+    {
     case .hidden, .ring:
       return .hidden
     case .invitation(let roomName):
-      let key = context.hashing.e("invite:\(item.roomId)")
-      if context.store.isShown(key) { return .hidden }
-      context.store.recordShown([key], in: NotifyFile.shownNse)
-      context.store.appendMark(NseMark(kind: "invite", room: item.roomId, ts: now))
+      guard claimInvitation(item.roomId, context: context, nowMs: now) else { return .hidden }
       let line = NseComposer.invitation(
         inviter: NseComposer.inviter(event: event, fetched: fetched), roomName: roomName,
         tone: false, tokens: tokens)

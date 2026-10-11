@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -7,10 +8,33 @@ import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
+import 'package:zuno/core/matrix/connectivity_provider.dart';
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/sign_out.dart';
 
 import '../../helpers/fake_call_session.dart';
 import '../../helpers/fake_live_location.dart';
+import '../../helpers/fake_matrix.dart';
+
+class _SdkLogoutClient extends Client {
+  _SdkLogoutClient() : super('test', database: FakeDatabaseApi()) {
+    setUserId('@me:x');
+  }
+
+  final journal = <String>[];
+  Object? serverError;
+
+  @override
+  Future<void> logout() async {
+    try {
+      final error = serverError;
+      if (error != null) throw error;
+      journal.add('server signed out');
+    } finally {
+      journal.add('cleared');
+    }
+  }
+}
 
 void main() {
   late LiveLocationTestClient client;
@@ -102,5 +126,57 @@ void main() {
     await windDown();
 
     expect(client.journal, ['share published', 'call ended', 'share cleared']);
+  });
+
+  test('a sign-out the server never hears of still signs this device out, '
+      'as the SDK clears it anyway', () async {
+    final signingOut = _SdkLogoutClient()
+      ..serverError = MatrixException.fromJson({
+        'errcode': 'M_UNKNOWN',
+        'error': 'bad gateway',
+      });
+
+    await signOutThisDevice(
+      signingOut,
+      windDown: () async {},
+      stopDelivery: (_) async {},
+    );
+
+    expect(signingOut.journal, ['cleared']);
+  });
+
+  testWidgets('offline, a screen\'s sign-out ends nothing, signs nothing '
+      'out, and says to connect first', (tester) async {
+    final signingOut = _SdkLogoutClient();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(signingOut),
+          isOfflineProvider.overrideWithValue(const AsyncData(true)),
+          signOutWindDownProvider.overrideWithValue(
+            () async => signingOut.journal.add('wound down'),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Consumer(
+              builder: (context, ref, _) => TextButton(
+                onPressed: () => signOutThisDeviceOrExplain(context, ref),
+                child: const Text('Sign out'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Sign out'));
+    await tester.pump();
+
+    expect(signingOut.journal, isEmpty);
+    expect(
+      find.text('Not signed out. Check your connection and try again.'),
+      findsOneWidget,
+    );
   });
 }

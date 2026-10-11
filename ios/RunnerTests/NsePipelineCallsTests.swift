@@ -28,6 +28,36 @@ final class NsePipelineCallsTests: XCTestCase {
     return ledger.encoded()
   }
 
+  private func invite(sentAt originMs: Int64, serverNow: Int64) -> NseHttpResult {
+    var event = NseTestData.event(
+      content: [
+        "msgtype": "im.zuno.call_invite", "body": "Incoming call", "call_id": "c2",
+        "kind": "video",
+      ])
+    event["origin_server_ts"] = originMs
+    return NseFakeTransport.module(
+      200,
+      ["status": "ok", "event": event, "is_dm": false, "highlight": false, "server_ts": serverNow])
+  }
+
+  func testAnInvitesAgeIsReadOnTheServerClockNotTheDevices() async {
+    let behind = NseTestData.now - 60_000
+    let ahead = NseTestData.now + 120_000
+    let fastPhone = harness()
+    _ = fastPhone.files.write(NotifyFile.ledger, ledger(uuid))
+    fastPhone.transport.reply("nse/fetch", invite(sentAt: behind - 2000, serverNow: behind))
+    let slowPhone = harness()
+    _ = slowPhone.files.write(NotifyFile.ledger, ledger(uuid))
+    slowPhone.transport.reply(
+      "nse/fetch", invite(sentAt: NseTestData.now - 2000, serverNow: ahead))
+
+    let fresh = await fastPhone.run()
+    let ended = await slowPhone.run()
+
+    XCTAssertEqual(fresh.outcome, .callHandled)
+    XCTAssertEqual(ended.outcome, .hidden)
+  }
+
   func testAnInviteTheLedgerAlreadyHasIsAQuietCallLine() async {
     let harness = harness()
     _ = harness.files.write(NotifyFile.ledger, ledger(uuid))
@@ -248,6 +278,21 @@ final class NsePipelineCallsTests: XCTestCase {
 
     XCTAssertEqual(result.outcome, .duplicate)
     XCTAssertEqual(result.delivery.interruption, .passive)
+  }
+
+  func testAnInvitationToARoomIAskedToJoinStaysQuietAndIsNotHandedToTheApp() async {
+    let harness = harness(meta: NseTestData.meta(["asked": [NseTestData.roomId]]))
+    harness.transport.reply(
+      "nse/fetch",
+      NseTestData.ok(
+        NseTestData.event(
+          type: "m.room.member", content: ["membership": "invite"], stateKey: NseTestData.me)))
+
+    let result = await harness.run()
+
+    XCTAssertEqual(result.outcome, .hidden)
+    XCTAssertEqual(result.delivery.interruption, .passive)
+    XCTAssertNil(harness.files.read(NotifyFile.marks))
   }
 
   func testAVerificationRequestAsksPlainly() async {

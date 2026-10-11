@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../features/calls/presentation/incoming_call_page.dart';
-import '../errors/global_error_handler.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../matrix/room_title.dart';
 import '../matrix/room_user_display.dart';
@@ -14,10 +13,9 @@ import '../platform/platform_capabilities.dart';
 import '../push/read_model/read_model_publisher.dart';
 import '../push/voip/launch_channel.dart';
 import '../push/voip/voip_registration.dart';
-import 'active_call_provider.dart';
 import 'call_liveness.dart';
+import 'incoming_call_gate.dart';
 import 'matrixrtc/call_member_state.dart';
-import 'matrixrtc/call_waiting.dart';
 import 'matrixrtc/incoming_call.dart';
 import 'matrixrtc/incoming_call_provider.dart';
 import 'matrixrtc/resolved_call_ids_provider.dart';
@@ -27,7 +25,6 @@ import 'models/call_kind.dart';
 import 'notifications/call_notification_router.dart';
 import 'notifications/call_notification_service.dart';
 import 'notifications/ring_notification.dart';
-import 'notifications/ringing_call_provider.dart';
 import 'platform/incoming_call_presenter.dart';
 import 'platform/native_ring.dart';
 import 'platform/push_ring_bridge.dart';
@@ -51,17 +48,21 @@ FreshCall? newestFreshCall(
     final mine = <String>{};
     final states = room.states[callMemberEventType] ?? const {};
     for (final MapEntry(key: userId, value: state) in states.entries) {
-      for (final membership in rawMemberships(state.content)) {
+      for (final membership in parseRtcMemberships(
+        state.content,
+        includeExpired: true,
+      )) {
         if (userId == client.userID) {
           mine.add(membership.callId);
           continue;
         }
         final known = starts[membership.callId];
-        if (known == null || membership.createdTs < known.at) {
+        if (known == null || membership.createdAtMs < known.at) {
           starts[membership.callId] = (
-            at: membership.createdTs,
+            at: membership.createdAtMs,
             callerId: userId,
-            kind: membership.kind,
+            kind:
+                CallKind.values.asNameMap()[membership.kind] ?? CallKind.voice,
           );
         }
       }
@@ -152,13 +153,7 @@ class RingCoordinator extends Notifier<void> {
   }
 
   bool _resolvedNow(String callId) =>
-      RingingCall.instance.callId == callId ||
-      ref.read(resolvedCallIdsProvider).contains(callId);
-
-  bool _systemRingBusy(String callId) {
-    final ringing = SystemRing.instance.ringing.value;
-    return ringing != null && ringing.callId != callId;
-  }
+      ref.read(incomingCallGateProvider.notifier).isSettled(callId);
 
   void _forgetEndedSyncRings() {
     final ringing = SystemRing.instance.ringing.value?.callId;
@@ -166,21 +161,10 @@ class RingCoordinator extends Notifier<void> {
   }
 
   Future<void> _onIncomingCall(IncomingCall call) async {
-    if (_resolvedNow(call.callId) || await isCallResolved(call.callId)) return;
-    if (_resolvedNow(call.callId)) return;
-    final presenter = ref.read(incomingCallPresenterProvider);
-    if (answeredOnAnotherDevice(call.room, call.callId)) {
-      ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
-      unawaited(
-        presenter.cancelIncoming(
-          roomId: call.room.id,
-          callId: call.callId,
-          end: RingEnd.answeredElsewhere,
-        ),
-      );
-      return;
-    }
-    if (_pushRung.contains(call.callId)) {
+    bool pushRung() => _pushRung.contains(call.callId);
+    final gate = ref.read(incomingCallGateProvider.notifier);
+    if (!await gate.shouldRing(call, systemRinging: pushRung)) return;
+    if (pushRung()) {
       await ref
           .read(pushRingBridgeProvider)
           .updateIncoming(
@@ -189,17 +173,6 @@ class RingCoordinator extends Notifier<void> {
             name: await ringName(call),
             video: call.kind == CallKind.video,
           );
-      return;
-    }
-    if (ref.read(activeCallProvider) != null || _systemRingBusy(call.callId)) {
-      unawaited(autoDeclineIncomingCall(call));
-      ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
-      final callerName = call.room
-          .unsafeGetUserFromMemoryOrFallback(call.callerId)
-          .calcDisplayname();
-      globalScaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text('Missed call from $callerName')),
-      );
       return;
     }
     final generic = _pendingGeneric;
@@ -211,7 +184,10 @@ class RingCoordinator extends Notifier<void> {
     SystemRing.instance.set(roomId: call.room.id, callId: call.callId);
     var outcome = RingOutcome.unavailable;
     try {
-      outcome = await postRingNotification(call, presenter: presenter);
+      outcome = await postRingNotification(
+        call,
+        presenter: ref.read(incomingCallPresenterProvider),
+      );
     } finally {
       if (outcome != RingOutcome.shown) SystemRing.instance.clear(call.callId);
     }

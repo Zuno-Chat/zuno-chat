@@ -1,13 +1,11 @@
 import 'dart:async';
 
-import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
-import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
@@ -42,18 +40,6 @@ Room _roomNamed(String id, String name) {
   );
   return room;
 }
-
-Event _summaryOf(Room room, {String callId = _callId}) => buildTestEvent(
-  room,
-  eventId: '\$summary-$callId-${room.id}',
-  senderId: '@ann:example.org',
-  content: CallSummary(
-    callId: callId,
-    kind: 'voice',
-    status: CallSummaryStatus.missed,
-    durationMs: 0,
-  ).toMessageContent(),
-);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -572,177 +558,6 @@ void main() {
     });
   });
 
-  group('a callee nobody joined', () {
-    test('hangs up once its call is summarised, without a summary of its '
-        'own', () async {
-      final container = syncing(iosCapabilities);
-      final session = await start(container);
-
-      session.room.client.onTimelineEvent.add(_summaryOf(session.room));
-      await pumpEventQueue();
-
-      expect(session.hangUpsByUser, [false]);
-      expect(session.hangUpsSummarized, [true]);
-    });
-
-    test('only counts a summary of its own call in its own room', () async {
-      final container = syncing(iosCapabilities);
-      final session = await start(container);
-      final timeline = session.room.client.onTimelineEvent;
-
-      timeline.add(_summaryOf(session.room, callId: 'call-2'));
-      timeline.add(
-        _summaryOf(buildTestRoom(session.room.client, id: _otherRoomId)),
-      );
-      timeline.add(
-        buildTestEvent(
-          session.room,
-          eventId: r'$text',
-          senderId: '@ann:example.org',
-          content: {
-            'msgtype': MessageTypes.Text,
-            'body': 'On my way',
-            'call_id': _callId,
-          },
-        ),
-      );
-      await pumpEventQueue();
-
-      expect(session.hangUps, 0);
-
-      timeline.add(_summaryOf(session.room));
-      await pumpEventQueue();
-
-      expect(session.hangUps, 1);
-    });
-
-    test('is left alone by the summary once someone joined', () async {
-      final container = syncing(iosCapabilities);
-      final session = await start(container);
-      await goLive(session);
-      session.remoteJoins();
-      await pumpEventQueue();
-
-      session.room.client.onTimelineEvent.add(_summaryOf(session.room));
-      await pumpEventQueue();
-
-      expect(session.hangUps, 0);
-    });
-
-    test('rule does not apply to a caller', () async {
-      final container = syncing(iosCapabilities);
-      final session = await start(
-        container,
-        newSession(role: CallSessionRole.caller),
-      );
-
-      session.room.client.onTimelineEvent.add(_summaryOf(session.room));
-      await pumpEventQueue();
-
-      expect(session.hangUps, 0);
-    });
-  });
-
-  group('the empty call timeout', () {
-    FakeCallSession startIn(
-      FakeAsync async, {
-      CallSessionRole role = CallSessionRole.callee,
-    }) {
-      final container = syncing(iosCapabilities);
-      final session = newSession(role: role);
-      container.read(activeCallProvider.notifier).set(session);
-      async.flushMicrotasks();
-      return session;
-    }
-
-    test('hangs up a callee still alone that long after the call went live, '
-        'not counting the time spent connecting', () {
-      fakeAsync((async) {
-        final session = startIn(async);
-        async.elapse(emptyCallTimeout * 2);
-
-        expect(session.hangUps, 0);
-
-        session.moveTo(CallSessionPhase.active);
-        async.elapse(emptyCallTimeout - const Duration(seconds: 1));
-
-        expect(session.hangUps, 0);
-
-        async.elapse(const Duration(seconds: 1));
-
-        expect(session.hangUpsByUser, [false]);
-        expect(session.hangUpsSummarized, [false]);
-      });
-    });
-
-    test('keeps a callee someone joined before it ran out', () {
-      fakeAsync((async) {
-        final session = startIn(async);
-        session.moveTo(CallSessionPhase.active);
-        async.elapse(emptyCallTimeout - const Duration(seconds: 1));
-
-        session.remoteJoins();
-        async.elapse(emptyCallTimeout);
-
-        expect(session.hangUps, 0);
-        expect(native.argsOf('reportCallConnected'), [_call]);
-      });
-    });
-
-    test('stops waiting once someone joins', () {
-      fakeAsync((async) {
-        final session = startIn(async);
-        session.moveTo(CallSessionPhase.active);
-        async.flushMicrotasks();
-        expect(async.pendingTimers, hasLength(1));
-
-        session.remoteJoins();
-        async.flushMicrotasks();
-
-        expect(async.pendingTimers, isEmpty);
-      });
-    });
-
-    test('stops with a call that ended first', () {
-      fakeAsync((async) {
-        final session = startIn(async);
-        session.moveTo(CallSessionPhase.active);
-        async.elapse(const Duration(seconds: 5));
-
-        session.end();
-        async.elapse(emptyCallTimeout);
-
-        expect(session.hangUps, 0);
-      });
-    });
-
-    test('never applies to a caller', () {
-      fakeAsync((async) {
-        final session = startIn(async, role: CallSessionRole.caller);
-        session.moveTo(CallSessionPhase.active);
-        async.elapse(emptyCallTimeout * 4);
-
-        expect(session.hangUps, 0);
-      });
-    });
-
-    test('stops with the sync going away mid-call', () {
-      fakeAsync((async) {
-        final container = syncing(iosCapabilities);
-        final session = newSession();
-        container.read(activeCallProvider.notifier).set(session);
-        async.flushMicrotasks();
-        session.moveTo(CallSessionPhase.active);
-        async.flushMicrotasks();
-
-        container.dispose();
-        async.elapse(emptyCallTimeout * 2);
-
-        expect(session.hangUps, 0);
-      });
-    });
-  });
-
   group('the sync going away mid-call', () {
     test('closes no system call, and native reports after it reach '
         'nothing', () async {
@@ -769,7 +584,6 @@ void main() {
         'left to the call screen', () async {
       final container = syncing(androidCapabilities);
       final session = await start(container);
-      session.room.client.onTimelineEvent.add(_summaryOf(session.room));
       await goLive(session, [localParticipant(muted: true)]);
       await show(session, [
         localParticipant(),
@@ -791,19 +605,6 @@ void main() {
 
       expect(native.calls, isEmpty);
       expect(container.read(activeCallProvider), same(session));
-    });
-
-    test('a callee left alone on Android is not hung up by the timeout', () {
-      fakeAsync((async) {
-        final container = syncing(androidCapabilities);
-        final session = newSession();
-        container.read(activeCallProvider.notifier).set(session);
-        session.moveTo(CallSessionPhase.active);
-        async.elapse(emptyCallTimeout * 2);
-
-        expect(session.hangUps, 0);
-        expect(native.calls, isEmpty);
-      });
     });
 
     test('the CallKit capability decides it, not the platform', () async {

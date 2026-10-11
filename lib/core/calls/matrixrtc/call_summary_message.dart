@@ -41,7 +41,7 @@ class CallSummary {
     CallSummaryStatus.missed => 'Missed $label',
     CallSummaryStatus.declined => '$label declined',
     CallSummaryStatus.ended =>
-      '$label · ${formatClock(Duration(milliseconds: durationMs))}',
+      '$label · ${formatDuration(Duration(milliseconds: durationMs))}',
   };
 
   Map<String, Object?> toMessageContent({String? membershipEventId}) => {

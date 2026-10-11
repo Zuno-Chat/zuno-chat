@@ -30,13 +30,13 @@ void main() {
       expect(ring?.callerId, '@alice:zuno.im');
       expect(ring?.video, isTrue);
       expect(ring?.source, NativeRingSource.push);
-      expect(ring?.bound, isTrue);
     });
 
     test('a ring without its call is not bound', () {
       final ring = NativeRing.tryParse({'uuid': 'U2', 'source': 'generic'});
 
-      expect(ring?.bound, isFalse);
+      expect(ring?.roomId, isNull);
+      expect(ring?.callId, isNull);
       expect(ring?.callerId, '');
     });
 

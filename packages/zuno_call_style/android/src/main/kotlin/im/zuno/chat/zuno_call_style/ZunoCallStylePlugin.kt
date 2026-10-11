@@ -17,6 +17,7 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
+import java.util.UUID
 import org.json.JSONObject
 
 class ZunoCallStylePlugin :
@@ -134,9 +135,12 @@ class ZunoCallStylePlugin :
         }
         val caller = personBuilder.build()
 
-        val launchIntent = AppLaunchIntent.of(context, SELECT_FOREGROUND_NOTIFICATION_ACTION)
+        val token = UUID.randomUUID().toString()
+
+        val launchIntent = AppLaunchIntent.of(context, RingDecisions.SELECT_FOREGROUND_ACTION)
             .putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
             .putExtra(PAYLOAD_EXTRA, payload)
+            .putExtra(RingDecisions.TOKEN_EXTRA, token)
         val contentPendingIntent = PendingIntent.getActivity(
             context,
             RING_NOTIFICATION_ID,
@@ -144,14 +148,14 @@ class ZunoCallStylePlugin :
             pendingIntentFlags(),
         )
 
-        val declineIntent = Intent().apply {
-            setClassName(context, ACTION_RECEIVER_CLASS)
-            action = ACTION_TAPPED
-            putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
-            putExtra(ACTION_ID_EXTRA, "decline")
-            putExtra(CANCEL_NOTIFICATION_EXTRA, true)
-            putExtra(PAYLOAD_EXTRA, payload)
-        }
+        val declineIntent = Intent(context, RingStopReceiver::class.java)
+            .setAction(IncomingRing.ACTION_DECLINED)
+            .putExtra(IncomingRing.EXTRA_CALL_ID, callId)
+            .putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
+            .putExtra(ACTION_ID_EXTRA, RingDecisions.DECLINE_ACTION_ID)
+            .putExtra(CANCEL_NOTIFICATION_EXTRA, true)
+            .putExtra(PAYLOAD_EXTRA, payload)
+            .putExtra(RingDecisions.TOKEN_EXTRA, token)
         val declinePendingIntent = PendingIntent.getBroadcast(
             context,
             RING_NOTIFICATION_ID * 16,
@@ -159,11 +163,12 @@ class ZunoCallStylePlugin :
             pendingIntentFlags(),
         )
 
-        val answerIntent = AppLaunchIntent.of(context, SELECT_FOREGROUND_NOTIFICATION_ACTION)
+        val answerIntent = AppLaunchIntent.of(context, RingDecisions.SELECT_FOREGROUND_ACTION)
             .putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
             .putExtra(ACTION_ID_EXTRA, RingDecisions.ANSWER_ACTION_ID)
             .putExtra(CANCEL_NOTIFICATION_EXTRA, true)
             .putExtra(PAYLOAD_EXTRA, payload)
+            .putExtra(RingDecisions.TOKEN_EXTRA, token)
         val answerPendingIntent = PendingIntent.getActivity(
             context,
             RING_NOTIFICATION_ID * 16 + 1,
@@ -195,6 +200,7 @@ class ZunoCallStylePlugin :
         IncomingRing.present(
             context,
             callId,
+            token,
             notification,
             ring.ringtoneAsset?.let { assets.getAssetFilePathByName(it) },
             ring.vibrationPattern,
@@ -214,14 +220,9 @@ class ZunoCallStylePlugin :
         const val RING_NOTIFICATION_ID = IncomingRing.NOTIFICATION_ID
         const val NOTIFICATION_ID_EXTRA = RingDecisions.NOTIFICATION_ID_EXTRA
         const val PAYLOAD_EXTRA = "payload"
-        const val ACTION_ID_EXTRA = "actionId"
+        const val ACTION_ID_EXTRA = RingDecisions.ACTION_ID_EXTRA
         const val CANCEL_NOTIFICATION_EXTRA = "cancelNotification"
-        const val SELECT_FOREGROUND_NOTIFICATION_ACTION = RingDecisions.SELECT_NOTIFICATION_ACTION
         const val FALLBACK_CALLER_NAME = "Incoming call"
         const val SMALL_ICON_NAME = "ic_stat_zuno_mark"
-        const val ACTION_TAPPED =
-            "com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver.ACTION_TAPPED"
-        const val ACTION_RECEIVER_CLASS =
-            "com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
     }
 }

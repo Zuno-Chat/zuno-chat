@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -255,6 +258,76 @@ void main() {
       await fresh.initialize(claimDeclinePort: false);
 
       expect(toNative.calls, isEmpty);
+    });
+
+    test('a start that failed is not done: the next start runs it again and '
+        'sets notifications up', () async {
+      var failing = true;
+      final toNative = installFakeCallsChannel(
+        reply: (call) {
+          if (failing) throw PlatformException(code: 'busy');
+          return null;
+        },
+      );
+      notifications.methods.clear();
+      final fresh = CallNotificationService(capabilities: iosCapabilities);
+
+      await expectLater(
+        fresh.initialize(claimDeclinePort: false),
+        throwsA(isA<PlatformException>()),
+      );
+      expect(notifications.methods, isNot(contains('initialize')));
+
+      failing = false;
+      await fresh.initialize(claimDeclinePort: false);
+      await fresh.initialize(claimDeclinePort: false);
+
+      expect(toNative.count('resetSystemCalls'), 2);
+      expect(
+        notifications.methods.where((m) => m == 'initialize'),
+        hasLength(1),
+      );
+    });
+
+    test('a second caller waits for the start already running, which runs '
+        'once', () async {
+      final release = Completer<void>();
+      final toNative = installFakeCallsChannel(reply: (_) => release.future);
+      notifications.methods.clear();
+      final fresh = CallNotificationService(capabilities: iosCapabilities);
+
+      final first = fresh.initialize(claimDeclinePort: false);
+      var secondDone = false;
+      final second = fresh
+          .initialize(claimDeclinePort: false)
+          .then((_) => secondDone = true);
+      await pumpEventQueue();
+
+      expect(secondDone, isFalse);
+      expect(notifications.methods, isNot(contains('initialize')));
+
+      release.complete();
+      await Future.wait([first, second]);
+
+      expect(secondDone, isTrue);
+      expect(toNative.count('resetSystemCalls'), 1);
+      expect(
+        notifications.methods.where((m) => m == 'initialize'),
+        hasLength(1),
+      );
+    });
+
+    test('every caller of a failing start hears the failure', () async {
+      final release = Completer<void>();
+      installFakeCallsChannel(reply: (_) => release.future);
+      final fresh = CallNotificationService(capabilities: iosCapabilities);
+
+      final first = fresh.initialize(claimDeclinePort: false);
+      final second = fresh.initialize(claimDeclinePort: false);
+      release.completeError(PlatformException(code: 'busy'));
+
+      await expectLater(first, throwsA(isA<PlatformException>()));
+      await expectLater(second, throwsA(isA<PlatformException>()));
     });
 
     test('on iOS without the calls plugin still finishes starting and hears '

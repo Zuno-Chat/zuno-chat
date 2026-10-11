@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:video_player/video_player.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
 
-import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_video_player.dart';
 import '../../../helpers/route_launcher.dart';
 
@@ -39,7 +38,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  PickedImage photo(String name) => PickedImage(name: name, bytes: onePixelPng);
+  PickedImage photo(String name) =>
+      PickedImage(name: name, path: '/picked/$name');
 
   testWidgets('single image: no page indicator, empty caption sends fine', (
     tester,
@@ -126,6 +126,84 @@ void main() {
     await tester.pumpAndSettle();
 
     expect((result![1] as ComposedVideoResult).video.durationMs, isNull);
+  });
+
+  PickedVideo clip(String name) =>
+      PickedVideo(name: name, path: '/cache/$name');
+
+  List<String> opened() => [
+    for (final uri in player.opened) uri.split('/').last,
+  ];
+
+  Future<int> playersHeld(WidgetTester tester) async {
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    return player.opened.length -
+        player.calls.where((c) => c == 'dispose').length;
+  }
+
+  testWidgets('only the video on screen holds a player', (tester) async {
+    await open(tester, [clip('a.mp4'), clip('b.mp4'), clip('c.mp4')]);
+
+    expect(opened(), ['a.mp4']);
+    expect(await playersHeld(tester), 1);
+
+    await swipeNext(tester);
+
+    expect(opened(), ['a.mp4', 'b.mp4']);
+    expect(await playersHeld(tester), 1);
+    expect(find.byType(VideoPlayer), findsOneWidget);
+  });
+
+  testWidgets('a photo on screen holds no player', (tester) async {
+    await open(tester, [photo('a.jpg'), clip('b.mp4')]);
+
+    expect(opened(), isEmpty);
+
+    await swipeNext(tester);
+    await tester.drag(find.byType(PageView), const Offset(800, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 of 2'), findsOneWidget);
+    expect(await playersHeld(tester), 0);
+  });
+
+  testWidgets('a video swiped past keeps its size and length, one never '
+      'shown claims none', (tester) async {
+    await open(tester, [clip('a.mp4'), clip('b.mp4'), clip('c.mp4')]);
+
+    await swipeNext(tester);
+    await tester.tap(find.byTooltip('Send all'));
+    await tester.pumpAndSettle();
+
+    final sizes = [
+      for (final ComposedVideoResult(:video)
+          in result!.cast<ComposedVideoResult>())
+        (video.width, video.height, video.durationMs),
+    ];
+    expect(sizes, [(1280, 720, 42000), (1280, 720, 42000), (null, null, null)]);
+  });
+
+  testWidgets('removing the video on screen lets its player go', (
+    tester,
+  ) async {
+    await open(tester, [clip('a.mp4'), photo('b.jpg')]);
+
+    await tester.tap(find.byTooltip('Remove this item'));
+    await tester.pumpAndSettle();
+
+    expect(await playersHeld(tester), 0);
+    expect(find.text('Add a caption'), findsOneWidget);
+  });
+
+  testWidgets('closing the screen lets the player go', (tester) async {
+    await open(tester, [clip('a.mp4'), clip('b.mp4')]);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(closed, isTrue);
+    expect(await playersHeld(tester), 0);
   });
 
   testWidgets('removing the last item steps back to the one before', (

@@ -184,7 +184,10 @@ void main() {
     await deliverInvite();
 
     expect(notifications.shown, isEmpty);
-    expect((await claimInviteAnnouncement(room.id)).won, isTrue);
+    expect(
+      (await claimInviteAnnouncement(room.id, userId: client.userID)).won,
+      isTrue,
+    );
   });
 
   test('an invitation shown in front is marked for the extension', () async {

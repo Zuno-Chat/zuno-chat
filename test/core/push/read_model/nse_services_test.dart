@@ -119,6 +119,7 @@ void main() {
     prefs: prefs,
     settings: () => settings,
     unreadRoomIds: () => unread,
+    askedToJoin: () => const {},
     mint: () async {
       mints++;
       return const ZunoPushOk(

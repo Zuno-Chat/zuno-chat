@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/gallery_viewer_page.dart';
 import 'package:zuno/core/matrix/room_media_feed.dart';
+import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/room_info/presentation/room_media_page.dart';
 import 'package:zuno/features/room_info/presentation/room_media_thumb.dart';
 
+import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
 
 void main() {
@@ -99,6 +102,19 @@ void main() {
     final september = tester.getTopLeft(find.text('September 2026'));
     final august = tester.getTopLeft(find.text('August 2026'));
     expect(september.dy, lessThan(august.dy));
+  });
+
+  testWidgets('a thumbnail is decoded to cover its cell', (tester) async {
+    final photo = image(r'$1', DateTime(2026, 9, 14));
+    AttachmentCache.instance.put(
+      attachmentCacheKey(photo, thumbnail: true),
+      onePixelPng,
+    );
+    addTearDown(AttachmentCache.instance.clear);
+    await pumpPage(tester, feedOf([photo]));
+
+    final cell = tester.getSize(find.byType(RoomMediaThumb)).width;
+    expect(tester.widget<MediaImage>(find.byType(MediaImage)).shownAt, cell);
   });
 
   testWidgets('opens the swipe viewer at the tapped item', (tester) async {

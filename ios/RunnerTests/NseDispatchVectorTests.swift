@@ -14,7 +14,7 @@ final class NseDispatchVectorTests: XCTestCase {
     let fetched = NseFetched(
       event: event, senderName: vector["sender_name"]?.string, roomName: nil, isDm: names.isDm,
       highlight: false, serverTs: now)
-    switch NseClassifier.classify(event, ownUserId: me, nowMs: now) {
+    switch NseClassifier.classify(event, ownUserId: me, nowMs: now, askedToJoin: []) {
     case .hidden:
       return .object(["class": .string("hidden")])
     case .ring(let callId, let video):
