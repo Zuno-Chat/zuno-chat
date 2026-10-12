@@ -149,9 +149,4 @@ void main() {
     expect(result.exitCode, 1);
     expect(result.stderr, contains('no vX.Y.Z tag'));
   });
-
-  test('rollout prints the next step or none', () async {
-    expect((await release(['rollout', 'inProgress', '0.05'])).stdout, '0.1\n');
-    expect((await release(['rollout', 'halted', '0.05'])).stdout, 'none\n');
-  });
 }

@@ -2,8 +2,8 @@
 
 Releases to Google Play and the App Store are automated. On the 1st of each
 month, everything on `master` since the last release is tested, built,
-signed and submitted straight to production, with no human step; any
-failure stops the release. Hotfixes run through the same pipeline when
+signed and submitted straight to production for every user at once, with
+no human step; any failure stops the release. Hotfixes run through the same pipeline when
 started by hand. Commit subjects decide the version, and a draft file
 supplies the store notes.
 
@@ -15,7 +15,7 @@ flowchart LR
   gate --> builds["Android and<br>iOS builds"]
   builds --> tag["tag vX.Y.Z"]
   tag --> ios["App Store<br>upload"]
-  ios --> play["Play upload<br>at 1%"]
+  ios --> play["Play upload"]
 ```
 
 The logic (versions, build numbers, commit types, guards) is pure Dart in
@@ -45,7 +45,6 @@ The logic (versions, build numbers, commit types, guards) is pure Dart in
 | `cut-release` | Cron on the 1st, or by hand | Computes the version, commits `chore: release X.Y.Z` (pubspec bump, notes moved) to `master`, pushes `rc/X.Y.Z` and dispatches `release` |
 | `start-hotfix` | By hand, with master commit SHAs and notes | Branches `rc/X.Y.Z` from the highest tag as the next patch, cherry-picks with `-x`, commits the bump and notes on the rc branch, dispatches `release` |
 | `release` | Dispatch, on `rc/*` only | Guards → analyze and the Dart, Kotlin and Swift suites → both builds → tag `vX.Y.Z` → iOS upload → Android upload |
-| `advance-rollout` | Daily | Moves Play one step up Apple's phased ladder (1, 2, 5, 10, 20, 50, 100%) |
 
 - **The release branch name is the version.**
 - **The tag spends the version before any store holds its binary**: it is
@@ -57,6 +56,8 @@ The logic (versions, build numbers, commit types, guards) is pure Dart in
   missing from HEAD, so a release never drops a fix users already have.
 - **iOS uploads first**, because an App Store submission can be withdrawn
   while a Play production commit can only be halted.
+- **No staged rollout**: Play ships at 100% and iOS skips the phased
+  release, so a bad release reaches everyone and the fix is a hotfix.
 - **The next monthly cut skips commits named in a `cherry picked from`
   trailer**, so a fix shipped as a hotfix is not counted twice. Take a
   shipped hotfix's fixes off the bug count in `next.txt` for the same reason.
@@ -71,11 +72,9 @@ The logic (versions, build numbers, commit types, guards) is pure Dart in
 
 ## Environments
 
-Secrets live in two GitHub environments. `release` is restricted to `rc/*`
-and holds `.env`, `google-services.json`, the keystore, the store keys and
-the match secrets. `rollout` is restricted to `master`, where the cron runs,
-and holds only the Play key. CI writes the gitignored inputs from these
-secrets and fails if one is missing, since the build would otherwise ship
+Secrets live in the `release` GitHub environment, restricted to `rc/*`:
+`.env`, `google-services.json`, the keystore, the store keys and the match
+secrets. CI writes the gitignored inputs from these secrets and fails if one is missing, since the build would otherwise ship
 green without FCM or crash reporting.
 
 ## Recovery
@@ -85,7 +84,7 @@ green without FCM or crash reporting.
 | A gate or build fails | Nothing was tagged or uploaded. Fix on `master`, `git cherry-pick -x` onto the rc branch, re-dispatch `release` |
 | An upload fails | "Re-run failed jobs", never "Re-run all jobs": the guard refuses a tagged version. A build Apple already holds is that run's, so the iOS lane submits it without re-uploading |
 | A store rejects the binary | The version is spent. Ship the fix as the next patch through `start-hotfix` |
-| A bad release is live | Halt the Play rollout or pause the phased release, then `start-hotfix` |
+| A bad release is live | Halt the Play release, which works at 100% too, then `start-hotfix`. iOS has nothing to pause |
 | `cut-release` failed partway | Re-run it. It resumes without dropping new notes |
 | A failed rc is still untagged on the next 1st (a gate or build failure) | The cut fails on the name clash. Delete the stale branch |
 | A run is abandoned after its tag | Nothing. The version is spent and the next cut moves past it |
@@ -98,5 +97,4 @@ green without FCM or crash reporting.
   (`v1.3.0` and earlier) or the fix touches `.github/workflows/`, which
   `GITHUB_TOKEN` cannot push.
 - **A public repo disables scheduled workflows after 60 days** without
-  commits, so re-enable `cut-release` and `advance-rollout` after a quiet
-  spell.
+  commits, so re-enable `cut-release` after a quiet spell.

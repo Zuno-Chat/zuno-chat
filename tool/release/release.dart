@@ -144,13 +144,3 @@ String? releaseProblem({
   }
   return null;
 }
-
-const rolloutLadder = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0];
-
-double? nextRolloutFraction(String status, double fraction) {
-  if (status != 'inProgress') return null;
-  for (final step in rolloutLadder) {
-    if (step > fraction + 1e-9) return step;
-  }
-  return null;
-}

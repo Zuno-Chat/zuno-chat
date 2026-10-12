@@ -35,11 +35,9 @@ String? run(List<String> args, String root) => switch (args) {
   ['build-number', final version] => '${_parse(version).buildNumber}',
   ['bump', final version] => _bump(root, _parse(version)),
   ['check-notes', final path] => _checkNotes(path),
-  ['rollout', final status, final fraction] => _rollout(status, fraction),
   _ => throw const ReleaseFailure(
     'usage: next | hotfix | guard [--dry-run] <branch> | '
-    'build-number <X.Y.Z> | bump <X.Y.Z> | check-notes <file> | '
-    'rollout <status> <fraction>',
+    'build-number <X.Y.Z> | bump <X.Y.Z> | check-notes <file>',
   ),
 };
 
@@ -138,11 +136,4 @@ String? _checkNotes(String path) {
   final problem = notesProblem(file.readAsStringSync());
   if (problem != null) throw ReleaseFailure('$path: $problem');
   return null;
-}
-
-String _rollout(String status, String fraction) {
-  final value =
-      double.tryParse(fraction) ??
-      (throw ReleaseFailure('$fraction is not a fraction'));
-  return nextRolloutFraction(status, value)?.toString() ?? 'none';
 }

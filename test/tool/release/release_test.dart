@@ -236,26 +236,4 @@ void main() {
       );
     });
   });
-
-  group('nextRolloutFraction', () {
-    test('climbs the phased ladder one step at a time', () {
-      expect(nextRolloutFraction('inProgress', 0.01), 0.02);
-      expect(nextRolloutFraction('inProgress', 0.2), 0.5);
-      expect(nextRolloutFraction('inProgress', 0.5), 1.0);
-    });
-
-    test('moves a hand-set fraction to the next step above it', () {
-      expect(nextRolloutFraction('inProgress', 0.3), 0.5);
-    });
-
-    test('leaves halted, completed and absent releases alone', () {
-      expect(nextRolloutFraction('halted', 0.05), isNull);
-      expect(nextRolloutFraction('completed', 1.0), isNull);
-      expect(nextRolloutFraction('none', 0), isNull);
-    });
-
-    test('stops at full rollout', () {
-      expect(nextRolloutFraction('inProgress', 1.0), isNull);
-    });
-  });
 }

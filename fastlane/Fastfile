@@ -27,12 +27,6 @@ def store_api_key
   )
 end
 
-def write_output(values)
-  File.open(ENV.fetch('GITHUB_OUTPUT'), 'a') do |file|
-    values.each { |key, value| file.puts("#{key}=#{value}") }
-  end
-end
-
 platform :android do
   lane :upload do |options|
     dry_run = options[:dry_run].to_s == 'true'
@@ -49,8 +43,7 @@ platform :android do
       package_name: PACKAGE,
       json_key_data: ENV.fetch('PLAY_JSON'),
       track: 'production',
-      release_status: 'inProgress',
-      rollout: '0.01',
+      release_status: 'completed',
       aab: options.fetch(:aab),
       metadata_path: metadata,
       skip_upload_apk: true,
@@ -59,42 +52,6 @@ platform :android do
       skip_upload_screenshots: true,
       skip_upload_changelogs: dry_run,
       validate_only: dry_run
-    )
-  end
-
-  lane :rollout_status do
-    require 'supply'
-    Supply.config = FastlaneCore::Configuration.create(
-      Supply::Options.available_options,
-      package_name: PACKAGE,
-      json_key_data: ENV.fetch('PLAY_JSON'),
-      track: 'production'
-    )
-    client = Supply::Client.make_from_config
-    client.begin_edit(package_name: PACKAGE)
-    releases = client.tracks('production').flat_map { |track| track.releases || [] }
-    client.abort_current_edit
-    live = releases.find { |release| %w[inProgress halted].include?(release.status) }
-    write_output(
-      status: live ? live.status : 'none',
-      fraction: live&.user_fraction || 0,
-      version_code: live&.version_codes&.max || 0
-    )
-  end
-
-  lane :rollout do |options|
-    upload_to_play_store(
-      package_name: PACKAGE,
-      json_key_data: ENV.fetch('PLAY_JSON'),
-      track: 'production',
-      version_code: options.fetch(:version_code).to_i,
-      rollout: options.fetch(:fraction).to_s,
-      skip_upload_apk: true,
-      skip_upload_aab: true,
-      skip_upload_metadata: true,
-      skip_upload_changelogs: true,
-      skip_upload_images: true,
-      skip_upload_screenshots: true
     )
   end
 end
@@ -157,7 +114,7 @@ platform :ios do
         submit_for_review: true,
         reject_if_possible: true,
         automatic_release: true,
-        phased_release: true,
+        phased_release: false,
         run_precheck_before_submit: false,
         force: true,
         submission_information: { add_id_info_uses_idfa: false },
