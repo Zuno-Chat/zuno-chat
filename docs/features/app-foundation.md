@@ -15,7 +15,8 @@ The layer every screen sits on: one Matrix client per process, startup, navigati
 | `firstSyncProvider` | Done once a first sync has finished, or at once for a restored session. Onboarding and the chat list's empty state wait on it, because `client.login` can give up waiting for that sync. |
 | `connectionStatusProvider`, `isOfflineProvider` | Connectivity (below). |
 
-**The HTTP stack** has two deliberate quirks.
+**The HTTP stack** has three deliberate quirks.
+- **Dart refuses cleartext HTTP.** The process-wide `HttpOverrides` (`app_http_overrides.dart`) set the User-Agent and refuse any connection that is not https, because Android's network security config and iOS ATS govern only the platform's own network stacks, never `dart:io`. A refused connection throws its own exception, so callers can tell it from an unreachable server.
 - The `HttpClient` has a connect-only timeout, so a dead route fails fast while a slow upload or download is never cut off.
 - The SDK refreshes an expiring token only inside its sync loop, so `FreshTokenHttpClient` holds any request carrying the current token until one shared refresh has run. Without it, requests racing the first sync at cold start would go out with an expired token.
 
@@ -49,7 +50,7 @@ flowchart TD
 - A background client (`createMatrixClient(backgroundSync: false)`) is denied while the app holds the lease. Each denied path falls back on something already in place: a push keeps its instant notice (`notifications.md`), and a decline or notification action hands off to the app's live route (`calls.md`).
 - **Background clients never clear the store or mint a database key.** The SDK's own `clear()` on a failed init or refresh would otherwise wipe the shared database from a push engine.
 - Native code arbitrates across engines: `ClientLeases` in `zuno_notifications` on Android, `ClientLeasePlugin` on iOS.
-- A new background entry point (engine or isolate) opens its client only through `createMatrixClient(backgroundSync: false)` and handles `ClientLeaseDenied`. It calls `installUserAgent()` first, because the User-Agent is set per isolate and map tiles depend on it.
+- A new background entry point (engine or isolate) opens its client only through `createMatrixClient(backgroundSync: false)` and handles `ClientLeaseDenied`. It runs inside the device-log floor (Errors) and calls `installAppHttpOverrides()` first, because both are set per isolate, the https-only rule included.
 
 ### Navigation
 
@@ -127,8 +128,8 @@ Each flag is one of these kinds:
 | Awaiting an iOS handler | `deviceSafetyChecks` |
 | Off on iOS by design (`../decisions/ios-push-and-ring.md`) | `notificationImages`, `notificationAvatars` |
 | Android concept, iOS `false` for good | `batteryExemption`, `foregroundSyncService`, `fullScreenIntent`, `homeScreenShortcuts` |
-| Android-only behavior | `atomicDatabaseBatches`, `instantPushNotices` |
-| iOS-only behavior | `apnsRegistration`, `voipRing`, `nseNotifications`, `signOutWipeKeepsProcess` |
+| Android-only behavior | `atomicDatabaseBatches`, `instantPushNotices`, `nativeFileShare`, `nativeLogFloor` |
+| iOS-only behavior | `apnsRegistration`, `voipRing`, `nseNotifications`, `signOutWipeKeepsProcess`, `nativeSensitiveFileExport`, `audioPlayerNeedsFile` |
 | Call seam selectors | `nativeIncomingRingUi`, `callForegroundService` and `nativeCallAudio` on Android, `callKit` on iOS. The factories check `callKit` first, so the Android three never flip. |
 | Apple limitation | `recorderWritesOgg` (Apple cannot write Ogg), `screenshotBlocking` (no app can block a screenshot) |
 | Per-platform value | `mapsApp` (a `geo:` intent on Android, Apple Maps on iOS), `deliveryModes` |
@@ -141,7 +142,8 @@ The `zuno/*` channels, each behind its flag:
 | Push and notifications (`notifications.md`) | `zuno/push_wakelock`, `zuno/push_diag` | `zuno/fcm`, `zuno/background_sync`, `zuno/conversations`, `zuno/vibration` | `zuno/apns`, `zuno/nse`, `zuno/notification_actions` |
 | Media and uploads | `zuno/image`, `zuno/video`, `zuno/upload_service` | | |
 | Live location (`location-sharing.md`) | `zuno/live_location`, with its fix stream `zuno/live_location/fixes` | | |
-| App | `zuno/app_data` (the sign-out wipe), `zuno/client_lease`, `zuno/errors` (the native error journal, `crash-reporting.md`), `zuno/network`, `zuno/shortcuts`, `zuno/share`, `zuno/wake_lock` | `zuno/device_safety` | `zuno/launch` (the wake reason) |
+| Files and sharing (`chats-messaging.md`) | `zuno/files` (saving a file; the recovery code's export is iOS only), `zuno/share` (inbound) | `zuno/share_out` (outbound) | |
+| App | `zuno/app_data` (the sign-out wipe), `zuno/client_lease`, `zuno/errors` (the native error journal, `crash-reporting.md`), `zuno/network`, `zuno/shortcuts`, `zuno/wake_lock` | `zuno/device_safety` | `zuno/launch` (the wake reason) |
 
 ### iOS project
 
@@ -162,7 +164,7 @@ The `zuno/*` channels, each behind its flag:
   | `group.im.zuno.chat.$(DEVELOPMENT_TEAM)` | App, share extension | The share inbox, and the share extension's error journal |
   | `group.im.zuno.chat.notify.$(DEVELOPMENT_TEAM)` | App, notification extension (never the share extension) | The notification read model, the notify Keychain item, and the app's and the notification extension's error journals |
 
-- **Keychain items** are all `AfterFirstUnlockThisDeviceOnly` and never synchronized. They outlive an uninstall, so a reinstall's first launch deletes the notify and VoIP items (`NotifySweep`), never the database key.
+- **Keychain items** are all `AfterFirstUnlockThisDeviceOnly` and never synchronized. They outlive an uninstall, so a reinstall's first launch deletes the notify and VoIP items (`NotifySweep`), never the database key. The sign-out wipe deletes the same two.
 
   | Service | Access | Holds |
   |---|---|---|
@@ -184,6 +186,7 @@ The `zuno/*` channels, each behind its flag:
 | Reply or Mark as read | The engine starts headless with `--zuno-wake=action` |
 
 - **No engine starts before first unlock**, because the database key and the app's files are unreadable until then. A ring stays native until then (`calls.md`).
+- **The engine's launch deletes the loose files earlier processes left at the top of the temporary folder, and abandoned file exports**, because plugins drop plaintext copies there and iOS empties it only when it needs space.
 - **Plugins register once, in `EngineHost.registerPlugins`.** A new plugin goes there, and its Dart wrapper is a no-op behind a capability flag.
 - **Native events are pulled, not pushed.** A native-to-Dart call made before Dart's handler exists is dropped, so native code queues events and Dart takes them.
 
@@ -221,13 +224,20 @@ flowchart TD
   D -- no --> E["nothing to do"]
   D -- yes --> F["stop push delivery"]
   F --> G["Android: clear app data, the process dies"]
-  F --> H["iOS: wipe everything but the open database, clear the marker"]
+  F --> H["iOS: forget account state in memory, VACUUM"]
+  H --> I["native: sign the push session out, empty everything but the open database"]
+  I --> J{"every step done?"}
+  J -- yes --> K["clear the marker"]
+  J -- no --> L["keep the marker, retry at next launch"]
 ```
 
 - **The splash covers the wipe**, so no sign-in can start on a device that is still being wiped.
 - The marker separates a sign-out from a device that never signed in, and it catches a remote sign-out at the next launch. A wipe that fails keeps the marker, so the next sign-out or launch retries.
 - **Android** drops files, preferences, keys, notifications, channels, shortcuts and permissions, so the next launch is a fresh install.
 - **iOS keeps the process, so it keeps the open database** (`signOutWipeKeepsProcess`). An iOS app cannot quit itself, and deleting the live SQLCipher file or its key would strand a same-session sign-in. The SDK has already emptied the database, so Dart `VACUUM`s it, the native wipe empties everything else the app owns, and Dart reloads `SharedPreferences`.
+- **On iOS, Dart first forgets the decrypted media and the session export records it holds in memory**, because the process outlives the account, and downloads still in flight are dropped when they land.
+- **The native wipe signs the push session out before it deletes files**: the read model is marked signed out, then it and the notify and VoIP Keychain items go (`notifications.md`), so nothing reads or recreates the read model while it goes.
+- **Every step runs even when one fails**, and a failed `VACUUM`, file or Keychain delete keeps the marker, so the next launch retries the whole wipe.
 - **A same-session sign-in must start clean**, so a provider that keeps session state in memory watches `isLoggedInProvider`.
 
 ### Connectivity and background sync
@@ -277,6 +287,7 @@ stateDiagram-v2
 ### Errors
 
 - `main()` runs in `runZonedGuarded`, and the global handlers chain onto `FlutterError.onError` and `PlatformDispatcher.onError`. Unhandled errors go to crash reporting (`crash-reporting.md`) and, in debug builds only, to an error SnackBar.
+- **Release builds write nothing below warning to the device log**, because bug reports and debugging tools can read it, and the SDK and plugins log IDs and content. Every Dart entry point and the client's background compute isolates run in a zone that drops `print`, and on Android the process also raises the native log floor for every library in it.
 - A caught failure goes to `reportCaught` (`core/errors/caught_errors.dart`) with its stack, and an expected outcome narrows its catch instead; `crash-reporting.md` has what is sent.
 - A caught error the user sees gets a plain sentence, never the exception's text. The one deliberate exception is the push diagnostics page, which shows the last pusher error as is (`notifications.md`).
 - `isConnectionError` is the one test for a network failure, native ones from the error journal included, and `failureMessage` adds a check-your-connection hint for one.
@@ -322,7 +333,7 @@ stateDiagram-v2
 - **Never give flutter_secure_storage a `groupId` or change its `accessibility` without migrating first**: the database key then reads as absent, and `obtainDatabaseCipher` deletes `zuno.db`.
 - **Never give `zuno.db` a plaintext header**, because the key cache and the shared open read the salt from its first bytes. Those reads also drop the process's POSIX locks on the file, one more reason the database never moves to an App Group (`../decisions/ios-push-and-ring.md`).
 - **SQLCipher 5 cannot open a 4.x database with its defaults**, so a bump needs compatibility settings or a migration.
-- **The SDK keeps every encrypted to-device payload for replay and queues failed sends**, so the app's database keeps ephemeral payloads (live location positions and watches) out of both, or coordinates would reach the disk and stale positions would replay later.
+- **The SDK keeps every encrypted to-device payload for replay and queues failed sends**, so the app's database keeps ephemeral payloads (call keys, live location positions and watches) out of both, or keys and coordinates would reach the disk and stale ones would replay later.
 - **App Group files are written through a temp file and a rename, never in the purged `Library/Caches`**, because a file lock held at suspension gets the process killed (`0xdead10cc`). The write takes the temp file's protection class, so set it on the temp file.
 - **File work at iOS launch waits for protected data** (`ProtectedDataGate`), because a launch before first unlock, such as a VoIP ring, can neither read nor change the app's files.
 - **Darwin notifications between the app and its extensions are system-wide**, so they only ever mean "go re-read" and never carry data or authority.

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
-import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/linked_sign_in.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -63,10 +62,21 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
       setState(() => _error = notASignInCodeMessage);
       return;
     }
-    await _useCode(code);
+    await _signIn(server: code.server, token: code.token);
   }
 
-  Future<void> _useCode(LinkedSignInCode code) async {
+  Future<void> _submitTyped() async {
+    if (_busy) return;
+    closeKeyboard();
+    final code = parseTypedSignInCode(_code.text);
+    if (code == null) {
+      setState(() => _error = 'Enter the code');
+      return;
+    }
+    await _signIn(server: code.server, token: code.token);
+  }
+
+  Future<void> _signIn({required String? server, required String token}) async {
     if (_busy) return;
     final Uri chosen;
     try {
@@ -76,25 +86,6 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
       return;
     }
     if (!mounted) return;
-    if (!code.isForServer(chosen.host)) {
-      setState(() => _error = codeForAnotherServerMessage(code.server));
-      return;
-    }
-    await _signIn(code.token);
-  }
-
-  Future<void> _submitTyped() async {
-    if (_busy) return;
-    closeKeyboard();
-    final token = typedSignInCode(_code.text);
-    if (token.isEmpty) {
-      setState(() => _error = 'Enter the code');
-      return;
-    }
-    await _signIn(token);
-  }
-
-  Future<void> _signIn(String token) async {
     setState(() {
       _loading = true;
       _error = null;
@@ -106,14 +97,16 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
           .during(
             () => signInWithLinkedCode(
               client,
+              server: server,
               token: token,
+              chosenServer: chosen,
               deviceDisplayName: sessionDisplayName(Platform.operatingSystem),
             ),
           );
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e, s) {
-      if (!isLoginRefusal(e)) reportCaught('linked sign in', e, s);
+      if (!isLinkedSignInRefusal(e)) reportCaught('linked sign in', e, s);
       if (!mounted) return;
       setState(() => _error = linkedSignInErrorMessage(e));
       holdRetriesFor(e, whenOver: () => _error = null);
@@ -154,6 +147,8 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
             autocorrect: false,
             enableSuggestions: false,
             keyboardType: TextInputType.visiblePassword,
+            minLines: 1,
+            maxLines: 2,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submitTyped(),
             decoration: const InputDecoration(

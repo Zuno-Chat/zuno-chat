@@ -59,7 +59,10 @@ class MxcAvatarImage extends ImageProvider<MxcAvatarImage> {
       try {
         return await decode(await ui.ImmutableBuffer.fromUint8List(bytes));
       } catch (_) {
-        await (disk ?? DiskAttachmentCache.instance).remove(_cacheKey);
+        await (disk ?? DiskAttachmentCache.instance).remove(
+          _cacheKey,
+          expires: false,
+        );
         rethrow;
       }
     } catch (_) {

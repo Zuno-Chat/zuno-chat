@@ -1,6 +1,5 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
@@ -8,6 +7,7 @@ import '../../../core/files/picked_file.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/recovery_code.dart';
 import '../../../core/security/recovery_code_file.dart';
+import '../../../core/security/secret_text.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/sensitive_clipboard.dart';
 import '../../../core/ui/step_hero.dart';
@@ -55,9 +55,7 @@ class _RecoveryCodeCreateFlowState
           case _Step.reveal:
             return _RevealScreen(
               code: code,
-              clipboardClears: ref
-                  .watch(platformCapabilitiesProvider)
-                  .sensitiveClipboard,
+              capabilities: ref.watch(platformCapabilitiesProvider),
               onContinue: () => setState(() {
                 _confirmIndices = recoveryConfirmationIndices();
                 _step = _Step.confirm;
@@ -79,11 +77,11 @@ class _RecoveryCodeCreateFlowState
 
 class _RevealScreen extends StatelessWidget {
   final String code;
-  final bool clipboardClears;
+  final PlatformCapabilities capabilities;
   final VoidCallback onContinue;
   const _RevealScreen({
     required this.code,
-    required this.clipboardClears,
+    required this.capabilities,
     required this.onContinue,
   });
 
@@ -96,23 +94,15 @@ class _RevealScreen extends StatelessWidget {
       body:
           'If you lose this device and every other signed-in device, this code '
           'is the only way back to your messages. Nobody can restore them for '
-          'you. Write it down, or save it below.',
+          'you. Write it down, save it as a file, or copy it into a password '
+          'manager.',
       children: [
         _WordGrid(words: words),
         const SizedBox(height: 24),
         _WideButton(
-          icon: Icons.password_outlined,
-          label: 'Save to password manager',
-          onPressed: () => showDialog<void>(
-            context: context,
-            builder: (context) => _PasswordManagerSaveDialog(code: code),
-          ),
-        ),
-        const SizedBox(height: 8),
-        _WideButton(
           icon: Icons.save_outlined,
           label: 'Save as a file',
-          onPressed: () => _saveAsFile(context, code),
+          onPressed: () => _saveAsFile(context, code, capabilities),
         ),
         const SizedBox(height: 8),
         _WideButton(
@@ -123,7 +113,7 @@ class _RevealScreen extends StatelessWidget {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  clipboardClears
+                  capabilities.sensitiveClipboard
                       ? 'Copied. Clears from the clipboard in 90 seconds.'
                       : 'Copied. It stays on the clipboard until you copy '
                             'something else.',
@@ -139,76 +129,14 @@ class _RevealScreen extends StatelessWidget {
   }
 }
 
-class _PasswordManagerSaveDialog extends StatefulWidget {
-  final String code;
-  const _PasswordManagerSaveDialog({required this.code});
-
-  @override
-  State<_PasswordManagerSaveDialog> createState() =>
-      _PasswordManagerSaveDialogState();
-}
-
-class _PasswordManagerSaveDialogState
-    extends State<_PasswordManagerSaveDialog> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.code,
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Save to your password manager'),
-      content: AutofillGroup(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Your password manager should offer to save this. Give it a name '
-              'you will recognize, such as "Zuno recovery code".',
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _controller,
-              readOnly: true,
-              maxLines: 2,
-              autofillHints: const [AutofillHints.newPassword],
-              decoration: const InputDecoration(
-                labelText: 'Recovery code',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            TextInput.finishAutofillContext();
-            Navigator.of(context).pop();
-          },
-          child: const Text('Done'),
-        ),
-      ],
-    );
-  }
-}
-
-Future<void> _saveAsFile(BuildContext context, String code) async {
+Future<void> _saveAsFile(
+  BuildContext context,
+  String code,
+  PlatformCapabilities capabilities,
+) async {
   final messenger = ScaffoldMessenger.of(context);
   try {
-    final uri = await FilePicker.saveFile(
-      dialogTitle: 'Save your recovery code',
-      fileName: recoveryCodeFileName,
-      mimeType: 'text/plain',
-      bytes: encodeRecoveryCodeFile(code),
-    );
-    if (uri == null) return;
+    if (!await saveRecoveryCodeFile(code, capabilities: capabilities)) return;
     messenger.showSnackBar(const SnackBar(content: Text('Saved')));
   } catch (e, s) {
     reportCaught('save recovery code file', e, s);
@@ -325,7 +253,7 @@ class _WordRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: SelectableText(
+            child: SecretText(
               word,
               style: Theme.of(context).textTheme.titleMedium
                   ?.copyWith(fontFamily: 'monospace', letterSpacing: 0.5),
@@ -418,13 +346,9 @@ class _ConfirmScreenState extends State<_ConfirmScreen> {
       ],
       children: [
         for (var i = 0; i < widget.indices.length; i++) ...[
-          TextField(
-            autofillHints: null,
+          SecretTextField(
             controller: _controllers[i],
             autofocus: i == 0,
-            autocorrect: false,
-            enableSuggestions: false,
-            textCapitalization: TextCapitalization.none,
             decoration: InputDecoration(
               labelText: '${positions[i]} word',
               border: const OutlineInputBorder(),
@@ -507,15 +431,12 @@ class _RecoveryCodeEntryFieldState
       children: [
         AutofillGroup(
           onDisposeAction: AutofillContextAction.cancel,
-          child: TextField(
+          child: SecretTextField(
             autofillHints: const [AutofillHints.password],
             controller: widget.controller,
             autofocus: true,
             minLines: 2,
             maxLines: 4,
-            autocorrect: false,
-            enableSuggestions: false,
-            textCapitalization: TextCapitalization.none,
             keyboardType: TextInputType.visiblePassword,
             decoration: InputDecoration(
               labelText: 'Recovery code',

@@ -71,6 +71,8 @@ final class EngineHost {
   }
 
   static func launchAndRegister(arguments: [String], headless: Bool) -> FlutterEngine {
+    TemporaryLeftovers.discard(
+      TemporaryLeftovers.found(in: FileManager.default.temporaryDirectory))
     let engine = FlutterEngine(name: "io.flutter", project: nil, allowHeadlessExecution: true)
     engine.run(withEntrypoint: nil, libraryURI: nil, initialRoute: nil, entrypointArgs: arguments)
     registerPlugins(engine)
@@ -90,6 +92,7 @@ final class EngineHost {
       ("ZunoImageResizerPlugin", ImageResizerPlugin.self),
       ("ZunoAppDataPlugin", AppDataPlugin.self),
       ("ZunoCallsChannelPlugin", CallsChannelPlugin.self),
+      ("ZunoFileExportPlugin", FileExportPlugin.self),
       ("ZunoUploadServicePlugin", UploadServicePlugin.self),
       ("ZunoRoomLaunchPlugin", RoomLaunchPlugin.self),
       ("ZunoNotificationActionsPlugin", NotificationActionsPlugin.self),

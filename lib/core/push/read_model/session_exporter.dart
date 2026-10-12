@@ -228,18 +228,25 @@ int? trimPoint({
   required Map<int, int> decrypted,
   required Map<int, DateTime> firstSeen,
   required DateTime now,
+  int? exportedFrom,
   Duration grace = SessionExporter.grace,
 }) {
-  int? highest;
+  int? lowest;
+  int? highestRead;
   for (final MapEntry(key: index, value: eventTs) in decrypted.entries) {
+    if (lowest == null || index < lowest) lowest = index;
     final seen =
         firstSeen[index] ??
         (eventTs > 0 ? DateTime.fromMillisecondsSinceEpoch(eventTs) : null);
     if (seen != null && now.difference(seen) < grace) continue;
-    if (highest == null || index > highest) highest = index;
+    if (highestRead == null || index > highestRead) highestRead = index;
   }
-  return highest == null ? null : highest + 1;
+  final start = highestRead == null ? lowest : highestRead + 1;
+  if (start == null || exportedFrom == null) return start ?? exportedFrom;
+  return max(start, exportedFrom);
 }
+
+int _newestEvent(Map<int, int> decrypted) => decrypted.values.fold(0, max);
 
 class SessionExporter implements InboundSessionEvents {
   SessionExporter({
@@ -254,6 +261,7 @@ class SessionExporter implements InboundSessionEvents {
   static const grace = Duration(minutes: 2);
   static const idleAfter = Duration(days: 30);
   static const indexKey = 'nse.session_index';
+  static const exportedKey = 'nse.session_exported_from';
 
   final MegolmTrimmer _trimmer;
   final DateTime Function() _now;
@@ -261,6 +269,7 @@ class SessionExporter implements InboundSessionEvents {
   final _firstSeen = <String, Map<int, DateTime>>{};
   final _graceUntil = <String, DateTime>{};
   final _index = <String, Map<String, int>>{};
+  final _exportedFrom = <String, Map<String, int>>{};
   final _sessions = <String, List<Map<String, Object?>>>{};
   final _changes = <String, int>{};
   var _epoch = 0;
@@ -285,13 +294,14 @@ class SessionExporter implements InboundSessionEvents {
     required String indexes,
   }) {
     final now = _now();
+    final decrypted = decryptedIndexes(indexes);
     final known = decryptedIndexes(previous).keys.toSet();
     final seen = _firstSeen.putIfAbsent(sessionId, () => {});
-    for (final index in decryptedIndexes(indexes).keys) {
+    for (final index in decrypted.keys) {
       if (!known.contains(index)) seen.putIfAbsent(index, () => now);
     }
     _graceUntil[roomId] = now.add(grace);
-    _remember(roomId, sessionId, now.millisecondsSinceEpoch);
+    _remember(roomId, sessionId, _newestEvent(decrypted));
     _changed(roomId);
   }
 
@@ -314,43 +324,91 @@ class SessionExporter implements InboundSessionEvents {
     return rooms;
   }
 
-  void load(SharedPreferences prefs) {
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(prefs.getString(indexKey) ?? '{}');
-    } on FormatException {
-      return;
-    } catch (e, s) {
-      reportCaught('nse session index load', e, s);
-      return;
-    }
-    if (decoded is! Map) return;
-    for (final MapEntry(:key, :value) in decoded.entries) {
-      if (key is! String || value is! Map) continue;
-      for (final MapEntry(key: sessionId, value: at) in value.entries) {
-        if (sessionId is String && at is int) _remember(key, sessionId, at);
-      }
-    }
+  void forgetAccount() {
+    _dirty.clear();
+    _firstSeen.clear();
+    _graceUntil.clear();
+    _index.clear();
+    _exportedFrom.clear();
+    _sessions.clear();
+    _changes.clear();
+    _epoch++;
   }
 
-  Future<void> save(SharedPreferences prefs) =>
-      prefs.setString(indexKey, jsonEncode(_index));
+  void load(SharedPreferences prefs) {
+    final index = _stored(prefs, indexKey);
+    for (final MapEntry(key: roomId, value: sessions) in index.entries) {
+      for (final MapEntry(key: sessionId, value: at) in sessions.entries) {
+        _remember(roomId, sessionId, at);
+      }
+    }
+    _restoreExported(_stored(prefs, exportedKey));
+  }
+
+  Future<void> save(SharedPreferences prefs) async {
+    await prefs.setString(indexKey, jsonEncode(_index));
+    await prefs.setString(exportedKey, jsonEncode(_exportedFrom));
+  }
 
   Future<void> rebuild(Client client) async {
     final sessions = await client.database.getAllInboundGroupSessions();
+    final recency = {..._index};
+    final exportedFrom = {..._exportedFrom};
     _index.clear();
+    _exportedFrom.clear();
     _sessions.clear();
     _epoch++;
+    final joined = client.prevBatch == null
+        ? null
+        : {
+            for (final room in client.rooms)
+              if (room.membership == Membership.join) room.id,
+          };
     for (final session in sessions) {
+      if (joined != null && !joined.contains(session.roomId)) continue;
       final decrypted = decryptedIndexes(session.indexes);
       _remember(
         session.roomId,
         session.sessionId,
-        decrypted.values.fold(0, max),
+        decrypted.isEmpty
+            ? (recency[session.roomId]?[session.sessionId] ?? 0)
+            : _newestEvent(decrypted),
       );
     }
+    _restoreExported(exportedFrom);
     _dirty.addAll(_index.keys);
     onDirty?.call();
+  }
+
+  Map<String, Map<String, int>> _stored(SharedPreferences prefs, String key) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(prefs.getString(key) ?? '{}');
+    } on FormatException {
+      return const {};
+    } catch (e, s) {
+      reportCaught('nse session index load', e, s);
+      return const {};
+    }
+    if (decoded is! Map) return const {};
+    return {
+      for (final MapEntry(key: roomId, value: sessions) in decoded.entries)
+        if (roomId is String && sessions is Map)
+          roomId: {
+            for (final MapEntry(key: sessionId, value: number)
+                in sessions.entries)
+              if (sessionId is String && number is int) sessionId: number,
+          },
+    };
+  }
+
+  void _restoreExported(Map<String, Map<String, int>> exportedFrom) {
+    for (final MapEntry(key: roomId, value: sessions) in exportedFrom.entries) {
+      for (final MapEntry(key: sessionId, value: firstIndex)
+          in sessions.entries) {
+        _exported(roomId, sessionId, firstIndex);
+      }
+    }
   }
 
   Future<Map<String, Object?>> roomFields(
@@ -381,7 +439,7 @@ class SessionExporter implements InboundSessionEvents {
     final owners = _owners(room.client);
     final stored = <String, StoredInboundGroupSession>{};
     final candidates = <SessionCandidate>[];
-    for (final MapEntry(key: sessionId, value: addedMs) in [
+    for (final MapEntry(key: sessionId, value: recencyMs) in [
       ...?_index[room.id]?.entries,
     ]) {
       final session = await room.client.database.getInboundGroupSession(
@@ -390,14 +448,16 @@ class SessionExporter implements InboundSessionEvents {
       );
       if (session == null || session.roomId != room.id) continue;
       final decrypted = decryptedIndexes(session.indexes);
-      if (decrypted.isEmpty && _isForwarded(session.content)) continue;
+      final forwarded = _isForwarded(session.content);
+      final exportedFrom = _exportedFrom[room.id]?[sessionId];
+      if (decrypted.isEmpty && forwarded && exportedFrom == null) continue;
       stored[sessionId] = session;
       candidates.add(
         SessionCandidate(
           sessionId: sessionId,
           senderKey: session.senderKey,
-          recencyMs: decrypted.values.fold(addedMs, max),
-          used: decrypted.isNotEmpty,
+          recencyMs: max(_newestEvent(decrypted), recencyMs),
+          used: decrypted.isNotEmpty || forwarded,
         ),
       );
     }
@@ -408,6 +468,7 @@ class SessionExporter implements InboundSessionEvents {
         decrypted: decryptedIndexes(session.indexes),
         firstSeen: _firstSeen[sessionId] ?? const {},
         now: _now(),
+        exportedFrom: _exportedFrom[room.id]?[sessionId],
       );
       final trimmed = _trimmer.trim(
         pickle: session.pickle,
@@ -415,6 +476,7 @@ class SessionExporter implements InboundSessionEvents {
         fromIndex: start ?? 0,
       );
       if (trimmed == null) continue;
+      _exported(room.id, sessionId, trimmed.firstIndex);
       sessions.add({
         'session_id': sessionId,
         'sender': ?owners[session.senderKey],
@@ -451,6 +513,13 @@ class SessionExporter implements InboundSessionEvents {
       (a, b) => a.value <= b.value ? a : b,
     );
     sessions.remove(oldest.key);
+    _exportedFrom[roomId]?.remove(oldest.key);
+  }
+
+  void _exported(String roomId, String sessionId, int firstIndex) {
+    if (_index[roomId]?.containsKey(sessionId) != true) return;
+    final exported = _exportedFrom.putIfAbsent(roomId, () => {});
+    exported[sessionId] = max(exported[sessionId] ?? firstIndex, firstIndex);
   }
 
   (int, int) _stamp(String roomId) => (_epoch, _changes[roomId] ?? 0);

@@ -28,14 +28,6 @@ void main() {
       expect(LinkedSignInCode.decode('  ${code.encode()}\n')?.token, 'syl_abc');
     });
 
-    test('matches its server by host, ignoring case', () {
-      const code = LinkedSignInCode(server: 'Zuno.Chat', token: 'syl_abc');
-
-      expect(code.isForServer('zuno.chat'), isTrue);
-      expect(code.isForServer('api.zuno.chat'), isFalse);
-      expect(code.isForServer(null), isFalse);
-    });
-
     test('is plain text that no camera app opens as a link', () {
       const code = LinkedSignInCode(server: 'zuno.chat', token: 'syl_abc');
 
@@ -64,8 +56,67 @@ void main() {
       expect(groupedSignInCode('syl_abcdefghij'), 'syl_ abcd efgh ij');
     });
 
+    test('shows its server above the grouped token, so a typed code names '
+        'its server', () {
+      const code = LinkedSignInCode(server: 'example.org', token: 'syl_abc');
+
+      expect(code.typed, 'example.org\nsyl_ abc');
+      expect(parseTypedSignInCode(code.typed), (
+        server: 'example.org',
+        token: 'syl_abc',
+      ));
+    });
+
     test('a typed code loses the spaces the grouping added', () {
-      expect(typedSignInCode(' syl_ abcd efgh ij\n'), 'syl_abcdefghij');
+      expect(parseTypedSignInCode(' syl_ abcd efgh ij\n'), (
+        server: null,
+        token: 'syl_abcdefghij',
+      ));
+    });
+
+    test('a code typed with its server on one line keeps the server', () {
+      expect(parseTypedSignInCode('example.org syl_ abcd efgh'), (
+        server: 'example.org',
+        token: 'syl_abcdefgh',
+      ));
+      expect(parseTypedSignInCode('localhost:8008 syl_abcd'), (
+        server: 'localhost:8008',
+        token: 'syl_abcd',
+      ));
+    });
+
+    test('a pasted two-line code keeps its server', () {
+      expect(parseTypedSignInCode('zuno.chat\nsyl_ abcd efgh\n'), (
+        server: 'zuno.chat',
+        token: 'syl_abcdefgh',
+      ));
+    });
+
+    test('the text a camera reads from the QR code is a code', () {
+      const code = LinkedSignInCode(server: 'zuno.chat', token: 'syl_abcdefgh');
+
+      expect(parseTypedSignInCode(' ${code.encode()}\n'), (
+        server: 'zuno.chat',
+        token: 'syl_abcdefgh',
+      ));
+    });
+
+    test('a token from an older device, without a server, has none', () {
+      expect(parseTypedSignInCode('syl_abcdefgh'), (
+        server: null,
+        token: 'syl_abcdefgh',
+      ));
+    });
+
+    test('nothing typed is no code', () {
+      expect(parseTypedSignInCode(''), isNull);
+      expect(parseTypedSignInCode(' \n '), isNull);
+    });
+
+    test('the server line alone is no code', () {
+      for (final raw in ['zuno.chat', 'localhost:8008', '[::1]:8448 \n']) {
+        expect(parseTypedSignInCode(raw), isNull, reason: raw);
+      }
     });
   });
 
@@ -151,38 +202,133 @@ void main() {
   });
 
   group('signInWithLinkedCode', () {
+    late List<Map<String, Object?>> loginBodies;
+
+    Client loginServer() {
+      loginBodies = [];
+      return buildTestClient(
+        httpClient: MockClient((request) async {
+          expect(request.url.path, '/_matrix/client/v3/login');
+          loginBodies.add(jsonDecode(request.body) as Map<String, Object?>);
+          return http.Response(
+            jsonEncode({
+              'errcode': 'M_FORBIDDEN',
+              'error': 'Invalid login token',
+            }),
+            403,
+          );
+        }),
+      )..homeserver = Uri.parse('https://example.org');
+    }
+
+    Future<void> signIn({required String? server, required Uri chosen}) =>
+        signInWithLinkedCode(
+          loginServer(),
+          server: server,
+          token: 'syl_abc',
+          chosenServer: chosen,
+          deviceDisplayName: 'Zuno on Android',
+        );
+
     test(
       'signs in with the token, a refresh token and a device name',
       () async {
-        Map<String, Object?>? loginBody;
-        final client = buildTestClient(
-          httpClient: MockClient((request) async {
-            expect(request.url.path, '/_matrix/client/v3/login');
-            loginBody = jsonDecode(request.body) as Map<String, Object?>;
-            return http.Response(
-              jsonEncode({
-                'errcode': 'M_FORBIDDEN',
-                'error': 'Invalid login token',
-              }),
-              403,
-            );
-          }),
-        )..homeserver = Uri.parse('https://example.org');
-
         await expectLater(
-          signInWithLinkedCode(
-            client,
-            token: 'syl_abc',
-            deviceDisplayName: 'Zuno on Android',
-          ),
+          signIn(server: 'example.org', chosen: Uri.https('example.org')),
           throwsA(isA<MatrixException>()),
         );
 
-        expect(loginBody?['type'], 'm.login.token');
-        expect(loginBody?['token'], 'syl_abc');
-        expect(loginBody?['refresh_token'], isTrue);
-        expect(loginBody?['initial_device_display_name'], 'Zuno on Android');
-        expect(loginBody?.containsKey('password'), isFalse);
+        final loginBody = loginBodies.single;
+        expect(loginBody['type'], 'm.login.token');
+        expect(loginBody['token'], 'syl_abc');
+        expect(loginBody['refresh_token'], isTrue);
+        expect(loginBody['initial_device_display_name'], 'Zuno on Android');
+        expect(loginBody.containsKey('password'), isFalse);
+      },
+    );
+
+    test('matches the server ignoring case', () async {
+      await expectLater(
+        signIn(server: 'Example.Org', chosen: Uri.https('example.org')),
+        throwsA(isA<MatrixException>()),
+      );
+
+      expect(loginBodies, hasLength(1));
+    });
+
+    for (final (name, server, chosen) in [
+      ('with a port', 'localhost:8008', 'http://localhost:8008'),
+      ('ignoring the port', 'example.org:8448', 'https://example.org'),
+      ('on IPv6', '[::1]', 'https://[::1]'),
+      ('on IPv6 with a port', '[::1]:8448', 'https://[::1]:8448'),
+    ]) {
+      test('matches the chosen server $name', () async {
+        await expectLater(
+          signIn(server: server, chosen: Uri.parse(chosen)),
+          throwsA(isA<MatrixException>()),
+        );
+
+        expect(loginBodies.single['token'], 'syl_abc');
+      });
+    }
+
+    for (final (name, server, chosen) in [
+      ('on the same port', 'other.example:8008', 'http://localhost:8008'),
+      ('on IPv6', '[::2]', 'https://[::1]'),
+      ('that is no server name', '[::1', 'https://[::1]'),
+    ]) {
+      test('refuses another server $name', () async {
+        await expectLater(
+          signIn(server: server, chosen: Uri.parse(chosen)),
+          throwsA(
+            isA<SignInCodeForAnotherServer>().having(
+              (e) => e.server,
+              'server',
+              server,
+            ),
+          ),
+        );
+
+        expect(loginBodies, isEmpty);
+      });
+    }
+
+    test('a code for another server never reaches the chosen one', () async {
+      await expectLater(
+        signIn(server: 'other.example', chosen: Uri.https('example.org')),
+        throwsA(
+          isA<SignInCodeForAnotherServer>().having(
+            (e) => e.server,
+            'server',
+            'other.example',
+          ),
+        ),
+      );
+
+      expect(loginBodies, isEmpty);
+    });
+
+    test(
+      'a code for a subdomain of the chosen server is another server',
+      () async {
+        await expectLater(
+          signIn(server: 'api.example.org', chosen: Uri.https('example.org')),
+          throwsA(isA<SignInCodeForAnotherServer>()),
+        );
+
+        expect(loginBodies, isEmpty);
+      },
+    );
+
+    test(
+      'a code from an older device, naming no server, is still sent',
+      () async {
+        await expectLater(
+          signIn(server: null, chosen: Uri.https('example.org')),
+          throwsA(isA<MatrixException>()),
+        );
+
+        expect(loginBodies.single['token'], 'syl_abc');
       },
     );
   });
@@ -198,6 +344,16 @@ void main() {
         ),
         invalidSignInCodeMessage,
       );
+    });
+
+    test('a code for another server names it, and is not reported', () {
+      const error = SignInCodeForAnotherServer('other.example');
+
+      expect(
+        linkedSignInErrorMessage(error),
+        codeForAnotherServerMessage('other.example'),
+      );
+      expect(isLinkedSignInRefusal(error), isTrue);
     });
 
     test('other sign-in failures keep their usual wording', () {

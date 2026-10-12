@@ -5,6 +5,17 @@ import UIKit
 final class AppDataPlugin: NSObject, @preconcurrency FlutterPlugin {
   private nonisolated static let databaseSidecars = ["", "-wal", "-shm", "-journal"]
 
+  private let signOut: @MainActor () -> Bool
+  private let emptyFiles: @Sendable ([String]) -> Bool
+
+  init(
+    signOut: @escaping @MainActor () -> Bool = { PushRingHandler.shared.signOut() },
+    emptyFiles: @escaping @Sendable ([String]) -> Bool = { AppDataPlugin.wipe(keeping: $0) }
+  ) {
+    self.signOut = signOut
+    self.emptyFiles = emptyFiles
+  }
+
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
       name: "zuno/app_data", binaryMessenger: registrar.messenger())
@@ -21,17 +32,19 @@ final class AppDataPlugin: NSObject, @preconcurrency FlutterPlugin {
       result(false)
       return
     }
+    let signedOut = signOut()
+    let emptyFiles = self.emptyFiles
     Task {
-      let wiped = await withCheckedContinuation { continuation in
+      let emptied = await withCheckedContinuation { continuation in
         DispatchQueue.global(qos: .userInitiated).async {
-          continuation.resume(returning: Self.wipe(keeping: keep))
+          continuation.resume(returning: emptyFiles(keep))
         }
       }
-      result(wiped)
+      result(signedOut && emptied)
     }
   }
 
-  private nonisolated static func wipe(keeping databases: [String]) -> Bool {
+  nonisolated static func wipe(keeping databases: [String]) -> Bool {
     let files = FileManager.default
     let library = files.urls(for: .libraryDirectory, in: .userDomainMask).first
     let wiped = empty(

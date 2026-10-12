@@ -528,7 +528,7 @@ class LiveLocationViewing {
     try {
       final device = await _deviceOf(target.userId, target.deviceId);
       if (device == null) return false;
-      await sendEphemeralToDevice(
+      final unreached = await sendEphemeralToDevice(
         _client,
         [device],
         liveLocationWatchType,
@@ -538,7 +538,7 @@ class LiveLocationViewing {
           active: active,
         ),
       );
-      return true;
+      return unreached.isEmpty;
     } catch (error, stack) {
       reportCaughtType('live location watch', error, stack);
       return false;

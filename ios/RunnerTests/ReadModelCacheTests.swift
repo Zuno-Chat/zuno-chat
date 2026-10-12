@@ -122,7 +122,7 @@ final class ReadModelCacheTests: XCTestCase {
     try cache.writeMeta(Data(meta.utf8))
     cache.setSignedOut(true)
 
-    cache.wipe()
+    XCTAssertTrue(cache.wipe())
 
     XCTAssertNil(
       fixture.memory.stored(service: NotifyKeychain.service, account: NotifyKeychain.account))
@@ -130,6 +130,44 @@ final class ReadModelCacheTests: XCTestCase {
     XCTAssertEqual(cache.signedOut(), .present)
     cache.setSignedOut(false)
     XCTAssertEqual(cache.signedOut(), .absent)
+  }
+
+  func testWhileSignedOutNothingMintsTheSecretsSoALateWriteLeavesNothing() throws {
+    let fixture = try ReadModelFixture(self)
+    let cache = fixture.cache()
+    cache.setSignedOut(true)
+
+    XCTAssertThrowsError(try cache.writeMeta(Data(meta.utf8)))
+    XCTAssertThrowsError(try cache.writeRoom(roomId: "!abc:zuno.im", json: Data(room.utf8)))
+    XCTAssertNil(cache.threadKey(roomId: "!abc:zuno.im"))
+    XCTAssertEqual(cache.secrets(create: true), .unavailable)
+
+    XCTAssertNil(
+      fixture.memory.stored(service: NotifyKeychain.service, account: NotifyKeychain.account))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.store.url(NotifyFile.meta).path))
+    cache.setSignedOut(false)
+    XCTAssertNoThrow(try cache.writeMeta(Data(meta.utf8)))
+  }
+
+  func testSecretsKeptFromBeforeTheSignOutStillServeUntilTheWipe() throws {
+    let fixture = try ReadModelFixture(self)
+    let cache = fixture.cache()
+    try cache.writeMeta(Data(meta.utf8))
+    cache.setSignedOut(true)
+
+    XCTAssertNoThrow(try fixture.cache().writeRoom(roomId: "!abc:zuno.im", json: Data(room.utf8)))
+  }
+
+  func testAWipeThatCannotDeleteTheItemSaysSo() throws {
+    let fixture = try ReadModelFixture(self)
+    let cache = fixture.cache()
+    try cache.writeMeta(Data(meta.utf8))
+    fixture.memory.locked = true
+
+    XCTAssertFalse(cache.wipe())
+
+    fixture.memory.locked = false
+    XCTAssertTrue(cache.wipe())
   }
 
   func testTheThreadKeyIsTheOpaqueRoomToken() throws {
@@ -205,6 +243,20 @@ final class NsePluginTests: XCTestCase {
 
     XCTAssertEqual((meta as? FlutterError)?.code, "keychain")
     XCTAssertEqual((room as? FlutterError)?.code, "keychain")
+  }
+
+  func testAfterASignOutWritesAreRefusedUntilDartOpensTheReadModel() throws {
+    let (plugin, cache) = try plugin()
+    let meta = #"{"v":1,"user":"@me:zuno.im","device":"D","heartbeat_ms":1}"#
+    cache.setSignedOut(true)
+
+    let refused = immediateReply(from: plugin, method: "writeMeta", arguments: ["json": meta])
+
+    XCTAssertEqual((refused as? FlutterError)?.code, "keychain")
+    XCTAssertNil(immediateReply(from: plugin, method: "open"))
+    XCTAssertEqual(cache.signedOut(), .absent)
+    XCTAssertNil(immediateReply(from: plugin, method: "writeMeta", arguments: ["json": meta]))
+    XCTAssertEqual(cache.meta()?.user, "@me:zuno.im")
   }
 
   func testDeleteAndWipeAnswerNothing() throws {

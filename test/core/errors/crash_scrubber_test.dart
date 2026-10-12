@@ -125,6 +125,89 @@ void main() {
       );
     });
 
+    test('drops the arguments a database error appends, which can carry '
+        'the access token', () {
+      expect(
+        scrubText(
+          'DatabaseException(UNIQUE constraint failed: box_client.k (code '
+          "2067)) sql 'INSERT OR REPLACE INTO box_client (k, v) VALUES (?, ?)' "
+          'args [token, "syt_YWxpY2U_HzbNpqAhnEEBdVrbsElh_0iNTYz"]',
+        ),
+        'DatabaseException(UNIQUE constraint failed: box_client.k (code '
+        "2067)) sql 'INSERT OR REPLACE INTO box_client (k, v) VALUES (?, ?)' "
+        'args [redacted]',
+      );
+    });
+
+    test('drops database arguments that span lines or hold brackets', () {
+      final scrubbed = scrubText(
+        "DatabaseException(disk I/O error) sql 'UPDATE box_x SET v = ?' "
+        'args [line one]\nline two, syt_refresh]',
+      );
+
+      expect(
+        scrubbed,
+        "DatabaseException(disk I/O error) sql 'UPDATE box_x SET v = ?' "
+        'args [redacted]',
+      );
+    });
+
+    test('redacts a raw token wherever it turns up', () {
+      expect(
+        scrubText(
+          'refresh failed for syr_YWxpY2U_aBcDeFgHiJkLmNoPqRsT_1a2B3c '
+          'and 2d2de6b6c6565ad95bf365845db19da9',
+        ),
+        'refresh failed for [redacted] and [redacted]',
+      );
+    });
+
+    test('keeps Dart private class names and long file names readable', () {
+      const text =
+          'setState() called after dispose(): '
+          '_SecurityPrivacySettingsPageState#a1b2c in '
+          'pending_call_notification_action_provider.dart';
+
+      expect(scrubText(text), text);
+    });
+
+    test('redacts a sign-in token and a compatibility token', () {
+      final text = scrubText(
+        'login syl_aBcDeFgHiJkLmNoPqRsT_0iNTYz and mct_aBcDeFgHiJkLmNoPqRsTuV',
+      )!;
+
+      expect(text, isNot(contains('aBcDeFgHiJkLmNoPqRsT')));
+    });
+
+    test('redacts a base64 key split by slashes', () {
+      expect(
+        scrubText('key q8Zp/3kL9vT2mW+xR4nB/7cY1aE6dH0sJ5uF/2gK8oQ'),
+        isNot(contains('/')),
+      );
+    });
+
+    test('redacts a Matrix token even with no digit in it', () {
+      expect(
+        scrubText('token syt_YWxpY2U_HzbNpqAhnEEBdVrbsElh_aBcDeF'),
+        isNot(contains('HzbNpqAhnEEBdVrbsElh')),
+      );
+    });
+
+    test('keeps long exception class names readable', () {
+      const text =
+          'android.security.keystore.KeyPermanentlyInvalidatedException: '
+          'Key permanently invalidated';
+
+      expect(scrubText(text), text);
+    });
+
+    test('keeps a long path and the SDK file an error came from', () {
+      const text =
+          'timed out: /_matrix/client/v3/keys/device_signing/upload in '
+          'src/database/matrix_sdk_database.dart:812';
+      expect(scrubText(text), text);
+    });
+
     test('leaves an ordinary stack trace alone', () {
       const trace =
           '#0      main (package:zuno/main.dart:12:3)\n'

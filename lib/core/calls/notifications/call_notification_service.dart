@@ -11,8 +11,9 @@ import 'package:matrix/matrix.dart' show Client;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/caught_errors.dart';
+import '../../errors/device_log.dart';
 import '../../matrix/matrix_client_provider.dart';
-import '../../network/user_agent.dart';
+import '../../network/app_http_overrides.dart';
 import '../../notifications/message_notification_action.dart';
 import '../../notifications/message_notification_content.dart';
 import '../../notifications/notification_avatar_cache.dart';
@@ -169,7 +170,10 @@ const declinePortName = 'zuno_call_decline_port';
 const messageActionPortName = 'zuno_message_action_port';
 
 @pragma('vm:entry-point')
-void _handleBackgroundCallResponse(NotificationResponse response) {
+void _handleBackgroundCallResponse(NotificationResponse response) =>
+    runWithDeviceLogFloor(() => _handleBackgroundResponse(response));
+
+void _handleBackgroundResponse(NotificationResponse response) {
   final messageAction = messageNotificationActionFrom(
     actionId: response.actionId,
     payload: response.payload,
@@ -208,7 +212,7 @@ void _handleBackgroundCallResponse(NotificationResponse response) {
 }
 
 Future<Client> _oneShotClient() async {
-  await installUserAgent();
+  await installAppHttpOverrides();
   return (await createMatrixClient(backgroundSync: false)).client;
 }
 

@@ -93,8 +93,15 @@ sequenceDiagram
 
 | Side | What happens |
 |---|---|
-| Signed-in device | `SignInAnotherDevicePage` asks for the password, mints a login token (MSC3882) and shows it as a QR code holding `ZUNO-SIGN-IN 1 <server name> <token>`, and as text to type, until it expires. |
-| New device | `LinkedSignInPage` scans or takes the token and signs in with `m.login.token`. |
+| Signed-in device | `SignInAnotherDevicePage` asks for the password, mints a login token (MSC3882) and shows it as a QR code holding `ZUNO-SIGN-IN 1 <server name> <token>`, and as text to type, the server name above the grouped token, until it expires. |
+| New device | `LinkedSignInPage` scans the QR code or takes typed text, and signs in with `m.login.token`. |
+
+- **Typed text may be the two lines, the QR code's text pasted, or the
+  token alone**, since devices on older versions show no server name. A
+  server line alone asks for the code.
+- **One redeem function checks the server** for scanned and typed codes
+  alike, comparing hosts only, because a server name's port is its
+  federation port, not the client API's.
 
 ### Sign-out and account deletion
 
@@ -119,6 +126,9 @@ What the push teardown does is in `notifications.md`.
 - **A sign-in code never switches the server.** The code names the server
   that minted it and a mismatch is refused, because switching automatically
   would let a hostile code sign someone into an attacker's server.
+- **A server whose discovery points at http is refused with a message
+  that says so**, not as unreachable, because Dart connects only over
+  https (`app-foundation.md`).
 - **Sign-in codes are plain text, scanned in-app only.** A URL would open
   from the system camera and leave the token in scan and browser history.
 - **A sign-in leaves the signed-out screens only once its SDK call

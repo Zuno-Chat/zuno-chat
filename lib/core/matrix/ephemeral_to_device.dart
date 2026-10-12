@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:matrix/matrix.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 
+import '../calls/matrixrtc/call_encryption_key_event.dart';
 import '../location/live_location_protocol.dart';
 import 'database_compaction.dart';
 
@@ -11,21 +12,32 @@ const _ephemeralTxnPrefix = 'zuno-ephemeral-';
 const ephemeralToDeviceTypes = {
   liveLocationPositionType,
   liveLocationWatchType,
+  callEncryptionKeyEventType,
 };
 
-Future<void> sendEphemeralToDevice(
+Future<List<DeviceKeys>> sendEphemeralToDevice(
   Client client,
   List<DeviceKeys> devices,
   String type,
   Map<String, Object?> content,
-) {
+) async {
   assert(ephemeralToDeviceTypes.contains(type));
-  return client.sendToDeviceEncrypted(
+  await client.sendToDeviceEncrypted(
     List.of(devices),
     type,
     content,
     messageId: '$_ephemeralTxnPrefix${client.generateUniqueTransactionId()}',
   );
+  final sessions = client.encryptionEnabled
+      ? client.encryption?.olmManager.olmSessions
+      : null;
+  if (sessions == null) return const [];
+  return [
+    for (final device in devices)
+      if (!device.blocked &&
+          !(sessions[device.curve25519Key]?.isNotEmpty ?? false))
+        device,
+  ];
 }
 
 bool _isEphemeralPayload(String lastSentMessage) {

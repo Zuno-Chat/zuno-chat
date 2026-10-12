@@ -40,7 +40,6 @@ class PlatformCapabilities {
   final bool callMuteByInputMixer;
   final bool signOutWipeKeepsProcess;
   final bool locationServicesSettings;
-  final bool filesTypedByExtension;
   final bool atomicDatabaseBatches;
   final bool nativeRoomOpens;
   final bool clientLease;
@@ -53,7 +52,11 @@ class PlatformCapabilities {
   final bool videoRendererNeedsDetach;
   final bool cameraStopsInBackground;
   final bool externalPaymentLinks;
+  final bool nativeSensitiveFileExport;
+  final bool nativeFileShare;
+  final bool audioPlayerNeedsFile;
   final bool liveLocation;
+  final bool nativeLogFloor;
   final MapsApp mapsApp;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
@@ -92,7 +95,6 @@ class PlatformCapabilities {
     required this.callMuteByInputMixer,
     required this.signOutWipeKeepsProcess,
     required this.locationServicesSettings,
-    required this.filesTypedByExtension,
     required this.atomicDatabaseBatches,
     required this.nativeRoomOpens,
     required this.clientLease,
@@ -105,7 +107,11 @@ class PlatformCapabilities {
     required this.videoRendererNeedsDetach,
     required this.cameraStopsInBackground,
     required this.externalPaymentLinks,
+    required this.nativeSensitiveFileExport,
+    required this.nativeFileShare,
+    required this.audioPlayerNeedsFile,
     required this.liveLocation,
+    required this.nativeLogFloor,
     required this.mapsApp,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
@@ -148,7 +154,6 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         callMuteByInputMixer: false,
         signOutWipeKeepsProcess: false,
         locationServicesSettings: true,
-        filesTypedByExtension: false,
         atomicDatabaseBatches: true,
         nativeRoomOpens: true,
         clientLease: true,
@@ -161,7 +166,11 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         videoRendererNeedsDetach: false,
         cameraStopsInBackground: false,
         externalPaymentLinks: true,
+        nativeSensitiveFileExport: false,
+        nativeFileShare: true,
+        audioPlayerNeedsFile: false,
         liveLocation: true,
+        nativeLogFloor: true,
         mapsApp: MapsApp.geoIntent,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
@@ -204,7 +213,6 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         callMuteByInputMixer: true,
         signOutWipeKeepsProcess: true,
         locationServicesSettings: false,
-        filesTypedByExtension: true,
         atomicDatabaseBatches: false,
         nativeRoomOpens: true,
         clientLease: true,
@@ -217,7 +225,11 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         videoRendererNeedsDetach: true,
         cameraStopsInBackground: true,
         externalPaymentLinks: false,
+        nativeSensitiveFileExport: true,
+        nativeFileShare: false,
+        audioPlayerNeedsFile: true,
         liveLocation: true,
+        nativeLogFloor: false,
         mapsApp: MapsApp.appleMaps,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,

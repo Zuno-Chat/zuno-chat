@@ -222,10 +222,23 @@ tier.
   flutter_webrtc's `FrameCryptor`. It is deliberately not the room's
   Megolm session, which follows room membership rather than the call and
   whose ordered ratchet does not suit lossy media.
-- **The key travels Olm-encrypted over to-device**, from any device holding
-  it to each device that joins. The first valid key wins: one from a
-  known, unblocked device of a current participant, looked up only among
-  its sender's own devices.
+- **The key travels Olm-encrypted over to-device as an ephemeral
+  message**, which the SDK never stores or replays (`app-foundation.md`),
+  from any device holding it to each device that joins. The first valid
+  key wins: one from a known, unblocked device of a current participant,
+  looked up only among its sender's own devices.
+- **Each device gets its own relay, retried with backoff for the life of
+  the call until delivered**, and stopped when the call ends or that
+  device leaves. A send that reached no Olm session counts as not
+  delivered, because the SDK silently skips a device it has no session
+  with.
+- **A participant that receives the key late relays it to every device it
+  already knows**, so the key spreads even when its first sender could not
+  reach everyone.
+- **A device that starts a new Olm session is sent the key again**, since a
+  new session means it could not decrypt over the old one.
+- **Device keys are fetched only when that user's device list is unknown or
+  stale**, so relay retries cost no key queries.
 - **The key is never rotated**, since rotating on every departure would
   interrupt everyone's media.
 - **Media is gated on keys.** Each local sender owns its frame cryptor,

@@ -20,6 +20,10 @@ struct SystemKeychain: KeychainBackend {
     status == errSecInteractionNotAllowed || status == errSecNotAvailable
   }
 
+  static func isGone(_ status: OSStatus) -> Bool {
+    status == errSecSuccess || status == errSecItemNotFound
+  }
+
   func read(service: String, account: String, accessGroup: String?) -> KeychainRead {
     var query = Self.query(service: service, account: account, accessGroup: accessGroup)
     query[kSecReturnData as String] = true
@@ -158,8 +162,9 @@ struct NotifyKeychain: Sendable {
       == errSecSuccess
   }
 
-  func delete() {
-    _ = backend.delete(service: Self.service, accessGroup: accessGroup)
+  @discardableResult
+  func delete() -> Bool {
+    SystemKeychain.isGone(backend.delete(service: Self.service, accessGroup: accessGroup))
   }
 
   private func create() -> NotifySecretsRead {

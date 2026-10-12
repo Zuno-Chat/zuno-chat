@@ -112,7 +112,7 @@ object FcmRouter {
                     }
 
                     override fun error(code: String, message: String?, details: Any?) {
-                        Log.w(TAG, "Dart could not handle ${job.method} ($code: $message)")
+                        Log.w(TAG, "Dart could not handle ${job.method} ($code)")
                         perform(routing.handled(job.id, now()))
                     }
 

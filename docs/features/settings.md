@@ -71,9 +71,9 @@ Delete account (`authentication.md`).
 
 Rows that exist on one platform only are gated on
 `platformCapabilitiesProvider` (`app-foundation.md`), and a card with no
-applicable rows disappears. The on-device protections this doc owns share
-the "On this device" card in Security with Confirmed people only
-(`security-verification.md`), which both platforms show:
+applicable rows disappears. The on-device protections this doc owns sit on
+the "On this device" card in Security. Confirmed people only belongs there
+too but is not offered for now (`security-verification.md`).
 
 | Row | Android | iOS |
 |---|---|---|
@@ -84,6 +84,11 @@ No iOS app can block a screenshot. Hide screen content instead covers Zuno
 with the launch screen while the app is inactive and while the screen is
 recorded, mirrored or shared.
 
+A screen showing a secret (the recovery code, a sign-in code, a revealed
+password) turns that protection on while it shows, whatever the setting
+says. One ref-counted owner combines the setting with every such screen, so
+closing one never turns protection off under another or under the setting.
+
 ## Planned, not built
 
 **Profile visibility** would let someone choose who sees their name and
@@ -92,9 +97,6 @@ controls are server-wide and a client-only setting would enforce nothing.
 
 ## Gotchas
 
-- **Security → Advanced is a disabled placeholder.** Before wiring it back,
-  remove `TemporarySessionTokenTile`, a developer tool that shows an access
-  token.
 - **`readPreventScreenshots` is the one default** for both the provider and
   the cold-start call in `main.dart`, so change it there only.
 - **About reads the library versions from `pubspec.lock`, bundled as an

@@ -146,6 +146,12 @@ so another client cannot claim a longer share.
 - **Positions and watches are never stored or replayed** (`app-foundation.md`):
   a send that failed offline goes out again only as the newest position, on
   reconnect.
+- **A device a send could not reach is skipped for a while**, because the
+  SDK would try to open an Olm session with it on every send, and it is let
+  back in as soon as it watches, which proves it is reachable.
+- **A watch counts as sent only if it reached the sharer's device**, so one
+  that found no Olm session is sent again later instead of leaving the share
+  reading as updating.
 - **An error that can carry a position is reported by its type or code
   only** (`crash-reporting.md`), from finding a fix for a pin to live
   capture and sends, because its text could put a location in a crash

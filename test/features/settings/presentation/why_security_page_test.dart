@@ -26,7 +26,6 @@ void main() {
       'Why a recovery code',
       'Why new devices ask for approval',
       'Why confirming people matters',
-      'Confirmed people only',
       'When Zuno interrupts you',
     ]) {
       expect(
@@ -36,6 +35,20 @@ void main() {
       );
     }
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('does not explain Confirmed people only while it is not '
+      'offered', (tester) async {
+    await pumpPage(tester, height: 3000);
+
+    expect(
+      find.text('Confirmed people only', skipOffstage: false),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('Turn on Confirmed people only', skipOffstage: false),
+      findsNothing,
+    );
   });
 
   testWidgets('names the limits of encryption up front', (tester) async {

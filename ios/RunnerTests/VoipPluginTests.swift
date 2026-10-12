@@ -92,8 +92,8 @@ final class VoipPluginTests: XCTestCase {
     _ = immediateReply(from: plugin, method: "status")
 
     XCTAssertNil(immediateReply(from: plugin, method: "setSession", arguments: ["signedIn": false]))
-    XCTAssertEqual(VoipKeyStore(backend: voip.memory).load(), .missing)
     XCTAssertEqual(voip.ring.cache.signedOut(), .present)
+    XCTAssertNotEqual(VoipKeyStore(backend: voip.memory).load(), .missing)
   }
 
   func testADevelopmentBuildExportsTheTestValuesWithAHexToken() throws {

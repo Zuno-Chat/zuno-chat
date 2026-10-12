@@ -118,7 +118,7 @@ object PushNotice {
             notified = true
             synchronized(posted) { posted[roomId] = eventId }
             if (alert.vibrate) vibrate(context)
-            Log.d(TAG, "Instant notice posted for $roomId")
+            Log.d(TAG, "Instant notice posted")
         } catch (e: Exception) {
             Log.w(TAG, "Could not post the instant notice", e)
         }

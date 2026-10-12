@@ -1,8 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/calls/matrixrtc/call_encryption_key_event.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/matrix/ephemeral_to_device.dart';
 
@@ -51,6 +53,16 @@ class _SendingClient extends Client {
   }) async => txnIds.add(messageId);
 }
 
+class _EncryptingClient extends _SendingClient {
+  late final Encryption _encryption = Encryption(client: this);
+
+  @override
+  bool get encryptionEnabled => true;
+
+  @override
+  Encryption? get encryption => _encryption;
+}
+
 void main() {
   late _PolicyDatabase database;
 
@@ -75,6 +87,55 @@ void main() {
 
     expect(database.lastSent, isEmpty);
   });
+
+  test('a call key is never kept for replay', () async {
+    await database.setLastSentMessageUserDeviceKey(
+      payload(callEncryptionKeyEventType),
+      '@a:x',
+      'D',
+    );
+
+    expect(database.lastSent, isEmpty);
+  });
+
+  test('a call key goes out as an ephemeral send', () async {
+    final client = _SendingClient();
+
+    await sendEphemeralToDevice(
+      client,
+      [testDeviceKeys(client, '@a:x', 'D')],
+      callEncryptionKeyEventType,
+      const {'k': 'v'},
+    );
+
+    expect(client.txnIds.single, startsWith('zuno-ephemeral-'));
+  });
+
+  test(
+    'reports the devices it could not reach, leaving out blocked ones',
+    () async {
+      final client = _EncryptingClient();
+      final reached = SelfSignedTestDeviceKeys(
+        testDeviceKeysJson('@a:x', 'A'),
+        client,
+      );
+      final missed = SelfSignedTestDeviceKeys(
+        testDeviceKeysJson('@a:x', 'B'),
+        client,
+      );
+      final blocked = testDeviceKeys(client, '@a:x', 'C');
+      openTestOlmSession(client.encryption!, 'A');
+
+      final unreached = await sendEphemeralToDevice(
+        client,
+        [reached, missed, blocked],
+        liveLocationPositionType,
+        const {},
+      );
+
+      expect(unreached, [missed]);
+    },
+  );
 
   test('room keys and other messages are still kept for replay', () async {
     await database.setLastSentMessageUserDeviceKey(

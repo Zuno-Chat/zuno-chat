@@ -11,7 +11,6 @@ import '../../calls/serial_lock.dart';
 import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../platform/platform_capabilities.dart';
-import '../read_model/nse_channel.dart';
 import '../registration_retry.dart';
 import 'voip_channel.dart';
 import 'voip_server.dart';
@@ -60,14 +59,11 @@ enum VoipRegistrationState {
 class VoipRegistration {
   VoipRegistration({
     VoipChannel voip = const VoipChannel(),
-    NseChannel nse = const NseChannel(),
     VoipServer Function(Client client)? server,
   }) : _channel = voip,
-       _readModel = nse,
        _server = server ?? ZunoPushVoipServer.new;
 
   final VoipChannel _channel;
-  final NseChannel _readModel;
   final VoipServer Function(Client client) _server;
   final _lock = SerialLock();
   final _retry = RegistrationRetry();
@@ -97,6 +93,7 @@ class VoipRegistration {
       _state.value == VoipRegistrationState.unavailable;
 
   Future<void> start(Client client) => _lock.run(() async {
+    if (!client.isLogged()) return;
     final status = await _channel.status();
     final session = _sessionOf(client);
     if (status == null || session == null) return;
@@ -143,7 +140,6 @@ class VoipRegistration {
     _serverOffsetMs.value = null;
     _lastRefusal.value = null;
     _state.value = VoipRegistrationState.idle;
-    await _readModel.wipe();
     await _channel.setSession(signedIn: false);
     await prefs.remove(voipSessionKey);
     await prefs.remove(voipAckedKey);
@@ -169,6 +165,7 @@ class VoipRegistration {
   }
 
   Future<void> _register(Client client) async {
+    if (!client.isLogged()) return;
     final status = await _channel.status();
     if (status == null) return;
     final token = status.token;

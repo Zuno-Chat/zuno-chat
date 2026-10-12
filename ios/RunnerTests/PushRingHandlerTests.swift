@@ -247,7 +247,7 @@ final class PushRingHandlerTests: XCTestCase {
     XCTAssertEqual(ring.handler.takeEvents(), [])
   }
 
-  func testSigningOutDropsTheKeyMarksTheGroupAndEndsCalls() throws {
+  func testTheSessionSwitchMarksTheGroupAndEndsCallsButLeavesTheKeysToTheSignOutWipe() throws {
     let ring = try RingFixture(self)
     _ = ring.push(RingFixture.payload())
     ring.harness.provider.complete()
@@ -255,10 +255,45 @@ final class PushRingHandlerTests: XCTestCase {
     ring.handler.setSignedIn(false)
 
     XCTAssertEqual(ring.cache.signedOut(), .present)
-    XCTAssertEqual(VoipKeyStore(backend: ring.read.memory).load(), .missing)
+    XCTAssertNotEqual(VoipKeyStore(backend: ring.read.memory).load(), .missing)
+    XCTAssertNotNil(
+      ring.read.memory.stored(service: NotifyKeychain.service, account: NotifyKeychain.account))
     XCTAssertEqual(ring.harness.provider.ended.map(\.0), [uuid])
     ring.handler.setSignedIn(true)
     XCTAssertEqual(ring.cache.signedOut(), .absent)
+  }
+
+  func testSigningOutWipesTheReadModelAndBothKeysSoALateWriteMintsNothing() throws {
+    let ring = try RingFixture(self)
+    _ = ring.push(RingFixture.payload())
+    ring.harness.provider.complete()
+
+    XCTAssertTrue(ring.handler.signOut())
+
+    XCTAssertEqual(ring.cache.signedOut(), .present)
+    XCTAssertEqual(ring.harness.provider.ended.map(\.0), [uuid])
+    XCTAssertNil(ring.cache.meta())
+    XCTAssertEqual(VoipKeyStore(backend: ring.read.memory).load(), .missing)
+    XCTAssertThrowsError(
+      try ring.cache.writeMeta(
+        Data(
+          #"{"v":1,"user":"@me:zuno.im","device":"PHONE","ringtone":true,"heartbeat_ms":2}"#.utf8)))
+    XCTAssertNil(ring.cache.threadKey(roomId: "!abc:zuno.im"))
+    XCTAssertNil(
+      ring.read.memory.stored(service: NotifyKeychain.service, account: NotifyKeychain.account))
+    XCTAssertFalse(
+      FileManager.default.fileExists(atPath: ring.read.store.url(NotifyFile.meta).path))
+    XCTAssertEqual(ring.handler.desiredPushTypes(), [])
+  }
+
+  func testASignOutThatCannotDeleteTheKeysSaysSoSoTheWipeIsRetried() throws {
+    let ring = try RingFixture(self)
+    ring.read.memory.locked = true
+
+    XCTAssertFalse(ring.handler.signOut())
+
+    ring.read.memory.locked = false
+    XCTAssertTrue(ring.handler.signOut())
   }
 
   func testWithoutCallKitNoVoipPushesAreAskedFor() throws {

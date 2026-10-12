@@ -275,6 +275,9 @@ class EncryptToVerifiedSessionsOnlyNotifier extends Notifier<bool> {
   }
 }
 
+// shortcut: Confirmed people only is hidden and a stored on is ignored, since call keys skip the key policy and one shared call key is relayed by every participant, offer it again once calls use per-sender keys that follow it
+const confirmedPeopleOnlyOffered = false;
+
 bool readEncryptToVerifiedSessionsOnly(SharedPreferences prefs) =>
     prefs.getBool(_encryptToVerifiedSessionsOnlyKey) ?? false;
 
@@ -295,7 +298,7 @@ class PreventScreenshotsNotifier extends Notifier<bool> {
 
   Future<void> set(bool value) async {
     state = value;
-    unawaited(ScreenSecurityService.instance.setPreventScreenshots(value));
+    unawaited(ScreenSecurityService.instance.followPreference(value));
     await ref
         .read(sharedPreferencesProvider)
         .setBool(_preventScreenshotsKey, value);

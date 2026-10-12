@@ -35,6 +35,9 @@ final class NsePlugin: NSObject, @preconcurrency FlutterPlugin {
     case "wipe":
       cache.wipe()
       result(nil)
+    case "open":
+      cache.setSignedOut(false)
+      result(nil)
     default:
       if NseAppMethods.handle(call, result: result) { return }
       result(FlutterMethodNotImplemented)

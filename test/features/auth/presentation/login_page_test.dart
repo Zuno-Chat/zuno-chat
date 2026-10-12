@@ -22,6 +22,7 @@ import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_homeserver.dart';
 import '../../../helpers/preferences_container.dart';
+import '../../../helpers/screen_security.dart';
 
 void main() {
   Finder field(String label) =>
@@ -39,10 +40,9 @@ void main() {
     String homeserver = 'https://example.org',
     String? chosenServerName,
     bool pushed = false,
-    Map<String, Object> preferences = const {},
   }) async {
     final container = await containerWithPreferences(
-      preferences,
+      {},
       overrides: [
         matrixClientProvider.overrideWithValue(
           (client ?? buildTestClient())..homeserver = Uri.parse(homeserver),
@@ -431,11 +431,8 @@ void main() {
   testWidgets('a shown password blocks screenshots until it is hidden', (
     tester,
   ) async {
-    final native = installFakeCallsChannel();
-    await pumpLoginPage(
-      tester,
-      preferences: {'settings.prevent_screenshots': false},
-    );
+    final native = await installScreenSecurity(preventScreenshots: false);
+    await pumpLoginPage(tester);
 
     await tester.tap(find.byTooltip('Show password'));
     await tester.pump();
@@ -449,7 +446,7 @@ void main() {
   testWidgets('hiding never lifts the block that is on by default', (
     tester,
   ) async {
-    final native = installFakeCallsChannel();
+    final native = await installScreenSecurity(preventScreenshots: true);
     await pumpLoginPage(tester);
 
     await tester.tap(find.byTooltip('Show password'));
@@ -463,12 +460,8 @@ void main() {
   testWidgets('leaving with the password shown restores screenshots', (
     tester,
   ) async {
-    final native = installFakeCallsChannel();
-    await pumpLoginPage(
-      tester,
-      pushed: true,
-      preferences: {'settings.prevent_screenshots': false},
-    );
+    final native = await installScreenSecurity(preventScreenshots: false);
+    await pumpLoginPage(tester, pushed: true);
 
     await tester.tap(find.byTooltip('Show password'));
     await tester.pump();

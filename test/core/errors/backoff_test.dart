@@ -43,6 +43,16 @@ void main() {
     expect(delay(5, 1), maxDelay);
   });
 
+  test('a late attempt stays within its bounds instead of overflowing', () {
+    expect(delay(50, 1), maxDelay);
+    expect(delay(100, 1), maxDelay);
+    expect(delay(5000, 1), maxDelay);
+    expect(
+      backoffDelay(5000, baseDelay: Duration.zero, maxDelay: maxDelay),
+      Duration.zero,
+    );
+  });
+
   test('a mid-range draw scales linearly within the ceiling', () {
     expect(delay(1, 0.5), const Duration(milliseconds: 100));
   });

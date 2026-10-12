@@ -29,7 +29,7 @@ object CaughtErrors {
     private const val TAG = "CaughtErrors"
 
     fun record(context: Context, label: String, error: Throwable) {
-        Log.w(TAG, label, error)
+        Log.w(TAG, "$label: ${error.javaClass.name}")
         synchronized(this) {
             val prefs = preferences(context)
             val updated = appended(prefs.getString(KEY, null), entryFor(label, error)) ?: return

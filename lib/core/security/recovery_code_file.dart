@@ -4,7 +4,9 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 
+import '../files/file_export.dart';
 import '../files/picked_file.dart';
+import '../platform/platform_capabilities.dart';
 
 const recoveryCodeFileName = 'zuno-recovery-code.txt';
 
@@ -14,6 +16,17 @@ final _controlCharacter = RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]');
 
 Uint8List encodeRecoveryCodeFile(String code) =>
     Uint8List.fromList(utf8.encode('$code\n'));
+
+Future<bool> saveRecoveryCodeFile(
+  String code, {
+  required PlatformCapabilities capabilities,
+}) => exportFile(
+  name: recoveryCodeFileName,
+  bytes: encodeRecoveryCodeFile(code),
+  mimeType: 'text/plain',
+  dialogTitle: 'Save your recovery code',
+  capabilities: capabilities,
+);
 
 String? decodeRecoveryCodeFile(Uint8List bytes) {
   if (bytes.length > _maxRecoveryCodeFileBytes) return null;

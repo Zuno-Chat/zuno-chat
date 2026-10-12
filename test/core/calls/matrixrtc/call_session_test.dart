@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zuno/core/calls/call_engine.dart';
@@ -58,6 +59,70 @@ class _PublishCountingClient extends Client {
     return '\$evt';
   }
 }
+
+class _KeyRelayClient extends Client {
+  _KeyRelayClient() : super('test', database: FakeDatabaseApi()) {
+    setUserId(_me);
+  }
+
+  final unreachable = <String>{};
+  final tries = <String>[];
+  final keysSent = <String, Map<String, dynamic>>{};
+  Completer<void>? hold;
+  bool olm = false;
+  late final Encryption _olm = Encryption(client: this);
+
+  @override
+  String? get deviceID => 'TESTDEVICE';
+
+  @override
+  bool get encryptionEnabled => olm;
+
+  @override
+  Encryption? get encryption => olm ? _olm : null;
+
+  void openOlmSession(String deviceId) => openTestOlmSession(_olm, deviceId);
+
+  bool _hasOlmSession(DeviceKeys device) =>
+      _olm.olmManager.olmSessions[device.curve25519Key]?.isNotEmpty ?? false;
+
+  @override
+  Future<String> setRoomStateWithKey(
+    String roomId,
+    String eventType,
+    String stateKey,
+    Map<String, Object?> body,
+  ) async => '\$evt';
+
+  @override
+  Future<void> sendToDeviceEncrypted(
+    List<DeviceKeys> deviceKeys,
+    String eventType,
+    Map<String, dynamic> message, {
+    String? messageId,
+    bool onlyVerified = false,
+  }) async {
+    final held = hold;
+    hold = null;
+    for (final device in deviceKeys) {
+      final deviceId = device.deviceId!;
+      tries.add(deviceId);
+      if (held != null) {
+        await held.future;
+      } else if (unreachable.contains(deviceId)) {
+        throw http.ClientException('502 Bad Gateway');
+      }
+      if (olm && !_hasOlmSession(device)) continue;
+      keysSent[deviceId] = message;
+    }
+  }
+}
+
+typedef _KeyRelayCall = ({
+  CallSession session,
+  _KeyRelayClient client,
+  Room room,
+});
 
 typedef _CountingSession = ({
   CallSession session,
@@ -978,49 +1043,198 @@ void main() {
       expect(keyQueries.first, contains(_bob));
     });
 
-    test(
-      'a failed device-key fetch is retried before the relay gives up',
-      () async {
-        failNextQuery = true;
-        bobInCall();
+    test('a failed device-key fetch is retried', () async {
+      failNextQuery = true;
+      bobInCall();
 
-        await relaying().accept();
-        await pumpEventQueue();
+      await relaying().accept();
+      await pumpEventQueue();
 
-        expect(keyQueries.length, greaterThanOrEqualTo(2));
-      },
-    );
+      expect(keyQueries.length, greaterThanOrEqualTo(2));
+    });
 
-    test(
-      'a known device that re-joins with a new sessionId is sent the key again',
-      () async {
-        bobInCall({'sessionId': 'bob-session-1'});
-        await relaying().accept();
-        await pumpEventQueue();
-        final firstPass = keyQueries.length;
-        expect(firstPass, greaterThan(0));
+    test('a device whose keys are already known is sent the key without '
+        'asking the server for them again', () async {
+      setTestDevices(relayClient, _bob, {'BOBDEVICE': null});
+      bobInCall();
+      joinTheCall(relayRoom, _caller, deviceId: 'CALLERDEV');
 
-        bobInCall({'sessionId': 'bob-session-2'});
-        await sync(relayClient);
+      await relaying().accept();
+      await pumpEventQueue();
 
-        expect(keyQueries.length, greaterThan(firstPass));
-      },
-    );
+      expect(keyQueries.where((query) => query.contains(_caller)), isNotEmpty);
+      expect(keyQueries.where((query) => query.contains(_bob)), isEmpty);
+    });
 
-    test('a relay that gives up while the call is on is reported, without '
-        'the device it was for', () async {
+    test('a device missing from an up-to-date device list is waited for '
+        'without asking the server again', () async {
       final logs = recordDebugPrints();
+      setTestDevices(relayClient, _bob, {'BOBOLDDEVICE': null});
       bobInCall();
 
       await relaying().accept();
       await pumpEventQueue();
 
       expect(
-        reported(logs),
-        contains(startsWith('zuno/caught: relay the call key:')),
+        logs.where((l) => l.startsWith('zuno/retry: call key relay')).length,
+        greaterThan(1),
       );
+      expect(keyQueries, isEmpty);
+    });
+
+    test('a device missing from an up-to-date device list is asked for once '
+        'the server says that user\'s devices changed', () async {
+      setTestDevices(relayClient, _bob, {'BOBOLDDEVICE': null});
+      bobInCall();
+      await relaying().accept();
+      await pumpEventQueue();
+      expect(keyQueries, isEmpty);
+
+      relayClient.userDeviceKeys[_bob]!.outdated = true;
+      await pumpEventQueue();
+
+      expect(keyQueries.where((query) => query.contains(_bob)), isNotEmpty);
+    });
+
+    test('a device missing from a device list still out of date is asked for '
+        'again', () async {
+      setTestDevices(relayClient, _bob, {'BOBOLDDEVICE': null}, outdated: true);
+      bobInCall();
+
+      await relaying().accept();
+      await pumpEventQueue();
+
+      expect(keyQueries.where((query) => query.contains(_bob)), isNotEmpty);
+    });
+
+    _KeyRelayCall keyRelayCall({
+      _KeyRelayClient? over,
+      Uint8List? key,
+      Map<String, String> inCall = const {_bob: 'BOBDEVICE'},
+    }) {
+      final c = over ?? _KeyRelayClient();
+      final r = buildTestRoom(c);
+      for (final MapEntry(key: userId, value: deviceId) in inCall.entries) {
+        setSelfSignedTestDevices(c, userId, [deviceId]);
+        joinTheCall(r, userId, deviceId: deviceId);
+      }
+      return (session: incoming(inRoom: r, key: key), client: c, room: r);
+    }
+
+    test(
+      'a known device that re-joins with a new sessionId is sent the key again',
+      () async {
+        final call = keyRelayCall(key: testKey());
+        await call.session.accept();
+        await pumpEventQueue();
+        expect(call.client.tries, ['BOBDEVICE']);
+
+        joinTheCall(
+          call.room,
+          _bob,
+          deviceId: 'BOBDEVICE',
+          fociActive: {'sessionId': 'bob-session-2'},
+        );
+        await sync(call.client);
+
+        expect(call.client.tries, ['BOBDEVICE', 'BOBDEVICE']);
+      },
+    );
+
+    _KeyRelayCall relayingOverToDevice(
+      FakeAsync async, {
+      _KeyRelayClient? over,
+    }) {
+      final call = keyRelayCall(
+        over: over ?? (_KeyRelayClient()..unreachable.add('BOBDEVICE')),
+        key: testKey(),
+      );
+      unawaited(call.session.accept());
+      async.flushMicrotasks();
+      return call;
+    }
+
+    int triesFor(_KeyRelayCall call, String deviceId) =>
+        call.client.tries.where((d) => d == deviceId).length;
+
+    test('a relay whose sends fail for seconds still delivers the key once '
+        'the server answers, and then stops', () {
+      fakeAsync((async) {
+        final call = relayingOverToDevice(async);
+        async.elapse(const Duration(seconds: 8));
+        expect(call.client.keysSent, isEmpty);
+
+        call.client.unreachable.clear();
+        async.elapse(const Duration(seconds: 5));
+
+        final sent = call.client.keysSent['BOBDEVICE'];
+        expect(sent, isNotNull);
+        expect(
+          parseCallEncryptionKeyContent(content: sent!, callId: 'call1'),
+          testKey(),
+        );
+        final tries = call.client.tries.length;
+        async.elapse(const Duration(minutes: 1));
+        expect(call.client.tries, hasLength(tries));
+      });
+    });
+
+    for (final (ending, end) in [
+      ('a hang-up', (CallSession s) => unawaited(s.hangUp())),
+      ('letting the call go', (CallSession s) => s.dispose()),
+    ]) {
+      test('a relay keeps trying while its device is in the call, and '
+          '$ending stops it at once', () {
+        fakeAsync((async) {
+          final call = relayingOverToDevice(async);
+          async.elapse(const Duration(seconds: 30));
+          expect(triesFor(call, 'BOBDEVICE'), greaterThan(3));
+
+          end(call.session);
+          async.flushMicrotasks();
+          final tries = call.client.tries.length;
+          async.elapse(const Duration(minutes: 1));
+
+          expect(call.client.tries, hasLength(tries));
+          expect(async.pendingTimers, isEmpty);
+        });
+      });
+    }
+
+    test('a relay stops once its device leaves a call that goes on', () {
+      fakeAsync((async) {
+        final call = relayingOverToDevice(async);
+        setTestDevices(call.client, _caller, {'CALLERDEV': null});
+        joinTheCall(call.room, _caller, deviceId: 'CALLERDEV');
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        async.elapse(const Duration(seconds: 30));
+        expect(call.client.keysSent.keys, ['CALLERDEV']);
+        expect(triesFor(call, 'BOBDEVICE'), greaterThan(3));
+
+        leaveTheCall(call.room, _bob);
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        async.flushMicrotasks();
+        final tries = triesFor(call, 'BOBDEVICE');
+        async.elapse(const Duration(minutes: 1));
+
+        expect(triesFor(call, 'BOBDEVICE'), tries);
+        expect(call.session.phase, CallSessionPhase.active);
+      });
+    });
+
+    test('a relay that keeps failing is reported once, without the device it '
+        'was for', () {
+      final logs = recordDebugPrints();
+      fakeAsync((async) {
+        relayingOverToDevice(async);
+        async.elapse(const Duration(minutes: 1));
+      });
+
+      expect(reported(logs).where((l) => l.contains('relay the call key')), [
+        startsWith('zuno/caught: relay the call key:'),
+      ]);
       final retries = logs.where((l) => l.startsWith('zuno/retry:'));
-      expect(retries, isNotEmpty);
+      expect(retries.length, greaterThan(3));
       expect(retries, everyElement(startsWith('zuno/retry: call key relay ')));
       expect(logs.join('\n'), isNot(contains('BOBDEVICE')));
     });
@@ -1059,17 +1273,185 @@ void main() {
 
     test('a known device republishing the same sessionId is not sent the key '
         'again', () async {
-      bobInCall({'sessionId': 'bob-session-1', 'audioMuted': false});
-      await relaying().accept();
+      final call = keyRelayCall(key: testKey());
+      void bobPublishes({required bool audioMuted}) => joinTheCall(
+        call.room,
+        _bob,
+        deviceId: 'BOBDEVICE',
+        fociActive: {'sessionId': 'bob-session-1', 'audioMuted': audioMuted},
+      );
+      bobPublishes(audioMuted: false);
+      await call.session.accept();
       await pumpEventQueue();
-      final firstPass = keyQueries.length;
-      expect(firstPass, greaterThan(0));
+      expect(call.client.tries, ['BOBDEVICE']);
 
-      bobInCall({'sessionId': 'bob-session-1', 'audioMuted': true});
-      await sync(relayClient);
+      bobPublishes(audioMuted: true);
+      await sync(call.client);
 
-      expect(keyQueries, hasLength(firstPass));
+      expect(call.client.tries, ['BOBDEVICE']);
     });
+
+    test('a send that reaches no device for want of an Olm session is retried '
+        'until one is set up, and then stops', () {
+      fakeAsync((async) {
+        final call = relayingOverToDevice(
+          async,
+          over: _KeyRelayClient()..olm = true,
+        );
+        async.elapse(const Duration(seconds: 8));
+        expect(call.client.keysSent, isEmpty);
+        expect(triesFor(call, 'BOBDEVICE'), greaterThan(3));
+
+        call.client.openOlmSession('BOBDEVICE');
+        async.elapse(const Duration(seconds: 5));
+
+        expect(call.client.keysSent.keys, ['BOBDEVICE']);
+        final tries = call.client.tries.length;
+        async.elapse(const Duration(minutes: 1));
+        expect(call.client.tries, hasLength(tries));
+      });
+    });
+
+    test('a blocked device with no Olm session is not chased', () {
+      fakeAsync((async) {
+        final call = keyRelayCall(
+          over: _KeyRelayClient()..olm = true,
+          key: testKey(),
+        );
+        call.client.userDeviceKeys[_bob]!.deviceKeys['BOBDEVICE']!.blocked =
+            true;
+        unawaited(call.session.accept());
+        async.elapse(const Duration(minutes: 1));
+
+        expect(call.client.tries, ['BOBDEVICE']);
+      });
+    });
+
+    test('a key that arrives late is passed on to every device already in '
+        'the call, except the one it came from', () async {
+      final call = keyRelayCall(
+        inCall: const {_caller: 'CALLERDEV', _bob: 'BOBDEVICE'},
+      );
+      await call.session.accept();
+      await pumpEventQueue();
+      expect(call.client.tries, isEmpty);
+
+      call.client.onToDeviceEvent.add(keyEvent());
+      await pumpEventQueue();
+
+      expect(call.client.tries, ['BOBDEVICE']);
+      expect(
+        parseCallEncryptionKeyContent(
+          content: call.client.keysSent['BOBDEVICE']!,
+          callId: 'call1',
+        ),
+        testKey(),
+      );
+    });
+
+    test('a key held back until its sender joins is passed on to the devices '
+        'already in the call', () async {
+      final call = keyRelayCall();
+      setSelfSignedTestDevices(call.client, _caller, ['CALLERDEV']);
+      await call.session.accept();
+      call.client.onToDeviceEvent.add(keyEvent());
+      await pumpEventQueue();
+      expect(call.client.tries, isEmpty);
+
+      joinTheCall(call.room, _caller, deviceId: 'CALLERDEV');
+      await sync(call.client);
+
+      expect(call.client.keysSent.keys, contains('BOBDEVICE'));
+    });
+
+    ToDeviceEvent dummyFrom(
+      String sender,
+      String deviceId, {
+      bool encrypted = true,
+    }) => ToDeviceEvent(
+      sender: sender,
+      type: EventTypes.Dummy,
+      content: const {},
+      encryptedContent: encrypted
+          ? {'sender_key': 'curve-$deviceId', 'algorithm': 'm.olm.v1'}
+          : null,
+    );
+
+    test('a device in the call that starts a new Olm session is sent the key '
+        'again over it', () async {
+      final call = keyRelayCall(key: testKey());
+      await call.session.accept();
+      await pumpEventQueue();
+      expect(call.client.tries, ['BOBDEVICE']);
+
+      call.client.onToDeviceEvent.add(dummyFrom(_bob, 'BOBDEVICE'));
+      await pumpEventQueue();
+
+      expect(call.client.tries, ['BOBDEVICE', 'BOBDEVICE']);
+    });
+
+    test('a new Olm session from a device outside the call, or a dummy that '
+        'was never encrypted, sends nothing', () async {
+      final call = keyRelayCall(key: testKey());
+      setSelfSignedTestDevices(call.client, _mallory, ['MALDEV']);
+      await call.session.accept();
+      await pumpEventQueue();
+
+      call.client.onToDeviceEvent
+        ..add(dummyFrom(_mallory, 'MALDEV'))
+        ..add(dummyFrom(_bob, 'BOBDEVICE', encrypted: false));
+      await pumpEventQueue();
+
+      expect(call.client.tries, ['BOBDEVICE']);
+    });
+
+    for (final (outcome, finish) in [
+      (
+        'fails',
+        (Completer<void> send) =>
+            send.completeError(http.ClientException('502 Bad Gateway')),
+      ),
+      ('succeeds', (Completer<void> send) => send.complete()),
+    ]) {
+      test('a send still out when its device re-joins neither re-arms nor '
+          'ends the newer relay when it $outcome', () {
+        final logs = recordDebugPrints();
+        int retriesLogged() =>
+            logs.where((l) => l.startsWith('zuno/retry:')).length;
+        fakeAsync((async) {
+          final firstSend = Completer<void>();
+          final call = relayingOverToDevice(
+            async,
+            over: _KeyRelayClient()..hold = firstSend,
+          );
+          expect(call.client.tries, ['BOBDEVICE']);
+
+          call.client.unreachable.add('BOBDEVICE');
+          joinTheCall(
+            call.room,
+            _bob,
+            deviceId: 'BOBDEVICE',
+            fociActive: {'sessionId': 'bob-session-2'},
+          );
+          call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+          async.flushMicrotasks();
+          expect(call.client.tries, ['BOBDEVICE', 'BOBDEVICE']);
+          final retries = retriesLogged();
+
+          finish(firstSend);
+          async.flushMicrotasks();
+          expect(retriesLogged(), retries);
+
+          call.client.keysSent.clear();
+          call.client.unreachable.clear();
+          async.elapse(const Duration(seconds: 5));
+          expect(call.client.keysSent.keys, ['BOBDEVICE']);
+          final tries = call.client.tries.length;
+          async.elapse(const Duration(minutes: 1));
+          expect(call.client.tries, hasLength(tries));
+        });
+      });
+    }
   });
 
   group('everHadRemote / remoteJoinedStream', () {

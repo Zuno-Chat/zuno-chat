@@ -92,6 +92,117 @@ void main() {
     expect(bodies.single['token'], 'syl_abcdefgh');
   });
 
+  testWidgets('a typed code naming the chosen server signs in', (tester) async {
+    final bodies = <Map<String, Object?>>[];
+    await pumpPage(tester, client: clientRecording(bodies));
+
+    await tester.enterText(field('Code'), 'example.org syl_ abcd efgh');
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Sign in with the code'),
+    );
+    await pumpRealAsync(tester, rounds: 2);
+
+    expect(bodies.single['token'], 'syl_abcdefgh');
+  });
+
+  testWidgets('a pasted two-line code signs in on its server from Done', (
+    tester,
+  ) async {
+    final bodies = <Map<String, Object?>>[];
+    await pumpPage(tester, client: clientRecording(bodies));
+    const code = LinkedSignInCode(server: 'example.org', token: 'syl_abcdefgh');
+
+    await tester.enterText(field('Code'), code.typed);
+    await tester.showKeyboard(field('Code'));
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await pumpRealAsync(tester, rounds: 2);
+
+    expect(bodies.single['token'], 'syl_abcdefgh');
+  });
+
+  testWidgets('a pasted two-line code for another server is refused, naming '
+      'it', (tester) async {
+    final bodies = <Map<String, Object?>>[];
+    await pumpPage(tester, client: clientRecording(bodies));
+    const code = LinkedSignInCode(
+      server: 'other.example',
+      token: 'syl_abcdefgh',
+    );
+
+    await tester.enterText(field('Code'), code.typed);
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Sign in with the code'),
+    );
+    await pumpRealAsync(tester, rounds: 2);
+
+    expect(
+      find.text(codeForAnotherServerMessage('other.example')),
+      findsOneWidget,
+    );
+    expect(bodies, isEmpty);
+  });
+
+  testWidgets('the pasted text of a QR code signs in with its token', (
+    tester,
+  ) async {
+    final bodies = <Map<String, Object?>>[];
+    await pumpPage(tester, client: clientRecording(bodies));
+    const code = LinkedSignInCode(server: 'example.org', token: 'syl_pasted');
+
+    await tester.enterText(field('Code'), code.encode());
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Sign in with the code'),
+    );
+    await pumpRealAsync(tester, rounds: 2);
+
+    expect(bodies.single['token'], 'syl_pasted');
+  });
+
+  testWidgets('a typed code for another server is refused, naming it', (
+    tester,
+  ) async {
+    final bodies = <Map<String, Object?>>[];
+    await pumpPage(tester, client: clientRecording(bodies));
+
+    await tester.enterText(field('Code'), 'other.example syl_ abcd efgh');
+    final reports = await reportsDuring(() async {
+      await tester.tap(
+        find.widgetWithText(OutlinedButton, 'Sign in with the code'),
+      );
+      await pumpRealAsync(tester, rounds: 2);
+    });
+
+    expect(
+      find.text(codeForAnotherServerMessage('other.example')),
+      findsOneWidget,
+    );
+    expect(bodies, isEmpty);
+    expect(reports, isEmpty);
+  });
+
+  testWidgets('a typed code while the server cannot be reached says so', (
+    tester,
+  ) async {
+    final bodies = <Map<String, Object?>>[];
+    await pumpPage(
+      tester,
+      client: clientRecording(bodies),
+      homeserver: _UnreachableHomeserver.new,
+    );
+
+    await tester.enterText(field('Code'), 'example.org syl_abcdefgh');
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Sign in with the code'),
+    );
+    await pumpRealAsync(tester, rounds: 2);
+
+    expect(
+      find.text('Cannot connect. Check your connection and try again.'),
+      findsOneWidget,
+    );
+    expect(bodies, isEmpty);
+  });
+
   testWidgets('an empty code never reaches the network', (tester) async {
     final bodies = <Map<String, Object?>>[];
     await pumpPage(tester, client: clientRecording(bodies));
@@ -102,6 +213,21 @@ void main() {
     await pumpRealAsync(tester, rounds: 2);
 
     expect(find.text('Enter the code'), findsOneWidget);
+    expect(bodies, isEmpty);
+  });
+
+  testWidgets('the server line alone asks for the code without reaching the '
+      'network', (tester) async {
+    final bodies = <Map<String, Object?>>[];
+    await pumpPage(tester, client: clientRecording(bodies));
+
+    await tester.enterText(field('Code'), 'example.org');
+    await tester.showKeyboard(field('Code'));
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await pumpRealAsync(tester, rounds: 2);
+
+    expect(find.text('Enter the code'), findsOneWidget);
+    expect(find.text(invalidSignInCodeMessage), findsNothing);
     expect(bodies, isEmpty);
   });
 
@@ -132,6 +258,46 @@ void main() {
     await pumpRealAsync(tester, rounds: 2);
 
     expect(bodies.single['token'], 'syl_scanned');
+  });
+
+  testWidgets('a scanned code signs in on a server with a port', (
+    tester,
+  ) async {
+    final bodies = <Map<String, Object?>>[];
+    const code = LinkedSignInCode(
+      server: 'localhost:8008',
+      token: 'syl_scanned',
+    );
+    await pumpPage(
+      tester,
+      client: clientRecording(bodies),
+      scan: (_) async => bytesOf(code.encode()),
+      homeserver: () => FixedHomeserver(Uri.http('localhost:8008')),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
+    await pumpRealAsync(tester, rounds: 2);
+
+    expect(bodies.single['token'], 'syl_scanned');
+  });
+
+  testWidgets('a typed code naming an IPv6 server signs in there', (
+    tester,
+  ) async {
+    final bodies = <Map<String, Object?>>[];
+    await pumpPage(
+      tester,
+      client: clientRecording(bodies),
+      homeserver: () => FixedHomeserver(Uri.parse('https://[::1]:8448')),
+    );
+
+    await tester.enterText(field('Code'), '[::1]:8448 syl_ abcd efgh');
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Sign in with the code'),
+    );
+    await pumpRealAsync(tester, rounds: 2);
+
+    expect(bodies.single['token'], 'syl_abcdefgh');
   });
 
   testWidgets('a scanned code that is not ours is refused before any request', (

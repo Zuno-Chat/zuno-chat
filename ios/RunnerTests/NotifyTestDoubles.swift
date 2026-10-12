@@ -39,6 +39,7 @@ final class MemoryKeychain: KeychainBackend, @unchecked Sendable {
 
   func delete(service: String, accessGroup: String?) -> OSStatus {
     guarded {
+      if lockedNow { return errSecInteractionNotAllowed }
       items = items.filter { !$0.key.hasPrefix("\(service)|") }
       return errSecSuccess
     }

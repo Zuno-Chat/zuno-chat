@@ -9,7 +9,6 @@ import 'key_backup_management_page.dart';
 import 'secure_backup_page.dart';
 import 'session_key_format.dart';
 import 'settings_widgets.dart';
-import 'temporary_session_token_tile.dart';
 
 class AdvancedSecurityPage extends ConsumerStatefulWidget {
   const AdvancedSecurityPage({super.key});
@@ -122,7 +121,6 @@ class _AdvancedSecurityPageState extends ConsumerState<AdvancedSecurityPage> {
                   _copyToClipboard('Session key', client.fingerprintKey),
             ),
           ),
-          const TemporarySessionTokenTile(),
           const Divider(),
           const SettingsSectionHeader('Secret storage'),
           Padding(

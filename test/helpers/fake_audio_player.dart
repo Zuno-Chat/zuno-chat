@@ -61,12 +61,12 @@ Future<FakeAudioPlatform> installFakeAudioPlatform() async {
             },
           ),
         );
-      case 'setSourceBytes' when fake.refusesToPlay:
+      case 'setSourceBytes' || 'setSourceUrl' when fake.refusesToPlay:
         fake._sinks[playerId]?.error(
           code: 'DarwinAudioError',
           message: 'Failed to set source.',
         );
-      case 'setSourceBytes':
+      case 'setSourceBytes' || 'setSourceUrl':
         fake._sinks[playerId]?.success({
           'event': 'audio.onPrepared',
           'value': true,

@@ -542,6 +542,38 @@ void main() {
       expect(alex().refreshingAt(now), isFalse);
       handle.close();
     });
+
+    test('nothing reads as updating when the watch reached no one', () async {
+      share('@alex:x');
+      await deliver(position(at: now.subtract(const Duration(minutes: 4))));
+      client.noOlmSession.add('PHONE');
+
+      final handle = viewing.watch('!family:x');
+      await pumpEventQueue();
+
+      expect(watches(), hasLength(1));
+      expect(alex().refreshingAt(now), isFalse);
+      handle.close();
+    });
+
+    test('a watch that reached no one is tried again on renewal', () {
+      fakeAsync((async) {
+        viewing.dispose();
+        viewing = build();
+        share('@alex:x');
+        client.noOlmSession.add('PHONE');
+        final handle = viewing.watch('!family:x');
+        async.flushMicrotasks();
+
+        client.noOlmSession.remove('PHONE');
+        async.elapse(const Duration(seconds: 60));
+
+        expect(watches(), hasLength(2));
+        expect(viewing.sharesIn(room).single.refreshingSince, isNotNull);
+        handle.close();
+        async.flushMicrotasks();
+      });
+    });
   });
 
   group('watching', () {

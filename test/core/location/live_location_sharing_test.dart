@@ -562,6 +562,88 @@ void main() {
       },
     );
 
+    group('a device the last send could not reach', () {
+      setUp(() => client.noOlmSession.add('TABLET'));
+
+      Future<void> fixAfter(Duration elapsed, GeoUri geo, int seq) async {
+        now = DateTime.utc(2026, 10, 7, 12).add(elapsed);
+        capture.fix(at(geo), seq);
+        await pumpEventQueue();
+      }
+
+      test('is skipped on the next round to everyone', () async {
+        await startSharing();
+        expect(positions().single.devices, ['@alex:x/PHONE', '@bea:x/TABLET']);
+
+        await fixAfter(const Duration(minutes: 5), northBy(300), 1);
+
+        expect(positions(), hasLength(2));
+        expect(positions().last.devices, ['@alex:x/PHONE']);
+      });
+
+      test('is tried again after half an hour', () async {
+        await startSharing();
+
+        await fixAfter(const Duration(minutes: 25), northBy(300), 1);
+        expect(positions().last.devices, ['@alex:x/PHONE']);
+
+        await fixAfter(const Duration(minutes: 30), northBy(600), 2);
+        expect(positions().last.devices, ['@alex:x/PHONE', '@bea:x/TABLET']);
+      });
+
+      test('is tried again once its owner\'s devices change', () async {
+        await startSharing();
+
+        client.onSync.add(
+          SyncUpdate(
+            nextBatch: 'batch',
+            deviceLists: DeviceListsUpdate(changed: ['@bea:x']),
+          ),
+        );
+        await pumpEventQueue();
+        await fixAfter(const Duration(minutes: 5), northBy(300), 1);
+
+        expect(positions().last.devices, ['@alex:x/PHONE', '@bea:x/TABLET']);
+      });
+
+      test('another user\'s device change keeps it skipped', () async {
+        await startSharing();
+
+        client.onSync.add(
+          SyncUpdate(
+            nextBatch: 'batch',
+            deviceLists: DeviceListsUpdate(changed: ['@alex:x']),
+          ),
+        );
+        await pumpEventQueue();
+        await fixAfter(const Duration(minutes: 5), northBy(300), 1);
+
+        expect(positions().last.devices, ['@alex:x/PHONE']);
+      });
+
+      test('gets positions at once when it starts watching', () async {
+        await startSharing();
+        client.noOlmSession.remove('TABLET');
+
+        client.onToDeviceEvent.add(watch());
+        await pumpEventQueue();
+        expect(positions().last.devices, ['@bea:x/TABLET']);
+
+        await fixAfter(const Duration(minutes: 5), northBy(300), 1);
+        expect(positions().last.devices, ['@alex:x/PHONE', '@bea:x/TABLET']);
+      });
+
+      test('a watch that was not Olm-encrypted proves nothing', () async {
+        await startSharing();
+
+        client.onToDeviceEvent.add(watch(senderKey: null));
+        await pumpEventQueue();
+        await fixAfter(const Duration(minutes: 5), northBy(300), 1);
+
+        expect(positions().last.devices, ['@alex:x/PHONE']);
+      });
+    });
+
     test('a clock moved back does not stall newer fixes', () async {
       await startSharing();
       final start = now;

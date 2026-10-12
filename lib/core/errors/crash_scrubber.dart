@@ -2,6 +2,8 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 const _redacted = '[redacted]';
 
+final _sqlArgumentsPattern = RegExp(r"(\bsql '.*?') args \[.*", dotAll: true);
+
 final _jsonObjectPattern = RegExp(r'\{.*\}', dotAll: true);
 
 final _webHostPattern = RegExp(
@@ -37,9 +39,18 @@ final _sigilPattern = RegExp(r'([@!#$])[A-Za-z0-9._=+/~-]+:[A-Za-z0-9.-]+');
 
 final _hashIdPattern = RegExp(r'([$!])[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])');
 
+final _matrixTokenPattern = RegExp(r'\b(?:sy[lrt]|m[ac][rt])_[A-Za-z0-9_]+');
+
+final _base64KeyPattern = RegExp(
+  r'(?<![A-Za-z0-9+/=_-])(?=[A-Za-z/]*[0-9+])[A-Za-z0-9+/]{43}(?![A-Za-z0-9+/=_-])',
+);
+
+final _longTokenPattern = RegExp(r'(?=[A-Za-z_-]*[0-9+=])[A-Za-z0-9+=_-]{32,}');
+
 String? scrubText(String? input) {
   if (input == null || input.isEmpty) return input;
   return input
+      .replaceAllMapped(_sqlArgumentsPattern, (m) => '${m[1]} args $_redacted')
       .replaceAll(_jsonObjectPattern, '{$_redacted}')
       .replaceAllMapped(_otherUriPattern, (m) => '${m[1]}$_redacted')
       .replaceAllMapped(_webHostPattern, (m) => '${m[1]}$_redacted')
@@ -49,7 +60,10 @@ String? scrubText(String? input) {
       .replaceAllMapped(_bearerPattern, (m) => '${m[1]} $_redacted')
       .replaceAllMapped(_tokenParameterPattern, (m) => '${m[1]}=$_redacted')
       .replaceAllMapped(_sigilPattern, (m) => '${m[1]}$_redacted')
-      .replaceAllMapped(_hashIdPattern, (m) => '${m[1]}$_redacted');
+      .replaceAllMapped(_hashIdPattern, (m) => '${m[1]}$_redacted')
+      .replaceAll(_matrixTokenPattern, _redacted)
+      .replaceAll(_base64KeyPattern, _redacted)
+      .replaceAll(_longTokenPattern, _redacted);
 }
 
 SentryEvent scrubEvent(SentryEvent event) {

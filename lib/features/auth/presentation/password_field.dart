@@ -1,10 +1,6 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/security/screen_security_service.dart';
-import '../../../core/settings/app_preferences_provider.dart';
 
 class PasswordField extends StatelessWidget {
   final TextEditingController controller;
@@ -63,22 +59,27 @@ class PasswordField extends StatelessWidget {
   }
 }
 
-mixin PasswordReveal<T extends ConsumerStatefulWidget> on ConsumerState<T> {
+mixin PasswordReveal<T extends StatefulWidget> on State<T> {
   bool passwordRevealed = false;
-  bool _blockedByPreference = false;
+  VoidCallback? _releaseScreen;
 
   void togglePasswordReveal() {
-    _blockedByPreference = ref.read(preventScreenshotsProvider);
     setState(() => passwordRevealed = !passwordRevealed);
-    _blockScreenshots(passwordRevealed || _blockedByPreference);
+    if (passwordRevealed) {
+      _releaseScreen = ScreenSecurityService.instance.protect();
+    } else {
+      _stopProtecting();
+    }
   }
 
-  void _blockScreenshots(bool enabled) =>
-      unawaited(ScreenSecurityService.instance.setPreventScreenshots(enabled));
+  void _stopProtecting() {
+    _releaseScreen?.call();
+    _releaseScreen = null;
+  }
 
   @override
   void dispose() {
-    if (passwordRevealed) _blockScreenshots(_blockedByPreference);
+    _stopProtecting();
     super.dispose();
   }
 }

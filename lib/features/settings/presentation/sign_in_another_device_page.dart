@@ -10,7 +10,6 @@ import '../../../core/matrix/linked_sign_in.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/security/screen_security_service.dart';
-import '../../../core/settings/app_preferences_provider.dart';
 import 'uia_password_prompt.dart';
 
 class SignInAnotherDevicePage extends ConsumerStatefulWidget {
@@ -24,31 +23,24 @@ class SignInAnotherDevicePage extends ConsumerStatefulWidget {
 }
 
 class _SignInAnotherDevicePageState
-    extends ConsumerState<SignInAnotherDevicePage> {
+    extends ConsumerState<SignInAnotherDevicePage>
+    with ScreenProtected<SignInAnotherDevicePage> {
   IssuedSignInCode? _issued;
   String? _error;
   bool _expired = false;
   StreamSubscription<UiaRequest>? _uiaSub;
-  bool _screenshotsBlockedByPreference = false;
 
   @override
   void initState() {
     super.initState();
     final client = ref.read(matrixClientProvider);
     _uiaSub = client.onUiaRequest.stream.listen(_handleUia);
-    _screenshotsBlockedByPreference = ref.read(preventScreenshotsProvider);
-    unawaited(ScreenSecurityService.instance.setPreventScreenshots(true));
     unawaited(_request());
   }
 
   @override
   void dispose() {
     _uiaSub?.cancel();
-    unawaited(
-      ScreenSecurityService.instance.setPreventScreenshots(
-        _screenshotsBlockedByPreference,
-      ),
-    );
     super.dispose();
   }
 
@@ -114,7 +106,7 @@ class _SignInAnotherDevicePageState
       Center(child: _QrImage(data: issued.code.encode())),
       const SizedBox(height: 16),
       Text(
-        groupedSignInCode(issued.code.token),
+        issued.code.typed,
         textAlign: TextAlign.center,
         style: theme.textTheme.titleMedium?.copyWith(
           fontFeatures: const [FontFeature.tabularFigures()],

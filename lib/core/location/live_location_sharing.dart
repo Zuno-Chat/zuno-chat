@@ -134,7 +134,7 @@ class LiveLocationSharing {
     echoState: _echoState,
     now: _now,
   );
-  late final _unreachable = UnreachableDevices(_client);
+  final _unreachable = UnreachableDevices();
   final _shares = ValueNotifier<List<OwnLiveShare>>(const []);
   final _needsSync = ValueNotifier<bool>(false);
   final _position = ValueNotifier<LivePosition?>(null);
@@ -547,13 +547,16 @@ class LiveLocationSharing {
               !_unreachable.contains(device, now))
             device,
       ];
-      final delivered = targets.isEmpty || await _send(share, targets, latest);
+      final unreached = targets.isEmpty
+          ? const <DeviceKeys>[]
+          : await _send(share, targets, latest);
+      final delivered = unreached != null;
       final record = LiveSendRecord(position: latest, sentAt: now);
       switch (audience) {
         case LiveAudience.everyone:
           share.lastToEveryone = record;
           share.everyoneUndelivered = !delivered;
-          if (delivered) _unreachable.noteWithoutSession(targets, now);
+          if (unreached != null) _unreachable.note(unreached, now);
         case LiveAudience.watchers:
           share.lastToWatchers = record;
         case null:
@@ -601,13 +604,13 @@ class LiveLocationSharing {
     return share.recipients;
   }
 
-  Future<bool> _send(
+  Future<List<DeviceKeys>?> _send(
     _ActiveShare share,
     List<DeviceKeys> devices,
     LivePosition position,
   ) async {
     try {
-      await sendEphemeralToDevice(
+      return await sendEphemeralToDevice(
         _client,
         devices,
         liveLocationPositionType,
@@ -617,10 +620,9 @@ class LiveLocationSharing {
           position: position,
         ),
       ).timeout(_sendDeadline);
-      return true;
     } catch (error, stack) {
       reportCaughtType('live location position send', error, stack);
-      return false;
+      return null;
     }
   }
 
@@ -647,9 +649,13 @@ class LiveLocationSharing {
     final room = _client.getRoomById(share.roomId);
     if (room == null) return;
     final key = _deviceKey(device);
-    final ignored = _client.ignoredUsers.toSet();
-    if (!message.active ||
-        !isLiveLocationPeer(room, device, ignored: ignored)) {
+    final peer = isLiveLocationPeer(
+      room,
+      device,
+      ignored: _client.ignoredUsers.toSet(),
+    );
+    if (peer) _unreachable.forget(device);
+    if (!message.active || !peer) {
       share.watchers.remove(key);
       share.firstSends.remove(key);
       _refreshMode();

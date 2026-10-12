@@ -244,6 +244,13 @@ class MainActivity : FlutterActivity() {
         if (kept == null) pendingShare = ShareActivity.channelPayload(intent)
         pruneSharedCache()
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, OutboundShare.CHANNEL)
+            .setMethodCallHandler(OutboundShare.handler(this))
+
+        if (!flutterEngine.plugins.has(FileExportPlugin::class.java)) {
+            flutterEngine.plugins.add(FileExportPlugin())
+        }
+
         networkStreamHandler = kept?.network ?: NetworkAvailabilityStreamHandler(
             getSystemService(ConnectivityManager::class.java),
         ).also {
@@ -862,15 +869,11 @@ class MainActivity : FlutterActivity() {
         }
     }.onFailure { CaughtErrors.record(this, "share copy to cache", it) }.getOrNull()
 
-    private fun mayReadShared(uri: Uri): Boolean {
-        val authority = InboundShareDecision.providerAuthority(uri.authority)
-        return InboundShareDecision.mayRead(
-            uri.scheme,
-            authority,
-            authority?.let(::providerPackage),
-            packageName,
-        )
-    }
+    private fun mayReadShared(uri: Uri): Boolean = InboundShareDecision.mayRead(
+        uri.scheme,
+        InboundShareDecision.providerAuthority(uri.authority)?.let(::providerPackage),
+        packageName,
+    )
 
     private fun providerPackage(authority: String): String? {
         val provider = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

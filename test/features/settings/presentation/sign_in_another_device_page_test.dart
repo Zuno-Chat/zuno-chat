@@ -17,6 +17,7 @@ import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/preferences_container.dart';
 import '../../../helpers/pump_until.dart';
+import '../../../helpers/screen_security.dart';
 import '../../../helpers/uia_challenge.dart';
 
 void main() {
@@ -61,10 +62,9 @@ void main() {
     WidgetTester tester, {
     required Client client,
     DateTime Function()? now,
-    Map<String, Object> prefs = const {},
   }) async {
     final container = await containerWithPreferences(
-      prefs,
+      {},
       overrides: [matrixClientProvider.overrideWithValue(client)],
     );
     await tester.pumpWidget(
@@ -111,7 +111,7 @@ void main() {
     await confirmPassword(tester);
 
     expect(qrImage(), findsOneWidget);
-    expect(find.text(groupedSignInCode('syl_abcdefgh')), findsOneWidget);
+    expect(find.text('example.org\nsyl_ abcd efgh'), findsOneWidget);
     expect(find.textContaining('Expires in'), findsOneWidget);
     expect(bodies, hasLength(2));
     expect((bodies.last['auth'] as Map)['type'], 'm.login.password');
@@ -195,12 +195,8 @@ void main() {
 
   testWidgets('blocks screenshots while open and lifts the block on leaving '
       'when the preference is off', (tester) async {
-    final native = installFakeCallsChannel();
-    await pumpPage(
-      tester,
-      client: serverWantingPassword(),
-      prefs: {'settings.prevent_screenshots': false},
-    );
+    final native = await installScreenSecurity(preventScreenshots: false);
+    await pumpPage(tester, client: serverWantingPassword());
     await confirmPassword(tester);
 
     expect(native.screenshotBlocking, [true]);
@@ -215,7 +211,7 @@ void main() {
   testWidgets(
     'keeps screenshots blocked on leaving when the preference is on',
     (tester) async {
-      final native = installFakeCallsChannel();
+      final native = await installScreenSecurity(preventScreenshots: true);
       await pumpPage(tester, client: serverWantingPassword());
       await confirmPassword(tester);
 

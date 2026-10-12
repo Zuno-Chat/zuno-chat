@@ -4,7 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../errors/best_effort.dart';
 import '../platform/platform_capabilities.dart';
+import '../push/read_model/session_exporter.dart';
 import '../settings/app_preferences_provider.dart';
+import 'attachment_cache.dart';
 import 'database_compaction.dart';
 import 'matrix_client_provider.dart';
 
@@ -48,8 +50,11 @@ class SignOutWipe extends Notifier<bool> {
         label: 'stop notification delivery before wipe',
       );
       final wipe = ref.read(appDataWipeProvider);
-      if (!await runBestEffort(wipe, label: 'wipe app data')) return;
-      await prefs.remove(signedInMarkerKey);
+      if (await runBestEffort(wipe, label: 'wipe app data')) {
+        await prefs.remove(signedInMarkerKey);
+      } else {
+        await prefs.setBool(signedInMarkerKey, true);
+      }
     } finally {
       state = false;
     }
@@ -72,15 +77,23 @@ Future<void> Function() _wipeKeepingProcess(
   String? Function() databasePath,
   SharedPreferences prefs,
 ) => () async {
-  await runBestEffort(vacuum, label: 'vacuum the database before the wipe');
   final keep = databasePath();
   if (keep == null) {
     throw StateError('the open database is unknown, so nothing is wiped');
   }
-  await _wipeAppData({
-    'keep': [keep],
-  });
-  await prefs.reload();
+  forgetAccountAttachments();
+  SessionExporter.instance.forgetAccount();
+  try {
+    await vacuum();
+  } finally {
+    try {
+      await _wipeAppData({
+        'keep': [keep],
+      });
+    } finally {
+      await prefs.reload();
+    }
+  }
 };
 
 final appDataWipeProvider = Provider<Future<void> Function()>((ref) {

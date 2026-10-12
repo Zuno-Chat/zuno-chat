@@ -38,6 +38,7 @@ void main() {
     expect(await channel.writeRoom('!abc:zuno.im', '{"v":1}'), isTrue);
     await channel.deleteRoom('!abc:zuno.im');
     await channel.wipe();
+    await channel.open();
 
     expect(calls.map((c) => [c.method, c.arguments]), [
       [
@@ -57,6 +58,7 @@ void main() {
         {'room_id': '!abc:zuno.im'},
       ],
       ['wipe', null],
+      ['open', null],
     ]);
   });
 
@@ -88,6 +90,7 @@ void main() {
 
     expect(await const NseChannel().writeRoom('!r:hs', '{}'), isFalse);
     await const NseChannel().wipe();
+    await const NseChannel().open();
 
     expect(calls, isEmpty);
   });

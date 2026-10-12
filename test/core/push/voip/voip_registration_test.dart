@@ -60,7 +60,6 @@ class _NativeVoip {
   final acked = <int>[];
   final sessions = <bool>[];
   final nseCalls = <String>[];
-  var wipes = 0;
   Completer<void>? statusGate;
 
   Future<Object?> handleVoip(MethodCall call) async {
@@ -94,7 +93,6 @@ class _NativeVoip {
 
   Future<Object?> handleNse(MethodCall call) async {
     nseCalls.add(call.method);
-    if (call.method == 'wipe') wipes++;
     return null;
   }
 }
@@ -119,7 +117,8 @@ void main() {
       messenger.setMockMethodCallHandler(voipChannel, null);
       messenger.setMockMethodCallHandler(nseChannel, null);
     });
-    client = buildTestClient(userId: '@me:zuno.im', deviceId: 'PHONE');
+    client = buildTestClient(userId: '@me:zuno.im', deviceId: 'PHONE')
+      ..bearerToken = 'token';
     registration = VoipRegistration(server: (_) => server)
       ..now = () => DateTime.fromMillisecondsSinceEpoch(1789999999000);
   });
@@ -362,35 +361,20 @@ void main() {
     expect(server.puts, hasLength(1));
   });
 
-  test('signing out tells the server, wipes the read model and closes the '
-      'session', () async {
-    client.bearerToken = 'token';
+  test('signing out tells the server and closes the session, leaving the '
+      'read model to the sign-out wipe', () async {
     await registration.start(client);
 
     await registration.stop(client);
 
     expect(server.deleteDevices, 1);
-    expect(native.wipes, 1);
+    expect(native.nseCalls, isEmpty);
     expect(native.sessions, [true, false]);
     expect(registration.state.value, VoipRegistrationState.idle);
     expect(registration.current.value, isFalse);
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString(voipSessionKey), isNull);
     expect(prefs.getString(voipAckedKey), isNull);
-  });
-
-  test('signing out wipes the read model last, after the meta write its own '
-      'reset triggers', () async {
-    client.bearerToken = 'token';
-    await registration.start(client);
-    registration.current.addListener(
-      () => unawaited(const NseChannel().writeMeta('{}')),
-    );
-    native.nseCalls.clear();
-
-    await registration.stop(client);
-
-    expect(native.nseCalls, ['writeMeta', 'wipe']);
   });
 
   test(
@@ -407,18 +391,18 @@ void main() {
     'signing out after the session already ended still closes it here',
     () async {
       await registration.start(client);
+      client.bearerToken = null;
 
       await registration.stop(client);
 
       expect(server.deleteDevices, 0);
-      expect(native.wipes, 1);
+      expect(native.nseCalls, isEmpty);
       expect(native.sessions, [true, false]);
     },
   );
 
   test('a sign-out while a start is still under way ends signed out, and '
       'nothing registers after it', () async {
-    client.bearerToken = 'token';
     final gate = Completer<void>();
     native.statusGate = gate;
 
@@ -434,16 +418,32 @@ void main() {
     expect(registration.state.value, VoipRegistrationState.idle);
   });
 
-  test('signing out with no network still wipes the read model and closes '
-      'the session', () async {
-    client.bearerToken = 'token';
+  test('a start that runs after a sign-out touches no key', () async {
+    client.bearerToken = null;
+
+    await registration.start(client);
+
+    expect(native.calls, isEmpty);
+  });
+
+  test('a registration queued from before a sign-out touches no key after '
+      'it', () async {
+    await registration.start(client);
+    native.calls.clear();
+    client.bearerToken = null;
+
+    await registration.registerNow(client);
+
+    expect(native.calls, isEmpty);
+  });
+
+  test('signing out with no network still closes the session', () async {
     await registration.start(client);
     server.deleteDeviceError = const SocketException('offline');
 
     await registration.stop(client);
 
     expect(server.deleteDevices, 1);
-    expect(native.wipes, 1);
     expect(native.sessions, [true, false]);
     expect(registration.state.value, VoipRegistrationState.idle);
   });

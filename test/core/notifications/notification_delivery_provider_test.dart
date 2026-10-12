@@ -155,7 +155,8 @@ void main() {
       });
     });
 
-    test('also closes the call session and wipes the read model', () async {
+    test('also closes the call session, leaving the read model to the '
+        'sign-out wipe', () async {
       ambientCapabilities = capabilitiesLike(iosCapabilities, voipRing: true);
       SharedPreferences.setMockInitialValues({
         voipSessionKey: '@me:example.org|PHONE',
@@ -164,7 +165,6 @@ void main() {
       await stopAllNotificationDelivery(PusherRecordingClient());
 
       expect(voip.map((c) => [c.method, c.arguments]), [
-        ['wipe', null],
         [
           'setSession',
           {'signedIn': false},

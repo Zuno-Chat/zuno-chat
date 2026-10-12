@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/auth_error_message.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
+import 'package:zuno/core/network/app_http_overrides.dart';
 
 import '../../helpers/uia_challenge.dart';
 
@@ -272,6 +273,20 @@ void main() {
         homeserverErrorMessage(error),
         'That address is not a server Zuno can use. Check it.',
       );
+    });
+
+    test('a server that would take a sign-in over http says it is not '
+        'secure, not that it cannot be reached', () {
+      final error = CleartextRefusedException(
+        Uri.parse('http://matrix.example.org/_matrix/client/versions'),
+      );
+
+      expect(
+        homeserverErrorMessage(error),
+        'That server uses http, which is not secure. Zuno connects only '
+        'over https.',
+      );
+      expect(homeserverProblem(error).reported, isFalse);
     });
 
     test('a Matrix server with no password login says so', () {

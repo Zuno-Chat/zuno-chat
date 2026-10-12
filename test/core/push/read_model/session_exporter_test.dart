@@ -88,6 +88,13 @@ String _indexes(Map<int, int> decrypted) => jsonEncode({
 const _forwarded =
     '{"algorithm":"m.megolm.v1.aes-sha2","forwarding_curve25519_key_chain":[]}';
 
+class _SyncedClient extends Client {
+  _SyncedClient(DatabaseApi database) : super('test', database: database);
+
+  @override
+  String? get prevBatch => 's1';
+}
+
 void main() {
   test(
     'only the app client on a device with the extension exports sessions',
@@ -247,14 +254,60 @@ void main() {
       },
     );
 
-    test('is the first known index while nothing is old enough', () {
+    test('starts at the lowest index read while every one is in its grace', () {
       expect(
-        trimPoint(decrypted: {7: 0}, firstSeen: {7: now}, now: now),
-        isNull,
+        trimPoint(
+          decrypted: {9: 0, 7: 0},
+          firstSeen: {7: now, 9: now},
+          now: now,
+        ),
+        7,
       );
+    });
+
+    test('is the first known index while nothing was read', () {
       expect(
         trimPoint(decrypted: const {}, firstSeen: const {}, now: now),
         isNull,
+      );
+    });
+
+    test('never starts before where the session was last exported from', () {
+      expect(
+        trimPoint(
+          decrypted: {3: 0},
+          firstSeen: const {},
+          now: now,
+          exportedFrom: 9,
+        ),
+        9,
+      );
+      expect(
+        trimPoint(
+          decrypted: {2: 0},
+          firstSeen: {2: now},
+          now: now,
+          exportedFrom: 9,
+        ),
+        9,
+      );
+      expect(
+        trimPoint(
+          decrypted: const {},
+          firstSeen: const {},
+          now: now,
+          exportedFrom: 4,
+        ),
+        4,
+      );
+      expect(
+        trimPoint(
+          decrypted: {12: 0},
+          firstSeen: const {},
+          now: now,
+          exportedFrom: 5,
+        ),
+        13,
       );
     });
 
@@ -417,6 +470,29 @@ void main() {
       },
     );
 
+    test('forgetting the account leaves nothing to export or save', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      database.put(room.id, 's1', indexes: _indexes({0: 50}));
+      await exporter.rebuild(client);
+      expect(exported(await exporter.roomFields(room, allowed: true)), ['s1']);
+
+      exporter.forgetAccount();
+      await exporter.save(prefs);
+      final restarted = SessionExporter(trimmer: trimmer, now: () => now)
+        ..load(prefs);
+
+      expect(exporter.takeDirtyRooms(), isEmpty);
+      expect(await exporter.roomFields(room, allowed: true), {
+        'sessions': isEmpty,
+        'notifiers': anything,
+      });
+      expect(
+        exported(await restarted.roomFields(room, allowed: true)),
+        isEmpty,
+      );
+    });
+
     test(
       'rebuilds its index from every stored session and survives a restart',
       () async {
@@ -442,7 +518,8 @@ void main() {
     );
 
     test('a restored or forwarded session never pushes the active one out, '
-        'and stays out of the export until it decrypts something', () async {
+        'stays out of the export until it decrypts something, and then '
+        'starts at what it decrypted', () async {
       database.put(room.id, 'live', indexes: _indexes({0: 1}));
       exporter.sessionIndexesUpdated(
         roomId: room.id,
@@ -478,6 +555,164 @@ void main() {
 
       expect(exported(restored), ['live']);
       expect(exported(used), unorderedEquals(['live', 'old0']));
+      expect(trimmer.calls.where((call) => call.startsWith('pickle-old0')), [
+        'pickle-old0@4',
+      ]);
+    });
+
+    int ago(Duration age) => now.subtract(age).millisecondsSinceEpoch;
+
+    void read(
+      String sessionId,
+      Map<int, int> indexes, {
+      String content = '{}',
+    }) {
+      database.put(
+        room.id,
+        sessionId,
+        indexes: _indexes(indexes),
+        content: content,
+      );
+      exporter.sessionIndexesUpdated(
+        roomId: room.id,
+        sessionId: sessionId,
+        previous: '{}',
+        indexes: _indexes(indexes),
+      );
+    }
+
+    void storeBackupCopy(String sessionId) {
+      database.put(room.id, sessionId, content: _forwarded);
+      exporter.sessionStored(
+        roomId: room.id,
+        sessionId: sessionId,
+        content: _forwarded,
+      );
+    }
+
+    test('reading old messages with a restored session never puts it ahead '
+        'of the sender\'s live one', () async {
+      read('live', {5: ago(const Duration(minutes: 1))});
+      now = now.add(const Duration(minutes: 5));
+      storeBackupCopy('old');
+      read('old', {4: ago(const Duration(days: 200))}, content: _forwarded);
+
+      final fields = await exporter.roomFields(room, allowed: true);
+
+      expect(exported(fields), ['live']);
+      expect(trimmer.calls, ['pickle-live@6']);
+    });
+
+    test('a backup copy swapped in for a session never exports more of it '
+        'than before, even while an old message read with it is in its '
+        'grace', () async {
+      read('s1', {5: ago(const Duration(minutes: 1))});
+      now = now.add(const Duration(minutes: 5));
+      await exporter.roomFields(room, allowed: true);
+      storeBackupCopy('s1');
+      read('s1', {2: ago(const Duration(days: 200))}, content: _forwarded);
+
+      final whileReading = await exporter.roomFields(room, allowed: true);
+      now = now.add(const Duration(minutes: 3));
+      exporter.takeDirtyRooms();
+      final afterGrace = await exporter.roomFields(room, allowed: true);
+
+      expect(exported(whileReading), ['s1']);
+      expect(exported(afterGrace), ['s1']);
+      expect(trimmer.calls, ['pickle-s1@6', 'pickle-s1@6', 'pickle-s1@6']);
+    });
+
+    test('keeps a sender\'s live session exported after the SDK swaps in its '
+        'backup copy, across a restart and a rebuild', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      read('previous', {9: ago(const Duration(hours: 3))});
+      read('live', {5: ago(const Duration(minutes: 1))});
+      now = now.add(const Duration(minutes: 5));
+      final before = await exporter.roomFields(room, allowed: true);
+      storeBackupCopy('live');
+
+      final swapped = await exporter.roomFields(room, allowed: true);
+      await exporter.save(prefs);
+      final restarted = SessionExporter(trimmer: trimmer, now: () => now)
+        ..load(prefs);
+      final reloaded = await restarted.roomFields(room, allowed: true);
+      await restarted.rebuild(client);
+      final rebuilt = await restarted.roomFields(room, allowed: true);
+
+      expect(exported(before), ['live']);
+      expect(exported(swapped), ['live']);
+      expect(exported(reloaded), ['live']);
+      expect(exported(rebuilt), ['live']);
+      expect(trimmer.calls, everyElement('pickle-live@6'));
+    });
+
+    test('a rebuild after an upgrade ranks sessions by their messages, not '
+        'by when an older build read them', () async {
+      SharedPreferences.setMockInitialValues({
+        SessionExporter.indexKey: jsonEncode({
+          room.id: {
+            'live': ago(const Duration(minutes: 1)),
+            'old': now.millisecondsSinceEpoch,
+          },
+        }),
+      });
+      final prefs = await SharedPreferences.getInstance();
+      database.put(
+        room.id,
+        'live',
+        indexes: _indexes({5: ago(const Duration(minutes: 1))}),
+      );
+      database.put(
+        room.id,
+        'old',
+        indexes: _indexes({4: ago(const Duration(days: 200))}),
+        content: _forwarded,
+      );
+      final upgraded = SessionExporter(trimmer: trimmer, now: () => now)
+        ..load(prefs);
+
+      await upgraded.rebuild(client);
+
+      expect(exported(await upgraded.roomFields(room, allowed: true)), [
+        'live',
+      ]);
+    });
+
+    test('once synced, a rebuild leaves out rooms the account is no longer '
+        'in', () async {
+      final synced = _SyncedClient(database);
+      synced.rooms.add(buildTestRoom(synced, id: room.id));
+      database.put(room.id, 'kept', indexes: _indexes({0: 50}));
+      database.put('!left:zuno.im', 'gone', indexes: _indexes({0: 50}));
+
+      await exporter.rebuild(synced);
+
+      expect(exporter.takeDirtyRooms(), {room.id});
+    });
+
+    test('a rebuild during the first sync keeps every session', () async {
+      client.rooms.add(room);
+      database.put(room.id, 'kept', indexes: _indexes({0: 50}));
+      database.put('!not-yet:zuno.im', 'pending', indexes: _indexes({0: 50}));
+
+      await exporter.rebuild(client);
+
+      expect(exporter.takeDirtyRooms(), {room.id, '!not-yet:zuno.im'});
+    });
+
+    test('a rebuild forgets what it exported for a session the database no '
+        'longer holds', () async {
+      read('s1', {5: ago(const Duration(minutes: 1))});
+      now = now.add(const Duration(minutes: 5));
+      await exporter.roomFields(room, allowed: true);
+      database.sessions.remove('s1');
+      await exporter.rebuild(client);
+      storeBackupCopy('s1');
+
+      final fields = await exporter.roomFields(room, allowed: true);
+
+      expect(fields['sessions'], isEmpty);
     });
 
     test('forgets when it first read an index once the grace is over, and '

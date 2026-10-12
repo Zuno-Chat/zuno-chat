@@ -7,13 +7,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/recovery_code.dart';
+import 'package:zuno/core/security/secret_text.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/features/settings/presentation/recovery_code_screens.dart';
 
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fake_files_channel.dart';
 import '../../../helpers/fixtures.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/screen_security.dart';
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -66,6 +70,18 @@ void main() {
     await _pump(tester, size: const Size(360, 640));
 
     expect(tester.takeException(), isNull);
+    expect(
+      [
+        for (final label in tester.widgetList<Text>(
+          find.descendant(
+            of: find.byType(OutlinedButton),
+            matching: find.byType(Text),
+          ),
+        ))
+          label.data,
+      ],
+      ['Save as a file', 'Copy'],
+    );
     final button = find.widgetWithText(FilledButton, 'Continue');
     await tester.ensureVisible(button);
     await tester.pumpAndSettle();
@@ -105,9 +121,8 @@ void main() {
 
     final wordlist = shippedRecoveryWordlist();
     final shown = tester
-        .widgetList<SelectableText>(find.byType(SelectableText))
-        .map((w) => w.data)
-        .whereType<String>()
+        .widgetList<SecretText>(find.byType(SecretText))
+        .map((w) => w.text)
         .toList();
 
     expect(shown, hasLength(recoveryCodeWordCount));
@@ -122,12 +137,42 @@ void main() {
   testWidgets('falls back to one column on a narrow screen', (tester) async {
     await _pump(tester, size: const Size(320, 1400));
 
-    final words = find.byType(SelectableText);
+    final words = find.byType(SecretText);
     expect(words, findsNWidgets(recoveryCodeWordCount));
     expect({
       for (final word in words.evaluate())
         tester.getTopLeft(find.byWidget(word.widget)).dx,
     }, hasLength(1));
+  });
+
+  testWidgets('every word and every field of the code is secret text', (
+    tester,
+  ) async {
+    await _pump(tester);
+
+    expect(find.byType(SecretText), findsNWidgets(recoveryCodeWordCount));
+
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SecretTextField), findsNWidgets(2));
+  });
+
+  testWidgets('the code stays screen-protected from reveal to confirm, even '
+      'with the preference off', (tester) async {
+    final native = await installScreenSecurity(preventScreenshots: false);
+    await _pump(tester);
+
+    expect(native.screenshotBlocking.last, isTrue);
+
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(native.screenshotBlocking, everyElement(isTrue));
+
+    await tester.pumpWidget(const SizedBox());
+
+    expect(native.screenshotBlocking.last, isFalse);
   });
 
   testWidgets('asks for two words by position before finishing', (
@@ -162,8 +207,8 @@ void main() {
     }
 
     List<String> shownWords(WidgetTester tester) => tester
-        .widgetList<SelectableText>(find.byType(SelectableText))
-        .map((w) => w.data!)
+        .widgetList<SecretText>(find.byType(SecretText))
+        .map((w) => w.text)
         .toList();
 
     List<int> askedPositions(WidgetTester tester) => [
@@ -250,46 +295,6 @@ void main() {
       );
     });
 
-    testWidgets('Save to password manager offers the code for saving', (
-      tester,
-    ) async {
-      final textInput = <String>[];
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.textInput,
-        (call) async {
-          textInput.add(call.method);
-          return null;
-        },
-      );
-      addTearDown(
-        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          SystemChannels.textInput,
-          null,
-        ),
-      );
-      await pumpFlow(tester);
-      final code = shownWords(tester).join(' ');
-
-      await tester.tap(find.text('Save to password manager'));
-      await tester.pumpAndSettle();
-
-      final field = tester.widget<TextField>(
-        find.descendant(
-          of: find.byType(AlertDialog),
-          matching: find.byType(TextField),
-        ),
-      );
-      expect(field.controller!.text, code);
-      expect(field.readOnly, isTrue);
-      expect(field.autofillHints, [AutofillHints.newPassword]);
-
-      await tester.tap(find.widgetWithText(TextButton, 'Done'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(AlertDialog), findsNothing);
-      expect(textInput, contains('TextInput.finishAutofillContext'));
-    });
-
     group('Save as a file', () {
       late FakeFilePicker picker;
 
@@ -306,6 +311,21 @@ void main() {
         expect(saved.fileName, 'zuno-recovery-code.txt');
         expect(saved.mimeType, 'text/plain');
         expect(utf8.decode(saved.bytes), '$code\n');
+        expect(find.text('Saved'), findsOneWidget);
+      });
+
+      testWidgets('on iPhone, Zuno exports the file itself', (tester) async {
+        final native = installFakeFilesChannel(reply: (_) => true);
+        await pumpFlow(tester, capabilities: iosCapabilities);
+        final code = shownWords(tester).join(' ');
+
+        await tester.tap(find.text('Save as a file'));
+        await tester.pumpAndSettle();
+
+        final exported = native.argsOf('exportSensitiveFile').single! as Map;
+        expect(exported['name'], 'zuno-recovery-code.txt');
+        expect(utf8.decode(exported['bytes'] as List<int>), '$code\n');
+        expect(picker.saved, isEmpty);
         expect(find.text('Saved'), findsOneWidget);
       });
 
@@ -331,12 +351,12 @@ void main() {
     });
 
     group('Copy', () {
-      late List<MethodCall> calls;
+      late RecordedMethodCalls native;
       late List<String?> plainCopies;
 
       setUp(() {
         plainCopies = [];
-        calls = installFakeCallsChannel().calls;
+        native = installFakeCallsChannel();
         final messenger =
             TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
         messenger.setMockMethodCallHandler(SystemChannels.platform, (
@@ -363,8 +383,9 @@ void main() {
         await tester.tap(find.text('Copy'));
         await tester.pump();
 
-        expect(calls.single.method, 'copySensitive');
-        expect(calls.single.arguments, {'text': code});
+        expect(native.argsOf('copySensitive'), [
+          {'text': code},
+        ]);
         expect(
           find.text('Copied. Clears from the clipboard in 90 seconds.'),
           findsOneWidget,
@@ -372,7 +393,9 @@ void main() {
 
         await tester.pump(const Duration(seconds: 90));
 
-        expect(calls.last.method, 'clearClipboardIfMatches');
+        expect(native.argsOf('clearClipboardIfMatches'), [
+          {'text': code},
+        ]);
         await tester.pumpAndSettle();
       }
 
@@ -475,6 +498,25 @@ void main() {
         expect(find.text(hint), findsOneWidget);
       });
     }
+
+    testWidgets('the code is typed into secret text', (tester) async {
+      await pumpField(tester);
+
+      expect(find.byType(SecretTextField), findsOneWidget);
+    });
+
+    testWidgets('is screen-protected even with the preference off', (
+      tester,
+    ) async {
+      final native = await installScreenSecurity(preventScreenshots: false);
+      await pumpField(tester);
+
+      expect(native.screenshotBlocking, [true]);
+
+      await tester.pumpWidget(const SizedBox());
+
+      expect(native.screenshotBlocking, [true, false]);
+    });
 
     testWidgets('the keyboard action submits', (tester) async {
       await pumpField(tester);

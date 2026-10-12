@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart'
-    show compute, debugPrint, kDebugMode, visibleForTesting;
+    show debugPrint, kDebugMode, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/io_client.dart';
 import 'package:matrix/encryption.dart';
@@ -15,6 +15,7 @@ import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 import '../calls/matrixrtc/call_member_state.dart' show callMemberEventType;
 import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
+import '../errors/device_log.dart';
 import '../location/live_location_protocol.dart' show liveLocationStateType;
 import '../platform/platform_capabilities.dart';
 import '../push/read_model/session_exporter.dart';
@@ -184,12 +185,13 @@ Future<StartedMatrixClient> _startClient(
       'Zuno',
       httpClient: uploadProgressHttpClient,
       shareKeysWith: shareKeysWithFor(
-        readEncryptToVerifiedSessionsOnly(preferences),
+        confirmedPeopleOnlyOffered &&
+            readEncryptToVerifiedSessionsOnly(preferences),
       ),
       database: database,
       nativeImplementations: backgroundSync
           ? NativeImplementationsIsolate(
-              compute,
+              computeWithDeviceLogFloor,
               vodozemacInit: ensureVodozemacInitialized,
             )
           : NativeImplementations.dummy,

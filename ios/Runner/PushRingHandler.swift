@@ -71,11 +71,15 @@ final class PushRingHandler: NSObject {
 
   func setSignedIn(_ signedIn: Bool) {
     cache.setSignedOut(!signedIn)
-    if !signedIn {
-      keys.delete()
-      calls.endAll(reason: .remoteEnded)
-    }
+    if !signedIn { calls.endAll(reason: .remoteEnded) }
     registry?.desiredPushTypes = desiredPushTypes()
+  }
+
+  func signOut() -> Bool {
+    setSignedIn(false)
+    let wiped = cache.wipe()
+    let deleted = keys.delete()
+    return wiped && deleted
   }
 
   func tokenUpdated(_ token: Data) {

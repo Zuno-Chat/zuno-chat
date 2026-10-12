@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
+import 'package:path/path.dart' as p;
 
+import 'package:zuno/core/matrix/attachment_actions.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/message_contents/voice_message.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
@@ -11,6 +16,7 @@ import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_audio_player.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/pump_until.dart';
 
 const _meta = MessageMeta(time: '09:41', own: false);
@@ -42,8 +48,10 @@ void main() {
     },
   );
 
+  String keyOf(Event event) => attachmentCacheKey(event, thumbnail: false);
+
   void alreadyOnPhone(Event event) =>
-      AttachmentCache.instance.put('${event.eventId}:audio', server.served);
+      AttachmentCache.instance.put(keyOf(event), server.served);
 
   Future<void> settle(WidgetTester tester, {int rounds = 5}) async {
     await pumpRealAsync(
@@ -121,23 +129,80 @@ void main() {
     expect(server.downloads, isEmpty);
   });
 
-  voiceTest('downloads a message the first time and keeps it', (tester) async {
-    final event = voice();
+  Future<void> playFromServer(WidgetTester tester, Event event) async {
     await pumpVoice(tester, event);
-
     await tester.tap(find.byType(InkWell));
     await pumpUntil(
       tester,
       () => audio.named('resume').isNotEmpty,
       reason: 'the downloaded message to play',
     );
+  }
 
+  Future<Uint8List?> keptOnDisk(WidgetTester tester, Event event) async {
+    Uint8List? kept;
+    for (var i = 0; i < 50 && kept == null; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      kept = await tester.runAsync<Uint8List?>(() async {
+        final file = await DiskAttachmentCache.instance.file(keyOf(event));
+        return file == null ? null : await file.readAsBytes();
+      });
+    }
+    return kept;
+  }
+
+  voiceTest('downloads a message the first time and keeps it', (tester) async {
+    final event = voice();
+
+    await playFromServer(tester, event);
+
+    expect(await keptOnDisk(tester, event), server.served);
     expect(server.downloads, hasLength(1));
-    expect(
-      AttachmentCache.instance.get('${event.eventId}:audio'),
-      server.served,
-    );
+    expect(AttachmentCache.instance.get(keyOf(event)), server.served);
     expect(audio.methods, contains('resume'));
+  });
+
+  voiceTest('a played message is shared without downloading it again', (
+    tester,
+  ) async {
+    final device = installDeviceFakes();
+    final event = voice();
+    await playFromServer(tester, event);
+    await keptOnDisk(tester, event);
+
+    await tester.runAsync(() => shareAttachments([event]));
+
+    expect(device.shared, hasLength(1));
+    expect(server.downloads, hasLength(1));
+  });
+
+  voiceTest('where the player needs a file, it plays the cached copy', (
+    tester,
+  ) async {
+    ambientCapabilities = iosCapabilities;
+    final event = voice();
+    alreadyOnPhone(event);
+    await pumpVoice(tester, event);
+
+    await tester.tap(find.byType(InkWell));
+    await pumpUntil(
+      tester,
+      () => audio.named('resume').isNotEmpty,
+      reason: 'the cached copy to play',
+    );
+
+    final source = audio.named('setSourceUrl').single.arguments as Map;
+    expect(source['isLocal'], isTrue);
+    expect(source['mimeType'], 'audio/ogg');
+    expect(
+      p.isWithin(
+        '${server.cacheDirectory.path}/attachment_cache',
+        source['url'] as String,
+      ),
+      isTrue,
+    );
+    expect(audio.methods, isNot(contains('setSourceBytes')));
+    expect(server.temporaryDirectory.listSync(), isEmpty);
   });
 
   voiceTest('scrolling away while it downloads does not start it', (

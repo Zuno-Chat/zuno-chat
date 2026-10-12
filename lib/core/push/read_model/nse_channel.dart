@@ -27,6 +27,8 @@ class NseChannel {
 
   Future<void> wipe() => _invoke<void>('wipe');
 
+  Future<void> open() => _invoke<void>('open');
+
   Future<bool> _write(String method, Map<String, Object?> arguments) async {
     if (!_enabled) return false;
     try {

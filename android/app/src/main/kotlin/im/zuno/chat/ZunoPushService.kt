@@ -113,7 +113,7 @@ class ZunoPushService : UnifiedPushService() {
         val json = JSONObject(String(message.content, Charsets.UTF_8))
         json.optJSONObject("notification") ?: json
     } catch (e: Exception) {
-        Log.d(TAG, "No instant notice for this push: ${e.message}")
+        Log.d(TAG, "No instant notice for this push: ${e.javaClass.name}")
         null
     }
 

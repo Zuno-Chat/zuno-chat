@@ -5,10 +5,13 @@
   so a future bump (or a library shipping its own manifest) can relax them
   silently. A messaging client should not inherit that.
 
-  - cleartextTrafficPermitted="false": no plaintext HTTP, ever. The
-    homeserver URL is user-supplied (homeserver_page.dart also rejects an
-    explicit http:// scheme up front), so this is the backstop for anything
-    that reaches the network another way.
+  This file governs Android's own network stacks (Kotlin, plugins, media
+  players, WebViews), not Dart's sockets: Flutter's Android embedding never
+  tells dart:io to honor it. Dart traffic is held to https by the app-wide
+  HttpOverrides in lib/core/network/app_http_overrides.dart instead.
+
+  - cleartextTrafficPermitted="false": no plaintext HTTP from the Android
+    side, ever.
   - system trust anchors only: no user-installed CAs. That deliberately
     breaks casual proxy interception (mitmproxy, corporate root certs) —
     which is the intent for an E2EE messenger, and is also why there is no

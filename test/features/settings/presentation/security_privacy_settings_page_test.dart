@@ -166,6 +166,12 @@ void main() {
     });
   });
 
+  testWidgets('Confirmed people only is not offered', (tester) async {
+    await pumpPage(tester);
+
+    expect(switchTile('Confirmed people only'), findsNothing);
+  });
+
   testWidgets('iOS keeps the On this device group for the screen, without '
       'the keyboard it cannot ask not to learn', (tester) async {
     await pumpPage(tester, capabilities: iosCapabilities);

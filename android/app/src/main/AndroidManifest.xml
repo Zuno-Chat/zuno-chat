@@ -110,6 +110,15 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+        <provider
+            android:name=".HandoverFileProvider"
+            android:authorities="${applicationId}.handover"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/handover_paths" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

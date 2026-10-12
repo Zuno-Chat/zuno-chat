@@ -1,14 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:zuno/core/security/recovery_code_file.dart';
 
 import '../../helpers/fake_attachments.dart';
+import '../../helpers/fake_files_channel.dart';
+import '../../helpers/native_method_calls.dart';
+import '../../helpers/platform_capabilities.dart';
 
 const _code =
     'acorn blew celery diesel elbow fever glow harp idle jolt kiwi lamp';
@@ -52,6 +55,82 @@ void main() {
       final big = utf8.encode('$_code ' * 100);
 
       expect(decodeRecoveryCodeFile(_bytes(big)), isNull);
+    });
+  });
+
+  group('saveRecoveryCodeFile', () {
+    late FakeFilePicker picker;
+    late RecordedMethodCalls native;
+    late Object? exportReply;
+
+    setUp(() {
+      picker = installFakeFilePicker();
+      exportReply = true;
+      native = installFakeFilesChannel(
+        reply: (call) {
+          final reply = exportReply;
+          if (reply is Exception) throw reply;
+          return reply;
+        },
+      );
+    });
+
+    test('on iPhone, Zuno exports the file itself and never hands it to the '
+        'picker, whose copy would stay behind', () async {
+      final saved = await saveRecoveryCodeFile(
+        _code,
+        capabilities: iosCapabilities,
+      );
+
+      expect(saved, isTrue);
+      expect(native.argsOf('exportSensitiveFile'), [
+        {
+          'name': 'zuno-recovery-code.txt',
+          'bytes': encodeRecoveryCodeFile(_code),
+        },
+      ]);
+      expect(picker.saved, isEmpty);
+    });
+
+    test('a cancelled export on iPhone saves nothing', () async {
+      exportReply = false;
+
+      expect(
+        await saveRecoveryCodeFile(_code, capabilities: iosCapabilities),
+        isFalse,
+      );
+    });
+
+    test('a failed export on iPhone fails the save', () async {
+      exportReply = PlatformException(code: 'write_failed');
+
+      await expectLater(
+        saveRecoveryCodeFile(_code, capabilities: iosCapabilities),
+        throwsA(isA<PlatformException>()),
+      );
+    });
+
+    test('on Android, the system picker saves the file', () async {
+      final saved = await saveRecoveryCodeFile(
+        _code,
+        capabilities: androidCapabilities,
+      );
+
+      expect(saved, isTrue);
+      final file = picker.saved.single;
+      expect(file.fileName, 'zuno-recovery-code.txt');
+      expect(file.mimeType, 'text/plain');
+      expect(file.bytes, encodeRecoveryCodeFile(_code));
+      expect(native.calls, isEmpty);
+    });
+
+    test('a cancelled pick on Android saves nothing', () async {
+      picker.answer = null;
+
+      expect(
+        await saveRecoveryCodeFile(_code, capabilities: androidCapabilities),
+        isFalse,
+      );
     });
   });
 

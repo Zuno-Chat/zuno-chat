@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/misc.dart';
+import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/live_location_capture.dart';
@@ -11,6 +12,7 @@ import 'package:zuno/core/location/live_location_viewing.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 
+import 'fake_device_keys.dart';
 import 'fake_matrix.dart';
 
 class FakeLiveLocationCapture implements LiveLocationCapture {
@@ -89,11 +91,13 @@ class LiveLocationTestClient extends Client {
   final ignored = <String>[];
   Object? sendError;
   final toDevice = <LiveToDeviceSend>[];
+  final noOlmSession = <String>{};
   final serverStateReads = <String>[];
   Map<String, Map<String, Object?>> serverState = {};
   Object? stateWriteError;
   Completer<void>? holdStateWrites;
   Completer<void>? holdSends;
+  late final _encryption = Encryption(client: this);
   var _events = 0;
 
   @override
@@ -101,6 +105,9 @@ class LiveLocationTestClient extends Client {
 
   @override
   bool get encryptionEnabled => true;
+
+  @override
+  Encryption? get encryption => _encryption;
 
   @override
   List<String> get ignoredUsers => List.of(ignored);
@@ -153,6 +160,10 @@ class LiveLocationTestClient extends Client {
   }) async {
     if (holdSends case final hold?) await hold.future;
     if (sendError case final error?) throw error;
+    for (final device in deviceKeys) {
+      if (noOlmSession.contains(device.deviceId)) continue;
+      openTestOlmSession(_encryption, device.deviceId!);
+    }
     toDevice.add((
       devices: [for (final d in deviceKeys) '${d.userId}/${d.deviceId}'],
       type: eventType,

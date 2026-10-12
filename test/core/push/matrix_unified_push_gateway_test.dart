@@ -4,7 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:zuno/core/network/app_http_overrides.dart';
 import 'package:zuno/core/push/matrix_unified_push_gateway.dart';
+
+import '../../helpers/caught_reports.dart';
 
 void main() {
   final endpoint = Uri.parse('https://ntfy.example.org/up/abc123?token=xyz');
@@ -47,4 +50,22 @@ void main() {
       expect(gateway, fallbackMatrixGatewayUrl);
     });
   }
+
+  test('an http distributor uses the public gateway without reporting the '
+      'refused discovery as a failure', () async {
+    final mock = MockClient(
+      (request) async => throw CleartextRefusedException(request.url),
+    );
+    late Uri gateway;
+
+    final reports = await reportsDuring(() async {
+      gateway = await resolveMatrixGatewayUrl(
+        Uri.parse('http://ntfy.example.org/up/abc123'),
+        httpClient: mock,
+      );
+    });
+
+    expect(gateway, fallbackMatrixGatewayUrl);
+    expect(reports, isEmpty);
+  });
 }

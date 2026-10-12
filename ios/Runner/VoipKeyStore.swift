@@ -91,8 +91,9 @@ struct VoipKeyStore: Sendable {
     return keys
   }
 
-  func delete() {
-    _ = backend.delete(service: Self.service, accessGroup: nil)
+  @discardableResult
+  func delete() -> Bool {
+    SystemKeychain.isGone(backend.delete(service: Self.service, accessGroup: nil))
   }
 
   private func save(_ keys: VoipKeys) -> Bool {

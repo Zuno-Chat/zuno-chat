@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:matrix/matrix.dart';
 
 import '../errors/connection_error.dart';
+import '../network/app_http_overrides.dart';
 import 'registration_code_request.dart';
 import 'registration_support.dart';
 
@@ -118,6 +119,7 @@ String _sentence(String message) {
 
 enum HomeserverProblem {
   unreachable,
+  insecure,
   noPasswordSignIn,
   refused,
   notAServer,
@@ -127,6 +129,7 @@ enum HomeserverProblem {
 }
 
 HomeserverProblem homeserverProblem(Object error) {
+  if (error is CleartextRefusedException) return HomeserverProblem.insecure;
   if (isConnectionError(error)) return HomeserverProblem.unreachable;
   if (error is BadServerLoginTypesException) {
     return HomeserverProblem.noPasswordSignIn;
@@ -144,6 +147,9 @@ String homeserverErrorMessage(Object error) =>
     switch (homeserverProblem(error)) {
       HomeserverProblem.unreachable =>
         'Cannot reach that server. Check the address and your connection.',
+      HomeserverProblem.insecure =>
+        'That server uses http, which is not secure. Zuno connects only over '
+            'https.',
       HomeserverProblem.noPasswordSignIn =>
         'That server does not support signing in with a password.',
       HomeserverProblem.refused => _sentence(

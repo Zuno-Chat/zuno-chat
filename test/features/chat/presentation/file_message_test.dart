@@ -98,8 +98,8 @@ void main() {
 
     await saveBy(tester);
 
-    final saved = device.picker.saved.single;
-    expect(saved.fileName, 'report.pdf');
+    final saved = device.exported.single;
+    expect(saved.path, endsWith('/report.pdf'));
     expect(saved.mimeType, 'application/pdf');
     expect(saved.bytes, server.served);
     expect(find.text('Saved'), findsOneWidget);
@@ -116,7 +116,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(tester.widget<InkWell>(find.byType(InkWell)).onTap, isNull);
 
-    await saveBy(tester, until: () => device.picker.saved.isNotEmpty);
+    await saveBy(tester, until: () => device.exported.isNotEmpty);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 }

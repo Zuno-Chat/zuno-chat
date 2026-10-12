@@ -165,9 +165,9 @@ void main() {
     await ReadModelPublisher(now: () => DateTime.fromMillisecondsSinceEpoch(7))
         .start(client, _meta);
 
-    expect(methods(), ['wipe', 'writeMeta', 'writeRoom', 'writeRoom']);
+    expect(methods(), ['open', 'wipe', 'writeMeta', 'writeRoom', 'writeRoom']);
     expect(
-      [for (final c in written.skip(2)) (c.arguments as Map)['room_id']],
+      [for (final c in written.skip(3)) (c.arguments as Map)['room_id']],
       ['!a:zuno.im', '!b:zuno.im'],
     );
   });
@@ -179,7 +179,22 @@ void main() {
 
     await ReadModelPublisher().start(client, _meta);
 
-    expect(methods(), ['writeMeta']);
+    expect(methods(), ['open', 'writeMeta']);
+  });
+
+  test('a start opens the read model before anything is written, so a write '
+      'racing the start never meets the sign-out the last session '
+      'recorded', () async {
+    joinedRoom('!a:zuno.im', name: 'A');
+    final publisher = ReadModelPublisher();
+
+    final starting = publisher.start(client, _meta);
+    publisher.roomsChanged(['!a:zuno.im']);
+    final flushing = publisher.flush();
+    await Future.wait([starting, flushing]);
+
+    expect(methods().first, 'open');
+    expect(methods().where((method) => method == 'open'), hasLength(1));
   });
 
   test('changed rooms are written once, a second after the last change', () {
@@ -459,7 +474,7 @@ void main() {
       await starting;
 
       expect(prepared, 0);
-      expect(methods(), ['wipe']);
+      expect(methods(), ['open', 'wipe']);
     },
   );
 

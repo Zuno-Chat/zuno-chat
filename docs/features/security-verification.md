@@ -102,6 +102,19 @@ flowchart TD
   Text correction is off in the field, because autocorrect mangling a word
   is the likeliest real-world failure of the design. Validation only hints
   and never blocks submission.
+- **The code is guarded wherever it shows or is typed.**
+  - Screenshots are blocked while it is on screen, whatever the Prevent
+    screenshots setting says (`settings.md`).
+  - It shows as text that cannot be selected, so copying goes only through
+    the Copy button and the clipboard that clears itself.
+  - Its fields offer only cut, copy, paste and select all, copying through
+    that same clipboard, with keyboard learning off.
+- **Saving offers writing it down, a file or copying it**, with no "save to
+  password manager" button, because a read-only field never reaches
+  autofill on Android or iOS.
+- **On iPhone the file goes through Zuno's own export**, which writes the
+  copy the picker needs under complete file protection and deletes it once
+  the picker closes.
 
 ### Device approval and verification
 
@@ -164,8 +177,7 @@ person calls from a device they approved.
 new sign-in on the user's own account (a banner and a notification,
 `notifications.md`), and a new device for a contact without a master key (a
 banner in the chat). The default key policy sends that contact's new devices
-room keys, so it is the one case where a device can read along unnoticed,
-unless Confirmed people only is on.
+room keys, so it is the one case where a device can read along unnoticed.
 
 The first check for a user seeds the store silently. Only contacts sharing a
 non-public room are watched, because strangers' devices are noise. The
@@ -174,16 +186,20 @@ warning fires on a device appearing rather than as a standing state, because
 
 ### Confirmed people only
 
-A per-device switch in Security → On this device picks the SDK's key policy:
-off is the default `ShareKeysWith.crossVerifiedIfEnabled`, and on is
-`directlyVerifiedOnly`, so new room keys from this device reach only
+**Not offered for now.** The switch and its section of "How this works"
+are hidden, and a stored on is ignored, so every client uses the default
+key policy. "How this works" still links to the site's full list of
+protections.
+
+As built, a per-device switch in Security → On this device picks the SDK's
+key policy: off is the default `ShareKeysWith.crossVerifiedIfEnabled`, and
+on is `directlyVerifiedOnly`, so new room keys from this device reach only
 confirmed people and the user's own approved devices. Every client takes the
 stored choice when it is built, background ones included, because a
 notification reply is sent from a background client. Turning it on needs
 recovery and an approved device, since without them this device trusts
 nobody and its messages would reach no one; turning it off is always
-allowed. "How this works" explains it and links to the site's full list of
-protections.
+allowed.
 
 ### Undecryptable messages
 

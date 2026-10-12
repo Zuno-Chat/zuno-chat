@@ -131,7 +131,7 @@ class _SecurityPrivacySettingsPageState
                   onChanged: (value) =>
                       ref.read(preventScreenshotsProvider.notifier).set(value),
                 ),
-              const ConfirmedPeopleOnlyTile(),
+              if (confirmedPeopleOnlyOffered) const ConfirmedPeopleOnlyTile(),
             ],
           ),
           CardGroup(

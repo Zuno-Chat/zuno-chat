@@ -4,17 +4,18 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart'
-    show ValueListenable, visibleForTesting;
+    show ValueListenable, debugPrint, visibleForTesting;
 import 'package:flutter/widgets.dart'
     show AppLifecycleListener, AppLifecycleState, WidgetsBinding;
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../errors/backoff.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
-import '../../errors/retry_backoff.dart';
 import '../../matrix/bearer_authorization.dart';
+import '../../matrix/ephemeral_to_device.dart';
 import '../../matrix/olm_sender.dart';
 import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
@@ -133,7 +134,7 @@ class CallSession {
   final CallEngine Function()? engineBuilder;
 
   static const _defaultKeyRelayBaseDelay = Duration(milliseconds: 300);
-  static const _defaultKeyRelayMaxDelay = Duration(seconds: 1);
+  static const _defaultKeyRelayMaxDelay = Duration(seconds: 4);
 
   final Duration keyRelayBaseDelay;
   final Duration keyRelayMaxDelay;
@@ -583,11 +584,32 @@ class CallSession {
   }
 
   void _handleToDeviceEvent(ToDeviceEvent event) {
-    if (_encryptionKey != null) return;
-    if (event.type != callEncryptionKeyEventType) return;
+    switch (event.type) {
+      case EventTypes.Dummy:
+        _relayOverNewOlmSession(event);
+      case callEncryptionKeyEventType:
+        _receiveEncryptionKey(event);
+    }
+  }
 
-    final device = olmSenderDevice(client, event);
-    if (device == null) return;
+  VoipParticipantId? _olmSender(ToDeviceEvent event) =>
+      switch (olmSenderDevice(client, event)) {
+        DeviceKeys(:final userId, :final deviceId?) => VoipParticipantId(
+          userId: userId,
+          deviceId: deviceId,
+        ),
+        _ => null,
+      };
+
+  void _relayOverNewOlmSession(ToDeviceEvent event) {
+    final id = _olmSender(event);
+    if (id != null && _knownRemote.contains(id)) _relayEncryptionKeyTo(id);
+  }
+
+  void _receiveEncryptionKey(ToDeviceEvent event) {
+    if (_encryptionKey != null) return;
+    final id = _olmSender(event);
+    if (id == null) return;
 
     final key = parseCallEncryptionKeyContent(
       content: event.content,
@@ -595,23 +617,22 @@ class CallSession {
     );
     if (key == null) return;
 
-    final id = VoipParticipantId(
-      userId: device.userId,
-      deviceId: device.deviceId!,
-    );
     if (!_currentCallParticipants().contains(id)) {
       if (_pendingKeys.length < _maxPendingKeys) _pendingKeys[id] = key;
       return;
     }
-    _applyEncryptionKey(key);
+    _applyEncryptionKey(key, from: id);
   }
 
-  void _applyEncryptionKey(Uint8List key) {
+  void _applyEncryptionKey(Uint8List key, {required VoipParticipantId from}) {
     if (_encryptionKey != null) return;
     _encryptionKey = key;
     _pendingKeys.clear();
     if (_engine case final engine?) {
       unawaited(_applyEncryptionKeyToEngine(engine, key));
+    }
+    for (final id in _knownRemote) {
+      if (id != from) _relayEncryptionKeyTo(id);
     }
   }
 
@@ -640,39 +661,83 @@ class CallSession {
     };
   }
 
-  static const _keyRelayAttempts = 3;
+  static const _keyRelayReportAfter = 3;
 
-  Future<void> _sendEncryptionKeyTo(VoipParticipantId id) async {
+  final Map<VoipParticipantId, _KeyRelay> _keyRelays = {};
+
+  void _relayEncryptionKeyTo(VoipParticipantId id) {
     final key = _encryptionKey;
-    if (key == null) return;
+    if (key == null || _ending) return;
+    _stopKeyRelay(id);
+    final relay = _keyRelays[id] = _KeyRelay();
+    unawaited(_attemptKeyRelay(id, key, relay, attempt: 1));
+  }
+
+  Future<void> _attemptKeyRelay(
+    VoipParticipantId id,
+    Uint8List key,
+    _KeyRelay relay, {
+    required int attempt,
+  }) async {
+    bool current() => !_ending && identical(_keyRelays[id], relay);
+    if (!current()) return;
     try {
-      await retryWithBackoff(
-        () => _sendEncryptionKeyOnce(id, key),
-        label: 'call key relay',
-        maxAttempts: _keyRelayAttempts,
+      await _sendEncryptionKeyOnce(id, key);
+      if (identical(_keyRelays[id], relay)) _keyRelays.remove(id);
+    } catch (e, s) {
+      if (!current()) return;
+      if (attempt == _keyRelayReportAfter) {
+        reportCaught('relay the call key', e, s);
+      }
+      final delay = backoffDelay(
+        attempt,
         baseDelay: keyRelayBaseDelay,
         maxDelay: keyRelayMaxDelay,
-        retryIf: (_) => _phase != CallSessionPhase.ended,
       );
-    } catch (e, s) {
-      if (_phase == CallSessionPhase.ended) return;
-      reportCaught('relay the call key', e, s);
+      debugPrint(
+        'zuno/retry: call key relay failed (attempt $attempt), '
+        'retrying in $delay: $e',
+      );
+      relay.retry = Timer(
+        delay,
+        () => unawaited(_attemptKeyRelay(id, key, relay, attempt: attempt + 1)),
+      );
     }
+  }
+
+  void _stopKeyRelay(VoipParticipantId id) => _keyRelays.remove(id)?.stop();
+
+  void _stopKeyRelays() {
+    for (final relay in _keyRelays.values) {
+      relay.stop();
+    }
+    _keyRelays.clear();
   }
 
   Future<void> _sendEncryptionKeyOnce(
     VoipParticipantId id,
     Uint8List key,
   ) async {
-    await client.updateUserDeviceKeys(additionalUsers: {id.userId});
-    final deviceKeys =
-        client.userDeviceKeys[id.userId]?.deviceKeys[id.deviceId];
-    if (deviceKeys == null) throw StateError('No device keys yet');
-    await client.sendToDeviceEncrypted(
-      [deviceKeys],
+    final device = await _deviceKeysOf(id);
+    final unreached = await sendEphemeralToDevice(
+      client,
+      [device],
       callEncryptionKeyEventType,
       buildCallEncryptionKeyContent(callId: callId, key: key),
     );
+    if (unreached.isNotEmpty) {
+      throw StateError('No Olm session with the device yet');
+    }
+  }
+
+  Future<DeviceKeys> _deviceKeysOf(VoipParticipantId id) async {
+    DeviceKeys? known() =>
+        client.userDeviceKeys[id.userId]?.deviceKeys[id.deviceId];
+    if (known() case final device?) return device;
+    if (client.userDeviceKeys[id.userId]?.outdated != false) {
+      await client.updateUserDeviceKeys(additionalUsers: {id.userId});
+    }
+    return known() ?? (throw StateError('No device keys yet'));
   }
 
   Future<void> refreshMembership() async {
@@ -751,7 +816,7 @@ class CallSession {
         );
         seenThisPass.add(id);
         if (_pendingKeys.remove(id) case final pending?) {
-          _applyEncryptionKey(pending);
+          _applyEncryptionKey(pending, from: id);
         }
         final remoteSessionId = switch (membership.fociActive['sessionId']) {
           final String sessionId => sessionId,
@@ -760,7 +825,7 @@ class CallSession {
         final isNewDevice = _knownRemote.add(id);
         if (isNewDevice || _knownRemoteSessions[id] != remoteSessionId) {
           _knownRemoteSessions[id] = remoteSessionId;
-          unawaited(_sendEncryptionKeyTo(id));
+          _relayEncryptionKeyTo(id);
         }
         if (!_everHadRemote) {
           _everHadRemote = true;
@@ -783,6 +848,7 @@ class CallSession {
       eng.removeRemoteParticipant(id);
       _knownRemote.remove(id);
       _knownRemoteSessions.remove(id);
+      _stopKeyRelay(id);
     }
 
     if (seenThisPass.isNotEmpty) {
@@ -823,6 +889,7 @@ class CallSession {
 
   void _releaseListeners() {
     _cancelTimers();
+    _stopKeyRelays();
     _stopFollowingAppLifecycle();
     _pendingKeys.clear();
     for (final subscription in _subscriptions) {
@@ -917,6 +984,12 @@ class CallSession {
       }),
     );
   }
+}
+
+class _KeyRelay {
+  Timer? retry;
+
+  void stop() => retry?.cancel();
 }
 
 class MicrophoneUnavailable implements Exception {

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
@@ -7,6 +8,7 @@ import 'package:zuno/core/matrix/attachment_actions.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 
 import '../../helpers/fake_attachments.dart';
+import '../../helpers/fake_files_channel.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
 
@@ -149,6 +151,12 @@ void main() {
       mimetype: mimetype,
     );
 
+    Future<void> untilGone(String path) async {
+      for (var i = 0; i < 50 && File(path).existsSync(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    }
+
     List<String> sharedNames() => [
       for (final path in device.shared.single['paths']! as List)
         p.basename('$path'),
@@ -177,26 +185,54 @@ void main() {
         final path = (device.gallery.single.arguments as Map)['path'] as String;
         expect(p.basename(path), 'clip.mp4');
         expect(device.galleryFilesPresent, [true]);
-        for (var i = 0; i < 50 && File(path).existsSync(); i++) {
-          await Future<void>.delayed(const Duration(milliseconds: 10));
-        }
+        await untilGone(path);
         expect(File(path).existsSync(), isFalse);
       });
 
-      test('a file goes through the save dialog with its type', () async {
-        expect(await saveAttachment(document()), 'Saved');
+      test(
+        'a file is exported by Zuno from a named copy with its type, '
+        'never read whole into the app, and the copy removed after',
+        () async {
+          expect(await saveAttachment(document()), 'Saved');
 
-        final saved = device.picker.saved.single;
-        expect(saved.fileName, 'report.pdf');
-        expect(saved.mimeType, 'application/pdf');
-        expect(saved.bytes, server.served);
+          final exported = device.exported.single;
+          expect(p.basename(exported.path), 'report.pdf');
+          expect(exported.mimeType, 'application/pdf');
+          expect(exported.bytes, server.served);
+          expect(device.picker.saved, isEmpty);
+          await untilGone(exported.path);
+          expect(File(exported.path).existsSync(), isFalse);
+        },
+      );
+
+      test('a cancelled export saves nothing and leaves no copy', () async {
+        device.exportAnswer = false;
+
+        expect(await saveAttachment(document()), isNull);
+        final path = device.exported.single.path;
+        await untilGone(path);
+        expect(File(path).existsSync(), isFalse);
+      });
+
+      test('a failed export fails the save and leaves no copy', () async {
+        final native = installFakeFilesChannel(
+          reply: (_) => throw PlatformException(code: 'write_failed'),
+        );
+
+        await expectLater(
+          saveAttachment(document()),
+          throwsA(isA<PlatformException>()),
+        );
+        final path = (native.calls.single.arguments as Map)['path'] as String;
+        await untilGone(path);
+        expect(File(path).existsSync(), isFalse);
       });
 
       test('a file saved twice is downloaded once', () async {
         await saveAttachment(document());
         await saveAttachment(document());
 
-        expect(device.picker.saved, hasLength(2));
+        expect(device.exported, hasLength(2));
         expect(server.downloads, hasLength(1));
       });
 
@@ -205,27 +241,21 @@ void main() {
         () async {
           await saveAttachment(document(body: '../../../etc/report.pdf'));
 
-          expect(device.picker.saved.single.fileName, 'report.pdf');
+          expect(p.basename(device.exported.single.path), 'report.pdf');
         },
       );
 
       test('a file without a type is saved as plain bytes', () async {
         await saveAttachment(document(mimetype: ''));
 
-        expect(device.picker.saved.single.mimeType, 'application/octet-stream');
-      });
-
-      test('closing the save dialog reports nothing', () async {
-        device.picker.answer = null;
-
-        expect(await saveAttachment(document()), isNull);
+        expect(device.exported.single.mimeType, 'application/octet-stream');
       });
     });
 
     test('saveAttachments counts only what landed', () async {
       final gone = photo(r'$gone');
       server.goneFromServer(gone);
-      device.picker.answer = null;
+      device.exportAnswer = false;
 
       final saved = await saveAttachments([photo(), gone, document()]);
 
@@ -265,12 +295,37 @@ void main() {
         expect(paths.every((path) => File(path).existsSync()), isTrue);
       });
 
-      test('the same item shared twice reuses its copy', () async {
-        await shareAttachments([photo()]);
-        await shareAttachments([photo()]);
+      test(
+        'the same item shared twice is copied each time, downloaded once',
+        () async {
+          await shareAttachments([photo()]);
+          await shareAttachments([photo()]);
 
-        expect(device.shared[0]['paths'], device.shared[1]['paths']);
-      });
+          final paths = [
+            for (final share in device.shared)
+              '${(share['paths']! as List).single}',
+          ];
+          expect(paths.toSet(), hasLength(2));
+          expect(paths.every((path) => File(path).existsSync()), isTrue);
+          expect(server.downloads, hasLength(1));
+        },
+      );
+
+      test(
+        'saving a shared video leaves the copy the other app was given',
+        () async {
+          await shareAttachments([video()]);
+          final shared = '${(device.shared.single['paths']! as List).single}';
+
+          await saveAttachment(video());
+          final saved =
+              (device.gallery.single.arguments as Map)['path'] as String;
+          await untilGone(saved);
+
+          expect(File(saved).existsSync(), isFalse);
+          expect(File(shared).existsSync(), isTrue);
+        },
+      );
 
       test('says it is preparing when something must download first', () async {
         var preparing = 0;
@@ -278,6 +333,37 @@ void main() {
         await shareAttachments([photo()], onPreparing: () => preparing++);
 
         expect(preparing, 1);
+      });
+
+      test('copies handed over live in the attachment cache', () async {
+        await shareAttachments([photo()]);
+        await saveAttachment(video());
+
+        final cache = '${server.cacheDirectory.path}/attachment_cache';
+        final shared = '${(device.shared.single['paths']! as List).single}';
+        expect(p.isWithin(cache, shared), isTrue);
+        expect(
+          p.isWithin(
+            cache,
+            (device.gallery.single.arguments as Map)['path'] as String,
+          ),
+          isTrue,
+        );
+        expect(server.temporaryDirectory.listSync(recursive: true), isEmpty);
+      });
+
+      test('on Android, shares through Zuno itself', () async {
+        await shareAttachments([photo()], capabilities: androidCapabilities);
+
+        expect(device.sharePlus, isEmpty);
+        expect(device.nativeShares, hasLength(1));
+      });
+
+      test('on iOS, shares through the share sheet', () async {
+        await shareAttachments([photo()], capabilities: iosCapabilities);
+
+        expect(device.nativeShares, isEmpty);
+        expect(device.sharePlus, hasLength(1));
       });
 
       test('shares at once when everything is already here', () async {
@@ -292,12 +378,13 @@ void main() {
 
         expect(preparing, 0);
         expect(device.shared, hasLength(1));
+        expect(server.downloads, isEmpty);
       });
     });
 
-    group('where other apps go by the file extension', () {
+    group('handed over where other apps go by the file extension', () {
       test('a shared file named without one gets it from its type', () async {
-        await shareAttachments([unnamed()], capabilities: iosCapabilities);
+        await shareAttachments([unnamed()]);
 
         expect(sharedNames(), ['report.pdf']);
       });
@@ -309,7 +396,6 @@ void main() {
             body: 'clip',
             mimetype: 'video/quicktime',
           ),
-          capabilities: iosCapabilities,
         );
 
         final path = (device.gallery.single.arguments as Map)['path'] as String;
@@ -317,49 +403,30 @@ void main() {
       });
 
       test('a file saved without one gets it from its type', () async {
-        await saveAttachment(unnamed(), capabilities: iosCapabilities);
+        await saveAttachment(unnamed());
 
-        expect(device.picker.saved.single.fileName, 'report.pdf');
+        expect(p.basename(device.exported.single.path), 'report.pdf');
       });
 
       test('a name with a dot but no known extension gets one', () async {
-        await shareAttachments([
-          unnamed(body: 'Mr. Smith report'),
-        ], capabilities: iosCapabilities);
+        await shareAttachments([unnamed(body: 'Mr. Smith report')]);
 
         expect(sharedNames(), ['Mr. Smith report.pdf']);
       });
 
       test('a name that has one keeps it', () async {
-        await shareAttachments([
-          unnamed(body: 'notes.txt'),
-        ], capabilities: iosCapabilities);
+        await shareAttachments([unnamed(body: 'notes.txt')]);
 
         expect(sharedNames(), ['notes.txt']);
       });
 
       test('a file of unknown type keeps its name', () async {
-        await shareAttachments([
-          unnamed(mimetype: ''),
-        ], capabilities: iosCapabilities);
-        await saveAttachment(
-          unnamed(mimetype: 'application/octet-stream'),
-          capabilities: iosCapabilities,
-        );
+        await shareAttachments([unnamed(mimetype: '')]);
+        await saveAttachment(unnamed(mimetype: 'application/octet-stream'));
 
         expect(sharedNames(), ['report']);
-        expect(device.picker.saved.single.fileName, 'report');
+        expect(p.basename(device.exported.single.path), 'report');
       });
-    });
-
-    test('where other apps go by the type, names are left alone', () async {
-      final event = unnamed();
-
-      await shareAttachments([event], capabilities: androidCapabilities);
-      await saveAttachment(event, capabilities: androidCapabilities);
-
-      expect(sharedNames(), ['report']);
-      expect(device.picker.saved.single.fileName, 'report');
     });
   });
 }

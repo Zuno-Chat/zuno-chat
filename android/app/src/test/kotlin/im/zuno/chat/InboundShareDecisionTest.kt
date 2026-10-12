@@ -88,32 +88,13 @@ class InboundShareDecisionTest {
         val own = "im.zuno.chat"
         val gallery = "com.example.gallery"
 
-        assertTrue(InboundShareDecision.mayRead("content", "$gallery.files", gallery, own))
-        assertTrue(InboundShareDecision.mayRead("content", "unseen.provider", null, own))
-        assertFalse(
-            InboundShareDecision.mayRead("content", "im.zuno.chat.zuno_notifications", own, own),
-        )
-        assertFalse(InboundShareDecision.mayRead("file", null, null, own))
-        assertFalse(InboundShareDecision.mayRead("android.resource", gallery, gallery, own))
-        assertFalse(InboundShareDecision.mayRead("CONTENT", "$gallery.files", gallery, own))
-        assertFalse(InboundShareDecision.mayRead(null, null, null, own))
-    }
-
-    @Test
-    fun `a file Zuno itself shared out may come back in`() {
-        val own = "im.zuno.chat"
-        val shareOut = "im.zuno.chat.flutter.share_provider"
-
-        assertTrue(InboundShareDecision.mayRead("content", shareOut, own, own))
-        assertFalse(InboundShareDecision.mayRead("file", shareOut, own, own))
-        assertFalse(
-            InboundShareDecision.mayRead(
-                "content",
-                "com.example.flutter.share_provider",
-                own,
-                own,
-            ),
-        )
+        assertTrue(InboundShareDecision.mayRead("content", gallery, own))
+        assertTrue(InboundShareDecision.mayRead("content", null, own))
+        assertFalse(InboundShareDecision.mayRead("content", own, own))
+        assertFalse(InboundShareDecision.mayRead("file", null, own))
+        assertFalse(InboundShareDecision.mayRead("android.resource", gallery, own))
+        assertFalse(InboundShareDecision.mayRead("CONTENT", gallery, own))
+        assertFalse(InboundShareDecision.mayRead(null, null, own))
     }
 
     @Test

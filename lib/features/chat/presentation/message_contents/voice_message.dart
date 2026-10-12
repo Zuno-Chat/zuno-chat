@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -49,7 +50,7 @@ class _VoiceMessageState extends State<VoiceMessage> {
   StreamSubscription<Duration>? _durationSub;
   StreamSubscription<void>? _completeSub;
 
-  String get _cacheKey => '${widget.event.eventId}:audio';
+  String get _cacheKey => attachmentCacheKey(widget.event, thumbnail: false);
 
   @override
   void initState() {
@@ -110,9 +111,10 @@ class _VoiceMessageState extends State<VoiceMessage> {
     if (bytes == null) {
       setState(() => _loading = true);
       try {
-        final file = await widget.event.downloadAndDecryptAttachment();
-        bytes = file.bytes;
-        AttachmentCache.instance.put(_cacheKey, bytes);
+        bytes = await fetchCachedAttachment(
+          _cacheKey,
+          () async => (await widget.event.downloadAndDecryptAttachment()).bytes,
+        );
       } catch (e, s) {
         reportCaught('load voice message', e, s);
         _didNotLoad();
@@ -124,16 +126,7 @@ class _VoiceMessageState extends State<VoiceMessage> {
     if (!mounted) return false;
     _starting = true;
     try {
-      await _player.play(
-        BytesSource(
-          bytes,
-          mimeType:
-              widget.event.infoMap.tryGet<String>('mimetype') ??
-              (ambientCapabilities.playerNeedsMediaType
-                  ? sniffAudioMimeType(bytes)
-                  : null),
-        ),
-      );
+      await _player.play(await _sourceOf(bytes));
     } catch (e, s) {
       reportCaught('play voice message', e, s);
       _didNotLoad();
@@ -142,6 +135,18 @@ class _VoiceMessageState extends State<VoiceMessage> {
       _starting = false;
     }
     return true;
+  }
+
+  Future<Source> _sourceOf(Uint8List bytes) async {
+    final platform = ambientCapabilities;
+    final mimeType =
+        widget.event.infoMap.tryGet<String>('mimetype') ??
+        (platform.playerNeedsMediaType ? sniffAudioMimeType(bytes) : null);
+    if (!platform.audioPlayerNeedsFile) {
+      return BytesSource(bytes, mimeType: mimeType);
+    }
+    final file = await fetchCachedAttachmentFile(_cacheKey, () async => bytes);
+    return DeviceFileSource(file.path, mimeType: mimeType);
   }
 
   void _didNotLoad() {

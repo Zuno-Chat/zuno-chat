@@ -1040,4 +1040,45 @@ final class AppDataWipeTests: XCTestCase {
     XCTAssertTrue(AppDataPlugin.empty(required: [], optional: [file], keeping: ["/x"]))
     XCTAssertFalse(AppDataPlugin.empty(required: [file], optional: [], keeping: ["/x"]))
   }
+
+  @MainActor
+  func testTheWipeSignsThePushSessionOutBeforeEmptyingTheFilesAndFailsWithEither() async {
+    for (signedOut, emptied, wiped) in [
+      (true, true, true), (false, true, false), (true, false, false),
+    ] {
+      let steps = Recorder<String>()
+      let plugin = AppDataPlugin(
+        signOut: {
+          steps.add("sign out")
+          return signedOut
+        },
+        emptyFiles: { keep in
+          steps.add("empty \(keep)")
+          return emptied
+        })
+
+      let reply = await channelReply(from: plugin, method: "wipe", arguments: ["keep": ["/db"]])
+
+      XCTAssertEqual(reply.answer as? Bool, wiped)
+      XCTAssertEqual(steps.values, ["sign out", #"empty ["/db"]"#])
+    }
+  }
+
+  @MainActor
+  func testWithoutTheOpenDatabaseNothingIsSignedOutOrEmptied() {
+    let steps = Recorder<String>()
+    let plugin = AppDataPlugin(
+      signOut: {
+        steps.add("sign out")
+        return true
+      },
+      emptyFiles: { _ in
+        steps.add("empty")
+        return true
+      })
+
+    XCTAssertEqual(
+      immediateReply(from: plugin, method: "wipe", arguments: ["keep": [String]()]) as? Bool, false)
+    XCTAssertEqual(steps.values, [])
+  }
 }

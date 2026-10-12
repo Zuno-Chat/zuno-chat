@@ -14,7 +14,7 @@ import 'package:zuno/core/location/map_tile_cache.dart';
 import 'package:zuno/core/location/map_tiles.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/network/user_agent.dart';
+import 'package:zuno/core/network/app_http_overrides.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -117,7 +117,7 @@ void main() {
     test('tile requests carry the Zuno user agent', () async {
       final previous = HttpOverrides.current;
       addTearDown(() => HttpOverrides.global = previous);
-      await installUserAgent(
+      await installAppHttpOverrides(
         version: () async => '1.2.3',
         platform: AppPlatform.android,
       );

@@ -33,7 +33,7 @@ final class ReadModelCache {
   func secrets(create: Bool) -> NotifySecretsRead {
     if let secretsCache { return .ready(secretsCache) }
     guard let store else { return .unavailable }
-    let read = keychain.load(createIfMissing: create)
+    let read = keychain.load(createIfMissing: create && store.signedOut() != .present)
     switch read {
     case .ready(let secrets):
       Self.prepare(store)
@@ -138,12 +138,14 @@ final class ReadModelCache {
     writableSecrets().map { OpaqueIds.roomToken(roomId, installKey: $0.tokenKey) }
   }
 
-  func wipe() {
-    store?.wipe()
-    keychain.delete()
+  @discardableResult
+  func wipe() -> Bool {
+    let emptied = store?.wipe() ?? true
+    let deleted = keychain.delete()
     secretsCache = nil
     forgetFiles()
     DarwinHint.readModelChanged.post()
+    return emptied && deleted
   }
 
   func signedOut() -> MarkerRead {

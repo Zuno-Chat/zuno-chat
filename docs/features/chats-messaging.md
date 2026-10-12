@@ -20,7 +20,8 @@ in `features/chat/presentation/`.
 | `features/chat/data/` | Pure helpers and shared types, including `MessageRowData` |
 | `core/matrix/event_display.dart` | What an event is, for every surface |
 | `core/matrix/image_send_preparation.dart`, `video_send_preparation.dart` | App-side media preparation before `sendFileEvent` |
-| `core/matrix/attachment_cache.dart` | The only attachment cache |
+| `core/matrix/attachment_cache.dart` | The only attachment cache, and the owner of every decrypted copy on disk |
+| `core/matrix/attachment_actions.dart` | Share and save, over `core/share/outbound_share.dart` and `core/files/file_export.dart` |
 | `core/matrix/mxc_avatar.dart` | Avatars |
 | `core/matrix/media_gallery_group.dart` | Gallery grouping |
 | `core/matrix/sanitize_message_html.dart` | The sanitizer for formatted (HTML) messages |
@@ -208,6 +209,7 @@ prepared file, thumbnail and blurhash go to `sendFileEvent`.
 | Voice recording | Ogg Opus directly | CAF, repackaged to Ogg Opus |
 | Keeping a send alive | A dataSync foreground service with a progress notification | A short background task, with no progress surface |
 | Playing cached files | As they are | Needs a type: a `.<ext>` symlink or the MIME type |
+| Playing a voice message | From memory | From its cached file, because the player would otherwise write its own copy to temporary storage |
 
 Both native sides give the same replies on each channel, with codecs
 named the Android way.
@@ -235,18 +237,45 @@ named the Android way.
 ### Attachment cache
 
 The SDK's own file store is off, so `attachment_cache.dart` is the only
-cache, with one key per event.
+cache, with one key per event. It owns every decrypted copy Zuno writes to
+disk, share and save copies included, so expiry, the size budget and
+sign-out reach them all.
 
 | Helper | Tiers | Used for |
 |---|---|---|
-| `fetchCachedAttachment` | Memory, then disk, then network | Images and thumbnails in bubbles |
-| `fetchCachedAttachmentFile` | Disk, returning the file itself | Videos and files, so nothing large is held in memory or re-downloaded |
-| `fetchCachedAvatar` | Disk, never expiring | Avatars |
+| `fetchCachedAttachment` | Memory, then disk, then network | Images, thumbnails and voice messages |
+| `fetchCachedAttachmentFile` | Disk, returning the file itself, filled from a memory copy when there is one | Videos and files, so nothing large is held in memory or re-downloaded |
+| `fetchCachedAvatar` | A disk tier that never expires | Avatars |
+| `fetchAttachmentHandover` | A fresh copy of the disk file | Each share or save |
 
-Attachments expire a day after last use, so decrypted media does not
-linger. Avatar entries never expire, because an `mxc` address is
-immutable and a new avatar is a new address. A size sweep bounds the
-whole disk tier.
+- **Attachments expire a day after last use**, so decrypted media does
+  not linger. Avatars never expire, because an `mxc` address is immutable
+  and a new avatar is a new address.
+- **A sweep bounds the disk by total size**, evicting the least recently
+  used, at app start and after writes. Of the files larger than the whole
+  budget, only the most recently used stays, until it expires; an avatar
+  that large goes at once, since it would never expire.
+- **Each share or save gets its own hand-over copy**, outside the size
+  budget and expiring by age only, because the receiving app may still be
+  reading it. Save deletes its copy once done.
+- **Writes are atomic** (a temporary file, then a rename), so a reader
+  never meets a half-written file.
+- **A download still in flight at sign-out is dropped when it lands**, so
+  it never writes the old account's media to disk.
+
+### Share and save
+
+- **Saving a file exports its hand-over copy natively on both platforms**
+  (`zuno/files`), so no plugin writes a copy of its own, and Android
+  streams it into the chosen document instead of holding it in memory.
+  Photos and videos go to the gallery instead.
+- **On Android, sharing out goes through Zuno's own chooser and a
+  `FileProvider` that exposes only the hand-over copies**, and Zuno leaves
+  itself out of that chooser, since inbound share refuses its own files.
+  iOS uses the system share sheet.
+- **A startup cleanup deletes the plaintext copies older builds left in
+  temporary storage**, which nothing else expires. It is temporary code,
+  kept until no install still runs one of those builds.
 
 ### Galleries
 
@@ -301,9 +330,8 @@ flowchart TD
   The URL it opens carries nothing, so a cold start needs no URL
   handling, and an unopened share expires so it never pops up later.
 - **On Android only `content:` files from another app's provider are
-  read**, plus Zuno's own outbound share folder (sharing a Zuno
-  attachment back into Zuno), so a share can never make Zuno send its
-  own private files.
+  read, never from a provider Zuno owns**, so a share can never make Zuno
+  send its own private files.
 - **Not built**: Direct Share targets in the Android share sheet. They
   would be additive and could reuse the pinned-shortcut code.
 

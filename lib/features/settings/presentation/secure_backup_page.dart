@@ -13,6 +13,7 @@ import '../../../core/security/prepared_uia_password.dart';
 import '../../../core/security/recovery_code.dart';
 import '../../../core/security/reset_confirmations.dart';
 import '../../../core/security/restore_key_backup.dart';
+import '../../../core/security/secret_text.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/sensitive_clipboard.dart';
 import '../../../core/ui/step_hero.dart';
@@ -623,7 +624,7 @@ class _DoneScreenState extends State<_DoneScreen> {
           child: Row(
             children: [
               Expanded(
-                child: SelectableText(
+                child: SecretText(
                   recoveryKey,
                   style: Theme.of(context).textTheme.bodyLarge
                       ?.copyWith(fontFamily: 'monospace'),

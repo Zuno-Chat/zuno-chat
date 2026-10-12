@@ -103,6 +103,7 @@ class ReadModelPublisher {
 
   Future<void> start(Client client, MetaInputs meta) async {
     _client = client;
+    await _channel.open();
     final prefs = await SharedPreferences.getInstance();
     final session = '${meta.user}|${meta.device}';
     if (prefs.getString(readModelSessionKey) != session) {

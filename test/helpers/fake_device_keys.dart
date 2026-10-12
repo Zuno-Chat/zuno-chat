@@ -1,3 +1,5 @@
+import 'package:matrix/encryption.dart';
+import 'package:matrix/encryption/utils/olm_session.dart';
 import 'package:matrix/matrix.dart';
 
 Map<String, Object?> testDeviceKeysJson(
@@ -25,6 +27,17 @@ DeviceKeys testDeviceKeys(
   testDeviceKeysJson(userId, deviceId, name: name),
   client,
 );
+
+void openTestOlmSession(Encryption encryption, String deviceId) =>
+    encryption.olmManager.olmSessions['curve-$deviceId'] = [
+      OlmSession(
+        key: 'pickle-key',
+        identityKey: 'curve-$deviceId',
+        sessionId: 'olm-$deviceId',
+        session: null,
+        lastReceived: null,
+      ),
+    ];
 
 class SelfSignedTestDeviceKeys extends DeviceKeys {
   SelfSignedTestDeviceKeys(super.json, super.client) : super.fromJson();

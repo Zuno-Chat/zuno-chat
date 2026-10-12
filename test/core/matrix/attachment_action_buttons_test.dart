@@ -78,7 +78,7 @@ void main() {
   });
 
   testWidgets('closing the save dialog shows nothing', (tester) async {
-    device.picker.answer = null;
+    device.exportAnswer = false;
     await pumpButtons(tester, document());
 
     await press(tester, 'Save');

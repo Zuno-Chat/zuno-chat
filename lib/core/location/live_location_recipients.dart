@@ -44,9 +44,6 @@ Future<List<DeviceKeys>> liveLocationRecipients(Room room) async {
 }
 
 class UnreachableDevices {
-  UnreachableDevices(this._client);
-
-  final Client _client;
   final _until = <String, DateTime>{};
 
   bool contains(DeviceKeys device, DateTime now) {
@@ -60,15 +57,13 @@ class UnreachableDevices {
     return false;
   }
 
-  void noteWithoutSession(List<DeviceKeys> devices, DateTime now) {
-    final sessions = _client.encryption?.olmManager.olmSessions;
-    if (sessions == null) return;
-    for (final device in devices) {
-      final curve = device.curve25519Key;
-      if (curve == null || (sessions[curve]?.isNotEmpty ?? false)) continue;
+  void note(List<DeviceKeys> unreached, DateTime now) {
+    for (final device in unreached) {
       _until[_keyOf(device)] = now.add(_unreachableFor);
     }
   }
+
+  void forget(DeviceKeys device) => _until.remove(_keyOf(device));
 
   void forgetUsers(Set<String> userIds) =>
       _until.removeWhere((key, _) => userIds.contains(key.split('|').first));

@@ -5,17 +5,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/calls/notifications/call_notification_service.dart';
 import 'core/calls/notifications/ringing_call_store.dart';
+import 'core/errors/best_effort.dart';
 import 'core/errors/crash_reporting.dart';
+import 'core/errors/device_log.dart';
 import 'core/errors/global_error_handler.dart';
+import 'core/matrix/attachment_cache.dart';
 import 'core/matrix/client_startup.dart';
 import 'core/matrix/left_rooms_repair.dart';
+import 'core/matrix/legacy_plaintext_copies.dart';
 import 'core/matrix/matrix_client_provider.dart';
-import 'core/network/user_agent.dart';
+import 'core/network/app_http_overrides.dart';
 import 'core/notifications/native_notification_action_runner.dart';
 import 'core/platform/platform_capabilities.dart';
 import 'core/push/fcm_headless_entry.dart';
@@ -31,12 +36,14 @@ const _unifiedPushBackgroundArg = '--unifiedpush-bg';
 const _fcmBackgroundArg = '--fcm-bg';
 
 Future<void> main(List<String> args) async {
-  runZonedGuarded(() => _runApp(args), reportZoneError);
+  runWithDeviceLogFloor(
+    () => runZonedGuarded(() => _runApp(args), reportZoneError),
+  );
 }
 
 Future<void> _runApp(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-  await installUserAgent();
+  await installAppHttpOverrides();
   if (kDebugMode) debugPrint('zuno/push: main(args=$args)');
   if (args.contains(_fcmBackgroundArg)) {
     await runFcmHeadless();
@@ -77,12 +84,19 @@ Future<void> _runApp(List<String> args) async {
   await notificationsFuture;
   final (:client, :uploadProgressHttpClient) = await clientFuture;
   await repairLeftRoomsOnce(client, preferences);
+  unawaited(
+    runBestEffort(
+      () async => removeLegacyPlaintextCopies(await getTemporaryDirectory()),
+      label: 'remove the plaintext copies older builds left behind',
+    ),
+  );
+  unawaited(DiskAttachmentCache.instance.sweep());
   attachFcmAppClient(client);
   if (ambientCapabilities.nativeNotificationActions) {
     nativeNotificationActionRunner.attach(client);
   }
   unawaited(
-    ScreenSecurityService.instance.setPreventScreenshots(
+    ScreenSecurityService.instance.followPreference(
       readPreventScreenshots(preferences),
     ),
   );

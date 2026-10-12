@@ -4,18 +4,12 @@ import java.net.URLDecoder
 
 object InboundShareDecision {
     private const val CONTENT_SCHEME = "content"
-    private const val SHARE_OUT_AUTHORITY_SUFFIX = ".flutter.share_provider"
     private const val MAX_NAME_BYTES = 255
 
     data class SharedFile(val uri: String, val name: String, val mimeType: String?)
 
-    fun mayRead(
-        scheme: String?,
-        authority: String?,
-        providerPackage: String?,
-        ownPackage: String,
-    ): Boolean = scheme == CONTENT_SCHEME &&
-        (providerPackage != ownPackage || authority == ownPackage + SHARE_OUT_AUTHORITY_SUFFIX)
+    fun mayRead(scheme: String?, providerPackage: String?, ownPackage: String): Boolean =
+        scheme == CONTENT_SCHEME && providerPackage != ownPackage
 
     fun providerAuthority(authority: String?): String? = authority?.substringAfterLast('@')
 

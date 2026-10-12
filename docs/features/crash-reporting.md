@@ -52,7 +52,7 @@ never do.
 
 ```
 Dart catch, best-effort action ──┐
-Matrix SDK error log ────────────┼─► funnel ── printed (console, breadcrumb)
+Matrix SDK error log ────────────┼─► funnel ── printed (debug console, breadcrumb)
 native journal, drained ─────────┘     │ network failure? ─► stop
                                        │ label already sent this run? ─► stop
                                        │ reporting off? ─► stop
@@ -88,6 +88,9 @@ native journal, drained ─────────┘     │ network failure? 
     and label, so the app and its two extensions never write the same file.
     No App Group spans all three processes, so the app drains both groups.
   - Kotlin entries carry the top stack frames; Swift errors carry none.
+- **Release builds keep handled-error text out of the device log**: Dart
+  prints nothing in release (`app-foundation.md`), Kotlin logs only the
+  label and the error's type, and Swift logs the message as private.
 - **A report waits, bounded, for a crash-reporting start already under
   way**, because the FCM push engine starts reporting alongside its first
   push instead of delaying it, and that push's errors would otherwise be
@@ -105,7 +108,10 @@ native journal, drained ─────────┘     │ network failure? 
 
   | Redacted | Why |
   |---|---|
-  | User, room (with or without a server name) and alias IDs, event IDs, tokens | Identity and access |
+  | User, room (with or without a server name) and alias IDs, event IDs | Identity |
+  | Bearer headers, token parameters, Matrix access, refresh, login and compatibility tokens, and long token-shaped runs (with a digit, `+` or `=`) | Access, even where a token appears with no telling label |
+  | Standalone base64 keys | Device and session keys |
+  | SQL arguments | A database error quotes the values it was given, which can be content or keys |
   | JSON objects | SDK error logs can carry event content |
   | `geo:` URIs | Locations |
   | Web URL hosts, keeping the path | An iOS network error names the homeserver |

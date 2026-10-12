@@ -116,7 +116,7 @@ void main() {
     final appDir = await Directory.systemTemp.createTemp('app_avatars');
     addTearDown(() => appDir.delete(recursive: true));
     final appAvatars = DiskAttachmentCache.forTest(appDir);
-    await appAvatars.put('avatar:$avatarUrl:small', bytes);
+    await appAvatars.put('avatar:$avatarUrl:small', bytes, expires: false);
 
     await postMessageNotification(
       content(avatar: avatarUrl),
@@ -164,7 +164,7 @@ void main() {
     });
 
     test('is on the first post, with nothing fetched', () async {
-      await appAvatars.put('avatar:$avatarUrl:small', bytes);
+      await appAvatars.put('avatar:$avatarUrl:small', bytes, expires: false);
 
       await postMessageNotification(
         content(avatar: avatarUrl),
@@ -182,7 +182,7 @@ void main() {
     });
 
     test('is kept for the notifications that follow', () async {
-      await appAvatars.put('avatar:$avatarUrl:small', bytes);
+      await appAvatars.put('avatar:$avatarUrl:small', bytes, expires: false);
 
       await postMessageNotification(
         content(avatar: avatarUrl),
@@ -194,8 +194,8 @@ void main() {
     });
 
     test('of another size or another sender is not used', () async {
-      await appAvatars.put('avatar:$avatarUrl:large', bytes);
-      await appAvatars.put('avatar:mxc://x/bob:small', bytes);
+      await appAvatars.put('avatar:$avatarUrl:large', bytes, expires: false);
+      await appAvatars.put('avatar:mxc://x/bob:small', bytes, expires: false);
 
       await postMessageNotification(
         content(avatar: avatarUrl),
@@ -213,7 +213,11 @@ void main() {
 
     test('is not looked up once the notification has its own copy', () async {
       await NotificationAvatarCache.instance.write(avatarUrl, bytes);
-      await appAvatars.put('avatar:$avatarUrl:small', Uint8List.fromList([1]));
+      await appAvatars.put(
+        'avatar:$avatarUrl:small',
+        Uint8List.fromList([1]),
+        expires: false,
+      );
 
       await postMessageNotification(
         content(avatar: avatarUrl),

@@ -5,8 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/sign_out_wipe.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/read_model/session_exporter.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/platform_capabilities.dart';
@@ -276,6 +278,31 @@ void main() {
         expect(prefs.getBool(signedInMarkerKey), isNull);
       });
 
+      test('decrypted media held in memory goes with the account', () async {
+        AttachmentCache.instance.put('mxc://x/y', Uint8List.fromList([1]));
+        await prefs.setBool(signedInMarkerKey, true);
+
+        await providedWipe(capabilities: keepsProcess)
+            .onLoginState(false, stopDelivery: stopDelivery);
+
+        expect(AttachmentCache.instance.get('mxc://x/y'), isNull);
+      });
+
+      test('sessions held for the notification extension go with the '
+          'account', () async {
+        SessionExporter.instance.sessionStored(
+          roomId: '!r:x',
+          sessionId: 's',
+          content: '{}',
+        );
+        await prefs.setBool(signedInMarkerKey, true);
+
+        await providedWipe(capabilities: keepsProcess)
+            .onLoginState(false, stopDelivery: stopDelivery);
+
+        expect(SessionExporter.instance.takeDirtyRooms(), isEmpty);
+      });
+
       test('without the open database\'s path nothing is wiped, so the '
           'database can never be deleted from under the app', () async {
         await prefs.setBool(signedInMarkerKey, true);
@@ -285,20 +312,45 @@ void main() {
           databasePath: null,
         ).onLoginState(false, stopDelivery: stopDelivery);
 
-        expect(calls, ['stop', 'vacuum']);
+        expect(calls, ['stop']);
         expect(prefs.getBool(signedInMarkerKey), isTrue);
       });
 
-      test('a vacuum that fails does not stop the wipe', () async {
+      test('a vacuum that fails still wipes the rest, but keeps the session '
+          'marked through the wiped preferences, so the next launch vacuums '
+          'again', () async {
         await prefs.setBool(signedInMarkerKey, true);
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          calls.add('native ${call.method}');
+          SharedPreferences.setMockInitialValues({});
+          return true;
+        });
 
         await providedWipe(
           capabilities: keepsProcess,
           vacuum: () async => throw StateError('locked'),
         ).onLoginState(false, stopDelivery: stopDelivery);
+        await prefs.reload();
 
         expect(calls, ['stop', 'native wipe']);
-        expect(prefs.getBool(signedInMarkerKey), isNull);
+        expect(prefs.getBool(signedInMarkerKey), isTrue);
+      });
+
+      test('a native wipe that empties the preferences but reports a failure '
+          'reads them back and still keeps the session marked', () async {
+        await prefs.setBool(signedInMarkerKey, true);
+        await prefs.setString('theme', 'dark');
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          SharedPreferences.setMockInitialValues({});
+          return false;
+        });
+
+        await providedWipe(capabilities: keepsProcess)
+            .onLoginState(false, stopDelivery: stopDelivery);
+
+        expect(prefs.getString('theme'), isNull);
+        await prefs.reload();
+        expect(prefs.getBool(signedInMarkerKey), isTrue);
       });
 
       test('a wipe the platform declines keeps the session marked', () async {

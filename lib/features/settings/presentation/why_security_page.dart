@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/navigation/zuno_links.dart';
+import '../../../core/settings/app_preferences_provider.dart';
 
 class WhySecurityPage extends StatelessWidget {
   final UrlOpener openUrl;
@@ -73,18 +74,21 @@ class WhySecurityPage extends StatelessWidget {
             'server does not control. It only needs doing once per person, '
             'even if they change devices later.',
           ),
-          heading('Confirmed people only'),
-          para(
-            'Normally, everyone in a chat can read what you send, on every '
-            'device they have approved. If someone has not set up recovery, '
-            'all of their devices can.',
-          ),
-          para(
-            'Turn on Confirmed people only, and what you send from this device '
-            'can be read only by people you have confirmed and by your own '
-            'approved devices. Everyone else sees a message they cannot read. '
-            'Once you confirm them, they can read what you send after that.',
-          ),
+          if (confirmedPeopleOnlyOffered) ...[
+            heading('Confirmed people only'),
+            para(
+              'Normally, everyone in a chat can read what you send, on every '
+              'device they have approved. If someone has not set up recovery, '
+              'all of their devices can.',
+            ),
+            para(
+              'Turn on Confirmed people only, and what you send from this '
+              'device can be read only by people you have confirmed and by '
+              'your own approved devices. Everyone else sees a message they '
+              'cannot read. Once you confirm them, they can read what you send '
+              'after that.',
+            ),
+          ],
           heading('When Zuno interrupts you'),
           para(
             'Almost never. A new sign-in on your own account, and a person '

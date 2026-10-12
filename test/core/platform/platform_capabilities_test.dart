@@ -172,12 +172,6 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
-    'filesTypedByExtension',
-    read: (c) => c.filesTypedByExtension,
-    android: false,
-    ios: true,
-  ),
-  _Capability(
     'atomicDatabaseBatches',
     read: (c) => c.atomicDatabaseBatches,
     android: true,
@@ -294,10 +288,34 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
+    'nativeSensitiveFileExport',
+    read: (c) => c.nativeSensitiveFileExport,
+    android: false,
+    ios: true,
+  ),
+  _Capability(
+    'nativeFileShare',
+    read: (c) => c.nativeFileShare,
+    android: true,
+    ios: false,
+  ),
+  _Capability(
+    'audioPlayerNeedsFile',
+    read: (c) => c.audioPlayerNeedsFile,
+    android: false,
+    ios: true,
+  ),
+  _Capability(
     'liveLocation',
     read: (c) => c.liveLocation,
     android: true,
     ios: true,
+  ),
+  _Capability(
+    'nativeLogFloor',
+    read: (c) => c.nativeLogFloor,
+    android: true,
+    ios: false,
   ),
   _Capability(
     'mapsApp',

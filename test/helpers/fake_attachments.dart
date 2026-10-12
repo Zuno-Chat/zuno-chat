@@ -293,9 +293,15 @@ class DeviceFakes {
 
   final gallery = <MethodCall>[];
   final galleryFilesPresent = <bool>[];
-  final shared = <Map<Object?, Object?>>[];
+  final sharePlus = <Map<Object?, Object?>>[];
+  final nativeShares = <Map<Object?, Object?>>[];
+  final exported = <({String path, String mimeType, Uint8List bytes})>[];
   final FakeFilePicker picker;
   bool galleryRefuses = false;
+  bool exportAnswer = true;
+  PlatformException? nativeShareError;
+
+  List<Map<Object?, Object?>> get shared => [...sharePlus, ...nativeShares];
 }
 
 DeviceFakes installDeviceFakes() {
@@ -304,6 +310,8 @@ DeviceFakes installDeviceFakes() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   const gal = MethodChannel('gal');
   const share = MethodChannel('dev.fluttercommunity.plus/share');
+  const shareOut = MethodChannel('zuno/share_out');
+  const files = MethodChannel('zuno/files');
   messenger.setMockMethodCallHandler(gal, (call) async {
     if (call.method == 'hasAccess' || call.method == 'requestAccess') {
       return true;
@@ -319,12 +327,32 @@ DeviceFakes installDeviceFakes() {
     return null;
   });
   messenger.setMockMethodCallHandler(share, (call) async {
-    fakes.shared.add(call.arguments as Map<Object?, Object?>);
+    fakes.sharePlus.add(call.arguments as Map<Object?, Object?>);
     return 'dev.fluttercommunity.plus/share/success';
+  });
+  messenger.setMockMethodCallHandler(shareOut, (call) async {
+    final error = fakes.nativeShareError;
+    if (error != null) throw error;
+    if (call.method != 'shareFiles') throw MissingPluginException();
+    fakes.nativeShares.add(call.arguments as Map<Object?, Object?>);
+    return null;
+  });
+  messenger.setMockMethodCallHandler(files, (call) async {
+    if (call.method != 'exportFile') throw MissingPluginException();
+    final args = call.arguments as Map<Object?, Object?>;
+    final path = args['path']! as String;
+    fakes.exported.add((
+      path: path,
+      mimeType: args['mimeType']! as String,
+      bytes: File(path).readAsBytesSync(),
+    ));
+    return fakes.exportAnswer;
   });
   addTearDown(() {
     messenger.setMockMethodCallHandler(gal, null);
     messenger.setMockMethodCallHandler(share, null);
+    messenger.setMockMethodCallHandler(shareOut, null);
+    messenger.setMockMethodCallHandler(files, null);
   });
   return fakes;
 }

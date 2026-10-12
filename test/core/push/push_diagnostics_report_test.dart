@@ -565,6 +565,12 @@ void main() {
     }
   });
 
+  test('a base64 key with slashes is redacted whole', () {
+    const key = 'q8Zp/3kL9vT2mW+xR4nB/7cY1aE6dH0sJ5uF/2gK8oQ';
+
+    expect(redactDiagnostics('key $key'), isNot(contains('/')));
+  });
+
   group('Android', () {
     final android = capabilitiesLike(
       androidCapabilities,

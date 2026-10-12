@@ -337,19 +337,19 @@ void main() {
         expect(client.shareKeysWith, ShareKeysWith.crossVerifiedIfEnabled);
       });
 
-      test('the app starts sharing keys only with confirmed people when it '
-          'is on', () async {
+      test('a stored on still starts with the SDK default while the setting '
+          'is not offered', () async {
         SharedPreferences.setMockInitialValues({
           'settings.encrypt_to_verified_sessions_only': true,
         });
 
         final client = await create();
 
-        expect(client.shareKeysWith, ShareKeysWith.directlyVerifiedOnly);
+        expect(client.shareKeysWith, ShareKeysWith.crossVerifiedIfEnabled);
       });
 
-      test('a background client, which can send a notification reply, keeps '
-          'to it too', () async {
+      test('a background client, which can send a notification reply, '
+          'ignores a stored on too', () async {
         SharedPreferences.setMockInitialValues({
           'settings.encrypt_to_verified_sessions_only': true,
         });
@@ -357,7 +357,7 @@ void main() {
 
         final client = await create(backgroundSync: false);
 
-        expect(client.shareKeysWith, ShareKeysWith.directlyVerifiedOnly);
+        expect(client.shareKeysWith, ShareKeysWith.crossVerifiedIfEnabled);
       });
     });
 

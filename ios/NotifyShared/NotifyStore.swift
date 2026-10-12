@@ -98,26 +98,29 @@ struct NotifyStore: Sendable {
     Self.removeItem(at: url(name), "notify store remove")
   }
 
-  func wipe() {
+  @discardableResult
+  func wipe() -> Bool {
     let files = FileManager.default
     let items: [URL]
     do {
       items = try files.contentsOfDirectory(
         at: directory, includingPropertiesForKeys: nil, options: [])
     } catch CocoaError.fileReadNoSuchFile {
-      return
+      return true
     } catch {
       CaughtErrors.record("notify store wipe list", error)
-      return
+      return false
     }
+    var wiped = true
     for item in items where item.lastPathComponent != NotifyFile.signedOut {
-      Self.removeItem(at: item, "notify store wipe remove")
+      if !Self.removeItem(at: item, "notify store wipe remove") { wiped = false }
     }
     CaughtErrors.attempt("notify store wipe recreate") {
       try files.createDirectory(
         at: directory.appendingPathComponent("rooms", isDirectory: true),
         withIntermediateDirectories: true)
     }
+    return wiped
   }
 
   func writeRingFlag(_ ringtoneOn: Bool) throws {
@@ -198,13 +201,16 @@ struct NotifyStore: Sendable {
     }
   }
 
-  private static func removeItem(at url: URL, _ label: String) {
+  @discardableResult
+  private static func removeItem(at url: URL, _ label: String) -> Bool {
     do {
       try FileManager.default.removeItem(at: url)
     } catch CocoaError.fileNoSuchFile {
     } catch {
       CaughtErrors.record(label, error)
+      return false
     }
+    return true
   }
 }
 

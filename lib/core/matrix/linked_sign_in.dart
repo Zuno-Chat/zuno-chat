@@ -15,8 +15,7 @@ class LinkedSignInCode {
 
   String encode() => '$_codeTag $_codeVersion $server $token';
 
-  bool isForServer(String? host) =>
-      host != null && server.toLowerCase() == host.toLowerCase();
+  String get typed => '$server\n${groupedSignInCode(token)}';
 
   static LinkedSignInCode? decode(String raw) {
     final parts = raw.trim().split(RegExp(r'\s+'));
@@ -52,18 +51,48 @@ Future<IssuedSignInCode> issueLinkedSignInCode(
   );
 }
 
+class SignInCodeForAnotherServer implements Exception {
+  final String server;
+
+  const SignInCodeForAnotherServer(this.server);
+}
+
 Future<void> signInWithLinkedCode(
   Client client, {
+  required String? server,
   required String token,
+  required Uri chosenServer,
   required String deviceDisplayName,
-}) => client.login(
-  LoginType.mLoginToken,
-  token: token,
-  initialDeviceDisplayName: deviceDisplayName,
-  refreshToken: true,
+}) async {
+  if (server != null &&
+      Uri.tryParse('https://$server')?.host != chosenServer.host) {
+    throw SignInCodeForAnotherServer(server);
+  }
+  await client.login(
+    LoginType.mLoginToken,
+    token: token,
+    initialDeviceDisplayName: deviceDisplayName,
+    refreshToken: true,
+  );
+}
+
+final _serverName = RegExp(
+  r'^(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*)(:\d{1,5})?$',
 );
 
-String typedSignInCode(String raw) => raw.replaceAll(RegExp(r'\s'), '');
+({String? server, String token})? parseTypedSignInCode(String raw) {
+  if (LinkedSignInCode.decode(raw) case final code?) {
+    return (server: code.server, token: code.token);
+  }
+  final words = raw.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  if (words.isEmpty) return null;
+  final first = words.first;
+  final namesServer =
+      first.contains(RegExp('[.:]')) && _serverName.hasMatch(first);
+  if (!namesServer) return (server: null, token: words.join());
+  if (words.length == 1) return null;
+  return (server: first, token: words.skip(1).join());
+}
 
 String groupedSignInCode(String token) {
   final groups = <String>[];
@@ -85,11 +114,17 @@ const signInCodeIssueFailedMessage =
     'Could not make a code. Check your connection and try again.';
 
 String linkedSignInErrorMessage(Object error) {
+  if (error is SignInCodeForAnotherServer) {
+    return codeForAnotherServerMessage(error.server);
+  }
   if (error is MatrixException && error.error == MatrixError.M_FORBIDDEN) {
     return invalidSignInCodeMessage;
   }
   return loginErrorMessage(error);
 }
+
+bool isLinkedSignInRefusal(Object error) =>
+    error is SignInCodeForAnotherServer || isLoginRefusal(error);
 
 String signInCodeIssueErrorMessage(Object error) {
   if (error is MatrixException) {
