@@ -2,6 +2,7 @@
 import UIKit
 import os
 
+// shortcut: iOS gives ~30 s of background time, so a longer upload is suspended and shows as not sent, build a background URLSession or decide to accept it
 @MainActor
 final class UploadServicePlugin: NSObject, @preconcurrency FlutterPlugin {
   private var task: UIBackgroundTaskIdentifier = .invalid

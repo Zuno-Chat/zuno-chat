@@ -18,6 +18,7 @@ const notificationAvatarTimeout = Duration(seconds: 5);
 
 typedef AvatarFetcher = Future<Uint8List?> Function(Client client, Uri url);
 
+// shortcut: iOS posts carry no avatars or images (notificationAvatars and notificationImages are off), add avatars once communication notifications and donations ship, and re-scope images to in-front posts or retire the flag
 Future<void> postMessageNotification(
   MessageNotificationContent content, {
   required Client client,

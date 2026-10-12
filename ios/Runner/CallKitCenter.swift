@@ -958,6 +958,7 @@ final class CallKitCenter: NSObject {
     emitLive("audioRouteChanged", state.arguments)
   }
 
+  // shortcut: remote media takes 5–8 s after a locked answer, time app start, audio activation, SFU connect and the call key, then cut the slowest
   func answer(_ uuid: UUID, action: any AnswerActionHandle) {
     guard let call = trackedCall(uuid), call.incoming, !call.answered else {
       action.fail()

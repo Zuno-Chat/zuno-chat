@@ -15,6 +15,7 @@ bool _hasShortcuts(PlatformCapabilities? capabilities) =>
 bool _opensRoomsFromNative(PlatformCapabilities? capabilities) =>
     (capabilities ?? ambientCapabilities).nativeRoomOpens;
 
+// shortcut: iOS has no Home Screen quick actions (homeScreenShortcuts is pinning and stays false), add them under a new flag opened through nativeRoomOpens if the product wants them
 void initHomeScreenShortcutChannel({PlatformCapabilities? capabilities}) {
   if (!_opensRoomsFromNative(capabilities)) return;
   _channel.setMethodCallHandler((call) async {

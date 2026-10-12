@@ -1,6 +1,7 @@
 import Foundation
 import UserNotifications
 
+// shortcut: ZunoNotificationFiltering is never read, build the quiet-to-drop paths once Apple grants the filtering entitlement
 final class NotificationService: UNNotificationServiceExtension {
   private static let deadlineSeconds: Double = 25
   private var sink: NseContentSink?

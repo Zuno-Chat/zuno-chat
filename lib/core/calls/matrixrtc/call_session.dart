@@ -408,6 +408,7 @@ class CallSession {
   Future<void> ensurePermissions() =>
       _permissionsFuture ??= _requestPermissions();
 
+  // shortcut: a locked video answer with the camera never asked waits on the camera prompt, so the whole call stalls until Zuno is in front, give the camera the microphone's bail-out before the first App Store release
   Future<void> _requestPermissions() async {
     final video = kind == CallKind.video;
     final needed = [Permission.microphone, if (video) Permission.camera];

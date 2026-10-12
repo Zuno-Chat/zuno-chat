@@ -5,6 +5,7 @@ import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 import '../settings/app_preferences_provider.dart';
 
+// shortcut: no jailbreak risk exists, so iOS runs no device safety check (deviceSafetyChecks is false), add a jailbreak DeviceRisk with its copy if the product wants iPhone warnings
 enum DeviceRisk { unlockedBootloader, rooted }
 
 const _channel = MethodChannel('zuno/device_safety');

@@ -21,6 +21,7 @@ enum MegolmPickleKey {
   }
 }
 
+// shortcut: the extension dlopens Runner's flutter_vodozemac, build a Megolm-only static library behind MegolmDecrypting (or get flutter_vodozemac marked extension-safe) only if App Store validation rejects it
 final class VodozemacMegolm: MegolmDecrypting, @unchecked Sendable {
   typealias DecryptFunction =
     @convention(c) (
