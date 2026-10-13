@@ -1,6 +1,7 @@
 # Releases
 
-Releases to Google Play and the App Store are automated. On the 1st of each
+Releases to Google Play, the App Store and the website's APK download are
+automated. On the 1st of each
 month, everything on `master` since the last release is tested, built,
 signed and submitted straight to production for every user at once, with
 no human step; any failure stops the release. Hotfixes run through the same pipeline when
@@ -14,12 +15,14 @@ flowchart LR
   rc --> gate["guards, analyze<br>and all test suites"]
   gate --> builds["Android and<br>iOS builds"]
   builds --> tag["tag vX.Y.Z"]
-  tag --> ios["App Store<br>upload"]
+  tag --> web["Website APK<br>to R2"]
+  web --> ios["App Store<br>upload"]
   ios --> play["Play upload"]
 ```
 
 The logic (versions, build numbers, commit types, guards) is pure Dart in
-`tool/release/`, and the store work is in `fastlane/Fastfile`.
+`tool/release/`, the store work is in `fastlane/Fastfile`, and the website
+upload is a job in `release.yml`.
 
 ## Commit types and versions
 
@@ -44,18 +47,19 @@ The logic (versions, build numbers, commit types, guards) is pure Dart in
 |---|---|---|
 | `cut-release` | Cron on the 1st, or by hand | Computes the version, commits `chore: release X.Y.Z` (pubspec bump, notes moved) to `master`, pushes `rc/X.Y.Z` and dispatches `release` |
 | `start-hotfix` | By hand, with master commit SHAs and notes | Branches `rc/X.Y.Z` from the highest tag as the next patch, cherry-picks with `-x`, commits the bump and notes on the rc branch, dispatches `release` |
-| `release` | Dispatch, on `rc/*` only | Guards → analyze and the Dart, Kotlin and Swift suites → both builds → tag `vX.Y.Z` → iOS upload → Android upload |
+| `release` | Dispatch, on `rc/*` only | Guards → analyze and the Dart, Kotlin and Swift suites → both builds → tag `vX.Y.Z` → website APK → iOS upload → Android upload |
 
 - **The release branch name is the version.**
-- **The tag spends the version before any store holds its binary**: it is
-  pushed once both builds pass and before any upload, so a store never holds
-  an untagged version and a re-cut never resubmits an old binary.
+- **The tag spends the version before any channel holds its binary**: it
+  is pushed once both builds pass and before any upload, so no channel ever
+  holds an untagged version and a re-cut never resubmits an old binary.
 - **The guards** fail if the tag exists, if the version is not above the
   highest tag, if the pubspec disagrees, if the notes are invalid, or if a
   fix shipped in another tagged release (by its cherry-pick source) is
   missing from HEAD, so a release never drops a fix users already have.
-- **iOS uploads first**, because an App Store submission can be withdrawn
-  while a Play production commit can only be halted.
+- **Uploads run most reversible first**: the website (its manifest can be
+  pointed back), then iOS (a submission can be withdrawn), then Play (a
+  production commit can only be halted).
 - **No staged rollout**: Play ships at 100% and iOS skips the phased
   release, so a bad release reaches everyone and the fix is a hotfix.
 - **The next monthly cut skips commits named in a `cherry picked from`
@@ -65,16 +69,31 @@ The logic (versions, build numbers, commit types, guards) is pure Dart in
   `master`, is a merge commit (pass the commits it merged instead), fails or
   conflicts on the pick, or when the base already has every change.
 - **Dry run**: dispatch `release` on `rc/dry-run` with `dry_run`. It runs
-  the full gate, both signed builds and store validation, and pushes no tag.
+  the full gate, both signed builds, store validation and a website upload
+  to a scratch folder it then deletes, and pushes no tag.
 - **Third-party actions are pinned to commit SHAs**, so a moved tag cannot
   change what a release runs, and Dependabot bumps them; GitHub's own
   `actions/*` stay on major tags.
 
+## Website APK
+
+- **One signing identity**: Play App Signing uses our own key, the one CI
+  signs the website APK with, so website and Play installs update each
+  other; a different key would force an uninstall, wiping the session and
+  E2EE keys.
+- **The Android build fails unless the APK carries the pinned certificate**,
+  because the website upload runs before Play could catch a wrong key.
+- **The website's contract is `android/latest.json`** in the R2 bucket,
+  uncached: the current version, the APK's path relative to it, its SHA-256
+  and size. Each version's APK is its own immutable object, uploaded before
+  the manifest so the manifest never points at a missing file.
+
 ## Environments
 
 Secrets live in the `release` GitHub environment, restricted to `rc/*`:
-`.env`, `google-services.json`, the keystore, the store keys and the match
-secrets. CI writes the gitignored inputs from these secrets and fails if one is missing, since the build would otherwise ship
+`.env`, `google-services.json`, the keystore, the store keys, the match
+secrets and the R2 credentials, plus the keystore's certificate fingerprint
+as a variable. CI writes the gitignored inputs from these secrets and fails if one is missing, since the build would otherwise ship
 green without FCM or crash reporting.
 
 ## Recovery

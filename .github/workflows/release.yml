@@ -87,10 +87,24 @@ jobs:
             "$RUNNER_TEMP/upload.jks" "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" >android/key.properties
           dart tool/release/cli.dart bump "$VERSION"
       - run: flutter build appbundle --release --dart-define-from-file=.env
+      - run: flutter build apk --release --dart-define-from-file=.env
+      - env:
+          CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
+        run: |
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n1)
+          actual=$("$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk | sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p')
+          expected=$(printf '%s' "$CERT_SHA256" | tr -d ':' | tr 'A-F' 'a-f')
+          [ -n "$expected" ] && [ "$actual" = "$expected" ] || { echo "The APK is not signed with ANDROID_CERT_SHA256; the website would serve an APK that cannot update existing installs." >&2; exit 1; }
       - uses: actions/upload-artifact@v7
         with:
           name: android
           path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 7
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
           if-no-files-found: error
 
@@ -154,8 +168,43 @@ jobs:
           git tag --annotate "v$VERSION" --message "Zuno $VERSION" "$GITHUB_SHA"
           git push origin "v$VERSION"
 
-  upload-ios:
+  upload-website:
     needs: [prepare, tag]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: apk
+          path: ${{ runner.temp }}/apk
+      - env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          dir=android
+          [ "$DRY_RUN" = true ] && dir=dry-run
+          apk="$RUNNER_TEMP/apk/app-release.apk"
+          name="zuno-$VERSION.apk"
+          jq -n --arg version "$VERSION" --arg apk "$name" \
+            --arg sha256 "$(sha256sum "$apk" | cut -d' ' -f1)" --argjson size "$(stat -c %s "$apk")" \
+            '{version: $version, apk: $apk, sha256: $sha256, size: $size}' >"$RUNNER_TEMP/latest.json"
+          aws s3 cp "$apk" "s3://$R2_BUCKET/$dir/$name" \
+            --content-type application/vnd.android.package-archive \
+            --cache-control 'public, max-age=31536000, immutable'
+          aws s3 cp "$RUNNER_TEMP/latest.json" "s3://$R2_BUCKET/$dir/latest.json" \
+            --content-type application/json --cache-control no-cache
+          if [ "$DRY_RUN" = true ]; then
+            aws s3 rm --recursive "s3://$R2_BUCKET/dry-run/"
+          fi
+
+  upload-ios:
+    needs: [prepare, upload-website]
     runs-on: xcode-27
     timeout-minutes: 120
     environment: release
