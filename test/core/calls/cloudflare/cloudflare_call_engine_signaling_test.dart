@@ -16,6 +16,13 @@ import '../../../helpers/platform_capabilities.dart';
 import 'cloudflare_engine_harness.dart';
 
 void main() {
+  late List<String> logs;
+
+  setUp(() => logs = recordDebugPrints());
+
+  Iterable<String> caught() =>
+      logs.where((line) => line.startsWith('zuno/caught:'));
+
   void inCall(
     void Function(EngineHarness call) body, {
     CallKind kind = CallKind.voice,
@@ -637,7 +644,9 @@ void main() {
         final close = call.sfu.closes.single;
         expect(close.path, '/sessions/s1/tracks/close');
         expect(close.tracks.map((t) => t['mid']), unorderedEquals(mids));
-        expect(close.body!['force'], isFalse);
+        expect(close.body!['force'], isTrue);
+        expect(close.sessionDescription, isNull);
+        expect(caught(), isEmpty);
         expect(call.remote(), isNull);
         expect(
           call.backend.cryptors.liveLabels,
@@ -662,87 +671,84 @@ void main() {
       });
     });
 
-    test('a pull the SFU never hears answered is forgotten, closed on the '
-        'SFU, and pulled again on the next update', () {
+    final unfinishedPulls = <String, void Function(EngineHarness call)>{
+      'the SFU refuses our answer': (call) => call.sfu.renegotiateStatus = 500,
+      'its offer cannot be applied': (call) =>
+          call.pc.setRemoteDescriptionError = StateError('bad offer'),
+      'we cannot answer its offer': (call) =>
+          call.pc.createAnswerError = StateError('no answer'),
+      'its response is lost': (call) => call.sfu.lostPullResponses = 1,
+    };
+    for (final MapEntry(key: cause, value: breakPull)
+        in unfinishedPulls.entries) {
+      test('a pull left unfinished because $cause is never retried on that '
+          'session: the call rejoins on a new one and pulls there', () {
+        inCall((call) {
+          call.joinEncrypted();
+          breakPull(call);
+          call.remoteJoins();
+          call.remoteJoins();
+
+          expect(call.sfu.pulls, hasLength(1));
+          expect(call.sfu.closes, isEmpty);
+          expect(call.engine.status, CallEngineStatus.reconnecting);
+
+          call.sfu.renegotiateStatus = null;
+          call.pc.setRemoteDescriptionError = null;
+          call.pc.createAnswerError = null;
+          call.async.elapse(const Duration(seconds: 2));
+          call.flush();
+
+          expect(call.sfu.pulls.last.path, '/sessions/s2/tracks/new');
+          expect(call.sfu.renegotiations.last.path, '/sessions/s2/renegotiate');
+          expect(
+            call.sfu.requests.where((r) => r.path.contains('/s1/')),
+            hasLength(cause == 'the SFU refuses our answer' ? 3 : 2),
+          );
+          final video = FakeMediaStream('ann-video');
+          call.pc.emitTrack(call.pulledMids('video').last, video);
+          call.flush();
+          expect(call.remote()!.videoStream, video);
+        });
+      });
+    }
+
+    test('a pull that fails reports its own error, not a later pull\'s', () {
       inCall((call) {
         call.joinEncrypted();
         call.sfu.renegotiateStatus = 500;
+        final gate = Completer<void>();
+        call.sfu.pullGate = gate;
         call.remoteJoins();
-        final halfPulled = [
-          ...call.pulledMids('audio'),
-          ...call.pulledMids('video'),
-        ];
+        call.remoteJoins(videoEnabled: false);
 
-        final close = call.sfu.closes.single;
-        expect(close.tracks.map((t) => t['mid']), unorderedEquals(halfPulled));
-        expect(close.body!['force'], isTrue);
-        expect(
-          call.backend.cryptors.liveLabels,
-          isNot(contains(receiverLabel(ann, 'audio'))),
-        );
-
-        call.sfu.renegotiateStatus = null;
-        call.remoteJoins();
-
-        expect(call.sfu.pulls, hasLength(2));
-        expect(call.sfu.renegotiations, hasLength(2));
-        final video = FakeMediaStream('ann-video');
-        call.pc.emitTrack(call.pulledMids('video').last, video);
-        call.flush();
-        expect(call.remote()!.videoStream, video);
-      });
-    });
-
-    test('an SFU offer that cannot be applied is forgotten and pulled again '
-        'on the next update', () {
-      inCall((call) {
-        call.joinEncrypted();
-        call.pc.setRemoteDescriptionError = StateError('bad offer');
-        call.remoteJoins();
-        expect(call.sfu.renegotiations, isEmpty);
-
-        call.pc.setRemoteDescriptionError = null;
-        call.remoteJoins();
-
-        expect(call.sfu.pulls, hasLength(2));
-        expect(call.sfu.renegotiations, hasLength(1));
-      });
-    });
-
-    test('an offer we cannot answer is rolled back, so the connection is not '
-        'left waiting', () {
-      inCall((call) {
-        call.joinEncrypted();
-        call.pc.createAnswerError = StateError('no answer');
-        call.remoteJoins();
-
-        expect(call.pc.localDescriptions.last.type, 'rollback');
-        expect(
-          call.pc.signalingState,
-          RTCSignalingState.RTCSignalingStateStable,
-        );
-
-        call.pc.createAnswerError = null;
-        call.remoteJoins();
-        expect(call.sfu.renegotiations, hasLength(1));
-      });
-    });
-
-    test('closing tracks the SFU wants renegotiated applies its offer and '
-        'answers it', () {
-      inCall((call) {
-        call.sfu.closeRenegotiates = true;
-        call.joinEncrypted();
-        call.remoteJoins();
-
-        call.engine.removeRemoteParticipant(ann);
+        gate.complete();
         call.flush();
 
-        expect(call.pc.remoteDescriptions.last.sdp, 'sfu close offer');
-        expect(call.sfu.renegotiations, hasLength(2));
+        expect(caught(), [
+          startsWith(
+            'zuno/caught: pull remote tracks: CloudflareCallsException: '
+            'HTTP 500 from PUT /sessions/{id}/renegotiate',
+          ),
+        ]);
+      });
+    });
+
+    test('a pull that fails on every new session ends the call after three '
+        'rejoins rather than rejoining forever', () {
+      inCall((call) {
+        call.sfu.connectOnPush = true;
+        call.joinEncrypted();
+        call.sfu.renegotiateStatus = 500;
+        call.remoteJoins();
+
+        call.async.elapse(const Duration(seconds: 30));
+        call.flush();
+
+        expect(call.engine.status, CallEngineStatus.failed);
         expect(
-          call.sfu.renegotiations.last.sessionDescription?['type'],
-          'answer',
+          call.sfu.requests.where((r) => r.path == '/sessions/new'),
+          hasLength(4),
         );
       });
     });
@@ -926,6 +932,52 @@ void main() {
       });
     });
 
+    test('a new connection that fails while the rejoin is still pulling is '
+        'replaced too, rather than left silent', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.remoteJoins();
+        call.engine.handleConnectionStateForTest(
+          RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+        );
+        final gate = Completer<void>();
+        call.sfu.pullGate = gate;
+        call.async.elapse(const Duration(seconds: 2));
+        call.flush();
+        expect(call.sfu.pulls.last.path, '/sessions/s2/tracks/new');
+
+        call.engine.handleConnectionStateForTest(
+          RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+        );
+        call.sfu.pullGate = null;
+        gate.complete();
+        call.async.elapse(const Duration(seconds: 3));
+        call.flush();
+
+        expect(call.sfu.pulls.last.path, '/sessions/s3/tracks/new');
+        expect(call.engine.status, isNot(CallEngineStatus.failed));
+      });
+    });
+
+    test('a publish refused at join rejoins on a new session rather than '
+        'failing the call', () {
+      inCall((call) {
+        call.sfu.refusedPushes = 1;
+        call.joinEncrypted();
+        expect(call.engine.status, CallEngineStatus.reconnecting);
+
+        call.async.elapse(const Duration(seconds: 2));
+        call.flush();
+
+        expect(call.sfu.pushes.map((p) => p.path), [
+          '/sessions/s1/tracks/new',
+          '/sessions/s2/tracks/new',
+        ]);
+        expect(call.engine.localFociInfo?['sessionId'], 's2');
+        expect(caught(), [startsWith('zuno/caught: publish local tracks:')]);
+      });
+    });
+
     test('a rejoin puts the same black placeholder on the new connection', () {
       inCall((call) {
         call.joinEncrypted();
@@ -1099,10 +1151,6 @@ void main() {
   });
 
   group('leaving while a track close is under way', () {
-    late List<String> logs;
-
-    setUp(() => logs = recordDebugPrints());
-
     test('a close that leaving cuts off is not reported as a failure', () {
       inCall((call) {
         call.joinEncrypted();
@@ -1126,12 +1174,14 @@ void main() {
       inCall((call) {
         call.joinEncrypted();
         call.remoteJoins();
-        call.pc.localDescriptionGate = Completer<void>();
+        final gate = Completer<void>();
+        call.sfu.pullGate = gate;
+        call.remoteJoins(id: bob);
         call.engine.removeRemoteParticipant(ann);
         call.flush();
 
         call.leave();
-        call.pc.localDescriptionGate!.complete();
+        gate.complete();
         call.flush();
 
         expect(call.sfu.closes, isEmpty);
@@ -1140,13 +1190,6 @@ void main() {
   });
 
   group('failures on a connection that is gone', () {
-    late List<String> logs;
-
-    setUp(() => logs = recordDebugPrints());
-
-    Iterable<String> caught() =>
-        logs.where((line) => line.startsWith('zuno/caught:'));
-
     void connectionFails(EngineHarness call) {
       call.engine.handleConnectionStateForTest(
         RTCPeerConnectionState.RTCPeerConnectionStateFailed,
@@ -1219,7 +1262,7 @@ void main() {
 
         expect(
           caught(),
-          contains(startsWith('zuno/caught: sync remote tracks:')),
+          contains(startsWith('zuno/caught: pull remote tracks:')),
         );
       });
     });
@@ -1260,18 +1303,6 @@ void main() {
         call.wait(leaving);
 
         expect(caught(), isEmpty);
-      });
-    });
-
-    test('an offer rolled back is logged without naming whose pull it was', () {
-      inCall((call) {
-        call.joinEncrypted();
-        call.pc.createAnswerError = StateError('no answer');
-
-        call.remoteJoins();
-
-        expect(logs, contains(contains('rolling back')));
-        expect(logs.join('\n'), isNot(contains(ann.deviceId)));
       });
     });
   });

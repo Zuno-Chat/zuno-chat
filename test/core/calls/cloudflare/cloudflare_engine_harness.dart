@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show SocketException;
 import 'dart:typed_data';
 
 import 'package:fake_async/fake_async.dart';
@@ -40,8 +41,10 @@ class FakeSfu {
   final missingTracks = <String>{};
   int? sessionStatus;
   int? renegotiateStatus;
+  int lostPullResponses = 0;
+  int refusedPushes = 0;
+  bool connectOnPush = false;
   bool reuseMids = false;
-  bool closeRenegotiates = false;
   String? answerSdp;
   String? offerSdp;
   Completer<void>? sessionGate;
@@ -52,6 +55,7 @@ class FakeSfu {
   var _offers = 0;
   var _nextMid = 100;
   final _midByTrack = <String, String>{};
+  final _awaitingAnswer = <String>{};
 
   late final http.Client client = MockClient(_handle);
 
@@ -87,8 +91,21 @@ class FakeSfu {
       }
       return _json({'sessionId': 's${++_sessions}'});
     }
+    final session = path.split('/')[2];
+    if (!path.endsWith('/renegotiate') && _awaitingAnswer.contains(session)) {
+      return _json({'errorCode': 'invalid_session_description'}, 406);
+    }
     if (path.endsWith('/tracks/new')) {
       if (recorded.sessionDescription != null) {
+        if (refusedPushes > 0) {
+          refusedPushes--;
+          return _json({'errorCode': 'refused'}, 500);
+        }
+        if (connectOnPush) {
+          backend.pc.onConnectionState?.call(
+            RTCPeerConnectionState.RTCPeerConnectionStateConnected,
+          );
+        }
         return _json({
           'requiresImmediateRenegotiation': false,
           'sessionDescription': {
@@ -112,6 +129,11 @@ class FakeSfu {
         backend.pc.pendingRemoteMids[track['mid'] as String] =
             track['trackName'] as String;
       }
+      _awaitingAnswer.add(session);
+      if (lostPullResponses > 0) {
+        lostPullResponses--;
+        throw const SocketException('Connection reset by peer');
+      }
       return _json({
         'requiresImmediateRenegotiation': true,
         'sessionDescription': {
@@ -134,17 +156,11 @@ class FakeSfu {
       if (renegotiateStatus case final status?) {
         return _json({'errorCode': 'refused'}, status);
       }
+      _awaitingAnswer.remove(session);
       return _json({});
     }
     if (path.endsWith('/tracks/close')) {
       await closeGate?.future;
-      if (closeRenegotiates) {
-        return _json({
-          'requiresImmediateRenegotiation': true,
-          'sessionDescription': {'type': 'offer', 'sdp': 'sfu close offer'},
-          'tracks': [],
-        });
-      }
       return _json({'requiresImmediateRenegotiation': false, 'tracks': []});
     }
     return _json({'errorCode': 'unknown path $path'}, 404);
@@ -158,6 +174,7 @@ class FakeSfu {
 }
 
 const ann = VoipParticipantId(userId: '@ann:example.org', deviceId: 'ANN');
+const bob = VoipParticipantId(userId: '@bob:example.org', deviceId: 'BOB');
 
 String receiverLabel(VoipParticipantId id, String trackName) =>
     '$id-$trackName';

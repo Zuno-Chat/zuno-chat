@@ -154,13 +154,11 @@ class FakePeerConnection extends RTCPeerConnection {
   final String name;
   final List<String>? journal;
   final rtpTransceivers = <FakeTransceiver>[];
-  final localDescriptions = <RTCSessionDescription>[];
   final remoteDescriptions = <RTCSessionDescription>[];
   final pendingRemoteMids = <String, String>{};
   List<StatsReport> stats = [];
   Object? setRemoteDescriptionError;
   Object? createAnswerError;
-  RTCSignalingState _signaling = RTCSignalingState.RTCSignalingStateStable;
   RTCSessionDescription? _local;
   var _offers = 0;
   var _answers = 0;
@@ -182,8 +180,6 @@ class FakePeerConnection extends RTCPeerConnection {
     );
   }
 
-  @override
-  RTCSignalingState? get signalingState => _signaling;
   @override
   RTCIceGatheringState? get iceGatheringState =>
       RTCIceGatheringState.RTCIceGatheringStateComplete;
@@ -207,32 +203,17 @@ class FakePeerConnection extends RTCPeerConnection {
   }
 
   @override
-  Future<void> setLocalDescription(RTCSessionDescription description) async {
-    localDescriptions.add(description);
-    _signaling = switch (description.type) {
-      'offer' => RTCSignalingState.RTCSignalingStateHaveLocalOffer,
-      _ => RTCSignalingState.RTCSignalingStateStable,
-    };
-    if (description.type != 'rollback') _local = description;
-  }
-
-  Completer<void>? localDescriptionGate;
+  Future<void> setLocalDescription(RTCSessionDescription description) async =>
+      _local = description;
 
   @override
-  Future<RTCSessionDescription?> getLocalDescription() async {
-    await localDescriptionGate?.future;
-    return _local;
-  }
+  Future<RTCSessionDescription?> getLocalDescription() async => _local;
 
   @override
   Future<void> setRemoteDescription(RTCSessionDescription description) async {
     if (setRemoteDescriptionError case final error?) throw error;
     remoteDescriptions.add(description);
-    if (description.type != 'offer') {
-      _signaling = RTCSignalingState.RTCSignalingStateStable;
-      return;
-    }
-    _signaling = RTCSignalingState.RTCSignalingStateHaveRemoteOffer;
+    if (description.type != 'offer') return;
     for (final MapEntry(key: mid, value: kind) in pendingRemoteMids.entries) {
       if (rtpTransceivers.any((t) => t.mid == mid)) continue;
       rtpTransceivers.add(

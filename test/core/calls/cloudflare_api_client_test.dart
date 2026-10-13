@@ -62,8 +62,8 @@ void main() {
     expect(result.hasError, isFalse);
   });
 
-  test('pushing, pulling or renegotiating throws when the response carries '
-      'a top-level errorCode', () async {
+  test('pushing, pulling, renegotiating or closing throws when the response '
+      'carries a top-level errorCode', () async {
     final client = _client(
       MockClient(
         (request) async => http.Response(
@@ -104,6 +104,10 @@ void main() {
           'session_not_found from PUT /sessions/{id}/renegotiate',
         ),
       ),
+    );
+    await expectLater(
+      client.closeTracks(sessionId: 's1', mids: ['0']),
+      throwsA(isA<CloudflareCallsException>()),
     );
   });
 
@@ -277,32 +281,23 @@ void main() {
   );
 
   test(
-    'closeTracks posts the given mids, force flag, and sessionDescription',
+    'closeTracks force-closes the given mids without a description',
     () async {
       final mock = MockClient((request) async {
         expect(request.url.path, '$_base/sessions/s1/tracks/close');
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(body['force'], isTrue);
-        expect(body['tracks'], [
-          {'mid': '0'},
-        ]);
-        expect(body['sessionDescription'], {'sdp': 'sdp', 'type': 'offer'});
+        expect(jsonDecode(request.body), {
+          'tracks': [
+            {'mid': '0'},
+          ],
+          'force': true,
+        });
         return http.Response(jsonEncode({'tracks': []}), 200);
       });
-      final result = await _client(mock).closeTracks(
-        sessionId: 's1',
-        mids: ['0'],
-        force: true,
-        sessionDescription: const CfSessionDescription(
-          sdp: 'sdp',
-          type: 'offer',
-        ),
-      );
-      expect(result.hasError, isFalse);
+      await _client(mock).closeTracks(sessionId: 's1', mids: ['0']);
     },
   );
 
-  test('retries once on a SocketException and succeeds', () {
+  test('a session request retries once on a SocketException and succeeds', () {
     fakeAsync((async) {
       var calls = 0;
       final mock = MockClient((request) async {
@@ -317,6 +312,47 @@ void main() {
 
       expect(calls, 2);
       expect(sessionId, 'sess1');
+    });
+  });
+
+  test('a track change is never sent twice after a SocketException, since the '
+      'SFU may already have applied it', () {
+    fakeAsync((async) {
+      final paths = <String>[];
+      final client = _client(
+        MockClient((request) async {
+          paths.add(request.url.path.split(_base).last);
+          throw const SocketException('connection reset by peer');
+        }),
+      );
+      const description = CfSessionDescription(sdp: 'sdp', type: 'offer');
+      final changes = <Future<Object?>>[
+        client.pushLocalTracks(
+          sessionId: 's1',
+          offer: description,
+          tracks: [CfTrack.local(mid: '0', trackName: 'audio')],
+        ),
+        client.pullRemoteTracks(
+          sessionId: 's1',
+          tracks: [CfTrack.remote(sessionId: 'remote', trackName: 'audio')],
+        ),
+        client.renegotiate(sessionId: 's1', offer: description),
+        client.closeTracks(sessionId: 's1', mids: ['0']),
+      ];
+      final errors = <Object>[];
+      for (final change in changes) {
+        change.then((_) {}, onError: errors.add);
+      }
+
+      async.elapse(const Duration(seconds: 5));
+
+      expect(paths, [
+        '/sessions/s1/tracks/new',
+        '/sessions/s1/tracks/new',
+        '/sessions/s1/renegotiate',
+        '/sessions/s1/tracks/close',
+      ]);
+      expect(errors, [for (var i = 0; i < 4; i++) isA<SocketException>()]);
     });
   });
 

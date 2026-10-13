@@ -180,7 +180,8 @@ sequenceDiagram
 | Rule | Why |
 |---|---|
 | ICE is gathered whole before an offer goes out | Cloudflare's REST signaling takes candidates only inside the offer, so there is no trickle ICE |
-| A lost connection rejoins with a new session and peer connection, a few times, before the call ends as "Connection lost" | Cloudflare sessions cannot ICE-restart |
+| A lost connection, or a publish or pull whose exchange fails, rejoins with a new session and peer connection, a few times, before the call ends as "Connection lost" | Cloudflare sessions cannot ICE-restart, and a session left with an unanswered SFU offer refuses every later change (406 `invalid_session_description`), which no rollback or forced close repairs |
+| Only `sessions/new` is re-sent after a dropped connection; track changes are retried only on 429 | The SFU may already have applied a lost request, and a repeat lands on a session that no longer expects it |
 | TURN credentials are minted through the module when the engine is built at call start, and a failed mint means no TURN, not a failed call | Only some networks need TURN |
 | A black placeholder stands in whenever the camera is not sending, and a track is advertised only once it has sent bytes | Cloudflare drops a published track that receives no packets for 30 s, and advertising earlier lets someone pull a track the SFU does not have yet |
 | Opus goes out without DTX | A muted microphone with DTX sends nothing, so the 30 s rule would drop the audio track |
@@ -540,7 +541,12 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 - `createOffer` takes explicit empty constraints, because called bare it
   adds receive-only slots that the next pull lands on.
 - Never `stop()` a pulled transceiver locally, because Cloudflare hands
-  the freed mid to the next pull.
+  the freed mid to the next pull; pulled tracks therefore close with a
+  forced close and no SDP, since a negotiated close needs a fresh offer
+  from stopped transceivers.
+- A rejoin is done only once its re-pulls finish, and the retry budget
+  resets only after a rejoin that ends connected, because a failure that
+  repeats on every new session would otherwise rejoin forever.
 - Every quality tier writes explicit caps, because a null limit never
   reaches Android's encoder and so never lifts a cap.
 - RTT comes only from the transport's selected candidate pair, because

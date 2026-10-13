@@ -104,17 +104,18 @@ class CloudflareCallsException implements Exception {
 }
 
 class _Endpoint {
-  const _Endpoint(this.method, this.route);
+  const _Endpoint(this.method, this.route, {this.safeToResend = false});
 
   final String method;
   final String route;
+  final bool safeToResend;
 
   @override
   String toString() => '$method $route';
 }
 
 const _sessionSegment = '{id}';
-const _newSession = _Endpoint('POST', '/sessions/new');
+const _newSession = _Endpoint('POST', '/sessions/new', safeToResend: true);
 const _newTracks = _Endpoint('POST', '/sessions/$_sessionSegment/tracks/new');
 const _renegotiate = _Endpoint('PUT', '/sessions/$_sessionSegment/renegotiate');
 const _closeTracks = _Endpoint(
@@ -172,7 +173,7 @@ class CloudflareApiClient {
     baseDelay: _baseDelay,
     maxDelay: _maxDelay,
     retryIf: (error) =>
-        error is SocketException ||
+        (endpoint.safeToResend && error is SocketException) ||
         (error is CloudflareCallsException && error.statusCode == 429),
     retryAfter: (error) =>
         error is CloudflareCallsException ? error.retryAfter : null,
@@ -271,22 +272,19 @@ class CloudflareApiClient {
     );
   }
 
-  Future<CfTracksResult> closeTracks({
+  Future<void> closeTracks({
     required String sessionId,
     required List<String> mids,
-    required CfSessionDescription sessionDescription,
-    bool force = false,
   }) async {
     final json = await _send(
       _closeTracks,
       sessionId: sessionId,
       body: {
         'tracks': mids.map((m) => {'mid': m}).toList(),
-        'force': force,
-        'sessionDescription': sessionDescription.toJson(),
+        'force': true,
       },
     );
-    return CfTracksResult.fromJson(json);
+    _throwIfRefused(json, _closeTracks);
   }
 
   void close() {

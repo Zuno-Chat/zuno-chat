@@ -9,4 +9,4 @@ New
 • See every way Zuno protects you, from How this works.
 • Double-tap a message to react with a heart.
 
-Fixed 127 bugs.
+Fixed 129 bugs.

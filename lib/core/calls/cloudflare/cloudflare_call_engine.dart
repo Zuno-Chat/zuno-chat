@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart'
-    show debugPrint, listEquals, visibleForTesting;
+import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
 
@@ -45,6 +44,8 @@ class CloudflareCallEngine implements CallEngine {
   CallKind _kind;
 
   RTCPeerConnection? _pc;
+  RTCPeerConnection? _brokenPc;
+  bool _peerConnected = false;
   String? _sessionId;
 
   final LocalMedia _media;
@@ -82,7 +83,8 @@ class CloudflareCallEngine implements CallEngine {
 
   final _negotiationLock = SerialLock();
 
-  bool _isLiveConnection(RTCPeerConnection pc) => !_left && identical(_pc, pc);
+  bool _isLiveConnection(RTCPeerConnection pc) =>
+      !_left && identical(_pc, pc) && !identical(_brokenPc, pc);
 
   CloudflareCallEngine({
     required Uri Function() baseUri,
@@ -413,46 +415,17 @@ class CloudflareCallEngine implements CallEngine {
     return transceiver.mid;
   }
 
-  Future<void> _closeTracks(List<String> mids, {bool force = false}) async {
+  Future<void> _closeTracks(List<String> mids) async {
     final pc = _pc;
     final sessionId = _sessionId;
     if (pc == null || sessionId == null || mids.isEmpty) return;
-    final current = await pc.getLocalDescription();
     if (!_isLiveConnection(pc)) return;
-    if (current == null || current.sdp == null || current.type == null) return;
-
     try {
-      await _closeTracksOrThrow(pc, sessionId, mids, force, current);
+      await _api.closeTracks(sessionId: sessionId, mids: mids);
     } catch (e, s) {
       if (!_isLiveConnection(pc)) return;
       reportCaught('closing tracks', e, s);
     }
-  }
-
-  Future<void> _closeTracksOrThrow(
-    RTCPeerConnection pc,
-    String sessionId,
-    List<String> mids,
-    bool force,
-    RTCSessionDescription current,
-  ) async {
-    final result = await _api.closeTracks(
-      sessionId: sessionId,
-      mids: mids,
-      force: force,
-      sessionDescription: _cfDescription(current),
-    );
-    if (!_isLiveConnection(pc)) return;
-    final offered = result.sessionDescription;
-    if (!result.requiresImmediateRenegotiation || offered == null) return;
-    await pc.setRemoteDescription(_remoteDescription(offered));
-    if (!_isLiveConnection(pc)) return;
-    final localDescription = await _liveLocalAnswer(pc);
-    if (localDescription == null) return;
-    await _api.renegotiate(
-      sessionId: sessionId,
-      offer: _cfDescription(localDescription),
-    );
   }
 
   static const _iceIdleCutoff = Duration(milliseconds: 500);
@@ -556,7 +529,7 @@ class CloudflareCallEngine implements CallEngine {
 
       await _serialCameraWork(_publishLocalMedia);
       if (_left) return;
-      _setStatus(CallEngineStatus.connected);
+      if (!_reconnecting) _setStatus(CallEngineStatus.connected);
       _notifyParticipants();
       _statsTimer = Timer.periodic(
         _statsPollInterval,
@@ -659,7 +632,14 @@ class CloudflareCallEngine implements CallEngine {
     );
 
     if (!_isLiveConnection(pc)) return;
-    await _negotiationLock.run(_publishPendingTransceivers);
+    try {
+      await _negotiationLock.run(_publishPendingTransceivers);
+    } catch (e, s) {
+      if (!_isLiveConnection(pc)) return;
+      reportCaught('publish local tracks', e, s);
+      _replaceBrokenSession(pc);
+      return;
+    }
     if (!_isLiveConnection(pc)) return;
     _watchFirstMedia(pc);
     await _reapplyVideoEncoding();
@@ -685,20 +665,23 @@ class CloudflareCallEngine implements CallEngine {
 
   void _handleConnectionState(RTCPeerConnectionState state) {
     if (_left) return;
+    _peerConnected =
+        state == RTCPeerConnectionState.RTCPeerConnectionStateConnected;
     switch (state) {
       case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
         _cancelDisconnectTimer();
-        _reconnectAttempts = 0;
+        if (!_reconnecting) _reconnectAttempts = 0;
         _setStatus(CallEngineStatus.connected);
       case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
         _setStatus(CallEngineStatus.reconnecting);
+        final pc = _pc;
         _disconnectTimer ??= Timer(_disconnectGrace, () {
           _disconnectTimer = null;
-          unawaited(_reconnect());
+          if (identical(_pc, pc)) _replaceBrokenSession(pc);
         });
       case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
         _cancelDisconnectTimer();
-        unawaited(_reconnect());
+        _replaceBrokenSession(_pc);
       case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
         _setStatus(CallEngineStatus.disconnected);
       case RTCPeerConnectionState.RTCPeerConnectionStateNew:
@@ -733,6 +716,9 @@ class CloudflareCallEngine implements CallEngine {
         try {
           await _rejoin();
           if (_left) return;
+          final pc = _pc;
+          if (pc == null || !_isLiveConnection(pc)) continue;
+          if (_peerConnected) _reconnectAttempts = 0;
           _notifyLocalStateChanged();
           return;
         } catch (e, s) {
@@ -745,9 +731,18 @@ class CloudflareCallEngine implements CallEngine {
     }
   }
 
+  void _replaceBrokenSession(RTCPeerConnection? pc) {
+    _brokenPc = pc;
+    _detachConnectionCallbacks(pc);
+    _peerConnected = false;
+    unawaited(_reconnect());
+  }
+
   Future<void> _rejoin() async {
     final oldPc = _pc;
     _pc = null;
+    _brokenPc = null;
+    _peerConnected = false;
     _detachConnectionCallbacks(oldPc);
     _sessionId = null;
     final senderCryptors = _forgetLocalSenders();
@@ -768,12 +763,7 @@ class CloudflareCallEngine implements CallEngine {
     }
     await _serialCameraWork(_publishLocalMedia);
     for (final remote in _remote.values.toList()) {
-      unawaited(
-        runBestEffort(
-          () => _syncRemoteTracks(remote),
-          label: 're-pull after rejoin',
-        ),
-      );
+      await _syncRemoteTracks(remote);
     }
     _notifyParticipants();
   }
@@ -1243,9 +1233,8 @@ class CloudflareCallEngine implements CallEngine {
 
   Future<void> _closeRemoteTrackNamesLocked(
     _RemoteParticipant remote,
-    List<String> names, {
-    bool closeOnSfu = true,
-  }) async {
+    List<String> names,
+  ) async {
     final mids = <String>[];
     for (final name in names) {
       final transceiver = remote.recvTransceivers.remove(name);
@@ -1262,7 +1251,7 @@ class CloudflareCallEngine implements CallEngine {
       _midOwners.remove(transceiver.mid);
     }
     _notifyParticipants();
-    if (closeOnSfu && mids.isNotEmpty) await _closeTracks(mids);
+    await _closeTracks(mids);
   }
 
   Future<void> _dropRemoteMedia(_RemoteParticipant remote) =>
@@ -1295,8 +1284,10 @@ class CloudflareCallEngine implements CallEngine {
         if (!_isLiveConnection(pc)) return;
         try {
           await _pullTracksLocked(remote, toPull, pc, sessionId);
-        } catch (_) {
-          if (_isLiveConnection(pc)) rethrow;
+        } catch (e, s) {
+          if (!_isLiveConnection(pc)) return;
+          reportCaught('pull remote tracks', e, s);
+          _replaceBrokenSession(pc);
         }
       });
     } finally {
@@ -1327,7 +1318,6 @@ class CloudflareCallEngine implements CallEngine {
     );
     if (!_isLiveConnection(pc)) return;
 
-    final pulledMids = <String, String>{};
     for (final track in result.tracks) {
       final name = track.trackName;
       final mid = track.mid;
@@ -1337,7 +1327,6 @@ class CloudflareCallEngine implements CallEngine {
       }
       remote.pulledTrackNames.add(name);
       _midOwners[mid] = (participant: remote.id, trackName: name);
-      pulledMids[name] = mid;
       unawaited(
         runBestEffort(
           () => _adoptExistingTrack(remote, name, mid),
@@ -1352,24 +1341,16 @@ class CloudflareCallEngine implements CallEngine {
       return;
     }
 
-    try {
-      await pc.setRemoteDescription(_remoteDescription(offered));
-      if (!_isLiveConnection(pc)) return;
-      await _adoptRemoteTransceivers(remote, pc);
-      if (!_isLiveConnection(pc)) return;
-      final localDescription = await _liveLocalAnswer(pc);
-      if (localDescription == null) return;
-      await _api.renegotiate(
-        sessionId: sessionId,
-        offer: _cfDescription(localDescription),
-      );
-    } catch (_) {
-      await _rollbackUnansweredOffer(pc);
-      if (_isLiveConnection(pc)) {
-        await _forgetUnansweredPull(remote, pulledMids);
-      }
-      rethrow;
-    }
+    await pc.setRemoteDescription(_remoteDescription(offered));
+    if (!_isLiveConnection(pc)) return;
+    await _adoptRemoteTransceivers(remote, pc);
+    if (!_isLiveConnection(pc)) return;
+    final localDescription = await _liveLocalAnswer(pc);
+    if (localDescription == null) return;
+    await _api.renegotiate(
+      sessionId: sessionId,
+      offer: _cfDescription(localDescription),
+    );
   }
 
   void _notePullError(
@@ -1384,32 +1365,6 @@ class CloudflareCallEngine implements CallEngine {
     if (remote.pullErrors[trackName] == errorCode) return;
     remote.pullErrors[trackName] = errorCode;
     reportCaught('pull $trackName', errorCode);
-  }
-
-  Future<void> _forgetUnansweredPull(
-    _RemoteParticipant remote,
-    Map<String, String> pulledMids,
-  ) async {
-    await _closeRemoteTrackNamesLocked(
-      remote,
-      pulledMids.keys.toList(),
-      closeOnSfu: false,
-    );
-    await _closeTracks(pulledMids.values.toList(), force: true);
-  }
-
-  Future<void> _rollbackUnansweredOffer(RTCPeerConnection pc) async {
-    final state = pc.signalingState;
-    if (!_isLiveConnection(pc) ||
-        state == null ||
-        state == RTCSignalingState.RTCSignalingStateStable) {
-      return;
-    }
-    debugPrint('[Call] a pull left signaling in $state; rolling back');
-    await runBestEffort(
-      () => pc.setLocalDescription(RTCSessionDescription('', 'rollback')),
-      label: 'roll back unanswered offer',
-    );
   }
 
   Future<void> _adoptRemoteTransceivers(
