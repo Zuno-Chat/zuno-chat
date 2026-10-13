@@ -124,7 +124,7 @@ dependencies:
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
   geolocator: ^14.1.1
-  sentry_flutter: ^9.30.1
+  sentry_flutter: ^10.0.0
 dev_dependencies:
   # Deterministic time for the poll/timeout loops on the call paths
   # (await_room.dart) — a real 10s wait is not a test.
