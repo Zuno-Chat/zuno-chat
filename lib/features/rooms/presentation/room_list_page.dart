@@ -26,7 +26,6 @@ import '../../../core/matrix/join_requests.dart';
 import '../../../core/matrix/join_room.dart';
 import '../../../core/matrix/local_username_dialog.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/room_access.dart';
 import '../../../core/matrix/room_exit.dart';
 import '../../../core/notifications/delivery_auto_fallback.dart';
@@ -41,6 +40,7 @@ import '../../../core/security/new_device_alert_provider.dart';
 import '../../../core/security/security_prompt.dart';
 import '../../../core/security/security_prompt_provider.dart';
 import '../../../core/security/unverified_device_warning_provider.dart';
+import '../../../core/security/verification_cancel_message.dart';
 import '../../../core/ui/sheet.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../calls/presentation/incoming_call_page.dart';
@@ -50,6 +50,7 @@ import '../../onboarding/presentation/onboarding_flow_page.dart';
 import '../../settings/presentation/secure_backup_page.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../../verification/presentation/verification_page.dart';
+import '../../verification/presentation/verification_request_dialog.dart';
 import 'chat_list_view.dart';
 import 'home_bottom_bar.dart';
 import 'new_device_alert_banner.dart';
@@ -342,25 +343,23 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     BuildContext context,
     KeyVerification keyVerification,
   ) async {
+    if (keyVerification.isDone) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final isOwnDevice =
+        keyVerification.userId == ref.read(matrixClientProvider).userID;
     final accept = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Verification request'),
-        content: Text(
-          '${withoutServer(keyVerification.userId)} wants to verify with you.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Decline'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Accept'),
-          ),
-        ],
-      ),
+      builder: (_) =>
+          VerificationRequestDialog(keyVerification: keyVerification),
     );
+    if (keyVerification.isDone) {
+      final message = verificationCancelMessage(
+        code: keyVerification.canceledCode,
+        isOwnDevice: isOwnDevice,
+      );
+      messenger.showSnackBar(SnackBar(content: Text(message.body)));
+      return;
+    }
     if (accept != true) {
       await keyVerification.rejectVerification();
       return;
@@ -371,8 +370,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
         MaterialPageRoute(
           builder: (_) => VerificationPage(
             keyVerification: keyVerification,
-            isOwnDevice:
-                keyVerification.userId == ref.read(matrixClientProvider).userID,
+            isOwnDevice: isOwnDevice,
           ),
         ),
       );

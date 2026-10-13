@@ -126,6 +126,8 @@ the UI) is the fallback.
 
 A check request from another device of your own account opens as approving
 a device, and one from anyone else as confirming a person.
+If the request stops before an answer, its prompt closes itself, even under
+another screen, and says why with the check screen's cancel copy.
 
 `ApproveThisDevicePage` offers another device before the recovery code, since
 most people still have the old phone. It closes only once this device is
@@ -320,6 +322,12 @@ the commonest words of ordinary prose break any run.
 - **The other side's cancel reason is never shown**, because it is free text
   from the other side: known codes map to Zuno's copy, a real mismatch gets
   its own alarming copy, and unknown codes get a generic line.
+- **Answering a request that already stopped makes the SDK cancel it again
+  as `m.unexpected_message`**, replacing the real reason and logging an error,
+  so the request prompt never answers a finished request.
+- **`KeyVerification.onUpdate` holds one listener**, and the check screen
+  takes it before the request prompt is disposed, so the prompt clears it only
+  while it is still its own.
 - **The SDK marks this device's own keys `directVerified`**, which says
   nothing about whether the account vouched for it, so `sessionApproval`
   ignores it.

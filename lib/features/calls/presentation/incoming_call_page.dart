@@ -21,6 +21,7 @@ import '../../../core/errors/best_effort.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_user_display.dart';
 import '../../../core/platform/platform_capabilities.dart';
+import '../../../core/ui/close_own_route.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'call_page.dart';
@@ -148,15 +149,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
 
   void _dismiss() {
     _releaseRing();
-    if (!mounted) return;
-    final route = ModalRoute.of(context);
-    if (route == null) return;
-    final navigator = Navigator.of(context);
-    if (route.isCurrent) {
-      navigator.pop();
-    } else {
-      navigator.removeRoute(route);
-    }
+    if (mounted) closeOwnRoute(context);
   }
 
   void _accept() {

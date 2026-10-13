@@ -730,5 +730,84 @@ void main() {
       expect(find.text('Approve this device'), findsOneWidget);
       expect(find.text('Confirm it is them'), findsNothing);
     });
+
+    testWidgets('canceled before an answer, closes and says why', (
+      tester,
+    ) async {
+      await pumpRoomList(tester);
+      final request = FakeKeyVerification();
+
+      verifications.add(request);
+      await tester.pumpAndSettle();
+      request.stopWith('m.user');
+      await tester.pumpAndSettle();
+
+      expect(find.text('@bob wants to verify with you.'), findsNothing);
+      expect(
+        find.textContaining('One of you canceled the check.'),
+        findsOneWidget,
+      );
+      expect(request.calls, isEmpty);
+      expect(find.byType(VerificationPage), findsNothing);
+    });
+
+    testWidgets('answered on my other device, closes and says so', (
+      tester,
+    ) async {
+      await pumpRoomList(tester);
+      final request = FakeKeyVerification(userId: '@me:example.org');
+
+      verifications.add(request);
+      await tester.pumpAndSettle();
+      request.stopWith('m.accepted');
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Another one of your devices picked this up'),
+        findsOneWidget,
+      );
+      expect(request.calls, isEmpty);
+    });
+
+    testWidgets('canceled under another screen, closes and keeps that screen', (
+      tester,
+    ) async {
+      await pumpRoomList(tester);
+      final request = FakeKeyVerification();
+      verifications.add(request);
+      await tester.pumpAndSettle();
+      final prompt = find.text('@bob wants to verify with you.');
+      unawaited(
+        Navigator.of(tester.element(prompt)).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Text('On top')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      request.stopWith('m.user');
+      await tester.pumpAndSettle();
+
+      expect(find.text('On top'), findsOneWidget);
+      expect(
+        find.text('@bob wants to verify with you.', skipOffstage: false),
+        findsNothing,
+      );
+      expect(request.calls, isEmpty);
+    });
+
+    testWidgets('already stopped when it arrives, shows nothing', (
+      tester,
+    ) async {
+      await pumpRoomList(tester);
+      final request = FakeKeyVerification()..canceled = true;
+
+      verifications.add(request);
+      await tester.pumpAndSettle();
+
+      expect(find.text('@bob wants to verify with you.'), findsNothing);
+      expect(request.calls, isEmpty);
+    });
   });
 }
