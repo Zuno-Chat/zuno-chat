@@ -21,6 +21,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/read_model/opaque_thread_ids.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/fake_encryption.dart';
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
@@ -418,6 +419,7 @@ void main() {
         notifications = installFakeLocalNotifications(
           platform: TargetPlatform.iOS,
         );
+        installFakeCallsChannel();
         recordMethodChannel(
           'zuno/nse',
           reply: (call) => call.method == 'threadKey' ? 'tok' : null,

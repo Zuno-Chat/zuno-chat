@@ -26,7 +26,11 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test ${{ inputs.coverage && '--coverage' || '' }}
+      - run: |
+          flutter test --file-reporter json:build/test-report.json ${{ inputs.coverage && '--coverage' || '' }} || {
+            dart tool/ci/failed_tests.dart build/test-report.json | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
       - if: inputs.coverage
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:

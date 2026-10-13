@@ -359,4 +359,5 @@ stateDiagram-v2
 
 - `buildTestClient` never syncs, so a test that reaches `firstSyncProvider` overrides it.
 - A logged-in `ZunoApp` test mocks `zuno/shortcuts` and `zuno/share`, or the launch checks never finish (`test/app_auth_gate_test.dart`).
+- A test that posts a notification under iOS capabilities fakes `zuno/calls`, because the notification service's first setup resets CallKit over it, and the real engine's reply lands on wall-clock time and races a fixed `pumpEventQueue` wait.
 - A new layout passes `expectSurvivesLayoutMatrix` (`test/helpers/layout_matrix.dart`), and a does-it-fit assertion loads the real font with `loadRealRoboto`, since the test font is about twice as wide.
