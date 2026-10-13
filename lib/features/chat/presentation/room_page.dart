@@ -56,6 +56,7 @@ import '../../../core/matrix/sync_coordinator_provider.dart';
 import '../../../core/matrix/upload_foreground_service.dart';
 import '../../../core/matrix/video_send_preparation.dart';
 import '../../../core/matrix/voice_recording.dart';
+import '../../../core/navigation/chat_route.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/recovery_code.dart';
 import '../../../core/security/recovery_code_leak.dart';
@@ -206,6 +207,12 @@ class _RoomPageState extends ConsumerState<RoomPage>
       });
     });
     _input.addListener(_onComposerChangedForTyping);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    markChatRoute(context, widget.room.id);
   }
 
   @override

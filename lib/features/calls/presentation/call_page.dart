@@ -8,10 +8,12 @@ import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/models/call_engine_participant.dart';
 import '../../../core/calls/models/voip_participant_id.dart';
 import '../../../core/matrix/matrix_ids.dart';
+import '../../../core/navigation/chat_route.dart';
 import '../../../core/navigation/launch_route.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/ui/corner_snap.dart';
 import '../../../core/ui/zuno_theme.dart';
+import '../../chat/presentation/room_page.dart';
 import '../../verification/presentation/confirm_person.dart';
 import '../../verification/presentation/why_confirm_sheet.dart';
 import 'call_confirm_prompt.dart';
@@ -31,10 +33,7 @@ void showCallScreen(
   bool replace = false,
 }) {
   if (call.screenOpen || call.finished) return;
-  final route = pageRoute<void>(
-    instant: instant,
-    builder: (_) => CallPage(call: call),
-  );
+  final route = _CallScreenRoute(call: call, instant: instant);
   void closeOnceFinished() {
     if (call.finished) _closeScreen(navigator, route, call);
   }
@@ -67,6 +66,37 @@ void _closeScreen(
   } else {
     navigator.popUntil((r) => r == route);
     navigator.pop();
+  }
+}
+
+class _CallScreenRoute extends LaunchRoute<void> {
+  _CallScreenRoute({required this.call, required super.instant})
+    : super(builder: (_) => CallPage(call: call));
+
+  final ActiveCallController call;
+  Route<Object?>? _below;
+
+  bool get _overCallChat => isChatRoute(_below, call.session.room.id);
+
+  @override
+  RoutePopDisposition get popDisposition =>
+      _overCallChat ? super.popDisposition : RoutePopDisposition.doNotPop;
+
+  @override
+  void onPopInvokedWithResult(bool didPop, void result) {
+    super.onPopInvokedWithResult(didPop, result);
+    if (didPop || _overCallChat) return;
+    unawaited(
+      navigator!.pushReplacement<void, void>(
+        MaterialPageRoute(builder: (_) => RoomPage(room: call.session.room)),
+      ),
+    );
+  }
+
+  @override
+  void didChangePrevious(Route<Object?>? previousRoute) {
+    _below = previousRoute;
+    super.didChangePrevious(previousRoute);
   }
 }
 
@@ -191,7 +221,7 @@ class _CallPageState extends ConsumerState<CallPage> {
       onSwitchCamera: call.switchCamera,
       onToggleSpeaker: call.toggleSpeaker,
       onHangUp: call.hangUp,
-      onMinimize: () => Navigator.of(context).pop(),
+      onMinimize: () => unawaited(Navigator.of(context).maybePop()),
       selfCorner: _selfCorners[call] ?? SnapCorner.topRight,
       onSelfCornerChanged: (corner) =>
           setState(() => _selfCorners[call] = corner),

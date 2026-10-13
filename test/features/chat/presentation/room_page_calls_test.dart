@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
@@ -251,6 +252,100 @@ void main() {
       await harness.settle(tester);
 
       expect(find.text('Voice call in progress'), findsNothing);
+    });
+  });
+
+  group('minimizing a call', () {
+    Finder chatOf(Room room) =>
+        find.byWidgetPredicate((w) => w is RoomPage && w.room.id == room.id);
+
+    Future<Room> answeredInAnotherChat(WidgetTester tester) async {
+      CallChannelMocks();
+      await openRoom(tester);
+      final callRoom = buildTestRoom(harness.client, id: '!other:example.org')
+        ..partial = false;
+      harness.client.rooms.add(callRoom);
+      alreadyInCall(tester, room: callRoom);
+      showCallScreen(
+        Navigator.of(tester.element(find.byType(RoomPage))),
+        container(tester).read(activeCallControllerProvider)!,
+      );
+      await harness.settle(tester);
+      return callRoom;
+    }
+
+    testWidgets('a call answered in another chat lands on its own chat, and '
+        'Back returns to the chat you were in', (tester) async {
+      final callRoom = await answeredInAnotherChat(tester);
+
+      await tester.tap(find.byTooltip('Minimize call'));
+      await harness.settle(tester);
+
+      expect(find.byType(CallPage), findsNothing);
+      expect(chatOf(callRoom), findsOneWidget);
+      expect(chatOf(harness.room), findsNothing);
+
+      await tester.binding.handlePopRoute();
+      await harness.settle(tester);
+
+      expect(chatOf(harness.room), findsOneWidget);
+      expect(chatOf(callRoom), findsNothing);
+    });
+
+    testWidgets('Back on that call lands on its own chat too', (tester) async {
+      final callRoom = await answeredInAnotherChat(tester);
+
+      await tester.binding.handlePopRoute();
+      await harness.settle(tester);
+
+      expect(find.byType(CallPage), findsNothing);
+      expect(chatOf(callRoom), findsOneWidget);
+      expect(container(tester).read(activeCallProvider), isNotNull);
+    });
+
+    testWidgets('a call opened from its own chat goes back to that chat '
+        'without opening it twice', (tester) async {
+      CallChannelMocks();
+      await openRoom(tester);
+      alreadyInCall(tester);
+      await tester.tap(find.byTooltip('Voice call'));
+      await harness.settle(tester);
+
+      await tester.tap(find.byTooltip('Minimize call'));
+      await harness.settle(tester);
+
+      expect(find.byType(CallPage), findsNothing);
+      expect(chatOf(harness.room), findsOneWidget);
+      expect(
+        Navigator.of(tester.element(find.byType(RoomPage))).canPop(),
+        isFalse,
+      );
+    });
+
+    testWidgets('a call answered from its ring screen over its own chat goes '
+        'back to that chat without opening it twice', (tester) async {
+      CallChannelMocks();
+      await openRoom(tester);
+      final navigator = Navigator.of(tester.element(find.byType(RoomPage)));
+      alreadyInCall(tester);
+      final call = container(tester).read(activeCallControllerProvider)!;
+      unawaited(
+        navigator.push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Text('Ringing')),
+          ),
+        ),
+      );
+      await harness.settle(tester);
+      showCallScreen(navigator, call, replace: true);
+      await harness.settle(tester);
+
+      await tester.tap(find.byTooltip('Minimize call'));
+      await harness.settle(tester);
+
+      expect(find.byType(CallPage), findsNothing);
+      expect(chatOf(harness.room), findsOneWidget);
+      expect(navigator.canPop(), isFalse);
     });
   });
 }

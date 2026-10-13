@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 
 class LaunchRoute<T> extends MaterialPageRoute<T> {
-  LaunchRoute({required super.builder});
+  LaunchRoute({required super.builder, this.instant = true});
+
+  final bool instant;
 
   @override
-  Duration get transitionDuration => Duration.zero;
+  Duration get transitionDuration =>
+      instant ? Duration.zero : super.transitionDuration;
 
   @override
-  Duration get reverseTransitionDuration => const Duration(milliseconds: 300);
+  Duration get reverseTransitionDuration => instant
+      ? const Duration(milliseconds: 300)
+      : super.reverseTransitionDuration;
 }
 
-Route<T> pageRoute<T>({required bool instant, required WidgetBuilder builder}) {
-  if (instant) return LaunchRoute<T>(builder: builder);
-  return MaterialPageRoute<T>(builder: builder);
-}
+Route<T> pageRoute<T>({
+  required bool instant,
+  required WidgetBuilder builder,
+}) => LaunchRoute<T>(builder: builder, instant: instant);

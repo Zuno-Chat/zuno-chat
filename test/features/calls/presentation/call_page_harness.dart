@@ -9,6 +9,7 @@ import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
+import 'package:zuno/core/navigation/chat_route.dart';
 import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
@@ -53,6 +54,7 @@ class CallPageHarness extends CallChannelMocks {
   final Widget home;
   late final ProviderContainer container;
   final navigatorKey = globalNavigatorKey;
+  late BuildContext _chat;
 
   ActiveCallController get call =>
       container.read(activeCallControllerProvider)!;
@@ -80,13 +82,19 @@ class CallPageHarness extends CallChannelMocks {
             banners: [topBanner],
             child: child ?? const SizedBox.shrink(),
           ),
-          home: home,
+          home: Builder(
+            builder: (context) {
+              _chat = context;
+              return home;
+            },
+          ),
         ),
       ),
     );
   }
 
   void pushCall(FakeCallSession session) {
+    markChatRoute(_chat, session.room.id);
     container.read(activeCallProvider.notifier).set(session);
     showCallScreen(navigatorKey.currentState!, call);
   }

@@ -287,7 +287,10 @@ tier.
 ### Minimized calls
 
 Back, or the minimize button under the call's top-left pill, closes the
-call screen and keeps the call. Every way back in goes through
+call screen and keeps the call, always landing on the call's chat. When
+that chat is not right under the call screen, it takes the call screen's
+place, so Back from it goes to what was under the call; this also turns
+off iOS swipe-back on the call screen. Every way back in goes through
 `showCallScreen`, which never opens a second call screen: the bar or
 window, the call buttons of the call's own room, answering, and on Android
 the ongoing-call notification. A page opened from outside (a notification,
