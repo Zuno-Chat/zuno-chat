@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,7 +72,7 @@ void main() {
     Event event, {
     List<Event>? events,
     Event? older,
-    bool canReply = true,
+    bool canRespond = true,
     List<Override> overrides = const [],
   }) async {
     final all = events ?? [event];
@@ -88,7 +89,7 @@ void main() {
       isLastOwn: false,
       gallery: null,
       galleryFailureIndexes: const [],
-      canReply: canReply,
+      canRespond: canRespond,
       now: noon,
       use24Hour: true,
     );
@@ -112,7 +113,8 @@ void main() {
                 gallery: null,
                 galleryFailures: const [],
                 onLongPress: () {},
-                onSwipeReply: canReply ? () {} : null,
+                onDoubleTap: record.canRespond ? () {} : null,
+                onSwipeReply: record.canRespond ? () {} : null,
                 onResend: resent.add,
                 onRetryFailedSend: (_) {},
               ),
@@ -207,6 +209,7 @@ void main() {
       expect(find.byType(MessageMeta), findsNothing);
 
       await tester.tap(find.text('fixed'));
+      await tester.pump(kDoubleTapTimeout);
       expect(resent.single.eventId, 'txn-edit');
       expect(resent.single.relationshipEventId, r'$a');
     });
@@ -260,7 +263,7 @@ void main() {
       await pumpTile(tester, text(r'$a'));
       expect(find.byType(SwipeToReply), findsOneWidget);
 
-      await pumpTile(tester, text(r'$a'), canReply: false);
+      await pumpTile(tester, text(r'$a'), canRespond: false);
       expect(find.byType(SwipeToReply), findsNothing);
 
       final deleted = text(r'$b')
@@ -375,7 +378,7 @@ void main() {
     );
 
     await tester.tap(find.text('Read more'));
-    await tester.pump();
+    await tester.pump(kDoubleTapTimeout);
     expect(find.text('Show less'), findsOneWidget);
     expect(find.byType(TuckedMeta), findsOneWidget);
   });
@@ -588,7 +591,7 @@ void main() {
       await pumpTile(tester, start(), overrides: liveOverrides());
 
       await tester.tap(find.byIcon(Icons.share_location_outlined).first);
-      await tester.pump();
+      await tester.pump(kDoubleTapTimeout);
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(
@@ -655,7 +658,7 @@ void main() {
 
       expect(find.text('Live location ended'), findsOneWidget);
       await tester.tap(find.text('Live location ended'));
-      await tester.pump();
+      await tester.pump(kDoubleTapTimeout);
 
       expect(find.byType(LiveLocationMapPage), findsNothing);
     });

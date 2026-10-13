@@ -57,7 +57,11 @@ in `features/chat/presentation/`.
   rather than a Matrix rule: picking another emoji redacts the old one,
   or discards it on this device if it never sent. While the old one is
   still on its way the pick does nothing, since a send in flight cannot
-  be stopped.
+  be stopped. Double-tapping a message toggles a heart by the same rule.
+- **Double-tap holds every single tap inside a bubble** until the
+  double-tap window closes, since Flutter's gesture arena cannot settle a
+  tap sooner; widget tests that tap inside a sent bubble pump past
+  `kDoubleTapTimeout`.
 
 ## Event display
 
@@ -149,8 +153,8 @@ the SDK gives up. Until then it has only a local ID, which no other
 client can resolve.
 
 - **Reply, react and edit act only on a sent message**, swipe-to-reply
-  included, because each points at its target by an ID other clients
-  must resolve.
+  and double-tap included, because each points at its target by an ID
+  other clients must resolve.
 - **The actions sheet shows the real send state**: not sent, sending, or
   the time it was sent.
 - **Failed sends** show as not sent with tap-to-retry, and a reconnect

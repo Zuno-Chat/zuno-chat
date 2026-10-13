@@ -8,23 +8,27 @@ const reactionOverflow = 12.0;
 
 const reactionOverflowGap = reactionOverflow + 6;
 
+Future<void> toggleReactionWithFeedback(
+  ScaffoldMessengerState messenger,
+  Event event,
+  Timeline timeline,
+  String key,
+) async {
+  try {
+    await toggleReaction(event, timeline, key);
+  } catch (e, s) {
+    reportCaught('react', e, s);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Reaction not sent. Try again.')),
+    );
+  }
+}
+
 class ReactionsRow extends StatelessWidget {
   final Event event;
   final Timeline timeline;
 
   const ReactionsRow({super.key, required this.event, required this.timeline});
-
-  Future<void> _toggle(BuildContext context, String key) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await toggleReaction(event, timeline, key);
-    } catch (e, s) {
-      reportCaught('react', e, s);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Reaction not sent. Try again.')),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +55,12 @@ class ReactionsRow extends StatelessWidget {
             ),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
-              onTap: () => _toggle(context, reaction.key),
+              onTap: () => toggleReactionWithFeedback(
+                ScaffoldMessenger.of(context),
+                event,
+                timeline,
+                reaction.key,
+              ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 child: Text(

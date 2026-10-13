@@ -38,7 +38,7 @@ class MessageRowData {
   final List<String> galleryIds;
   final List<EventStatus> galleryStatuses;
   final List<int> galleryFailureIndexes;
-  final bool canReply;
+  final bool canRespond;
 
   const MessageRowData({
     required this.eventId,
@@ -69,7 +69,7 @@ class MessageRowData {
     required this.galleryIds,
     required this.galleryStatuses,
     required this.galleryFailureIndexes,
-    required this.canReply,
+    required this.canRespond,
   });
 
   MetaStatus get metaStatus {
@@ -106,7 +106,7 @@ class MessageRowData {
     replySenderName,
     showReadTick,
     isRead,
-    canReply,
+    canRespond,
     reactions.length,
     ...reactions,
     galleryIds.length,
@@ -145,7 +145,7 @@ MessageRowData messageRowDataFor({
   required bool isLastOwn,
   required List<Event>? gallery,
   required List<int> galleryFailureIndexes,
-  required bool canReply,
+  required bool canRespond,
   required DateTime now,
   required bool use24Hour,
 }) {
@@ -202,6 +202,6 @@ MessageRowData messageRowDataFor({
       for (final member in gallery ?? const <Event>[]) member.status,
     ],
     galleryFailureIndexes: galleryFailureIndexes,
-    canReply: canReply && event.status.isSent,
+    canRespond: canRespond && event.status.isSent,
   );
 }

@@ -13,6 +13,7 @@ import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
+import 'package:zuno/features/chat/presentation/message_bubble.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
@@ -60,11 +61,13 @@ void main() {
     WidgetTester tester,
     List<Event> Function() events, {
     List<Override> overrides = const [],
+    bool canPost = true,
   }) async {
     harness = RoomPageHarness(
       db: SendingFakeDatabaseApi(),
       overrides: overrides,
     );
+    if (!canPost) harness.blockPosting();
     harness.respond = (request) {
       final path = request.url.path;
       if (path.contains('/state/$liveLocationStateType/')) {
@@ -92,6 +95,17 @@ void main() {
 
   Future<void> openActions(WidgetTester tester, String body) async {
     await tester.longPress(find.textContaining(body, findRichText: true).first);
+    await harness.settle(tester);
+  }
+
+  Future<void> doubleTap(WidgetTester tester, String body) async {
+    final message = find.ancestor(
+      of: find.textContaining(body, findRichText: true).first,
+      matching: find.byType(MessageBubble),
+    );
+    await tester.tap(message);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(message);
     await harness.settle(tester);
   }
 
@@ -700,6 +714,97 @@ void main() {
       await harness.settle(tester);
 
       expect(requestsTo('/send/m.reaction/'), isEmpty);
+    });
+
+    group('double-tapping a message', () {
+      Event myHeartOn(String eventId) => buildTestEvent(
+        harness.room,
+        eventId: r'$heart',
+        senderId: '@me:example.org',
+        originServerTs: DateTime(2026, 9, 20, 12, 1),
+        status: EventStatus.synced,
+        type: EventTypes.Reaction,
+        content: {
+          'm.relates_to': {
+            'rel_type': RelationshipTypes.reaction,
+            'event_id': eventId,
+            'key': '❤️',
+          },
+        },
+      );
+
+      testWidgets('reacts with a heart', (tester) async {
+        await openRoom(tester, () => [harness.message(r'$m1', body: 'hello')]);
+
+        await doubleTap(tester, 'hello');
+
+        final reaction = requestsTo('/send/m.reaction/').single;
+        final relates =
+            (jsonDecode(reaction.body) as Map)['m.relates_to'] as Map;
+        expect((relates['event_id'], relates['key']), (r'$m1', '❤️'));
+      });
+
+      testWidgets('takes my heart back off', (tester) async {
+        await openRoom(
+          tester,
+          () => [myHeartOn(r'$m1'), harness.message(r'$m1', body: 'hello')],
+        );
+
+        await doubleTap(tester, 'hello');
+
+        expect(
+          requestsTo('/redact/').single.url.path,
+          contains(Uri.encodeComponent(r'$heart')),
+        );
+        expect(requestsTo('/send/m.reaction/'), isEmpty);
+      });
+
+      testWidgets('does nothing while the message is on its way', (
+        tester,
+      ) async {
+        await openRoom(
+          tester,
+          () => [own('txn-1', 'on its way', status: EventStatus.sending)],
+        );
+
+        await doubleTap(tester, 'on its way');
+
+        expect(requestsTo('/send/m.reaction/'), isEmpty);
+      });
+
+      testWidgets('does nothing in a room you cannot post in', (tester) async {
+        await openRoom(
+          tester,
+          () => [harness.message(r'$m1', body: 'hello')],
+          canPost: false,
+        );
+
+        await doubleTap(tester, 'hello');
+
+        expect(requestsTo('/send/m.reaction/'), isEmpty);
+      });
+
+      testWidgets('does nothing on a deleted message', (tester) async {
+        await openRoom(
+          tester,
+          () => [
+            harness.message(r'$m1', body: 'hello')
+              ..unsigned = {
+                'redacted_because': {
+                  'event_id': r'$redaction',
+                  'type': EventTypes.Redaction,
+                  'sender': '@bob:example.org',
+                  'content': {},
+                  'origin_server_ts': 0,
+                },
+              },
+          ],
+        );
+
+        await doubleTap(tester, 'Message deleted');
+
+        expect(requestsTo('/send/m.reaction/'), isEmpty);
+      });
     });
   });
 

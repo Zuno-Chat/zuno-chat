@@ -91,7 +91,7 @@ void main() {
     bool isLastOwn = false,
     List<Event>? gallery,
     List<int> galleryFailureIndexes = const [],
-    bool canReply = true,
+    bool canRespond = true,
     DateTime? now,
     bool use24Hour = true,
   }) async {
@@ -107,7 +107,7 @@ void main() {
       isLastOwn: isLastOwn,
       gallery: gallery,
       galleryFailureIndexes: galleryFailureIndexes,
-      canReply: canReply,
+      canRespond: canRespond,
       now: now ?? noon,
       use24Hour: use24Hour,
     );
@@ -547,28 +547,28 @@ void main() {
     );
   });
 
-  test('canReply changes the record', () async {
+  test('canRespond changes the record', () async {
     final event = text(r'$m1');
     expect(
       await record(event),
-      isNot(equals(await record(event, canReply: false))),
+      isNot(equals(await record(event, canRespond: false))),
     );
   });
 
-  test('only a delivered message can be replied to', () async {
+  test('only a delivered message can be responded to', () async {
     expect(
       (await record(text(r'$m1', sender: me, status: EventStatus.sent)))
-          .canReply,
+          .canRespond,
       isTrue,
     );
     expect(
       (await record(text('txn-1', sender: me, status: EventStatus.sending)))
-          .canReply,
+          .canRespond,
       isFalse,
     );
     expect(
       (await record(text('txn-1', sender: me, status: EventStatus.error)))
-          .canReply,
+          .canRespond,
       isFalse,
     );
   });

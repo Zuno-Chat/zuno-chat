@@ -41,6 +41,7 @@ class MessageTile extends StatelessWidget {
   final List<Event>? gallery;
   final List<FailedMediaSend> galleryFailures;
   final VoidCallback onLongPress;
+  final VoidCallback? onDoubleTap;
   final VoidCallback? onSwipeReply;
   final void Function(Event) onResend;
   final void Function(FailedMediaSend) onRetryFailedSend;
@@ -56,6 +57,7 @@ class MessageTile extends StatelessWidget {
     required this.gallery,
     required this.galleryFailures,
     required this.onLongPress,
+    required this.onDoubleTap,
     required this.onSwipeReply,
     required this.onResend,
     required this.onRetryFailedSend,
@@ -263,6 +265,7 @@ class MessageTile extends StatelessWidget {
       padding: bubblePadding,
       onTap: unsent == null ? null : () => onResend(unsent),
       onLongPress: unreadable ? null : onLongPress,
+      onDoubleTap: unreadable ? null : onDoubleTap,
       child: Column(
         crossAxisAlignment: notSent
             ? CrossAxisAlignment.end

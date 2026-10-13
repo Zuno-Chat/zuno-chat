@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -70,7 +71,7 @@ void main() {
     expect(find.byTooltip('Scroll to latest'), findsNothing);
 
     await tester.drag(find.byType(MessageListView), const Offset(0, 500));
-    await tester.pump();
+    await tester.pump(kDoubleTapMinTime);
 
     expect(find.byTooltip('Scroll to latest'), findsOneWidget);
     expect(identical(list(tester), before), isTrue);

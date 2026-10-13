@@ -49,6 +49,7 @@ class MessageBubble extends StatelessWidget {
   final EdgeInsets padding;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onDoubleTap;
 
   const MessageBubble({
     super.key,
@@ -60,6 +61,7 @@ class MessageBubble extends StatelessWidget {
     this.padding = const EdgeInsets.fromLTRB(12, 7, 12, 7),
     this.onTap,
     this.onLongPress,
+    this.onDoubleTap,
   });
 
   @override
@@ -105,6 +107,7 @@ class MessageBubble extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
+        onDoubleTap: onDoubleTap,
         child: DefaultTextStyle.merge(
           style: theme.textTheme.bodyLarge!.copyWith(
             color: ink,

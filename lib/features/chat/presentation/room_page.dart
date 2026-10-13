@@ -43,7 +43,6 @@ import '../../../core/matrix/media_gallery_group.dart';
 import '../../../core/matrix/media_processing_exception.dart';
 import '../../../core/matrix/media_quality.dart';
 import '../../../core/matrix/picker_access.dart';
-import '../../../core/matrix/reactions.dart';
 import '../../../core/matrix/read_receipts.dart';
 import '../../../core/matrix/room_exit.dart';
 import '../../../core/matrix/room_invite.dart';
@@ -85,6 +84,7 @@ import 'media_caption_composer_page.dart';
 import 'mention_suggestions.dart';
 import 'message_actions_sheet.dart';
 import 'message_composer.dart';
+import 'message_contents/reactions_row.dart';
 import 'message_contents/voice_message.dart';
 import 'message_list_view.dart';
 import 'not_sent.dart';
@@ -96,6 +96,8 @@ import 'room_lifecycle.dart';
 import 'sender_device_tile.dart';
 import 'unvouched_device_banner.dart';
 import 'video_caption_composer_page.dart';
+
+const _doubleTapReaction = '❤️';
 
 String _formatDateTime(DateTime time) {
   final local = time.toLocal();
@@ -968,21 +970,13 @@ class _RoomPageState extends ConsumerState<RoomPage>
     if (sent && mounted) _snack('Report sent');
   }
 
-  Future<void> _reactToMessage(
-    Event event,
-    Timeline timeline,
-    String key,
-  ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await toggleReaction(event, timeline, key);
-    } catch (e, s) {
-      reportCaught('react', e, s);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Reaction not sent. Try again.')),
+  Future<void> _reactToMessage(Event event, Timeline timeline, String key) =>
+      toggleReactionWithFeedback(
+        ScaffoldMessenger.of(context),
+        event,
+        timeline,
+        key,
       );
-    }
-  }
 
   Future<void> _pickReaction(Event event, Timeline timeline) async {
     final key = await showSheet<String>(
@@ -1920,7 +1914,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
                                 timeline: timeline,
                                 controller: _scrollController,
                                 showHiddenMessages: showHiddenMessages,
-                                canReply: canPost,
+                                canRespond: canPost,
                                 failedSends: _failedSends,
                                 pendingSend: _pendingSend,
                                 replyTargets: _replyTargets,
@@ -1929,6 +1923,11 @@ class _RoomPageState extends ConsumerState<RoomPage>
                                       event,
                                       galleryEvents: gallery,
                                     ),
+                                onDoubleTap: (event) => _reactToMessage(
+                                  event,
+                                  timeline,
+                                  _doubleTapReaction,
+                                ),
                                 onSwipeReply: _startReply,
                                 onResend: _resend,
                                 onRetryFailedSend: _retryFailedSend,

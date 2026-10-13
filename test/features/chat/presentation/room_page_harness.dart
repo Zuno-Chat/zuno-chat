@@ -133,6 +133,20 @@ class RoomPageHarness {
     client.rooms.add(room);
   }
 
+  void blockPosting() => room.setState(
+    buildTestEvent(
+      room,
+      eventId: r'$pl',
+      senderId: '@bob:example.org',
+      type: EventTypes.RoomPowerLevels,
+      stateKey: '',
+      content: {
+        'events_default': 50,
+        'users': {'@bob:example.org': 100},
+      },
+    ),
+  );
+
   Event message(String id, {String body = 'hello', DateTime? at}) =>
       buildTestEvent(
         room,

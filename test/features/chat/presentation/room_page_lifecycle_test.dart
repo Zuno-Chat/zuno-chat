@@ -689,20 +689,7 @@ void main() {
 
   group('a room you cannot post in', () {
     testWidgets('says so instead of offering the composer', (tester) async {
-      harness = makeHarness();
-      harness.room.setState(
-        buildTestEvent(
-          harness.room,
-          eventId: r'$pl',
-          senderId: '@bob:example.org',
-          type: EventTypes.RoomPowerLevels,
-          stateKey: '',
-          content: {
-            'events_default': 50,
-            'users': {'@bob:example.org': 100},
-          },
-        ),
-      );
+      harness = makeHarness()..blockPosting();
       harness.db.events = [harness.message(r'$m1')];
       await harness.pumpRoomPage(tester);
 

@@ -18,11 +18,12 @@ class MessageListView extends StatefulWidget {
   final Timeline timeline;
   final ScrollController controller;
   final bool showHiddenMessages;
-  final bool canReply;
+  final bool canRespond;
   final List<FailedMediaSend> failedSends;
   final ValueListenable<PendingAttachmentSend?> pendingSend;
   final ReplyTargetCache replyTargets;
   final void Function(Event event, List<Event>? gallery) onLongPress;
+  final void Function(Event event) onDoubleTap;
   final void Function(Event event) onSwipeReply;
   final void Function(Event event) onResend;
   final void Function(FailedMediaSend failed) onRetryFailedSend;
@@ -33,11 +34,12 @@ class MessageListView extends StatefulWidget {
     required this.timeline,
     required this.controller,
     required this.showHiddenMessages,
-    required this.canReply,
+    required this.canRespond,
     required this.failedSends,
     required this.pendingSend,
     required this.replyTargets,
     required this.onLongPress,
+    required this.onDoubleTap,
     required this.onSwipeReply,
     required this.onResend,
     required this.onRetryFailedSend,
@@ -174,7 +176,7 @@ class _MessageListViewState extends State<MessageListView> {
           isLastOwn: message.eventId == lastOwnId,
           gallery: gallery,
           galleryFailureIndexes: [for (final failed in failures) failed.index],
-          canReply: widget.canReply,
+          canRespond: widget.canRespond,
           now: now,
           use24Hour: use24Hour,
         );
@@ -190,7 +192,10 @@ class _MessageListViewState extends State<MessageListView> {
             gallery: gallery,
             galleryFailures: failures,
             onLongPress: () => widget.onLongPress(message, gallery),
-            onSwipeReply: record.canReply
+            onDoubleTap: record.canRespond
+                ? () => widget.onDoubleTap(message)
+                : null,
+            onSwipeReply: record.canRespond
                 ? () => widget.onSwipeReply(message)
                 : null,
             onResend: (event) => widget.onResend(event),
