@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/client_lease.dart';
@@ -38,6 +42,51 @@ class _BrokenSessionStore extends FakeDatabaseApi {
   @override
   Future<void> clear() async => cleared = true;
 }
+
+class _SlowLoadingStore extends FakeDatabaseApi {
+  final rooms = Completer<List<Room>>();
+
+  @override
+  Future<Map<String, dynamic>?> getClient(String name) async => {
+    'client_id': 1,
+    'homeserver_url': 'https://example.org',
+    'token': 'token',
+    'user_id': '@me:example.org',
+    'device_id': 'DEVICE',
+    'device_name': 'Phone',
+  };
+
+  @override
+  Future<void> updateClient(
+    String homeserverUrl,
+    String token,
+    DateTime? tokenExpiresAt,
+    String? refreshToken,
+    String userId,
+    String? deviceId,
+    String? deviceName,
+    String? prevBatch,
+    String? olmAccount,
+    String? oidcClientId,
+  ) async {}
+
+  @override
+  Future<Map<String, DeviceKeysList>> getUserDeviceKeys(Client client) async =>
+      {};
+
+  @override
+  Future<List<Room>> getRoomList(Client client) => rooms.future;
+
+  @override
+  Future<Map<String, BasicEvent>> getAccountData() async => {};
+}
+
+ZunoClient _slowLoadingClient(_SlowLoadingStore store) => ZunoClient(
+  'Zuno',
+  database: store,
+  appClient: false,
+  httpClient: MockClient((_) => Completer<http.Response>().future),
+);
 
 class _ClearCountingStore extends FakeDatabaseApi {
   int clears = 0;
@@ -114,6 +163,40 @@ void main() {
       expect(store.cleared, isTrue);
     },
   );
+
+  group('restoring a session', () {
+    test('a client that need not wait goes on before its chats are loaded '
+        'from the store', () async {
+      final slow = _SlowLoadingStore();
+      final background = _slowLoadingClient(slow);
+
+      await background
+          .restoreSession(waitForStoreLoad: false)
+          .timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => fail('the store load held up the restore'),
+          );
+
+      expect(background.isLogged(), isTrue);
+      slow.rooms.complete([]);
+      await background.roomsLoading;
+    });
+
+    test('any other client waits for its chats, so it can act on a chat '
+        'at once', () async {
+      final slow = _SlowLoadingStore();
+      final client = _slowLoadingClient(slow);
+      var restored = false;
+
+      final restoring = client.restoreSession().then((_) => restored = true);
+      await pumpEventQueue();
+      expect(restored, isFalse);
+
+      slow.rooms.complete([]);
+      await restoring;
+      expect(restored, isTrue);
+    });
+  });
 
   group('a client that is not the app\'s', () {
     test('never clears the shared store, whatever the reason', () async {

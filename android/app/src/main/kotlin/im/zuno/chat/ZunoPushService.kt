@@ -9,15 +9,32 @@ import im.zuno.chat.zuno_notifications.PushNotice
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodChannel
+import java.io.Serializable
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.unifiedpush.android.connector.FailedReason
+import org.unifiedpush.android.connector.PushService
 import org.unifiedpush.android.connector.data.PushEndpoint
 import org.unifiedpush.android.connector.data.PushMessage
+import org.unifiedpush.flutter.connector.Call
+import org.unifiedpush.flutter.connector.PLUGIN_ARG_ENDPOINT_KEY_AUTH
+import org.unifiedpush.flutter.connector.PLUGIN_ARG_ENDPOINT_KEY_PUBKEY
+import org.unifiedpush.flutter.connector.PLUGIN_ARG_ENDPOINT_TEMP
+import org.unifiedpush.flutter.connector.PLUGIN_ARG_ENDPOINT_URL
+import org.unifiedpush.flutter.connector.PLUGIN_ARG_INSTANCE
+import org.unifiedpush.flutter.connector.PLUGIN_ARG_MESSAGE_CONTENT
+import org.unifiedpush.flutter.connector.PLUGIN_ARG_MESSAGE_DECRYPTED
+import org.unifiedpush.flutter.connector.PLUGIN_ARG_REASON
+import org.unifiedpush.flutter.connector.PLUGIN_CALL_MESSAGE
+import org.unifiedpush.flutter.connector.PLUGIN_CALL_NEW_ENDPOINT
+import org.unifiedpush.flutter.connector.PLUGIN_CALL_REGISTRATION_FAILED
+import org.unifiedpush.flutter.connector.PLUGIN_CALL_TEMP_UNAVAILABLE
+import org.unifiedpush.flutter.connector.PLUGIN_CALL_UNREGISTERED
 import org.unifiedpush.flutter.connector.Plugin
-import org.unifiedpush.flutter.connector.UnifiedPushService
 
-class ZunoPushService : UnifiedPushService() {
-    override fun getEngine(context: Context): FlutterEngine {
+class ZunoPushService : PushService() {
+    private fun buildEngine(context: Context): FlutterEngine {
         PushWakeLock.extend(context)
         return PushEnginePlugins.create(context).apply {
             MethodChannel(dartExecutor.binaryMessenger, WAKELOCK_CHANNEL)
@@ -28,11 +45,6 @@ class ZunoPushService : UnifiedPushService() {
                 listOf("--unifiedpush-bg"),
             )
         }
-    }
-
-    override fun onCreate() {
-        ensureDeliveryEngine()
-        super.onCreate()
     }
 
     @Synchronized
@@ -60,7 +72,7 @@ class ZunoPushService : UnifiedPushService() {
     }
 
     private fun bootHeadlessEngine() {
-        val engine = getEngine(this)
+        val engine = buildEngine(this)
         val registry = engine.plugins
         (registry.get(Plugin::class.java) as? Plugin) ?: Plugin().also { registry.add(it) }
         headlessEngine = engine
@@ -82,31 +94,44 @@ class ZunoPushService : UnifiedPushService() {
             PushKind.BADGE -> Unit
         }
         PushWakeLock.hold(applicationContext, eventId)
-        deliver { super.onMessage(message, instance) }
+        deliver(
+            PLUGIN_CALL_MESSAGE,
+            mapOf(
+                PLUGIN_ARG_INSTANCE to instance,
+                PLUGIN_ARG_MESSAGE_CONTENT to message.content,
+                PLUGIN_ARG_MESSAGE_DECRYPTED to message.decrypted,
+            ),
+        )
     }
 
-    override fun onNewEndpoint(endpoint: PushEndpoint, instance: String) {
-        deliver { super.onNewEndpoint(endpoint, instance) }
-    }
+    override fun onNewEndpoint(endpoint: PushEndpoint, instance: String) = deliver(
+        PLUGIN_CALL_NEW_ENDPOINT,
+        mapOf(
+            PLUGIN_ARG_INSTANCE to instance,
+            PLUGIN_ARG_ENDPOINT_URL to endpoint.url,
+            PLUGIN_ARG_ENDPOINT_KEY_PUBKEY to endpoint.pubKeySet?.pubKey,
+            PLUGIN_ARG_ENDPOINT_KEY_AUTH to endpoint.pubKeySet?.auth,
+            PLUGIN_ARG_ENDPOINT_TEMP to endpoint.temporary,
+        ),
+    )
 
-    override fun onRegistrationFailed(reason: FailedReason, instance: String) {
-        deliver { super.onRegistrationFailed(reason, instance) }
-    }
+    override fun onRegistrationFailed(reason: FailedReason, instance: String) = deliver(
+        PLUGIN_CALL_REGISTRATION_FAILED,
+        mapOf(PLUGIN_ARG_INSTANCE to instance, PLUGIN_ARG_REASON to reason.name),
+    )
 
-    override fun onUnregistered(instance: String) {
-        deliver { super.onUnregistered(instance) }
-    }
+    override fun onUnregistered(instance: String) =
+        deliver(PLUGIN_CALL_UNREGISTERED, mapOf(PLUGIN_ARG_INSTANCE to instance))
 
-    override fun onTempUnavailable(instance: String) {
-        deliver { super.onTempUnavailable(instance) }
-    }
+    override fun onTempUnavailable(instance: String) =
+        deliver(PLUGIN_CALL_TEMP_UNAVAILABLE, mapOf(PLUGIN_ARG_INSTANCE to instance))
 
-    private fun deliver(forward: () -> Unit) {
-        val run = {
+    private fun deliver(method: String, data: Map<String, Serializable?>) {
+        val run = Runnable {
             ensureDeliveryEngine()
-            forward()
+            CoroutineScope(Plugin.dispatcher).launch { Plugin.calls.emit(Call(method, data)) }
         }
-        if (Looper.myLooper() == Looper.getMainLooper()) run() else main.post(run)
+        if (Looper.myLooper() == Looper.getMainLooper()) run.run() else main.post(run)
     }
 
     private fun notificationOf(message: PushMessage): JSONObject? = try {

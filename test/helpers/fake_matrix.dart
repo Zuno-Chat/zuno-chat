@@ -135,16 +135,12 @@ class _TestClient extends Client {
 }
 
 class ExpiringTokenClient extends Client {
-  ExpiringTokenClient({
-    this.expiresIn = const Duration(seconds: 30),
-    bool refreshStalls = false,
-  }) : super(
-         'test',
-         database: FakeDatabaseApi(),
-         onSoftLogout: refreshStalls
-             ? (_) => Completer<void>().future
-             : (client) async => client.accessToken = 'fresh',
-       );
+  ExpiringTokenClient({this.expiresIn = const Duration(seconds: 30)})
+    : super(
+        'test',
+        database: FakeDatabaseApi(),
+        onSoftLogout: (client) async => client.accessToken = 'fresh',
+      );
 
   final Duration expiresIn;
 

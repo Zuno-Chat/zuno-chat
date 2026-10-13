@@ -1,6 +1,7 @@
 import Foundation
 
 extension NsePipeline {
+  // shortcut: a failed VoIP ring shows its fallback only after this 8 s wait, upgrade by asking ring/status alongside the ledger wait
   static let ledgerWaitMs: Int64 = 8000
   static let ledgerPollMs: Int64 = 250
   static let statusBudgetMs: Int64 = 23_000

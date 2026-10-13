@@ -36,7 +36,7 @@ HeadlessPushRunner? _backgroundRunner;
 HeadlessPushRunner fcmBackgroundRunner() =>
     _backgroundRunner ??= buildFcmBackgroundRunner(
       clientBuilder: () async {
-        final result = await createMatrixClient(backgroundSync: false);
+        final result = await createPushClient();
         debugPrint('zuno/push: FCM headless client ready');
         return result.client;
       },
@@ -82,13 +82,7 @@ Future<void> runFcmHeadless({
   void startCrashReporting() {
     if (crashReportingStarted) return;
     crashReportingStarted = true;
-    unawaited(
-      Future.sync(initCrashReporting).then(
-        (_) {},
-        onError: (Object error, StackTrace stack) =>
-            reportCaught('headless crash reporting start', error, stack),
-      ),
-    );
+    startHeadlessCrashReporting(initCrashReporting);
   }
 
   Future<bool>? preparing;

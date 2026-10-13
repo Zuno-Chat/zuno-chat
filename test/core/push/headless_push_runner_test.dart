@@ -677,23 +677,39 @@ void main() {
     );
   });
 
-  test('a token refresh that stalls holds each action up only so long', () {
-    fakeAsync((async) {
-      final runner = HeadlessPushRunner()
-        ..clientBuilder = () async => ExpiringTokenClient(refreshStalls: true);
-      final ran = <String>[];
+  test('withClient runs the action only once the client\'s store has '
+      'loaded, refreshing its token meanwhile', () async {
+    final loading = Completer<void>();
+    final client = ExpiringTokenClient()
+      ..accessToken = 'stale'
+      ..roomsLoading = loading.future;
+    final runner = HeadlessPushRunner()..clientBuilder = () async => client;
+    var ran = false;
 
-      unawaited(runner.withClient((_) async => ran.add('first')));
-      unawaited(runner.withClient((_) async => ran.add('second')));
-      async.elapse(freshTokenBound - const Duration(milliseconds: 1));
-      expect(ran, isEmpty);
+    final done = runner.withClient((_) async => ran = true);
+    await pumpEventQueue();
+    expect(client.accessToken, 'fresh');
+    expect(ran, isFalse);
 
-      async.elapse(const Duration(milliseconds: 1));
-      expect(ran, ['first']);
+    loading.complete();
+    await done;
+    expect(ran, isTrue);
+  });
 
-      async.elapse(freshTokenBound);
-      expect(ran, ['first', 'second']);
-    });
+  test('a store that fails to load fails the action instead of running it '
+      'on a half-loaded client', () async {
+    final loading = Completer<void>();
+    final client = ExpiringTokenClient()
+      ..userDeviceKeysLoading = loading.future;
+    final runner = HeadlessPushRunner()..clientBuilder = () async => client;
+    var ran = false;
+
+    final done = runner.withClient((_) async => ran = true);
+    await pumpEventQueue();
+    loading.completeError(StateError('disk I/O error'));
+
+    await expectLater(done, throwsA(isA<StateError>()));
+    expect(ran, isFalse);
   });
 
   test('withClient returns null when there is no client to be had', () async {

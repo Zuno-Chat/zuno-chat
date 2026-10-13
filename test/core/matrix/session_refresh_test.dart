@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/matrix/refresh_deadline_http_client.dart';
 import 'package:zuno/core/matrix/session_refresh.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -35,6 +38,68 @@ class _ClientRowDatabase extends FakeDatabaseApi {
     row['token'] = token;
     row['refresh_token'] = refreshToken;
   }
+}
+
+class _HeldRefreshes extends http.BaseClient {
+  final sent = <String>[];
+  final _answers = <Completer<http.StreamedResponse>>[];
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final body = await request.finalize().bytesToString();
+    sent.add((jsonDecode(body) as Map)['refresh_token'] as String);
+    final answer = Completer<http.StreamedResponse>();
+    _answers.add(answer);
+    if (request case http.Abortable(:final abortTrigger?)) {
+      unawaited(
+        abortTrigger.whenComplete(() {
+          if (!answer.isCompleted) {
+            answer.completeError(http.RequestAbortedException(request.url));
+          }
+        }),
+      );
+    }
+    return answer.future;
+  }
+
+  void answer(int index, {required String access, required String refresh}) {
+    final answer = _answers[index];
+    if (answer.isCompleted) return;
+    answer.complete(
+      http.StreamedResponse(
+        Stream.value(
+          utf8.encode(
+            jsonEncode({
+              'access_token': access,
+              'refresh_token': refresh,
+              'expires_in_ms': 86400000,
+            }),
+          ),
+        ),
+        200,
+      ),
+    );
+  }
+}
+
+class _ExpiringClient extends Client {
+  _ExpiringClient(_ClientRowDatabase database, http.Client server)
+    : super(
+        'test',
+        database: database,
+        httpClient: server,
+        onSoftLogout: refreshSession,
+      ) {
+    setUserId('@alice:example.org');
+    homeserver = Uri.parse('https://example.org');
+    accessToken = 'a0';
+  }
+
+  @override
+  String? get deviceID => 'DEVICE';
+
+  @override
+  DateTime? get accessTokenExpiresAt => DateTime.now();
 }
 
 http.Response _json(int status, Map<String, Object?> body) =>
@@ -119,6 +184,58 @@ void main() {
       expect(requests, 1);
     });
   }
+
+  group('a refresh the server does not answer', () {
+    late _ClientRowDatabase database;
+    late _HeldRefreshes server;
+    late Client client;
+
+    setUp(() {
+      database = _ClientRowDatabase(refreshToken: 'r0');
+      server = _HeldRefreshes();
+      client = _ExpiringClient(database, RefreshDeadlineHttpClient(server));
+    });
+
+    test('is given up at its deadline, and what waits on it carries on with '
+        'the session kept', () {
+      fakeAsync((async) {
+        var carriedOn = false;
+        unawaited(
+          client.ensureNotSoftLoggedOut().then((_) => carriedOn = true),
+        );
+
+        async.elapse(refreshBound - const Duration(milliseconds: 1));
+        expect(carriedOn, isFalse);
+
+        async.elapse(const Duration(milliseconds: 1));
+        expect(carriedOn, isTrue);
+        expect(client.accessToken, 'a0');
+        expect(database.row['refresh_token'], 'r0');
+      });
+    });
+
+    test('never lands later over the refresh that followed it', () async {
+      final quick = _ExpiringClient(
+        database,
+        RefreshDeadlineHttpClient(
+          server,
+          deadline: const Duration(milliseconds: 20),
+        ),
+      );
+
+      await quick.ensureNotSoftLoggedOut();
+      final second = quick.ensureNotSoftLoggedOut();
+      await pumpEventQueue();
+      server.answer(1, access: 'a2', refresh: 'r2');
+      await second;
+      server.answer(0, access: 'a1', refresh: 'r1');
+      await pumpEventQueue();
+
+      expect(server.sent, ['r0', 'r0']);
+      expect(quick.accessToken, 'a2');
+      expect(database.row['refresh_token'], 'r2');
+    });
+  });
 
   test('a session with no refresh token is given up, not retried', () async {
     final database = _ClientRowDatabase();

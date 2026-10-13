@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart' show Client;
 
+import '../errors/crash_reporting.dart';
 import '../matrix/client_lease.dart';
 import '../notifications/notification_delivery_provider.dart';
 import '../notifications/unified_push_delivery_provider.dart';
@@ -15,6 +16,7 @@ const unifiedPushClientIdleLimit = Duration(minutes: 10);
 Future<void> runUnifiedPushHeadless({
   required Future<Client> Function() clientBuilder,
   UnifiedPushDeliveryProvider? provider,
+  Future<void> Function() initCrashReporting = initHeadlessCrashReporting,
   Future<void> Function() initializeNotifications =
       initializeHeadlessNotifications,
   Future<void> Function(HeadlessPushRunner runner) hold = awaitHeadlessDecline,
@@ -22,6 +24,7 @@ Future<void> runUnifiedPushHeadless({
   Duration firstCallbackTimeout = const Duration(seconds: 20),
   Stream<void>? yieldRequests,
 }) async {
+  startHeadlessCrashReporting(initCrashReporting);
   debugPrint('zuno/push: headless push handler starting');
   final delivery = provider ?? unifiedPushDeliveryProvider;
   delivery.runner

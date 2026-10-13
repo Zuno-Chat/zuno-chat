@@ -145,6 +145,7 @@ dependencies {
     // explicitly rather than relying on that.
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.exifinterface:exifinterface:1.4.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.google.android.gms:play-services-base:18.5.0")
     implementation("com.google.android.gms:play-services-location:21.2.0")
     implementation(platform("com.google.firebase:firebase-bom:34.18.0"))

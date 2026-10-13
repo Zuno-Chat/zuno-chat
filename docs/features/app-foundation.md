@@ -50,7 +50,7 @@ flowchart TD
 - A background client (`createMatrixClient(backgroundSync: false)`) is denied while the app holds the lease. Each denied path falls back on something already in place: a push keeps its instant notice (`notifications.md`), and a decline or notification action hands off to the app's live route (`calls.md`).
 - **Background clients never clear the store or mint a database key.** The SDK's own `clear()` on a failed init or refresh would otherwise wipe the shared database from a push engine.
 - Native code arbitrates across engines: `ClientLeases` in `zuno_notifications` on Android, `ClientLeasePlugin` on iOS.
-- A new background entry point (engine or isolate) opens its client only through `createMatrixClient(backgroundSync: false)` and handles `ClientLeaseDenied`. It runs inside the device-log floor (Errors) and calls `installAppHttpOverrides()` first, because both are set per isolate, the https-only rule included.
+- A new background entry point (engine or isolate) opens its client only through `createMatrixClient(backgroundSync: false)`, or `createPushClient()` for a push engine (`notifications.md`), and handles `ClientLeaseDenied`. It runs inside the device-log floor (Errors) and calls `installAppHttpOverrides()` first, because both are set per isolate, the https-only rule included.
 
 ### Navigation
 

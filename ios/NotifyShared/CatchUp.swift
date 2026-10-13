@@ -65,6 +65,7 @@ enum CatchUp {
     {
       _ = await platform.post(summary)
     }
+    // shortcut: each missed event claims, reads and settles on its own, about 14 sealed reads and fsynced writes apiece, upgrade by batching claims and settles per run if catch-ups after offline spells get slow
     posting: for room in plan.rooms.reversed() {
       for event in room.events {
         guard platform.now() < deadline else { break posting }

@@ -354,6 +354,7 @@ final class NsePipeline: Sendable {
     let unread = context.meta.unread.map { base in
       caughtUp.map { Array(CatchUpBadge.unread(Set(base), after: $0)) } ?? base
     }
+    // shortcut: each step asks for the delivered notifications again, up to 4 times per run after the fetch, upgrade by asking once alongside nse/fetch and sharing that snapshot
     delivery.badge = NseComposer.badge(
       unread: unread, delivered: await env.center.delivered(),
       removed: Set(delivery.removals).union(caughtUp?.removed ?? []),

@@ -199,12 +199,12 @@
         </receiver>
         <!-- UnifiedPush delivery. This replaces the unifiedpush_android
              plugin's own org.unifiedpush.flutter.connector
-             .UnifiedPushService with a subclass of it (ZunoPushService.kt)
-             that takes a partial wakelock around each delivery — the v3
-             bound-service path holds none of its own, and the Dart work a
-             push kicks off (SQLCipher open, vodozemac init, event fetch,
-             decrypt) is seconds long and suspendable in Doze. The plugin's
-             own doc comment names this as the supported way to do it.
+             .UnifiedPushService with ZunoPushService.kt, built on the
+             connector's own PushService, that takes a partial wakelock
+             around each delivery — the v3 bound-service path holds none of
+             its own, and the Dart work a push kicks off (SQLCipher open,
+             vodozemac init, event fetch, decrypt) is seconds long and
+             suspendable in Doze.
 
              Both halves are required and only work together: the removal
              below deletes the plugin's manifest entry at merge time, so

@@ -29,6 +29,7 @@ import 'database_key.dart';
 import 'database_raw_key.dart';
 import 'ephemeral_to_device.dart';
 import 'fresh_token_http_client.dart';
+import 'refresh_deadline_http_client.dart';
 import 'sdk_logs.dart';
 import 'session_refresh.dart';
 import 'sync_coordinator.dart';
@@ -114,6 +115,9 @@ Future<StartedMatrixClient> createMatrixClient({
   );
 }
 
+Future<StartedMatrixClient> createPushClient() =>
+    _startBackgroundClient(waitForStoreLoad: false);
+
 Future<StartedMatrixClient> startOverWithFreshStore() async {
   await _holdAppLease();
   final path = await _databasePath();
@@ -129,13 +133,16 @@ Future<ClientLease> _holdAppLease() =>
 @visibleForTesting
 void forgetAppLeaseForTest() => _appLease = null;
 
-Future<StartedMatrixClient> _startBackgroundClient() async {
+Future<StartedMatrixClient> _startBackgroundClient({
+  bool waitForStoreLoad = true,
+}) async {
   final lease = await ClientLeases.instance.acquire(ClientLeaseKind.background);
   try {
     return await _startClient(
       await _databasePath(),
       backgroundSync: false,
       lease: lease,
+      waitForStoreLoad: waitForStoreLoad,
     );
   } catch (_) {
     await lease.release();
@@ -152,6 +159,7 @@ Future<StartedMatrixClient> _startClient(
   String path, {
   required bool backgroundSync,
   ClientLease? lease,
+  bool waitForStoreLoad = true,
 }) async {
   handleSdkLogs();
   final vodInitFuture = ensureVodozemacInitialized();
@@ -159,7 +167,9 @@ Future<StartedMatrixClient> _startClient(
 
   ZunoClient? client;
   final syncRequests = SyncRequestCanceller(
-    IOClient(HttpClient()..connectionTimeout = _connectTimeout),
+    RefreshDeadlineHttpClient(
+      IOClient(HttpClient()..connectionTimeout = _connectTimeout),
+    ),
   );
   final uploadProgressHttpClient = UploadProgressHttpClient(
     FreshTokenHttpClient(
@@ -219,7 +229,7 @@ Future<StartedMatrixClient> _startClient(
       ..add(callMemberEventType)
       ..add(liveLocationStateType);
 
-    await started.restoreSession();
+    await started.restoreSession(waitForStoreLoad: waitForStoreLoad);
     if (kDebugMode) {
       debugPrint(
         'zuno/push: client timing ${backgroundSync ? 'app' : 'headless'} '

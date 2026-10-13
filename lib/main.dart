@@ -50,7 +50,6 @@ Future<void> _runApp(List<String> args) async {
     return;
   }
   if (args.contains(_unifiedPushBackgroundArg)) {
-    await initHeadlessCrashReporting();
     await _runHeadlessPushHandler();
     return;
   }
@@ -136,7 +135,7 @@ Future<StartupChoice> _askAfterFailedStart(Object _) async {
 
 Future<void> _runHeadlessPushHandler() => runUnifiedPushHeadless(
   clientBuilder: () async {
-    final result = await createMatrixClient(backgroundSync: false);
+    final result = await createPushClient();
     debugPrint('zuno/push: headless client ready');
     return result.client;
   },

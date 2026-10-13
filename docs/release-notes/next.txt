@@ -8,4 +8,4 @@ New
 • Crash reports, when you turn them on, now cover errors too.
 • See every way Zuno protects you, from How this works.
 
-Fixed 123 bugs.
+Fixed 127 bugs.

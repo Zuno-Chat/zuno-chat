@@ -55,9 +55,10 @@ enum NseFetchReply: Equatable, Sendable {
 }
 
 struct NseFetchClient: Sendable {
-  static let attemptMs = 6000
+  static let attemptMs = 4000
   static let hardMs = 8000
-  static let retryFloorMs = 5000
+  static let retryFloorMs = 2000
+  static let retryPauseMs = 400
 
   let transport: NseTransport
   let clock: NseClock
@@ -87,9 +88,10 @@ struct NseFetchClient: Sendable {
         timeoutMs: min(Self.attemptMs, remaining))
       switch ModuleReply.of(result) {
       case .network:
-        let left = Self.hardMs - Int(clock.nowMs() - start)
-        if attempt == 1 && left >= Self.retryFloorMs { continue }
-        return (.network, nil)
+        let pause = result == .timeout ? 0 : Self.retryPauseMs
+        let left = Self.hardMs - Int(clock.nowMs() - start) - pause
+        guard attempt == 1, left >= Self.retryFloorMs else { return (.network, nil) }
+        if pause > 0 { await clock.wait(ms: pause, wakeOn: []) }
       case .route:
         return (.route, nil)
       case .reply(let status, let json):

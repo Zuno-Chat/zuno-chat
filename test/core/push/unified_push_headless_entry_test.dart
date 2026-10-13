@@ -62,6 +62,44 @@ void main() {
     expect(provider.runner.onPushHandled, isNotNull);
   });
 
+  test('starts crash reporting without holding up the handler', () async {
+    var starts = 0;
+    final provider = UnifiedPushDeliveryProvider();
+
+    await runUnifiedPushHeadless(
+      provider: provider,
+      clientBuilder: () async => PushTestClient(),
+      initCrashReporting: () {
+        starts++;
+        return Completer<void>().future;
+      },
+      initializeNotifications: () async {},
+      firstCallbackTimeout: const Duration(milliseconds: 20),
+    ).timeout(
+      const Duration(seconds: 2),
+      onTimeout: () => fail('crash reporting held up the handler'),
+    );
+
+    expect(starts, 1);
+    expect(provider.runner.onPushHandled, isNotNull);
+  });
+
+  test('a crash reporting start that fails still leaves the handler '
+      'registered', () async {
+    final provider = UnifiedPushDeliveryProvider();
+
+    await runUnifiedPushHeadless(
+      provider: provider,
+      clientBuilder: () async => PushTestClient(),
+      initCrashReporting: () async => throw StateError('no sentry'),
+      initializeNotifications: () async {},
+      firstCallbackTimeout: const Duration(milliseconds: 20),
+    );
+
+    expect(provider.runner.clientBuilder, isNotNull);
+    expect(provider.runner.onPushHandled, isNotNull);
+  });
+
   test('a badge-only push opens no client', () async {
     installFakeLocalNotifications();
     installSilentNotificationSideChannels();

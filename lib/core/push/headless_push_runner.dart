@@ -13,8 +13,6 @@ import 'incoming_push_handler.dart';
 import 'push_timing.dart';
 import 'push_wake_lock.dart';
 
-const freshTokenBound = Duration(seconds: 10);
-
 Future<void> initializeHeadlessNotifications() =>
     CallNotificationService.instance.initialize(claimDeclinePort: false);
 
@@ -22,6 +20,9 @@ Future<bool> prepareHeadlessPush({
   Future<void> Function() initializeNotifications =
       initializeHeadlessNotifications,
 }) => runBestEffort(initializeNotifications, label: 'headless push setup');
+
+void startHeadlessCrashReporting(Future<void> Function() start) =>
+    unawaited(runBestEffort(start, label: 'headless crash reporting start'));
 
 class HeadlessPushRunner {
   Client? liveClient;
@@ -92,17 +93,18 @@ class HeadlessPushRunner {
 
   Future<T?> withClient<T>(Future<T> Function(Client client) action) {
     final existing = liveClient;
-    if (existing != null) return _withFreshToken(existing, action);
+    if (existing != null) return _withReadyClient(existing, action);
     final build = clientBuilder;
     if (build == null) return Future.value(null);
     _queued++;
     _idle?.cancel();
+    // shortcut: a burst client handles whole pushes one at a time, so a UnifiedPush backlog posts one by one, upgrade by queueing only the client's opening and closing
     return _enqueue(() async {
       _queued--;
       _running = true;
       try {
         final client = await (_burst ?? _open(build));
-        return await _withFreshToken(client, action);
+        return await _withReadyClient(client, action);
       } finally {
         _running = false;
         _afterUse();
@@ -126,15 +128,16 @@ class HeadlessPushRunner {
     });
   }
 
-  Future<T> _withFreshToken<T>(
+  Future<T> _withReadyClient<T>(
     Client client,
     Future<T> Function(Client client) action,
   ) async {
-    try {
-      await client.ensureNotSoftLoggedOut().timeout(freshTokenBound);
-    } on TimeoutException {
-      debugPrint('zuno/push: token refresh still running, going on');
-    }
+    await Future.wait<void>([
+      client.ensureNotSoftLoggedOut(),
+      ?client.userDeviceKeysLoading,
+      ?client.roomsLoading,
+      ?client.accountDataLoading,
+    ]);
     return action(client);
   }
 

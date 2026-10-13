@@ -31,10 +31,13 @@ class ZunoClient extends Client {
   set backgroundSync(bool enabled) =>
       super.backgroundSync = enabled && syncCoordinator == null;
 
-  Future<void> restoreSession() async {
+  Future<void> restoreSession({bool waitForStoreLoad = true}) async {
     _restoringSession = true;
     try {
-      await init(waitForFirstSync: false);
+      await init(
+        waitForFirstSync: false,
+        waitUntilLoadCompletedLoaded: waitForStoreLoad,
+      );
     } finally {
       _restoringSession = false;
     }

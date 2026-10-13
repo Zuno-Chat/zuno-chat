@@ -95,6 +95,7 @@ Future<IncomingPushOutcome> _handle(
   final catchUp = client is ZunoClient
       ? client.syncCoordinator?.catchUp()
       : null;
+  // shortcut: firstSyncReceived also waits on device keys and to-device work, so a slow tail outlasts messageCatchUpWait and skips read-elsewhere, upgrade by counting the sync as landed at SyncStatus.cleaningUp
   final synced =
       catchUp ?? client.firstSyncReceived?.then<void>((_) {}, onError: (_) {});
   final Event? event;

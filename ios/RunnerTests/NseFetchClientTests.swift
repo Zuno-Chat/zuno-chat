@@ -28,7 +28,7 @@ final class NseFetchClientTests: XCTestCase {
           path: "nse/fetch", authorization: "ZunoNotify cred",
           body: .object([
             "room_id": .string(NseTestData.roomId), "event_id": .string(NseTestData.eventId),
-          ]), timeoutMs: 6000)
+          ]), timeoutMs: 4000)
       ])
   }
 
@@ -75,21 +75,43 @@ final class NseFetchClientTests: XCTestCase {
     XCTAssertEqual(reply, .mismatch)
   }
 
-  func testAFastNetworkFailureIsRetriedOnceWithinEightSeconds() async {
+  func testAFastNetworkFailureIsRetriedOnceAfterAPause() async {
     transport.reply("nse/fetch", .offline, after: 1000)
     transport.reply("nse/fetch", .offline, after: 1000)
 
     let reply = await fetch()
     XCTAssertEqual(reply, .network)
-    XCTAssertEqual(transport.requests.map(\.timeoutMs), [6000, 6000])
+    XCTAssertEqual(transport.requests.map(\.timeoutMs), [4000, 4000])
+    XCTAssertEqual(clock.waits, ["400:"])
   }
 
-  func testATimeoutLeavesTooLittleTimeForARetry() async {
-    transport.reply("nse/fetch", .timeout, after: 6000)
+  func testAStalledAttemptIsRetriedWithTheTimeLeft() async {
+    transport.reply("nse/fetch", .timeout, after: 4000)
+    transport.reply(
+      "nse/fetch", NseTestData.ok(NseTestData.event(content: ["msgtype": "m.text", "body": "hi"])))
+
+    guard case .ok = await fetch() else { return XCTFail("not ok") }
+    XCTAssertEqual(transport.requests.map(\.timeoutMs), [4000, 4000])
+    XCTAssertEqual(clock.waits, [])
+  }
+
+  func testTwoStalledAttemptsGiveUpAtTheEightSecondCap() async {
+    transport.reply("nse/fetch", .timeout, after: 4000)
+    transport.reply("nse/fetch", .timeout, after: 4000)
+
+    let reply = await fetch()
+    XCTAssertEqual(reply, .network)
+    XCTAssertEqual(transport.requests.count, 2)
+    XCTAssertEqual(clock.nowMs() - NseTestData.now, 8000)
+  }
+
+  func testAFailureTooCloseToTheCapIsNotRetried() async {
+    transport.reply("nse/fetch", .offline, after: 6000)
 
     let reply = await fetch()
     XCTAssertEqual(reply, .network)
     XCTAssertEqual(transport.requests.count, 1)
+    XCTAssertEqual(clock.waits, [])
   }
 
   func testTheModulePathFollowsTheHomeserverBaseUrl() {

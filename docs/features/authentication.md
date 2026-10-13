@@ -148,6 +148,10 @@ What the push teardown does is in `notifications.md`.
   app and a push engine's client share one refresh token that the server
   rotates on every use, so the loser of that race re-reads the winner's
   token and retries.
+- **A refresh that hangs is aborted at the network, not just given up
+  on**, because the server drops the pair it issued when the same refresh
+  token is used again, and a late answer saved over the next refresh would
+  sign the device out.
 
 ### Registration and sign-up codes
 

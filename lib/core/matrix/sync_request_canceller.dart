@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:http/http.dart' as http;
 
+import 'abortable_request.dart';
+
 class SyncRequestCanceller extends http.BaseClient {
   SyncRequestCanceller(this._inner);
 
@@ -35,7 +37,7 @@ class SyncRequestCanceller extends http.BaseClient {
     final abort = Completer<void>();
     _waiting.add(abort);
     try {
-      return await _inner.send(_abortable(request, abort.future));
+      return await _inner.send(abortableCopy(request, abort.future));
     } finally {
       _waiting.remove(abort);
     }
@@ -47,10 +49,3 @@ class SyncRequestCanceller extends http.BaseClient {
 
 bool _isSync(http.Request request) =>
     request.method == 'GET' && request.url.path.endsWith('/sync');
-
-http.Request _abortable(http.Request request, Future<void> abort) =>
-    http.AbortableRequest(request.method, request.url, abortTrigger: abort)
-      ..headers.addAll(request.headers)
-      ..followRedirects = request.followRedirects
-      ..maxRedirects = request.maxRedirects
-      ..persistentConnection = request.persistentConnection;

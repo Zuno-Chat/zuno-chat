@@ -92,7 +92,7 @@ native journal, drained ─────────┘     │ network failure? 
   prints nothing in release (`app-foundation.md`), Kotlin logs only the
   label and the error's type, and Swift logs the message as private.
 - **A report waits, bounded, for a crash-reporting start already under
-  way**, because the FCM push engine starts reporting alongside its first
+  way**, because both push engines start reporting alongside their first
   push instead of delaying it, and that push's errors would otherwise be
   lost.
 
