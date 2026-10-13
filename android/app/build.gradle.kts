@@ -143,15 +143,15 @@ dependencies {
     // home screen" pinned-shortcut MethodChannel in MainActivity. Likely
     // already present transitively via the Flutter embedding, but declared
     // explicitly rather than relying on that.
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.exifinterface:exifinterface:1.4.1")
-    implementation("com.google.android.gms:play-services-base:18.5.0")
-    implementation("com.google.android.gms:play-services-location:21.2.0")
+    implementation("androidx.core:core-ktx:1.19.1")
+    implementation("androidx.exifinterface:exifinterface:1.4.2")
+    implementation("com.google.android.gms:play-services-base:18.11.0")
+    implementation("com.google.android.gms:play-services-location:21.4.0")
     implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
     implementation("com.google.firebase:firebase-messaging")
     compileOnly("io.github.webrtc-sdk:android:150.7871.01")
     // Required by compileOptions.isCoreLibraryDesugaringEnabled above.
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
 
 flutter {

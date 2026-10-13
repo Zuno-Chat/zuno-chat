@@ -2,7 +2,7 @@ group = "im.zuno.chat.zuno_vibration"
 version = "1.0-SNAPSHOT"
 
 buildscript {
-    val kotlinVersion = "2.4.0"
+    val kotlinVersion = "2.4.21"
     repositories {
         google()
         mavenCentral()
