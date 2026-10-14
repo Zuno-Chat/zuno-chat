@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show TextInput;
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/security/password_strength.dart';
+import '../../../core/security/zuno_text_field.dart';
 
 class ChangePasswordDialog extends StatefulWidget {
   final String username;
@@ -87,7 +88,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
+              ZunoTextField(
                 controller: _username,
                 readOnly: true,
                 canRequestFocus: false,
@@ -95,7 +96,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                 decoration: InputDecoration(labelText: l10n.commonUsername),
               ),
               gap,
-              TextField(
+              ZunoTextField(
                 controller: _current,
                 enabled: !_loading,
                 obscureText: true,
@@ -105,7 +106,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                 ),
               ),
               gap,
-              TextField(
+              ZunoTextField(
                 controller: _next,
                 enabled: !_loading,
                 obscureText: true,
@@ -115,7 +116,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                 ),
               ),
               gap,
-              TextField(
+              ZunoTextField(
                 controller: _confirm,
                 enabled: !_loading,
                 obscureText: true,

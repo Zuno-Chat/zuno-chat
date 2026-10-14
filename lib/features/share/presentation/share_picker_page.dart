@@ -6,6 +6,7 @@ import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_title.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../rooms/presentation/room_kind_avatar.dart';
 
 List<Room> filterShareTargets(
@@ -63,7 +64,7 @@ class _SharePickerPageState extends State<SharePickerPage> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: TextField(
+            child: ZunoTextField(
               autofillHints: null,
               controller: _query,
               onChanged: (_) => setState(() {}),

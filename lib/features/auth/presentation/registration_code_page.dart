@@ -6,6 +6,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/registration_code_request.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/keyboard.dart';
 import 'auth_scaffold.dart';
 import 'register_page.dart';
@@ -94,7 +95,7 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
               ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 16),
-        TextField(
+        ZunoTextField(
           controller: _email,
           enabled: !_loading,
           keyboardType: TextInputType.emailAddress,

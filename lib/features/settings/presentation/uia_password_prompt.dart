@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/security/zuno_text_field.dart';
 
 final _passwordSent = Expando<bool>('uia password sent');
 final _asking = Expando<bool>('uia password asked');
@@ -21,7 +22,7 @@ Future<String?> askPasswordForUia(
       final l10n = context.l10n;
       final field = AutofillGroup(
         onDisposeAction: AutofillContextAction.cancel,
-        child: TextField(
+        child: ZunoTextField(
           controller: controller,
           obscureText: true,
           autofocus: true,

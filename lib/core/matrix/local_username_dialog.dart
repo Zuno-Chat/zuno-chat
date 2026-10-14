@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../l10n/l10n.dart';
+import '../security/zuno_text_field.dart';
 import 'server_name.dart';
 import 'username_field.dart';
 
@@ -45,7 +46,7 @@ class _LocalUsernameDialogState extends State<_LocalUsernameDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.title),
-      content: TextField(
+      content: ZunoTextField(
         autofillHints: null,
         controller: _controller,
         autofocus: true,

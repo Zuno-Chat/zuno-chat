@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/feedback.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/sheet.dart';
 
 typedef SendFeedback = Future<void> Function(String message);
@@ -96,7 +97,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                child: TextField(
+                child: ZunoTextField(
                   autofillHints: null,
                   controller: _message,
                   enabled: !_sending,

@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/sheet.dart';
 import 'room_kind_avatar.dart';
 
@@ -176,7 +177,7 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: TextField(
+              child: ZunoTextField(
                 autofillHints: null,
                 controller: _controller,
                 autofocus: true,

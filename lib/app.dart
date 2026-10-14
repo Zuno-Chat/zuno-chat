@@ -38,6 +38,7 @@ import 'core/notifications/notification_permission_provider.dart';
 import 'core/platform/platform_capabilities.dart';
 import 'core/push/read_model/nse_services.dart';
 import 'core/push/read_model/opaque_thread_ids.dart';
+import 'core/security/zuno_text_field.dart';
 import 'core/settings/app_preferences_provider.dart';
 import 'core/share/inbound_share.dart';
 import 'core/shortcuts/conversation_shortcuts.dart';
@@ -93,9 +94,12 @@ class _AppFrame extends ConsumerWidget {
       ConnectionStatus.unreachable => l10n.appCannotConnect,
       ConnectionStatus.online || null => null,
     };
-    return CallLayer(
-      banners: [message == null ? null : _ConnectivityBanner(message)],
-      child: child,
+    return KeyboardLearning(
+      allowed: !ref.watch(incognitoKeyboardProvider),
+      child: CallLayer(
+        banners: [message == null ? null : _ConnectivityBanner(message)],
+        child: child,
+      ),
     );
   }
 }

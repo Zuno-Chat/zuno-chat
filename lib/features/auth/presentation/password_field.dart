@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/security/screen_security_service.dart';
+import '../../../core/security/zuno_text_field.dart';
 
 class PasswordField extends StatelessWidget {
   final TextEditingController controller;
@@ -29,7 +30,7 @@ class PasswordField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return ZunoTextField(
       controller: controller,
       enabled: enabled,
       obscureText: !revealed,

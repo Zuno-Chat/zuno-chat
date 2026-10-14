@@ -43,7 +43,6 @@ void main() {
                 onSend: () => sends++,
                 onAttach: () => attaches++,
                 attaching: attaching,
-                incognitoKeyboard: false,
                 isRecording: recording,
                 recordingDuration: duration,
                 recordingWillCancel: false,

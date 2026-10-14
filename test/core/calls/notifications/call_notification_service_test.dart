@@ -364,6 +364,7 @@ void main() {
       expect(reply['showsUserInterface'], isFalse);
       expect(reply['cancelNotification'], isTrue);
       expect((reply['inputs'] as List), isNotEmpty);
+      expect(reply['allowGeneratedReplies'], isFalse);
     });
 
     test('omits Mark as read (but keeps Reply) when there is no eventId '

@@ -4,6 +4,7 @@ import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/abuse_report.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/sheet.dart';
 
 typedef SendReport = Future<void> Function(ReportReason reason, String note);
@@ -124,7 +125,7 @@ class _ReportSheetState extends State<_ReportSheet> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                child: TextField(
+                child: ZunoTextField(
                   autofillHints: null,
                   controller: _note,
                   enabled: !_sending,

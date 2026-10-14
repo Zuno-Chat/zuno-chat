@@ -7,6 +7,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/homeserver_input.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/keyboard.dart';
 import 'auth_scaffold.dart';
 
@@ -71,7 +72,7 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
     return AuthScaffold(
       title: l10n.authConnectToServer,
       children: [
-        TextField(
+        ZunoTextField(
           autofillHints: null,
           controller: _homeserver,
           enabled: !_loading,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'send_icon.dart';
@@ -12,7 +13,6 @@ class MessageComposer extends StatelessWidget {
   final VoidCallback onSend;
   final VoidCallback onAttach;
   final bool attaching;
-  final bool incognitoKeyboard;
   final bool isRecording;
   final ValueListenable<Duration> recordingDuration;
   final bool recordingWillCancel;
@@ -29,7 +29,6 @@ class MessageComposer extends StatelessWidget {
     required this.onSend,
     required this.onAttach,
     required this.attaching,
-    required this.incognitoKeyboard,
     required this.isRecording,
     required this.recordingDuration,
     required this.recordingWillCancel,
@@ -141,7 +140,7 @@ class MessageComposer extends StatelessWidget {
                           onPressed: attaching ? null : onAttach,
                         ),
                         Expanded(
-                          child: TextField(
+                          child: ZunoTextField(
                             autofillHints: null,
                             controller: controller,
                             minLines: 1,
@@ -149,7 +148,6 @@ class MessageComposer extends StatelessWidget {
                             keyboardType: TextInputType.multiline,
                             textInputAction: TextInputAction.newline,
                             textCapitalization: TextCapitalization.sentences,
-                            enableIMEPersonalizedLearning: !incognitoKeyboard,
                             style: textStyle,
                             decoration: InputDecoration(
                               hintText: l10n.commonMessageHint,

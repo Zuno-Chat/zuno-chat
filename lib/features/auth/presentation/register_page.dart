@@ -16,6 +16,7 @@ import '../../../core/matrix/session_display_name.dart';
 import '../../../core/matrix/username_field.dart';
 import '../../../core/navigation/zuno_links.dart';
 import '../../../core/onboarding/onboarding_provider.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/keyboard.dart';
 import 'auth_scaffold.dart';
 import 'password_field.dart';
@@ -194,7 +195,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
             const SizedBox(height: 16),
           ],
           if (widget.requiresCode) ...[
-            TextField(
+            ZunoTextField(
               autofillHints: null,
               controller: _code,
               enabled: !_loading,
@@ -221,7 +222,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
+                ZunoTextField(
                   controller: _username,
                   enabled: !_loading,
                   autocorrect: false,

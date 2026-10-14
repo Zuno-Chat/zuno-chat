@@ -11,4 +11,4 @@ New
 • Zuno in Greek.
 • Pick Zuno's language in Settings.
 
-Fixed 130 bugs.
+Fixed 131 bugs.

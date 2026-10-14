@@ -15,6 +15,7 @@ import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/picker_access.dart';
 import '../../../core/platform/app_settings_opener.dart';
 import '../../../core/platform/platform_capabilities.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/sheet.dart';
@@ -415,7 +416,7 @@ class _EditDisplayNameDialogState extends State<_EditDisplayNameDialog> {
     final l10n = context.l10n;
     return AlertDialog(
       title: Text(l10n.settingsAccountDisplayName),
-      content: TextField(
+      content: ZunoTextField(
         autofillHints: null,
         controller: _name,
         autofocus: true,

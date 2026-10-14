@@ -17,6 +17,7 @@ import '../../../core/security/restore_key_backup.dart';
 import '../../../core/security/secret_text.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/sensitive_clipboard.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/step_hero.dart';
 import '../../../core/ui/step_layout.dart';
 import '../../../core/ui/zuno_theme.dart';
@@ -527,7 +528,7 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
         ),
       ],
       children: [
-        TextField(
+        ZunoTextField(
           autofillHints: null,
           controller: _phraseController,
           autofocus: true,
@@ -538,7 +539,7 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        TextField(
+        ZunoTextField(
           autofillHints: null,
           controller: _confirmController,
           obscureText: true,

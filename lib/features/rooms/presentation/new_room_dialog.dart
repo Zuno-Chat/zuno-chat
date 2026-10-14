@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_access.dart';
 import '../../../core/matrix/room_name_check.dart';
+import '../../../core/security/zuno_text_field.dart';
 
 typedef NewRoom = ({String name, RoomAccess access});
 
@@ -75,7 +76,7 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
+          ZunoTextField(
             autofillHints: null,
             controller: _controller,
             autofocus: true,

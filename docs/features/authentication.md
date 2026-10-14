@@ -202,10 +202,11 @@ What the push teardown does is in `notifications.md`.
 
 ### Autofill
 
-- **Every text field states its autofill choice.** Flutter leaves autofill
-  on unless `autofillHints` is `null`, which would hand message drafts to a
-  password manager; `autofill_opt_in_test.dart` fails on a field that says
-  nothing.
+- **Every text field states its autofill choice**, because Flutter leaves
+  autofill on unless `autofillHints` is `null`, which would hand message
+  drafts to a password manager. `ZunoTextField` requires the choice, and
+  `text_field_owners_test.dart` fails on a field built any other way than it
+  or `SecretTextField`.
 - **Only an accepted credential is offered for saving.** Re-auth prompts
   cancel their autofill context, and change password finishes it only on
   success.

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/secret_text.dart';
 import 'package:zuno/core/security/sensitive_clipboard.dart';
+import 'package:zuno/core/security/zuno_text_field.dart';
 
 import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/native_method_calls.dart';
@@ -150,6 +151,23 @@ void main() {
       expect(field.enableSuggestions, isFalse);
       expect(field.autocorrect, isFalse);
       expect(field.autofillHints, isNull);
+    });
+
+    testWidgets('keeps typing out of the keyboard learning where the app '
+        'allows it', (tester) async {
+      await pump(
+        tester,
+        KeyboardLearning(
+          allowed: true,
+          child: SecretTextField(
+            controller: controller,
+            decoration: const InputDecoration(labelText: 'Recovery code'),
+          ),
+        ),
+      );
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.enableIMEPersonalizedLearning, isFalse);
     });
 
     Future<void> selectFirstWordAndShowMenu(WidgetTester tester) async {

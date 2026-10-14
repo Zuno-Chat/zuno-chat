@@ -1036,6 +1036,7 @@ class CallNotificationService {
           l10n.commonReply,
           showsUserInterface: false,
           cancelNotification: true,
+          allowGeneratedReplies: false,
           inputs: [
             AndroidNotificationActionInput(label: l10n.commonMessageHint),
           ],

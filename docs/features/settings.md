@@ -77,7 +77,7 @@ too but is not offered for now (`security-verification.md`).
 
 | Row | Android | iOS |
 |---|---|---|
-| Incognito keyboard | Turns off the keyboard's personalized learning in the composer | Hidden: iOS cannot ask a keyboard not to learn |
+| Incognito keyboard | Turns off the keyboard's personalized learning in every field, which `ZunoTextField` reads from the app root; secret fields never allow it | Hidden: iOS cannot ask a keyboard not to learn |
 | Prevent screenshots | `FLAG_SECURE`: blocks screenshots and recording, blanks Zuno in Recents | Shown as Hide screen content |
 
 No iOS app can block a screenshot. Hide screen content instead covers Zuno

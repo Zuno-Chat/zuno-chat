@@ -941,6 +941,33 @@ void main() {
     );
   });
 
+  group('keyboard learning', () {
+    Iterable<bool> learning(WidgetTester tester) => tester
+        .widgetList<TextField>(find.byType(TextField))
+        .map((field) => field.enableIMEPersonalizedLearning);
+
+    testWidgets('by default no text field lets the keyboard learn', (
+      tester,
+    ) async {
+      await pumpApp(tester, loggedIn: const AsyncData(false));
+      await settle(tester);
+
+      expect(learning(tester), isNotEmpty);
+      expect(learning(tester), everyElement(isFalse));
+    });
+
+    testWidgets('with Incognito keyboard off, text fields let it learn', (
+      tester,
+    ) async {
+      final container = await pumpApp(tester, loggedIn: const AsyncData(false));
+      await container.read(incognitoKeyboardProvider.notifier).set(false);
+      await settle(tester);
+
+      expect(learning(tester), isNotEmpty);
+      expect(learning(tester), everyElement(isTrue));
+    });
+  });
+
   testWidgets('the boot splash shows the brand splash in the system theme', (
     tester,
   ) async {

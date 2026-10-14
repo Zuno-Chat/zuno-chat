@@ -11,6 +11,7 @@ import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/linked_sign_in.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/session_display_name.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/keyboard.dart';
 import '../../verification/presentation/qr_scanner_page.dart';
 import 'auth_scaffold.dart';
@@ -141,7 +142,7 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
             ),
           ),
           const SizedBox(height: 8),
-          TextField(
+          ZunoTextField(
             controller: _code,
             enabled: !_loading,
             autofillHints: null,

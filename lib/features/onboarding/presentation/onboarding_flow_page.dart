@@ -26,6 +26,7 @@ import '../../../core/push/fcm_bridge.dart' show FcmAvailability;
 import '../../../core/push/unified_push_distributor_names.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_prompt_provider.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/keyboard.dart';
 import '../../../core/ui/step_hero.dart';
@@ -575,7 +576,7 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
             : Text(l10n.commonSave),
       ),
       children: [
-        TextField(
+        ZunoTextField(
           autofillHints: null,
           controller: _name,
           textCapitalization: TextCapitalization.words,

@@ -14,6 +14,7 @@ import '../../../core/matrix/room_access.dart';
 import '../../../core/matrix/room_avatar.dart';
 import '../../../core/matrix/room_name_check.dart';
 import '../../../core/matrix/room_title.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/sheet.dart';
@@ -627,7 +628,7 @@ class _EditTextFieldDialogState extends State<_EditTextFieldDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.title),
-      content: TextField(
+      content: ZunoTextField(
         autofillHints: null,
         controller: _controller,
         autofocus: true,

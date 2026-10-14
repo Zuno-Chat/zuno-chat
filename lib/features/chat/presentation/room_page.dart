@@ -1825,7 +1825,6 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   @override
   Widget build(BuildContext context) {
-    final incognitoKeyboard = ref.watch(incognitoKeyboardProvider);
     final showHiddenMessages = ref.watch(showHiddenMessagesProvider);
     final capabilities = ref.watch(platformCapabilitiesProvider);
     ref.listen<AsyncValue<bool>>(isOfflineProvider, (previous, next) {
@@ -1978,7 +1977,6 @@ class _RoomPageState extends ConsumerState<RoomPage>
                             onSend: _send,
                             onAttach: _showAttachmentMenu,
                             attaching: _gettingFile,
-                            incognitoKeyboard: incognitoKeyboard,
                             isRecording: _recording,
                             recordingDuration: _recordingDuration,
                             recordingWillCancel: _recordingWillCancel,

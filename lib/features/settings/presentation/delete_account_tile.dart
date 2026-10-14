@@ -12,6 +12,7 @@ import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/sign_out.dart';
 import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/notifications/notification_delivery_provider.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/circle_icon.dart';
 import 'uia_password_prompt.dart';
 
@@ -160,7 +161,7 @@ class _ConfirmDeletionDialogState extends State<_ConfirmDeletionDialog> {
         children: [
           Text(l10n.settingsDeleteAccountTypeUsername(widget.username)),
           const SizedBox(height: 12),
-          TextField(
+          ZunoTextField(
             autofillHints: null,
             controller: _controller,
             autofocus: true,

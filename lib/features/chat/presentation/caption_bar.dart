@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/l10n/l10n.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/keep_clear.dart';
 import 'send_icon.dart';
 
@@ -23,7 +24,7 @@ class CaptionBar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: TextField(
+            child: ZunoTextField(
               autofillHints: null,
               controller: controller,
               decoration: InputDecoration(

@@ -13,6 +13,7 @@ import '../../../core/matrix/registration_support.dart';
 import '../../../core/matrix/server_name.dart';
 import '../../../core/matrix/session_display_name.dart';
 import '../../../core/matrix/username_field.dart';
+import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/keyboard.dart';
 import 'auth_scaffold.dart';
 import 'homeserver_page.dart';
@@ -143,7 +144,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              ZunoTextField(
                 controller: _username,
                 enabled: !_loading,
                 autocorrect: false,
