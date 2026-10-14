@@ -114,11 +114,3 @@ class DismissedDeliveryFailureNotifier extends Notifier<DeliveryFailure?> {
 
   void clear() => state = null;
 }
-
-bool deliveryFailureIsDismissed(
-  DeliveryFailure failure,
-  DeliveryFailure? dismissed,
-) =>
-    dismissed != null &&
-    dismissed.message == failure.message &&
-    dismissed.action == failure.action;

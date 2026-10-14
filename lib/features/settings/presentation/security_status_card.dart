@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/security/security_providers.dart';
@@ -12,20 +13,21 @@ class SecurityStatusCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final status = ref.watch(accountSecurityStatusProvider);
     return status.when(
-      loading: () => const _CardShell(
+      loading: () => _CardShell(
         icon: Icons.shield_outlined,
-        title: 'Checking…',
+        title: l10n.commonChecking,
         body: '',
       ),
-      error: (_, _) => const _CardShell(
+      error: (_, _) => _CardShell(
         icon: Icons.shield_outlined,
-        title: 'Could not check right now',
-        body: 'It usually clears once you reconnect.',
+        title: l10n.settingsSecurityCardCheckFailed,
+        body: l10n.settingsSecurityCardCheckFailedBody,
       ),
       data: (value) {
-        final copy = accountSecurityCopy(value);
+        final copy = accountSecurityCopy(l10n, value);
         final attention = value != AccountSecurityStatus.protected;
         return _CardShell(
           icon: securityStatusIcon(attention: attention),

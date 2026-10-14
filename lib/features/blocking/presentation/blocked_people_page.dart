@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/ui/card_group.dart';
@@ -52,6 +53,7 @@ class _BlockedPeoplePageState extends ConsumerState<BlockedPeoplePage> {
 
   Future<void> _unblock(String userId) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     final client = ref.read(matrixClientProvider);
     final name = withoutServer(userId);
     setState(() => _busy = true);
@@ -61,7 +63,7 @@ class _BlockedPeoplePageState extends ConsumerState<BlockedPeoplePage> {
       reportCaught('unblock person', e, s);
       if (mounted) setState(() => _busy = false);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Not unblocked. Try again.')),
+        SnackBar(content: Text(l10n.blockingUnblockFailed)),
       );
       return;
     }
@@ -71,7 +73,9 @@ class _BlockedPeoplePageState extends ConsumerState<BlockedPeoplePage> {
         _unblocked.add(userId);
       });
     }
-    messenger.showSnackBar(SnackBar(content: Text('$name unblocked')));
+    messenger.showSnackBar(
+      SnackBar(content: Text(l10n.blockingUnblocked(name))),
+    );
   }
 
   @override
@@ -82,11 +86,11 @@ class _BlockedPeoplePageState extends ConsumerState<BlockedPeoplePage> {
           ..sort();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Blocked people')),
+      appBar: AppBar(title: Text(context.l10n.blockingPageTitle)),
       body: blocked.isEmpty
           ? Center(
               child: Text(
-                'Nobody is blocked',
+                context.l10n.blockingNobody,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -102,7 +106,7 @@ class _BlockedPeoplePageState extends ConsumerState<BlockedPeoplePage> {
                         title: Text(withoutServer(userId)),
                         trailing: TextButton(
                           onPressed: _busy ? null : () => _unblock(userId),
-                          child: const Text('Unblock'),
+                          child: Text(context.l10n.blockingUnblock),
                         ),
                       ),
                   ],

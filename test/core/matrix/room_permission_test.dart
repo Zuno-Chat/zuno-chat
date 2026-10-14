@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/communities.dart';
 import 'package:zuno/core/matrix/room_permission.dart';
 import 'package:zuno/core/matrix/room_roles.dart';
@@ -215,14 +216,14 @@ void main() {
   group('community rules', () {
     test('cover members, rooms and settings, and nothing a community '
         'lacks', () {
-      expect(communityPermissionGroups.map((g) => g.title), [
-        'Members',
-        'Rooms',
-        'Settings',
-      ]);
+      expect(
+        communityPermissionGroups.map((g) => g.title(englishLocalizations)),
+        ['Members', 'Rooms', 'Settings'],
+      );
       final labels = [
         for (final group in communityPermissionGroups)
-          for (final permission in group.permissions) permission.label,
+          for (final permission in group.permissions)
+            permission.label(englishLocalizations),
       ];
       expect(labels, [
         'Invite people',
@@ -240,7 +241,7 @@ void main() {
       RoomRole roleOf(String label) {
         final permission = [
           for (final group in communityPermissionGroups) ...group.permissions,
-        ].firstWhere((p) => p.label == label);
+        ].firstWhere((p) => p.label(englishLocalizations) == label);
         return roomRoleForLevel(permission.read(communityPowerLevels));
       }
 
@@ -257,7 +258,7 @@ void main() {
     test('adding rooms writes the space child level', () {
       final addRooms = communityPermissionGroups
           .expand((g) => g.permissions)
-          .firstWhere((p) => p.label == 'Add rooms');
+          .firstWhere((p) => p.label(englishLocalizations) == 'Add rooms');
       final content = <String, Object?>{'events': <String, Object?>{}};
 
       addRooms.write(content, RoomRole.member.powerLevel);

@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
+
 final _passwordSent = Expando<bool>('uia password sent');
 final _asking = Expando<bool>('uia password asked');
 
 Future<String?> askPasswordForUia(
   BuildContext context, {
-  String title = 'Confirm your password',
-  String? message,
-  String? error,
+  @displayText String? title,
+  @displayText String? message,
+  @displayText String? error,
 }) {
   final controller = TextEditingController();
   return showDialog<String>(
     context: context,
     barrierDismissible: false,
     builder: (context) {
+      final l10n = context.l10n;
       final field = AutofillGroup(
         onDisposeAction: AutofillContextAction.cancel,
         child: TextField(
@@ -22,12 +26,15 @@ Future<String?> askPasswordForUia(
           obscureText: true,
           autofocus: true,
           autofillHints: const [AutofillHints.password],
-          decoration: InputDecoration(labelText: 'Password', errorText: error),
+          decoration: InputDecoration(
+            labelText: l10n.commonPassword,
+            errorText: error,
+          ),
           onSubmitted: (v) => Navigator.of(context).pop(v),
         ),
       );
       return AlertDialog(
-        title: Text(title),
+        title: Text(title ?? l10n.settingsUiaDefaultTitle),
         content: message == null
             ? field
             : Column(
@@ -38,11 +45,11 @@ Future<String?> askPasswordForUia(
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('Confirm'),
+            child: Text(l10n.settingsUiaConfirm),
           ),
         ],
       );
@@ -54,8 +61,8 @@ Future<void> answerUiaWithPassword(
   BuildContext context,
   UiaRequest uia, {
   required String userId,
-  String title = 'Confirm your password',
-  String? message,
+  @displayText String? title,
+  @displayText String? message,
   String? Function()? preparedPassword,
 }) async {
   if (uia.state != UiaRequestState.waitForUser || _asking[uia] == true) return;
@@ -72,7 +79,9 @@ Future<void> answerUiaWithPassword(
           context,
           title: title,
           message: message,
-          error: _passwordSent[uia] == true ? 'Wrong password.' : null,
+          error: _passwordSent[uia] == true
+              ? context.l10n.commonWrongPassword
+              : null,
         );
   } finally {
     _asking[uia] = false;

@@ -279,7 +279,7 @@ class MainActivity : FlutterActivity() {
                     KeptEngine.hold(EngineKeepReason.Call)
                     CallForegroundService.start(
                         applicationContext,
-                        title = call.argument<String>("title") ?: "Ongoing call",
+                        title = call.argument<String>("title"),
                         text = call.argument<String>("text") ?: "",
                         withCamera = call.argument<Boolean>("withCamera") == true,
                     )
@@ -532,7 +532,7 @@ class MainActivity : FlutterActivity() {
                 "update" -> {
                     UploadForegroundService.update(
                         this,
-                        label = call.argument<String>("label") ?: "Uploading…",
+                        label = call.argument<String>("label"),
                         percent = call.argument<Int>("percent"),
                     )
                     result.success(null)
@@ -760,10 +760,11 @@ class MainActivity : FlutterActivity() {
             ).setAction(CallActionReceiver.ACTION_HANG_UP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+        val hangUp = getString(R.string.callsHangUp)
         return RemoteAction(
             Icon.createWithResource(this, R.drawable.ic_pip_hang_up),
-            "Hang up",
-            "Hang up",
+            hangUp,
+            hangUp,
             hangUpIntent,
         )
     }

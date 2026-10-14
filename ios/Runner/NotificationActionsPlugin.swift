@@ -111,7 +111,7 @@ extension ReplyNotSentNotice {
   static func request(for notice: NotificationActionNotice) -> UNNotificationRequest {
     let content = UNMutableNotificationContent()
     content.title = notice.title
-    content.body = body
+    content.body = L10n.notificationsReplyNotSent
     content.threadIdentifier = notice.thread
     if let token = notice.roomToken {
       content.userInfo = ["t": token]

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/room_access.dart';
 import '../../../core/security/security_emphasis.dart';
@@ -29,6 +30,7 @@ class UnvouchedDeviceBanner extends ConsumerWidget {
     final user = here.first;
     final displayName = user.calcDisplayname();
     final text = unvouchedDeviceWarningText(
+      context.l10n,
       displayName.isNotEmpty ? displayName : withoutServer(user.id),
     );
     final colors = Theme.of(context).colorScheme;
@@ -72,7 +74,7 @@ class UnvouchedDeviceBanner extends ConsumerWidget {
                           .read(unvouchedDeviceWarningProvider.notifier)
                           .dismiss(user.id),
                       child: Text(
-                        'Dismiss',
+                        context.l10n.commonDismiss,
                         style: TextStyle(color: colors.onErrorContainer),
                       ),
                     ),

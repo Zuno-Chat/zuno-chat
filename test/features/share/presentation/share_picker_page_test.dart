@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/optimistic_room_state.dart';
 import 'package:zuno/features/share/presentation/share_picker_page.dart';
 
@@ -38,10 +39,10 @@ void main() {
         _named(client, '!a:example.org', 'Alice'),
         _named(client, '!l:example.org', 'Left', membership: Membership.leave),
       ];
-      expect(filterShareTargets(rooms, '').map((r) => r.id), [
-        '!b:example.org',
-        '!a:example.org',
-      ]);
+      expect(
+        filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
+        ['!b:example.org', '!a:example.org'],
+      );
     });
 
     test('drops communities, which hold no messages', () {
@@ -51,9 +52,10 @@ void main() {
       });
       final rooms = [community, _named(client, '!a:example.org', 'Alice')];
 
-      expect(filterShareTargets(rooms, '').map((r) => r.id), [
-        '!a:example.org',
-      ]);
+      expect(
+        filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
+        ['!a:example.org'],
+      );
     });
 
     test('drops rooms the user cannot post in', () {
@@ -64,9 +66,10 @@ void main() {
       });
       final rooms = [announcements, _named(client, '!a:example.org', 'Alice')];
 
-      expect(filterShareTargets(rooms, '').map((r) => r.id), [
-        '!a:example.org',
-      ]);
+      expect(
+        filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
+        ['!a:example.org'],
+      );
     });
 
     test('drops a direct chat the other person left', () {
@@ -85,9 +88,10 @@ void main() {
         ..mInvitedMemberCount = 0;
       final rooms = [left, _named(client, '!a:example.org', 'Alice')];
 
-      expect(filterShareTargets(rooms, '').map((r) => r.id), [
-        '!a:example.org',
-      ]);
+      expect(
+        filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
+        ['!a:example.org'],
+      );
     });
 
     test('matches the display name case-insensitively', () {
@@ -95,14 +99,19 @@ void main() {
         _named(client, '!a:example.org', 'Alice'),
         _named(client, '!b:example.org', 'Bob'),
       ];
-      expect(filterShareTargets(rooms, ' aLi ').single.id, '!a:example.org');
-      expect(filterShareTargets(rooms, 'zzz'), isEmpty);
+      expect(
+        filterShareTargets(rooms, ' aLi ', englishLocalizations).single.id,
+        '!a:example.org',
+      );
+      expect(filterShareTargets(rooms, 'zzz', englishLocalizations), isEmpty);
     });
   });
 
   Future<void> pumpPicker(WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: SharePickerPage(
           client: client,
           destination: (room) => Scaffold(body: Text('picked ${room.id}')),

@@ -2,7 +2,13 @@ package im.zuno.chat.zuno_notifications
 
 data class CachedRoom(val name: String, val isDirect: Boolean)
 
-data class NoticeCopy(val title: String, val text: String)
+sealed interface NoticeText {
+    data class Room(val name: String) : NoticeText
+    data object NewMessage : NoticeText
+    data object TapToOpen : NoticeText
+}
+
+data class NoticeCopy(val title: NoticeText, val text: NoticeText)
 
 data class NoticeConversation(val title: String, val isGroup: Boolean)
 
@@ -35,12 +41,9 @@ object PushNoticeDecision {
     fun copyFor(room: CachedRoom?): NoticeCopy {
         val name = room?.name?.trim().orEmpty()
         return if (name.isEmpty()) {
-            NoticeCopy(
-                "New message",
-                "Tap to open",
-            )
+            NoticeCopy(NoticeText.NewMessage, NoticeText.TapToOpen)
         } else {
-            NoticeCopy(name, "New message")
+            NoticeCopy(NoticeText.Room(name), NoticeText.NewMessage)
         }
     }
 

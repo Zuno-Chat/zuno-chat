@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/message_actions_sheet.dart';
 
@@ -19,6 +20,8 @@ void main() {
     late BuildContext host;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         home: Scaffold(
           body: Builder(

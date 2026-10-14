@@ -12,6 +12,7 @@ import 'apns_delivery_provider.dart';
 import 'background_sync_delivery_provider.dart';
 import 'fcm_delivery_provider.dart';
 import 'notification_delivery_mode.dart';
+import 'pusher_failure.dart';
 import 'unified_push_delivery_provider.dart';
 
 abstract class NotificationDeliveryProvider {
@@ -37,7 +38,7 @@ String? currentPushkeyFor(NotificationDeliveryMode mode) {
   }
 }
 
-String? lastPusherErrorFor(NotificationDeliveryMode mode) {
+PusherFailure? lastPusherErrorFor(NotificationDeliveryMode mode) {
   switch (mode) {
     case NotificationDeliveryMode.unifiedPush:
       return unifiedPushDeliveryProvider.lastPusherError;

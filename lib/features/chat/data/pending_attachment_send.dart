@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/media_gallery_group.dart';
 import '../../../core/matrix/send_progress.dart';
 import 'composed_image.dart';
@@ -36,7 +37,8 @@ class PendingAttachmentSend {
     fraction: stageProgress,
   );
 
-  String get progressLabel => sendStageLabel(kind: kind, stage: stage);
+  String progressLabel(AppLocalizations l10n) =>
+      sendStageLabel(l10n, kind: kind, stage: stage);
 
   PendingAttachmentSend withStage(SendStage stage, double? stageProgress) =>
       PendingAttachmentSend(

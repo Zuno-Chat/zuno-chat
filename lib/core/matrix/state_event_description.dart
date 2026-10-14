@@ -1,6 +1,8 @@
 import 'package:matrix/matrix.dart';
 
-String? describeStateEvent(Event event) {
+import '../l10n/l10n.dart';
+
+String? describeStateEvent(AppLocalizations l10n, Event event) {
   final sender = event.senderFromMemoryOrFallback.calcDisplayname();
   final stateKey = event.stateKey ?? '';
 
@@ -10,44 +12,44 @@ String? describeStateEvent(Event event) {
           .unsafeGetUserFromMemoryOrFallback(stateKey)
           .calcDisplayname();
       return switch (event.content.tryGet<String>('membership')) {
-        'join' => '$target joined',
+        'join' => l10n.matrixStateJoined(target),
         'leave' =>
           stateKey == event.senderId
-              ? '$target left'
-              : '$sender removed $target',
-        'invite' => '$sender invited $target',
-        'ban' => '$sender banned $target',
-        'knock' => '$target requested to join',
-        _ => "$sender updated $target's membership",
+              ? l10n.matrixStateLeft(target)
+              : l10n.matrixStateRemoved(sender, target),
+        'invite' => l10n.matrixStateInvited(sender, target),
+        'ban' => l10n.matrixStateBanned(sender, target),
+        'knock' => l10n.matrixStateKnocked(target),
+        _ => l10n.matrixStateMembershipUpdated(sender, target),
       };
     case EventTypes.RoomName:
       final name = event.content.tryGet<String>('name');
       return (name == null || name.isEmpty)
-          ? '$sender removed the room name'
-          : '$sender changed the room name to "$name"';
+          ? l10n.matrixStateNameRemoved(sender)
+          : l10n.matrixStateNameChanged(sender, name);
     case EventTypes.RoomTopic:
       final topic = event.content.tryGet<String>('topic');
       return (topic == null || topic.isEmpty)
-          ? '$sender removed the room topic'
-          : '$sender changed the topic to "$topic"';
+          ? l10n.matrixStateTopicRemoved(sender)
+          : l10n.matrixStateTopicChanged(sender, topic);
     case EventTypes.RoomAvatar:
-      return '$sender changed the room photo';
+      return l10n.matrixStateAvatarChanged(sender);
     case EventTypes.RoomCreate:
-      return '$sender created the room';
+      return l10n.matrixStateCreated(sender);
     case EventTypes.RoomPowerLevels:
-      return '$sender changed the room permissions';
+      return l10n.matrixStatePermissionsChanged(sender);
     case EventTypes.RoomJoinRules:
-      return '$sender changed who can join the room';
+      return l10n.matrixStateJoinRulesChanged(sender);
     case EventTypes.RoomCanonicalAlias:
-      return '$sender changed the room address';
+      return l10n.matrixStateAddressChanged(sender);
     case EventTypes.HistoryVisibility:
-      return '$sender changed who can read the room history';
+      return l10n.matrixStateHistoryChanged(sender);
     case EventTypes.GuestAccess:
-      return '$sender changed guest access';
+      return l10n.matrixStateGuestAccessChanged(sender);
     case EventTypes.Encryption:
-      return '$sender turned on encryption';
+      return l10n.matrixStateEncryptionOn(sender);
     case EventTypes.RoomTombstone:
-      return '$sender upgraded the room';
+      return l10n.matrixStateUpgraded(sender);
     default:
       return null;
   }

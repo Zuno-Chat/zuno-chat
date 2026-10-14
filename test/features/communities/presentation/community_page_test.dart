@@ -11,6 +11,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
@@ -213,6 +214,8 @@ void main() {
       ProviderScope(
         overrides: scope,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: zunoLightTheme,
           home: CommunityPage(
             community: club,
@@ -234,6 +237,8 @@ void main() {
       ProviderScope(
         overrides: scope,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: zunoLightTheme,
           home: routeLauncher(
             (_) => CommunityPage(
@@ -674,6 +679,8 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: zunoLightTheme,
           home: CommunityPage(
             community: club,

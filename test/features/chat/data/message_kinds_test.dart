@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/chat/data/message_kinds.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -145,7 +146,7 @@ void main() {
         'info': {'w': 1600, 'h': 1200, 'size': 2048},
       });
       expect(
-        attachmentInfoText(event, AttachmentKind.image),
+        attachmentInfoText(englishLocalizations, event, AttachmentKind.image),
         '1600 × 1200 · 2.0 KB',
       );
     });
@@ -157,7 +158,7 @@ void main() {
         'info': {'w': 640, 'h': 360, 'duration': 83000, 'size': 3 << 20},
       });
       expect(
-        attachmentInfoText(event, AttachmentKind.video),
+        attachmentInfoText(englishLocalizations, event, AttachmentKind.video),
         '640 × 360 · 1:23 · 3.0 MB',
       );
     });
@@ -168,7 +169,10 @@ void main() {
         'body': 'a.pdf',
         'info': {'w': 10, 'h': 10, 'size': 512},
       });
-      expect(attachmentInfoText(event, AttachmentKind.file), '512 B');
+      expect(
+        attachmentInfoText(englishLocalizations, event, AttachmentKind.file),
+        '512 B',
+      );
     });
 
     test('half a size is left out', () {
@@ -178,7 +182,7 @@ void main() {
         'info': {'w': 10},
       });
       expect(
-        attachmentInfoText(event, AttachmentKind.image),
+        attachmentInfoText(englishLocalizations, event, AttachmentKind.image),
         'No file information available',
       );
     });
@@ -194,7 +198,7 @@ void main() {
       final timeline = await timelineOf([event]);
 
       expect(displayBody(event, timeline), 'now');
-      expect(previewSnippet(event, timeline), 'now');
+      expect(previewSnippet(englishLocalizations, event, timeline), 'now');
     },
   );
 
@@ -216,41 +220,5 @@ void main() {
       isTrue,
     );
     expect(isHiddenTimelineEvent(message({'msgtype': 'm.text'})), isFalse);
-  });
-
-  group('dateDividerLabel', () {
-    final now = DateTime(2026, 9, 2, 15);
-
-    test('same calendar day as now is "Today"', () {
-      expect(dateDividerLabel(DateTime(2026, 9, 2, 0, 1), now), 'Today');
-    });
-
-    test('the day before is "Yesterday"', () {
-      expect(dateDividerLabel(DateTime(2026, 9, 1, 23, 59), now), 'Yesterday');
-    });
-
-    test('a 23-hour day is still the day before', () {
-      for (final (day, morningAfter) in [
-        (DateTime(2026, 3, 8, 12), DateTime(2026, 3, 9, 0, 30)),
-        (DateTime(2026, 3, 29, 12), DateTime(2026, 3, 30, 0, 30)),
-      ]) {
-        expect(dateDividerLabel(day, morningAfter), 'Yesterday');
-        expect(
-          dateDividerLabel(day.subtract(const Duration(days: 1)), morningAfter),
-          isNot('Yesterday'),
-        );
-      }
-    });
-
-    test('earlier this year: month + day, no year', () {
-      expect(dateDividerLabel(DateTime(2026, 1, 15), now), 'January 15');
-    });
-
-    test('a previous year: month + day + year', () {
-      expect(
-        dateDividerLabel(DateTime(2025, 12, 31), now),
-        'December 31, 2025',
-      );
-    });
   });
 }

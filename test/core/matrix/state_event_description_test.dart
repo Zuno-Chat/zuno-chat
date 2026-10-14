@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/state_event_description.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -27,6 +28,9 @@ void main() {
     stateKey: stateKey,
     content: content,
   );
+
+  String? describe(Event event) =>
+      describeStateEvent(englishLocalizations, event);
 
   for (final (name, senderId, membership, description) in [
     ('member join', '@bob:example.org', 'join', 'Bob joined'),
@@ -55,7 +59,7 @@ void main() {
         content: {'membership': membership},
       );
 
-      expect(describeStateEvent(event), description);
+      expect(describe(event), description);
     });
   }
 
@@ -86,10 +90,7 @@ void main() {
     ),
   ]) {
     test(name, () {
-      expect(
-        describeStateEvent(stateEvent(type, content: content)),
-        description,
-      );
+      expect(describe(stateEvent(type, content: content)), description);
     });
   }
 
@@ -108,14 +109,14 @@ void main() {
     (EventTypes.RoomTombstone, 'Alice upgraded the room'),
   ]) {
     test(type, () {
-      expect(describeStateEvent(stateEvent(type)), description);
+      expect(describe(stateEvent(type)), description);
     });
   }
 
   test(
     'an unrecognized state event type falls back to null (caller labels it)',
     () {
-      expect(describeStateEvent(stateEvent('im.some.custom.state')), isNull);
+      expect(describe(stateEvent('im.some.custom.state')), isNull);
     },
   );
 }

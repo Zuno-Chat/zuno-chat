@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/confirmed_identity_store.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
@@ -49,6 +50,8 @@ void main() {
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: routeLauncher(
               (_) => VerificationPage(

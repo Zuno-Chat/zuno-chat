@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/user_trust.dart';
 
@@ -27,7 +28,7 @@ class ConfirmedPersonCheck extends ConsumerWidget {
         Icons.check_circle_outline,
         size: 18,
         color: Theme.of(context).colorScheme.onSurfaceVariant,
-        semanticLabel: 'Confirmed',
+        semanticLabel: context.l10n.chatConfirmedLabel,
       ),
     );
   }

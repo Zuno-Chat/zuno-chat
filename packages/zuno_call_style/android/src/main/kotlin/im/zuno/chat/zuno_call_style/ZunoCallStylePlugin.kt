@@ -110,9 +110,8 @@ class ZunoCallStylePlugin :
     private fun show(context: Context, args: Map<String, Any?>) {
         val channelId = args["channelId"] as? String ?: return
         val title = args["title"] as? String ?: ""
-        val callerName =
-            (args["callerName"] as? String)?.ifBlank { FALLBACK_CALLER_NAME }
-                ?: FALLBACK_CALLER_NAME
+        val callerName = (args["callerName"] as? String)?.takeUnless { it.isBlank() }
+            ?: context.getString(R.string.callsIncomingCall)
         val callerId = args["callerId"] as? String ?: ""
         val isVideo = args["isVideo"] == true
         val roomId = args["roomId"] as? String ?: return
@@ -222,7 +221,6 @@ class ZunoCallStylePlugin :
         const val PAYLOAD_EXTRA = "payload"
         const val ACTION_ID_EXTRA = RingDecisions.ACTION_ID_EXTRA
         const val CANCEL_NOTIFICATION_EXTRA = "cancelNotification"
-        const val FALLBACK_CALLER_NAME = "Incoming call"
         const val SMALL_ICON_NAME = "ic_stat_zuno_mark"
     }
 }

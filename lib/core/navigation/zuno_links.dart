@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 
 final donateUri = Uri.parse('https://zuno.chat/#donate');
 final privacyPolicyUri = Uri.parse('https://zuno.chat/privacy');
@@ -15,12 +16,12 @@ typedef UrlOpener = Future<bool> Function(Uri uri);
 Future<bool> openExternally(Uri uri) =>
     launchUrl(uri, mode: LaunchMode.externalApplication);
 
-String linkNotOpenedMessage(Uri uri) {
+String linkNotOpenedMessage(AppLocalizations l10n, Uri uri) {
   if (uri.scheme.toLowerCase() == 'mailto') {
-    return 'Email not opened. Write to ${uri.path} from your email.';
+    return l10n.navigationEmailNotOpened(uri.path);
   }
   final target = uri.hasFragment ? '${uri.path}#${uri.fragment}' : uri.path;
-  return 'Link not opened. Visit ${uri.host}$target in a browser.';
+  return l10n.navigationLinkNotOpened('${uri.host}$target');
 }
 
 Future<void> openLink(
@@ -29,6 +30,7 @@ Future<void> openLink(
   required UrlOpener openUrl,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
+  final l10n = context.l10n;
   var opened = false;
   try {
     opened = await openUrl(uri);
@@ -36,7 +38,9 @@ Future<void> openLink(
     if (!noAppOpensLink(e)) reportCaught('open a link', e, s);
   }
   if (!opened) {
-    messenger.showSnackBar(SnackBar(content: Text(linkNotOpenedMessage(uri))));
+    messenger.showSnackBar(
+      SnackBar(content: Text(linkNotOpenedMessage(l10n, uri))),
+    );
   }
 }
 

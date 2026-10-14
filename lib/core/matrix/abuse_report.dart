@@ -1,13 +1,19 @@
 import 'package:matrix/matrix.dart';
 
-enum ReportReason {
-  spam('Spam'),
-  harassment('Harassment'),
-  illegal('Illegal content'),
-  other('Something else');
+import '../l10n/l10n.dart';
 
-  final String label;
-  const ReportReason(this.label);
+enum ReportReason {
+  spam,
+  harassment,
+  illegal,
+  other;
+
+  String label(AppLocalizations l10n) => switch (this) {
+    spam => l10n.matrixReportReasonSpam,
+    harassment => l10n.matrixReportReasonHarassment,
+    illegal => l10n.matrixReportReasonIllegal,
+    other => l10n.matrixReportReasonOther,
+  };
 }
 
 bool canSendReport(ReportReason? reason, String note) {

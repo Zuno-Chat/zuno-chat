@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/l10n/l10n.dart';
 import '../../../../core/ui/zuno_colors.dart';
 import '../../../../core/ui/zuno_theme.dart';
 import '../../data/pending_attachment_send.dart';
@@ -25,7 +26,12 @@ class AttachmentProgressBar extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            progress == null ? label : '$label ${(progress! * 100).round()}%',
+            progress == null
+                ? label
+                : context.l10n.chatProgressLabel(
+                    label,
+                    (progress! * 100).round(),
+                  ),
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: bubbleMuted(Theme.of(context), own: true)),
           ),
@@ -74,7 +80,7 @@ class _PendingAttachmentPreview extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         AttachmentProgressBar(
-          label: pendingSend.progressLabel,
+          label: pendingSend.progressLabel(context.l10n),
           progress: pendingSend.progress,
         ),
       ],
@@ -156,9 +162,7 @@ class FailedMediaTile extends StatelessWidget {
               ),
             ),
           Text(
-            failed.length == 1
-                ? 'Not sent. Tap to try again.'
-                : 'Not sent. Tap an item to try again.',
+            context.l10n.chatGalleryNotSent(failed.length),
             style: Theme.of(context).textTheme.labelSmall,
           ),
         ],

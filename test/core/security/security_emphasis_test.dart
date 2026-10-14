@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
 
 void main() {
@@ -15,6 +16,8 @@ void main() {
     final scheme = ColorScheme.fromSeed(seedColor: Colors.deepPurple);
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: ThemeData(colorScheme: scheme),
         home: const Scaffold(
           body: SizedBox(height: 40, child: AttentionStripe()),
@@ -34,6 +37,8 @@ void main() {
     late BuildContext captured;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: theme,
         home: Builder(
           builder: (context) {

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/calls/notifications/call_notification_service.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/apns_delivery_provider.dart';
 import '../../../core/notifications/background_sync_service.dart';
@@ -152,6 +153,7 @@ class _NotificationsSettingsPageState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final capabilities = ref.watch(platformCapabilitiesProvider);
     final canChooseDelivery = capabilities.deliveryModes.length > 1;
     final deliveryMode = ref.watch(notificationDeliveryModeProvider);
@@ -169,29 +171,26 @@ class _NotificationsSettingsPageState
       capabilities.fullScreenIntent,
       deliveryMode,
     )) {
-      (false, _) =>
-        'New messages show on this device, even while Zuno is closed',
+      (false, _) => l10n.notificationsEnabledMessagesOnly,
       (true, NotificationDeliveryMode.backgroundService) =>
-        'Calls can ring full screen, and background sync shows its status in '
-            'the notification shade',
-      (true, _) => 'Calls can ring full screen',
+        l10n.notificationsEnabledWithBackgroundSync,
+      (true, _) => l10n.notificationsEnabledCallsFullScreen,
     };
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(title: Text(l10n.notificationsTitle)),
       body: CardListView(
         children: [
           CardGroup(
             children: [
               SwitchListTile(
                 secondary: const Icon(Icons.notifications_outlined),
-                title: const Text('Enable notifications'),
+                title: Text(l10n.notificationsEnable),
                 subtitle: Text(
                   notificationsEnabled
                       ? enabledSubtitle
-                      : 'Off. This device is not registered for notifications, '
-                            'so nothing is delivered to it.',
+                      : l10n.notificationsOffNotRegistered,
                 ),
                 value: notificationsEnabled,
                 onChanged: _onToggle,
@@ -200,11 +199,10 @@ class _NotificationsSettingsPageState
                 for (final channel in _silencedChannels)
                   ListTile(
                     leading: const Icon(Icons.notifications_off_outlined),
-                    title: Text('${channel.name} are silenced'),
-                    subtitle: const Text(
-                      'Android shows them without a sound, or not at all. '
-                      'Tap to change.',
+                    title: Text(
+                      l10n.notificationsChannelSilenced(channel.name),
                     ),
+                    subtitle: Text(l10n.notificationsChannelSilencedHint),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => CallNotificationService.instance
                         .openChannelSettings(channel.id),
@@ -213,13 +211,11 @@ class _NotificationsSettingsPageState
                 if (capabilities.fullScreenIntent)
                   ListTile(
                     leading: const Icon(Icons.phone_in_talk_outlined),
-                    title: const Text('Full-screen call alerts'),
+                    title: Text(l10n.diagnosticsLabelFullScreenCallAlerts),
                     subtitle: Text(
                       _fullScreenIntentAllowed
-                          ? 'A call takes over the screen while the device is '
-                                'locked'
-                          : 'Off. Calls show only as a regular notification, '
-                                'even while locked. Tap to allow.',
+                          ? l10n.notificationsFullScreenOn
+                          : l10n.notificationsFullScreenOff,
                     ),
                     trailing: _fullScreenIntentAllowed
                         ? const Icon(Icons.check_circle_outline)
@@ -230,8 +226,8 @@ class _NotificationsSettingsPageState
                 if (canChooseDelivery)
                   ListTile(
                     leading: const Icon(Icons.cloud_sync_outlined),
-                    title: const Text('Delivery'),
-                    subtitle: Text(deliveryMode.label),
+                    title: Text(l10n.notificationsDelivery),
+                    subtitle: Text(deliveryMode.label(l10n)),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
@@ -245,7 +241,7 @@ class _NotificationsSettingsPageState
                       Icons.error_outline,
                       color: theme.colorScheme.error,
                     ),
-                    title: Text(deliveryFailure.message),
+                    title: Text(deliveryFailure.message(l10n)),
                     trailing: TextButton(
                       onPressed: () => runDeliveryFailureAction(
                         context,
@@ -253,7 +249,10 @@ class _NotificationsSettingsPageState
                         deliveryFailure,
                       ),
                       child: Text(
-                        deliveryFailureActionLabel(deliveryFailure.action),
+                        deliveryFailureActionLabel(
+                          l10n,
+                          deliveryFailure.action,
+                        ),
                       ),
                     ),
                   ),
@@ -261,21 +260,21 @@ class _NotificationsSettingsPageState
             ],
           ),
           CardGroup(
-            title: 'Notifications for',
+            title: l10n.notificationsFor,
             children: [
               RadioGroup<NotifyMe>(
                 groupValue: notifyMe,
                 onChanged: (mode) =>
                     ref.read(notifyMeProvider.notifier).set(mode!),
-                child: const Column(
+                child: Column(
                   children: [
                     RadioListTile<NotifyMe>(
-                      title: Text('All messages'),
+                      title: Text(l10n.notificationsAllMessages),
                       value: NotifyMe.all,
                     ),
                     RadioListTile<NotifyMe>(
-                      title: Text('Mentions only'),
-                      subtitle: Text('Other messages show silently'),
+                      title: Text(l10n.notificationsMentionsOnly),
+                      subtitle: Text(l10n.notificationsMentionsOnlyHint),
                       value: NotifyMe.mentionsOnly,
                     ),
                   ],
@@ -285,7 +284,7 @@ class _NotificationsSettingsPageState
           ),
           if (capabilities.nseNotifications) ...[
             CardGroup(
-              title: 'Notification content',
+              title: l10n.notificationsContent,
               children: [
                 RadioGroup<NotificationPreview>(
                   groupValue: preview,
@@ -294,8 +293,8 @@ class _NotificationsSettingsPageState
                     children: [
                       for (final level in NotificationPreview.values)
                         RadioListTile<NotificationPreview>(
-                          title: Text(level.label),
-                          subtitle: Text(level.description),
+                          title: Text(level.label(l10n)),
+                          subtitle: Text(level.description(l10n)),
                           value: level,
                         ),
                     ],
@@ -304,27 +303,22 @@ class _NotificationsSettingsPageState
                 if (_previewHintDue(preview))
                   ListTile(
                     leading: const Icon(Icons.info_outline),
-                    title: const Text(
-                      'This iOS version can keep notification text after it '
-                      'is deleted',
-                    ),
+                    title: Text(l10n.notificationsRetentionTitle),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Name only keeps message text out of notifications.',
-                        ),
+                        Text(l10n.notificationsRetentionHint),
                         Wrap(
                           spacing: 8,
                           children: [
                             TextButton(
                               onPressed: () =>
                                   _setPreview(NotificationPreview.nameOnly),
-                              child: const Text('Use Name only'),
+                              child: Text(l10n.notificationsUseNameOnly),
                             ),
                             TextButton(
                               onPressed: _finishPreviewHint,
-                              child: const Text('Keep as is'),
+                              child: Text(l10n.notificationsKeepAsIs),
                             ),
                           ],
                         ),
@@ -336,9 +330,7 @@ class _NotificationsSettingsPageState
             Padding(
               padding: const EdgeInsets.fromLTRB(28, 6, 28, 8),
               child: Text(
-                'This device keeps a copy of what notifications show. With '
-                'Name only or Nothing, message text stays in Zuno. Incoming '
-                'calls follow this setting too.',
+                l10n.notificationsContentFootnote,
                 style: theme.textTheme.bodySmall!.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -347,16 +339,13 @@ class _NotificationsSettingsPageState
           ],
           CardGroup(
             title: capabilities.vibrationPatterns
-                ? 'Sounds & vibration'
-                : 'Sounds',
+                ? l10n.notificationsSoundsAndVibration
+                : l10n.notificationsSounds,
             children: [
               SwitchListTile(
                 secondary: const Icon(Icons.music_note_outlined),
-                title: const Text('Ringtone'),
-                subtitle: const Text(
-                  'Play a ringtone for incoming calls, and a ringing tone '
-                  'while you wait for someone to answer',
-                ),
+                title: Text(l10n.notificationsRingtone),
+                subtitle: Text(l10n.notificationsRingtoneHint),
                 value: ringtone,
                 onChanged: (value) =>
                     ref.read(ringtoneEnabledProvider.notifier).set(value),
@@ -364,8 +353,8 @@ class _NotificationsSettingsPageState
               if (capabilities.vibrationPatterns)
                 SwitchListTile(
                   secondary: const Icon(Icons.vibration),
-                  title: const Text('Vibrate for calls'),
-                  subtitle: const Text('Buzz while a call is ringing'),
+                  title: Text(l10n.notificationsVibrateCalls),
+                  subtitle: Text(l10n.notificationsVibrateCallsHint),
                   value: callVibration,
                   onChanged: (value) => ref
                       .read(callVibrationEnabledProvider.notifier)
@@ -373,16 +362,16 @@ class _NotificationsSettingsPageState
                 ),
               SwitchListTile(
                 secondary: const Icon(Icons.notifications_active_outlined),
-                title: const Text('Message tone'),
-                subtitle: const Text('Play a sound for new messages'),
+                title: Text(l10n.notificationsMessageTone),
+                subtitle: Text(l10n.notificationsMessageToneHint),
                 value: messageTone,
                 onChanged: _setMessageTone,
               ),
               if (capabilities.vibrationPatterns)
                 SwitchListTile(
                   secondary: const Icon(Icons.vibration),
-                  title: const Text('Vibrate for messages'),
-                  subtitle: const Text('Buzz once for a new message'),
+                  title: Text(l10n.notificationsVibrateMessages),
+                  subtitle: Text(l10n.notificationsVibrateMessagesHint),
                   value: messageVibration,
                   onChanged: (value) => ref
                       .read(messageVibrationEnabledProvider.notifier)
@@ -393,8 +382,7 @@ class _NotificationsSettingsPageState
           Padding(
             padding: const EdgeInsets.fromLTRB(28, 6, 28, 8),
             child: Text(
-              "Ringing and message tones follow your device's ring and "
-              'notification volume, and stay silent when it is on silent.',
+              l10n.notificationsVolumeFootnote,
               style: theme.textTheme.bodySmall!.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -405,10 +393,8 @@ class _NotificationsSettingsPageState
               children: [
                 ListTile(
                   leading: const Icon(Icons.fact_check_outlined),
-                  title: const Text('Diagnostics'),
-                  subtitle: const Text(
-                    'Check how notifications and calls reach this device',
-                  ),
+                  title: Text(l10n.diagnosticsTitle),
+                  subtitle: Text(l10n.notificationsDiagnosticsHint),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(

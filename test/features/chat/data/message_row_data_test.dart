@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/features/chat/data/message_row_data.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
 
+import '../../../helpers/date_labels.dart';
 import '../../../helpers/fake_matrix.dart';
 
 const me = '@me:example.org';
@@ -109,7 +110,7 @@ void main() {
       galleryFailureIndexes: galleryFailureIndexes,
       canRespond: canRespond,
       now: now ?? noon,
-      use24Hour: use24Hour,
+      labels: testDateLabels(use24Hour: use24Hour),
     );
   }
 
@@ -252,7 +253,7 @@ void main() {
   test('timeLabel follows the 24-hour setting', () async {
     final event = text(r'$m1', at: DateTime(2026, 9, 20, 9, 41));
     expect((await record(event)).timeLabel, '09:41');
-    expect((await record(event, use24Hour: false)).timeLabel, '9:41 AM');
+    expect((await record(event, use24Hour: false)).timeLabel, '9:41\u202fAM');
   });
 
   test('dayLabel only on the first message of a day', () async {

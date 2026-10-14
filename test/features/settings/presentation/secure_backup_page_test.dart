@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/ui/step_layout.dart';
@@ -176,6 +177,8 @@ void main() {
           recoveryWordlistProvider.overrideWith((ref) async => wordlist),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: routeLauncher(
             (_) => SecureBackupPage(
               mode: mode,

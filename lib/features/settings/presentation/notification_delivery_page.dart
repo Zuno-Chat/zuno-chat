@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/background_sync_service.dart';
 import '../../../core/notifications/fcm_availability_provider.dart';
@@ -141,12 +142,13 @@ class _NotificationDeliveryPageState
       builder: (context) => SafeArea(
         child: Consumer(
           builder: (context, ref, _) {
+            final l10n = context.l10n;
             final fcm = ref.watch(fcmAvailabilityProvider).value;
             return Wrap(
               children: [
                 for (final mode
                     in ref.watch(platformCapabilitiesProvider).deliveryModes)
-                  if (deliveryModeChoice(mode, fcm: fcm) case (
+                  if (deliveryModeChoice(l10n, mode, fcm: fcm) case (
                     :final enabled,
                     :final subtitle,
                   ))
@@ -155,7 +157,7 @@ class _NotificationDeliveryPageState
                       leading: mode == current
                           ? const Icon(Icons.check_outlined)
                           : const SizedBox(width: 24),
-                      title: Text(mode.label),
+                      title: Text(mode.label(l10n)),
                       subtitle: Text(subtitle),
                       onTap: () => Navigator.of(context).pop(mode),
                     ),
@@ -174,23 +176,22 @@ class _NotificationDeliveryPageState
   }
 
   List<Widget> _deliveryModeSettings(
+    AppLocalizations l10n,
     NotificationDeliveryMode mode,
     PlatformCapabilities capabilities,
   ) {
     switch (mode) {
       case NotificationDeliveryMode.backgroundService:
         return [
-          ..._batteryExemptionRows(mode, capabilities),
+          ..._batteryExemptionRows(l10n, mode, capabilities),
           if (capabilities.backgroundDataRestriction)
             ListTile(
               leading: const Icon(Icons.wifi_tethering_outlined),
-              title: const Text('Background data'),
+              title: Text(l10n.diagnosticsLabelBackgroundData),
               subtitle: Text(
                 _backgroundDataRestricted
-                    ? 'Data Saver stops background sync from using data while '
-                          'the screen is off. Tap to allow it.'
-                    : 'Background sync can use data even when the screen '
-                          'is off',
+                    ? l10n.notificationsBackgroundDataRestricted
+                    : l10n.notificationsBackgroundDataAllowed,
               ),
               trailing: _backgroundDataRestricted
                   ? const Icon(Icons.chevron_right)
@@ -209,16 +210,17 @@ class _NotificationDeliveryPageState
         return [
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('Distributor'),
+            title: Text(l10n.pushTargetDistributor),
             subtitle: Text(
               unifiedPushDistributorLabel(
+                l10n,
                 status: upStatus,
                 distributor: _unifiedPushDistributor,
               ),
             ),
             trailing: IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: 'Look for a distributor',
+              tooltip: l10n.notificationsLookForDistributor,
               onPressed: busy ? null : _discoverDistributors,
             ),
           ),
@@ -226,21 +228,21 @@ class _NotificationDeliveryPageState
             leading: busy
                 ? _statusSpinner
                 : Icon(_unifiedPushStatusIcon(upStatus)),
-            title: const Text('Status'),
-            subtitle: Text(unifiedPushStatusLabel(upStatus)),
+            title: Text(l10n.commonStatus),
+            subtitle: Text(unifiedPushStatusLabel(l10n, upStatus)),
             trailing: switch (action) {
               UnifiedPushStatusAction.none => null,
               UnifiedPushStatusAction.register => TextButton(
                 onPressed: busy ? null : _registerUnifiedPush,
-                child: const Text('Register'),
+                child: Text(l10n.notificationsRegister),
               ),
               UnifiedPushStatusAction.retry => TextButton(
                 onPressed: busy ? null : _registerUnifiedPush,
-                child: const Text('Retry'),
+                child: Text(l10n.commonRetry),
               ),
             },
           ),
-          ..._batteryExemptionRows(mode, capabilities),
+          ..._batteryExemptionRows(l10n, mode, capabilities),
           if (capabilities.batteryExemption)
             ValueListenableBuilder<bool>(
               valueListenable:
@@ -254,12 +256,11 @@ class _NotificationDeliveryPageState
                 return ListTile(
                   leading: const Icon(Icons.battery_alert_outlined),
                   title: Text(
-                    '${unifiedPushDistributorDisplayName(distributor)} battery',
+                    l10n.notificationsDistributorBattery(
+                      unifiedPushDistributorDisplayName(distributor),
+                    ),
                   ),
-                  subtitle: const Text(
-                    'Set its battery use to Unrestricted so notifications '
-                    'reach Zuno while the device sleeps',
-                  ),
+                  subtitle: Text(l10n.notificationsDistributorBatteryHint),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => BackgroundSyncService.instance.openAppSettings(
                     distributor,
@@ -273,11 +274,11 @@ class _NotificationDeliveryPageState
           ValueListenableBuilder<FcmStatus>(
             valueListenable: fcmDeliveryProvider.status,
             builder: (context, fcmStatus, _) {
-              final fix = fcmFixLabel(fcmStatus);
+              final fix = fcmFixLabel(l10n, fcmStatus);
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _fcmStatusRow(fcmStatus),
+                  _fcmStatusRow(l10n, fcmStatus),
                   if (fix != null)
                     ListTile(
                       leading: Icon(
@@ -293,63 +294,58 @@ class _NotificationDeliveryPageState
               );
             },
           ),
-          ..._batteryExemptionRows(mode, capabilities),
+          ..._batteryExemptionRows(l10n, mode, capabilities),
         ];
       case NotificationDeliveryMode.apns:
         return const [];
     }
   }
 
-  Widget _fcmStatusRow(FcmStatus status) {
+  Widget _fcmStatusRow(AppLocalizations l10n, FcmStatus status) {
     final busy = fcmStatusIsBusy(status);
     final action = fcmStatusAction(status);
     return ListTile(
       leading: busy ? _statusSpinner : Icon(_fcmStatusIcon(status)),
-      title: const Text('Status'),
-      subtitle: Text(fcmStatusLabel(status)),
+      title: Text(l10n.commonStatus),
+      subtitle: Text(fcmStatusLabel(l10n, status)),
       trailing: switch (action) {
         PushStatusAction.none || PushStatusAction.fix => null,
         PushStatusAction.register => TextButton(
           onPressed: busy ? null : _registerFcm,
-          child: const Text('Register'),
+          child: Text(l10n.notificationsRegister),
         ),
         PushStatusAction.retry => TextButton(
           onPressed: busy ? null : _registerFcm,
-          child: const Text('Retry'),
+          child: Text(l10n.commonRetry),
         ),
       },
     );
   }
 
   List<Widget> _batteryExemptionRows(
+    AppLocalizations l10n,
     NotificationDeliveryMode mode,
     PlatformCapabilities capabilities,
   ) {
     if (!capabilities.batteryExemption) return const [];
     final subtitle = switch ((_ignoringBatteryOptimizations, mode)) {
       (true, NotificationDeliveryMode.unifiedPush) =>
-        'Android will not put Zuno to sleep, so notifications arrive while '
-            'your device is locked',
-      (true, NotificationDeliveryMode.fcm) =>
-        'Android will not hold notifications back to save power',
+        l10n.notificationsBatteryUnifiedPushOn,
+      (true, NotificationDeliveryMode.fcm) => l10n.notificationsBatteryFcmOn,
       (true, NotificationDeliveryMode.backgroundService) =>
-        'Android will not pause background sync to save power',
+        l10n.notificationsBatteryBackgroundSyncOn,
       (false, NotificationDeliveryMode.unifiedPush) =>
-        'Android puts Zuno to sleep after your device has been locked a while, '
-            'and notifications stop arriving. Tap to allow.',
-      (false, NotificationDeliveryMode.fcm) =>
-        'Android can hold notifications back while your device sleeps. Tap to '
-            'let Zuno run unrestricted.',
+        l10n.notificationsBatteryUnifiedPushOff,
+      (false, NotificationDeliveryMode.fcm) => l10n.notificationsBatteryFcmOff,
       (false, NotificationDeliveryMode.backgroundService) =>
-        'Android may pause background sync to save power. Tap to let it run '
-            'unrestricted.',
+        l10n.notificationsBatteryBackgroundSyncOff,
       (_, NotificationDeliveryMode.apns) => null,
     };
     if (subtitle == null) return const [];
     return [
       ListTile(
         leading: const Icon(Icons.battery_charging_full_outlined),
-        title: const Text('Unrestricted battery usage'),
+        title: Text(l10n.notificationsUnrestrictedBattery),
         subtitle: Text(subtitle),
         trailing: _ignoringBatteryOptimizations
             ? const Icon(Icons.check_circle_outline)
@@ -362,42 +358,34 @@ class _NotificationDeliveryPageState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final deliveryMode = ref.watch(notificationDeliveryModeProvider);
     final capabilities = ref.watch(platformCapabilitiesProvider);
     ref.watch(fcmAvailabilityProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Delivery')),
+      appBar: AppBar(title: Text(l10n.notificationsDelivery)),
       body: CardListView(
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(28, 12, 28, 8),
-            child: Text(
-              'How messages and calls reach you while Zuno is closed. '
-              'Background sync needs no setup. UnifiedPush needs a '
-              'distributor app, such as ntfy, installed. Google '
-              'services needs Google Play services.',
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 12, 28, 8),
+            child: Text(l10n.notificationsDeliveryIntro),
           ),
           CardGroup(
             children: [
               ListTile(
                 leading: const Icon(Icons.cloud_sync_outlined),
-                title: const Text('Delivery method'),
-                subtitle: Text(deliveryMode.label),
+                title: Text(l10n.notificationsDeliveryMethod),
+                subtitle: Text(deliveryMode.label(l10n)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _chooseDeliveryMode(deliveryMode),
               ),
-              ..._deliveryModeSettings(deliveryMode, capabilities),
+              ..._deliveryModeSettings(l10n, deliveryMode, capabilities),
               if (_hasAutostartSettings)
                 ListTile(
                   leading: const Icon(Icons.restart_alt_outlined),
-                  title: const Text('Autostart'),
-                  subtitle: const Text(
-                    'This device stops closed apps from starting when a '
-                    'message arrives. Turn on Autostart for Zuno so '
-                    'notifications are not held until you open it.',
-                  ),
+                  title: Text(l10n.notificationsAutostart),
+                  subtitle: Text(l10n.notificationsAutostartHint),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () =>
                       BackgroundSyncService.instance.openAutostartSettings(),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/picked_file.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/recovery_code.dart';
 import '../../../core/security/recovery_code_file.dart';
@@ -41,12 +42,10 @@ class _RecoveryCodeCreateFlowState
     final wordlist = ref.watch(recoveryWordlistProvider);
     return wordlist.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => const Center(
+      error: (e, _) => Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Could not prepare a recovery code. Go back and try again.',
-          ),
+          padding: const EdgeInsets.all(24),
+          child: Text(context.l10n.settingsRecoveryPrepareFailed),
         ),
       ),
       data: (list) {
@@ -87,43 +86,39 @@ class _RevealScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final words = code.split(' ');
     return StepLayout(
       hero: const StepHero(icon: Icons.vpn_key_outlined, compact: true),
-      title: 'These ${words.length} words are your recovery code',
-      body:
-          'If you lose this device and every other signed-in device, this code '
-          'is the only way back to your messages. Nobody can restore them for '
-          'you. Write it down, save it as a file, or copy it into a password '
-          'manager.',
+      title: l10n.settingsRecoveryRevealTitle(words.length),
+      body: l10n.settingsRecoveryRevealBody,
       children: [
         _WordGrid(words: words),
         const SizedBox(height: 24),
         _WideButton(
           icon: Icons.save_outlined,
-          label: 'Save as a file',
+          label: l10n.settingsRecoverySaveAsFile,
           onPressed: () => _saveAsFile(context, code, capabilities),
         ),
         const SizedBox(height: 8),
         _WideButton(
           icon: Icons.copy_outlined,
-          label: 'Copy',
+          label: l10n.commonCopy,
           onPressed: () {
             SensitiveClipboard.instance.copy(code);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
                   capabilities.sensitiveClipboard
-                      ? 'Copied. Clears from the clipboard in 90 seconds.'
-                      : 'Copied. It stays on the clipboard until you copy '
-                            'something else.',
+                      ? l10n.settingsCopiedSensitive
+                      : l10n.settingsRecoveryCopiedStays,
                 ),
               ),
             );
           },
         ),
         const SizedBox(height: 24),
-        FilledButton(onPressed: onContinue, child: const Text('Continue')),
+        FilledButton(onPressed: onContinue, child: Text(l10n.commonContinue)),
       ],
     );
   }
@@ -135,14 +130,15 @@ Future<void> _saveAsFile(
   PlatformCapabilities capabilities,
 ) async {
   final messenger = ScaffoldMessenger.of(context);
+  final l10n = context.l10n;
   try {
-    if (!await saveRecoveryCodeFile(code, capabilities: capabilities)) return;
-    messenger.showSnackBar(const SnackBar(content: Text('Saved')));
+    if (!await saveRecoveryCodeFile(l10n, code, capabilities: capabilities)) {
+      return;
+    }
+    messenger.showSnackBar(SnackBar(content: Text(l10n.settingsRecoverySaved)));
   } catch (e, s) {
     reportCaught('save recovery code file', e, s);
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Could not save. Try again.')),
-    );
+    messenger.showSnackBar(SnackBar(content: Text(l10n.commonSaveFailed)));
   }
 }
 
@@ -247,7 +243,7 @@ class _WordRow extends StatelessWidget {
           SizedBox(
             width: 24,
             child: Text(
-              '${index + 1}',
+              context.l10n.settingsRecoveryWordNumber(index + 1),
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: colors.onSurfaceVariant),
             ),
@@ -304,7 +300,7 @@ class _ConfirmScreenState extends State<_ConfirmScreen> {
       final expected = words[widget.indices[i]];
       final typed = normalizeRecoveryPhrase(_controllers[i].text);
       if (typed != expected) {
-        setState(() => _error = 'That does not match. Check your saved copy.');
+        setState(() => _error = context.l10n.settingsRecoveryMismatch);
         return;
       }
     }
@@ -314,11 +310,14 @@ class _ConfirmScreenState extends State<_ConfirmScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final positions = widget.indices.map((i) => ordinal(i + 1)).toList();
+    final l10n = context.l10n;
+    final positions = widget.indices
+        .map((i) => l10n.securityOrdinal('${i + 1}'))
+        .toList();
     return StepLayout(
       hero: const StepHero(icon: Icons.checklist_outlined, compact: true),
-      title: 'Check your saved copy',
-      body: 'Type the ${positions.join(' and ')} words from your saved copy.',
+      title: l10n.settingsRecoveryConfirmTitle,
+      body: l10n.settingsRecoveryConfirmBody(positions[0], positions[1]),
       actions: [
         if (_error != null)
           Padding(
@@ -337,11 +336,11 @@ class _ConfirmScreenState extends State<_ConfirmScreen> {
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Done'),
+              : Text(l10n.commonDone),
         ),
         TextButton(
           onPressed: widget.busy ? null : widget.onBack,
-          child: const Text('Show the code again'),
+          child: Text(l10n.settingsRecoveryShowAgain),
         ),
       ],
       children: [
@@ -350,7 +349,7 @@ class _ConfirmScreenState extends State<_ConfirmScreen> {
             controller: _controllers[i],
             autofocus: i == 0,
             decoration: InputDecoration(
-              labelText: '${positions[i]} word',
+              labelText: l10n.settingsRecoveryWordLabel(positions[i]),
               border: const OutlineInputBorder(),
             ),
           ),
@@ -387,11 +386,12 @@ class _RecoveryCodeEntryFieldState
 
   Future<void> _openSavedFile() async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     setState(() => _opening = true);
     try {
       final file = await trackPickerCopy(
         (onFileLoading) => FilePicker.pickFile(
-          dialogTitle: 'Open your recovery code',
+          dialogTitle: l10n.settingsRecoveryOpenDialogTitle,
           onFileLoading: onFileLoading,
         ),
         onCopying: (copying) {
@@ -403,9 +403,7 @@ class _RecoveryCodeEntryFieldState
       if (!mounted) return;
       if (code == null) {
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('That file does not hold a recovery code.'),
-          ),
+          SnackBar(content: Text(l10n.settingsRecoveryNotACode)),
         );
         return;
       }
@@ -416,7 +414,7 @@ class _RecoveryCodeEntryFieldState
     } catch (e, s) {
       reportCaught('open recovery code file', e, s);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Could not open that file. Try again.')),
+        SnackBar(content: Text(l10n.settingsRecoveryOpenFailed)),
       );
     } finally {
       if (mounted) setState(() => _opening = false);
@@ -439,8 +437,10 @@ class _RecoveryCodeEntryFieldState
             maxLines: 4,
             keyboardType: TextInputType.visiblePassword,
             decoration: InputDecoration(
-              labelText: 'Recovery code',
-              hintText: '$recoveryCodeWordCount words, separated by spaces',
+              labelText: context.l10n.settingsRecoveryCodeLabel,
+              hintText: context.l10n.settingsRecoveryCodeHint(
+                recoveryCodeWordCount,
+              ),
               border: const OutlineInputBorder(),
               errorText: widget.error,
             ),
@@ -452,7 +452,7 @@ class _RecoveryCodeEntryFieldState
         const SizedBox(height: 16),
         _WideButton(
           icon: Icons.file_open_outlined,
-          label: 'Open a saved file',
+          label: context.l10n.settingsRecoveryOpenSavedFile,
           onPressed: widget.busy || _opening ? null : _openSavedFile,
           busy: _copying,
         ),
@@ -470,6 +470,7 @@ class _RecoveryCodeEntryFieldState
         ? <String>[]
         : check.normalized.split(' ');
     final colors = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
 
     Widget line(String message, Color color) => Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -484,25 +485,27 @@ class _RecoveryCodeEntryFieldState
       final suggestions = wordlist.suggestionsFor(typed);
       return line(
         suggestions.isEmpty
-            ? '"$typed" is not one of the words.'
-            : '"$typed" is not one of the words. Did you mean '
-                  '${suggestions.join(', ')}?',
+            ? l10n.settingsRecoveryUnknownWord(typed)
+            : l10n.settingsRecoveryUnknownWordSuggestions(
+                typed,
+                suggestions.join(', '),
+              ),
         colors.error,
       );
     }
     if (words.length < recoveryCodeWordCount) {
       final missing = recoveryCodeWordCount - words.length;
       return line(
-        '$missing more word${missing == 1 ? '' : 's'} to go.',
+        l10n.settingsRecoveryWordsToGo(missing),
         colors.onSurfaceVariant,
       );
     }
     if (words.length > recoveryCodeWordCount) {
       return line(
-        'That is ${words.length} words. A code has $recoveryCodeWordCount.',
+        l10n.settingsRecoveryTooManyWords(words.length, recoveryCodeWordCount),
         colors.error,
       );
     }
-    return line('Looks right.', colors.onSurfaceVariant);
+    return line(l10n.settingsRecoveryLooksRight, colors.onSurfaceVariant);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 import 'matrix_ids.dart';
 import 'room_exit.dart';
 import 'room_title.dart';
@@ -106,7 +107,7 @@ class RoomInviteDisplay {
   });
 }
 
-RoomInviteDisplay roomInviteDisplay(Room room) {
+RoomInviteDisplay roomInviteDisplay(Room room, AppLocalizations l10n) {
   final awaiting = isAwaitingInviteAcceptance(room);
   if (awaiting && room.name.isEmpty) {
     final invitees = pendingInviteeIds(room);
@@ -114,7 +115,7 @@ RoomInviteDisplay roomInviteDisplay(Room room) {
       return RoomInviteDisplay(
         title: invitees.length == 1
             ? withoutServer(invitees.single)
-            : '${invitees.length} people invited',
+            : l10n.matrixInvitePeopleInvited(invitees.length),
         avatarUrl: null,
         awaitingAcceptance: true,
         partnerLeft: false,
@@ -122,18 +123,18 @@ RoomInviteDisplay roomInviteDisplay(Room room) {
     }
   }
   return RoomInviteDisplay(
-    title: roomTitle(room),
+    title: roomTitle(room, l10n),
     avatarUrl: room.avatar,
     awaitingAcceptance: awaiting,
     partnerLeft: room.isAbandonedDMRoom,
   );
 }
 
-String pendingInviteSubtitle(Room room) {
+String pendingInviteSubtitle(Room room, AppLocalizations l10n) {
   final invitees = pendingInviteeIds(room);
   if (invitees.length == 1) {
-    return 'Waiting for ${withoutServer(invitees.single)} to accept';
+    return l10n.matrixInviteWaitingForPerson(withoutServer(invitees.single));
   }
-  if (invitees.isEmpty) return 'Waiting for them to accept';
-  return 'Waiting for ${invitees.length} people to accept';
+  if (invitees.isEmpty) return l10n.matrixInviteWaitingForThem;
+  return l10n.matrixInviteWaitingForPeople(invitees.length);
 }

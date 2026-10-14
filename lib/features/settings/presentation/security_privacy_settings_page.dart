@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_providers.dart';
@@ -48,6 +49,7 @@ class _SecurityPrivacySettingsPageState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final incognitoKeyboard = ref.watch(incognitoKeyboardProvider);
     final preventScreenshots = ref.watch(preventScreenshotsProvider);
     final capabilities = ref.watch(platformCapabilitiesProvider);
@@ -56,7 +58,7 @@ class _SecurityPrivacySettingsPageState
         status != null && status != AccountSecurityStatus.noRecovery;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Security')),
+      appBar: AppBar(title: Text(l10n.settingsSecurityTitle)),
       body: CardListView(
         children: [
           SecurityStatusCard(onAction: _handleStatusAction),
@@ -65,47 +67,43 @@ class _SecurityPrivacySettingsPageState
               ListTile(
                 leading: const Icon(Icons.vpn_key_outlined),
                 title: Text(
-                  hasRecovery ? 'Change your recovery code' : 'Set up recovery',
+                  hasRecovery
+                      ? l10n.settingsSecurityChangeRecovery
+                      : l10n.securitySetUpRecovery,
                 ),
                 subtitle: Text(
                   hasRecovery
-                      ? 'Replaces the current one. Your other devices will '
-                            'need approving again.'
-                      : 'Twelve words that bring your messages back on a new '
-                            'device',
+                      ? l10n.settingsSecurityChangeRecoverySubtitle
+                      : l10n.settingsSecuritySetUpRecoverySubtitle,
                 ),
                 trailing: const Icon(Icons.chevron_right_outlined),
                 onTap: () => _push(const SecureBackupPage()),
               ),
               ListTile(
                 leading: const Icon(Icons.devices_outlined),
-                title: const Text('Your devices'),
-                subtitle: const Text(
-                  'See what is signed in, and sign things out',
-                ),
+                title: Text(l10n.settingsSecurityYourDevices),
+                subtitle: Text(l10n.settingsSecurityYourDevicesSubtitle),
                 trailing: const Icon(Icons.chevron_right_outlined),
                 onTap: () => _push(const ActiveSessionsPage()),
               ),
               ListTile(
                 leading: const Icon(Icons.do_not_disturb_on_outlined),
-                title: const Text('Blocked people'),
-                subtitle: const Text(
-                  'People whose messages and invitations do not reach you',
-                ),
+                title: Text(l10n.settingsSecurityBlockedPeople),
+                subtitle: Text(l10n.settingsSecurityBlockedPeopleSubtitle),
                 trailing: const Icon(Icons.chevron_right_outlined),
                 onTap: () => _push(const BlockedPeoplePage()),
               ),
             ],
           ),
           CardGroup(
-            title: 'On this device',
+            title: l10n.settingsSecurityOnThisDevice,
             children: [
               if (capabilities.keyboardLearningOptOut)
                 SwitchListTile(
                   secondary: const Icon(Icons.keyboard_alt_outlined),
-                  title: const Text('Incognito keyboard'),
-                  subtitle: const Text(
-                    'Asks the keyboard not to learn from what you type',
+                  title: Text(l10n.settingsSecurityIncognitoKeyboard),
+                  subtitle: Text(
+                    l10n.settingsSecurityIncognitoKeyboardSubtitle,
                   ),
                   value: incognitoKeyboard,
                   onChanged: (value) =>
@@ -116,16 +114,13 @@ class _SecurityPrivacySettingsPageState
                   secondary: const Icon(Icons.screenshot_outlined),
                   title: Text(
                     capabilities.screenshotBlocking
-                        ? 'Prevent screenshots'
-                        : 'Hide screen content',
+                        ? l10n.settingsSecurityPreventScreenshots
+                        : l10n.settingsSecurityHideScreenContent,
                   ),
                   subtitle: Text(
                     capabilities.screenshotBlocking
-                        ? 'Blocks screenshots and screen recording, and '
-                              'hides Zuno in the recent apps preview'
-                        : 'Hides Zuno in the app switcher and while the '
-                              'screen is recorded or shared. Screenshots '
-                              'still work.',
+                        ? l10n.settingsSecurityPreventScreenshotsSubtitle
+                        : l10n.settingsSecurityHideScreenContentSubtitle,
                   ),
                   value: preventScreenshots,
                   onChanged: (value) =>
@@ -138,15 +133,15 @@ class _SecurityPrivacySettingsPageState
             children: [
               ListTile(
                 leading: const Icon(Icons.help_outline),
-                title: const Text('How this works'),
-                subtitle: const Text('Recovery, devices and confirming people'),
+                title: Text(l10n.settingsSecurityHowThisWorks),
+                subtitle: Text(l10n.settingsSecurityHowThisWorksSubtitle),
                 trailing: const Icon(Icons.chevron_right_outlined),
                 onTap: () => _push(const WhySecurityPage()),
               ),
-              const ComingSoonTile(
+              ComingSoonTile(
                 icon: Icons.tune_outlined,
-                title: 'Advanced',
-                subtitle: 'Keys, secret storage, key backup',
+                title: l10n.settingsSecurityAdvanced,
+                subtitle: l10n.settingsSecurityAdvancedSubtitle,
               ),
             ],
           ),

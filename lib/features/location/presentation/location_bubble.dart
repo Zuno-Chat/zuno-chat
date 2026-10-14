@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/geo_uri.dart';
 import '../../../core/location/map_tiles_provider.dart';
 import 'location_map_view.dart';
@@ -25,7 +26,9 @@ class LocationBubble extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final geo = this.geo;
     final hasMap = ref.watch(mapTilesProvider).value != null;
-    final label = geo == null || hasMap ? 'Location' : geo.coordinatesLabel;
+    final label = geo == null || hasMap
+        ? context.l10n.locationBubbleLabel
+        : geo.coordinatesLabel;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,

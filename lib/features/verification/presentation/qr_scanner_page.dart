@@ -6,14 +6,16 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
 
 class QrScannerPage extends StatefulWidget {
-  final String title;
-  final String withoutCamera;
+  final String? title;
+  final String? withoutCamera;
 
   const QrScannerPage({
-    this.title = 'Scan their code',
-    this.withoutCamera = 'You can still compare pictures instead.',
+    @displayText this.title,
+    @displayText this.withoutCamera,
     super.key,
   });
 
@@ -82,7 +84,9 @@ class _QrScannerPageState extends State<QrScannerPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(
+        title: Text(widget.title ?? context.l10n.verificationScanTheirCode),
+      ),
       body: switch (_permitted) {
         null => const Center(child: CircularProgressIndicator()),
         false => _buildDenied(),
@@ -91,12 +95,15 @@ class _QrScannerPageState extends State<QrScannerPage>
     );
   }
 
+  String get _withoutCamera =>
+      widget.withoutCamera ?? context.l10n.verificationScanWithoutCamera;
+
   Widget _buildDenied() {
     return _ScannerNotice(
-      text: 'Zuno needs the camera to scan the code. ${widget.withoutCamera}',
-      action: const OutlinedButton(
+      text: context.l10n.verificationCameraNeeded(_withoutCamera),
+      action: OutlinedButton(
         onPressed: openAppSettings,
-        child: Text('Open settings'),
+        child: Text(context.l10n.commonOpenSettings),
       ),
     );
   }
@@ -107,10 +114,8 @@ class _QrScannerPageState extends State<QrScannerPage>
       child: error.errorCode == MobileScannerErrorCode.permissionDenied
           ? _buildDenied()
           : _ScannerNotice(
-              title: 'The camera did not start',
-              text:
-                  'Another app may be using it. Go back and try again. '
-                  '${widget.withoutCamera}',
+              title: context.l10n.verificationCameraDidNotStart,
+              text: context.l10n.verificationCameraBusy(_withoutCamera),
             ),
     );
   }
@@ -120,11 +125,9 @@ class _QrScannerPageState extends State<QrScannerPage>
       controller: _controller,
       onDetect: _onDetect,
       errorBuilder: _buildFailed,
-      overlayBuilder: (_, _) => const Align(
+      overlayBuilder: (context, _) => Align(
         alignment: Alignment.bottomCenter,
-        child: ScannerCaption(
-          'Point the camera at the code on the other device.',
-        ),
+        child: ScannerCaption(context.l10n.verificationScanCaption),
       ),
     );
   }

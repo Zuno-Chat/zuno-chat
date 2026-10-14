@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
@@ -158,6 +159,8 @@ void main() {
           ),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Consumer(
               builder: (context, ref, _) => TextButton(

@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
@@ -315,6 +316,7 @@ void main() {
       String password = 'correcthorse',
       String? confirmPassword,
     }) => registrationInputError(
+      englishLocalizations,
       username: username,
       password: password,
       confirmPassword: confirmPassword ?? password,
@@ -379,6 +381,7 @@ void main() {
 
     test('rejects a username too long to fit in a user ID', () {
       String? errorWithServer(int length) => registrationInputError(
+        englishLocalizations,
         username: 'a' * length,
         password: 'correcthorse',
         confirmPassword: 'correcthorse',

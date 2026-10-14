@@ -6,12 +6,12 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/call_picture_in_picture.dart';
 import '../../../core/calls/models/call_engine_participant.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/ui/corner_snap.dart';
 import '../../../core/ui/keep_clear.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../../core/ui/zuno_theme.dart';
-import 'call_bar.dart';
 import 'participant_tile.dart';
 
 const _margin = 8.0;
@@ -115,8 +115,8 @@ class _CallWindowState extends State<CallWindow> {
         onTap: widget.onTap,
         child: Semantics(
           button: true,
-          label: returnToCallLabel,
-          value: roomTitle(widget.call.session.room),
+          label: context.l10n.callsReturnToCall,
+          value: roomTitle(widget.call.session.room, context.l10n),
           onTap: widget.onTap,
           excludeSemantics: true,
           child: Theme(

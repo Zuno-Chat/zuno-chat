@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/route_settled.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 
@@ -30,6 +31,8 @@ void main() {
     var settled = 0;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         home: routeLauncher((_) => _Probe(() => settled++)),
       ),
@@ -48,7 +51,13 @@ void main() {
     tester,
   ) async {
     var settled = 0;
-    await tester.pumpWidget(MaterialApp(home: _Probe(() => settled++)));
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: _Probe(() => settled++),
+      ),
+    );
     await tester.pump();
     await tester.pump();
     expect(settled, 1);
@@ -59,6 +68,8 @@ void main() {
     final navigator = GlobalKey<NavigatorState>();
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         navigatorKey: navigator,
         home: const Scaffold(body: Text('home')),

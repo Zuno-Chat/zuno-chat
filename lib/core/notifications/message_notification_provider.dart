@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../calls/matrixrtc/call_summary_message.dart';
 import '../calls/notifications/call_notification_service.dart';
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 import '../matrix/currently_open_room_provider.dart';
 import '../matrix/event_display.dart';
 import '../matrix/matrix_client_provider.dart';
@@ -77,14 +78,18 @@ MessageNotificationContent messageFloor(
   String? senderName,
   bool quiet = false,
 }) {
-  final title = [roomName, if (room != null) roomTitle(room), senderName]
+  final l10n = deviceLocalizations();
+  final title = [roomName, if (room != null) roomTitle(room, l10n), senderName]
       .map((name) => name?.trim() ?? '')
-      .firstWhere((name) => name.isNotEmpty, orElse: () => 'New message');
+      .firstWhere(
+        (name) => name.isNotEmpty,
+        orElse: () => l10n.notificationsNewMessage,
+      );
   return MessageNotificationContent(
     roomId: roomId,
     title: title,
-    body: 'Tap to open',
-    text: 'New message',
+    body: l10n.notificationsTapToOpen,
+    text: l10n.notificationsNewMessage,
     eventId: eventId,
     isDirectChat: room?.isDirectChat ?? true,
     senderName: title,
@@ -144,14 +149,17 @@ MessageNotificationDecision messageNotificationFor(
   }
   final sender = room.unsafeGetUserFromMemoryOrFallback(event.senderId);
   final senderName = sender.calcDisplayname();
-  final summary = summarize(event);
+  final l10n = deviceLocalizations();
+  final summary = summarize(l10n, event);
   final text =
       preview == NotificationPreview.nameOnly &&
           summary.kind != MessageKind.callSummary
-      ? previewHiddenText
+      ? l10n.notificationsNewMessage
       : summary.text;
-  final title = roomTitle(room);
-  final body = room.isDirectChat ? text : '$senderName: $text';
+  final title = roomTitle(room, l10n);
+  final body = room.isDirectChat
+      ? text
+      : l10n.notificationsSenderText(senderName, text);
 
   return MessageNotificationDecision.notify(
     MessageNotificationContent(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/new_device_alert.dart';
 import 'package:zuno/core/security/new_device_alert_provider.dart';
 import 'package:zuno/features/rooms/presentation/new_device_alert_banner.dart';
@@ -26,7 +27,11 @@ void main() {
         overrides: [
           newDeviceAlertProvider.overrideWith(() => _FakeNotifier(alerts)),
         ],
-        child: const MaterialApp(home: Scaffold(body: NewDeviceAlertBanner())),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: NewDeviceAlertBanner()),
+        ),
       ),
     );
   }

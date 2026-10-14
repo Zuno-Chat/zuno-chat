@@ -9,6 +9,7 @@ import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/navigation/chat_route.dart';
 import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -75,6 +76,8 @@ class CallPageHarness extends CallChannelMocks {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: zunoLightTheme,
           navigatorKey: navigatorKey,
           scaffoldMessengerKey: globalScaffoldMessengerKey,

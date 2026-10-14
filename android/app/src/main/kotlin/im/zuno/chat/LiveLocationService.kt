@@ -63,7 +63,7 @@ class LiveLocationService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notice = lastNotice ?: LiveLocationNotice(
-            title = "Live location",
+            title = getString(R.string.locationLiveLocation),
             text = "",
             endsAtMs = System.currentTimeMillis(),
             roomId = null,
@@ -348,8 +348,8 @@ class LiveLocationService : Service() {
                 context,
                 NotificationGroup.BACKGROUND,
                 CHANNEL_ID,
-                "Live location",
-                "Shows while you share your live location",
+                R.string.locationLiveLocation,
+                R.string.locationChannelLiveLocationDescription,
                 NotificationManager.IMPORTANCE_LOW,
             )
         }
@@ -385,7 +385,7 @@ class LiveLocationService : Service() {
                 .setUsesChronometer(true)
                 .setChronometerCountDown(true)
                 .setContentIntent(contentIntent)
-                .addAction(0, "Stop sharing", stopIntent)
+                .addAction(0, context.getString(R.string.locationStopSharing), stopIntent)
                 .build()
         }
     }

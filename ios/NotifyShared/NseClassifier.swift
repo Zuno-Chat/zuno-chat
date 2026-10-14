@@ -14,17 +14,19 @@ struct NseCallSummary: Equatable, Sendable {
   let status: String
   let durationMs: Int64
 
-  var label: String { kind == "video" ? "Video call" : "Voice call" }
-
   var displayBody: String {
+    let video = kind == "video"
     switch status {
-    case "missed": return "Missed \(label)"
-    case "declined": return "\(label) declined"
+    case "missed": return video ? L10n.callsSummaryMissedVideo : L10n.callsSummaryMissedVoice
+    case "declined":
+      return video ? L10n.callsSummaryDeclinedVideo : L10n.callsSummaryDeclinedVoice
     default:
       let seconds = durationMs / 1000
       let minutes = seconds / 60
       let rest = seconds % 60
-      return "\(label) · \(minutes):\(rest < 10 ? "0" : "")\(rest)"
+      let duration = "\(minutes):\(rest < 10 ? "0" : "")\(rest)"
+      return video
+        ? L10n.callsSummaryEndedVideo(duration) : L10n.callsSummaryEndedVoice(duration)
     }
   }
 }
@@ -85,30 +87,32 @@ enum NseClassifier {
   }
 
   static func summaryText(_ event: NseEvent) -> (text: String, isCallSummary: Bool) {
-    if event.redacted { return ("Message deleted", false) }
+    if event.redacted { return (L10n.matrixSummaryDeleted, false) }
     guard event.type == "m.room.message" || event.type == "m.sticker" else {
-      return ("\(event.type) event", false)
+      return (L10n.matrixSummaryOtherEvent(event.type), false)
     }
     let msgtype = messageType(event)
     if isCallSignaling(msgtype) || isVerificationSignaling(msgtype) { return (body(event), false) }
     if let summary = callSummary(event) { return (summary.displayBody, true) }
-    if msgtype == "m.image" || msgtype == "m.sticker" { return (caption(event) ?? "Photo", false) }
-    if msgtype == "m.video" { return (caption(event) ?? "Video", false) }
+    if msgtype == "m.image" || msgtype == "m.sticker" {
+      return (caption(event) ?? L10n.matrixSummaryPhoto, false)
+    }
+    if msgtype == "m.video" { return (caption(event) ?? L10n.matrixSummaryVideo, false) }
     if msgtype == "m.audio", event.content["org.matrix.msc3245.voice"] != nil {
-      return ("Voice message", false)
+      return (L10n.matrixSummaryVoice, false)
     }
     if ["m.image", "m.sticker", "m.video", "m.audio", "m.file"].contains(msgtype) {
       return (body(event), false)
     }
-    if msgtype == "m.location" { return ("Location", false) }
-    if msgtype == liveLocationType { return ("Live location", false) }
+    if msgtype == "m.location" { return (L10n.matrixSummaryLocation, false) }
+    if msgtype == liveLocationType { return (L10n.matrixSummaryLiveLocation, false) }
     return (stripReplyFallback(plaintextBody(event)), false)
   }
 
   static func body(_ event: NseEvent) -> String {
-    if event.redacted { return "Redacted" }
+    if event.redacted { return L10n.notificationsRedacted }
     let text = event.content["body"]?.string ?? ""
-    return text.isEmpty ? "Unknown message format of type \"\(event.type)\"" : text
+    return text.isEmpty ? L10n.notificationsUnknownFormat(event.type) : text
   }
 
   static func plaintextBody(_ event: NseEvent) -> String {

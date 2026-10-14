@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/format/date_labels.dart';
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/device_keys_refresh.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/sign_out.dart';
@@ -90,7 +93,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
         setState(() => _loadFailed = true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not refresh your devices.')),
+          SnackBar(content: Text(context.l10n.settingsSessionsRefreshFailed)),
         );
       }
     } finally {
@@ -109,13 +112,14 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
   ) async {
     final client = ref.read(matrixClientProvider);
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       await client.uiaRequestBackground<void>(request);
     } catch (e, s) {
       if (isUiaCancel(e)) return;
       reportCaught('sign out other devices', e, s);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Not signed out. Try again.')),
+        SnackBar(content: Text(l10n.settingsSessionsSignOutFailed)),
       );
       return;
     }
@@ -124,10 +128,8 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
 
   Future<void> _signOutCurrentSession() async {
     final confirmed = await _confirmSignOut(
-      title: 'Sign out of this device?',
-      body:
-          'Zuno erases everything it stored on this device and closes. '
-          'Without a recovery code, the messages on it are gone for good.',
+      title: context.l10n.settingsSessionsSignOutThisTitle,
+      body: context.l10n.settingsSessionsSignOutThisBody,
     );
     if (confirmed != true || !mounted) return;
     await signOutThisDeviceOrExplain(context, ref);
@@ -157,11 +159,8 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
         .toList();
     if (otherIds.isEmpty) return;
     final confirmed = await _confirmSignOut(
-      title:
-          'Sign out of ${otherIds.length} other device${otherIds.length == 1 ? '' : 's'}?',
-      body:
-          'Every other device on this account will need to sign in again. This '
-          'device is not affected.',
+      title: context.l10n.settingsSessionsSignOutOthersTitle(otherIds.length),
+      body: context.l10n.settingsSessionsSignOutOthersBody,
     );
     if (confirmed != true || !mounted) return;
     await _signOut(
@@ -172,8 +171,10 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
 
   Future<void> _confirmAndSignOutOne(DeviceSessionInfo session) async {
     final confirmed = await _confirmSignOut(
-      title: 'Sign out of "${session.displayName ?? session.deviceId}"?',
-      body: 'That device will need to sign in again.',
+      title: context.l10n.settingsSessionsSignOutOneTitle(
+        session.displayName ?? session.deviceId,
+      ),
+      body: context.l10n.settingsSessionsSignOutOneBody,
     );
     if (confirmed != true || !mounted) return;
     await _signOut(
@@ -183,7 +184,10 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
     );
   }
 
-  Future<bool?> _confirmSignOut({required String title, required String body}) {
+  Future<bool?> _confirmSignOut({
+    @displayText required String title,
+    @displayText required String body,
+  }) {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -192,11 +196,11 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Sign out'),
+            child: Text(context.l10n.settingsSignOut),
           ),
         ],
       ),
@@ -208,6 +212,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
     final device = client.userDeviceKeys[client.userID]?.deviceKeys[deviceId];
     if (device == null) return;
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       final keyVerification = await device.startVerification();
       if (!mounted) return;
@@ -223,15 +228,14 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
     } catch (e, s) {
       reportCaught('start device approval', e, s);
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Could not start approving that device. Try again.'),
-        ),
+        SnackBar(content: Text(l10n.settingsSessionsApproveFailed)),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final current = _sessions.where((s) => s.isCurrent).firstOrNull;
     final others = _sessions.where((s) => !s.isCurrent).toList();
     final thisDeviceHasIdentityKeys = ref
@@ -240,7 +244,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
         ?.thisDeviceHasIdentityKeys;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Your devices')),
+      appBar: AppBar(title: Text(l10n.settingsSessionsTitle)),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -254,14 +258,18 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            'Signed in',
+                            l10n.settingsSessionsSignedIn,
                             style: cardGroupTitleStyle(context),
                           ),
                         ),
                         TextButton(
                           onPressed: () =>
                               setState(() => _ipRevealed = !_ipRevealed),
-                          child: Text(_ipRevealed ? 'Hide IP' : 'Show IP'),
+                          child: Text(
+                            _ipRevealed
+                                ? l10n.settingsSessionsHideIp
+                                : l10n.settingsSessionsShowIp,
+                          ),
                         ),
                       ],
                     ),
@@ -288,16 +296,22 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
                                   SessionApproval.notApproved)
                                 FilledButton(
                                   onPressed: _approveThisDevice,
-                                  child: const Text('Approve this device'),
+                                  child: Text(
+                                    l10n.settingsSessionsApproveThisDevice,
+                                  ),
                                 ),
                               OutlinedButton(
                                 onPressed: _signOutCurrentSession,
-                                child: const Text('Sign out this device'),
+                                child: Text(
+                                  l10n.settingsSessionsSignOutThisDevice,
+                                ),
                               ),
                               if (others.isNotEmpty)
                                 OutlinedButton(
                                   onPressed: _confirmAndSignOutOthers,
-                                  child: const Text('Sign out everywhere else'),
+                                  child: Text(
+                                    l10n.settingsSessionsSignOutEverywhereElse,
+                                  ),
                                 ),
                             ],
                           ),
@@ -308,10 +322,9 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
                     children: [
                       ListTile(
                         leading: const Icon(Icons.qr_code_2_outlined),
-                        title: const Text('Sign in on another device'),
-                        subtitle: const Text(
-                          'The new device scans a code instead of typing the '
-                          'password.',
+                        title: Text(l10n.settingsSessionsSignInOnAnother),
+                        subtitle: Text(
+                          l10n.settingsSessionsSignInOnAnotherSubtitle,
                         ),
                         trailing: const Icon(Icons.chevron_right_outlined),
                         onTap: _showSignInCode,
@@ -340,9 +353,8 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
                       child: Center(
                         child: Text(
                           _loadFailed
-                              ? 'Could not load your devices. Pull down to '
-                                    'try again.'
-                              : 'No devices found.',
+                              ? l10n.settingsSessionsLoadFailed
+                              : l10n.settingsSessionsNone,
                         ),
                       ),
                     ),
@@ -375,16 +387,22 @@ class _SessionTile extends StatelessWidget {
       verified: session.verified,
       thisDeviceHasIdentityKeys: thisDeviceHasIdentityKeys,
     );
+    final l10n = context.l10n;
     final subtitleParts = <String>[
       switch (approval) {
         SessionApproval.unknown =>
-          session.isCurrent ? 'Checking…' : 'Cannot check from this device',
-        SessionApproval.approved => 'Approved',
-        SessionApproval.notApproved => 'Not approved yet',
+          session.isCurrent
+              ? l10n.commonChecking
+              : l10n.settingsSessionsCannotCheck,
+        SessionApproval.approved => l10n.settingsSessionsApproved,
+        SessionApproval.notApproved => l10n.settingsSessionsNotApproved,
       },
-      session.lastActivity == null
-          ? 'Last activity unknown'
-          : 'Last active ${formatLastActivity(session.lastActivity)}',
+      if (session.lastActivity case final lastActivity?)
+        l10n.settingsSessionsLastActive(
+          DateLabels.of(context).dateTime(lastActivity),
+        )
+      else
+        l10n.settingsSessionsLastActivityUnknown,
       if (ipRevealed && session.ipAddress != null) session.ipAddress!,
     ];
     final (icon, iconColor) = switch (approval) {
@@ -414,7 +432,7 @@ class _SessionTile extends StatelessWidget {
           if (session.isCurrent) ...[
             const SizedBox(width: 8),
             Chip(
-              label: const Text('This device'),
+              label: Text(l10n.settingsSessionsThisDevice),
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,
               labelStyle: Theme.of(context).textTheme.labelSmall,
@@ -427,11 +445,14 @@ class _SessionTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (onVerify != null)
-            TextButton(onPressed: onVerify, child: const Text('Approve')),
+            TextButton(
+              onPressed: onVerify,
+              child: Text(l10n.settingsSessionsApprove),
+            ),
           if (onSignOut != null)
             IconButton(
               icon: const Icon(Icons.logout),
-              tooltip: 'Sign out of this device',
+              tooltip: l10n.settingsSessionsSignOutThisTooltip,
               onPressed: onSignOut,
             ),
         ],

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/unified_push_delivery_provider.dart'
     show UnifiedPushStatus;
 import 'package:zuno/features/settings/presentation/unified_push_status_display.dart';
@@ -64,14 +65,17 @@ void main() {
         UnifiedPushStatus.idle,
         UnifiedPushStatus.noDistributorFound,
       ]) {
-        expect(unifiedPushStatusLabel(status), 'Inactive');
+        expect(
+          unifiedPushStatusLabel(englishLocalizations, status),
+          'Inactive',
+        );
       }
     });
 
     test('never mentions distributors in any state', () {
       for (final status in UnifiedPushStatus.values) {
         expect(
-          unifiedPushStatusLabel(status).toLowerCase(),
+          unifiedPushStatusLabel(englishLocalizations, status).toLowerCase(),
           isNot(contains('distributor app')),
           reason: '$status leaks distributor wording into the status row',
         );
@@ -80,25 +84,39 @@ void main() {
 
     test('reports each failure distinctly', () {
       expect(
-        unifiedPushStatusLabel(UnifiedPushStatus.registrationFailed),
-        isNot(unifiedPushStatusLabel(UnifiedPushStatus.pusherFailed)),
+        unifiedPushStatusLabel(
+          englishLocalizations,
+          UnifiedPushStatus.registrationFailed,
+        ),
+        isNot(
+          unifiedPushStatusLabel(
+            englishLocalizations,
+            UnifiedPushStatus.pusherFailed,
+          ),
+        ),
       );
     });
 
     test('says how far registration got', () {
       expect(
-        unifiedPushStatusLabel(UnifiedPushStatus.postingPusher),
+        unifiedPushStatusLabel(
+          englishLocalizations,
+          UnifiedPushStatus.postingPusher,
+        ),
         'Finishing registration…',
       );
       expect(
-        unifiedPushStatusLabel(UnifiedPushStatus.pusherFailed),
+        unifiedPushStatusLabel(
+          englishLocalizations,
+          UnifiedPushStatus.pusherFailed,
+        ),
         'Could not finish registration',
       );
     });
 
     test('never names the server, shouts or uses a contraction', () {
       for (final status in UnifiedPushStatus.values) {
-        final label = unifiedPushStatusLabel(status);
+        final label = unifiedPushStatusLabel(englishLocalizations, status);
         expect(label, isNotEmpty, reason: '$status');
         expect(label.toLowerCase(), isNot(contains('server')), reason: label);
         expect(label, isNot(contains('!')), reason: label);
@@ -111,6 +129,7 @@ void main() {
     test('shows the display name once one is picked', () {
       expect(
         unifiedPushDistributorLabel(
+          englishLocalizations,
           status: UnifiedPushStatus.distributorSelected,
           distributor: 'io.heckel.ntfy',
         ),
@@ -121,6 +140,7 @@ void main() {
     test('tells the user to install one when none are installed', () {
       expect(
         unifiedPushDistributorLabel(
+          englishLocalizations,
           status: UnifiedPushStatus.noDistributorFound,
           distributor: '',
         ),
@@ -131,6 +151,7 @@ void main() {
     test('distinguishes "still checking" from "checked, none picked"', () {
       expect(
         unifiedPushDistributorLabel(
+          englishLocalizations,
           status: UnifiedPushStatus.idle,
           distributor: null,
         ),
@@ -138,6 +159,7 @@ void main() {
       );
       expect(
         unifiedPushDistributorLabel(
+          englishLocalizations,
           status: UnifiedPushStatus.idle,
           distributor: '',
         ),

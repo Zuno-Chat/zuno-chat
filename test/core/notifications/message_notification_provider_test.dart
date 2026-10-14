@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/message_notification_provider.dart';
 import 'package:zuno/core/notifications/notification_preview.dart';
 import 'package:zuno/core/notifications/notify_me.dart';
@@ -262,15 +263,18 @@ void main() {
       textEvent(),
       preview: NotificationPreview.nameOnly,
     ).content!;
-    expect(message.text, previewHiddenText);
-    expect(message.body, 'Alice: $previewHiddenText');
+    expect(message.text, englishLocalizations.notificationsNewMessage);
+    expect(
+      message.body,
+      'Alice: ${englishLocalizations.notificationsNewMessage}',
+    );
 
     final missed = decideSummary(
       CallSummaryStatus.missed,
       preview: NotificationPreview.nameOnly,
     ).content!;
     expect(missed.text, decideSummary(CallSummaryStatus.missed).content!.text);
-    expect(missed.text, isNot(previewHiddenText));
+    expect(missed.text, isNot(englishLocalizations.notificationsNewMessage));
   });
 
   test('describes a photo by its caption, with no thumbnail to fetch', () {

@@ -10,6 +10,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
 import '../errors/global_error_handler.dart';
+import '../l10n/l10n.dart';
 import '../matrix/room_title.dart';
 import '../platform/platform_capabilities.dart';
 import 'active_call_provider.dart';
@@ -311,7 +312,7 @@ class ActiveCallController extends ChangeNotifier {
 
   Future<void> _startOngoingCall() => _ongoingCall
       .start(
-        title: roomTitle(session.room),
+        title: roomTitle(session.room, deviceLocalizations()),
         withCamera: session.kind == CallKind.video,
       )
       .catchError(
@@ -621,10 +622,10 @@ class ActiveCallController extends ChangeNotifier {
     _audioOutput.unwatch();
     await _deviceEffects.run(_releaseDevice);
     _releaseMedia();
-    final message = session.failedMessage;
-    if (session.endReason == CallEndReason.failed && message != null) {
+    final failure = session.failure;
+    if (session.endReason == CallEndReason.failed && failure != null) {
       globalScaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text(message)),
+        SnackBar(content: Text(failure.message(deviceLocalizations()))),
       );
     }
     _releaseIfDone();

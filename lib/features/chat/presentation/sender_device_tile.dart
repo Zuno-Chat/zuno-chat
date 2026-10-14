@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/user_trust.dart';
@@ -35,12 +36,9 @@ class SenderDeviceTile extends ConsumerWidget {
       dense: true,
       leading: const Icon(Icons.smartphone_outlined),
       title: Text(
-        'Sent from a device ${withoutServer(senderId)} has not approved yet',
+        context.l10n.chatSenderDeviceUnapproved(withoutServer(senderId)),
       ),
-      subtitle: const Text(
-        'They can approve it from another of their devices. There is nothing '
-        'for you to do.',
-      ),
+      subtitle: Text(context.l10n.chatSenderDeviceHint),
     );
   }
 }

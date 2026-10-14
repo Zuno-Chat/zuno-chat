@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 
 const layoutMatrix = <({String name, Size size, double textScale, bool rtl})>[
   (name: 'small phone', size: Size(360, 640), textScale: 1, rtl: false),
@@ -33,6 +34,8 @@ Future<void> expectSurvivesLayoutMatrix(
     await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: theme,
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context)

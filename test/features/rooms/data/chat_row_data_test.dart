@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/event_display.dart';
 import 'package:zuno/features/rooms/data/chat_row_data.dart';
 
+import '../../../helpers/date_labels.dart';
 import '../../../helpers/fake_matrix.dart';
 
 void main() {
@@ -53,7 +54,7 @@ void main() {
     room,
     unreadCorrections: corrections,
     now: now,
-    use24Hour: true,
+    labels: testDateLabels(),
   );
 
   void mute(Room room) => client.accountData['m.push_rules'] = BasicEvent(
@@ -273,7 +274,7 @@ void main() {
       rooms,
       unreadCorrections: const {},
       now: now,
-      use24Hour: true,
+      labels: testDateLabels(),
     );
 
     test('reads the newest room, its name and the unread of every room', () {

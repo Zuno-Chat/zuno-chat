@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import 'caption_bar.dart';
 import 'image_caption_composer_page.dart' show ComposedImage;
 import 'preview_decode_width.dart';
@@ -152,16 +153,19 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
   Widget build(BuildContext context) {
     final multiple = _items.length > 1;
     final colors = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          multiple ? '${_page + 1} of ${_items.length}' : 'Add a caption',
+          multiple
+              ? l10n.chatCaptionPageOf(_page + 1, _items.length)
+              : l10n.chatCaptionTitle,
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline),
-            tooltip: 'Remove this item',
+            tooltip: l10n.chatRemoveItem,
             onPressed: _removeCurrent,
           ),
         ],
@@ -203,7 +207,7 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
               ),
             CaptionBar(
               controller: _captionControllers[_page],
-              sendTooltip: multiple ? 'Send all' : 'Send',
+              sendTooltip: multiple ? l10n.chatSendAll : l10n.commonSend,
               onSend: _send,
             ),
           ],

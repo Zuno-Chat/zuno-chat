@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/keep_clear.dart';
 import '../../../core/ui/zuno_motion.dart';
 
-enum HomeTab { chats, communities }
+enum HomeTab {
+  chats,
+  communities;
+
+  String label(AppLocalizations l10n) => switch (this) {
+    HomeTab.chats => l10n.roomsChats,
+    HomeTab.communities => l10n.roomsCommunities,
+  };
+}
 
 class HomeBottomBar extends StatelessWidget {
   final HomeTab selected;
@@ -24,6 +33,7 @@ class HomeBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
     return KeepClearArea(
       child: ColoredBox(
         color: colors.surface,
@@ -44,7 +54,7 @@ class HomeBottomBar extends StatelessWidget {
                       child: Row(
                         children: [
                           _Tab(
-                            label: 'Chats',
+                            label: HomeTab.chats.label(l10n),
                             icon: Icons.chat_bubble_outline,
                             selectedIcon: Icons.chat_bubble,
                             selected: selected == HomeTab.chats,
@@ -52,7 +62,7 @@ class HomeBottomBar extends StatelessWidget {
                             onTap: () => onSelect(HomeTab.chats),
                           ),
                           _Tab(
-                            label: 'Communities',
+                            label: HomeTab.communities.label(l10n),
                             icon: Icons.workspaces_outlined,
                             selectedIcon: Icons.workspaces,
                             selected: selected == HomeTab.communities,
@@ -67,8 +77,8 @@ class HomeBottomBar extends StatelessWidget {
                 const SizedBox(width: 10),
                 _NewButton(
                   tooltip: selected == HomeTab.chats
-                      ? 'New chat'
-                      : 'New community',
+                      ? l10n.roomsNewChat
+                      : l10n.roomsNewCommunity,
                   onTap: onNew,
                 ),
               ],
@@ -107,7 +117,7 @@ class _Tab extends StatelessWidget {
         child: Semantics(
           button: true,
           selected: selected,
-          value: unread ? 'Unread' : null,
+          value: unread ? context.l10n.roomsUnread : null,
           child: AnimatedContainer(
             duration: ZunoDurations.fast,
             constraints: const BoxConstraints(minHeight: 44),

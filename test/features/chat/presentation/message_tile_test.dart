@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
 import 'package:zuno/core/location/live_location_viewing.dart';
@@ -26,6 +27,7 @@ import 'package:zuno/features/chat/presentation/reply_target_cache.dart';
 import 'package:zuno/features/chat/presentation/swipe_to_reply.dart';
 import 'package:zuno/features/location/presentation/live_location_map_page.dart';
 
+import '../../../helpers/date_labels.dart';
 import '../../../helpers/fake_live_location.dart';
 import '../../../helpers/fake_matrix.dart';
 
@@ -91,12 +93,14 @@ void main() {
       galleryFailureIndexes: const [],
       canRespond: canRespond,
       now: noon,
-      use24Hour: true,
+      labels: testDateLabels(),
     );
     await tester.pumpWidget(
       ProviderScope(
         overrides: overrides,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: zunoLightTheme,
           home: Scaffold(
             body: SingleChildScrollView(

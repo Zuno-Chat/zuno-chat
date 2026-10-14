@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_invite.dart';
 
 class PendingInviteBanner extends StatelessWidget {
@@ -30,14 +31,14 @@ class PendingInviteBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    pendingInviteSubtitle(room),
+                    pendingInviteSubtitle(room, context.l10n),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: colors.onSurface,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   Text(
-                    'Your messages will be here when they join.',
+                    context.l10n.chatPendingInviteHint,
                     style: Theme.of(context).textTheme.bodySmall
                         ?.copyWith(color: colors.onSurfaceVariant),
                   ),

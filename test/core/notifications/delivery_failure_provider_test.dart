@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/delivery_failure.dart';
 import 'package:zuno/core/notifications/delivery_failure_provider.dart';
@@ -140,7 +141,7 @@ void main() {
       apnsDeliveryProvider.status.value = ApnsStatus.tokenFailed;
 
       expect(
-        container.read(deliveryFailureProvider)?.message,
+        container.read(deliveryFailureProvider)?.message(englishLocalizations),
         'Could not set up notifications on this device',
       );
 
@@ -157,7 +158,7 @@ void main() {
       apnsDeliveryProvider.dropped.value = 1;
 
       expect(
-        container.read(deliveryFailureProvider)?.message,
+        container.read(deliveryFailureProvider)?.message(englishLocalizations),
         'Notifications may not reach this device',
       );
     });
@@ -171,10 +172,9 @@ void main() {
     Future<ProviderContainer> googleServices() =>
         _container(allowed: true, mode: 'fcm', autoSelected: null);
 
-    bool dismissed(ProviderContainer container) => deliveryFailureIsDismissed(
-      container.read(deliveryFailureProvider)!,
-      container.read(dismissedDeliveryFailureProvider),
-    );
+    bool dismissed(ProviderContainer container) =>
+        container.read(deliveryFailureProvider) ==
+        container.read(dismissedDeliveryFailureProvider);
 
     test('stays dismissed while registration keeps failing', () async {
       final container = await googleServices();
@@ -242,7 +242,9 @@ void main() {
         removed.value = true;
 
         expect(
-          container.read(deliveryFailureProvider)?.message,
+          container
+              .read(deliveryFailureProvider)
+              ?.message(englishLocalizations),
           'This device is not registered for notifications',
         );
 

@@ -26,6 +26,9 @@ import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/picked_file.dart';
+import '../../../core/format/date_labels.dart';
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_availability.dart';
 import '../../../core/location/live_location_sharing.dart';
 import '../../../core/location/location_message.dart';
@@ -98,16 +101,6 @@ import 'unvouched_device_banner.dart';
 import 'video_caption_composer_page.dart';
 
 const _doubleTapReaction = '❤️';
-
-String _formatDateTime(DateTime time) {
-  final local = time.toLocal();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
-}
-
-String _unopenedSharesMessage(int count) => count == 1
-    ? 'One shared file could not be opened. Share it again.'
-    : '$count shared files could not be opened. Share them again.';
 
 class RoomPage extends ConsumerStatefulWidget {
   final Room room;
@@ -366,29 +359,32 @@ class _RoomPageState extends ConsumerState<RoomPage>
     }
   }
 
-  void _snack(String message) {
+  void _snack(@displayText String message) {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _addMembers() async {
     final room = widget.room;
+    final l10n = context.l10n;
     final userId = await showLocalUsernameDialog(
       context,
       client: room.client,
-      title: 'Add members',
-      actionLabel: 'Invite',
+      title: l10n.chatAddMembers,
+      actionLabel: l10n.commonInvite,
     );
     if (userId == null || !mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     try {
       await room.invite(userId);
-      messenger.showSnackBar(const SnackBar(content: Text('Invitation sent')));
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.commonInvitationSent)),
+      );
     } catch (e, s) {
       if (!isUnknownInvitee(e)) reportCaught('invite', e, s);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Invitation not sent. Try again.')),
+        SnackBar(content: Text(l10n.commonInvitationNotSent)),
       );
     }
   }
@@ -418,27 +414,26 @@ class _RoomPageState extends ConsumerState<RoomPage>
   Future<void> _addToHomeScreen() async {
     final room = widget.room;
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     final iconBytes = await _fetchRoomAvatarBytes();
     try {
       final requested = await pinRoomShortcut(
         roomId: room.id,
-        label: roomTitle(room),
+        label: roomTitle(room, l10n),
         iconBytes: iconBytes,
       );
       messenger.showSnackBar(
         SnackBar(
           content: Text(
             requested
-                ? 'Confirm on your home screen to finish adding it'
-                : 'This launcher does not support home screen shortcuts',
+                ? l10n.chatShortcutRequested
+                : l10n.chatShortcutUnsupported,
           ),
         ),
       );
     } catch (e, s) {
       reportCaught('add shortcut', e, s);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Shortcut not added. Try again.')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(l10n.chatShortcutFailed)));
     }
   }
 
@@ -446,19 +441,16 @@ class _RoomPageState extends ConsumerState<RoomPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reload messages?'),
-        content: const Text(
-          'Clears the messages saved on this device for this chat and '
-          'downloads them again. Nothing is deleted on the server.',
-        ),
+        title: Text(context.l10n.chatReloadTitle),
+        content: Text(context.l10n.chatReloadBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Reload'),
+            child: Text(context.l10n.chatReload),
           ),
         ],
       ),
@@ -479,7 +471,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       );
     } catch (e, s) {
       reportCaught('reload messages', e, s);
-      if (mounted) _snack('Messages not reloaded. Try again.');
+      if (mounted) _snack(context.l10n.chatMessagesNotReloaded);
     }
     await _loadTimeline();
   }
@@ -658,7 +650,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     if (call != null) {
       showCallScreen(Navigator.of(context), call);
     } else {
-      _snack('You are already in a call');
+      _snack(context.l10n.chatAlreadyInCall);
     }
     return true;
   }
@@ -666,36 +658,36 @@ class _RoomPageState extends ConsumerState<RoomPage>
   Future<void> _startCall(CallKind kind) async {
     if (_busyWithCall()) return;
     if (!canPublishCallMemberState(widget.room)) {
-      _snack('You do not have permission to start calls in this room');
+      _snack(context.l10n.callsFailureNoPermission);
       return;
     }
     if (!hasSomeoneToCall(widget.room)) {
-      _snack('Nobody has joined this chat yet');
+      _snack(context.l10n.chatNobodyJoined);
       return;
     }
     if (ref.read(isOfflineProvider).value ?? false) {
-      _snack('No connection. Try again once back online.');
+      _snack(context.l10n.chatNoConnection);
       return;
     }
     if (ref.read(confirmBeforeCallingProvider)) {
-      final name = roomTitle(widget.room);
+      final name = roomTitle(widget.room, context.l10n);
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Call $name?'),
+          title: Text(context.l10n.chatCallTitle(name)),
           content: Text(
             kind == CallKind.video
-                ? 'Start a video call.'
-                : 'Start a voice call.',
+                ? context.l10n.chatStartVideoCall
+                : context.l10n.chatStartVoiceCall,
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              child: Text(context.l10n.commonCancel),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Call'),
+              child: Text(context.l10n.callsStartCall),
             ),
           ],
         ),
@@ -725,11 +717,11 @@ class _RoomPageState extends ConsumerState<RoomPage>
   Future<void> _joinActiveCall(ActiveRoomCall call) async {
     if (_busyWithCall()) return;
     if (!canPublishCallMemberState(widget.room)) {
-      _snack('You do not have permission to join calls in this room');
+      _snack(context.l10n.chatNoJoinCallPermission);
       return;
     }
     if (ref.read(isOfflineProvider).value ?? false) {
-      _snack('No connection. Try again once back online.');
+      _snack(context.l10n.chatNoConnection);
       return;
     }
     final session = _openCall(
@@ -786,24 +778,23 @@ class _RoomPageState extends ConsumerState<RoomPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          many ? 'Delete ${events.length} items?' : 'Delete message?',
-        ),
+        title: Text(context.l10n.chatDeleteTitle(events.length)),
         content: Text(switch (many) {
-          true => 'Deletes them for everyone. Nobody can undo this.',
+          true => context.l10n.chatDeleteManyBody,
           false when isNotSent(events.single) =>
-            'It was not sent, so only this device has it. Nobody can '
-                'undo this.',
-          false => 'Deletes it for everyone. Nobody can undo this.',
+            context.l10n.chatDeleteUnsentBody,
+          false => context.l10n.chatDeleteOneBody,
         }),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text(many ? 'Delete all' : 'Delete'),
+            child: Text(
+              many ? context.l10n.chatDeleteAll : context.l10n.commonDelete,
+            ),
           ),
         ],
       ),
@@ -811,6 +802,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     if (confirmed != true || !mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     final sharing = ref.read(liveLocationSharingProvider);
     final discarded = ref.read(discardedSendsProvider);
     if (gallery) await _stopGalleries(events, discarded);
@@ -832,9 +824,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     messenger.showSnackBar(
       SnackBar(
         content: Text(
-          many
-              ? 'Some items not deleted. Try again.'
-              : 'Message not deleted. Try again.',
+          many ? l10n.chatDeleteManyFailed : l10n.chatDeleteOneFailed,
         ),
       ),
     );
@@ -897,6 +887,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
     final isTextMessage =
         !isAttachment && attachmentKind != AttachmentKind.liveLocation;
     final galleryCount = galleryEvents?.length ?? 0;
+    final l10n = context.l10n;
+    final labels = DateLabels.of(context);
 
     final action = await showMessageActionsSheet(
       context,
@@ -911,14 +903,14 @@ class _RoomPageState extends ConsumerState<RoomPage>
         if (isAttachment)
           MessageFact(
             icon: Icons.info_outline,
-            child: Text(attachmentInfoText(displayEvent, attachmentKind)),
+            child: Text(attachmentInfoText(l10n, displayEvent, attachmentKind)),
           ),
         MessageFact(
           icon: Icons.schedule_outlined,
           child: Text(switch (displayEvent.status) {
-            EventStatus.error => 'Not sent',
-            EventStatus.sending => 'Sending…',
-            _ => 'Sent ${_formatDateTime(event.originServerTs)}',
+            EventStatus.error => l10n.chatNotSent,
+            EventStatus.sending => l10n.chatSending,
+            _ => l10n.chatSentAt(labels.dateTime(event.originServerTs)),
           }),
         ),
         if (!isOwn) SenderDeviceTile(event: event),
@@ -946,7 +938,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
         await Clipboard.setData(
           ClipboardData(text: displayBody(event, timeline)),
         );
-        if (mounted) _snack('Copied');
+        if (mounted) _snack(l10n.chatCopied);
       case MessageAction.report:
         await _reportMessage(event);
       case null:
@@ -957,22 +949,19 @@ class _RoomPageState extends ConsumerState<RoomPage>
   Future<void> _reportMessage(Event event) async {
     final sent = await showReportSheet(
       context,
-      title: 'Report message',
+      title: context.l10n.chatReportTitle,
       explanation: widget.room.isDirectChat
-          ? 'The report goes to Zuno. It names the message and who sent it, '
-                'not what it says. Zuno cannot read your messages, so '
-                'describe what happened.'
-          : 'The report goes to Zuno. It names the message and who sent it, '
-                'not what it says. Room admins can remove messages and '
-                'people. A report is for what they cannot fix.',
+          ? context.l10n.chatReportExplainDirect
+          : context.l10n.chatReportExplainGroup,
       onSend: (reason, note) => reportMessage(event, reason, note: note),
     );
-    if (sent && mounted) _snack('Report sent');
+    if (sent && mounted) _snack(context.l10n.commonReportSent);
   }
 
   Future<void> _reactToMessage(Event event, Timeline timeline, String key) =>
       toggleReactionWithFeedback(
         ScaffoldMessenger.of(context),
+        context.l10n,
         event,
         timeline,
         key,
@@ -995,10 +984,18 @@ class _RoomPageState extends ConsumerState<RoomPage>
   }
 
   Future<void> _shareAttachments(List<Event> events) =>
-      shareAttachmentsWithFeedback(ScaffoldMessenger.of(context), events);
+      shareAttachmentsWithFeedback(
+        ScaffoldMessenger.of(context),
+        context.l10n,
+        events,
+      );
 
   Future<void> _saveAttachments(List<Event> events) =>
-      saveAttachmentsWithFeedback(ScaffoldMessenger.of(context), events);
+      saveAttachmentsWithFeedback(
+        ScaffoldMessenger.of(context),
+        context.l10n,
+        events,
+      );
 
   Future<void> _keepingUploadAlive(Future<void> Function() body) async {
     final service = UploadForegroundService.instance;
@@ -1012,6 +1009,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   _SendSession _sendSession() => _SendSession(
     messenger: ScaffoldMessenger.of(context),
+    l10n: context.l10n,
     reduceMediaSize: ref.read(reduceMediaSizeProvider),
     uploadProgress: ref.read(uploadProgressHttpClientProvider).onUploadProgress,
     discarded: ref.read(discardedSendsProvider),
@@ -1029,7 +1027,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
         if (mounted) _pendingSend.value = next;
         unawaited(
           UploadForegroundService.instance.updateProgress(
-            label: next.progressLabel,
+            label: next.progressLabel(session.l10n),
             fraction: next.progress,
           ),
         );
@@ -1070,7 +1068,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       session.say(e.message);
     } on FileTooBigMatrixException catch (e) {
       await discardSendPlaceholder(widget.room, txid);
-      session.say(tooLargeToSendMessage(e));
+      session.say(tooLargeToSendMessage(session.l10n, e));
     } catch (e, s) {
       reportCaught('send attachment', e, s);
       await discardSendPlaceholder(widget.room, txid);
@@ -1213,7 +1211,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     await _withCopies([for (final copy in copies) copy.path], () async {
       if (!mounted) return;
       final unopened = share.files.length - copies.length;
-      if (unopened > 0) session.say(_unopenedSharesMessage(unopened));
+      if (unopened > 0) session.say(session.l10n.chatUnopenedShares(unopened));
       final (:media, :others) = await partitionSharedFiles(copies);
       if (media.isNotEmpty) await _composeAndSend(session, media);
       for (final file in others) {
@@ -1416,8 +1414,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
       reportCaught('delete a message that landed after its delete', e, s);
       session.say(
         galleryId == null
-            ? 'Message not deleted. Try again.'
-            : 'Some items not deleted. Try again.',
+            ? session.l10n.chatDeleteOneFailed
+            : session.l10n.chatDeleteManyFailed,
       );
     } finally {
       await session.discarded.remove(widget.room, txid);
@@ -1443,7 +1441,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
           txid: txid,
         ),
       ),
-      onFailed: () => session.say('Not sent. Try again.'),
+      onFailed: () => session.say(session.l10n.chatNotSentTryAgain),
     );
   }
 
@@ -1466,7 +1464,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
   void _recordFailedSend(FailedMediaSend failed, _SendSession session) {
     if (session.discarded.contains(widget.room, [failed.gallery?.id])) return;
     if (!mounted) {
-      session.say('Not sent. Try again.');
+      session.say(session.l10n.chatNotSentTryAgain);
       return;
     }
     setState(() => _failedSends.add(failed));
@@ -1528,27 +1526,27 @@ class _RoomPageState extends ConsumerState<RoomPage>
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take photo'),
+              title: Text(context.l10n.commonTakePhoto),
               onTap: () => Navigator.of(context).pop(_Attachment.camera),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from gallery'),
+              title: Text(context.l10n.commonChooseFromGallery),
               onTap: () => Navigator.of(context).pop(_Attachment.gallery),
             ),
             ListTile(
               leading: const Icon(Icons.videocam_outlined),
-              title: const Text('Record video'),
+              title: Text(context.l10n.chatRecordVideo),
               onTap: () => Navigator.of(context).pop(_Attachment.videoCamera),
             ),
             ListTile(
               leading: const Icon(Icons.attach_file_outlined),
-              title: const Text('Choose file'),
+              title: Text(context.l10n.chatChooseFile),
               onTap: () => Navigator.of(context).pop(_Attachment.file),
             ),
             ListTile(
               leading: const Icon(Icons.location_on_outlined),
-              title: const Text('Location'),
+              title: Text(context.l10n.chatLocation),
               onTap: () => Navigator.of(context).pop(_Attachment.location),
             ),
           ],
@@ -1576,18 +1574,19 @@ class _RoomPageState extends ConsumerState<RoomPage>
   }
 
   String _attachmentFailure(_Attachment choice, Object error) {
+    final l10n = context.l10n;
     final code = error is PlatformException ? error.code : null;
     return switch (choice) {
       _Attachment.camera || _Attachment.videoCamera =>
         code == 'camera_access_denied'
-            ? 'Allow camera access to take photos and videos'
-            : 'Camera did not open. Try again.',
+            ? l10n.chatCameraAccessDenied
+            : l10n.chatCameraDidNotOpen,
       _Attachment.gallery =>
         code == 'photo_access_denied'
-            ? 'Allow photo access to send photos and videos'
-            : 'Photos did not open. Try again.',
-      _Attachment.file => 'Files did not open. Try again.',
-      _Attachment.location => 'Location not sent. Try again.',
+            ? l10n.chatPhotoAccessDenied
+            : l10n.chatPhotosDidNotOpen,
+      _Attachment.file => l10n.chatFilesDidNotOpen,
+      _Attachment.location => l10n.chatLocationNotSent,
     };
   }
 
@@ -1611,13 +1610,15 @@ class _RoomPageState extends ConsumerState<RoomPage>
           await sendLocationPin(room, geo, at: DateTime.now());
         } catch (e, s) {
           reportCaughtType('send location pin', e, s);
-          if (mounted) _snack('Location not sent. Try again.');
+          if (mounted) _snack(context.l10n.chatLocationNotSent);
         }
       case ShareLive(:final first, :final duration):
         try {
           await sharing.start(room, duration, first);
         } on LiveShareStartException catch (error) {
-          if (mounted) _snack(liveShareStartFailureText(error.reason));
+          if (mounted) {
+            _snack(liveShareStartFailureText(context.l10n, error.reason));
+          }
         }
     }
   }
@@ -1638,7 +1639,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     try {
       if (!await _recorder.hasPermission()) {
         if (mounted) {
-          _snack('Allow microphone access to record voice messages');
+          _snack(context.l10n.chatMicrophoneAccessNeeded);
         }
         return;
       }
@@ -1674,7 +1675,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       _micHeld = false;
       if (mounted) {
         setState(() {});
-        _snack('Recording did not start. Try again.');
+        _snack(context.l10n.chatRecordingDidNotStart);
       }
     }
   }
@@ -1794,7 +1795,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     final bytes = voiceRecordingSetup(ref.read(platformCapabilitiesProvider))
         .toOggOpus(recorded);
     if (bytes == null) {
-      _snack('Voice message not sent. Try again.');
+      _snack(context.l10n.chatVoiceMessageNotSent);
       return;
     }
 
@@ -1818,7 +1819,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       );
     } catch (e, s) {
       reportCaught('send voice message', e, s);
-      session.say('Voice message not sent. Try again.');
+      session.say(session.l10n.chatVoiceMessageNotSent);
     }
   }
 
@@ -1843,7 +1844,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
         ref.watch(activeCallProvider)?.callId != activeRoomCall.callId;
     _activeCallBannerShown = showActiveCallBanner;
 
-    final inviteDisplay = roomInviteDisplay(widget.room);
+    final l10n = context.l10n;
+    final inviteDisplay = roomInviteDisplay(widget.room, l10n);
     final canPost = canPostInRoom(widget.room);
 
     return Scaffold(
@@ -1855,22 +1857,24 @@ class _RoomPageState extends ConsumerState<RoomPage>
         menuBuilder: (_) => [
           PopupMenuItem(
             onTap: _openRoomInfo,
-            child: Text(widget.room.isDirectChat ? 'Chat info' : 'Room info'),
+            child: Text(
+              widget.room.isDirectChat ? l10n.chatChatInfo : l10n.chatRoomInfo,
+            ),
           ),
           if (!widget.room.isDirectChat && widget.room.canInvite)
             PopupMenuItem(
               onTap: () => unawaited(_addMembers()),
-              child: const Text('Add members'),
+              child: Text(l10n.chatAddMembers),
             ),
           if (capabilities.homeScreenShortcuts)
             PopupMenuItem(
               onTap: () => unawaited(_addToHomeScreen()),
-              child: const Text('Add to home screen'),
+              child: Text(l10n.chatAddToHomeScreen),
             ),
           if (canReloadRoomTimeline(widget.room))
             PopupMenuItem(
               onTap: () => unawaited(_reinitializeConversation()),
-              child: const Text('Reload messages'),
+              child: Text(l10n.chatReloadMessages),
             ),
           PopupMenuItem(
             onTap: () async {
@@ -1883,7 +1887,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
               }
               if (context.mounted) Navigator.of(context).pop();
             },
-            child: Text(roomExitLabel(widget.room)),
+            child: Text(roomExitLabel(widget.room, l10n)),
           ),
         ],
       ),
@@ -1951,9 +1955,13 @@ class _RoomPageState extends ConsumerState<RoomPage>
                             (_editingEvent != null || _replyingToEvent != null))
                           ComposeBar(
                             title: _editingEvent != null
-                                ? 'Editing message'
-                                : 'Replying to ${_replyingToEvent!.senderFromMemoryOrFallback.calcDisplayname()}',
+                                ? l10n.chatEditingMessage
+                                : l10n.chatReplyingTo(
+                                    _replyingToEvent!.senderFromMemoryOrFallback
+                                        .calcDisplayname(),
+                                  ),
                             snippet: previewSnippet(
+                              l10n,
                               _editingEvent ?? _replyingToEvent!,
                               timeline,
                             ),
@@ -1990,8 +1998,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
                             child: Center(
                               child: Text(
                                 widget.room.isAbandonedDMRoom
-                                    ? '${inviteDisplay.title} left this chat'
-                                    : 'You cannot send messages here',
+                                    ? l10n.chatPartnerLeft(inviteDisplay.title)
+                                    : l10n.chatCannotSend,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: Theme.of(context)
@@ -2039,14 +2047,19 @@ class _ActiveCallBanner extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  isVideo ? 'Video call in progress' : 'Voice call in progress',
+                  isVideo
+                      ? context.l10n.chatVideoCallInProgress
+                      : context.l10n.chatVoiceCallInProgress,
                   style: TextStyle(
                     color: scheme.onSecondaryContainer,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
-              FilledButton.tonal(onPressed: onJoin, child: const Text('Join')),
+              FilledButton.tonal(
+                onPressed: onJoin,
+                child: Text(context.l10n.commonJoin),
+              ),
             ],
           ),
         ),
@@ -2099,31 +2112,39 @@ class _SeenByTileState extends State<_SeenByTile> {
   @override
   Widget build(BuildContext context) {
     final seen = seenByOthers(widget.room, widget.event);
+    final l10n = context.l10n;
+    final labels = DateLabels.of(context);
+    final seenBy = seen
+        .map(
+          (s) => l10n.chatSeenByEntry(
+            s.user.calcDisplayname(),
+            labels.dateTime(s.at),
+          ),
+        )
+        .join('\n');
     return MessageFact(
       icon: seen.isEmpty ? Icons.done : Icons.done_all,
-      child: Text(
-        seen.isEmpty
-            ? 'Not seen yet'
-            : 'Seen by ${seen.map((s) => '${s.user.calcDisplayname()} · ${_formatDateTime(s.at)}').join('\n')}',
-      ),
+      child: Text(seen.isEmpty ? l10n.chatNotSeenYet : l10n.chatSeenBy(seenBy)),
     );
   }
 }
 
 class _SendSession {
   final ScaffoldMessengerState messenger;
+  final AppLocalizations l10n;
   final bool reduceMediaSize;
   final Stream<double> uploadProgress;
   final DiscardedSends discarded;
 
   const _SendSession({
     required this.messenger,
+    required this.l10n,
     required this.reduceMediaSize,
     required this.uploadProgress,
     required this.discarded,
   });
 
-  void say(String message) =>
+  void say(@displayText String message) =>
       messenger.showSnackBar(SnackBar(content: Text(message)));
 }
 
@@ -2166,7 +2187,7 @@ class _ScrollToLatestButton extends StatelessWidget {
       builder: (context, show, _) {
         if (!show) return const SizedBox.shrink();
         return Tooltip(
-          message: 'Scroll to latest',
+          message: context.l10n.chatScrollToLatest,
           child: Material(
             color: colors.surfaceContainerHighest,
             shape: CircleBorder(side: BorderSide(color: colors.outlineVariant)),

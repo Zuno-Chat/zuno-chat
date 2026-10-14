@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
 import 'package:zuno/features/chat/presentation/sender_device_tile.dart';
@@ -53,6 +54,8 @@ void main() {
     ProviderScope(
       overrides: [userTrustProvider.overrideWith((ref, _) => trust)],
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(body: SenderDeviceTile(event: event)),
       ),
     ),

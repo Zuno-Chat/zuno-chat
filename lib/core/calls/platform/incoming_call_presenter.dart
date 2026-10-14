@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/caught_errors.dart';
+import '../../l10n/l10n.dart';
 import '../../notifications/notification_sound_settings.dart';
 import '../../platform/platform_capabilities.dart';
 import '../notifications/call_notification_service.dart';
@@ -196,9 +197,10 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
       '${await _notifications.fullScreenIntentAllowedOrNull()})',
     );
     final settings = await sound;
+    final l10n = deviceLocalizations();
     await _invoke('showIncomingCallStyle', {
       'channelId': isGroupCall ? groupRingChannelId : ringChannelId,
-      'title': isVideo ? 'Incoming video call' : 'Incoming voice call',
+      'title': isVideo ? l10n.callsIncomingVideo : l10n.callsIncomingVoice,
       'callerName': callerName,
       'callerId': callerId,
       'isVideo': isVideo,

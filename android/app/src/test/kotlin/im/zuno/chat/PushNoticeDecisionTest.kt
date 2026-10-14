@@ -4,6 +4,7 @@ import im.zuno.chat.zuno_notifications.CachedRoom
 import im.zuno.chat.zuno_notifications.NoticeAlert
 import im.zuno.chat.zuno_notifications.NoticeConversation
 import im.zuno.chat.zuno_notifications.NoticeCopy
+import im.zuno.chat.zuno_notifications.NoticeText
 import im.zuno.chat.zuno_notifications.PushNoticeDecision
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -62,12 +63,15 @@ class PushNoticeDecisionTest {
     @Test
     fun `copy uses the room name when known`() {
         assertEquals(
-            NoticeCopy("Alice", "New message"),
+            NoticeCopy(NoticeText.Room("Alice"), NoticeText.NewMessage),
             PushNoticeDecision.copyFor(CachedRoom("Alice", true)),
         )
-        assertEquals(NoticeCopy("New message", "Tap to open"), PushNoticeDecision.copyFor(null))
         assertEquals(
-            NoticeCopy("New message", "Tap to open"),
+            NoticeCopy(NoticeText.NewMessage, NoticeText.TapToOpen),
+            PushNoticeDecision.copyFor(null),
+        )
+        assertEquals(
+            NoticeCopy(NoticeText.NewMessage, NoticeText.TapToOpen),
             PushNoticeDecision.copyFor(CachedRoom("  ", true)),
         )
     }

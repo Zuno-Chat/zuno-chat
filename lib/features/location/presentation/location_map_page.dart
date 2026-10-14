@@ -3,21 +3,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/format/date_labels.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/geo_uri.dart';
 import '../../../core/location/maps_link.dart';
 import '../../../core/navigation/zuno_links.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import 'location_map_view.dart';
 
-String? accuracyLabel(double? meters) {
+String? accuracyLabel(AppLocalizations l10n, double? meters) {
   if (meters == null) return null;
   final rounded = meters.round();
-  if (rounded < 1000) return 'about $rounded m';
-  return 'about ${(meters / 1000).toStringAsFixed(1)} km';
+  if (rounded < 1000) return l10n.locationAccuracyMeters(rounded);
+  return l10n.locationAccuracyKilometers(meters / 1000);
 }
 
 Future<void> openInMaps(BuildContext context, GeoUri geo, MapsApp app) async {
   final messenger = ScaffoldMessenger.of(context);
+  final l10n = context.l10n;
   var opened = false;
   try {
     opened = await launchUrl(
@@ -28,7 +31,7 @@ Future<void> openInMaps(BuildContext context, GeoUri geo, MapsApp app) async {
     if (!noAppOpensLink(e)) reportCaughtType('open in maps', e, s);
   }
   if (!opened) {
-    messenger.showSnackBar(const SnackBar(content: Text('No maps app found')));
+    messenger.showSnackBar(SnackBar(content: Text(l10n.locationNoMapsApp)));
   }
 }
 
@@ -47,20 +50,22 @@ class LocationMapPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final accuracy = accuracyLabel(geo.uncertaintyMeters);
+    final l10n = context.l10n;
+    final accuracy = accuracyLabel(l10n, geo.uncertaintyMeters);
     void open() => openInMaps(
       context,
       geo,
       ref.read(platformCapabilitiesProvider).mapsApp,
     );
-    final sent = MaterialLocalizations.of(context).formatMediumDate(sentAt);
-    final time = TimeOfDay.fromDateTime(sentAt).format(context);
+    final labels = DateLabels.of(context);
+    final sent = labels.date(sentAt);
+    final time = labels.clock(sentAt);
     return Scaffold(
       appBar: AppBar(
         title: Text(senderName),
         actions: [
           IconButton(
-            tooltip: 'Open in maps app',
+            tooltip: l10n.locationOpenInMaps,
             icon: const Icon(Icons.map_outlined),
             onPressed: open,
           ),
@@ -99,7 +104,7 @@ class LocationMapPage extends ConsumerWidget {
                       FilledButton.icon(
                         onPressed: open,
                         icon: const Icon(Icons.map_outlined),
-                        label: const Text('Open in maps app'),
+                        label: Text(l10n.locationOpenInMaps),
                       ),
                     ],
                   ),

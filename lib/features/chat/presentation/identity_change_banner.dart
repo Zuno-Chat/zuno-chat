@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/security/security_providers.dart';
@@ -59,17 +60,14 @@ class IdentityChangeBanner extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    changed.length == 1
-                        ? "$name's security details changed"
-                        : "${changed.length} people's security details changed",
+                    context.l10n.chatIdentityChanged(changed.length, name),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: colors.onErrorContainer,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   Text(
-                    'Usually a new device or a reinstall. It can also mean '
-                    'someone is listening in.',
+                    context.l10n.chatIdentityChangedHint,
                     style: Theme.of(context).textTheme.bodySmall
                         ?.copyWith(color: colors.onErrorContainer),
                   ),
@@ -82,7 +80,7 @@ class IdentityChangeBanner extends ConsumerWidget {
                 foregroundColor: colors.onError,
               ),
               onPressed: () => confirmPerson(context, ref, changed.first),
-              child: const Text('Confirm'),
+              child: Text(context.l10n.chatIdentityChangedConfirm),
             ),
           ],
         ),

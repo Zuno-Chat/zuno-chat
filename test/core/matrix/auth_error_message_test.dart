@@ -3,6 +3,7 @@ import 'dart:io' show SocketException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/auth_error_message.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
 import 'package:zuno/core/network/app_http_overrides.dart';
@@ -16,6 +17,7 @@ void main() {
   group('login', () {
     test('a refused password reads as an answer, not a protocol string', () {
       final message = loginErrorMessage(
+        englishLocalizations,
         matrixError('M_FORBIDDEN', 'Invalid username or password'),
       );
 
@@ -25,14 +27,20 @@ void main() {
 
     test('a deactivated account says so', () {
       expect(
-        loginErrorMessage(matrixError('M_USER_DEACTIVATED', 'deactivated')),
+        loginErrorMessage(
+          englishLocalizations,
+          matrixError('M_USER_DEACTIVATED', 'deactivated'),
+        ),
         'This account is deactivated',
       );
     });
 
     test('rate limiting says to wait', () {
       expect(
-        loginErrorMessage(matrixError('M_LIMIT_EXCEEDED', 'Too many requests')),
+        loginErrorMessage(
+          englishLocalizations,
+          matrixError('M_LIMIT_EXCEEDED', 'Too many requests'),
+        ),
         contains('Wait a moment'),
       );
     });
@@ -58,7 +66,10 @@ void main() {
     });
 
     test('an unreachable server is a different problem from a password', () {
-      final message = loginErrorMessage(const SocketException('failed'));
+      final message = loginErrorMessage(
+        englishLocalizations,
+        const SocketException('failed'),
+      );
 
       expect(message, contains('Cannot connect'));
       expect(message.toLowerCase(), isNot(contains('password')));
@@ -68,7 +79,10 @@ void main() {
       "an unknown refusal keeps the server's own message, as a sentence",
       () {
         expect(
-          loginErrorMessage(matrixError('M_UNKNOWN', 'something odd happened')),
+          loginErrorMessage(
+            englishLocalizations,
+            matrixError('M_UNKNOWN', 'something odd happened'),
+          ),
           'Something odd happened',
         );
       },
@@ -76,16 +90,25 @@ void main() {
 
     test('an empty message still says something', () {
       expect(
-        loginErrorMessage(matrixError('M_UNKNOWN', '')),
+        loginErrorMessage(englishLocalizations, matrixError('M_UNKNOWN', '')),
         'Something went wrong. Try again.',
       );
     });
 
     test('an error nobody planned for never shows its own text', () {
       for (final message in [
-        loginErrorMessage(StateError('Bad state: no element')),
-        registrationErrorMessage(StateError('Bad state: no element')),
-        deactivateAccountErrorMessage(StateError('Bad state: no element')),
+        loginErrorMessage(
+          englishLocalizations,
+          StateError('Bad state: no element'),
+        ),
+        registrationErrorMessage(
+          englishLocalizations,
+          StateError('Bad state: no element'),
+        ),
+        deactivateAccountErrorMessage(
+          englishLocalizations,
+          StateError('Bad state: no element'),
+        ),
       ]) {
         expect(message, 'Something went wrong. Try again.');
       }
@@ -93,7 +116,10 @@ void main() {
 
     test("a server's message is cut to its first line", () {
       expect(
-        loginErrorMessage(matrixError('M_UNKNOWN', 'first line\nsecond line')),
+        loginErrorMessage(
+          englishLocalizations,
+          matrixError('M_UNKNOWN', 'first line\nsecond line'),
+        ),
         'First line',
       );
     });
@@ -106,15 +132,19 @@ void main() {
       });
 
       expect(
-        loginErrorMessage(limited(30000)),
+        loginErrorMessage(englishLocalizations, limited(30000)),
         'Too many attempts. Try again in 30 seconds.',
       );
       expect(
-        registrationErrorMessage(limited(1000)),
+        registrationErrorMessage(englishLocalizations, limited(1000)),
         'Too many attempts. Try again in 1 second.',
       );
       expect(
-        loginErrorMessage(limited(90000)),
+        loginErrorMessage(englishLocalizations, limited(60000)),
+        'Too many attempts. Try again in 1 minute.',
+      );
+      expect(
+        loginErrorMessage(englishLocalizations, limited(90000)),
         'Too many attempts. Try again in 2 minutes.',
       );
     });
@@ -165,6 +195,7 @@ void main() {
     test('a taken username says so', () {
       expect(
         registrationErrorMessage(
+          englishLocalizations,
           matrixError('M_USER_IN_USE', 'User ID already taken.'),
         ),
         'That username is already taken',
@@ -173,7 +204,10 @@ void main() {
 
     test('a rejected username says so', () {
       expect(
-        registrationErrorMessage(matrixError('M_INVALID_USERNAME', 'nope')),
+        registrationErrorMessage(
+          englishLocalizations,
+          matrixError('M_INVALID_USERNAME', 'nope'),
+        ),
         'That username is not allowed',
       );
     });
@@ -181,6 +215,7 @@ void main() {
     test("a password policy refusal keeps the server's own explanation", () {
       expect(
         registrationErrorMessage(
+          englishLocalizations,
           matrixError(
             'M_WEAK_PASSWORD',
             'password must be at least 8 characters',
@@ -192,7 +227,10 @@ void main() {
 
     test('a refused sign-up code says the code is the problem', () {
       expect(
-        registrationErrorMessage(const RegistrationCodeRefusedException()),
+        registrationErrorMessage(
+          englishLocalizations,
+          const RegistrationCodeRefusedException(),
+        ),
         'That code is not valid or has expired.',
       );
     });
@@ -227,6 +265,7 @@ void main() {
   group('homeserverErrorMessage', () {
     test("can't reach it points at the address, not just the connection", () {
       final message = homeserverErrorMessage(
+        englishLocalizations,
         const SocketException('Failed host lookup'),
       );
 
@@ -244,7 +283,7 @@ void main() {
     ]) {
       test('$label is a wrong-address answer, not a dump', () {
         expect(
-          homeserverErrorMessage(error),
+          homeserverErrorMessage(englishLocalizations, error),
           'That address is not a server Zuno can use. Check it.',
         );
       });
@@ -270,7 +309,7 @@ void main() {
 
       expect(homeserverProblem(error).reported, isTrue);
       expect(
-        homeserverErrorMessage(error),
+        homeserverErrorMessage(englishLocalizations, error),
         'That address is not a server Zuno can use. Check it.',
       );
     });
@@ -282,7 +321,7 @@ void main() {
       );
 
       expect(
-        homeserverErrorMessage(error),
+        homeserverErrorMessage(englishLocalizations, error),
         'That server uses http, which is not secure. Zuno connects only '
         'over https.',
       );
@@ -291,6 +330,7 @@ void main() {
 
     test('a Matrix server with no password login says so', () {
       final message = homeserverErrorMessage(
+        englishLocalizations,
         BadServerLoginTypesException({'m.login.sso'}, {'m.login.password'}),
       );
 
@@ -303,7 +343,10 @@ void main() {
         Exception('http error response'),
         const FormatException('Unexpected character (at character 1)\nx\n^'),
       ]) {
-        expect(homeserverErrorMessage(error), isNot(contains('\n')));
+        expect(
+          homeserverErrorMessage(englishLocalizations, error),
+          isNot(contains('\n')),
+        );
       }
     });
   });
@@ -311,6 +354,7 @@ void main() {
   group('deactivateAccountErrorMessage', () {
     test('a wrong password re-entered for UIA says so, not "M_FORBIDDEN"', () {
       final message = deactivateAccountErrorMessage(
+        englishLocalizations,
         matrixError('M_FORBIDDEN', 'Invalid password'),
       );
 
@@ -320,6 +364,7 @@ void main() {
 
     test('an unreachable server is a different problem from a password', () {
       final message = deactivateAccountErrorMessage(
+        englishLocalizations,
         const SocketException('failed'),
       );
 
@@ -332,6 +377,7 @@ void main() {
       () {
         expect(
           deactivateAccountErrorMessage(
+            englishLocalizations,
             matrixError('M_UNKNOWN', 'something odd happened'),
           ),
           'Something odd happened',

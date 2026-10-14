@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 
 void main() {
@@ -20,7 +21,10 @@ void main() {
 
   test('no method shouts or uses a contraction', () {
     for (final mode in NotificationDeliveryMode.values) {
-      for (final text in [mode.label, mode.description]) {
+      for (final text in [
+        mode.label(englishLocalizations),
+        mode.description(englishLocalizations),
+      ]) {
         expect(text, isNot(contains('!')), reason: '$mode');
         expect(text, isNot(contains("'")), reason: '$mode');
       }

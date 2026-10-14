@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/map_tile_cache.dart';
 import '../../../core/matrix/attachment_cache.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -14,22 +15,20 @@ class DataStorageSettingsPage extends ConsumerWidget {
 
   Future<void> _clearCache(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear cache?'),
-        content: const Text(
-          'Clears the messages and room details saved on this device, then '
-          'downloads them again. Nothing is deleted on the server.',
-        ),
+        title: Text(l10n.settingsDataClearCacheTitle),
+        content: Text(l10n.settingsDataClearCacheBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Clear cache'),
+            child: Text(l10n.settingsDataClearCache),
           ),
         ],
       ),
@@ -41,53 +40,52 @@ class DataStorageSettingsPage extends ConsumerWidget {
     } catch (e, s) {
       reportCaught('clear cache', e, s);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Cache not cleared. Try again.')),
+        SnackBar(content: Text(l10n.settingsDataClearCacheFailed)),
       );
       return;
     }
-    messenger.showSnackBar(const SnackBar(content: Text('Cache cleared')));
+    messenger.showSnackBar(
+      SnackBar(content: Text(l10n.settingsDataCacheCleared)),
+    );
   }
 
   Future<void> _clearMediaCache(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     AttachmentCache.instance.clear();
     await DiskAttachmentCache.instance.clear();
     await purgeMapTileCache();
     PaintingBinding.instance.imageCache.clear();
     messenger.showSnackBar(
-      const SnackBar(content: Text('Media cache cleared')),
+      SnackBar(content: Text(l10n.settingsDataMediaCacheCleared)),
     );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final reduceMediaSize = ref.watch(reduceMediaSizeProvider);
     final lowDataCalls = ref.watch(lowDataCallsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Data & storage')),
+      appBar: AppBar(title: Text(l10n.settingsDataTitle)),
       body: CardListView(
         children: [
           CardGroup(
-            title: 'Data use',
+            title: l10n.settingsDataUse,
             children: [
               SwitchListTile(
                 secondary: const Icon(Icons.photo_size_select_large_outlined),
-                title: const Text('Reduce media size'),
-                subtitle: const Text(
-                  'Photos and videos send faster and use less data, but look '
-                  'less sharp.',
-                ),
+                title: Text(l10n.settingsDataReduceMedia),
+                subtitle: Text(l10n.settingsDataReduceMediaSubtitle),
                 value: reduceMediaSize,
                 onChanged: (value) =>
                     ref.read(reduceMediaSizeProvider.notifier).set(value),
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.data_saver_on_outlined),
-                title: const Text('Use less data for calls'),
-                subtitle: const Text(
-                  'Video calls use less data, but the picture is less sharp.',
-                ),
+                title: Text(l10n.settingsDataLowDataCalls),
+                subtitle: Text(l10n.settingsDataLowDataCallsSubtitle),
                 value: lowDataCalls,
                 onChanged: (value) =>
                     ref.read(lowDataCallsProvider.notifier).set(value),
@@ -95,23 +93,18 @@ class DataStorageSettingsPage extends ConsumerWidget {
             ],
           ),
           CardGroup(
-            title: 'Storage',
+            title: l10n.settingsDataStorage,
             children: [
               ListTile(
                 leading: const Icon(Icons.cleaning_services_outlined),
-                title: const Text('Clear cache'),
-                subtitle: const Text(
-                  'Messages and room details saved on this device. They '
-                  'download again.',
-                ),
+                title: Text(l10n.settingsDataClearCache),
+                subtitle: Text(l10n.settingsDataClearCacheSubtitle),
                 onTap: () => _clearCache(context, ref),
               ),
               ListTile(
                 leading: const Icon(Icons.image_not_supported_outlined),
-                title: const Text('Clear media cache'),
-                subtitle: const Text(
-                  'Images and photos saved on this device for up to a day',
-                ),
+                title: Text(l10n.settingsDataClearMediaCache),
+                subtitle: Text(l10n.settingsDataClearMediaCacheSubtitle),
                 onTap: () => _clearMediaCache(context),
               ),
             ],

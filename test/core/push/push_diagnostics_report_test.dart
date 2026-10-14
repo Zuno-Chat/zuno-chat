@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart'
     show FcmStatus;
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
@@ -14,10 +15,12 @@ import 'package:zuno/core/push/pusher_info.dart';
 import 'package:zuno/core/push/voip/voip_registration.dart';
 import 'package:zuno/core/push/voip/voip_server.dart';
 
+import '../../helpers/date_labels.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
   final now = DateTime(2026, 10, 2, 12);
+  final labels = testDateLabels(use24Hour: false);
   final ios = capabilitiesLike(
     iosCapabilities,
     pushDiagnostics: true,
@@ -86,7 +89,7 @@ void main() {
   );
 
   DiagnosticSection section(PushDiagnosticsInputs from, String title) =>
-      buildPushDiagnostics(from).firstWhere((s) => s.title == title);
+      buildPushDiagnostics(from, labels).firstWhere((s) => s.title == title);
 
   group('permission', () {
     test('Apple settings read in plain words, in a fixed order', () {
@@ -222,9 +225,10 @@ void main() {
           pushDiagnostics: true,
         ),
       ),
+      labels,
     ).map((s) => s.title);
     expect(titles, ['Permission', 'This device', 'Delivery']);
-    expect(buildPushDiagnostics(inputs()).map((s) => s.title), [
+    expect(buildPushDiagnostics(inputs(), labels).map((s) => s.title), [
       'Permission',
       'This device',
       'Calls',
@@ -515,17 +519,20 @@ void main() {
 
   test('ages read in minutes, hours and days', () {
     expect(
-      ageLabel(now.subtract(const Duration(seconds: 20)), now),
+      labels.age(now.subtract(const Duration(seconds: 20)), now),
       'Just now',
     );
-    expect(ageLabel(now.add(const Duration(minutes: 5)), now), 'Just now');
+    expect(labels.age(now.add(const Duration(minutes: 5)), now), 'Just now');
     expect(
-      ageLabel(now.subtract(const Duration(minutes: 59)), now),
+      labels.age(now.subtract(const Duration(minutes: 59)), now),
       '59 min ago',
     );
-    expect(ageLabel(now.subtract(const Duration(hours: 5)), now), '5 h ago');
-    expect(ageLabel(now.subtract(const Duration(days: 1)), now), '1 day ago');
-    expect(ageLabel(now.subtract(const Duration(days: 9)), now), '9 days ago');
+    expect(labels.age(now.subtract(const Duration(hours: 5)), now), '5 h ago');
+    expect(labels.age(now.subtract(const Duration(days: 1)), now), '1 day ago');
+    expect(
+      labels.age(now.subtract(const Duration(days: 9)), now),
+      '9 days ago',
+    );
   });
 
   test('builds compare by their version and build numbers', () {
@@ -537,6 +544,7 @@ void main() {
 
   test('the shared text carries no IDs, addresses or tokens', () {
     final text = redactedDiagnosticsText(
+      englishLocalizations,
       buildPushDiagnostics(
         inputs(
           snapshot: const PushDiagnosticsSnapshot(
@@ -547,6 +555,7 @@ void main() {
             ],
           ),
         ),
+        labels,
       ),
       now: now,
       appVersion: '1.2.0 (build 2)',

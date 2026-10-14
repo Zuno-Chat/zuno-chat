@@ -1,3 +1,4 @@
+import '../l10n/l10n.dart';
 import '../push/unified_push_distributor_names.dart';
 import '../push/voip/voip_registration.dart';
 import 'apns_delivery_provider.dart';
@@ -16,27 +17,89 @@ enum DeliveryFailureAction {
   openSettings,
 }
 
+enum DeliveryFailureReason {
+  autoSelected,
+  distributorBattery,
+  callsSetup,
+  notRegistered,
+  setupFailed,
+  playServicesMissing,
+  playServicesNeedsUpdate,
+  playServicesTurnedOff,
+  googleServicesNotIncluded,
+  mayNotReach,
+  noDistributorFound,
+  distributorRefused,
+}
+
 class DeliveryFailure {
-  final String message;
+  final DeliveryFailureReason reason;
+  final String? detail;
   final DeliveryFailureAction action;
   final bool notice;
 
   const DeliveryFailure({
-    required this.message,
+    required this.reason,
+    this.detail,
     required this.action,
     this.notice = false,
   });
+
+  String message(AppLocalizations l10n) => switch (reason) {
+    DeliveryFailureReason.autoSelected => l10n.notificationsFailureAutoSelected(
+      detail ?? '',
+    ),
+    DeliveryFailureReason.distributorBattery =>
+      detail == null
+          ? l10n.notificationsFailureDistributorBatteryUnnamed
+          : l10n.notificationsFailureDistributorBattery(
+              unifiedPushDistributorDisplayName(detail!),
+            ),
+    DeliveryFailureReason.callsSetup => l10n.notificationsFailureCallsSetup,
+    DeliveryFailureReason.notRegistered =>
+      l10n.notificationsFailureNotRegistered,
+    DeliveryFailureReason.setupFailed => l10n.pushSetupFailed,
+    DeliveryFailureReason.playServicesMissing => l10n.pushPlayServicesMissing,
+    DeliveryFailureReason.playServicesNeedsUpdate =>
+      l10n.pushPlayServicesNeedsUpdate,
+    DeliveryFailureReason.playServicesTurnedOff =>
+      l10n.pushPlayServicesTurnedOff,
+    DeliveryFailureReason.googleServicesNotIncluded =>
+      l10n.pushGoogleServicesNotIncluded,
+    DeliveryFailureReason.mayNotReach => l10n.notificationsFailureMayNotReach,
+    DeliveryFailureReason.noDistributorFound => l10n.pushNoDistributorFound,
+    DeliveryFailureReason.distributorRefused => l10n.pushDistributorRefused,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is DeliveryFailure &&
+      other.reason == reason &&
+      other.detail == detail &&
+      other.action == action &&
+      other.notice == notice;
+
+  @override
+  int get hashCode => Object.hash(reason, detail, action, notice);
 }
 
-String deliveryFailureActionLabel(DeliveryFailureAction action) {
+String deliveryFailureActionLabel(
+  AppLocalizations l10n,
+  DeliveryFailureAction action,
+) {
   return switch (action) {
-    DeliveryFailureAction.switchToUnifiedPush => 'Switch to UnifiedPush',
-    DeliveryFailureAction.updatePlayServices => 'Update Google Play services',
-    DeliveryFailureAction.turnOnPlayServices => 'Turn on Google Play services',
-    DeliveryFailureAction.switchToBackgroundService => 'Use background sync',
-    DeliveryFailureAction.retry || DeliveryFailureAction.retryCalls => 'Retry',
-    DeliveryFailureAction.openDistributorSettings => 'Open settings',
-    DeliveryFailureAction.openSettings => 'Open settings',
+    DeliveryFailureAction.switchToUnifiedPush =>
+      l10n.notificationsActionSwitchToUnifiedPush,
+    DeliveryFailureAction.updatePlayServices =>
+      l10n.notificationsActionUpdatePlayServices,
+    DeliveryFailureAction.turnOnPlayServices =>
+      l10n.notificationsActionTurnOnPlayServices,
+    DeliveryFailureAction.switchToBackgroundService =>
+      l10n.notificationsActionUseBackgroundSync,
+    DeliveryFailureAction.retry ||
+    DeliveryFailureAction.retryCalls => l10n.commonRetry,
+    DeliveryFailureAction.openDistributorSettings ||
+    DeliveryFailureAction.openSettings => l10n.commonOpenSettings,
   };
 }
 
@@ -72,9 +135,8 @@ DeliveryFailure? notificationDeliveryFailure({
   if (failure != null) return failure;
   if (autoSelected != null && autoSelected == mode) {
     return DeliveryFailure(
-      message:
-          'Google services cannot be used, so notifications use '
-          '${_midSentence(mode)}',
+      reason: DeliveryFailureReason.autoSelected,
+      detail: mode.name,
       action: DeliveryFailureAction.openSettings,
       notice: true,
     );
@@ -82,30 +144,21 @@ DeliveryFailure? notificationDeliveryFailure({
   return null;
 }
 
-String _midSentence(NotificationDeliveryMode mode) => switch (mode) {
-  NotificationDeliveryMode.backgroundService => 'background sync',
-  NotificationDeliveryMode.fcm ||
-  NotificationDeliveryMode.unifiedPush ||
-  NotificationDeliveryMode.apns => mode.label,
-};
-
 DeliveryFailure? _distributorBatteryFailure(
   UnifiedPushStatus status, {
   required bool restricted,
   required String? distributor,
 }) {
   if (!restricted || status != UnifiedPushStatus.ready) return null;
-  final name = distributor == null
-      ? 'Your distributor app'
-      : unifiedPushDistributorDisplayName(distributor);
   return DeliveryFailure(
-    message: '$name is battery restricted, so notifications can arrive late',
+    reason: DeliveryFailureReason.distributorBattery,
+    detail: distributor,
     action: DeliveryFailureAction.openDistributorSettings,
   );
 }
 
 const callsSetupFailed = DeliveryFailure(
-  message: 'Could not set up calls to ring while Zuno is closed',
+  reason: DeliveryFailureReason.callsSetup,
   action: DeliveryFailureAction.retryCalls,
 );
 
@@ -113,12 +166,12 @@ DeliveryFailure? callsDeliveryFailure(VoipRegistrationState state) =>
     state == VoipRegistrationState.failed ? callsSetupFailed : null;
 
 const _notRegistered = DeliveryFailure(
-  message: 'This device is not registered for notifications',
+  reason: DeliveryFailureReason.notRegistered,
   action: DeliveryFailureAction.retry,
 );
 
 const _setupFailed = DeliveryFailure(
-  message: 'Could not set up notifications on this device',
+  reason: DeliveryFailureReason.setupFailed,
   action: DeliveryFailureAction.retry,
 );
 
@@ -138,19 +191,19 @@ DeliveryFailure? _fcmFailure(
     FcmStatus.postingPusher ||
     FcmStatus.ready => null,
     FcmStatus.playServicesUnavailable => DeliveryFailure(
-      message: 'This device does not have Google Play services',
+      reason: DeliveryFailureReason.playServicesMissing,
       action: switchAway,
     ),
     FcmStatus.playServicesUpdateRequired => const DeliveryFailure(
-      message: 'Google Play services needs an update',
+      reason: DeliveryFailureReason.playServicesNeedsUpdate,
       action: DeliveryFailureAction.updatePlayServices,
     ),
     FcmStatus.playServicesDisabled => const DeliveryFailure(
-      message: 'Google Play services is turned off',
+      reason: DeliveryFailureReason.playServicesTurnedOff,
       action: DeliveryFailureAction.turnOnPlayServices,
     ),
     FcmStatus.notConfigured => DeliveryFailure(
-      message: 'This version of Zuno does not include Google services',
+      reason: DeliveryFailureReason.googleServicesNotIncluded,
       action: switchAway,
     ),
     FcmStatus.tokenFailed || FcmStatus.pusherFailed => _setupFailed,
@@ -160,7 +213,7 @@ DeliveryFailure? _fcmFailure(
 DeliveryFailure? _apnsFailure(ApnsStatus status, {required int dropped}) {
   return switch (status) {
     ApnsStatus.ready when dropped > 0 => const DeliveryFailure(
-      message: 'Notifications may not reach this device',
+      reason: DeliveryFailureReason.mayNotReach,
       action: DeliveryFailureAction.retry,
     ),
     ApnsStatus.idle ||
@@ -185,11 +238,11 @@ DeliveryFailure? _unifiedPushFailure(
     UnifiedPushStatus.postingPusher ||
     UnifiedPushStatus.ready => null,
     UnifiedPushStatus.noDistributorFound => const DeliveryFailure(
-      message: 'No distributor app on this device to deliver through',
+      reason: DeliveryFailureReason.noDistributorFound,
       action: DeliveryFailureAction.switchToBackgroundService,
     ),
     UnifiedPushStatus.registrationFailed => const DeliveryFailure(
-      message: 'The distributor app refused to register this device',
+      reason: DeliveryFailureReason.distributorRefused,
       action: DeliveryFailureAction.retry,
     ),
     UnifiedPushStatus.pusherFailed => _setupFailed,

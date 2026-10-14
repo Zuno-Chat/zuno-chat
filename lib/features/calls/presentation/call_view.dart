@@ -9,6 +9,7 @@ import '../../../core/calls/models/call_engine_participant.dart';
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/calls/models/call_quality.dart';
 import '../../../core/calls/models/call_status.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/ui/corner_snap.dart';
@@ -114,6 +115,8 @@ class _CallViewState extends State<CallView> {
     }
   }
 
+  String get _roomTitle => roomTitle(widget.room, context.l10n);
+
   @override
   Widget build(BuildContext context) {
     final present = widget.present;
@@ -129,7 +132,7 @@ class _CallViewState extends State<CallView> {
     final shownQuality = widget.connecting ? CallQuality.good : widget.quality;
     final pill =
         !widget.reconnecting &&
-        ConnectionQualityPill.labelFor(shownQuality) != null;
+        ConnectionQualityPill.labelFor(context.l10n, shownQuality) != null;
     final confirmName = widget.confirmName;
     final onConfirmPerson = widget.onConfirmPerson;
     final confirm =
@@ -186,7 +189,7 @@ class _CallViewState extends State<CallView> {
                 onCornerChanged: widget.onSelfCornerChanged,
                 spots: () => _selfSpots!,
                 child: Semantics(
-                  label: 'You',
+                  label: context.l10n.commonYou,
                   excludeSemantics: true,
                   child: ParticipantTile(
                     participant: self.participant,
@@ -260,7 +263,7 @@ class _CallViewState extends State<CallView> {
   Widget _voice(CallViewParticipant? other, CallStatus status) {
     final room = widget.room;
     final user = other?.user;
-    final name = user?.calcDisplayname() ?? roomTitle(room);
+    final name = user?.calcDisplayname() ?? _roomTitle;
     return VoiceCallStage(
       avatarBuilder: (radius) => MxcAvatar(
         client: room.client,
@@ -282,7 +285,7 @@ class _CallViewState extends State<CallView> {
     final colors = Theme.of(context).colorScheme;
     return IconButton(
       onPressed: widget.onMinimize,
-      tooltip: 'Minimize call',
+      tooltip: context.l10n.callsMinimize,
       icon: const Icon(Icons.close_fullscreen),
       style: IconButton.styleFrom(
         backgroundColor: overVideo
@@ -295,7 +298,7 @@ class _CallViewState extends State<CallView> {
 
   Widget _header(CallViewParticipant other, CallStatus status) =>
       VideoCallHeader(
-        name: other.user?.calcDisplayname() ?? roomTitle(widget.room),
+        name: other.user?.calcDisplayname() ?? _roomTitle,
         status: status,
         talkingSince: widget.talkingSince,
         encryptingSince: _encryptingSince,
@@ -314,7 +317,7 @@ class _CallViewState extends State<CallView> {
             children: [
               Flexible(
                 child: Text(
-                  roomTitle(widget.room),
+                  _roomTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: titleStyle,
@@ -340,7 +343,7 @@ class _CallViewState extends State<CallView> {
                     user: entry.user,
                     encrypting: entry.encrypting,
                     name: entry.participant.isLocal
-                        ? 'You'
+                        ? context.l10n.commonYou
                         : entry.user?.calcDisplayname(),
                   ),
               ],

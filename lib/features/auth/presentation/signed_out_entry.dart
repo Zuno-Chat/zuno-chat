@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/security/device_safety.dart';
@@ -34,7 +35,7 @@ class SignedOutEntry extends ConsumerWidget {
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (error, _) => _Unreachable(
-        message: homeserverErrorMessage(error),
+        message: homeserverErrorMessage(context.l10n, error),
         onRetry: () => ref.invalidate(homeserverProvider),
         onChangeServer: () => Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const HomeserverPage())),
@@ -60,10 +61,13 @@ class _Unreachable extends StatelessWidget {
       children: [
         Text(message, textAlign: TextAlign.center),
         const SizedBox(height: 16),
-        FilledButton(onPressed: onRetry, child: const Text('Try again')),
+        FilledButton(
+          onPressed: onRetry,
+          child: Text(context.l10n.commonTryAgain),
+        ),
         TextButton(
           onPressed: onChangeServer,
-          child: const Text('Use another server'),
+          child: Text(context.l10n.authUseAnotherServer),
         ),
       ],
     );

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
+
 const collapsedMessageMaxLines = 12;
 
 const collapsedMessageMaxChars = 600;
@@ -57,7 +59,9 @@ class _ExpandableMessageState extends State<ExpandableMessage> {
               child: Padding(
                 padding: const EdgeInsets.only(top: 4, bottom: 2),
                 child: Text(
-                  _expanded ? 'Show less' : 'Read more',
+                  _expanded
+                      ? context.l10n.commonShowLess
+                      : context.l10n.commonReadMore,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: colors.primary,
                     fontWeight: FontWeight.w500,

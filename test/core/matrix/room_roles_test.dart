@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/communities.dart';
 import 'package:zuno/core/matrix/room_permission.dart';
 import 'package:zuno/core/matrix/room_roles.dart';
@@ -318,6 +319,9 @@ void main() {
     User member(Room room, String id, {String membership = 'join'}) =>
         User(id, membership: membership, room: room);
 
+    String? badge(Room room, User user) =>
+        memberBadge(room, user, englishLocalizations);
+
     test('a moderator sees every role, with the owner as Owner', () {
       final room = roomSeenBy('@me:example.org', level: 50);
       setPowerLevels(room, {
@@ -328,10 +332,10 @@ void main() {
         },
       });
 
-      expect(memberBadge(room, member(room, '@owner:example.org')), 'Owner');
-      expect(memberBadge(room, member(room, '@admin:example.org')), 'Admin');
-      expect(memberBadge(room, member(room, '@me:example.org')), 'Moderator');
-      expect(memberBadge(room, member(room, '@bob:example.org')), 'Member');
+      expect(badge(room, member(room, '@owner:example.org')), 'Owner');
+      expect(badge(room, member(room, '@admin:example.org')), 'Admin');
+      expect(badge(room, member(room, '@me:example.org')), 'Moderator');
+      expect(badge(room, member(room, '@bob:example.org')), 'Member');
     });
 
     test('a member sees only Owner and Invited', () {
@@ -340,14 +344,11 @@ void main() {
         'users': {'@owner:example.org': 100, '@admin:example.org': 100},
       });
 
-      expect(memberBadge(room, member(room, '@owner:example.org')), 'Owner');
-      expect(memberBadge(room, member(room, '@admin:example.org')), isNull);
-      expect(memberBadge(room, member(room, '@bob:example.org')), isNull);
+      expect(badge(room, member(room, '@owner:example.org')), 'Owner');
+      expect(badge(room, member(room, '@admin:example.org')), isNull);
+      expect(badge(room, member(room, '@bob:example.org')), isNull);
       expect(
-        memberBadge(
-          room,
-          member(room, '@new:example.org', membership: 'invite'),
-        ),
+        badge(room, member(room, '@new:example.org', membership: 'invite')),
         'Invited',
       );
     });

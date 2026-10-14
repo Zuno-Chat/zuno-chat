@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/current_position.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/live_location_availability.dart';
@@ -47,6 +48,8 @@ Future<_Opened> _open(
         ),
       ],
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(
@@ -173,6 +176,8 @@ void main() {
         LiveLocationDuration.quarterHour,
       );
 
+      expect(find.text('15 minutes'), findsOneWidget);
+      expect(find.text('1 hour'), findsOneWidget);
       await tester.tap(find.text('2 hours'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Start sharing'));

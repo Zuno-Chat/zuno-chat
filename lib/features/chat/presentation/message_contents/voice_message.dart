@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../../core/errors/caught_errors.dart';
 import '../../../../core/format/human_units.dart';
+import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/attachment_cache.dart';
 import '../../../../core/matrix/voice_message.dart';
 import '../../../../core/matrix/voice_recording.dart';
@@ -152,7 +153,7 @@ class _VoiceMessageState extends State<VoiceMessage> {
   void _didNotLoad() {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Voice message did not load. Try again.')),
+      SnackBar(content: Text(context.l10n.chatVoiceMessageDidNotLoad)),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/current_position.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/location/presentation/location_failure_text.dart';
@@ -8,16 +9,33 @@ import 'package:zuno/features/location/presentation/location_failure_text.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
-  const goal = 'share where you are';
-
   LocationFailureCopy copyOn(
     PlatformCapabilities capabilities,
     LocationFailure reason,
   ) => locationFailureCopy(
+    englishLocalizations,
     reason,
-    goal: goal,
+    goal: LocationGoal.shareWhereYouAre,
     servicesSettings: capabilities.locationServicesSettings,
   );
+
+  test('names the goal it was asked about', () {
+    final see = locationFailureCopy(
+      englishLocalizations,
+      LocationFailure.denied,
+      goal: LocationGoal.seeWhereYouAre,
+      servicesSettings: true,
+    );
+    final off = locationFailureCopy(
+      englishLocalizations,
+      LocationFailure.servicesOff,
+      goal: LocationGoal.seeWhereYouAre,
+      servicesSettings: true,
+    );
+
+    expect(see.message, 'Allow location access to see where you are.');
+    expect(off.message, 'Location is off. Turn it on to see where you are.');
+  });
 
   group('location services off', () {
     test('on Android, says to turn it on for the goal, and opens the location '

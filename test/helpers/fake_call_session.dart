@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart' hide CallSession;
 
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
+import 'package:zuno/core/calls/models/call_failure.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 
@@ -49,7 +50,7 @@ class FakeCallSession implements CallSession {
   @override
   CallEndReason? endReason;
   @override
-  String? failedMessage;
+  CallFailure? failure;
 
   @override
   Future<void> hangUpFinished = Future<void>.value();
@@ -93,9 +94,12 @@ class FakeCallSession implements CallSession {
     _remoteJoined.add(null);
   }
 
-  void end({CallEndReason reason = CallEndReason.hungUp, String? message}) {
+  void end({
+    CallEndReason reason = CallEndReason.hungUp,
+    CallFailure? failure,
+  }) {
     endReason = reason;
-    failedMessage = message;
+    this.failure = failure;
     moveTo(CallSessionPhase.ended);
   }
 

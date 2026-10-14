@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/linked_sign_in.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -26,6 +27,13 @@ class _UnreachableHomeserver extends HomeserverNotifier {
 }
 
 void main() {
+  const otherServerCode =
+      'This code is for other.example. Change the server on the sign-in '
+      'screen first.';
+  const invalidCode =
+      'That code is not valid or has expired. Make a new one on your other '
+      'device.';
+
   Finder field(String label) =>
       find.ancestor(of: find.text(label), matching: find.byType(TextField));
 
@@ -62,7 +70,11 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: Scaffold()),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(),
+        ),
       ),
     );
     unawaited(
@@ -135,10 +147,7 @@ void main() {
     );
     await pumpRealAsync(tester, rounds: 2);
 
-    expect(
-      find.text(codeForAnotherServerMessage('other.example')),
-      findsOneWidget,
-    );
+    expect(find.text(otherServerCode), findsOneWidget);
     expect(bodies, isEmpty);
   });
 
@@ -172,10 +181,7 @@ void main() {
       await pumpRealAsync(tester, rounds: 2);
     });
 
-    expect(
-      find.text(codeForAnotherServerMessage('other.example')),
-      findsOneWidget,
-    );
+    expect(find.text(otherServerCode), findsOneWidget);
     expect(bodies, isEmpty);
     expect(reports, isEmpty);
   });
@@ -227,7 +233,7 @@ void main() {
     await pumpRealAsync(tester, rounds: 2);
 
     expect(find.text('Enter the code'), findsOneWidget);
-    expect(find.text(invalidSignInCodeMessage), findsNothing);
+    expect(find.text(invalidCode), findsNothing);
     expect(bodies, isEmpty);
   });
 
@@ -242,7 +248,7 @@ void main() {
     );
     await pumpRealAsync(tester, rounds: 2);
 
-    expect(find.text(invalidSignInCodeMessage), findsOneWidget);
+    expect(find.text(invalidCode), findsOneWidget);
   });
 
   testWidgets('a scanned Zuno code signs in with its token', (tester) async {
@@ -313,7 +319,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
     await pumpRealAsync(tester, rounds: 2);
 
-    expect(find.text(notASignInCodeMessage), findsOneWidget);
+    expect(find.text('That is not a Zuno sign-in code.'), findsOneWidget);
     expect(bodies, isEmpty);
   });
 
@@ -331,10 +337,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
     await pumpRealAsync(tester, rounds: 2);
 
-    expect(
-      find.text(codeForAnotherServerMessage('other.example')),
-      findsOneWidget,
-    );
+    expect(find.text(otherServerCode), findsOneWidget);
     expect(bodies, isEmpty);
   });
 

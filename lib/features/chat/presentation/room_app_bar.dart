@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../core/calls/models/call_kind.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/official_room.dart';
 import '../../../core/matrix/room_invite.dart';
@@ -34,9 +35,11 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final display = roomInviteDisplay(room);
+    final l10n = context.l10n;
+    final display = roomInviteDisplay(room, l10n);
     final ownUserId = room.client.userID;
     final typingText = typingIndicatorText(
+      l10n,
       room.typingUsers.where((u) => u.id != ownUserId).toList(),
     );
 
@@ -95,9 +98,9 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   if (typingText != null)
                     statusLine(typingText, colors.primary)
                   else if (display.partnerLeft)
-                    statusLine('Left the chat', colors.onSurfaceVariant)
+                    statusLine(l10n.chatLeftTheChat, colors.onSurfaceVariant)
                   else if (!room.isDirectChat)
-                    RoomAccessLabel.of(room, iconSize: 14),
+                    RoomAccessLabel.of(room, l10n, iconSize: 14),
                 ],
               ),
             ),
@@ -108,12 +111,12 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
         if (canCall) ...[
           IconButton(
             icon: const Icon(Icons.call_outlined),
-            tooltip: 'Voice call',
+            tooltip: l10n.callsStartVoiceCall,
             onPressed: () => onStartCall(CallKind.voice),
           ),
           IconButton(
             icon: const Icon(Icons.videocam_outlined),
-            tooltip: 'Video call',
+            tooltip: l10n.callsStartVideoCall,
             onPressed: () => onStartCall(CallKind.video),
           ),
         ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_action_buttons.dart';
 
 import '../../helpers/fake_attachments.dart';
@@ -18,6 +19,8 @@ void main() {
   Future<void> pumpButtons(WidgetTester tester, Event event) =>
       tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: AttachmentActionButtons(event: event)),
         ),
       );
@@ -61,13 +64,19 @@ void main() {
   testWidgets('saving several says how many made it', (tester) async {
     final gone = server.attachment(eventId: r'$gone');
     server.goneFromServer(gone);
-    await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+    await tester.pumpWidget(
+      const MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(),
+      ),
+    );
     final messenger = tester.state<ScaffoldMessengerState>(
       find.byType(ScaffoldMessenger),
     );
 
     await tester.runAsync(
-      () => saveAttachmentsWithFeedback(messenger, [
+      () => saveAttachmentsWithFeedback(messenger, englishLocalizations, [
         server.attachment(eventId: r'$kept'),
         gone,
       ]),

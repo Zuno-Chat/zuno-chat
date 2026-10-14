@@ -9,6 +9,7 @@ import 'package:image/image.dart' as img;
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/room_info/presentation/room_settings_page.dart';
 
 import '../../../helpers/card_layout.dart';
@@ -92,7 +93,13 @@ void main() {
       );
 
   Future<void> pumpPage(WidgetTester tester) async {
-    await tester.pumpWidget(MaterialApp(home: RoomSettingsPage(room: room)));
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: RoomSettingsPage(room: room),
+      ),
+    );
     await tester.pumpAndSettle();
   }
 

@@ -1,14 +1,17 @@
 import 'package:matrix/matrix.dart';
 
+import '../l10n/l10n.dart';
 import '../location/live_location_protocol.dart';
 import 'optimistic_room_state.dart';
 import 'room_roles.dart';
+
+typedef LocalizedText = String Function(AppLocalizations l10n);
 
 enum RoomPermissionSection { basic, advanced }
 
 class RoomPermission {
   final String id;
-  final String label;
+  final LocalizedText label;
   final RoomPermissionSection section;
   final int Function(Map<String, Object?> content) read;
   final void Function(Map<String, Object?> content, int level) write;
@@ -29,7 +32,7 @@ Map<String, Object?> _nestedMap(Map<String, Object?> content, String key) =>
 
 RoomPermission _stateEventOverride(
   String id,
-  String label,
+  LocalizedText label,
   String eventType, {
   RoomPermissionSection section = RoomPermissionSection.advanced,
 }) => RoomPermission(
@@ -49,7 +52,7 @@ RoomPermission _stateEventOverride(
 
 RoomPermission _directField(
   String id,
-  String label,
+  LocalizedText label,
   String field, {
   required int fallback,
   RoomPermissionSection section = RoomPermissionSection.advanced,
@@ -63,7 +66,7 @@ RoomPermission _directField(
 
 RoomPermission _notificationField(
   String id,
-  String label,
+  LocalizedText label,
   String type, {
   required int fallback,
 }) => RoomPermission(
@@ -81,81 +84,106 @@ RoomPermission _notificationField(
 final List<RoomPermission> roomPermissions = [
   _stateEventOverride(
     'room_avatar',
-    'Change room photo',
+    (l10n) => l10n.matrixPermissionRoomAvatar,
     EventTypes.RoomAvatar,
     section: RoomPermissionSection.basic,
   ),
   _stateEventOverride(
     'room_name',
-    'Change room name',
+    (l10n) => l10n.matrixPermissionRoomName,
     EventTypes.RoomName,
     section: RoomPermissionSection.basic,
   ),
   _stateEventOverride(
     'room_topic',
-    'Change topic',
+    (l10n) => l10n.matrixPermissionRoomTopic,
     EventTypes.RoomTopic,
     section: RoomPermissionSection.basic,
   ),
   _stateEventOverride(
     'canonical_alias',
-    'Change the room address',
+    (l10n) => l10n.matrixPermissionCanonicalAlias,
     EventTypes.RoomCanonicalAlias,
   ),
-  _directField('invite', 'Invite people', 'invite', fallback: 0),
-  _directField('kick', 'Remove people', 'kick', fallback: 50),
-  _directField('ban', 'Ban people', 'ban', fallback: 50),
+  _directField(
+    'invite',
+    (l10n) => l10n.matrixPermissionInvite,
+    'invite',
+    fallback: 0,
+  ),
+  _directField(
+    'kick',
+    (l10n) => l10n.matrixPermissionKick,
+    'kick',
+    fallback: 50,
+  ),
+  _directField('ban', (l10n) => l10n.matrixPermissionBan, 'ban', fallback: 50),
   _directField(
     'events_default',
-    'Send messages',
+    (l10n) => l10n.matrixPermissionEventsDefault,
     'events_default',
     fallback: 0,
   ),
-  _stateEventOverride('calls', 'Start or join calls', 'm.call.member'),
+  _stateEventOverride(
+    'calls',
+    (l10n) => l10n.matrixPermissionCalls,
+    'm.call.member',
+  ),
   _stateEventOverride(
     'live_location',
-    'Share live location',
+    (l10n) => l10n.matrixPermissionLiveLocation,
     liveLocationStateType,
   ),
   _directField(
     'redact',
-    "Delete other people's messages",
+    (l10n) => l10n.matrixPermissionRedact,
     'redact',
     fallback: 50,
   ),
-  _notificationField('notify_room', 'Notify everyone', 'room', fallback: 50),
+  _notificationField(
+    'notify_room',
+    (l10n) => l10n.matrixPermissionNotifyRoom,
+    'room',
+    fallback: 50,
+  ),
   _directField(
     'state_default',
-    'Change settings',
+    (l10n) => l10n.matrixPermissionStateDefault,
     'state_default',
     fallback: 50,
   ),
   _stateEventOverride(
     'history_visibility',
-    'Change who can read history',
+    (l10n) => l10n.matrixPermissionHistoryVisibility,
     EventTypes.HistoryVisibility,
   ),
   _stateEventOverride(
     'power_levels',
-    'Change permissions',
+    (l10n) => l10n.matrixPermissionPowerLevels,
     EventTypes.RoomPowerLevels,
   ),
   _stateEventOverride(
     'encryption',
-    'Turn on encryption',
+    (l10n) => l10n.matrixPermissionEncryption,
     EventTypes.Encryption,
   ),
 ];
 
-typedef PermissionGroup = ({String title, List<RoomPermission> permissions});
+typedef PermissionGroup = ({
+  LocalizedText title,
+  List<RoomPermission> permissions,
+});
 
 RoomPermission _catalogEntry(String id) =>
     roomPermissions.firstWhere((permission) => permission.id == id);
 
 final List<PermissionGroup> roomPermissionGroups = [
-  for (final (title, section) in const [
-    ('Basic', RoomPermissionSection.basic),
-    ('Advanced', RoomPermissionSection.advanced),
+  for (final (title, section) in <(LocalizedText, RoomPermissionSection)>[
+    ((l10n) => l10n.matrixPermissionGroupBasic, RoomPermissionSection.basic),
+    (
+      (l10n) => l10n.matrixPermissionGroupAdvanced,
+      RoomPermissionSection.advanced,
+    ),
   ])
     (
       title: title,
@@ -168,7 +196,7 @@ final List<PermissionGroup> roomPermissionGroups = [
 
 final List<PermissionGroup> communityPermissionGroups = [
   (
-    title: 'Members',
+    title: (l10n) => l10n.matrixPermissionGroupMembers,
     permissions: [
       _catalogEntry('invite'),
       _catalogEntry('kick'),
@@ -176,23 +204,31 @@ final List<PermissionGroup> communityPermissionGroups = [
     ],
   ),
   (
-    title: 'Rooms',
+    title: (l10n) => l10n.matrixPermissionGroupRooms,
     permissions: [
-      _stateEventOverride('add_rooms', 'Add rooms', EventTypes.SpaceChild),
+      _stateEventOverride(
+        'add_rooms',
+        (l10n) => l10n.matrixPermissionAddRooms,
+        EventTypes.SpaceChild,
+      ),
     ],
   ),
   (
-    title: 'Settings',
+    title: (l10n) => l10n.matrixPermissionGroupSettings,
     permissions: [
       _stateEventOverride(
         'community_avatar',
-        'Change photo',
+        (l10n) => l10n.matrixPermissionCommunityAvatar,
         EventTypes.RoomAvatar,
       ),
-      _stateEventOverride('community_name', 'Change name', EventTypes.RoomName),
+      _stateEventOverride(
+        'community_name',
+        (l10n) => l10n.matrixPermissionCommunityName,
+        EventTypes.RoomName,
+      ),
       _stateEventOverride(
         'community_topic',
-        'Change description',
+        (l10n) => l10n.matrixPermissionCommunityTopic,
         EventTypes.RoomTopic,
       ),
       _catalogEntry('power_levels'),
@@ -202,7 +238,7 @@ final List<PermissionGroup> communityPermissionGroups = [
 
 final RoomPermission roomDefaultRoleSetting = _directField(
   'users_default',
-  'Default role for new members',
+  (l10n) => l10n.matrixPermissionUsersDefault,
   'users_default',
   fallback: 0,
 );

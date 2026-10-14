@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:matrix/matrix.dart';
 
+import '../brand.dart';
 import 'pusher_format.dart';
 
 const apnsProductionAppId = 'im.zuno.chat.ios';
@@ -48,7 +49,7 @@ Pusher buildApnsPusher({
   return Pusher(
     appId: appId,
     pushkey: pushkey,
-    appDisplayName: 'Zuno',
+    appDisplayName: zunoName,
     deviceDisplayName: deviceDisplayName,
     kind: 'http',
     lang: 'en',

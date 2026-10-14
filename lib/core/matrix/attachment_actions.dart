@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart' show XFile;
 import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
 import '../files/file_export.dart';
+import '../l10n/l10n.dart';
 import '../platform/platform_capabilities.dart';
 import '../share/outbound_share.dart';
 import 'attachment_cache.dart';
@@ -90,26 +91,25 @@ Future<T> _fromHandedOverCopy<T>(
   }
 }
 
-Future<String?> saveAttachment(Event event) async {
+Future<bool> saveAttachment(Event event) async {
   switch (attachmentSaveTarget(event)) {
     case AttachmentSaveTarget.photos:
       await Gal.putImageBytes(
         await _cachedAttachmentBytes(event),
         name: p.basenameWithoutExtension(attachmentFileName(event)),
       );
-      return 'Saved to Photos';
+      return true;
     case AttachmentSaveTarget.videos:
       await _fromHandedOverCopy(event, Gal.putVideo);
-      return 'Saved to Videos';
+      return true;
     case AttachmentSaveTarget.file:
-      final saved = await _fromHandedOverCopy(
+      return _fromHandedOverCopy(
         event,
         (path) => exportFileAt(
           path,
           mimeType: _mimeTypeOf(event) ?? 'application/octet-stream',
         ),
       );
-      return saved ? 'Saved' : null;
   }
 }
 
@@ -120,7 +120,7 @@ Future<int> saveAttachments(List<Event> events) async {
   var saved = 0;
   for (final event in events) {
     try {
-      if (await saveAttachment(event) != null) saved++;
+      if (await saveAttachment(event)) saved++;
     } catch (e, s) {
       if (!isGalleryAccessDenied(e)) reportCaught('save attachment', e, s);
     }
@@ -128,10 +128,21 @@ Future<int> saveAttachments(List<Event> events) async {
   return saved;
 }
 
-String savedSummary({required int saved, required int total}) {
-  if (saved == 0) return 'Could not save';
-  if (saved < total) return 'Saved $saved of $total';
-  return saved == 1 ? 'Saved 1 item' : 'Saved $saved items';
+String savedMessage(AppLocalizations l10n, Event event) =>
+    switch (attachmentSaveTarget(event)) {
+      AttachmentSaveTarget.photos => l10n.matrixSavedToPhotos,
+      AttachmentSaveTarget.videos => l10n.matrixSavedToVideos,
+      AttachmentSaveTarget.file => l10n.matrixSaved,
+    };
+
+String savedSummary(
+  AppLocalizations l10n, {
+  required int saved,
+  required int total,
+}) {
+  if (saved == 0) return l10n.matrixSaveNone;
+  if (saved < total) return l10n.matrixSavedSome(saved, total);
+  return l10n.matrixSavedItems(saved);
 }
 
 Future<bool> _allCached(List<Event> events) async {

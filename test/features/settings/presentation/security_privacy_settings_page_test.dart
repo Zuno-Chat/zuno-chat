@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/account_security_status.dart';
@@ -77,7 +78,11 @@ void main() {
         child: Builder(
           builder: (context) {
             container = ProviderScope.containerOf(context);
-            return const MaterialApp(home: SecurityPrivacySettingsPage());
+            return const MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: SecurityPrivacySettingsPage(),
+            );
           },
         ),
       ),
@@ -271,7 +276,11 @@ void main() {
               return Stream.value(_factsFor(status));
             }),
           ],
-          child: const MaterialApp(home: SecurityPrivacySettingsPage()),
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: SecurityPrivacySettingsPage(),
+          ),
         ),
       );
       await tester.pump();

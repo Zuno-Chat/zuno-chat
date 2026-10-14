@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
-import '../../../core/format/member_count.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/ui/sheet.dart';
 import 'room_kind_avatar.dart';
@@ -168,7 +168,9 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: Text(
-                widget.communities ? 'Public communities' : 'Public rooms',
+                widget.communities
+                    ? context.l10n.roomsPublicCommunities
+                    : context.l10n.roomsPublicRooms,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -180,10 +182,10 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
                 autofocus: true,
                 textInputAction: TextInputAction.search,
                 onChanged: _onChanged,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'Search by name or topic',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: context.l10n.roomsSearchHint,
+                  border: const OutlineInputBorder(),
                 ),
               ),
             ),
@@ -202,10 +204,13 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
           children: [
             Text(
               widget.communities
-                  ? 'Could not load communities'
-                  : 'Could not load rooms',
+                  ? context.l10n.roomsCouldNotLoadCommunities
+                  : context.l10n.roomsCouldNotLoadRooms,
             ),
-            TextButton(onPressed: _search, child: const Text('Retry')),
+            TextButton(
+              onPressed: _search,
+              child: Text(context.l10n.commonRetry),
+            ),
           ],
         ),
       );
@@ -214,7 +219,9 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
     if (_rooms.isEmpty) {
       return Center(
         child: Text(
-          widget.communities ? 'No communities found' : 'No rooms found',
+          widget.communities
+              ? context.l10n.roomsNoCommunitiesFound
+              : context.l10n.roomsNoRoomsFound,
         ),
       );
     }
@@ -270,11 +277,11 @@ class _RoomRow extends StatelessWidget {
         children: [
           if (hasTopic)
             Text(topic, maxLines: 1, overflow: TextOverflow.ellipsis),
-          Text(memberCountLabel(room.numJoinedMembers)),
+          Text(context.l10n.unitsMembers(room.numJoinedMembers)),
         ],
       ),
       isThreeLine: hasTopic,
-      trailing: joined ? const Text('Joined') : null,
+      trailing: joined ? Text(context.l10n.roomsJoined) : null,
       onTap: () => Navigator.of(context).pop(room.roomId),
     );
   }

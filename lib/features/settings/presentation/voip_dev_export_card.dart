@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/push/voip/voip_channel.dart';
 import '../../../core/security/sensitive_clipboard.dart';
 import '../../../core/ui/card_group.dart';
@@ -25,9 +26,7 @@ class _VoipDevExportCardState extends State<VoipDevExportCard> {
     await SensitiveClipboard.instance.copy(voipDevExportJson(export));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Copied. Clears from the clipboard in 90 seconds.'),
-      ),
+      SnackBar(content: Text(context.l10n.settingsCopiedSensitive)),
     );
   }
 
@@ -38,28 +37,26 @@ class _VoipDevExportCardState extends State<VoipDevExportCard> {
       builder: (context, snapshot) {
         final export = snapshot.data;
         if (export == null) return const SizedBox.shrink();
+        final l10n = context.l10n;
         return CardGroup(
-          title: 'Call push test values',
+          title: l10n.settingsVoipTestValues,
           children: [
-            const ListTile(
-              leading: Icon(Icons.science_outlined),
-              title: Text('Development build only'),
-              subtitle: Text(
-                'These let a test tool on your computer ring this device. '
-                'Anyone holding them can do the same until the next sign-in.',
-              ),
+            ListTile(
+              leading: const Icon(Icons.science_outlined),
+              title: Text(l10n.settingsVoipDevOnly),
+              subtitle: Text(l10n.settingsVoipDevOnlySubtitle),
             ),
             ListTile(
-              title: const Text('Call push token'),
+              title: Text(l10n.settingsVoipToken),
               subtitle: Text(export.token),
             ),
             ListTile(
-              title: const Text('Key id'),
+              title: Text(l10n.settingsVoipKeyId),
               subtitle: Text('${export.kid}'),
             ),
             ListTile(
               leading: const Icon(Icons.copy_outlined),
-              title: const Text('Copy test values'),
+              title: Text(l10n.settingsVoipCopy),
               onTap: () => _copy(export),
             ),
           ],

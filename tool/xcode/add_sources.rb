@@ -29,8 +29,9 @@ paths.each do |path|
   reference = existing || group.new_reference(file)
   resolved = reference.real_path.to_s
   abort("#{path} would resolve to #{resolved.delete_prefix("#{Dir.pwd}/")}") unless resolved == File.expand_path(path)
-  next if target.source_build_phase.files_references.include?(reference)
-  target.source_build_phase.add_file_reference(reference, true)
+  phase = File.extname(file) == '.xcstrings' ? target.resources_build_phase : target.source_build_phase
+  next if phase.files_references.include?(reference)
+  phase.add_file_reference(reference, true)
 end
 abort("objectVersion is #{project.object_version}, not 60; nothing saved") unless project.object_version == '60'
 project.save

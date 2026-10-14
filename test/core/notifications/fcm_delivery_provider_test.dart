@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
+import 'package:zuno/core/notifications/pusher_failure.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm_pusher.dart';
 import 'package:zuno/core/push/fcm_registration_store.dart';
@@ -239,7 +241,10 @@ void main() {
 
       await provider.start(client);
       expect(provider.status.value, FcmStatus.pusherFailed);
-      expect(provider.lastPusherError, contains('server said no'));
+      expect(
+        provider.lastPusherError?.message(englishLocalizations),
+        contains('server said no'),
+      );
 
       await provider.start(client);
       expect(client.posted, isEmpty);
@@ -495,7 +500,10 @@ void main() {
 
     await provider.stop(client);
 
-    expect(provider.lastPusherError, contains('M_FORBIDDEN'));
+    expect(
+      provider.lastPusherError?.message(englishLocalizations),
+      contains('M_FORBIDDEN'),
+    );
     expect(provider.status.value, FcmStatus.idle);
   });
 
@@ -1050,10 +1058,7 @@ void main() {
 
       expect(unset.posted, isEmpty);
       expect(provider.status.value, FcmStatus.pusherFailed);
-      expect(
-        provider.lastPusherError,
-        contains('No server to send notifications through yet.'),
-      );
+      expect(provider.lastPusherError, isA<PusherServerMissing>());
     },
   );
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/registration_code_request.dart';
@@ -34,6 +35,7 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
     if (!looksLikeEmail(email)) {
       setState(
         () => _error = registrationCodeErrorMessage(
+          context.l10n,
           RegistrationCodeOutcome.invalidEmail,
         ),
       );
@@ -57,7 +59,9 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
     if (!mounted) return;
     setState(() => _loading = false);
     if (outcome != RegistrationCodeOutcome.sent) {
-      setState(() => _error = registrationCodeErrorMessage(outcome));
+      setState(
+        () => _error = registrationCodeErrorMessage(context.l10n, outcome),
+      );
       return;
     }
     _openRegisterPage(email);
@@ -74,20 +78,18 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return AuthScaffold(
-      title: 'Get a sign-up code',
+      title: l10n.authGetSignUpCode,
       footer: [
         TextButton(
           onPressed: _loading ? null : () => _openRegisterPage(null),
-          child: const Text('I already have a code'),
+          child: Text(l10n.authHaveCodeAlready),
         ),
       ],
       children: [
         Text(
-          'Zuno sends a single-use code to your email address to keep '
-          'automated sign-ups out. The address is used only to send the code '
-          'and to limit how often codes are requested. It is not stored with '
-          'your account.',
+          l10n.authCodeEmailExplainer,
           style: Theme.of(context).textTheme.bodyMedium
               ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
@@ -101,9 +103,9 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
           textInputAction: TextInputAction.done,
           onChanged: (_) => setState(() => _error = null),
           onSubmitted: (_) => _send(),
-          decoration: const InputDecoration(
-            labelText: 'Email address',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: l10n.authEmailLabel,
+            border: const OutlineInputBorder(),
           ),
         ),
         if (_error != null) ...[
@@ -116,7 +118,7 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
         const SizedBox(height: 24),
         FilledButton(
           onPressed: _loading ? null : _send,
-          child: Text(_loading ? 'Sending code…' : 'Send code'),
+          child: Text(_loading ? l10n.authSendingCode : l10n.authSendCode),
         ),
       ],
     );

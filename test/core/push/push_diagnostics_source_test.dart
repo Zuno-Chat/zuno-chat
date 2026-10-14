@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
@@ -292,14 +293,17 @@ void main() {
     SharedPreferences.setMockInitialValues({});
 
     final apple = await source().recentPushes(
+      englishLocalizations,
       ios,
       NotificationDeliveryMode.apns,
     );
     final unified = await source().recentPushes(
+      englishLocalizations,
       capabilitiesLike(androidCapabilities, pushDiagnostics: true),
       NotificationDeliveryMode.unifiedPush,
     );
     final fcmPushes = await source().recentPushes(
+      englishLocalizations,
       capabilitiesLike(androidCapabilities, pushDiagnostics: true),
       NotificationDeliveryMode.fcm,
     );

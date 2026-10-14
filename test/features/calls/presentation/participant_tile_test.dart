@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/features/calls/presentation/participant_tile.dart';
 
@@ -14,6 +15,8 @@ void main() {
   const id = VoipParticipantId(userId: '@bob:example.org', deviceId: 'B');
 
   Widget wrap(Widget child) => MaterialApp(
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(body: SizedBox(width: 240, height: 240, child: child)),
   );
 

@@ -7,6 +7,8 @@ import '../../../features/calls/presentation/call_page.dart';
 import '../../../features/calls/presentation/incoming_call_page.dart';
 import '../../errors/caught_errors.dart';
 import '../../errors/global_error_handler.dart';
+import '../../l10n/display_text.dart';
+import '../../l10n/l10n.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../navigation/global_navigator.dart';
 import '../../navigation/launch_route.dart';
@@ -208,7 +210,7 @@ class CallNotificationRouter extends Notifier<void> {
     final client = ref.read(matrixClientProvider);
     final room = await awaitRoom(client, call.roomId);
     if (room == null) {
-      _reportFailure('Could not open that call. The room is not available.');
+      _reportFailure(deviceLocalizations().callsCouldNotOpenCall);
       if (response.action == CallNotificationAction.accept) {
         _releaseSystemCall(call, SystemCallEnd.failed);
       }
@@ -254,7 +256,7 @@ class CallNotificationRouter extends Notifier<void> {
 
     final navigator = globalNavigatorKey.currentState;
     if (navigator == null && !ref.read(platformCapabilitiesProvider).voipRing) {
-      _reportFailure('Could not open the call screen.');
+      _reportFailure(deviceLocalizations().callsCouldNotOpenCallScreen);
       return;
     }
     final session = ref
@@ -327,7 +329,7 @@ class CallNotificationRouter extends Notifier<void> {
     await CallNotificationService.instance.setShowOverLockscreen(false);
   }
 
-  void _reportFailure(String message) {
+  void _reportFailure(@displayText String message) {
     globalScaffoldMessengerKey.currentState?.showSnackBar(
       SnackBar(content: Text(message)),
     );

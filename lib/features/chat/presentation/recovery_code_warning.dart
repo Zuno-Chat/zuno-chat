@@ -1,25 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
+
 Future<bool> confirmSendingRecoveryCode(BuildContext context) async {
   final send = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Send your recovery code?'),
-      content: const Text(
-        'This message looks like your recovery code. Anyone who has it can '
-        'read your messages on another device. Zuno never asks for it.',
-      ),
+      title: Text(context.l10n.chatRecoveryCodeTitle),
+      content: Text(context.l10n.chatRecoveryCodeBody),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: Text(context.l10n.commonCancel),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(true),
           style: TextButton.styleFrom(
             foregroundColor: Theme.of(context).colorScheme.error,
           ),
-          child: const Text('Send anyway'),
+          child: Text(context.l10n.chatSendAnyway),
         ),
       ],
     ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../l10n/l10n.dart';
 import 'attachment_action_buttons.dart';
 import 'cached_attachment_image.dart';
 import 'image_caption.dart';
@@ -40,7 +41,9 @@ class _GalleryViewerPageState extends State<GalleryViewerPage> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text('${_page + 1} of ${widget.events.length}'),
+        title: Text(
+          context.l10n.matrixGalleryPosition(_page + 1, widget.events.length),
+        ),
         actions: [AttachmentActionButtons(event: widget.events[_page])],
       ),
       body: Column(
@@ -94,7 +97,7 @@ class _GalleryPage extends StatelessWidget {
           iconSize: 64,
           color: Colors.white,
           icon: const Icon(Icons.play_circle_outline),
-          tooltip: 'Play',
+          tooltip: context.l10n.matrixPlay,
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => VideoViewerPage(event: event)),
           ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/navigation/zuno_links.dart';
 
 void main() {
@@ -16,7 +17,7 @@ void main() {
     ]) {
       test(name, () {
         expect(
-          linkNotOpenedMessage(uri),
+          linkNotOpenedMessage(englishLocalizations, uri),
           'Link not opened. Visit $address in a browser.',
         );
       });
@@ -24,7 +25,10 @@ void main() {
 
     test('names the address of an email link', () {
       expect(
-        linkNotOpenedMessage(Uri.parse('mailto:a@example.org')),
+        linkNotOpenedMessage(
+          englishLocalizations,
+          Uri.parse('mailto:a@example.org'),
+        ),
         'Email not opened. Write to a@example.org from your email.',
       );
     });
@@ -34,6 +38,8 @@ void main() {
     Future<void> tapLink(WidgetTester tester, UrlOpener openUrl) async {
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Builder(
               builder: (context) => TextButton(

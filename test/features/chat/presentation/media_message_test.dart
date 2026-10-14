@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/gallery_viewer_page.dart';
 import 'package:zuno/core/matrix/image_viewer_page.dart';
@@ -99,6 +100,8 @@ void main() {
     late BuildContext context;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         navigatorObservers: [pushes],
         home: Scaffold(
@@ -138,6 +141,8 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Center(
             child: SizedBox.square(
               dimension: 120,
@@ -193,6 +198,8 @@ void main() {
     ) async {
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: SizedBox.square(
             dimension: 120,
             child: MediaImage.memory(Uint8List(64), shownAt: 120),

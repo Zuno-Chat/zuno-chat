@@ -102,3 +102,4 @@ fastlane/README.md
 fastlane/Preview.html
 fastlane/test_output/
 vendor/bundle/
+lib/l10n/app_localizations*.dart

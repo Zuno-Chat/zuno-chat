@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/core/ui/sheet.dart';
 
@@ -12,6 +13,8 @@ void main() {
   Future<BuildContext> pumpHost(WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => KeepClearScope(child: child!),
         home: const Scaffold(body: Text('Chat')),
       ),

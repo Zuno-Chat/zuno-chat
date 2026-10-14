@@ -1,40 +1,34 @@
-const homeserverShapeMessage =
-    'Enter a hostname, such as chat.example.org, or a full https:// address';
+import '../l10n/l10n.dart';
 
 typedef HomeserverInput = ({Uri? uri, String? error});
 
-HomeserverInput parseHomeserverInput(String raw) {
+HomeserverInput parseHomeserverInput(AppLocalizations l10n, String raw) {
   final input = raw.trim();
   if (input.isEmpty) {
-    return (uri: null, error: 'Enter a server, such as chat.example.org');
+    return (uri: null, error: l10n.matrixHomeserverEnterServer);
   }
 
   if (input.startsWith('@')) {
-    return (
-      uri: null,
-      error:
-          'That looks like a username. Enter just the server part, such as '
-          'chat.example.org',
-    );
+    return (uri: null, error: l10n.matrixHomeserverLooksLikeUsername);
   }
 
   if (input.contains(RegExp(r'\s'))) {
-    return (uri: null, error: homeserverShapeMessage);
+    return (uri: null, error: l10n.matrixHomeserverShape);
   }
 
   final Uri uri;
   try {
     uri = Uri.parse(input.contains('://') ? input : 'https://$input');
   } on FormatException {
-    return (uri: null, error: homeserverShapeMessage);
+    return (uri: null, error: l10n.matrixHomeserverShape);
   }
 
   if (uri.scheme.toLowerCase() != 'https') {
-    return (uri: null, error: 'Use https://. An http address is not secure.');
+    return (uri: null, error: l10n.matrixHomeserverUseHttps);
   }
 
   if (uri.host.isEmpty) {
-    return (uri: null, error: homeserverShapeMessage);
+    return (uri: null, error: l10n.matrixHomeserverShape);
   }
 
   return (uri: uri, error: null);

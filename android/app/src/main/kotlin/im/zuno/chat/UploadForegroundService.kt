@@ -42,19 +42,18 @@ class UploadForegroundService : Service() {
         NotificationManagerCompat.from(this).cancel(NOTIFICATION_ID)
     }
 
-    private data class Progress(val label: String, val percent: Int?)
+    private data class Progress(val label: String?, val percent: Int?)
 
     companion object {
         private const val CHANNEL_ID = "uploads"
         private const val NOTIFICATION_ID = 4004
-        private const val DEFAULT_LABEL = "Uploading…"
 
         @Volatile private var running = false
 
-        @Volatile private var progress = Progress(DEFAULT_LABEL, null)
+        @Volatile private var progress = Progress(null, null)
 
         fun start(context: Context): Boolean {
-            progress = Progress(DEFAULT_LABEL, null)
+            progress = Progress(null, null)
             return try {
                 context.startForegroundService(Intent(context, UploadForegroundService::class.java))
                 true
@@ -66,7 +65,7 @@ class UploadForegroundService : Service() {
             }
         }
 
-        fun update(context: Context, label: String, percent: Int?) {
+        fun update(context: Context, label: String?, percent: Int?) {
             progress = Progress(label, percent)
             if (!running) return
             try {
@@ -85,7 +84,7 @@ class UploadForegroundService : Service() {
             val contentIntent = AppLaunchIntent.pending(context, 0)
             val percent = progress.percent
             return NotificationCompat.Builder(context, CHANNEL_ID)
-                .setContentTitle(progress.label)
+                .setContentTitle(progress.label ?: context.getString(R.string.matrixUploadingFile))
                 .setSmallIcon(R.drawable.ic_stat_zuno_mark)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
@@ -103,8 +102,8 @@ class UploadForegroundService : Service() {
                 context,
                 NotificationGroup.BACKGROUND,
                 CHANNEL_ID,
-                "Sending files",
-                "Progress while photos, videos and files are sent",
+                R.string.uploadsChannelSendingFiles,
+                R.string.uploadsChannelSendingFilesDescription,
                 NotificationManager.IMPORTANCE_LOW,
             )
         }

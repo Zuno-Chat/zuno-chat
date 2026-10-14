@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/feedback.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/sheet.dart';
 
 typedef SendFeedback = Future<void> Function(String message);
@@ -11,13 +12,14 @@ Future<void> showFeedbackSheet(
   SendFeedback onSend = sendFeedback,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
+  final l10n = context.l10n;
   final sent = await showSheet<bool>(
     context: context,
     isScrollControlled: true,
     builder: (_) => _FeedbackSheet(onSend: onSend),
   );
   if (sent ?? false) {
-    messenger.showSnackBar(const SnackBar(content: Text('Feedback sent.')));
+    messenger.showSnackBar(SnackBar(content: Text(l10n.feedbackSent)));
   }
 }
 
@@ -64,6 +66,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final canSend = !_sending && _message.text.trim().isNotEmpty;
+    final l10n = context.l10n;
 
     return SafeArea(
       child: Padding(
@@ -77,14 +80,15 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                child: Text('Send feedback', style: theme.textTheme.titleLarge),
+                child: Text(
+                  l10n.feedbackSheetTitle,
+                  style: theme.textTheme.titleLarge,
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
                 child: Text(
-                  'Your feedback goes to a reporting service with your app '
-                  'version and system version. Names and addresses are '
-                  'removed. Nothing identifies you, so there is no reply.',
+                  l10n.feedbackExplanation,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -102,12 +106,9 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
                   maxLength: 2000,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
-                    labelText: 'Your feedback',
+                    labelText: l10n.feedbackLabel,
                     alignLabelWithHint: true,
-                    errorText: _failed
-                        ? 'Feedback not sent. Check your connection and try '
-                              'again.'
-                        : null,
+                    errorText: _failed ? l10n.feedbackNotSent : null,
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
@@ -116,7 +117,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 child: FilledButton(
                   onPressed: canSend ? _send : null,
-                  child: const Text('Send feedback'),
+                  child: Text(l10n.feedbackSheetTitle),
                 ),
               ),
             ],

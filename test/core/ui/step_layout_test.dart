@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/step_hero.dart';
 import 'package:zuno/core/ui/step_layout.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
@@ -19,6 +20,8 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         home: Scaffold(
           body: StepLayout(
@@ -170,6 +173,8 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context)

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/linked_sign_in.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -20,9 +21,9 @@ typedef CodeScanner = Future<Uint8List?> Function(BuildContext context);
 Future<Uint8List?> scanCodeWithCamera(BuildContext context) =>
     Navigator.of(context).push<Uint8List>(
       MaterialPageRoute(
-        builder: (_) => const QrScannerPage(
-          title: 'Scan the sign-in code',
-          withoutCamera: 'You can still type the code instead.',
+        builder: (routeContext) => QrScannerPage(
+          title: routeContext.l10n.authLinkedScanTitle,
+          withoutCamera: routeContext.l10n.authLinkedScanWithoutCamera,
         ),
       ),
     );
@@ -59,7 +60,7 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
       utf8.decode(bytes, allowMalformed: true),
     );
     if (code == null) {
-      setState(() => _error = notASignInCodeMessage);
+      setState(() => _error = context.l10n.matrixLinkedSignInNotACode);
       return;
     }
     await _signIn(server: code.server, token: code.token);
@@ -70,7 +71,7 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
     closeKeyboard();
     final code = parseTypedSignInCode(_code.text);
     if (code == null) {
-      setState(() => _error = 'Enter the code');
+      setState(() => _error = context.l10n.authEnterCode);
       return;
     }
     await _signIn(server: code.server, token: code.token);
@@ -82,7 +83,9 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
     try {
       chosen = await ref.read(homeserverProvider.future);
     } catch (e) {
-      if (mounted) setState(() => _error = linkedSignInErrorMessage(e));
+      if (mounted) {
+        setState(() => _error = linkedSignInErrorMessage(context.l10n, e));
+      }
       return;
     }
     if (!mounted) return;
@@ -108,7 +111,7 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
     } catch (e, s) {
       if (!isLinkedSignInRefusal(e)) reportCaught('linked sign in', e, s);
       if (!mounted) return;
-      setState(() => _error = linkedSignInErrorMessage(e));
+      setState(() => _error = linkedSignInErrorMessage(context.l10n, e));
       holdRetriesFor(e, whenOver: () => _error = null);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -118,23 +121,21 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
     return PopScope(
       canPop: !_loading,
       child: AuthScaffold(
-        title: 'Sign in with your other device',
+        title: l10n.authSignInWithOtherDevice,
         children: [
-          const Text(
-            'On a device that is already signed in, open Settings, then Your '
-            'devices, then Sign in on another device.',
-          ),
+          Text(l10n.authLinkedInstructions),
           const SizedBox(height: 16),
           FilledButton(
             onPressed: _busy ? null : _scan,
-            child: const Text('Scan code'),
+            child: Text(l10n.authScanCode),
           ),
           const SizedBox(height: 24),
           Text(
-            'Or type the code it shows',
+            l10n.authOrTypeCode,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -151,9 +152,9 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
             maxLines: 2,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submitTyped(),
-            decoration: const InputDecoration(
-              labelText: 'Code',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: l10n.authCodeLabel,
+              border: const OutlineInputBorder(),
             ),
           ),
           if (_error != null) ...[
@@ -163,7 +164,9 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
           const SizedBox(height: 24),
           OutlinedButton(
             onPressed: _busy ? null : _submitTyped,
-            child: Text(_loading ? 'Signing in…' : 'Sign in with the code'),
+            child: Text(
+              _loading ? l10n.authSigningIn : l10n.authSignInWithCode,
+            ),
           ),
         ],
       ),

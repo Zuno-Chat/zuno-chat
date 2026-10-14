@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
@@ -10,33 +11,34 @@ class ChatsCallsSettingsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final themeMode = ref.watch(themeModeProvider);
     final sendTypingIndicator = ref.watch(sendTypingIndicatorProvider);
     final confirmBeforeCalling = ref.watch(confirmBeforeCallingProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Chats & calls')),
+      appBar: AppBar(title: Text(l10n.settingsChatsCallsTitle)),
       body: CardListView(
         children: [
           CardGroup(
-            title: 'Appearance',
+            title: l10n.settingsChatsCallsAppearance,
             children: [
               RadioGroup<ThemeMode>(
                 groupValue: themeMode,
                 onChanged: (mode) =>
                     ref.read(themeModeProvider.notifier).set(mode!),
-                child: const Column(
+                child: Column(
                   children: [
                     RadioListTile<ThemeMode>(
-                      title: Text('Follow system'),
+                      title: Text(l10n.settingsChatsCallsFollowSystem),
                       value: ThemeMode.system,
                     ),
                     RadioListTile<ThemeMode>(
-                      title: Text('Light'),
+                      title: Text(l10n.settingsChatsCallsLight),
                       value: ThemeMode.light,
                     ),
                     RadioListTile<ThemeMode>(
-                      title: Text('Dark'),
+                      title: Text(l10n.settingsChatsCallsDark),
                       value: ThemeMode.dark,
                     ),
                   ],
@@ -45,12 +47,12 @@ class ChatsCallsSettingsPage extends ConsumerWidget {
             ],
           ),
           CardGroup(
-            title: 'Chats',
+            title: l10n.settingsChatsCallsChats,
             children: [
               SwitchListTile(
                 secondary: const Icon(Icons.more_horiz_outlined),
-                title: const Text('Show when you are typing'),
-                subtitle: const Text('You still see when others are typing'),
+                title: Text(l10n.settingsChatsCallsTyping),
+                subtitle: Text(l10n.settingsChatsCallsTypingSubtitle),
                 value: sendTypingIndicator,
                 onChanged: (value) =>
                     ref.read(sendTypingIndicatorProvider.notifier).set(value),
@@ -58,13 +60,13 @@ class ChatsCallsSettingsPage extends ConsumerWidget {
             ],
           ),
           CardGroup(
-            title: 'Calls',
+            title: l10n.settingsChatsCallsCalls,
             children: [
               SwitchListTile(
                 secondary: const Icon(Icons.shield_moon_outlined),
-                title: const Text('Prevent accidental calls'),
-                subtitle: const Text(
-                  'Asks before starting a voice or video call',
+                title: Text(l10n.settingsChatsCallsPreventAccidental),
+                subtitle: Text(
+                  l10n.settingsChatsCallsPreventAccidentalSubtitle,
                 ),
                 value: confirmBeforeCalling,
                 onChanged: (value) =>

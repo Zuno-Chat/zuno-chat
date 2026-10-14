@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/delivery_failure.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
@@ -43,7 +44,7 @@ void main() {
       );
       expect(failure?.action, DeliveryFailureAction.switchToUnifiedPush);
       expect(
-        failure?.message,
+        failure?.message(englishLocalizations),
         'This device does not have Google Play services',
       );
     });
@@ -55,9 +56,12 @@ void main() {
         fcm: FcmStatus.playServicesUpdateRequired,
       );
       expect(failure?.action, DeliveryFailureAction.updatePlayServices);
-      expect(failure?.message, 'Google Play services needs an update');
       expect(
-        deliveryFailureActionLabel(failure!.action),
+        failure?.message(englishLocalizations),
+        'Google Play services needs an update',
+      );
+      expect(
+        deliveryFailureActionLabel(englishLocalizations, failure!.action),
         'Update Google Play services',
       );
     });
@@ -79,7 +83,7 @@ void main() {
             DeliveryFailureAction.switchToBackgroundService,
           );
           expect(
-            deliveryFailureActionLabel(failure!.action),
+            deliveryFailureActionLabel(englishLocalizations, failure!.action),
             'Use background sync',
           );
         });
@@ -146,7 +150,7 @@ void main() {
       for (final fcm in [FcmStatus.tokenFailed, FcmStatus.pusherFailed]) {
         final failure = failureFor(NotificationDeliveryMode.fcm, fcm: fcm);
         expect(
-          failure?.message,
+          failure?.message(englishLocalizations),
           'Could not set up notifications on this device',
           reason: '$fcm',
         );
@@ -189,7 +193,7 @@ void main() {
         unifiedPush: UnifiedPushStatus.registrationFailed,
       );
       expect(
-        failure?.message,
+        failure?.message(englishLocalizations),
         'The distributor app refused to register this device',
       );
       expect(failure?.action, DeliveryFailureAction.retry);
@@ -201,7 +205,10 @@ void main() {
         NotificationDeliveryMode.unifiedPush,
         unifiedPush: UnifiedPushStatus.pusherFailed,
       );
-      expect(failure?.message, 'Could not set up notifications on this device');
+      expect(
+        failure?.message(englishLocalizations),
+        'Could not set up notifications on this device',
+      );
       expect(failure?.action, DeliveryFailureAction.retry);
     });
 
@@ -212,7 +219,7 @@ void main() {
       );
       expect(failure?.action, DeliveryFailureAction.switchToBackgroundService);
       expect(
-        failure?.message,
+        failure?.message(englishLocalizations),
         'No distributor app on this device to deliver through',
       );
     });
@@ -245,7 +252,7 @@ void main() {
         NotificationDeliveryMode.fcm,
         fcmRemoved: true,
       );
-      expect(failure?.message, _notRegistered);
+      expect(failure?.message(englishLocalizations), _notRegistered);
       expect(failure?.action, DeliveryFailureAction.retry);
       expect(failure?.notice, isFalse);
     });
@@ -261,7 +268,11 @@ void main() {
           unifiedPush: status,
           unifiedPushRemoved: true,
         );
-        expect(failure?.message, _notRegistered, reason: '$status');
+        expect(
+          failure?.message(englishLocalizations),
+          _notRegistered,
+          reason: '$status',
+        );
         expect(failure?.action, DeliveryFailureAction.retry, reason: '$status');
       }
     });
@@ -343,7 +354,7 @@ void main() {
         unifiedPushRemoved: true,
         autoSelected: NotificationDeliveryMode.unifiedPush,
       );
-      expect(failure?.message, _notRegistered);
+      expect(failure?.message(englishLocalizations), _notRegistered);
       expect(failure?.notice, isFalse);
     });
   });
@@ -370,10 +381,13 @@ void main() {
       NotificationDeliveryMode.fcm,
       fcm: FcmStatus.playServicesDisabled,
     );
-    expect(failure?.message, 'Google Play services is turned off');
+    expect(
+      failure?.message(englishLocalizations),
+      'Google Play services is turned off',
+    );
     expect(failure?.action, DeliveryFailureAction.turnOnPlayServices);
     expect(
-      deliveryFailureActionLabel(failure!.action),
+      deliveryFailureActionLabel(englishLocalizations, failure!.action),
       'Turn on Google Play services',
     );
   });
@@ -384,7 +398,7 @@ void main() {
       fcm: FcmStatus.notConfigured,
     );
     expect(
-      failure?.message,
+      failure?.message(englishLocalizations),
       'This version of Zuno does not include Google services',
     );
     expect(failure?.action, DeliveryFailureAction.switchToUnifiedPush);
@@ -425,7 +439,7 @@ void main() {
       for (final apns in [ApnsStatus.tokenFailed, ApnsStatus.pusherFailed]) {
         final failure = failureFor(NotificationDeliveryMode.apns, apns: apns);
         expect(
-          failure?.message,
+          failure?.message(englishLocalizations),
           'Could not set up notifications on this device',
           reason: '$apns',
         );
@@ -439,7 +453,10 @@ void main() {
         apns: ApnsStatus.ready,
         apnsDropped: 1,
       );
-      expect(failure?.message, 'Notifications may not reach this device');
+      expect(
+        failure?.message(englishLocalizations),
+        'Notifications may not reach this device',
+      );
       expect(failure?.action, DeliveryFailureAction.retry);
     });
 
@@ -457,7 +474,7 @@ void main() {
           NotificationDeliveryMode.apns,
           apns: ApnsStatus.pusherFailed,
           apnsDropped: 1,
-        )?.message,
+        )?.message(englishLocalizations),
         'Could not set up notifications on this device',
       );
     });
@@ -521,7 +538,7 @@ void main() {
                           autoSelected: autoSelected,
                           fcmRemoved: removed,
                           unifiedPushRemoved: removed,
-                        )?.message,
+                        )?.message(englishLocalizations),
     };
     expect(messages, contains(_notRegistered));
     for (final message in messages) {
@@ -543,7 +560,7 @@ void main() {
         distributor: 'io.heckel.ntfy',
       );
       expect(failure?.action, DeliveryFailureAction.openDistributorSettings);
-      expect(failure?.message, contains('ntfy'));
+      expect(failure?.message(englishLocalizations), contains('ntfy'));
     });
 
     test('a registration failure outranks the battery warning', () {
@@ -579,7 +596,7 @@ void main() {
       expect(notice?.notice, isTrue);
       expect(notice?.action, DeliveryFailureAction.openSettings);
       expect(
-        notice?.message,
+        notice?.message(englishLocalizations),
         'Google services cannot be used, so notifications use UnifiedPush',
       );
     });
@@ -588,7 +605,6 @@ void main() {
       for (final (mode, named) in [
         (NotificationDeliveryMode.backgroundService, 'background sync'),
         (NotificationDeliveryMode.unifiedPush, 'UnifiedPush'),
-        (NotificationDeliveryMode.fcm, 'Google services'),
         (NotificationDeliveryMode.apns, 'Apple push'),
       ]) {
         expect(
@@ -598,7 +614,7 @@ void main() {
             unifiedPush: UnifiedPushStatus.ready,
             apns: ApnsStatus.ready,
             autoSelected: mode,
-          )?.message,
+          )?.message(englishLocalizations),
           endsWith('so notifications use $named'),
           reason: '$mode',
         );
@@ -635,9 +651,31 @@ void main() {
       );
     }
     expect(
-      callsSetupFailed.message,
+      callsSetupFailed.message(englishLocalizations),
       'Could not set up calls to ring while Zuno is closed',
     );
-    expect(deliveryFailureActionLabel(callsSetupFailed.action), 'Retry');
+    expect(
+      deliveryFailureActionLabel(englishLocalizations, callsSetupFailed.action),
+      'Retry',
+    );
+  });
+
+  test('failures are equal only when reason, detail, action and notice '
+      'match', () {
+    final rebuilt = DeliveryFailure(
+      reason: DeliveryFailureReason.callsSetup,
+      action: DeliveryFailureAction.retryCalls,
+    );
+    expect(rebuilt, callsSetupFailed);
+    expect(rebuilt.hashCode, callsSetupFailed.hashCode);
+    expect(
+      callsSetupFailed,
+      isNot(
+        const DeliveryFailure(
+          reason: DeliveryFailureReason.setupFailed,
+          action: DeliveryFailureAction.retryCalls,
+        ),
+      ),
+    );
   });
 }

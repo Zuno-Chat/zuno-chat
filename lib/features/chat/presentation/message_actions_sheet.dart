@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/sheet.dart';
 
 enum MessageAction { reply, edit, delete, share, save, copy, report }
@@ -27,6 +28,7 @@ Future<MessageAction?> showMessageActionsSheet(
     builder: (context) {
       final theme = Theme.of(context);
       final colors = theme.colorScheme;
+      final l10n = context.l10n;
 
       Widget action(MessageAction value, IconData icon, String label) {
         final color = value == MessageAction.delete ? colors.error : null;
@@ -64,7 +66,7 @@ Future<MessageAction?> showMessageActionsSheet(
                           ),
                         ),
                       _ReactionButton(
-                        tooltip: 'More reactions',
+                        tooltip: l10n.chatMoreReactions,
                         onTap: () {
                           Navigator.of(context).pop();
                           onMoreReactions();
@@ -75,31 +77,47 @@ Future<MessageAction?> showMessageActionsSheet(
                   ),
                 ),
               if (canRespond)
-                action(MessageAction.reply, Icons.reply_outlined, 'Reply'),
+                action(
+                  MessageAction.reply,
+                  Icons.reply_outlined,
+                  l10n.commonReply,
+                ),
               if (isTextMessage)
-                action(MessageAction.copy, Icons.copy_outlined, 'Copy'),
+                action(
+                  MessageAction.copy,
+                  Icons.copy_outlined,
+                  l10n.commonCopy,
+                ),
               if (canEdit)
-                action(MessageAction.edit, Icons.edit_outlined, 'Edit'),
+                action(MessageAction.edit, Icons.edit_outlined, l10n.chatEdit),
               if (isAttachment) ...[
                 action(
                   MessageAction.share,
                   Icons.share_outlined,
-                  isGallery ? 'Share all ($galleryCount)' : 'Share',
+                  isGallery
+                      ? l10n.chatShareAll(galleryCount)
+                      : l10n.commonShare,
                 ),
                 action(
                   MessageAction.save,
                   Icons.download_outlined,
-                  isGallery ? 'Save all ($galleryCount)' : 'Save',
+                  isGallery ? l10n.chatSaveAll(galleryCount) : l10n.commonSave,
                 ),
               ],
               if (canDelete)
                 action(
                   MessageAction.delete,
                   Icons.delete_outline,
-                  isGallery ? 'Delete all ($galleryCount)' : 'Delete',
+                  isGallery
+                      ? l10n.chatDeleteAllCount(galleryCount)
+                      : l10n.commonDelete,
                 ),
               if (!isOwn)
-                action(MessageAction.report, Icons.flag_outlined, 'Report'),
+                action(
+                  MessageAction.report,
+                  Icons.flag_outlined,
+                  l10n.commonReport,
+                ),
               if (facts.isNotEmpty) ...[
                 Divider(height: 9, color: colors.outlineVariant),
                 Padding(

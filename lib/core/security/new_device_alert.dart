@@ -1,3 +1,5 @@
+import '../l10n/l10n.dart';
+
 class NewDeviceAlert {
   final String deviceId;
   final String? displayName;
@@ -32,10 +34,10 @@ List<NewDeviceAlert> newDeviceAlerts({
   ];
 }
 
-({String title, String body}) newDeviceNotificationText(NewDeviceAlert alert) =>
-    (
-      title: 'New sign-in',
-      body:
-          '${alert.label} just signed in to your account. If that was not you, '
-          'sign it out now.',
-    );
+({String title, String body}) newDeviceNotificationText(
+  AppLocalizations l10n,
+  NewDeviceAlert alert,
+) => (
+  title: l10n.securityNewSignInTitle,
+  body: l10n.securityNewSignInBody(alert.label),
+);

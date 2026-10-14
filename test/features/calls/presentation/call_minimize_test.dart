@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
+import 'package:zuno/core/calls/models/call_failure.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_router.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
@@ -153,7 +154,10 @@ void main() {
     final session = await talking(harness);
     await harness.minimize();
 
-    session.end(reason: CallEndReason.failed, message: 'Connection lost');
+    session.end(
+      reason: CallEndReason.failed,
+      failure: CallFailure.connectionLost,
+    );
     await harness.settle();
 
     expect(find.text('Connection lost'), findsOneWidget);

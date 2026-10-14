@@ -10,6 +10,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import im.zuno.chat.zuno_notifications.AppLaunchIntent
+import im.zuno.chat.zuno_notifications.PushNotice
 
 class BackgroundSyncService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
@@ -20,8 +21,8 @@ class BackgroundSyncService : Service() {
         val contentIntent = AppLaunchIntent.pending(this, 0)
 
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Zuno")
-            .setContentText("Waiting for messages and calls")
+            .setContentTitle(PushNotice.BRAND_NAME)
+            .setContentText(getString(R.string.notificationsBackgroundSyncWaiting))
             .setSmallIcon(R.drawable.ic_stat_zuno_mark)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MIN)
@@ -52,8 +53,8 @@ class BackgroundSyncService : Service() {
             this,
             NotificationGroup.BACKGROUND,
             CHANNEL_ID,
-            "Background sync",
-            "Shows while background sync keeps Zuno connected",
+            R.string.notificationsChannelBackgroundSync,
+            R.string.notificationsChannelBackgroundSyncDescription,
             NotificationManager.IMPORTANCE_MIN,
         )
     }

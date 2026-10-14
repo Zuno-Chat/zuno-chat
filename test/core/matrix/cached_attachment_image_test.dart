@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/cached_attachment_image.dart';
 
@@ -14,6 +15,8 @@ void main() {
 
   Future<void> pumpImage(WidgetTester tester, Event event) => tester.pumpWidget(
     MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: CachedAttachmentImage(
         event: event,
         thumbnail: false,
@@ -75,6 +78,8 @@ void main() {
     Future<void> pumpThumbnail(WidgetTester tester, Event event) =>
         tester.pumpWidget(
           MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: CachedAttachmentImage(
               event: event,
               thumbnail: true,

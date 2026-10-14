@@ -8,7 +8,6 @@ import 'package:path/path.dart' as p;
 import 'package:zuno/core/matrix/attachment_actions.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/message_contents/voice_message.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
 
@@ -18,6 +17,7 @@ import '../../../helpers/fake_audio_player.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/pump_until.dart';
+import '../../../helpers/zuno_app.dart';
 
 const _meta = MessageMeta(time: '09:41', own: false);
 
@@ -63,15 +63,10 @@ void main() {
 
   Future<void> pumpVoice(WidgetTester tester, Event event) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: zunoLightTheme,
-        home: Scaffold(
-          body: Center(
-            child: SizedBox(
-              width: 300,
-              child: VoiceMessage(event: event, own: false, meta: _meta),
-            ),
-          ),
+      inZunoApp(
+        SizedBox(
+          width: 300,
+          child: VoiceMessage(event: event, own: false, meta: _meta),
         ),
       ),
     );

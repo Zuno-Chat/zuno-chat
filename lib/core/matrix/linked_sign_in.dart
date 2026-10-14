@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:matrix/matrix.dart';
 
+import '../l10n/l10n.dart';
 import 'auth_error_message.dart';
 
 const _codeTag = 'ZUNO-SIGN-IN';
@@ -102,37 +103,26 @@ String groupedSignInCode(String token) {
   return groups.join(' ');
 }
 
-const invalidSignInCodeMessage =
-    'That code is not valid or has expired. Make a new one on your other '
-    'device.';
-const notASignInCodeMessage = 'That is not a Zuno sign-in code.';
-String codeForAnotherServerMessage(String server) =>
-    'This code is for $server. Change the server on the sign-in screen '
-    'first.';
-const signInCodesUnsupportedMessage = 'This server cannot make sign-in codes.';
-const signInCodeIssueFailedMessage =
-    'Could not make a code. Check your connection and try again.';
-
-String linkedSignInErrorMessage(Object error) {
+String linkedSignInErrorMessage(AppLocalizations l10n, Object error) {
   if (error is SignInCodeForAnotherServer) {
-    return codeForAnotherServerMessage(error.server);
+    return l10n.matrixLinkedSignInOtherServer(error.server);
   }
   if (error is MatrixException && error.error == MatrixError.M_FORBIDDEN) {
-    return invalidSignInCodeMessage;
+    return l10n.matrixLinkedSignInInvalid;
   }
-  return loginErrorMessage(error);
+  return loginErrorMessage(l10n, error);
 }
 
 bool isLinkedSignInRefusal(Object error) =>
     error is SignInCodeForAnotherServer || isLoginRefusal(error);
 
-String signInCodeIssueErrorMessage(Object error) {
+String signInCodeIssueErrorMessage(AppLocalizations l10n, Object error) {
   if (error is MatrixException) {
     return switch (error.error) {
-      MatrixError.M_UNRECOGNIZED => signInCodesUnsupportedMessage,
-      MatrixError.M_LIMIT_EXCEEDED => loginErrorMessage(error),
-      _ => signInCodeIssueFailedMessage,
+      MatrixError.M_UNRECOGNIZED => l10n.matrixLinkedSignInUnsupported,
+      MatrixError.M_LIMIT_EXCEEDED => loginErrorMessage(l10n, error),
+      _ => l10n.matrixLinkedSignInIssueFailed,
     };
   }
-  return signInCodeIssueFailedMessage;
+  return l10n.matrixLinkedSignInIssueFailed;
 }

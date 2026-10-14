@@ -19,6 +19,7 @@ import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/pending_call_notification_action_provider.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -148,6 +149,8 @@ void main() {
           builder: (context) {
             container = ProviderScope.containerOf(context);
             return MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
               navigatorKey: navigatorKey,
               navigatorObservers: [observer],
               home: const Scaffold(body: Text('room list')),

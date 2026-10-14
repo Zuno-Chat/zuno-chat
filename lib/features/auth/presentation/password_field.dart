@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/security/screen_security_service.dart';
 
 class PasswordField extends StatelessWidget {
@@ -46,7 +47,9 @@ class PasswordField extends StatelessWidget {
             : ExcludeFocus(
                 child: IconButton(
                   onPressed: enabled ? onToggleReveal : null,
-                  tooltip: revealed ? 'Hide password' : 'Show password',
+                  tooltip: revealed
+                      ? context.l10n.authPasswordHide
+                      : context.l10n.authPasswordShow,
                   icon: Icon(
                     revealed
                         ? Icons.visibility_off_outlined

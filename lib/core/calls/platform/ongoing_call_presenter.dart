@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/l10n.dart';
 import '../../platform/platform_capabilities.dart';
 
 const _callsChannel = MethodChannel('zuno/calls');
@@ -28,7 +29,7 @@ class AndroidOngoingCallPresenter implements OngoingCallPresenter {
   Future<void> start({required String title, required bool withCamera}) {
     return _invoke('startCallForegroundService', {
       'title': title,
-      'text': 'Tap to return to the call',
+      'text': deviceLocalizations().callsOngoingTapToReturn,
       'withCamera': withCamera,
     });
   }

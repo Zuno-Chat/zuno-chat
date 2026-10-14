@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/event_display.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -453,7 +454,8 @@ void main() {
           reason: 'read-marker eligibility for "${testCase.name}"',
         );
 
-        final summary = summarize(event);
+        expect(messageKindOf(event), testCase.kind);
+        final summary = summarize(englishLocalizations, event);
         expect(summary.kind, testCase.kind);
         if (testCase.text != null) {
           expect(summary.text, testCase.text);
@@ -464,7 +466,7 @@ void main() {
 
   test('no summary ever leaks the SDK\'s raw fallback text', () {
     for (final testCase in _cases) {
-      final text = summarize(testCase.build(room)).text;
+      final text = summarize(englishLocalizations, testCase.build(room)).text;
       expect(
         text,
         isNot(contains('Unknown message format')),
@@ -485,7 +487,7 @@ void main() {
         durationMs: 0,
       ).toMessageContent(),
     );
-    final summary = summarize(event);
+    final summary = summarize(englishLocalizations, event);
     expect(summary.call?.status, CallSummaryStatus.missed);
     expect(summary.call?.kind, 'video');
   });

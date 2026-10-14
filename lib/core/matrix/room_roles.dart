@@ -1,6 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 import 'optimistic_room_state.dart';
 
 enum RoomRole { readOnly, member, moderator, admin }
@@ -13,11 +14,11 @@ extension RoomRoleX on RoomRole {
     RoomRole.admin => 100,
   };
 
-  String get label => switch (this) {
-    RoomRole.readOnly => 'Read-only',
-    RoomRole.member => 'Member',
-    RoomRole.moderator => 'Moderator',
-    RoomRole.admin => 'Admin',
+  String label(AppLocalizations l10n) => switch (this) {
+    RoomRole.readOnly => l10n.matrixRoleReadOnly,
+    RoomRole.member => l10n.matrixRoleMember,
+    RoomRole.moderator => l10n.matrixRoleModerator,
+    RoomRole.admin => l10n.matrixRoleAdmin,
   };
 }
 
@@ -125,11 +126,12 @@ List<User> membersOwnerFirst(Room room, List<User> users) => [
     if (!isRoomOwner(room, user.id)) user,
 ];
 
-String? memberBadge(Room room, User user) {
-  if (user.membership == Membership.invite) return 'Invited';
-  if (isRoomOwner(room, user.id)) return 'Owner';
+String? memberBadge(Room room, User user, AppLocalizations l10n) {
+  if (user.membership == Membership.invite) return l10n.matrixBadgeInvited;
+  if (isRoomOwner(room, user.id)) return l10n.matrixBadgeOwner;
   return switch (ownRoomRole(room)) {
-    RoomRole.admin || RoomRole.moderator => roomRoleOfUser(room, user.id).label,
+    RoomRole.admin ||
+    RoomRole.moderator => roomRoleOfUser(room, user.id).label(l10n),
     RoomRole.member || RoomRole.readOnly => null,
   };
 }

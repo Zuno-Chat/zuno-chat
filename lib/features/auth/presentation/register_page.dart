@@ -6,6 +6,7 @@ import 'package:flutter/services.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -71,15 +72,17 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
     closeKeyboard();
     final client = ref.read(matrixClientProvider);
     final onboarding = ref.read(onboardingStoreProvider);
+    final l10n = context.l10n;
     final username = _username.text.trim();
     final password = _password.text;
     final code = widget.requiresCode ? _code.text.trim() : null;
 
     if (code != null && code.isEmpty) {
-      setState(() => _error = 'Enter the code from your email');
+      setState(() => _error = l10n.authEnterEmailCode);
       return;
     }
     final inputError = registrationInputError(
+      l10n,
       username: username,
       password: password,
       confirmPassword: _confirmPassword.text,
@@ -122,12 +125,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
       if (!mounted) return;
       setState(() {
         _codeRefused = true;
-        _error = registrationErrorMessage(e);
+        _error = registrationErrorMessage(l10n, e);
       });
     } catch (e, s) {
       if (!isRegistrationRefusal(e)) reportCaught('register', e, s);
       if (!mounted) return;
-      setState(() => _error = registrationErrorMessage(e));
+      setState(() => _error = registrationErrorMessage(l10n, e));
       holdRetriesFor(e, whenOver: () => _error = null);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -141,16 +144,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
   Widget build(BuildContext context) {
     final serverName = ref.watch(serverNameProvider);
     final onZuno = serverName == officialHomeserver.host;
+    final l10n = context.l10n;
 
     return PopScope(
       canPop: !_loading,
       child: AuthScaffold(
-        title: 'Create your account',
+        title: l10n.authCreateYourAccount,
         footer: [
           if (onZuno) ...[
             Text(
-              'Creating an account means you agree to the terms and the privacy '
-              'policy.',
+              l10n.authRegisterAgreement,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -161,11 +164,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
               children: [
                 TextButton(
                   onPressed: () => _open(termsUri),
-                  child: const Text('Terms'),
+                  child: Text(l10n.commonTerms),
                 ),
                 TextButton(
                   onPressed: () => _open(privacyPolicyUri),
-                  child: const Text('Privacy policy'),
+                  child: Text(l10n.commonPrivacyPolicy),
                 ),
               ],
             ),
@@ -174,16 +177,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
         children: [
           if (serverName != null) ...[
             Text(
-              'Your account lives on $serverName.',
+              l10n.authAccountLivesOn(serverName),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 16),
           ],
-          if (widget.email != null) ...[
+          if (widget.email case final email?) ...[
             Text(
-              'Check ${widget.email} for your code. It expires in 24 hours.',
+              l10n.authCheckEmailForCode(email),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -206,10 +209,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
                 ),
                 FilteringTextInputFormatter.allow(RegExp(r'[A-HJ-NP-Z2-9]')),
               ],
-              decoration: const InputDecoration(
-                labelText: 'Sign-up code',
-                helperText: 'From the email Zuno sent',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.authSignUpCodeLabel,
+                helperText: l10n.authSignUpCodeHelper,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
@@ -230,16 +233,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
                   textInputAction: TextInputAction.next,
                   onChanged: (_) => _clearError(),
                   inputFormatters: [lowercaseFormatter, usernameCharsFormatter],
-                  decoration: const InputDecoration(
-                    labelText: 'Username',
-                    helperText: 'Letters, numbers, dots and underscores',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.commonUsername,
+                    helperText: l10n.authRegisterUsernameHelper,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
                 PasswordField(
                   controller: _password,
-                  labelText: 'Password',
+                  labelText: l10n.commonPassword,
                   enabled: !_loading,
                   revealed: passwordRevealed,
                   onToggleReveal: togglePasswordReveal,
@@ -257,7 +260,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
                 const SizedBox(height: 16),
                 PasswordField(
                   controller: _confirmPassword,
-                  labelText: 'Confirm password',
+                  labelText: l10n.authConfirmPasswordLabel,
                   enabled: !_loading,
                   revealed: passwordRevealed,
                   autofillHints: const [AutofillHints.newPassword],
@@ -279,13 +282,15 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
             const SizedBox(height: 8),
             TextButton(
               onPressed: _loading ? null : () => Navigator.of(context).pop(),
-              child: const Text('Send a new code'),
+              child: Text(l10n.authSendNewCode),
             ),
           ],
           const SizedBox(height: 24),
           FilledButton(
             onPressed: _loading || waitingToRetry ? null : _register,
-            child: Text(_loading ? 'Creating account…' : 'Create account'),
+            child: Text(
+              _loading ? l10n.authCreatingAccount : l10n.authCreateAccount,
+            ),
           ),
         ],
       ),

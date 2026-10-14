@@ -3,20 +3,22 @@ import 'package:flutter/services.dart';
 
 import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/models/call_status.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/ui/zuno_colors.dart';
 import 'call_status_line.dart';
-import 'call_status_widgets.dart';
 
-const returnToCallLabel = 'Return to call';
-
-String? callBarLabel(CallStatus status, {required bool reconnecting}) {
-  if (reconnecting) return 'Reconnecting…';
+String? callBarLabel(
+  AppLocalizations l10n,
+  CallStatus status, {
+  required bool reconnecting,
+}) {
+  if (reconnecting) return l10n.callsReconnecting;
   return switch (status) {
-    CallStatus.calling => 'Calling…',
-    CallStatus.connecting => 'Connecting…',
-    CallStatus.waiting => 'Waiting…',
-    CallStatus.encrypting => EncryptingLabel.label,
+    CallStatus.calling => l10n.callsCalling,
+    CallStatus.connecting => l10n.callsConnecting,
+    CallStatus.waiting => l10n.callsWaiting,
+    CallStatus.encrypting => l10n.callsEncrypting,
     CallStatus.talking => null,
   };
 }
@@ -32,14 +34,19 @@ class CallBar extends StatelessWidget {
     final style = Theme.of(context).textTheme.bodyMedium!
         .copyWith(color: onCallActionColor);
     final since = call.talkingSince;
-    final label = callBarLabel(call.status, reconnecting: call.reconnecting);
-    final title = roomTitle(call.session.room);
+    final l10n = context.l10n;
+    final label = callBarLabel(
+      l10n,
+      call.status,
+      reconnecting: call.reconnecting,
+    );
+    final title = roomTitle(call.session.room, l10n);
     final muted = call.local?.audioMuted ?? false;
     return Semantics(
       container: true,
       button: true,
-      label: returnToCallLabel,
-      value: [title, ?label, if (muted) 'Muted'].join(', '),
+      label: l10n.callsReturnToCall,
+      value: [title, ?label, if (muted) l10n.callsMuted].join(', '),
       onTap: onTap,
       excludeSemantics: true,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -112,7 +119,7 @@ class CallBar extends StatelessWidget {
                           maxWidth: constraints.maxWidth * 0.4,
                         ),
                         child: Text(
-                          returnToCallLabel,
+                          l10n.callsReturnToCall,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: style.copyWith(fontWeight: FontWeight.w600),

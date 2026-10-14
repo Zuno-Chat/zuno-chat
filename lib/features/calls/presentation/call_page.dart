@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/models/call_engine_participant.dart';
 import '../../../core/calls/models/voip_participant_id.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/navigation/chat_route.dart';
 import '../../../core/navigation/launch_route.dart';
@@ -18,9 +19,6 @@ import '../../verification/presentation/confirm_person.dart';
 import '../../verification/presentation/why_confirm_sheet.dart';
 import 'call_confirm_prompt.dart';
 import 'call_view.dart';
-
-const cameraDidNotTurnOnMessage =
-    'Camera did not turn on. Check that Zuno can use the camera and try again.';
 
 final _screens = Expando<Route<void>>('call screen route');
 
@@ -141,8 +139,9 @@ class _CallPageState extends ConsumerState<CallPage> {
 
   Future<void> _toggleCamera() async {
     if (await call.toggleCamera() || !mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text(cameraDidNotTurnOnMessage)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.callsCameraDidNotTurnOn)),
+    );
   }
 
   CallViewParticipant _viewOf(CallEngineParticipant participant) =>

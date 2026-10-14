@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../data/composed_video.dart';
 import 'caption_bar.dart';
 
@@ -50,11 +51,11 @@ class ComposerVideoPreview extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError || !controller.value.isInitialized) {
-          return const Center(
+          return Center(
             child: Padding(
-              padding: EdgeInsets.all(24),
+              padding: const EdgeInsets.all(24),
               child: Text(
-                'This video cannot be previewed.',
+                context.l10n.chatVideoNoPreview,
                 textAlign: TextAlign.center,
               ),
             ),
@@ -140,7 +141,7 @@ class _VideoCaptionComposerPageState extends State<VideoCaptionComposerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add a caption')),
+      appBar: AppBar(title: Text(context.l10n.chatCaptionTitle)),
       body: SafeArea(
         child: Column(
           children: [

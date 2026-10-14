@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 import '../security/password_strength.dart';
 import 'homeserver.dart';
 import 'matrix_client_provider.dart';
@@ -113,34 +114,35 @@ const maxRegistrationPasswordLength = 512;
 
 const maxUserIdLength = 255;
 
-String? registrationInputError({
+String? registrationInputError(
+  AppLocalizations l10n, {
   required String username,
   required String password,
   required String confirmPassword,
   String? serverName,
 }) {
-  if (username.isEmpty) return 'Choose a username';
+  if (username.isEmpty) return l10n.matrixSignupChooseUsername;
   if (username.startsWith('@') || username.contains(':')) {
-    return 'Enter just a username, without @ or a server name';
+    return l10n.matrixSignupEnterJustUsername;
   }
   if (!RegExp('^[$signupUsernameChars]+\$').hasMatch(username)) {
-    return 'Usernames can use a–z, 0–9, dots and underscores';
+    return l10n.matrixSignupUsernameChars;
   }
   if (username.startsWith('_')) {
-    return 'Usernames cannot start with an underscore';
+    return l10n.matrixSignupUsernameUnderscore;
   }
   if (!username.contains(RegExp('[a-z]'))) {
-    return 'Usernames need at least one letter';
+    return l10n.matrixSignupUsernameLetter;
   }
   if ('@$username:${serverName ?? ''}'.length > maxUserIdLength) {
-    return 'That username is too long';
+    return l10n.matrixSignupUsernameTooLong;
   }
   if (password.length > maxRegistrationPasswordLength) {
-    return 'Use at most $maxRegistrationPasswordLength characters';
+    return l10n.matrixSignupPasswordTooLong(maxRegistrationPasswordLength);
   }
-  final assessment = assessPassword(password, username: username);
+  final assessment = assessPassword(l10n, password, username: username);
   if (assessment.blocker != null) return assessment.blocker;
-  if (password != confirmPassword) return 'Passwords do not match';
+  if (password != confirmPassword) return l10n.matrixSignupPasswordsDiffer;
   return null;
 }
 

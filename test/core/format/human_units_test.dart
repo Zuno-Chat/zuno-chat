@@ -1,12 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/format/human_units.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 
 void main() {
   test('formatBytes picks the unit by size', () {
-    expect(formatBytes(512), '512 B');
-    expect(formatBytes(2048), '2.0 KB');
-    expect(formatBytes(3 * 1024 * 1024), '3.0 MB');
+    expect(formatBytes(englishLocalizations, 512), '512 B');
+    expect(formatBytes(englishLocalizations, 2048), '2.0 KB');
+    expect(formatBytes(englishLocalizations, 3 * 1024 * 1024), '3.0 MB');
+    expect(formatBytes(englishLocalizations, 1023), '1023 B');
+    expect(formatBytes(englishLocalizations, 1280), '1.3 KB');
   });
 
   group('formatDuration', () {

@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/caught_errors.dart';
+import '../../l10n/l10n.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../matrix/room_title.dart';
 import '../../platform/platform_capabilities.dart';
@@ -62,7 +63,7 @@ String roomJson(
     _withExtras({
       'v': 1,
       'room': room.id,
-      'title': titles ? roomTitle(room) : '',
+      'title': titles ? roomTitle(room, deviceLocalizations()) : '',
       'dm': room.isDirectChat,
       'partner': !titles || partnerId == null
           ? ''

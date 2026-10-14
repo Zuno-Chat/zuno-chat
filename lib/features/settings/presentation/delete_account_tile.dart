@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/calls/active_call_provider.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -27,7 +28,10 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
     final colors = Theme.of(context).colorScheme;
     return ListTile(
       leading: const CircleIcon(Icons.delete_forever_outlined, danger: true),
-      title: Text('Delete account', style: TextStyle(color: colors.error)),
+      title: Text(
+        context.l10n.settingsDeleteAccount,
+        style: TextStyle(color: colors.error),
+      ),
       onTap: _start,
     );
   }
@@ -46,24 +50,19 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete your account?'),
-        content: const Text(
-          'Your account, profile and messages are permanently removed. People '
-          'you have messaged keep their copies. Nobody can reach you at this '
-          'username again, and nobody can undo this. Zuno then erases '
-          'everything it stored on this device and closes.',
-        ),
+        title: Text(context.l10n.settingsDeleteAccountWarningTitle),
+        content: Text(context.l10n.settingsDeleteAccountWarningBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.error,
             ),
-            child: const Text('Continue'),
+            child: Text(context.l10n.commonContinue),
           ),
         ],
       ),
@@ -86,22 +85,18 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
     context,
     uia,
     userId: ref.read(matrixClientProvider).userID!,
-    title: 'Confirm your password to delete your account',
+    title: context.l10n.settingsDeleteAccountUiaTitle,
     message: _windDownNotice(),
   );
 
   String? _windDownNotice() {
+    final l10n = context.l10n;
     final inCall = ref.read(activeCallProvider) != null;
     final sharing = ref.read(liveLocationSharingProvider).shares.value;
     return switch ((inCall, sharing.isNotEmpty)) {
-      (true, true) =>
-        'Confirming ends your call and stops sharing your location, even if '
-            'the password is wrong.',
-      (true, false) =>
-        'Confirming ends your call, even if the password is wrong.',
-      (false, true) =>
-        'Confirming stops sharing your location, even if the password is '
-            'wrong.',
+      (true, true) => l10n.settingsDeleteAccountWindDownCallAndLocation,
+      (true, false) => l10n.settingsDeleteAccountWindDownCall,
+      (false, true) => l10n.settingsDeleteAccountWindDownLocation,
       (false, false) => null,
     };
   }
@@ -121,7 +116,7 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
       if (!isPasswordRefusal(e)) reportCaught('delete account', e, s);
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text(deactivateAccountErrorMessage(e))),
+        SnackBar(content: Text(deactivateAccountErrorMessage(context.l10n, e))),
       );
       return;
     } finally {
@@ -155,14 +150,15 @@ class _ConfirmDeletionDialogState extends State<_ConfirmDeletionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final matches = _controller.text.trim() == widget.username;
     return AlertDialog(
-      title: const Text('Confirm deletion'),
+      title: Text(l10n.settingsDeleteAccountConfirmTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Type your username to confirm: ${widget.username}'),
+          Text(l10n.settingsDeleteAccountTypeUsername(widget.username)),
           const SizedBox(height: 12),
           TextField(
             autofillHints: null,
@@ -175,14 +171,14 @@ class _ConfirmDeletionDialogState extends State<_ConfirmDeletionDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: Text(l10n.commonCancel),
         ),
         TextButton(
           onPressed: matches ? () => Navigator.of(context).pop(true) : null,
           style: TextButton.styleFrom(
             foregroundColor: Theme.of(context).colorScheme.error,
           ),
-          child: const Text('Delete account'),
+          child: Text(l10n.settingsDeleteAccount),
         ),
       ],
     );

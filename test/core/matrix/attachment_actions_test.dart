@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_actions.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 
@@ -57,18 +58,47 @@ void main() {
     });
   });
 
+  group('savedMessage', () {
+    test('says where a single save went', () {
+      expect(
+        savedMessage(englishLocalizations, event(MessageTypes.Image)),
+        'Saved to Photos',
+      );
+      expect(
+        savedMessage(englishLocalizations, event(MessageTypes.Video)),
+        'Saved to Videos',
+      );
+      expect(
+        savedMessage(englishLocalizations, event(MessageTypes.File)),
+        'Saved',
+      );
+    });
+  });
+
   group('savedSummary', () {
     test('reports a whole gallery saved', () {
-      expect(savedSummary(saved: 4, total: 4), 'Saved 4 items');
-      expect(savedSummary(saved: 1, total: 1), 'Saved 1 item');
+      expect(
+        savedSummary(englishLocalizations, saved: 4, total: 4),
+        'Saved 4 items',
+      );
+      expect(
+        savedSummary(englishLocalizations, saved: 1, total: 1),
+        'Saved 1 item',
+      );
     });
 
     test('is honest about a partial save', () {
-      expect(savedSummary(saved: 3, total: 4), 'Saved 3 of 4');
+      expect(
+        savedSummary(englishLocalizations, saved: 3, total: 4),
+        'Saved 3 of 4',
+      );
     });
 
     test('says nothing landed when nothing did', () {
-      expect(savedSummary(saved: 0, total: 4), 'Could not save');
+      expect(
+        savedSummary(englishLocalizations, saved: 0, total: 4),
+        'Could not save',
+      );
     });
   });
 
@@ -164,7 +194,7 @@ void main() {
 
     group('saveAttachment', () {
       test('a photo goes to Photos under its own name', () async {
-        expect(await saveAttachment(photo()), 'Saved to Photos');
+        expect(await saveAttachment(photo()), isTrue);
 
         final call = device.gallery.single;
         expect(call.method, 'putImageBytes');
@@ -180,7 +210,7 @@ void main() {
       });
 
       test('a video goes to Videos from a named copy, removed after', () async {
-        expect(await saveAttachment(video()), 'Saved to Videos');
+        expect(await saveAttachment(video()), isTrue);
 
         final path = (device.gallery.single.arguments as Map)['path'] as String;
         expect(p.basename(path), 'clip.mp4');
@@ -193,7 +223,7 @@ void main() {
         'a file is exported by Zuno from a named copy with its type, '
         'never read whole into the app, and the copy removed after',
         () async {
-          expect(await saveAttachment(document()), 'Saved');
+          expect(await saveAttachment(document()), isTrue);
 
           final exported = device.exported.single;
           expect(p.basename(exported.path), 'report.pdf');
@@ -208,7 +238,7 @@ void main() {
       test('a cancelled export saves nothing and leaves no copy', () async {
         device.exportAnswer = false;
 
-        expect(await saveAttachment(document()), isNull);
+        expect(await saveAttachment(document()), isFalse);
         final path = device.exported.single.path;
         await untilGone(path);
         expect(File(path).existsSync(), isFalse);

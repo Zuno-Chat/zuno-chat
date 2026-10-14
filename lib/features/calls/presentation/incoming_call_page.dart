@@ -18,6 +18,7 @@ import '../../../core/calls/notifications/ringing_call_provider.dart';
 import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/calls/platform/system_ring.dart';
 import '../../../core/errors/best_effort.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_user_display.dart';
 import '../../../core/platform/platform_capabilities.dart';
@@ -200,6 +201,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
           child: Builder(
             builder: (context) {
               final theme = Theme.of(context);
+              final l10n = context.l10n;
               return Scaffold(
                 body: SafeArea(
                   child: Column(
@@ -217,8 +219,8 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
                           details: [
                             Text(
                               call.kind == CallKind.video
-                                  ? 'Incoming video call'
-                                  : 'Incoming voice call',
+                                  ? l10n.callsIncomingVideo
+                                  : l10n.callsIncomingVoice,
                               textAlign: TextAlign.center,
                               style: theme.textTheme.bodyLarge!.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
@@ -235,7 +237,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
                             _RingActionButton(
                               icon: Icons.call_end,
                               color: callEndColor,
-                              label: 'Decline',
+                              label: l10n.callsDecline,
                               onPressed: _decline,
                             ),
                             _RingActionButton(
@@ -243,7 +245,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
                                   ? Icons.videocam
                                   : Icons.call,
                               color: callAcceptColor,
-                              label: 'Accept',
+                              label: l10n.callsAccept,
                               onPressed: _accept,
                             ),
                           ],

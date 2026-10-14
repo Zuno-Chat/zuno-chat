@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/room_invite.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -81,7 +82,7 @@ void main() {
     });
 
     test('shows the Matrix ID, never the invitee\'s profile', () {
-      final display = roomInviteDisplay(room);
+      final display = roomInviteDisplay(room, englishLocalizations);
 
       expect(display.awaitingAcceptance, isTrue);
       expect(display.title, '@bob');
@@ -90,19 +91,25 @@ void main() {
     });
 
     test('names who is being waited on', () {
-      expect(pendingInviteSubtitle(room), 'Waiting for @bob to accept');
+      expect(
+        pendingInviteSubtitle(room, englishLocalizations),
+        'Waiting for @bob to accept',
+      );
     });
 
     test('counts several people being waited on', () {
       setMember('@carol:example.org', membership: 'invite');
 
-      expect(pendingInviteSubtitle(room), 'Waiting for 2 people to accept');
+      expect(
+        pendingInviteSubtitle(room, englishLocalizations),
+        'Waiting for 2 people to accept',
+      );
     });
 
     test('keeps a named group\'s own name and avatar', () {
       setRoomName('Weekend plans');
 
-      final display = roomInviteDisplay(room);
+      final display = roomInviteDisplay(room, englishLocalizations);
 
       expect(display.awaitingAcceptance, isTrue);
       expect(display.title, 'Weekend plans');
@@ -114,7 +121,7 @@ void main() {
     setMember('@bob:example.org', membership: 'join', displayName: 'Bob');
 
     expect(isAwaitingInviteAcceptance(room), isFalse);
-    final display = roomInviteDisplay(room);
+    final display = roomInviteDisplay(room, englishLocalizations);
     expect(display.awaitingAcceptance, isFalse);
     expect(display.title, room.getLocalizedDisplayname());
     expect(display.avatarUrl, room.avatar);
@@ -133,7 +140,10 @@ void main() {
 
     expect(isAwaitingInviteAcceptance(room), isFalse);
     expect(pendingInvitees(room), isEmpty);
-    expect(pendingInviteSubtitle(room), 'Waiting for them to accept');
+    expect(
+      pendingInviteSubtitle(room, englishLocalizations),
+      'Waiting for them to accept',
+    );
   });
 
   group('an invitation waiting on this user', () {
@@ -162,7 +172,7 @@ void main() {
     });
 
     test('nothing is withheld from the person deciding', () {
-      final display = roomInviteDisplay(room);
+      final display = roomInviteDisplay(room, englishLocalizations);
 
       expect(display.awaitingAcceptance, isFalse);
       expect(display.title, room.getLocalizedDisplayname());
@@ -243,9 +253,12 @@ void main() {
     test('is still pending with no member state at all', () {
       expect(isAwaitingInviteAcceptance(room), isTrue);
       expect(pendingInviteeIds(room), ['@bob:example.org']);
-      expect(roomInviteDisplay(room).title, '@bob');
-      expect(roomInviteDisplay(room).avatarUrl, isNull);
-      expect(pendingInviteSubtitle(room), 'Waiting for @bob to accept');
+      expect(roomInviteDisplay(room, englishLocalizations).title, '@bob');
+      expect(roomInviteDisplay(room, englishLocalizations).avatarUrl, isNull);
+      expect(
+        pendingInviteSubtitle(room, englishLocalizations),
+        'Waiting for @bob to accept',
+      );
     });
 
     test('stops being pending once the summary shows two joined', () {

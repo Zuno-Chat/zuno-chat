@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../settings/presentation/secure_backup_page.dart';
@@ -20,6 +21,7 @@ Future<void> confirmPerson(
 }) async {
   final client = ref.read(matrixClientProvider);
   final messenger = ScaffoldMessenger.of(context);
+  final l10n = context.l10n;
 
   final facts = await accountSecurityFactsOf(client);
   if (!facts.recoveryExists || !facts.thisDeviceHasIdentityKeys) {
@@ -27,19 +29,16 @@ Future<void> confirmPerson(
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Set up recovery first'),
-        content: const Text(
-          'Before you can confirm someone else, this device needs its own '
-          'recovery set up. It only takes a moment.',
-        ),
+        title: Text(context.l10n.verificationSetUpRecoveryTitle),
+        content: Text(context.l10n.verificationSetUpRecoveryBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Not now'),
+            child: Text(context.l10n.commonNotNow),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Continue'),
+            child: Text(context.l10n.commonContinue),
           ),
         ],
       ),
@@ -64,11 +63,7 @@ Future<void> confirmPerson(
   final keys = client.userDeviceKeys[userId];
   if (keys == null || keys.masterKey == null) {
     messenger.showSnackBar(
-      const SnackBar(
-        content: Text(
-          'They have not set up recovery yet, so there is nothing to confirm.',
-        ),
-      ),
+      SnackBar(content: Text(l10n.verificationTheyHaveNoRecovery)),
     );
     return;
   }
@@ -95,7 +90,7 @@ Future<void> confirmPerson(
   } catch (e, s) {
     reportCaught('start verification', e, s);
     messenger.showSnackBar(
-      const SnackBar(content: Text('Could not start. Try again.')),
+      SnackBar(content: Text(l10n.verificationCouldNotStart)),
     );
   }
 }

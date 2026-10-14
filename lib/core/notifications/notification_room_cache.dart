@@ -1,6 +1,7 @@
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/l10n.dart';
 import '../matrix/room_title.dart';
 
 const notificationRoomCacheKey = 'notifications.rooms';
@@ -24,9 +25,10 @@ Future<List<NotificationRoomEntry>> notificationRoomEntriesOf(
       if (room.membership == Membership.join) room,
   ];
   await Future.wait(joined.map(loadRoomNameMembers));
+  final l10n = deviceLocalizations();
   return [
     for (final room in joined)
-      (id: room.id, name: roomTitle(room), isDirect: room.isDirectChat),
+      (id: room.id, name: roomTitle(room, l10n), isDirect: room.isDirectChat),
   ];
 }
 

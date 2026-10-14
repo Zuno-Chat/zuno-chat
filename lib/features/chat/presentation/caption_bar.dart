@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/keep_clear.dart';
 import 'send_icon.dart';
 
 class CaptionBar extends StatelessWidget {
   final TextEditingController controller;
-  final String sendTooltip;
+  final String? sendTooltip;
   final VoidCallback onSend;
 
   const CaptionBar({
     required this.controller,
     required this.onSend,
-    this.sendTooltip = 'Send',
+    this.sendTooltip,
     super.key,
   });
 
@@ -25,7 +26,9 @@ class CaptionBar extends StatelessWidget {
             child: TextField(
               autofillHints: null,
               controller: controller,
-              decoration: const InputDecoration(hintText: 'Add a caption…'),
+              decoration: InputDecoration(
+                hintText: context.l10n.chatCaptionHint,
+              ),
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => onSend(),
             ),
@@ -33,7 +36,7 @@ class CaptionBar extends StatelessWidget {
           const SizedBox(width: 8),
           IconButton.filled(
             icon: const SendIcon(),
-            tooltip: sendTooltip,
+            tooltip: sendTooltip ?? context.l10n.commonSend,
             onPressed: onSend,
           ),
         ],

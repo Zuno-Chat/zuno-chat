@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import 'key_backup_management_page.dart';
 import 'secure_backup_page.dart';
@@ -47,14 +49,15 @@ class _AdvancedSecurityPageState extends ConsumerState<AdvancedSecurityPage> {
     }
   }
 
-  void _copyToClipboard(String label, String value) {
+  void _copyToClipboard(@displayText String copiedMessage, String value) {
     Clipboard.setData(ClipboardData(text: value));
     ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('$label copied')));
+        .showSnackBar(SnackBar(content: Text(copiedMessage)));
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
     final client = ref.watch(matrixClientProvider);
     final encryption = client.encryption;
@@ -65,71 +68,70 @@ class _AdvancedSecurityPageState extends ConsumerState<AdvancedSecurityPage> {
       crossSigningEnabled,
       _crossSigningKeysCached,
     )) {
-      (false, _) => 'Not set up',
-      (true, true) => 'Enabled · Private keys are on this device',
-      (true, false) => 'Enabled · Private keys are not on this device',
+      (false, _) => l10n.settingsAdvancedCrossSigningNotSetUp,
+      (true, true) => l10n.settingsAdvancedCrossSigningKeysHere,
+      (true, false) => l10n.settingsAdvancedCrossSigningKeysNotHere,
     };
 
     final deviceName = client.deviceName;
-    final deviceId = client.deviceID ?? 'Unknown';
+    final deviceId = client.deviceID ?? l10n.settingsAdvancedUnknown;
     final sessionKey = formatSessionKey(client.fingerprintKey);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Advanced')),
+      appBar: AppBar(title: Text(l10n.settingsAdvancedTitle)),
       body: ListView(
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Text(
-              'The raw mechanics behind recovery and device approval. You '
-              "don't need any of this for day-to-day use.",
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Text(l10n.settingsAdvancedIntro),
           ),
-          const SettingsSectionHeader('Cryptography'),
+          SettingsSectionHeader(l10n.settingsAdvancedCryptography),
           ListTile(
             leading: const Icon(Icons.verified_user_outlined),
-            title: const Text('Cross-signing'),
+            title: Text(l10n.settingsAdvancedCrossSigning),
             subtitle: Text(crossSigningSubtitle),
           ),
           ListTile(
             leading: const Icon(Icons.badge_outlined),
-            title: const Text('Session name'),
+            title: Text(l10n.settingsAdvancedSessionName),
             subtitle: Text(
               deviceName == null || deviceName.isEmpty
-                  ? 'Unnamed session'
+                  ? l10n.settingsAdvancedUnnamedSession
                   : deviceName,
             ),
           ),
           ListTile(
             leading: const Icon(Icons.fingerprint_outlined),
-            title: const Text('Session ID'),
+            title: Text(l10n.settingsAdvancedSessionId),
             subtitle: Text(deviceId),
             trailing: IconButton(
               icon: const Icon(Icons.copy_outlined),
-              tooltip: 'Copy session ID',
-              onPressed: () => _copyToClipboard('Session ID', deviceId),
+              tooltip: l10n.settingsAdvancedCopySessionId,
+              onPressed: () => _copyToClipboard(
+                l10n.settingsAdvancedSessionIdCopied,
+                deviceId,
+              ),
             ),
           ),
           ListTile(
             leading: const Icon(Icons.key_outlined),
-            title: const Text('Session key'),
+            title: Text(l10n.settingsAdvancedSessionKey),
             subtitle: Text(sessionKey),
             trailing: IconButton(
               icon: const Icon(Icons.copy_outlined),
-              tooltip: 'Copy session key',
-              onPressed: () =>
-                  _copyToClipboard('Session key', client.fingerprintKey),
+              tooltip: l10n.settingsAdvancedCopySessionKey,
+              onPressed: () => _copyToClipboard(
+                l10n.settingsAdvancedSessionKeyCopied,
+                client.fingerprintKey,
+              ),
             ),
           ),
           const Divider(),
-          const SettingsSectionHeader('Secret storage'),
+          SettingsSectionHeader(l10n.settingsAdvancedSecretStorage),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(
-              'Alternatives to the generated recovery code — a raw security '
-              'key to paste between clients, or a phrase you choose '
-              'yourself. Setting up either one replaces your current '
-              'recovery code.',
+              l10n.settingsAdvancedSecretStorageIntro,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -137,27 +139,28 @@ class _AdvancedSecurityPageState extends ConsumerState<AdvancedSecurityPage> {
           ),
           ListTile(
             leading: const Icon(Icons.key_outlined),
-            title: const Text('Use a security key'),
-            subtitle: const Text(
-              'Generate a raw key to store somewhere safe, like a password '
-              'manager',
-            ),
+            title: Text(l10n.settingsAdvancedUseSecurityKey),
+            subtitle: Text(l10n.settingsAdvancedUseSecurityKeySubtitle),
             trailing: const Icon(Icons.chevron_right_outlined),
             onTap: () => _openSecureBackup(SecureBackupMode.key),
           ),
           ListTile(
             leading: const Icon(Icons.password_outlined),
-            title: const Text('Use a security phrase'),
-            subtitle: const Text('Choose a secret phrase of your own'),
+            title: Text(l10n.settingsAdvancedUseSecurityPhrase),
+            subtitle: Text(l10n.settingsAdvancedUseSecurityPhraseSubtitle),
             trailing: const Icon(Icons.chevron_right_outlined),
             onTap: () => _openSecureBackup(SecureBackupMode.phrase),
           ),
           const Divider(),
-          const SettingsSectionHeader('Cryptography keys management'),
+          SettingsSectionHeader(l10n.settingsAdvancedKeysManagement),
           ListTile(
             leading: const Icon(Icons.backup_outlined),
-            title: const Text('Manage key backup'),
-            subtitle: Text(backupEnabled ? 'Active' : 'Not set up'),
+            title: Text(l10n.settingsAdvancedManageKeyBackup),
+            subtitle: Text(
+              backupEnabled
+                  ? l10n.settingsAdvancedKeyBackupActive
+                  : l10n.settingsAdvancedKeyBackupNotSetUp,
+            ),
             trailing: const Icon(Icons.chevron_right_outlined),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
@@ -165,15 +168,15 @@ class _AdvancedSecurityPageState extends ConsumerState<AdvancedSecurityPage> {
               ),
             ),
           ),
-          const ComingSoonTile(
+          ComingSoonTile(
             icon: Icons.upload_file_outlined,
-            title: 'Export E2E room keys',
-            subtitle: 'Save an encrypted copy of your room keys to a file',
+            title: l10n.settingsAdvancedExportKeys,
+            subtitle: l10n.settingsAdvancedExportKeysSubtitle,
           ),
-          const ComingSoonTile(
+          ComingSoonTile(
             icon: Icons.download_outlined,
-            title: 'Import E2E room keys',
-            subtitle: 'Restore room keys from a previously exported file',
+            title: l10n.settingsAdvancedImportKeys,
+            subtitle: l10n.settingsAdvancedImportKeysSubtitle,
           ),
         ],
       ),

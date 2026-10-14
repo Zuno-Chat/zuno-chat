@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/map_tiles.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
@@ -19,6 +20,8 @@ const _geo = GeoUri(
 Widget _host(Widget child, {MapTiles? tiles}) => ProviderScope(
   overrides: [mapTilesProvider.overrideWith((ref) async => tiles)],
   child: MaterialApp(
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(body: SizedBox(width: 240, child: child)),
   ),
 );

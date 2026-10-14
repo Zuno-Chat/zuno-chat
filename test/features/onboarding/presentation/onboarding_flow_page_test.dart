@@ -12,6 +12,7 @@ import 'package:image_picker_platform_interface/image_picker_platform_interface.
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/fcm_availability_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
@@ -77,6 +78,8 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: forwardExit ? zunoLightTheme : null,
           home: Builder(
             builder: (context) => TextButton(

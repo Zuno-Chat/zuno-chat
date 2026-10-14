@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/rooms/presentation/invitation_group.dart';
@@ -92,6 +93,8 @@ void main() {
   Future<void> pumpGroup(WidgetTester tester, List<Room> rooms) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         home: Scaffold(
           body: CustomScrollView(

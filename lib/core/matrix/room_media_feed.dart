@@ -14,7 +14,7 @@ RoomMediaKind? roomMediaKindOf(Event event) {
       event.relationshipType == RelationshipTypes.edit) {
     return null;
   }
-  return switch (summarize(event).kind) {
+  return switch (messageKindOf(event)) {
     MessageKind.photo => RoomMediaKind.photo,
     MessageKind.video => RoomMediaKind.video,
     MessageKind.file => RoomMediaKind.file,

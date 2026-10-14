@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_roles.dart';
 import '../../../core/ui/sheet.dart';
 
@@ -21,7 +22,7 @@ Future<RoomRole?> showRolePicker(
               leading: role == current
                   ? const Icon(Icons.check_outlined)
                   : const SizedBox(width: 24),
-              title: Text(role.label),
+              title: Text(role.label(context.l10n)),
               onTap: () => Navigator.of(context).pop(role),
             ),
         ],

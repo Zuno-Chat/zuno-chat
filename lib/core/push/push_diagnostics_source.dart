@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/l10n.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../notifications/apns_delivery_provider.dart';
 import '../notifications/fcm_delivery_provider.dart';
@@ -32,6 +33,7 @@ abstract interface class PushDiagnosticsSource {
   Future<PushTestOutcome> sendTest();
 
   Future<List<RecentPush>> recentPushes(
+    AppLocalizations l10n,
     PlatformCapabilities capabilities,
     NotificationDeliveryMode mode,
   );
@@ -106,12 +108,14 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
 
   @override
   Future<List<RecentPush>> recentPushes(
+    AppLocalizations l10n,
     PlatformCapabilities capabilities,
     NotificationDeliveryMode mode,
   ) async {
     switch (mode) {
       case NotificationDeliveryMode.fcm:
         return recentPushesFromDeliveries(
+          l10n,
           await readPushDeliveryLog(await SharedPreferences.getInstance()),
         );
       case NotificationDeliveryMode.apns:
@@ -119,6 +123,7 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
           await PushDiagnostics(capabilities: capabilities).rawSnapshot(),
         );
         return recentPushesFromLogs(
+          l10n,
           extension: snapshot.extensionLog,
           app: snapshot.appLog,
           ledger: snapshot.ledger ?? const [],

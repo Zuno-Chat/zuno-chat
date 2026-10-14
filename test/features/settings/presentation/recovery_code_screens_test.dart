@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/recovery_code.dart';
 import 'package:zuno/core/security/secret_text.dart';
@@ -40,6 +41,8 @@ Future<void> _pump(
           platformCapabilitiesProvider.overrideWithValue(capabilities),
       ],
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: RecoveryCodeCreateFlow(
             busy: busy,
@@ -454,6 +457,8 @@ void main() {
             ),
           ],
           child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: RecoveryCodeEntryField(
                 controller: controller,
@@ -498,6 +503,14 @@ void main() {
         expect(find.text(hint), findsOneWidget);
       });
     }
+
+    testWidgets('an empty field says how many words a code has', (
+      tester,
+    ) async {
+      await pumpField(tester);
+
+      expect(find.text('12 words, separated by spaces'), findsOneWidget);
+    });
 
     testWidgets('the code is typed into secret text', (tester) async {
       await pumpField(tester);

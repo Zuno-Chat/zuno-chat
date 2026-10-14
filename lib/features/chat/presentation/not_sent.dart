@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/matrixrtc/call_summary_message.dart';
+import '../../../core/l10n/l10n.dart';
 
 bool isNotSent(Event event) =>
     event.status.isError &&
@@ -56,7 +57,7 @@ class NotSentRow extends StatelessWidget {
         Icon(Icons.error_outline, size: 14, color: colors.error),
         const SizedBox(width: 4),
         Text(
-          'Not sent · Tap to retry',
+          context.l10n.chatNotSentRetry,
           style: Theme.of(context).textTheme.labelSmall
               ?.copyWith(color: colors.error),
         ),

@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/recovery_code_file.dart';
 
 import '../../helpers/fake_attachments.dart';
@@ -78,6 +79,7 @@ void main() {
     test('on iPhone, Zuno exports the file itself and never hands it to the '
         'picker, whose copy would stay behind', () async {
       final saved = await saveRecoveryCodeFile(
+        englishLocalizations,
         _code,
         capabilities: iosCapabilities,
       );
@@ -96,7 +98,11 @@ void main() {
       exportReply = false;
 
       expect(
-        await saveRecoveryCodeFile(_code, capabilities: iosCapabilities),
+        await saveRecoveryCodeFile(
+          englishLocalizations,
+          _code,
+          capabilities: iosCapabilities,
+        ),
         isFalse,
       );
     });
@@ -105,13 +111,18 @@ void main() {
       exportReply = PlatformException(code: 'write_failed');
 
       await expectLater(
-        saveRecoveryCodeFile(_code, capabilities: iosCapabilities),
+        saveRecoveryCodeFile(
+          englishLocalizations,
+          _code,
+          capabilities: iosCapabilities,
+        ),
         throwsA(isA<PlatformException>()),
       );
     });
 
     test('on Android, the system picker saves the file', () async {
       final saved = await saveRecoveryCodeFile(
+        englishLocalizations,
         _code,
         capabilities: androidCapabilities,
       );
@@ -128,7 +139,11 @@ void main() {
       picker.answer = null;
 
       expect(
-        await saveRecoveryCodeFile(_code, capabilities: androidCapabilities),
+        await saveRecoveryCodeFile(
+          englishLocalizations,
+          _code,
+          capabilities: androidCapabilities,
+        ),
         isFalse,
       );
     });

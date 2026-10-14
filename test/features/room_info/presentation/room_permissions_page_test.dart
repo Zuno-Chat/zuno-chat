@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/room_info/presentation/room_permissions_page.dart';
 
 import '../../../helpers/card_layout.dart';
@@ -51,7 +52,13 @@ void main() {
   Future<void> pumpPage(WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 3000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(MaterialApp(home: RoomPermissionsPage(room: room)));
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: RoomPermissionsPage(room: room),
+      ),
+    );
     await tester.pump();
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/gallery_viewer_page.dart';
 import 'package:zuno/core/matrix/room_media_feed.dart';
@@ -78,6 +79,8 @@ void main() {
       ProviderScope(
         overrides: [roomMediaFeedProvider(room).overrideWithValue(feed)],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: RoomMediaPage(room: room, initialTab: initialTab),
         ),
       ),
@@ -148,7 +151,7 @@ void main() {
 
     expect(find.text('report'), findsOneWidget);
     expect(find.text('.pdf'), findsOneWidget);
-    expect(find.text('12.3 KB · 14 Sep 2026'), findsOneWidget);
+    expect(find.text('12.3 KB · Sep 14, 2026'), findsOneWidget);
     expect(find.byType(RoomMediaThumb), findsNothing);
   });
 
@@ -237,7 +240,11 @@ void main() {
         overrides: [roomMediaFeedProvider(room).overrideWithValue(feed)],
         child: MediaQuery(
           data: const MediaQueryData(padding: EdgeInsets.only(bottom: 100)),
-          child: MaterialApp(home: RoomMediaPage(room: room)),
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: RoomMediaPage(room: room),
+          ),
         ),
       ),
     );

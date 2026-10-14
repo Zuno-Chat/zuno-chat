@@ -1,35 +1,37 @@
 import 'package:matrix/matrix.dart';
 
+import '../l10n/l10n.dart';
 import '../matrix/room_title.dart';
 import 'live_location_capture.dart';
 
 LiveLocationNotice liveLocationNotice(
+  AppLocalizations l10n,
   List<({Room room, DateTime endsAt})> shares,
 ) {
   final endsAt = shares
       .map((entry) => entry.endsAt)
       .reduce((a, b) => a.isAfter(b) ? a : b);
+  final title = l10n.locationNoticeTitle;
   if (shares case [final only]) {
-    final title = roomTitle(only.room);
+    final name = roomTitle(only.room, l10n);
     return LiveLocationNotice(
-      title: 'Sharing live location',
-      text: only.room.isDirectChat ? 'With $title' : 'In $title',
+      title: title,
+      text: only.room.isDirectChat
+          ? l10n.locationNoticeWith(name)
+          : l10n.locationNoticeIn(name),
       endsAt: endsAt,
       roomId: only.room.id,
     );
   }
   final chats = shares.where((entry) => entry.room.isDirectChat).length;
   final rooms = shares.length - chats;
-  final parts = [
-    if (chats > 0) _counted(chats, 'chat'),
-    if (rooms > 0) _counted(rooms, 'room'),
-  ];
   return LiveLocationNotice(
-    title: 'Sharing live location',
-    text: 'In ${parts.join(' and ')}',
+    title: title,
+    text: switch ((chats, rooms)) {
+      (_, 0) => l10n.locationNoticeChats(chats),
+      (0, _) => l10n.locationNoticeRooms(rooms),
+      _ => l10n.locationNoticeChatsAndRooms(chats, rooms),
+    },
     endsAt: endsAt,
   );
 }
-
-String _counted(int count, String noun) =>
-    '$count $noun${count == 1 ? '' : 's'}';

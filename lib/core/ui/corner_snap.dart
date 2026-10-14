@@ -3,17 +3,21 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
+import '../l10n/l10n.dart';
 import 'zuno_motion.dart';
 
 enum SnapCorner {
-  topLeft('top left'),
-  topRight('top right'),
-  bottomLeft('bottom left'),
-  bottomRight('bottom right');
+  topLeft,
+  topRight,
+  bottomLeft,
+  bottomRight;
 
-  final String label;
-
-  const SnapCorner(this.label);
+  String moveToLabel(AppLocalizations l10n) => switch (this) {
+    topLeft => l10n.uiMoveToTopLeft,
+    topRight => l10n.uiMoveToTopRight,
+    bottomLeft => l10n.uiMoveToBottomLeft,
+    bottomRight => l10n.uiMoveToBottomRight,
+  };
 }
 
 class CornerSpots {
@@ -128,12 +132,13 @@ class _CornerSnapState extends State<CornerSnap>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Semantics(
       container: true,
       customSemanticsActions: {
         for (final corner in SnapCorner.values)
           if (corner != widget.corner)
-            CustomSemanticsAction(label: 'Move to ${corner.label}'): () =>
+            CustomSemanticsAction(label: corner.moveToLabel(l10n)): () =>
                 _moveTo(corner),
       },
       child: AnimatedBuilder(

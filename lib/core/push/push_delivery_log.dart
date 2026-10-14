@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/l10n.dart';
+
 const pushDeliveryLogKey = 'push.recent_deliveries';
 
 const lateArrival = Duration(minutes: 1);
@@ -61,27 +63,35 @@ Future<List<PushDeliveryRecord>> readPushDeliveryLog(
   return parsePushDeliveryLog(prefs.getString(pushDeliveryLogKey));
 }
 
-String pushDeliverySummary(PushDeliveryRecord record) {
+String pushDeliverySummary(AppLocalizations l10n, PushDeliveryRecord record) {
   final delay = record.delay;
   final bucket = _restrictedBucketLabel(record.standbyBucket);
   return [
-    delay == null ? 'Arrived' : 'Arrived after ${formatDeliveryDelay(delay)}',
+    delay == null
+        ? l10n.pushSummaryArrived
+        : l10n.pushSummaryArrivedAfter(formatDeliveryDelay(l10n, delay)),
     if (record.downgraded)
-      'lowered to normal priority'
+      l10n.pushSummaryPriorityLowered
     else if (record.deliveredPriority case final priority?)
-      '$priority priority',
-    if (record.deviceIdle) 'device asleep',
-    if (bucket != null) 'standby bucket $bucket',
-  ].join(', ');
+      l10n.pushSummaryPriority(priority),
+    if (record.deviceIdle) l10n.pushSummaryDeviceAsleep,
+    if (bucket != null) l10n.pushSummaryStandbyBucket(bucket),
+  ].join(l10n.diagnosticsSeparator);
 }
 
-String formatDeliveryDelay(Duration delay) {
+String formatDeliveryDelay(AppLocalizations l10n, Duration delay) {
   if (delay < const Duration(seconds: 1)) {
-    return '${(delay.inMilliseconds / 1000).toStringAsFixed(1)} s';
+    return l10n.pushDelaySubSecond(
+      (delay.inMilliseconds / 1000).toStringAsFixed(1),
+    );
   }
-  if (delay < const Duration(minutes: 1)) return '${delay.inSeconds} s';
-  if (delay < const Duration(hours: 1)) return '${delay.inMinutes} min';
-  return '${delay.inHours} h';
+  if (delay < const Duration(minutes: 1)) {
+    return l10n.pushDelaySeconds(delay.inSeconds);
+  }
+  if (delay < const Duration(hours: 1)) {
+    return l10n.pushDelayMinutes(delay.inMinutes);
+  }
+  return l10n.pushDelayHours(delay.inHours);
 }
 
 String? _restrictedBucketLabel(int? bucket) => switch (bucket) {

@@ -22,6 +22,7 @@ import '../call_engine.dart';
 import '../cloudflare/calls_module.dart';
 import '../cloudflare/cloudflare_call_engine.dart';
 import '../models/call_engine_status.dart';
+import '../models/call_failure.dart';
 import '../models/call_kind.dart';
 import '../models/voip_participant_id.dart';
 import '../notifications/call_notification_service.dart';
@@ -45,14 +46,7 @@ const _membershipTtl = Duration(seconds: 120);
 const _membershipRefreshInterval = Duration(seconds: 50);
 const _membershipDebounce = Duration(seconds: 1);
 const _remoteLeftConfirmDelay = Duration(seconds: 2);
-const microphoneUnavailableMessage =
-    'Allow Zuno to use the microphone, then call back.';
-const callDidNotConnectMessage = 'Call did not connect';
 const _foregroundWait = Duration(seconds: 3);
-const _callFullMessage =
-    'This call is full. Up to $maxCallParticipants people can join a call.';
-const _onAnotherDeviceMessage =
-    'You are in this call on another device. Hang up there to join here.';
 
 class CallSession {
   final Client client;
@@ -92,7 +86,7 @@ class CallSession {
   Stream<CallSessionPhase> get phaseStream => _phaseController.stream;
 
   CallEndReason? endReason;
-  String? failedMessage;
+  CallFailure? failure;
 
   DateTime? _activeAt;
   Timer? _aloneTimer;
@@ -317,7 +311,7 @@ class CallSession {
 
   Future<void> _failBeforeRinging(Object error) async {
     if (_ending) return;
-    failedMessage = _failureMessage(error);
+    failure = _failureOf(error);
     endReason = CallEndReason.failed;
     await _end('a call that never rang');
   }
@@ -379,12 +373,12 @@ class CallSession {
 
   Future<void> accept() async {
     if (answeredOnAnotherDevice(room, callId)) {
-      _refuse(_onAnotherDeviceMessage);
+      _refuse(CallFailure.onAnotherDevice);
       await _end('a call taken on another device');
       return;
     }
     if (isCallFull(room, callId, excludeUserId: _myUserId)) {
-      _refuse(_callFullMessage);
+      _refuse(CallFailure.callFull);
       await _end('a call that was full');
       return;
     }
@@ -398,8 +392,8 @@ class CallSession {
     }
   }
 
-  void _refuse(String message) {
-    failedMessage = message;
+  void _refuse(CallFailure reason) {
+    failure = reason;
     endReason = CallEndReason.failed;
   }
 
@@ -465,7 +459,7 @@ class CallSession {
       _statusSub = built.statusStream.listen((status) {
         if (status != CallEngineStatus.failed) return;
         if (_phase == CallSessionPhase.ended) return;
-        failedMessage = 'Connection lost';
+        failure = CallFailure.connectionLost;
         endReason = CallEndReason.failed;
         unawaited(hangUp());
       });
@@ -491,7 +485,7 @@ class CallSession {
       _activeAt = DateTime.now();
     } catch (e) {
       if (_hangUp == null) {
-        failedMessage = _failureMessage(e);
+        failure = _failureOf(e);
         endReason = CallEndReason.failed;
       }
       rethrow;
@@ -504,11 +498,10 @@ class CallSession {
   static bool _shownToUser(Object error) =>
       _isForbidden(error) || error is MicrophoneUnavailable;
 
-  static String _failureMessage(Object error) => switch (error) {
-    _ when _isForbidden(error) =>
-      'You do not have permission to start calls in this room',
-    MicrophoneUnavailable() => microphoneUnavailableMessage,
-    _ => callDidNotConnectMessage,
+  static CallFailure _failureOf(Object error) => switch (error) {
+    _ when _isForbidden(error) => CallFailure.noPermissionToStart,
+    MicrophoneUnavailable() => CallFailure.microphoneUnavailable,
+    _ => CallFailure.didNotConnect,
   };
 
   AppLifecycleListener? _lifecycleListener;
@@ -645,7 +638,7 @@ class CallSession {
     } catch (e, s) {
       reportCaught('apply the call key', e, s);
       if (_phase == CallSessionPhase.ended) return;
-      failedMessage = callDidNotConnectMessage;
+      failure = CallFailure.didNotConnect;
       endReason = CallEndReason.failed;
       await hangUp();
     }
@@ -839,7 +832,7 @@ class CallSession {
     }
 
     if (_hangUp == null && isOverCallCapacity(room, callId, _myUserId)) {
-      _refuse(_callFullMessage);
+      _refuse(CallFailure.callFull);
       unawaited(hangUp());
       return;
     }

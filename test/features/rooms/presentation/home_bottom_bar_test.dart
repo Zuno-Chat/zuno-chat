@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/rooms/presentation/home_bottom_bar.dart';
@@ -35,8 +36,14 @@ void main() {
               .decoration!
           as BoxDecoration;
 
-  Future<void> pump(WidgetTester tester, Widget child) =>
-      tester.pumpWidget(MaterialApp(theme: zunoLightTheme, home: child));
+  Future<void> pump(WidgetTester tester, Widget child) => tester.pumpWidget(
+    MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      theme: zunoLightTheme,
+      home: child,
+    ),
+  );
 
   Iterable<Badge> visibleDots(WidgetTester tester) => tester
       .widgetList<Badge>(find.byType(Badge))

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/undecryptable_reason.dart';
 import '../../../core/security/security_providers.dart';
 import '../../verification/presentation/approve_this_device_page.dart';
@@ -20,7 +21,7 @@ class UndecryptableMessageContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
-    final copy = undecryptableCopy(_reason(ref));
+    final copy = undecryptableCopy(context.l10n, _reason(ref));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -54,7 +55,7 @@ class UndecryptableMessageContent extends ConsumerWidget {
                   builder: (_) => const ApproveThisDevicePage(),
                 ),
               ),
-              child: const Text('Unlock older messages'),
+              child: Text(context.l10n.chatUnlockOlderMessages),
             ),
           ),
       ],
@@ -78,7 +79,7 @@ class UndecryptablePreviewText extends ConsumerWidget {
         const SizedBox(width: 4),
         Flexible(
           child: Text(
-            undecryptableCopy(_reason(ref)).text,
+            undecryptableCopy(context.l10n, _reason(ref)).text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontStyle: FontStyle.italic),

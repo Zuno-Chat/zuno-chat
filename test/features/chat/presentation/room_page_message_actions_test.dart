@@ -830,7 +830,10 @@ void main() {
       await openActions(tester, 'anyone?');
 
       expect(find.text('Not seen yet'), findsOneWidget);
-      expect(find.textContaining('Sent 2026-09-20 12:05'), findsOneWidget);
+      expect(
+        find.textContaining('Sent Sep 20, 2026 at 12:05\u202fPM'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('and later who saw it and when', (tester) async {
@@ -839,7 +842,10 @@ void main() {
 
       await openActions(tester, 'anyone?');
 
-      expect(find.text('Seen by Bob · 2026-09-20 12:07'), findsOneWidget);
+      expect(
+        find.text('Seen by Bob · Sep 20, 2026 at 12:07\u202fPM'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('the seen line updates while the sheet is open', (
@@ -854,7 +860,10 @@ void main() {
       harness.client.onSync.add(SyncUpdate(nextBatch: 'next'));
       await harness.settle(tester);
 
-      expect(find.text('Seen by Bob · 2026-09-20 12:09'), findsOneWidget);
+      expect(
+        find.text('Seen by Bob · Sep 20, 2026 at 12:09\u202fPM'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('an attachment gives its file details', (tester) async {

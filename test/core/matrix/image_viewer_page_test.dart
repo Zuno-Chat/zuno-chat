@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/image_viewer_page.dart';
 
@@ -20,7 +21,13 @@ void main() {
       server.served,
     );
 
-    await tester.pumpWidget(MaterialApp(home: ImageViewerPage(event: event)));
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: ImageViewerPage(event: event),
+      ),
+    );
 
     expect(
       find.descendant(

@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/settings/presentation/account_settings_page.dart';
 import 'package:zuno/features/settings/presentation/change_password_dialog.dart';
@@ -102,7 +103,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [matrixClientProvider.overrideWithValue(client)],
-        child: const MaterialApp(home: AccountSettingsPage()),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AccountSettingsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();

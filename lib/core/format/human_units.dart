@@ -1,7 +1,14 @@
-String formatBytes(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+import 'package:intl/intl.dart';
+
+import '../l10n/l10n.dart';
+
+String formatBytes(AppLocalizations l10n, int bytes) {
+  if (bytes < 1024) return l10n.unitsBytes(bytes);
+  final oneDecimal = NumberFormat('0.0', l10n.localeName);
+  String rounded(double value) =>
+      oneDecimal.format(double.parse(value.toStringAsFixed(1)));
+  if (bytes < 1024 * 1024) return l10n.unitsKilobytes(rounded(bytes / 1024));
+  return l10n.unitsMegabytes(rounded(bytes / (1024 * 1024)));
 }
 
 String formatDuration(Duration duration) {

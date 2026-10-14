@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../core/brand.dart';
+
 class AuthLogo extends StatelessWidget {
   const AuthLogo({super.key});
 
@@ -18,7 +20,7 @@ class AuthLogo extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Zuno',
+            zunoName,
             style: Theme.of(context).textTheme.titleLarge!
                 .copyWith(fontWeight: FontWeight.w700),
           ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/message_composer.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
@@ -24,6 +25,8 @@ void main() {
 
   Widget harness({bool recording = false, bool attaching = false}) =>
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         home: Scaffold(
           body: Column(
@@ -144,6 +147,8 @@ void main() {
     var cancelled = 0;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         home: Scaffold(
           body: ComposeBar(

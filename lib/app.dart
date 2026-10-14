@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/brand.dart';
 import 'core/calls/active_call_controller.dart';
 import 'core/calls/active_call_provider.dart';
 import 'core/calls/matrixrtc/incoming_call.dart';
@@ -14,6 +15,7 @@ import 'core/calls/ring_coordinator.dart';
 import 'core/errors/caught_errors.dart';
 import 'core/errors/global_error_handler.dart';
 import 'core/errors/native_errors.dart';
+import 'core/l10n/l10n.dart';
 import 'core/location/live_location_capture.dart';
 import 'core/location/live_location_sharing.dart';
 import 'core/location/live_location_viewing.dart';
@@ -62,7 +64,9 @@ class ZunoApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      title: 'Zuno',
+      title: zunoName,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       scaffoldMessengerKey: globalScaffoldMessengerKey,
       navigatorKey: globalNavigatorKey,
       theme: zunoLightTheme,
@@ -82,9 +86,10 @@ class _AppFrame extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final message = switch (ref.watch(connectionStatusProvider).value) {
-      ConnectionStatus.noInternet => 'No internet connection',
-      ConnectionStatus.unreachable => 'Cannot connect right now. Trying again…',
+      ConnectionStatus.noInternet => l10n.appNoInternet,
+      ConnectionStatus.unreachable => l10n.appCannotConnect,
       ConnectionStatus.online || null => null,
     };
     return CallLayer(
@@ -285,15 +290,14 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   }
 
   void _onLiveCaptureLost(LiveCaptureFailure reason) {
+    final l10n = deviceLocalizations();
     globalScaffoldMessengerKey.currentState?.showSnackBar(
       SnackBar(
         content: Text(switch (reason) {
-          LiveCaptureFailure.servicesOff =>
-            'Live location stopped because location is off.',
-          LiveCaptureFailure.denied =>
-            'Live location stopped because location access was turned off.',
-          LiveCaptureFailure.ended || LiveCaptureFailure.failed =>
-            'Live location stopped. Share it again to continue.',
+          LiveCaptureFailure.servicesOff => l10n.appLiveLocationServicesOff,
+          LiveCaptureFailure.denied => l10n.appLiveLocationDenied,
+          LiveCaptureFailure.ended ||
+          LiveCaptureFailure.failed => l10n.appLiveLocationStopped,
         }),
       ),
     );
@@ -492,10 +496,8 @@ class _AuthGateState extends ConsumerState<_AuthGate>
       loading: () => const ZunoSplash(),
       error: (e, s) {
         reportCaught('sign-in state', e, s);
-        return const Scaffold(
-          body: Center(
-            child: Text('Zuno could not start. Close it and open it again.'),
-          ),
+        return Scaffold(
+          body: Center(child: Text(context.l10n.appCouldNotStart)),
         );
       },
     );
@@ -508,7 +510,9 @@ class ZunoBootSplash extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Zuno',
+      title: zunoName,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: zunoLightTheme,
       darkTheme: zunoDarkTheme,
       themeMode: ThemeMode.system,

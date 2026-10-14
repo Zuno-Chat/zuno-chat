@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:matrix/matrix.dart';
 
+import '../l10n/l10n.dart';
+
 enum AccountSecurityStatus {
   deviceWaiting,
   deviceLocked,
@@ -68,40 +70,39 @@ Future<AccountSecurityFacts> accountSecurityFactsOf(Client client) async {
 }
 
 ({String title, String body, String? action}) accountSecurityCopy(
+  AppLocalizations l10n,
   AccountSecurityStatus status,
 ) {
   switch (status) {
     case AccountSecurityStatus.protected:
       return (
-        title: 'Your messages are protected',
-        body:
-            'You can get them back on a new device, and your other devices are '
-            'approved.',
+        title: l10n.securityProtectedTitle,
+        body: l10n.securityProtectedBody,
         action: null,
       );
     case AccountSecurityStatus.noRecovery:
       return (
-        title: 'If you lose this device, your messages go with it',
-        body: 'Set up a recovery code so you can read them again on a new device.',
-        action: 'Set up recovery',
+        title: l10n.securityNoRecoveryTitle,
+        body: l10n.securityNoRecoveryBody,
+        action: l10n.securitySetUpRecovery,
       );
     case AccountSecurityStatus.deviceLocked:
       return (
-        title: 'Older messages are not on this device yet',
-        body: 'Approve this device from another one, or enter your recovery code.',
-        action: 'Unlock them',
+        title: l10n.securityDeviceLockedTitle,
+        body: l10n.securityDeviceLockedBody,
+        action: l10n.securityDeviceLockedAction,
       );
     case AccountSecurityStatus.deviceWaiting:
       return (
-        title: 'A new sign-in is waiting for approval',
-        body: 'Check it is you, then approve it.',
-        action: 'Review',
+        title: l10n.securityDeviceWaitingTitle,
+        body: l10n.securityDeviceWaitingBody,
+        action: l10n.commonReview,
       );
     case AccountSecurityStatus.recoveryStale:
       return (
-        title: 'This device has an old recovery code',
-        body: 'Enter the current one so it can read your backed-up messages.',
-        action: 'Enter code',
+        title: l10n.securityRecoveryStaleTitle,
+        body: l10n.securityRecoveryStaleBody,
+        action: l10n.securityRecoveryStaleAction,
       );
   }
 }

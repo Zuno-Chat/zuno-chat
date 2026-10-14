@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/sheet.dart';
 
 Future<bool?> showWhyConfirmSheet(
   BuildContext context, {
   required String name,
-  String? unavailableReason,
+  @displayText String? unavailableReason,
 }) => showSheet<bool>(
   context: context,
   isScrollControlled: true,
@@ -19,7 +21,7 @@ class WhyConfirmSheet extends StatelessWidget {
 
   const WhyConfirmSheet({
     required this.name,
-    this.unavailableReason,
+    @displayText this.unavailableReason,
     super.key,
   });
 
@@ -30,6 +32,7 @@ class WhyConfirmSheet extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
     final unavailableReason = this.unavailableReason;
+    final l10n = context.l10n;
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
@@ -40,27 +43,18 @@ class WhyConfirmSheet extends StatelessWidget {
             _ConfirmDiagram(name: name),
             const SizedBox(height: 20),
             Text(
-              'Make sure it is really $name',
+              l10n.verificationWhyTitle(name),
               style: theme.textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            Text(
-              "Encryption keeps your messages to $name's devices, but cannot "
-              "tell on its own whether each one is really $name's. A device "
-              'someone else added could read along and write as $name.',
-              style: body,
-            ),
+            Text(l10n.verificationWhyEncryption(name), style: body),
             const SizedBox(height: 8),
-            Text(
-              "Scan $name's code in person, or compare pictures on a call. "
-              'Once per person. If anything changes later, Zuno tells you.',
-              style: body,
-            ),
+            Text(l10n.verificationWhyHow(name), style: body),
             const SizedBox(height: 24),
             if (unavailableReason == null)
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: Text('Confirm it is really $name'),
+                child: Text(l10n.verificationConfirmPerson(name)),
               )
             else
               Text(
@@ -71,7 +65,11 @@ class WhyConfirmSheet extends StatelessWidget {
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text(unavailableReason == null ? 'Not now' : 'Close'),
+              child: Text(
+                unavailableReason == null
+                    ? l10n.commonNotNow
+                    : l10n.commonClose,
+              ),
             ),
           ],
         ),
@@ -130,7 +128,10 @@ class _ConfirmDiagram extends StatelessWidget {
           children: [
             Padding(
               padding: EdgeInsets.only(top: youTop),
-              child: const _Node(icon: Icons.person_outline, label: 'You'),
+              child: _Node(
+                icon: Icons.person_outline,
+                label: context.l10n.commonYou,
+              ),
             ),
             Expanded(
               child: Stack(
@@ -172,9 +173,9 @@ class _ConfirmDiagram extends StatelessWidget {
               children: [
                 _Node(icon: Icons.smartphone_outlined, label: name),
                 const SizedBox(height: _between),
-                const _Node(
+                _Node(
                   icon: Icons.question_mark,
-                  label: 'Someone else?',
+                  label: context.l10n.verificationSomeoneElse,
                   unknown: true,
                 ),
               ],

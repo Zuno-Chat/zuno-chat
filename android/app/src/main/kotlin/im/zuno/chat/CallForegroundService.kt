@@ -19,8 +19,8 @@ class CallForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val title = intent?.getStringExtra(EXTRA_TITLE)?.ifBlank { "Ongoing call" }
-            ?: "Ongoing call"
+        val title = intent?.getStringExtra(EXTRA_TITLE)?.takeUnless { it.isBlank() }
+            ?: getString(R.string.callsOngoingCall)
         val text = intent?.getStringExtra(EXTRA_TEXT) ?: ""
         val withCamera = intent?.getBooleanExtra(EXTRA_WITH_CAMERA, false) == true
 
@@ -86,8 +86,8 @@ class CallForegroundService : Service() {
             this,
             NotificationGroup.CALLS,
             CHANNEL_ID,
-            "Ongoing call",
-            "Shows while you are in a call",
+            R.string.callsOngoingCall,
+            R.string.callsChannelOngoingCallDescription,
             NotificationManager.IMPORTANCE_LOW,
         )
     }
@@ -101,7 +101,7 @@ class CallForegroundService : Service() {
         private const val EXTRA_WITH_CAMERA = "withCamera"
         private const val HANG_UP_REQUEST_CODE = 4101
 
-        fun start(context: Context, title: String, text: String, withCamera: Boolean) {
+        fun start(context: Context, title: String?, text: String, withCamera: Boolean) {
             val intent = Intent(context, CallForegroundService::class.java)
                 .putExtra(EXTRA_TITLE, title)
                 .putExtra(EXTRA_TEXT, text)

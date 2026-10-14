@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
@@ -50,6 +51,8 @@ void main() {
             userTrustProvider(entry.key).overrideWithValue(entry.value),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: PeopleTrustTile(room: room, participants: participants),
           ),
@@ -157,7 +160,7 @@ void main() {
       expect(find.text('@bob is confirmed'), findsOneWidget);
       expect(
         find.text(
-          'Confirmed 5 March 2026. Covers any device they add later. You '
+          'Confirmed March 5, 2026. Covers any device they add later. You '
           'will not need to do this again.',
         ),
         findsOneWidget,
@@ -190,7 +193,7 @@ void main() {
 
       expect(find.text('@bob is confirmed'), findsOneWidget);
       expect(
-        find.textContaining('Confirmed 31 December 2026.'),
+        find.textContaining('Confirmed December 31, 2026.'),
         findsOneWidget,
       );
       expect(

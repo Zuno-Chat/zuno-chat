@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_sharing.dart';
 import '../../../core/location/live_location_viewing.dart';
 import 'live_location_map_page.dart';
@@ -48,7 +49,7 @@ class LiveLocationBanner extends ConsumerWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  liveSharersText(others, includesYou: mine),
+                  liveSharersText(context.l10n, others, includesYou: mine),
                   style: TextStyle(
                     color: scheme.onSecondaryContainer,
                     fontWeight: FontWeight.w500,
@@ -59,7 +60,7 @@ class LiveLocationBanner extends ConsumerWidget {
                 FilledButton.tonal(
                   onPressed: () =>
                       ref.read(liveLocationSharingProvider).stopIn(room.id),
-                  child: const Text('Stop'),
+                  child: Text(context.l10n.locationStop),
                 ),
             ],
           ),

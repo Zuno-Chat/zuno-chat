@@ -1,3 +1,5 @@
+import '../l10n/l10n.dart';
+
 enum UndecryptableReason { recoverable, keyNeverShared }
 
 UndecryptableReason undecryptableReason({
@@ -8,14 +10,15 @@ UndecryptableReason undecryptableReason({
     : UndecryptableReason.keyNeverShared;
 
 ({String text, bool offersRecovery}) undecryptableCopy(
+  AppLocalizations l10n,
   UndecryptableReason reason,
 ) => switch (reason) {
   UndecryptableReason.recoverable => (
-    text: 'Sent before this device signed in.',
+    text: l10n.matrixUndecryptableRecoverable,
     offersRecovery: true,
   ),
   UndecryptableReason.keyNeverShared => (
-    text: "The sender's device did not share the key for this message.",
+    text: l10n.matrixUndecryptableKeyNeverShared,
     offersRecovery: false,
   ),
 };

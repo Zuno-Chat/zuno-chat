@@ -1,13 +1,18 @@
 import 'package:matrix/matrix.dart';
 
-String roomTitle(Room room) {
+import '../l10n/l10n.dart';
+import 'room_name_localizations.dart';
+
+String roomTitle(Room room, AppLocalizations l10n) {
+  final names = RoomNameLocalizations(l10n);
   final partner = room.directChatMatrixID;
   if (room.isAbandonedDMRoom && partner != null) {
-    return room.unsafeGetUserFromMemoryOrFallback(partner).calcDisplayname();
+    return room
+        .unsafeGetUserFromMemoryOrFallback(partner)
+        .calcDisplayname(i18n: names);
   }
-  final name = room.getLocalizedDisplayname();
-  final trimmed = name.trim();
-  return trimmed.isEmpty || trimmed == 'Group with' ? 'Empty chat' : name;
+  final name = room.getLocalizedDisplayname(names);
+  return name.trim().isEmpty ? l10n.roomNameEmpty : name;
 }
 
 Future<void> loadRoomNameMembers(Room room) async {

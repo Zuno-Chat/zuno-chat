@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
+import '../../../core/format/date_labels.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/media_gallery_group.dart';
 import '../../../core/ui/row_memo.dart';
@@ -102,7 +104,7 @@ class _MessageListViewState extends State<MessageListView> {
       for (var i = 0; i < messages.length; i++) messages[i].eventId: i,
     };
     final now = DateTime.now();
-    final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
+    final labels = DateLabels.of(context);
     final hasEndRow = loadingMore || exhausted;
     final leading = 1 + singles.length + (orphaned.isEmpty ? 0 : 1);
 
@@ -178,7 +180,7 @@ class _MessageListViewState extends State<MessageListView> {
           galleryFailureIndexes: [for (final failed in failures) failed.index],
           canRespond: widget.canRespond,
           now: now,
-          use24Hour: use24Hour,
+          labels: labels,
         );
         return _memo.obtain(message.eventId, record, () {
           final tile = MessageTile(
@@ -255,7 +257,7 @@ class _EndRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
       child: Center(
         child: Text(
-          'No earlier messages',
+          context.l10n.chatNoEarlierMessages,
           style: theme.textTheme.labelMedium!.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),

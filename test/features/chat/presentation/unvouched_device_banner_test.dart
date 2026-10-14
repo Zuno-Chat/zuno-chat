@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/unverified_device_warning_provider.dart';
 import 'package:zuno/features/chat/presentation/unvouched_device_banner.dart';
 
@@ -37,6 +38,8 @@ void main() {
         ),
       ],
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(body: UnvouchedDeviceBanner(room: room)),
       ),
     ),

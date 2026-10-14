@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 import 'package:video_player/video_player.dart';
 
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 import '../platform/platform_capabilities.dart';
 import 'attachment_action_buttons.dart';
 import 'attachment_cache.dart';
@@ -84,7 +85,7 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
   Widget _buildBody(BuildContext context) {
     if (_error != null) {
       return Text(
-        'Video did not load. Try again.',
+        context.l10n.matrixVideoLoadFailed,
         style: const TextStyle(color: Colors.white70),
         textAlign: TextAlign.center,
       );

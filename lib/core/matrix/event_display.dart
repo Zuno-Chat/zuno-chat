@@ -1,6 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../calls/matrixrtc/call_summary_message.dart';
+import '../l10n/l10n.dart';
 import '../location/live_location_protocol.dart';
 import '../security/verification_signaling.dart';
 import 'attachment_message_type.dart';
@@ -57,78 +58,63 @@ bool isPreviewableLastEvent(Event event) => isDisplayableTimelineEvent(
   showHiddenMessages: false,
 );
 
-MessageSummary summarize(Event event) {
-  if (event.redacted) {
-    return const MessageSummary(
-      kind: MessageKind.deleted,
-      text: 'Message deleted',
-    );
-  }
+MessageKind messageKindOf(Event event) => _classify(event).kind;
+
+MessageSummary summarize(AppLocalizations l10n, Event event) {
+  final (:kind, event: shown) = _classify(event);
+  final call = kind == MessageKind.callSummary
+      ? CallSummary.fromEvent(shown)
+      : null;
+  return MessageSummary(
+    kind: kind,
+    call: call,
+    text: switch (kind) {
+      MessageKind.deleted => l10n.matrixSummaryDeleted,
+      MessageKind.undecryptable => l10n.matrixSummaryUndecryptable,
+      MessageKind.nonMessage =>
+        describeStateEvent(l10n, shown) ??
+            l10n.matrixSummaryOtherEvent(shown.type),
+      MessageKind.hiddenSignaling || MessageKind.file => shown.body,
+      MessageKind.callSummary => call!.localizedBody(l10n),
+      MessageKind.photo => imageCaption(shown) ?? l10n.matrixSummaryPhoto,
+      MessageKind.video => imageCaption(shown) ?? l10n.matrixSummaryVideo,
+      MessageKind.voice => l10n.matrixSummaryVoice,
+      MessageKind.location => l10n.matrixSummaryLocation,
+      MessageKind.liveLocation => l10n.matrixSummaryLiveLocation,
+      MessageKind.text => stripReplyFallback(shown.plaintextBody),
+    },
+  );
+}
+
+({MessageKind kind, Event event}) _classify(Event event) {
+  if (event.redacted) return (kind: MessageKind.deleted, event: event);
   if (isUndecryptableEvent(event)) {
-    return const MessageSummary(
-      kind: MessageKind.undecryptable,
-      text: 'Message cannot be read on this device',
-    );
+    return (kind: MessageKind.undecryptable, event: event);
   }
-
   final edited = _applyEdit(event);
-  if (edited != null) return summarize(edited);
+  if (edited != null) return _classify(edited);
+  return (kind: _contentKind(event), event: event);
+}
 
+MessageKind _contentKind(Event event) {
   if (event.type != EventTypes.Message && event.type != EventTypes.Sticker) {
-    return MessageSummary(
-      kind: MessageKind.nonMessage,
-      text: describeStateEvent(event) ?? '${event.type} event',
-    );
+    return MessageKind.nonMessage;
   }
-
   final msgtype = event.messageType;
-
   if (isCallSignalingMessage(msgtype) ||
       isVerificationSignalingMessage(msgtype)) {
-    return MessageSummary(kind: MessageKind.hiddenSignaling, text: event.body);
+    return MessageKind.hiddenSignaling;
   }
-
-  final callSummary = CallSummary.fromEvent(event);
-  if (callSummary != null) {
-    return MessageSummary(
-      kind: MessageKind.callSummary,
-      text: callSummary.displayBody,
-      call: callSummary,
-    );
-  }
-
+  if (CallSummary.fromEvent(event) != null) return MessageKind.callSummary;
   if (msgtype == MessageTypes.Image || msgtype == MessageTypes.Sticker) {
-    return MessageSummary(
-      kind: MessageKind.photo,
-      text: imageCaption(event) ?? 'Photo',
-    );
+    return MessageKind.photo;
   }
-  if (msgtype == MessageTypes.Video) {
-    return MessageSummary(
-      kind: MessageKind.video,
-      text: imageCaption(event) ?? 'Video',
-    );
-  }
-  if (isVoiceMessage(event)) {
-    return const MessageSummary(kind: MessageKind.voice, text: 'Voice message');
-  }
-  if (isAttachmentMessageType(msgtype)) {
-    return MessageSummary(kind: MessageKind.file, text: event.body);
-  }
-  if (msgtype == MessageTypes.Location) {
-    return const MessageSummary(kind: MessageKind.location, text: 'Location');
-  }
-  if (msgtype == liveLocationMsgtype) {
-    return const MessageSummary(
-      kind: MessageKind.liveLocation,
-      text: 'Live location',
-    );
-  }
-
-  return MessageSummary(
-    kind: MessageKind.text,
-    text: stripReplyFallback(event.plaintextBody),
-  );
+  if (msgtype == MessageTypes.Video) return MessageKind.video;
+  if (isVoiceMessage(event)) return MessageKind.voice;
+  if (isAttachmentMessageType(msgtype)) return MessageKind.file;
+  if (msgtype == MessageTypes.Location) return MessageKind.location;
+  if (msgtype == liveLocationMsgtype) return MessageKind.liveLocation;
+  return MessageKind.text;
 }
 
 Event? _applyEdit(Event event) {

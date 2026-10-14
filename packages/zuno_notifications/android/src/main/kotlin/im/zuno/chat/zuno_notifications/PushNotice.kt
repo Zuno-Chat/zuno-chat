@@ -22,17 +22,12 @@ object PushNotice {
     const val TONE_KEY = "flutter.settings.message_tone_enabled"
     const val VIBRATION_KEY = "flutter.settings.message_vibration_enabled"
     const val NOTIFY_ME_KEY = "flutter.settings.notify_me"
+    const val BRAND_NAME = "Zuno"
     private const val TAG = "PushNotice"
     private const val SMALL_ICON = "ic_stat_zuno_mark"
     private val vibrationPattern = longArrayOf(0, 300, 150, 300)
     private const val MISSED_CHANNEL = "direct_messages"
     private const val MISSED_NOTIFICATION_ID = 4105
-    private const val MISSED_TITLE = "Zuno"
-    private const val MISSED_TEXT =
-        "Some notifications could not be delivered. Open Zuno to see new messages."
-
-    private const val TEST_TITLE = "Zuno"
-    private const val TEST_TEXT = "Notifications work"
 
     private val posted = HashMap<String, String>()
 
@@ -75,6 +70,8 @@ object PushNotice {
                 return false
             }
             val copy = PushNoticeDecision.copyFor(cached)
+            val title = noticeText(context, copy.title)
+            val text = noticeText(context, copy.text)
             val alert = alertFor(prefs)
             val tap = PendingIntent.getActivity(
                 context,
@@ -84,8 +81,8 @@ object PushNotice {
             )
             val builder = NotificationCompat.Builder(context, channel)
                 .setSmallIcon(smallIcon(context))
-                .setContentTitle(copy.title)
-                .setContentText(copy.text)
+                .setContentTitle(title)
+                .setContentText(text)
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setSilent(alert.silent)
@@ -105,13 +102,16 @@ object PushNotice {
                 val sender = Person.Builder().setName(conversation.title).setKey(roomId).build()
                 builder.setStyle(
                     NotificationCompat.MessagingStyle(
-                        Person.Builder().setName("You").setKey("me").build(),
+                        Person.Builder()
+                            .setName(context.getString(R.string.commonYou))
+                            .setKey("me")
+                            .build(),
                     )
                         .setConversationTitle(
                             if (conversation.isGroup) conversation.title else null,
                         )
                         .setGroupConversation(conversation.isGroup)
-                        .addMessage(copy.text, System.currentTimeMillis(), sender),
+                        .addMessage(text, System.currentTimeMillis(), sender),
                 )
             }
             manager.notify(notificationId, builder.build())
@@ -136,8 +136,8 @@ object PushNotice {
             val tap = AppLaunchIntent.pending(context, MISSED_NOTIFICATION_ID)
             val notification = NotificationCompat.Builder(context, MISSED_CHANNEL)
                 .setSmallIcon(smallIcon(context))
-                .setContentTitle(MISSED_TITLE)
-                .setContentText(MISSED_TEXT)
+                .setContentTitle(BRAND_NAME)
+                .setContentText(context.getString(R.string.notificationsMissedPushes))
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setAutoCancel(true)
                 .setOnlyAlertOnce(true)
@@ -165,8 +165,8 @@ object PushNotice {
                 PushNoticeDecision.DIRECT_CHANNEL,
             )
                 .setSmallIcon(smallIcon(context))
-                .setContentTitle(TEST_TITLE)
-                .setContentText(TEST_TEXT)
+                .setContentTitle(BRAND_NAME)
+                .setContentText(context.getString(R.string.notificationsTestWorks))
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setSilent(alert.silent)
@@ -186,6 +186,12 @@ object PushNotice {
         if (posted[roomId] != eventId) return false
         posted.remove(roomId)
         true
+    }
+
+    private fun noticeText(context: Context, text: NoticeText): String = when (text) {
+        is NoticeText.Room -> text.name
+        NoticeText.NewMessage -> context.getString(R.string.notificationsNewMessage)
+        NoticeText.TapToOpen -> context.getString(R.string.notificationsTapToOpen)
     }
 
     private fun alertFor(prefs: SharedPreferences): NoticeAlert = PushNoticeDecision.alertFor(

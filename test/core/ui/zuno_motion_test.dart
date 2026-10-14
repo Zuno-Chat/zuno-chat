@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/navigation/launch_route.dart';
 import 'package:zuno/core/ui/zuno_motion.dart';
 
@@ -11,6 +12,8 @@ void main() {
   Future<void> pumpApp(WidgetTester tester, {bool disableAnimations = false}) =>
       tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: ThemeData(
             pageTransitionsTheme: const PageTransitionsTheme(
               builders: {TargetPlatform.android: ZunoSlideTransitionsBuilder()},

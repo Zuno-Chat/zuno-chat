@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/corner_snap.dart';
 
 void main() {
@@ -77,6 +78,8 @@ void main() {
       var corner = SnapCorner.topRight;
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: MediaQuery(
             data: MediaQueryData(disableAnimations: reduceMotion),
             child: StatefulBuilder(

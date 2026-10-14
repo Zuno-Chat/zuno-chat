@@ -8,6 +8,7 @@ import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/core/calls/models/call_status.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/core/ui/corner_snap.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
@@ -20,6 +21,9 @@ import 'package:zuno/features/calls/presentation/participant_tile.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/layout_matrix.dart';
+
+const _encryptingHint =
+    'Still encrypting. If this continues, hang up and try again.';
 
 void main() {
   late Room room;
@@ -100,6 +104,8 @@ void main() {
     };
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoDarkTheme,
         home: CallView(
           room: room,
@@ -256,7 +262,7 @@ void main() {
       expect(find.byType(CallTimer), findsNothing);
 
       await tester.pump(const Duration(seconds: 8));
-      expect(find.text(EncryptingLabel.hint), findsOneWidget);
+      expect(find.text(_encryptingHint), findsOneWidget);
     });
 
     testWidgets('the buttons sit under the stage, clear of the navigation '
@@ -565,7 +571,7 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 3));
 
-      expect(find.text(EncryptingLabel.hint), findsOneWidget);
+      expect(find.text(_encryptingHint), findsOneWidget);
     });
   });
 

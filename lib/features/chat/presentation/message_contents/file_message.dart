@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../../core/format/human_units.dart';
+import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/attachment_action_buttons.dart';
 import '../../../../core/matrix/attachment_actions.dart';
 import '../../../../core/matrix/image_caption.dart';
@@ -32,7 +33,9 @@ class _FileMessageState extends State<FileMessage> {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _downloading = true);
     try {
-      await saveAttachmentsWithFeedback(messenger, [widget.event]);
+      await saveAttachmentsWithFeedback(messenger, context.l10n, [
+        widget.event,
+      ]);
     } finally {
       if (mounted) setState(() => _downloading = false);
     }
@@ -94,7 +97,7 @@ class _FileMessageState extends State<FileMessage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      size == null ? '' : formatBytes(size),
+                      size == null ? '' : formatBytes(context.l10n, size),
                       style: theme.textTheme.labelSmall!.copyWith(color: muted),
                     ),
                     widget.meta,

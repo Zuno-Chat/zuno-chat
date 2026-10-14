@@ -1,3 +1,5 @@
+import '../l10n/l10n.dart';
+
 enum NotificationDeliveryMode { fcm, unifiedPush, backgroundService, apns }
 
 bool deliveryDependsOnBatteryExemption(NotificationDeliveryMode mode) {
@@ -17,20 +19,20 @@ bool deliveryLogsEachPush(NotificationDeliveryMode mode) {
 }
 
 extension NotificationDeliveryModeCopy on NotificationDeliveryMode {
-  String get label => switch (this) {
-    NotificationDeliveryMode.backgroundService => 'Background sync',
-    NotificationDeliveryMode.fcm => 'Google services',
-    NotificationDeliveryMode.unifiedPush => 'UnifiedPush',
-    NotificationDeliveryMode.apns => 'Apple push',
+  String label(AppLocalizations l10n) => switch (this) {
+    NotificationDeliveryMode.backgroundService =>
+      l10n.notificationsModeBackgroundSync,
+    NotificationDeliveryMode.fcm => l10n.notificationsModeGoogleServices,
+    NotificationDeliveryMode.unifiedPush => l10n.notificationsModeUnifiedPush,
+    NotificationDeliveryMode.apns => l10n.notificationsModeApplePush,
   };
 
-  String get description => switch (this) {
+  String description(AppLocalizations l10n) => switch (this) {
     NotificationDeliveryMode.backgroundService =>
-      'No Google services or setup needed. Keeps a quiet notification showing.',
-    NotificationDeliveryMode.fcm =>
-      'Instant, and works on most devices with no setup',
+      l10n.notificationsModeBackgroundSyncDescription,
+    NotificationDeliveryMode.fcm => l10n.notificationsModeGoogleDescription,
     NotificationDeliveryMode.unifiedPush =>
-      'Instant, without Google. Needs a distributor app such as ntfy.',
-    NotificationDeliveryMode.apns => 'Instant, through Apple, with no setup',
+      l10n.notificationsModeUnifiedPushDescription,
+    NotificationDeliveryMode.apns => l10n.notificationsModeApplePushDescription,
   };
 }

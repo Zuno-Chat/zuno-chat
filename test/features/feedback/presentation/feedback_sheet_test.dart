@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/errors/feedback.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/feedback/presentation/feedback_sheet.dart';
 
 void main() {
@@ -13,6 +14,8 @@ void main() {
   }) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(

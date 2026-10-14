@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/unverified_device_warning.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -64,7 +65,7 @@ void main() {
 
   group('unvouchedDeviceWarningText', () {
     test('names the person and says what to do', () {
-      final text = unvouchedDeviceWarningText('Bob');
+      final text = unvouchedDeviceWarningText(englishLocalizations, 'Bob');
 
       expect(text.title, contains('Bob'));
       expect(text.body, contains('read what you send'));

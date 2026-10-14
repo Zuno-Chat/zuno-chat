@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/brand.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/client_startup.dart';
 import '../../../core/ui/zuno_theme.dart';
 
@@ -11,7 +13,9 @@ class StartupFailureApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Zuno',
+      title: zunoName,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: zunoLightTheme,
       darkTheme: zunoDarkTheme,
       themeMode: ThemeMode.system,
@@ -40,24 +44,20 @@ class _StartupFailurePageState extends State<StartupFailurePage> {
   }
 
   Future<void> _confirmStartOver() async {
+    final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Start over on this device?'),
-        content: const Text(
-          'This deletes the chats and encryption keys Zuno stored on this '
-          'device. You then sign in again, and your message history comes '
-          'back only with your recovery code or another signed-in device. '
-          'Nobody can undo this.',
-        ),
+        title: Text(l10n.startupStartOverTitle),
+        content: Text(l10n.startupStartOverBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete and start over'),
+            child: Text(l10n.startupDeleteAndStartOver),
           ),
         ],
       ),
@@ -67,6 +67,7 @@ class _StartupFailurePageState extends State<StartupFailurePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: SafeArea(
@@ -78,16 +79,13 @@ class _StartupFailurePageState extends State<StartupFailurePage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Zuno could not start',
+                  l10n.startupFailedTitle,
                   style: textTheme.headlineSmall,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'The chats and keys stored on this device could not be '
-                  'opened. Nothing has been deleted. Try again, and if this '
-                  'keeps happening, restart your device or free up some '
-                  'storage.',
+                  l10n.startupFailedBody,
                   style: textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),
@@ -96,12 +94,12 @@ class _StartupFailurePageState extends State<StartupFailurePage> {
                   onPressed: _chosen
                       ? null
                       : () => _choose(StartupChoice.tryAgain),
-                  child: const Text('Try again'),
+                  child: Text(l10n.commonTryAgain),
                 ),
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: _chosen ? null : _confirmStartOver,
-                  child: const Text('Start over on this device'),
+                  child: Text(l10n.startupStartOver),
                 ),
               ],
             ),

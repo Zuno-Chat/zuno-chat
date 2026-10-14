@@ -11,6 +11,7 @@ import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/errors/global_error_handler.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/upload_progress_http_client.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -171,6 +172,8 @@ class RoomPageHarness {
     return UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         debugShowCheckedModeBanner: false,
         theme: zunoLightTheme,
         scaffoldMessengerKey: globalScaffoldMessengerKey,

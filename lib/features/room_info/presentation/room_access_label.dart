@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/communities.dart';
 import '../../../core/matrix/room_access.dart';
 
@@ -16,11 +17,18 @@ class RoomAccessLabel extends StatelessWidget {
     super.key,
   });
 
-  factory RoomAccessLabel.of(Room room, {double iconSize = 16, Key? key}) {
+  factory RoomAccessLabel.of(
+    Room room,
+    AppLocalizations l10n, {
+    double iconSize = 16,
+    Key? key,
+  }) {
     final access = roomAccessOf(room);
     return RoomAccessLabel(
       access: access,
-      community: access == RoomAccess.community ? communityNameOf(room) : null,
+      community: access == RoomAccess.community
+          ? communityNameOf(room, l10n)
+          : null,
       iconSize: iconSize,
       key: key,
     );
@@ -46,8 +54,8 @@ class RoomAccessLabel extends StatelessWidget {
         Flexible(
           child: Text(
             access == RoomAccess.community
-                ? community ?? access.label
-                : access.label,
+                ? community ?? access.label(context.l10n)
+                : access.label(context.l10n),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall,

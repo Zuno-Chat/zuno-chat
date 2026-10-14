@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show TextInput;
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/security/password_strength.dart';
 
 class ChangePasswordDialog extends StatefulWidget {
@@ -35,11 +36,12 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
   }
 
   String? _inputError() {
+    final l10n = context.l10n;
     if (_current.text.isEmpty || _next.text.isEmpty) {
-      return 'Fill in both password fields';
+      return l10n.settingsChangePasswordFillBoth;
     }
-    if (_next.text != _confirm.text) return 'New passwords do not match';
-    return assessPassword(_next.text, username: widget.username).blocker;
+    if (_next.text != _confirm.text) return l10n.settingsChangePasswordMismatch;
+    return assessPassword(l10n, _next.text, username: widget.username).blocker;
   }
 
   Future<void> _submit() async {
@@ -62,16 +64,17 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Password not changed. Try again.';
+        _error = context.l10n.settingsChangePasswordFailed;
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     const gap = SizedBox(height: 12);
     return AlertDialog(
-      title: const Text('Change password'),
+      title: Text(l10n.settingsChangePasswordTitle),
       scrollable: true,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       actionsOverflowDirection: VerticalDirection.up,
@@ -89,7 +92,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                 readOnly: true,
                 canRequestFocus: false,
                 autofillHints: const [AutofillHints.username],
-                decoration: const InputDecoration(labelText: 'Username'),
+                decoration: InputDecoration(labelText: l10n.commonUsername),
               ),
               gap,
               TextField(
@@ -97,8 +100,8 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                 enabled: !_loading,
                 obscureText: true,
                 autofillHints: const [AutofillHints.password],
-                decoration: const InputDecoration(
-                  labelText: 'Current password',
+                decoration: InputDecoration(
+                  labelText: l10n.settingsChangePasswordCurrent,
                 ),
               ),
               gap,
@@ -107,7 +110,9 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                 enabled: !_loading,
                 obscureText: true,
                 autofillHints: const [AutofillHints.newPassword],
-                decoration: const InputDecoration(labelText: 'New password'),
+                decoration: InputDecoration(
+                  labelText: l10n.settingsChangePasswordNew,
+                ),
               ),
               gap,
               TextField(
@@ -115,8 +120,8 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                 enabled: !_loading,
                 obscureText: true,
                 autofillHints: const [AutofillHints.newPassword],
-                decoration: const InputDecoration(
-                  labelText: 'Confirm new password',
+                decoration: InputDecoration(
+                  labelText: l10n.settingsChangePasswordConfirm,
                 ),
                 onSubmitted: (_) => _submit(),
               ),
@@ -134,11 +139,15 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       actions: [
         TextButton(
           onPressed: _loading ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.commonCancel),
         ),
         FilledButton(
           onPressed: _loading ? null : _submit,
-          child: Text(_loading ? 'Changing password…' : 'Change password'),
+          child: Text(
+            _loading
+                ? l10n.settingsChangePasswordChanging
+                : l10n.settingsChangePasswordTitle,
+          ),
         ),
       ],
     );

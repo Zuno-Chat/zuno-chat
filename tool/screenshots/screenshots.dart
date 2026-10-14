@@ -22,6 +22,7 @@ import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/core/calls/models/call_status.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/upload_progress_http_client.dart';
 import 'package:zuno/core/platform/app_platform.dart';
@@ -705,6 +706,8 @@ Future<void> _pump(
       child: UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           debugShowCheckedModeBanner: false,
           theme: zunoLightTheme,
           darkTheme: zunoDarkTheme,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_access.dart';
 import '../../../core/matrix/room_name_check.dart';
 
@@ -7,8 +8,8 @@ typedef NewRoom = ({String name, RoomAccess access});
 
 Future<NewRoom?> showNewRoomDialog(
   BuildContext context, {
-  String title = 'New room',
-  String hint = 'Room name',
+  String? title,
+  String? hint,
   String? community,
 }) => showDialog<NewRoom>(
   context: context,
@@ -17,8 +18,8 @@ Future<NewRoom?> showNewRoomDialog(
 );
 
 class _NewRoomDialog extends StatefulWidget {
-  final String title;
-  final String hint;
+  final String? title;
+  final String? hint;
   final String? community;
 
   const _NewRoomDialog({
@@ -44,14 +45,17 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
     super.dispose();
   }
 
-  String _communityDescription(RoomAccess access, String community) =>
-      access == RoomAccess.community
-      ? 'Anyone in $community can join'
-      : access.description;
+  String _communityDescription(
+    AppLocalizations l10n,
+    RoomAccess access,
+    String community,
+  ) => access == RoomAccess.community
+      ? l10n.roomsAnyoneInCommunityCanJoin(community)
+      : access.description(l10n);
 
   void _submit() {
     final name = _controller.text.trim();
-    final error = roomNameError(name);
+    final error = roomNameError(context.l10n, name);
     if (error != null) {
       setState(() => _error = error);
       return;
@@ -62,9 +66,10 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
     final community = widget.community;
     return AlertDialog(
-      title: Text(widget.title),
+      title: Text(widget.title ?? l10n.roomsNewRoom),
       scrollable: true,
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -80,7 +85,7 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
             },
             decoration: InputDecoration(
               border: const OutlineInputBorder(),
-              hintText: widget.hint,
+              hintText: widget.hint ?? l10n.roomsRoomName,
               errorText: _error,
             ),
           ),
@@ -101,8 +106,10 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
                     RadioListTile<RoomAccess>(
                       value: access,
                       contentPadding: EdgeInsets.zero,
-                      title: Text(access.label),
-                      subtitle: Text(_communityDescription(access, community)),
+                      title: Text(access.label(l10n)),
+                      subtitle: Text(
+                        _communityDescription(l10n, access, community),
+                      ),
                     ),
                 ],
               ),
@@ -110,16 +117,16 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
           else ...[
             SegmentedButton<RoomAccess>(
               showSelectedIcon: false,
-              segments: const [
+              segments: [
                 ButtonSegment(
                   value: RoomAccess.private,
-                  icon: Icon(Icons.public_off),
-                  label: Text('Private'),
+                  icon: const Icon(Icons.public_off),
+                  label: Text(RoomAccess.private.label(l10n)),
                 ),
                 ButtonSegment(
                   value: RoomAccess.public,
-                  icon: Icon(Icons.public),
-                  label: Text('Public'),
+                  icon: const Icon(Icons.public),
+                  label: Text(RoomAccess.public.label(l10n)),
                 ),
               ],
               selected: {_access},
@@ -128,7 +135,7 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
             ),
             const SizedBox(height: 8),
             Text(
-              _access.description,
+              _access.description(l10n),
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -140,9 +147,9 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.commonCancel),
         ),
-        TextButton(onPressed: _submit, child: const Text('Create')),
+        TextButton(onPressed: _submit, child: Text(l10n.roomsCreate)),
       ],
     );
   }

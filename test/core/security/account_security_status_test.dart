@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/account_security_status.dart';
 
 import '../../helpers/fake_device_keys.dart';
@@ -118,7 +119,7 @@ void main() {
   group('accountSecurityCopy', () {
     test('every state has copy, and only protected has no action', () {
       for (final status in AccountSecurityStatus.values) {
-        final copy = accountSecurityCopy(status);
+        final copy = accountSecurityCopy(englishLocalizations, status);
         expect(copy.title, isNotEmpty, reason: status.name);
         expect(copy.body, isNotEmpty, reason: status.name);
         if (status == AccountSecurityStatus.protected) {
@@ -141,7 +142,7 @@ void main() {
         'cross signing',
       ];
       for (final status in AccountSecurityStatus.values) {
-        final copy = accountSecurityCopy(status);
+        final copy = accountSecurityCopy(englishLocalizations, status);
         final text = '${copy.title} ${copy.body} ${copy.action ?? ''}'
             .toLowerCase();
         for (final word in banned) {

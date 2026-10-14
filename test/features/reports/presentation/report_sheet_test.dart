@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/abuse_report.dart';
 import 'package:zuno/features/reports/presentation/report_sheet.dart';
 
@@ -15,6 +16,8 @@ void main() {
     result = null;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(
@@ -52,7 +55,7 @@ void main() {
       expect(find.text('Report message'), findsOneWidget);
       expect(find.text('The report goes to Zuno.'), findsOneWidget);
       for (final reason in ReportReason.values) {
-        expect(find.text(reason.label), findsOneWidget);
+        expect(find.text(reason.label(englishLocalizations)), findsOneWidget);
       }
       expect(find.text('Report and decline'), findsOneWidget);
     },

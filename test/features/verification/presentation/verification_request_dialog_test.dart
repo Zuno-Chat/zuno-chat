@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/verification/presentation/verification_request_dialog.dart';
 
 import 'verification_harness.dart';
@@ -12,6 +13,8 @@ void main() {
     final request = FakeKeyVerification()..canceled = true;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Builder(
           builder: (context) => TextButton(
             onPressed: () => showDialog<bool>(

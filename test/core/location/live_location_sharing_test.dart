@@ -4,6 +4,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/live_location_availability.dart';
 import 'package:zuno/core/location/live_location_capture.dart';
@@ -1082,18 +1083,22 @@ void main() {
       final ends = now.add(const Duration(hours: 1));
       final later = now.add(const Duration(hours: 2));
 
-      final chat = liveLocationNotice([(room: alex, endsAt: ends)]);
+      final chat = liveLocationNotice(englishLocalizations, [
+        (room: alex, endsAt: ends),
+      ]);
       expect(chat.title, 'Sharing live location');
       expect(chat.text, 'With Alex');
       expect(chat.roomId, '!alex:x');
       expect(chat.endsAt, ends);
 
       expect(
-        liveLocationNotice([(room: room, endsAt: ends)]).text,
+        liveLocationNotice(englishLocalizations, [
+          (room: room, endsAt: ends),
+        ]).text,
         'In Family',
       );
 
-      final several = liveLocationNotice([
+      final several = liveLocationNotice(englishLocalizations, [
         (room: alex, endsAt: ends),
         (room: bea, endsAt: later),
         (room: room, endsAt: ends),
@@ -1101,6 +1106,27 @@ void main() {
       expect(several.text, 'In 2 chats and 1 room');
       expect(several.roomId, isNull);
       expect(several.endsAt, later);
+
+      final oneEach = liveLocationNotice(englishLocalizations, [
+        (room: alex, endsAt: ends),
+        (room: room, endsAt: ends),
+      ]);
+      expect(oneEach.text, 'In 1 chat and 1 room');
+      expect(
+        liveLocationNotice(englishLocalizations, [
+          (room: alex, endsAt: ends),
+          (room: bea, endsAt: ends),
+        ]).text,
+        'In 2 chats',
+      );
+      final other = addRoom('!other:x')..title = 'Other';
+      expect(
+        liveLocationNotice(englishLocalizations, [
+          (room: room, endsAt: ends),
+          (room: other, endsAt: ends),
+        ]).text,
+        'In 2 rooms',
+      );
     });
   });
 

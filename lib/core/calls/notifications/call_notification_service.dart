@@ -10,8 +10,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:matrix/matrix.dart' show Client;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../brand.dart';
 import '../../errors/caught_errors.dart';
 import '../../errors/device_log.dart';
+import '../../l10n/l10n.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../network/app_http_overrides.dart';
 import '../../notifications/message_notification_action.dart';
@@ -331,6 +333,7 @@ class CallNotificationService {
     });
     if (_capabilities.callKit) await _invoke<void>('resetSystemCalls');
 
+    final l10n = deviceLocalizations();
     await _plugin.initialize(
       settings: InitializationSettings(
         android: const AndroidInitializationSettings(
@@ -342,7 +345,7 @@ class CallNotificationService {
           requestBadgePermission: false,
           notificationCategories: _capabilities.nativeNotificationActions
               ? const <DarwinNotificationCategory>[]
-              : _messageCategories,
+              : _messageCategories(l10n),
         ),
       ),
       onDidReceiveNotificationResponse: _handleResponse,
@@ -351,15 +354,24 @@ class CallNotificationService {
 
     final android = _android;
     await android?.createNotificationChannelGroup(
-      const AndroidNotificationChannelGroup(_callsGroupId, 'Calls'),
+      AndroidNotificationChannelGroup(
+        _callsGroupId,
+        l10n.callsChannelGroupCalls,
+      ),
     );
     await android?.createNotificationChannelGroup(
-      const AndroidNotificationChannelGroup(_chatsGroupId, 'Chats'),
+      AndroidNotificationChannelGroup(
+        _chatsGroupId,
+        l10n.notificationsChannelGroupChats,
+      ),
     );
     await android?.createNotificationChannelGroup(
-      const AndroidNotificationChannelGroup(_accountGroupId, 'Account'),
+      AndroidNotificationChannelGroup(
+        _accountGroupId,
+        l10n.notificationsChannelGroupAccount,
+      ),
     );
-    for (final channel in _channels) {
+    for (final channel in _channels(l10n)) {
       await android?.createNotificationChannel(channel);
     }
     for (final channelId in _retiredChannelIds) {
@@ -371,23 +383,26 @@ class CallNotificationService {
   static const _markReadCategoryId = 'message';
   static const _replyOnlyCategoryId = 'reply';
 
-  static final _replyAction = DarwinNotificationAction.text(
-    'reply',
-    'Reply',
-    buttonTitle: 'Send',
-    placeholder: 'Message',
-  );
-
-  static final _messageCategories = [
-    DarwinNotificationCategory(
-      _markReadCategoryId,
-      actions: [
-        _replyAction,
-        DarwinNotificationAction.plain('mark_read', 'Mark as read'),
-      ],
-    ),
-    DarwinNotificationCategory(_replyOnlyCategoryId, actions: [_replyAction]),
-  ];
+  static List<DarwinNotificationCategory> _messageCategories(
+    AppLocalizations l10n,
+  ) {
+    final replyAction = DarwinNotificationAction.text(
+      'reply',
+      l10n.commonReply,
+      buttonTitle: l10n.commonSend,
+      placeholder: l10n.commonMessageHint,
+    );
+    return [
+      DarwinNotificationCategory(
+        _markReadCategoryId,
+        actions: [
+          replyAction,
+          DarwinNotificationAction.plain('mark_read', l10n.commonMarkAsRead),
+        ],
+      ),
+      DarwinNotificationCategory(_replyOnlyCategoryId, actions: [replyAction]),
+    ];
+  }
 
   static const _retiredChannelIds = [
     'messages',
@@ -401,11 +416,11 @@ class CallNotificationService {
         AndroidFlutterLocalNotificationsPlugin
       >();
 
-  static const _channels = [
+  static List<AndroidNotificationChannel> _channels(AppLocalizations l10n) => [
     AndroidNotificationChannel(
       ringChannelId,
-      'Incoming calls',
-      description: 'Ringing for a call in a chat',
+      l10n.callsChannelIncomingCalls,
+      description: l10n.callsChannelIncomingCallsDescription,
       importance: Importance.max,
       groupId: _callsGroupId,
       playSound: false,
@@ -413,18 +428,18 @@ class CallNotificationService {
     ),
     AndroidNotificationChannel(
       messagesChannelId,
-      'Chat messages',
-      description: 'New messages in one-to-one chats',
+      l10n.notificationsChannelChatMessages,
+      description: l10n.notificationsChannelChatMessagesDescription,
       importance: Importance.high,
       groupId: _chatsGroupId,
       playSound: true,
-      sound: RawResourceAndroidNotificationSound('message_tone'),
+      sound: const RawResourceAndroidNotificationSound('message_tone'),
       enableVibration: false,
     ),
     AndroidNotificationChannel(
       groupRingChannelId,
-      'Incoming room calls',
-      description: 'Ringing for a call in a room',
+      l10n.callsChannelIncomingRoomCalls,
+      description: l10n.callsChannelIncomingRoomCallsDescription,
       importance: Importance.max,
       groupId: _callsGroupId,
       playSound: false,
@@ -432,20 +447,18 @@ class CallNotificationService {
     ),
     AndroidNotificationChannel(
       _groupMessagesChannelId,
-      'Room messages',
-      description: 'New messages in rooms',
+      l10n.notificationsChannelRoomMessages,
+      description: l10n.notificationsChannelRoomMessagesDescription,
       importance: Importance.high,
       groupId: _chatsGroupId,
       playSound: true,
-      sound: RawResourceAndroidNotificationSound('message_tone'),
+      sound: const RawResourceAndroidNotificationSound('message_tone'),
       enableVibration: false,
     ),
     AndroidNotificationChannel(
       _quietMessagesChannelId,
-      'Quiet messages',
-      description:
-          'Messages that do not mention you, while notifications are set to '
-          'mentions only',
+      l10n.notificationsChannelQuietMessages,
+      description: l10n.notificationsChannelQuietMessagesDescription,
       importance: Importance.low,
       groupId: _chatsGroupId,
       playSound: false,
@@ -453,8 +466,8 @@ class CallNotificationService {
     ),
     AndroidNotificationChannel(
       _securityChannelId,
-      'New sign-ins',
-      description: 'A new device signed in to your account',
+      l10n.notificationsChannelNewSignIns,
+      description: l10n.notificationsChannelNewSignInsDescription,
       importance: Importance.max,
       groupId: _accountGroupId,
     ),
@@ -974,10 +987,20 @@ class CallNotificationService {
   }) async {
     final roomId = thread.roomId;
     final quiet = thread.lines.isNotEmpty && thread.lines.every((l) => l.quiet);
+    final l10n = deviceLocalizations();
     final (channelId, channelName) = switch ((quiet, thread.isGroupChat)) {
-      (true, _) => (_quietMessagesChannelId, 'Quiet messages'),
-      (false, true) => (_groupMessagesChannelId, 'Room messages'),
-      (false, false) => (messagesChannelId, 'Chat messages'),
+      (true, _) => (
+        _quietMessagesChannelId,
+        l10n.notificationsChannelQuietMessages,
+      ),
+      (false, true) => (
+        _groupMessagesChannelId,
+        l10n.notificationsChannelRoomMessages,
+      ),
+      (false, false) => (
+        messagesChannelId,
+        l10n.notificationsChannelChatMessages,
+      ),
     };
     final avatars = await _avatarsFor(thread, fresh: freshAvatar);
     timing?.mark('avatars');
@@ -991,19 +1014,21 @@ class CallNotificationService {
     }
     final actions = <AndroidNotificationAction>[
       if (includeMessageActions && eventId != null)
-        const AndroidNotificationAction(
+        AndroidNotificationAction(
           'mark_read',
-          'Mark as read',
+          l10n.commonMarkAsRead,
           showsUserInterface: false,
           cancelNotification: true,
         ),
       if (includeMessageActions)
-        const AndroidNotificationAction(
+        AndroidNotificationAction(
           'reply',
-          'Reply',
+          l10n.commonReply,
           showsUserInterface: false,
           cancelNotification: true,
-          inputs: [AndroidNotificationActionInput(label: 'Message')],
+          inputs: [
+            AndroidNotificationActionInput(label: l10n.commonMessageHint),
+          ],
         ),
     ];
     final when = latestLine?.timestamp.millisecondsSinceEpoch;
@@ -1023,8 +1048,8 @@ class CallNotificationService {
     };
     await _plugin.show(
       id: messageNotificationIdFor(thread.key),
-      title: hidden ? previewNothingTitle : thread.title,
-      body: hidden ? previewHiddenText : body,
+      title: hidden ? zunoName : thread.title,
+      body: hidden ? l10n.notificationsNewMessage : body,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           channelId,
@@ -1035,7 +1060,7 @@ class CallNotificationService {
           onlyAlertOnce: alert == MessageAlert.silentUpdate,
           silent: alert == MessageAlert.silent,
           styleInformation: MessagingStyleInformation(
-            const Person(name: 'You', key: 'me'),
+            Person(name: l10n.commonYou, key: 'me'),
             conversationTitle: thread.isGroupChat ? thread.title : null,
             groupConversation: thread.isGroupChat,
             messages: [
@@ -1133,6 +1158,7 @@ class CallNotificationService {
     required String body,
   }) async {
     await initialize(claimDeclinePort: false);
+    final l10n = deviceLocalizations();
     await _plugin.show(
       id: _newDeviceNotificationId(deviceId),
       title: title,
@@ -1140,8 +1166,8 @@ class CallNotificationService {
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _securityChannelId,
-          'New sign-ins',
-          channelDescription: 'A new device signed in to your account',
+          l10n.notificationsChannelNewSignIns,
+          channelDescription: l10n.notificationsChannelNewSignInsDescription,
           category: AndroidNotificationCategory.status,
           importance: Importance.max,
           priority: Priority.high,

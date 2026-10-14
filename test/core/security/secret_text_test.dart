@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/secret_text.dart';
 import 'package:zuno/core/security/sensitive_clipboard.dart';
 
@@ -39,6 +40,8 @@ void main() {
 
   Future<void> pump(WidgetTester tester, Widget child) => tester.pumpWidget(
     MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: Center(child: child)),
     ),
   );

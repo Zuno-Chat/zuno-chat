@@ -11,7 +11,6 @@ import androidx.core.graphics.drawable.IconCompat
 
 object ConversationShortcut {
     const val CATEGORY = "android.shortcut.conversation"
-    const val FALLBACK_LABEL = "Chat"
     private const val TAG = "ZunoNotifications"
 
     fun push(
@@ -26,7 +25,7 @@ object ConversationShortcut {
                 ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
                 ?.let { IconCompat.createWithAdaptiveBitmap(it) }
                 ?: IconCompat.createWithResource(context, context.applicationInfo.icon)
-            val name = label.ifBlank { FALLBACK_LABEL }
+            val name = label.ifBlank { context.getString(R.string.notificationsFallbackChatName) }
             val person = Person.Builder()
                 .setName(name)
                 .setKey(roomId)

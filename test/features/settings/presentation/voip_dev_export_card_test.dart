@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/voip/voip_channel.dart';
 import 'package:zuno/core/security/sensitive_clipboard.dart';
@@ -34,6 +35,8 @@ void main() {
   Future<void> pumpCard(WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(body: SingleChildScrollView(child: VoipDevExportCard())),
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/line_strut.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../data/message_look.dart';
@@ -53,7 +54,7 @@ class MessageMeta extends StatelessWidget {
       children: [
         if (edited) ...[
           Text(
-            'edited',
+            context.l10n.chatEdited,
             style: style.copyWith(fontStyle: FontStyle.italic),
             strutStyle: strut,
           ),

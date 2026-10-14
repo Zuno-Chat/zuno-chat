@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/homeserver_input.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -56,6 +57,8 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: pushed ? const Scaffold() : const HomeserverPage(),
         ),
       ),
@@ -199,7 +202,9 @@ void main() {
 
       expect(find.byType(HomeserverPage), findsOneWidget);
       expect(
-        find.text(parseHomeserverInput('not a server').error!),
+        find.text(
+          parseHomeserverInput(englishLocalizations, 'not a server').error!,
+        ),
         findsOneWidget,
       );
       expect(tester.testTextInput.isVisible, isFalse);

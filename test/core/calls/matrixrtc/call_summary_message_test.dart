@@ -2,21 +2,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 
 import '../../../helpers/fake_matrix.dart';
 
 void main() {
+  CallSummary summaryOf(
+    String kind,
+    CallSummaryStatus status, {
+    int durationMs = 0,
+  }) => CallSummary(
+    callId: 'c1',
+    kind: kind,
+    status: status,
+    durationMs: durationMs,
+  );
+
   group('displayBody', () {
     String bodyOf(
       String kind,
       CallSummaryStatus status, {
       int durationMs = 0,
-    }) => CallSummary(
-      callId: 'c1',
-      kind: kind,
-      status: status,
-      durationMs: durationMs,
-    ).displayBody;
+    }) => summaryOf(kind, status, durationMs: durationMs).displayBody;
 
     test('an ended call shows its length as m:ss', () {
       expect(
@@ -34,6 +41,27 @@ void main() {
         bodyOf('video', CallSummaryStatus.declined),
         'Video call declined',
       );
+    });
+  });
+
+  group('localizedBody', () {
+    test('reads the same English as the body sent to the room', () {
+      for (final kind in ['video', 'voice']) {
+        for (final status in CallSummaryStatus.values) {
+          final summary = summaryOf(kind, status, durationMs: 92000);
+          expect(
+            summary.localizedBody(englishLocalizations),
+            summary.displayBody,
+          );
+        }
+      }
+    });
+
+    test('names the kind of call', () {
+      final video = summaryOf('video', CallSummaryStatus.ended);
+      final voice = summaryOf('voice', CallSummaryStatus.ended);
+      expect(video.localizedLabel(englishLocalizations), 'Video call');
+      expect(voice.localizedLabel(englishLocalizations), 'Voice call');
     });
   });
 

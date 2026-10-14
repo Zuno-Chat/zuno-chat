@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/current_position.dart';
 import '../../../core/location/geo_uri.dart';
 import '../../../core/location/live_location_availability.dart';
@@ -117,7 +118,9 @@ class _LocationShareSheetState extends State<_LocationShareSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              _choosingDuration ? 'Share live location' : 'Your location',
+              _choosingDuration
+                  ? context.l10n.locationShareLive
+                  : context.l10n.locationYourLocation,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 16),
@@ -149,18 +152,18 @@ class _Finding extends StatelessWidget {
   const _Finding();
 
   @override
-  Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.symmetric(vertical: 24),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 24),
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        SizedBox(
+        const SizedBox(
           width: 20,
           height: 20,
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
-        SizedBox(width: 12),
-        Flexible(child: Text('Finding your location…')),
+        const SizedBox(width: 12),
+        Flexible(child: Text(context.l10n.locationFinding)),
       ],
     ),
   );
@@ -182,9 +185,10 @@ class _Found extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accuracy = accuracyLabel(fix.geo.uncertaintyMeters);
+    final l10n = context.l10n;
+    final accuracy = accuracyLabel(l10n, fix.geo.uncertaintyMeters);
     final detail = [
-      if (fix.approximate) 'Approximate location',
+      if (fix.approximate) l10n.locationApproximate,
       ?accuracy,
     ].join(' · ');
     return Column(
@@ -215,7 +219,7 @@ class _Found extends StatelessWidget {
         const SizedBox(height: 16),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(SendPin(fix.geo)),
-          child: const Text('Send location'),
+          child: Text(l10n.locationSend),
         ),
         if (liveLocation != LiveLocationAvailability.unavailable) ...[
           const SizedBox(height: 8),
@@ -224,9 +228,9 @@ class _Found extends StatelessWidget {
                 ? onShareLive
                 : null,
             icon: const Icon(Icons.share_location_outlined),
-            label: const Text('Share live location'),
+            label: Text(l10n.locationShareLive),
           ),
-          if (_unavailableReason(liveLocation, inChat: inChat)
+          if (_unavailableReason(l10n, liveLocation, inChat: inChat)
               case final reason?)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -245,15 +249,13 @@ class _Found extends StatelessWidget {
 }
 
 String? _unavailableReason(
+  AppLocalizations l10n,
   LiveLocationAvailability availability, {
   required bool inChat,
 }) => switch (availability) {
   LiveLocationAvailability.notAllowed =>
-    inChat
-        ? 'Live location is not available in this chat.'
-        : 'A room admin can turn on live location under Permissions.',
-  LiveLocationAvailability.alreadySharing =>
-    'You are already sharing your live location here.',
+    inChat ? l10n.locationLiveNotInChat : l10n.locationLiveNeedsAdmin,
+  LiveLocationAvailability.alreadySharing => l10n.locationAlreadySharing,
   LiveLocationAvailability.unavailable ||
   LiveLocationAvailability.available => null,
 };
@@ -309,21 +311,21 @@ class _LiveDurationState extends State<_LiveDuration> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final audience = widget.inChat ? 'chat' : 'room';
+    final l10n = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'Everyone in this $audience sees where you are until the time is '
-          'up or you stop. Sharing goes on while Zuno is in the background, '
-          'which uses more battery.',
+          widget.inChat
+              ? l10n.locationLiveAudienceChat
+              : l10n.locationLiveAudienceRoom,
         ),
         if (widget.fix.approximate)
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              'Your location is approximate.',
+              l10n.locationLiveApproximate,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -332,7 +334,7 @@ class _LiveDurationState extends State<_LiveDuration> {
         if (_unrestricted == false) ...[
           const SizedBox(height: 8),
           Text(
-            'Android can pause live location while your device sits still.',
+            l10n.locationAndroidMayPause,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -341,7 +343,7 @@ class _LiveDurationState extends State<_LiveDuration> {
             alignment: AlignmentDirectional.centerStart,
             child: TextButton(
               onPressed: widget.allowUnrestricted,
-              child: const Text('Let Zuno run unrestricted'),
+              child: Text(l10n.locationRunUnrestricted),
             ),
           ),
         ],
@@ -353,7 +355,7 @@ class _LiveDurationState extends State<_LiveDuration> {
             children: [
               for (final duration in LiveLocationDuration.values)
                 RadioListTile<LiveLocationDuration>(
-                  title: Text(duration.label),
+                  title: Text(_durationText(l10n, duration)),
                   value: duration,
                 ),
             ],
@@ -365,7 +367,10 @@ class _LiveDurationState extends State<_LiveDuration> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            TextButton(onPressed: widget.onBack, child: const Text('Back')),
+            TextButton(
+              onPressed: widget.onBack,
+              child: Text(l10n.locationBack),
+            ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(
                 ShareLive(
@@ -373,7 +378,7 @@ class _LiveDurationState extends State<_LiveDuration> {
                   _duration,
                 ),
               ),
-              child: const Text('Start sharing'),
+              child: Text(l10n.locationStartSharing),
             ),
           ],
         ),
@@ -381,6 +386,11 @@ class _LiveDurationState extends State<_LiveDuration> {
     );
   }
 }
+
+String _durationText(AppLocalizations l10n, LiveLocationDuration duration) =>
+    duration.duration.inMinutes < 60
+    ? l10n.locationDurationMinutes(duration.duration.inMinutes)
+    : l10n.locationDurationHours(duration.duration.inHours);
 
 class _Failed extends ConsumerWidget {
   final LocationFailure reason;
@@ -390,12 +400,14 @@ class _Failed extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final servicesSettings = ref
         .watch(platformCapabilitiesProvider)
         .locationServicesSettings;
     final copy = locationFailureCopy(
+      l10n,
       reason,
-      goal: 'share where you are',
+      goal: LocationGoal.shareWhereYouAre,
       servicesSettings: servicesSettings,
     );
     final settings = copy.openSettings;
@@ -413,9 +425,9 @@ class _Failed extends ConsumerWidget {
             if (settings != null)
               TextButton(
                 onPressed: settings,
-                child: const Text('Open settings'),
+                child: Text(l10n.commonOpenSettings),
               ),
-            FilledButton(onPressed: retry, child: const Text('Try again')),
+            FilledButton(onPressed: retry, child: Text(l10n.commonTryAgain)),
           ],
         ),
       ],

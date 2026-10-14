@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import '../calls/notifications/call_notification_service.dart';
 import '../errors/best_effort.dart';
+import '../l10n/l10n.dart';
 import '../matrix/join_requests.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../matrix/matrix_ids.dart';
@@ -45,11 +46,12 @@ MessageNotificationContent? joinRequestNotificationFor(
     event.content.tryGet<String>('displayname')?.trim(),
   );
   final avatar = event.content.tryGet<String>('avatar_url');
-  final body = '$name asks to join';
+  final l10n = deviceLocalizations();
+  final body = l10n.notificationsAsksToJoin(name);
   return MessageNotificationContent(
     roomId: room.id,
     threadKey: joinRequestThread(room.id, userId),
-    title: roomTitle(room),
+    title: roomTitle(room, l10n),
     body: body,
     text: body,
     eventId: event.eventId,

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/card_list_view.dart';
 
 void main() {
   Widget host(Widget child, {double bottomInset = 0}) => MaterialApp(
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     home: MediaQuery(
       data: MediaQueryData(padding: EdgeInsets.only(bottom: bottomInset)),
       child: Scaffold(body: child),

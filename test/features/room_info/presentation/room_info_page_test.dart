@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/optimistic_room_state.dart';
 import 'package:zuno/core/matrix/room_exit.dart';
@@ -217,6 +218,8 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: pushed
               ? Scaffold(
                   body: routeLauncher<RoomInfoResult>(
@@ -824,7 +827,9 @@ void main() {
     addMember('@me:example.org', 'Me');
     await pumpPage(tester);
 
-    final leave = tester.widget<Text>(find.text(roomExitLabel(room)));
+    final leave = tester.widget<Text>(
+      find.text(roomExitLabel(room, englishLocalizations)),
+    );
     expect(
       leave.style!.color,
       Theme.of(tester.element(find.byType(RoomInfoPage))).colorScheme.error,

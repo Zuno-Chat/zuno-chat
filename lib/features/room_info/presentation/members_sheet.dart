@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/ui/sheet.dart';
 import 'member_tile.dart';
@@ -61,7 +62,7 @@ class _MembersSheetState extends State<_MembersSheet> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: Text(
-                'Members',
+                context.l10n.roomInfoMembers,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -71,16 +72,16 @@ class _MembersSheetState extends State<_MembersSheet> {
                 autofillHints: null,
                 autofocus: true,
                 onChanged: (value) => setState(() => _query = value),
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'Search members',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: context.l10n.roomInfoSearchMembers,
+                  border: const OutlineInputBorder(),
                 ),
               ),
             ),
             Expanded(
               child: matches.isEmpty
-                  ? const Center(child: Text('No members found'))
+                  ? Center(child: Text(context.l10n.roomInfoNoMembersFound))
                   : ListView.builder(
                       itemCount: matches.length,
                       itemBuilder: (context, index) {

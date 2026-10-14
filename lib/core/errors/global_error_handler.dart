@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/l10n.dart';
 import 'crash_reporting.dart';
 
 final globalScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -76,7 +77,7 @@ SnackBar buildErrorSnackBar(String message) {
       ],
     ),
     action: SnackBarAction(
-      label: 'Copy',
+      label: deviceLocalizations().commonCopy,
       textColor: Colors.white,
       onPressed: () => Clipboard.setData(ClipboardData(text: message)),
     ),

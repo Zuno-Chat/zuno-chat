@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../../core/errors/caught_errors.dart';
+import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/reactions.dart';
 
 const reactionOverflow = 12.0;
@@ -10,6 +11,7 @@ const reactionOverflowGap = reactionOverflow + 6;
 
 Future<void> toggleReactionWithFeedback(
   ScaffoldMessengerState messenger,
+  AppLocalizations l10n,
   Event event,
   Timeline timeline,
   String key,
@@ -18,9 +20,7 @@ Future<void> toggleReactionWithFeedback(
     await toggleReaction(event, timeline, key);
   } catch (e, s) {
     reportCaught('react', e, s);
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Reaction not sent. Try again.')),
-    );
+    messenger.showSnackBar(SnackBar(content: Text(l10n.chatReactionNotSent)));
   }
 }
 
@@ -57,6 +57,7 @@ class ReactionsRow extends StatelessWidget {
             child: InkWell(
               onTap: () => toggleReactionWithFeedback(
                 ScaffoldMessenger.of(context),
+                context.l10n,
                 event,
                 timeline,
                 reaction.key,

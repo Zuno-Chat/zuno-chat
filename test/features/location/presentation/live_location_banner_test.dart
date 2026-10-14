@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/features/location/presentation/live_location_banner.dart';
 import 'package:zuno/features/location/presentation/live_location_map_page.dart';
@@ -25,6 +26,8 @@ void main() {
       ProviderScope(
         overrides: harness.overrides,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Column(children: [LiveLocationBanner(room: harness.room)]),
           ),

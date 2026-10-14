@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/join_requests.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
@@ -77,6 +78,7 @@ class _JoinRequestsBannerState extends State<JoinRequestsBanner>
     final colors = theme.colorScheme;
     final first = requests.first;
     final several = requests.length > 1;
+    final l10n = context.l10n;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: Material(
@@ -91,9 +93,11 @@ class _JoinRequestsBannerState extends State<JoinRequestsBanner>
                     const SizedBox(width: 12),
                     Expanded(
                       child: _Lines(
-                        title:
-                            '${_nameOf(first)} and ${_others(requests.length - 1)}',
-                        subtitle: 'Ask to join',
+                        title: l10n.communitiesNameAndOthers(
+                          _nameOf(first),
+                          requests.length - 1,
+                        ),
+                        subtitle: l10n.communitiesAskToJoin,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -102,7 +106,7 @@ class _JoinRequestsBannerState extends State<JoinRequestsBanner>
                         await showJoinRequestsSheet(context, room);
                         if (mounted) setState(() {});
                       },
-                      child: const Text('Review'),
+                      child: Text(l10n.commonReview),
                     ),
                   ],
                 )
@@ -110,7 +114,7 @@ class _JoinRequestsBannerState extends State<JoinRequestsBanner>
                   key: ValueKey(first.id),
                   room: room,
                   user: first,
-                  subtitle: 'Asks to join',
+                  subtitle: l10n.communitiesAsksToJoin,
                   padding: EdgeInsets.zero,
                   onAnswered: () => setState(() {}),
                 ),
@@ -119,8 +123,6 @@ class _JoinRequestsBannerState extends State<JoinRequestsBanner>
     );
   }
 }
-
-String _others(int count) => count == 1 ? '1 other' : '$count others';
 
 bool _peopleCanAsk(Room room) => switch (room.joinRules) {
   JoinRules.knock || JoinRules.knockRestricted => true,
@@ -176,6 +178,7 @@ class _JoinRequestsSheetState extends State<_JoinRequestsSheet> {
     final theme = Theme.of(context);
     final room = widget.room;
     final requests = pendingJoinRequests(room);
+    final l10n = context.l10n;
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -184,7 +187,7 @@ class _JoinRequestsSheetState extends State<_JoinRequestsSheet> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              'Asking to join ${roomTitle(room)}',
+              l10n.communitiesAskingToJoinRoom(roomTitle(room, l10n)),
               textAlign: TextAlign.center,
               style: theme.textTheme.titleMedium,
             ),
@@ -193,7 +196,7 @@ class _JoinRequestsSheetState extends State<_JoinRequestsSheet> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              'Letting someone in invites them to the room.',
+              l10n.communitiesLetInInvites,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -231,7 +234,7 @@ class _JoinRequestsSectionState extends State<JoinRequestsSection> {
     final requests = pendingJoinRequests(room);
     if (requests.isEmpty) return const SizedBox.shrink();
     return CardGroup(
-      title: 'Asking to join',
+      title: context.l10n.communitiesAskingToJoin,
       children: [
         for (final user in requests)
           JoinRequestRow(
@@ -273,6 +276,7 @@ class _JoinRequestRowState extends State<JoinRequestRow> {
     required String failed,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     setState(() => _busy = true);
     try {
       await action(widget.room, widget.user.id);
@@ -280,7 +284,7 @@ class _JoinRequestRowState extends State<JoinRequestRow> {
     } catch (e, s) {
       reportCaught('answer join request', e, s);
       messenger.showSnackBar(
-        SnackBar(content: Text(failureMessage(e, failed: failed))),
+        SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -290,6 +294,7 @@ class _JoinRequestRowState extends State<JoinRequestRow> {
   @override
   Widget build(BuildContext context) {
     final user = widget.user;
+    final l10n = context.l10n;
     final who = Row(
       children: [
         _Avatar(room: widget.room, user: user),
@@ -318,15 +323,15 @@ class _JoinRequestRowState extends State<JoinRequestRow> {
                     ? null
                     : () => _answer(
                         declineJoinRequest,
-                        failed: 'Could not decline the request.',
+                        failed: l10n.communitiesDeclineFailed,
                       ),
-                child: const Text('Decline'),
+                child: Text(l10n.commonDecline),
               ),
               FilledButton(
                 onPressed: _busy
                     ? null
-                    : () => _answer(letIn, failed: 'Could not let them in.'),
-                child: const Text('Let in'),
+                    : () => _answer(letIn, failed: l10n.communitiesLetInFailed),
+                child: Text(l10n.communitiesLetIn),
               ),
             ],
           ),

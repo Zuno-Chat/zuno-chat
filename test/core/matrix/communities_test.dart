@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/communities.dart';
 import 'package:zuno/core/matrix/room_access.dart';
 import 'package:zuno/core/matrix/room_permission.dart';
@@ -390,7 +391,7 @@ void main() {
       );
 
       expect(communitiesOf(room), isEmpty);
-      expect(communityNameOf(room), isNull);
+      expect(communityNameOf(room, englishLocalizations), isNull);
     });
   });
 
@@ -401,7 +402,7 @@ void main() {
         '!gear:example.org',
         parents: ['!club:example.org'],
       );
-      expect(communityNameOf(room), isNull);
+      expect(communityNameOf(room, englishLocalizations), isNull);
 
       final club = addSpace(client, '!club:example.org', children: [room.id]);
       club.setState(
@@ -415,7 +416,7 @@ void main() {
         ),
       );
 
-      expect(communityNameOf(room), 'Climbing club');
+      expect(communityNameOf(room, englishLocalizations), 'Climbing club');
     });
   });
 

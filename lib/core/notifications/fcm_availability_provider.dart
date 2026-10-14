@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../l10n/l10n.dart';
 import '../platform/platform_capabilities.dart';
 import '../push/fcm_bridge.dart';
 import 'notification_delivery_mode.dart';
@@ -20,36 +21,37 @@ final fcmAvailabilityProvider = FutureProvider.autoDispose<FcmAvailability>((
 
 typedef DeliveryModeChoice = ({bool enabled, String subtitle});
 
-DeliveryModeChoice deliveryModeChoice(
+bool deliveryModeEnabled(
   NotificationDeliveryMode mode, {
   required FcmAvailability? fcm,
-}) {
-  if (mode != NotificationDeliveryMode.fcm) {
-    return (enabled: true, subtitle: mode.description);
-  }
-  return switch (fcm) {
-    null => (enabled: false, subtitle: 'Checking this device…'),
-    FcmAvailability.available ||
-    FcmAvailability.unknown => (enabled: true, subtitle: mode.description),
-    FcmAvailability.updateRequired => (
-      enabled: true,
-      subtitle:
-          'Google Play services needs an update. Zuno offers the update once '
-          'you choose this.',
-    ),
-    FcmAvailability.disabled => (
-      enabled: false,
-      subtitle:
-          'Google Play services is turned off. Turn it on in your device '
-          'settings to use this.',
-    ),
-    FcmAvailability.unavailable => (
-      enabled: false,
-      subtitle: 'This device does not have Google Play services.',
-    ),
-    FcmAvailability.notConfigured => (
-      enabled: false,
-      subtitle: 'This version of Zuno does not include Google services.',
-    ),
-  };
-}
+}) =>
+    mode != NotificationDeliveryMode.fcm ||
+    switch (fcm) {
+      FcmAvailability.available ||
+      FcmAvailability.unknown ||
+      FcmAvailability.updateRequired => true,
+      null ||
+      FcmAvailability.disabled ||
+      FcmAvailability.unavailable ||
+      FcmAvailability.notConfigured => false,
+    };
+
+DeliveryModeChoice deliveryModeChoice(
+  AppLocalizations l10n,
+  NotificationDeliveryMode mode, {
+  required FcmAvailability? fcm,
+}) => (
+  enabled: deliveryModeEnabled(mode, fcm: fcm),
+  subtitle: mode != NotificationDeliveryMode.fcm
+      ? mode.description(l10n)
+      : switch (fcm) {
+          null => l10n.pushCheckingDevice,
+          FcmAvailability.available ||
+          FcmAvailability.unknown => mode.description(l10n),
+          FcmAvailability.updateRequired => l10n.notificationsPlayUpdateOffered,
+          FcmAvailability.disabled => l10n.notificationsPlayTurnedOffHint,
+          FcmAvailability.unavailable => l10n.notificationsPlayMissingSubtitle,
+          FcmAvailability.notConfigured =>
+            l10n.notificationsGoogleNotIncludedSubtitle,
+        },
+);

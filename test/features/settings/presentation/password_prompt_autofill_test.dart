@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/recovery_code.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/features/settings/presentation/change_password_dialog.dart';
@@ -30,6 +31,8 @@ void main() {
     Future<void> openPrompt(WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Builder(
             builder: (context) => TextButton(
               onPressed: () => askPasswordForUia(context),
@@ -76,6 +79,8 @@ void main() {
       final submitted = <(String, String)>[];
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Builder(
             builder: (context) => TextButton(
               onPressed: () => showDialog<bool>(
@@ -184,6 +189,8 @@ void main() {
             ),
           ],
           child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: RecoveryCodeEntryField(
                 controller: TextEditingController(),

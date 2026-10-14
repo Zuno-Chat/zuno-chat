@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/format/date_labels.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/push/push_diagnostics_data.dart' show ServerReach;
@@ -51,8 +53,8 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
     setState(() {
       _inputs = inputs;
       _sections = inputs == null
-          ? _couldNotCheck
-          : buildPushDiagnostics(inputs);
+          ? _couldNotCheck(context.l10n)
+          : buildPushDiagnostics(inputs, DateLabels.of(context));
     });
   }
 
@@ -61,18 +63,14 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
     final outcome = await ref.read(pushDiagnosticsSourceProvider).sendTest();
     if (!mounted) return;
     setState(() => _testing = false);
+    final l10n = context.l10n;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(switch (outcome) {
-          PushTestOutcome.sent =>
-            'Test notification sent. If nothing arrives within a minute, '
-                'notifications are not reaching this device.',
-          PushTestOutcome.rateLimited =>
-            'Too many tests in the last hour. Try again later.',
-          PushTestOutcome.notAvailable =>
-            'Test notifications are not available on this server.',
-          PushTestOutcome.failed =>
-            'Test not sent. Check your connection and try again.',
+          PushTestOutcome.sent => l10n.diagnosticsTestSent,
+          PushTestOutcome.rateLimited => l10n.diagnosticsTestRateLimited,
+          PushTestOutcome.notAvailable => l10n.diagnosticsTestNotAvailable,
+          PushTestOutcome.failed => l10n.diagnosticsTestFailed,
         }),
       ),
     );
@@ -80,9 +78,10 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
 
   Future<void> _share() async {
     final inputs = _inputs;
-    final sections = _sections;
-    if (inputs == null || sections == null) return;
+    if (inputs == null) return;
+    final sections = buildPushDiagnostics(inputs, _englishLabels);
     final text = redactedDiagnosticsText(
+      englishLocalizations,
       sections,
       now: inputs.now,
       appVersion: inputs.appVersion,
@@ -92,6 +91,7 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final sections = _sections;
     final mode = ref.watch(notificationDeliveryModeProvider);
     final backgroundSync = mode == NotificationDeliveryMode.backgroundService;
@@ -103,21 +103,21 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
         };
     final String testSubtitle;
     if (testAvailable) {
-      testSubtitle = 'It shows even while Zuno is open';
+      testSubtitle = l10n.diagnosticsTestShowsWhileOpen;
     } else if (backgroundSync) {
-      testSubtitle = 'Not available with background sync';
+      testSubtitle = l10n.diagnosticsTestNotWithBackgroundSync;
     } else {
-      testSubtitle = 'Not available on this server';
+      testSubtitle = l10n.diagnosticsTestNotOnServer;
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Diagnostics')),
+      appBar: AppBar(title: Text(l10n.diagnosticsTitle)),
       body: RefreshIndicator(
         onRefresh: _load,
         child: CardListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             if (sections == null)
-              const CardGroup(children: [ListTile(title: Text('Loading…'))])
+              CardGroup(children: [ListTile(title: Text(l10n.commonLoading))])
             else
               for (final section in sections)
                 CardGroup(
@@ -130,17 +130,15 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.notifications_active_outlined),
-                  title: const Text('Send a test notification'),
+                  title: Text(l10n.diagnosticsSendTest),
                   subtitle: Text(testSubtitle),
                   enabled: testAvailable && !_testing,
                   onTap: _sendTest,
                 ),
                 ListTile(
                   leading: const Icon(Icons.ios_share_outlined),
-                  title: const Text('Share diagnostics'),
-                  subtitle: const Text(
-                    'Leaves out names, addresses and message content',
-                  ),
+                  title: Text(l10n.diagnosticsShare),
+                  subtitle: Text(l10n.diagnosticsShareHint),
                   enabled: _inputs != null,
                   onTap: _share,
                 ),
@@ -151,10 +149,8 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
                 if (deliveryLogsEachPush(mode))
                   ListTile(
                     leading: const Icon(Icons.history_outlined),
-                    title: const Text('Recent pushes'),
-                    subtitle: const Text(
-                      'When notifications arrived and what happened',
-                    ),
+                    title: Text(l10n.pushRecentTitle),
+                    subtitle: Text(l10n.diagnosticsRecentPushesHint),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
@@ -164,8 +160,8 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
                   ),
                 ListTile(
                   leading: const Icon(Icons.troubleshoot_outlined),
-                  title: const Text('Push target'),
-                  subtitle: const Text('How notifications reach this device'),
+                  title: Text(l10n.pushTargetTitle),
+                  subtitle: Text(l10n.diagnosticsPushTargetHint),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () async {
                     await Navigator.of(context).push(
@@ -185,19 +181,28 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
   }
 }
 
-const _couldNotCheck = [
-  DiagnosticSection('Status', [
+List<DiagnosticSection> _couldNotCheck(AppLocalizations l10n) => [
+  DiagnosticSection(l10n.diagnosticsSectionStatus, [
     DiagnosticRow(
-      'Diagnostics',
-      'Could not check. Pull down to try again.',
+      l10n.diagnosticsTitle,
+      l10n.diagnosticsCouldNotCheckPullDown,
       DiagnosticStatus.warning,
     ),
   ]),
 ];
 
+final _englishLabels = DateLabels(
+  englishLocalizations,
+  locale: englishLocalizations.localeName,
+  use24Hour: false,
+);
+
 Future<void> _shareText(String text) async {
   await SharePlus.instance.share(
-    ShareParams(text: text, subject: 'Zuno notification diagnostics'),
+    ShareParams(
+      text: text,
+      subject: englishLocalizations.diagnosticsReportTitle,
+    ),
   );
 }
 

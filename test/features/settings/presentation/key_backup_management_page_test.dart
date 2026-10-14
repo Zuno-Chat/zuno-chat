@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/settings/presentation/key_backup_management_page.dart';
 
@@ -63,7 +64,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [matrixClientProvider.overrideWithValue(client)],
-        child: const MaterialApp(home: KeyBackupManagementPage()),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: KeyBackupManagementPage(),
+        ),
       ),
     );
     if (settle) await tester.pumpAndSettle();

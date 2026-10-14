@@ -273,7 +273,7 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
       UIStoryboard(name: "LaunchScreen", bundle: nil).instantiateInitialViewController()
       ?? UIViewController()
     let notice = UILabel()
-    notice.text = "Zuno is hidden while the screen is recorded or shared."
+    notice.text = L10n.callsScreenCaptureHidden
     notice.textColor = UIColor(red: 14 / 255, green: 17 / 255, blue: 22 / 255, alpha: 1)
     notice.font = .preferredFont(forTextStyle: .body)
     notice.adjustsFontForContentSizeCategory = true

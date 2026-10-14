@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/send_progress.dart';
 
 void main() {
@@ -104,32 +105,35 @@ void main() {
   });
 
   group('sendStageLabel', () {
+    String label({required SendMediaKind kind, required SendStage stage}) =>
+        sendStageLabel(englishLocalizations, kind: kind, stage: stage);
+
     test('names the media kind per stage', () {
       expect(
-        sendStageLabel(kind: SendMediaKind.video, stage: SendStage.compressing),
+        label(kind: SendMediaKind.video, stage: SendStage.compressing),
         'Compressing video…',
       );
       expect(
-        sendStageLabel(kind: SendMediaKind.video, stage: SendStage.uploading),
+        label(kind: SendMediaKind.video, stage: SendStage.uploading),
         'Uploading video…',
       );
       expect(
-        sendStageLabel(kind: SendMediaKind.photo, stage: SendStage.compressing),
+        label(kind: SendMediaKind.photo, stage: SendStage.compressing),
         'Compressing photo…',
       );
       expect(
-        sendStageLabel(kind: SendMediaKind.photo, stage: SendStage.uploading),
+        label(kind: SendMediaKind.photo, stage: SendStage.uploading),
         'Uploading photo…',
       );
     });
 
     test('a plain file only ever uploads', () {
       expect(
-        sendStageLabel(kind: SendMediaKind.file, stage: SendStage.uploading),
+        label(kind: SendMediaKind.file, stage: SendStage.uploading),
         'Uploading…',
       );
       expect(
-        sendStageLabel(kind: SendMediaKind.file, stage: SendStage.compressing),
+        label(kind: SendMediaKind.file, stage: SendStage.compressing),
         'Uploading…',
       );
     });

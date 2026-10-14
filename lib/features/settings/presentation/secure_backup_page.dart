@@ -6,6 +6,7 @@ import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/security/password_strength.dart';
@@ -206,7 +207,7 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
       if (!mounted) return;
       setState(
         () => _recoveryKeyInputError =
-            'That did not work. Check the code and try again.',
+            context.l10n.settingsSecureBackupUnlockFailed,
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -238,7 +239,7 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
       if (!mounted) return;
       setState(
         () => _recoveryKeyInputError =
-            'That did not work. Check the code and try again.',
+            context.l10n.settingsSecureBackupUnlockFailed,
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -258,7 +259,7 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
   Widget build(BuildContext context) {
     final bootstrap = _bootstrap;
     return Scaffold(
-      appBar: AppBar(title: const Text('Recovery')),
+      appBar: AppBar(title: Text(context.l10n.settingsSecureBackupTitle)),
       body: bootstrap == null
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(child: _body(context, bootstrap)),
@@ -266,6 +267,7 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
   }
 
   Widget _body(BuildContext context, Bootstrap bootstrap) {
+    final l10n = context.l10n;
     switch (bootstrap.state) {
       case BootstrapState.loading:
       case BootstrapState.askUseExistingSsss:
@@ -273,37 +275,30 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
       case BootstrapState.askSetupCrossSigning:
       case BootstrapState.askWipeOnlineKeyBackup:
       case BootstrapState.askSetupOnlineKeyBackup:
-        return const _StatusScreen(message: 'Setting up…');
+        return _StatusScreen(message: l10n.settingsSecureBackupSettingUp);
 
       case BootstrapState.askWipeSsss:
         return _ChoiceScreen(
           icon: Icons.backup_outlined,
-          title: 'This account already has recovery set up',
-          body:
-              'Another device set it up. Enter that code to unlock your '
-              'messages here, or start over with a new one. Starting over '
-              'stops the old code working, your other devices need approving '
-              'again, and anyone you have confirmed needs confirming again.',
-          primaryLabel: 'Enter recovery code',
+          title: l10n.settingsSecureBackupExistingTitle,
+          body: l10n.settingsSecureBackupExistingBody,
+          primaryLabel: l10n.securityEnterRecoveryCode,
           onPrimary: () {
             setState(() => _wipeExisting = false);
             bootstrap.wipeSsss(false);
           },
-          secondaryLabel: 'Start over with a new code',
+          secondaryLabel: l10n.settingsSecureBackupStartOver,
           onSecondary: () => unawaited(_replaceExistingRecovery(bootstrap)),
         );
 
       case BootstrapState.askBadSsss:
         return _ChoiceScreen(
           icon: Icons.warning_amber_outlined,
-          title: 'Some recovery data cannot be read',
-          body:
-              'Part of the recovery data on this account is unreadable. '
-              'Continue to set up fresh recovery, leaving the unreadable parts '
-              'as they are, or cancel.',
-          primaryLabel: 'Continue anyway',
+          title: l10n.settingsSecureBackupBadTitle,
+          body: l10n.settingsSecureBackupBadBody,
+          primaryLabel: l10n.commonContinueAnyway,
           onPrimary: () => bootstrap.ignoreBadSecrets(true),
-          secondaryLabel: 'Cancel',
+          secondaryLabel: l10n.commonCancel,
           onSecondary: () => Navigator.of(context).pop(),
         );
 
@@ -322,13 +317,9 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
           case SecureBackupMode.key:
             return _ChoiceScreen(
               icon: Icons.key_outlined,
-              title: 'Create a security key',
-              body:
-                  "This generates a security key that unlocks your account's "
-                  'encrypted history on a new device, and lets other devices '
-                  "trust each other automatically. You'll see it once, right "
-                  'after — save it somewhere safe, like a password manager.',
-              primaryLabel: 'Generate security key',
+              title: l10n.settingsSecureBackupCreateKeyTitle,
+              body: l10n.settingsSecureBackupCreateKeyBody,
+              primaryLabel: l10n.settingsSecureBackupGenerateKey,
               busy: _busy,
               onPrimary: () => _newSsss(bootstrap),
             );
@@ -336,10 +327,8 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
 
       case BootstrapState.openExistingSsss:
         return _RecoveryKeyInputScreen(
-          title: 'Enter your recovery code',
-          subtitle:
-              'The words you saved when recovery was set up. A security key or '
-              'phrase from another app works here too.',
+          title: l10n.settingsSecureBackupEnterTitle,
+          subtitle: l10n.settingsSecureBackupEnterSubtitle,
           controller: _recoveryKeyInputController,
           error: _recoveryKeyInputError,
           busy: _busy,
@@ -348,10 +337,8 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
 
       case BootstrapState.askUnlockSsss:
         return _RecoveryKeyInputScreen(
-          title: 'Enter an older recovery code',
-          subtitle:
-              'This account has more than one old recovery secret on file. '
-              'Enter each one to migrate it.',
+          title: l10n.settingsSecureBackupOlderTitle,
+          subtitle: l10n.settingsSecureBackupOlderSubtitle,
           controller: _recoveryKeyInputController,
           error: _recoveryKeyInputError,
           busy: _busy,
@@ -360,10 +347,10 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
 
       case BootstrapState.error:
         return _StatusScreen(
-          message: 'That did not work. Try again.',
+          message: l10n.settingsSecureBackupFailed,
           action: FilledButton(
             onPressed: _restart,
-            child: const Text('Try again'),
+            child: Text(l10n.commonTryAgain),
           ),
         );
 
@@ -472,7 +459,9 @@ class _RecoveryKeyInputScreen extends StatelessWidget {
           valueListenable: controller,
           builder: (context, value, _) => FilledButton(
             onPressed: busy || value.text.trim().isEmpty ? null : onSubmit,
-            child: busy ? _buttonSpinner : const Text('Unlock'),
+            child: busy
+                ? _buttonSpinner
+                : Text(context.l10n.settingsSecureBackupUnlock),
           ),
         ),
       ],
@@ -511,13 +500,13 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
 
   void _submit() {
     final phrase = _phraseController.text;
-    final assessment = assessPassword(phrase);
+    final assessment = assessPassword(context.l10n, phrase);
     if (assessment.blocker != null) {
       setState(() => _error = assessment.blocker);
       return;
     }
     if (phrase != _confirmController.text) {
-      setState(() => _error = "That doesn't match the phrase above");
+      setState(() => _error = context.l10n.settingsSecureBackupPhraseMismatch);
       return;
     }
     setState(() => _error = null);
@@ -526,18 +515,15 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return StepLayout(
       hero: const StepHero(icon: Icons.password_outlined, compact: true),
-      title: 'Choose a security phrase',
-      body:
-          "Pick a secret phrase only you know — you'll need it to unlock "
-          'encrypted history on a new device. This also generates a backup '
-          'security key, shown once right after, in case you forget the '
-          'phrase.',
+      title: l10n.settingsSecureBackupPhraseTitle,
+      body: l10n.settingsSecureBackupPhraseBody,
       actions: [
         FilledButton(
           onPressed: widget.busy ? null : _submit,
-          child: widget.busy ? _buttonSpinner : const Text('Continue'),
+          child: widget.busy ? _buttonSpinner : Text(l10n.commonContinue),
         ),
       ],
       children: [
@@ -547,7 +533,9 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
           autofocus: true,
           obscureText: true,
           onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(labelText: 'Security phrase'),
+          decoration: InputDecoration(
+            labelText: l10n.settingsSecureBackupPhraseLabel,
+          ),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -555,7 +543,7 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
           controller: _confirmController,
           obscureText: true,
           decoration: InputDecoration(
-            labelText: 'Confirm security phrase',
+            labelText: l10n.settingsSecureBackupPhraseConfirmLabel,
             errorText: _error,
           ),
           onSubmitted: (_) => widget.busy ? null : _submit(),
@@ -580,16 +568,19 @@ class _DoneScreenState extends State<_DoneScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final recoveryKey = widget.wasRestore ? null : widget.recoveryKey;
     if (recoveryKey == null) {
       return StepLayout(
         hero: const StepHero(icon: Icons.check_circle_outline),
-        title: widget.wasRestore ? 'Restored' : 'All set',
-        body: 'Your messages are protected.',
+        title: widget.wasRestore
+            ? l10n.settingsSecureBackupRestored
+            : l10n.settingsSecureBackupAllSet,
+        body: l10n.settingsSecureBackupProtected,
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Done'),
+            child: Text(l10n.commonDone),
           ),
         ],
       );
@@ -597,21 +588,18 @@ class _DoneScreenState extends State<_DoneScreen> {
 
     return StepLayout(
       hero: const StepHero(icon: Icons.key_outlined, compact: true),
-      title: 'Save your recovery key',
-      body:
-          "This is the only time you'll see it. Store it somewhere safe — a "
-          "password manager works well. You'll need it to restore encrypted "
-          'history on any future device.',
+      title: l10n.settingsSecureBackupSaveKeyTitle,
+      body: l10n.settingsSecureBackupSaveKeyBody,
       actions: [
         CheckboxListTile(
           value: _savedConfirmed,
           onChanged: (v) => setState(() => _savedConfirmed = v ?? false),
           controlAffinity: ListTileControlAffinity.leading,
-          title: const Text("I've saved my recovery key"),
+          title: Text(l10n.settingsSecureBackupSavedKey),
         ),
         FilledButton(
           onPressed: _savedConfirmed ? () => Navigator.of(context).pop() : null,
-          child: const Text('Done'),
+          child: Text(l10n.commonDone),
         ),
       ],
       children: [
@@ -632,13 +620,11 @@ class _DoneScreenState extends State<_DoneScreen> {
               ),
               IconButton(
                 icon: const Icon(Icons.copy_outlined),
-                tooltip: 'Copy',
+                tooltip: l10n.commonCopy,
                 onPressed: () {
                   SensitiveClipboard.instance.copy(recoveryKey);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Copied — clears in 90 seconds'),
-                    ),
+                    SnackBar(content: Text(l10n.settingsSecureBackupKeyCopied)),
                   );
                 },
               ),

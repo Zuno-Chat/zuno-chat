@@ -18,6 +18,7 @@ import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -107,6 +108,8 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           navigatorKey: withNavigator ? globalNavigatorKey : null,
           scaffoldMessengerKey: globalScaffoldMessengerKey,
           navigatorObservers: [pushed],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -15,6 +16,7 @@ import 'package:zuno/features/settings/presentation/push_target_status_page.dart
 import 'package:zuno/features/settings/presentation/recent_pushes_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/date_labels.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_delivery_mode.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -81,6 +83,7 @@ class _FakeSource implements PushDiagnosticsSource {
 
   @override
   Future<List<RecentPush>> recentPushes(
+    AppLocalizations l10n,
     PlatformCapabilities capabilities,
     NotificationDeliveryMode mode,
   ) async => const [];
@@ -112,7 +115,11 @@ Future<void> _pump(
         sharedPreferencesProvider.overrideWithValue(prefs),
         matrixClientProvider.overrideWithValue(buildTestClient()),
       ],
-      child: MaterialApp(home: PushDiagnosticsPage(share: share)),
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: PushDiagnosticsPage(share: share),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -179,6 +186,27 @@ void main() {
 
     expect(shared, startsWith('Zuno notification diagnostics'));
     expect(shared, isNot(contains('@alice:zuno.im')));
+  });
+
+  testWidgets('the shared text is the English report of what is shown', (
+    tester,
+  ) async {
+    String? shared;
+    await _pump(tester, _FakeSource(), share: (text) async => shared = text);
+
+    await tester.tap(find.text('Share diagnostics'));
+    await tester.pumpAndSettle();
+
+    final inputs = _inputs();
+    expect(
+      shared,
+      redactedDiagnosticsText(
+        englishLocalizations,
+        buildPushDiagnostics(inputs, testDateLabels(use24Hour: false)),
+        now: inputs.now,
+        appVersion: inputs.appVersion,
+      ),
+    );
   });
 
   testWidgets('pulling down checks again', (tester) async {

@@ -87,7 +87,7 @@ guesses on its own.
   notification twin (`notifications.md`), and never special-cased in a
   surface.
 - **Call summaries** are ordinary `m.room.message` events with Zuno
-  msgtypes, classified here like everything else.
+  msgtypes, classified here like everything else. Their body stays English in the room, since other clients display it; Zuno renders them in the phone's language.
 - **Live location starts** are `m.room.message` events with a Zuno
   msgtype too. Their tile draws the live share while it runs and reads like
   a deleted message once it ended; they offer no copy, and deleting your

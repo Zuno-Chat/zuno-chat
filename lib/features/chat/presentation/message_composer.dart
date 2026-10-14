@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/format/human_units.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'send_icon.dart';
@@ -46,6 +47,7 @@ class MessageComposer extends StatelessWidget {
     final colors = theme.colorScheme;
     final cancelColor = colors.error;
     final hintColor = colors.onSurfaceVariant;
+    final l10n = context.l10n;
     final textStyle = theme.textTheme.bodyLarge!.copyWith(
       height: 1.3,
       letterSpacing: 0.2,
@@ -86,7 +88,7 @@ class MessageComposer extends StatelessWidget {
                             if (tapToggleRecording)
                               IconButton(
                                 icon: const Icon(Icons.delete_outline),
-                                tooltip: 'Cancel recording',
+                                tooltip: l10n.chatCancelRecording,
                                 onPressed: onCancelRecording,
                               )
                             else
@@ -105,8 +107,8 @@ class MessageComposer extends StatelessWidget {
                                     ),
                                     child: Text(
                                       recordingWillCancel
-                                          ? 'Release to cancel'
-                                          : 'Slide up to cancel',
+                                          ? l10n.chatReleaseToCancel
+                                          : l10n.chatSlideToCancel,
                                     ),
                                   ),
                                   const SizedBox(width: 4),
@@ -150,7 +152,7 @@ class MessageComposer extends StatelessWidget {
                             enableIMEPersonalizedLearning: !incognitoKeyboard,
                             style: textStyle,
                             decoration: InputDecoration(
-                              hintText: 'Message',
+                              hintText: l10n.commonMessageHint,
                               hintStyle: textStyle.copyWith(color: hintColor),
                               filled: false,
                               border: InputBorder.none,
@@ -327,7 +329,7 @@ class ComposeBar extends StatelessWidget {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, size: 20),
-                    tooltip: 'Cancel',
+                    tooltip: context.l10n.commonCancel,
                     onPressed: onCancel,
                   ),
                 ],

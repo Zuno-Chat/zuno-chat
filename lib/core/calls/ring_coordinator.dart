@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../features/calls/presentation/incoming_call_page.dart';
+import '../l10n/l10n.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../matrix/room_title.dart';
 import '../matrix/room_user_display.dart';
@@ -88,7 +89,9 @@ FreshCall? newestFreshCall(
 }
 
 Future<String> ringName(IncomingCall call) async {
-  if (!call.room.isDirectChat) return roomTitle(call.room);
+  if (!call.room.isDirectChat) {
+    return roomTitle(call.room, deviceLocalizations());
+  }
   final caller = await resolveRoomUser(call.room, call.callerId);
   return caller.calcDisplayname();
 }

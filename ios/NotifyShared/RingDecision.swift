@@ -213,7 +213,7 @@ enum RingDecision {
 }
 
 enum CallerName {
-  static let generic = "Zuno call"
+  static var generic: String { L10n.callsGenericRingName }
   static let byteLimit = 64
 
   static func display(level: PreviewLevel, room: NotifyRoomFile?, ring: VoipRing) -> String {

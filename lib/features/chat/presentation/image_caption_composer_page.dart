@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../data/composed_image.dart';
 import 'caption_bar.dart';
 import 'preview_decode_width.dart';
@@ -71,16 +72,19 @@ class _ImageCaptionComposerPageState extends State<ImageCaptionComposerPage> {
   Widget build(BuildContext context) {
     final multiple = _images.length > 1;
     final colors = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          multiple ? '${_page + 1} of ${_images.length}' : 'Add a caption',
+          multiple
+              ? l10n.chatCaptionPageOf(_page + 1, _images.length)
+              : l10n.chatCaptionTitle,
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline),
-            tooltip: 'Remove this photo',
+            tooltip: l10n.chatRemovePhoto,
             onPressed: _removeCurrent,
           ),
         ],
@@ -128,7 +132,7 @@ class _ImageCaptionComposerPageState extends State<ImageCaptionComposerPage> {
               ),
             CaptionBar(
               controller: _captionControllers[_page],
-              sendTooltip: multiple ? 'Send all' : 'Send',
+              sendTooltip: multiple ? l10n.chatSendAll : l10n.commonSend,
               onSend: _send,
             ),
           ],

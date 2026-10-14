@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/ui/step_hero.dart';
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
@@ -39,6 +40,8 @@ void main() {
           matrixClientProvider.overrideWithValue(buildTestClient(userId: _me)),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: ApproveThisDevicePage(showStartOver: showStartOver),
         ),
       ),
@@ -133,6 +136,8 @@ void main() {
         ProviderScope(
           overrides: [matrixClientProvider.overrideWithValue(client)],
           child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: routeLauncher(
                 (_) => ApproveThisDevicePage(

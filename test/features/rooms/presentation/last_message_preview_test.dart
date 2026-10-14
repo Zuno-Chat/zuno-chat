@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/undecryptable_message.dart';
@@ -32,6 +33,8 @@ void main() {
           ),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: zunoLightTheme,
           home: Scaffold(
             body: DefaultTextStyle.merge(

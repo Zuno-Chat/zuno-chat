@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/official_room.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -54,7 +55,11 @@ void main() {
 
   testWidgets('the badge names Zuno as the sender', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: OfficialBadge())),
+      const MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(body: OfficialBadge()),
+      ),
     );
 
     expect(find.text('Official'), findsOneWidget);

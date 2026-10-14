@@ -6,6 +6,7 @@ import 'package:matrix/encryption.dart';
 
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/ui/step_hero.dart';
@@ -59,10 +60,11 @@ class _ApproveThisDevicePageState extends ConsumerState<ApproveThisDevicePage> {
   Future<void> _approveFromOtherDevice() async {
     final client = ref.read(matrixClientProvider);
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     final ownKeys = client.userDeviceKeys[client.userID];
     if (ownKeys == null) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Could not find your other devices yet.')),
+        SnackBar(content: Text(l10n.verificationNoOtherDevices)),
       );
       return;
     }
@@ -92,7 +94,7 @@ class _ApproveThisDevicePageState extends ConsumerState<ApproveThisDevicePage> {
     } catch (e, s) {
       reportCaught('start device approval', e, s);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Could not start. Try again.')),
+        SnackBar(content: Text(l10n.verificationCouldNotStart)),
       );
     } finally {
       if (mounted) setState(() => _starting = false);
@@ -103,20 +105,16 @@ class _ApproveThisDevicePageState extends ConsumerState<ApproveThisDevicePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Start over with a new code?'),
-        content: const Text(
-          'Your current recovery code stops working, your other devices need '
-          'approving again, and messages older than this device stay locked. '
-          'Nobody can undo this. Only do it if the old code is gone for good.',
-        ),
+        title: Text(context.l10n.verificationStartOverTitle),
+        content: Text(context.l10n.verificationStartOverBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Start over'),
+            child: Text(context.l10n.verificationStartOver),
           ),
         ],
       ),
@@ -136,30 +134,31 @@ class _ApproveThisDevicePageState extends ConsumerState<ApproveThisDevicePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('Approve this device')),
+      appBar: AppBar(title: Text(l10n.verificationApproveTitle)),
       body: SafeArea(
         child: StepLayout(
           hero: const StepHero(icon: Icons.phonelink_lock_outlined),
-          title: 'Older messages are not here yet',
-          body: 'Approve this device and your message history comes back.',
+          title: l10n.verificationApproveHeading,
+          body: l10n.verificationApproveBody,
           actionsFollowContent: true,
           actions: [
             FilledButton.icon(
               onPressed: _starting ? null : _approveFromOtherDevice,
               icon: const Icon(Icons.qr_code_scanner_outlined),
-              label: const Text('Approve from another device'),
+              label: Text(l10n.verificationApproveFromOther),
             ),
             OutlinedButton(
               onPressed: _starting ? null : _useRecoveryCode,
-              child: const Text('Enter recovery code'),
+              child: Text(l10n.securityEnterRecoveryCode),
             ),
             if (widget.showStartOver)
               TextButton(
                 onPressed: _starting ? null : _startOver,
-                child: const Text('Lost the code? Start over'),
+                child: Text(l10n.verificationLostCode),
               ),
-            TextButton(onPressed: _finish, child: const Text('Not now')),
+            TextButton(onPressed: _finish, child: Text(l10n.commonNotNow)),
           ],
         ),
       ),

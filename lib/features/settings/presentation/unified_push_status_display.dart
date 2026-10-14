@@ -1,3 +1,4 @@
+import '../../../core/l10n/l10n.dart';
 import '../../../core/notifications/unified_push_delivery_provider.dart'
     show UnifiedPushStatus;
 import '../../../core/push/unified_push_distributor_names.dart';
@@ -28,38 +29,41 @@ UnifiedPushStatusAction unifiedPushStatusAction(
   }
 }
 
-String unifiedPushStatusLabel(UnifiedPushStatus status) {
+String unifiedPushStatusLabel(AppLocalizations l10n, UnifiedPushStatus status) {
   switch (status) {
     case UnifiedPushStatus.idle:
     case UnifiedPushStatus.noDistributorFound:
-      return 'Inactive';
+      return l10n.pushInactive;
     case UnifiedPushStatus.findingDistributor:
-      return 'Searching…';
+      return l10n.pushSearching;
     case UnifiedPushStatus.distributorSelected:
-      return 'Not registered yet';
+      return l10n.pushNotRegisteredYet;
     case UnifiedPushStatus.registering:
-      return 'Registering…';
+      return l10n.pushRegistering;
     case UnifiedPushStatus.postingPusher:
-      return 'Finishing registration…';
+      return l10n.pushFinishingRegistration;
     case UnifiedPushStatus.ready:
-      return 'Active. Receiving notifications.';
+      return l10n.pushActive;
     case UnifiedPushStatus.registrationFailed:
-      return 'The distributor refused the registration';
+      return l10n.pushDistributorRefusedRegistration;
     case UnifiedPushStatus.pusherFailed:
-      return 'Could not finish registration';
+      return l10n.pushCouldNotFinishRegistration;
   }
 }
 
-String unifiedPushDistributorLabel({
+String unifiedPushDistributorLabel(
+  AppLocalizations l10n, {
   required UnifiedPushStatus status,
   required String? distributor,
 }) {
-  if (status == UnifiedPushStatus.findingDistributor) return 'Searching…';
+  if (status == UnifiedPushStatus.findingDistributor) {
+    return l10n.pushSearching;
+  }
   if (distributor != null && distributor.isNotEmpty) {
     return unifiedPushDistributorDisplayName(distributor);
   }
   if (status == UnifiedPushStatus.noDistributorFound) {
-    return 'None installed. Install one, such as ntfy, then refresh.';
+    return l10n.pushNoDistributorInstalled;
   }
-  return distributor == null ? 'Checking…' : 'None selected';
+  return distributor == null ? l10n.commonChecking : l10n.pushNoneSelected;
 }

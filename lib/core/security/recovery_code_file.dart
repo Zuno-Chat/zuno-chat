@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 
 import '../files/file_export.dart';
 import '../files/picked_file.dart';
+import '../l10n/l10n.dart';
 import '../platform/platform_capabilities.dart';
 
 const recoveryCodeFileName = 'zuno-recovery-code.txt';
@@ -18,13 +19,14 @@ Uint8List encodeRecoveryCodeFile(String code) =>
     Uint8List.fromList(utf8.encode('$code\n'));
 
 Future<bool> saveRecoveryCodeFile(
+  AppLocalizations l10n,
   String code, {
   required PlatformCapabilities capabilities,
 }) => exportFile(
   name: recoveryCodeFileName,
   bytes: encodeRecoveryCodeFile(code),
   mimeType: 'text/plain',
-  dialogTitle: 'Save your recovery code',
+  dialogTitle: l10n.securitySaveRecoveryCodeTitle,
   capabilities: capabilities,
 );
 

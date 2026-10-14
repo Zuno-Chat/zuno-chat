@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/file_name_text.dart';
 import 'package:zuno/features/chat/presentation/message_contents/file_message.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
@@ -10,6 +9,7 @@ import 'package:zuno/features/chat/presentation/message_meta.dart';
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/pump_until.dart';
+import '../../../helpers/zuno_app.dart';
 
 const _meta = MessageMeta(time: '09:41', own: false);
 
@@ -41,15 +41,10 @@ void main() {
   );
 
   Future<void> pumpFile(WidgetTester tester, Event event) => tester.pumpWidget(
-    MaterialApp(
-      theme: zunoLightTheme,
-      home: Scaffold(
-        body: Center(
-          child: SizedBox(
-            width: 280,
-            child: FileMessage(event: event, own: false, meta: _meta),
-          ),
-        ),
+    inZunoApp(
+      SizedBox(
+        width: 280,
+        child: FileMessage(event: event, own: false, meta: _meta),
       ),
     ),
   );

@@ -2,6 +2,7 @@ import 'package:matrix/matrix.dart';
 
 import '../calls/matrixrtc/call_unread_correction_provider.dart';
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 import 'optimistic_room_state.dart';
 import 'room_access.dart';
 import 'room_permission.dart';
@@ -60,9 +61,9 @@ List<Room> communitiesOf(Room room) => [
     if (isJoinedCommunity(candidate) && _holds(candidate, room)) candidate,
 ];
 
-String? communityNameOf(Room room) {
+String? communityNameOf(Room room, AppLocalizations l10n) {
   final communities = communitiesOf(room);
-  return communities.isEmpty ? null : roomTitle(communities.first);
+  return communities.isEmpty ? null : roomTitle(communities.first, l10n);
 }
 
 class HomeLayout {

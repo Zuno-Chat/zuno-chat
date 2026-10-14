@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -36,7 +37,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
   CachedProfileInformation? _profile;
   bool _savingName = false;
   bool _savingAvatar = false;
-  String? _profileError;
+  bool _profileFailed = false;
 
   @override
   void initState() {
@@ -54,12 +55,12 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
       if (!mounted) return;
       setState(() {
         _profile = profile;
-        _profileError = null;
+        _profileFailed = false;
       });
     } catch (e, s) {
       reportCaught('load profile', e, s);
       if (mounted) {
-        setState(() => _profileError = 'Could not load your profile.');
+        setState(() => _profileFailed = true);
       }
     }
   }
@@ -82,14 +83,18 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
       await _loadProfile(fresh: true);
       if (mounted) {
         messenger.showSnackBar(
-          const SnackBar(content: Text('Display name updated')),
+          SnackBar(
+            content: Text(context.l10n.settingsAccountDisplayNameUpdated),
+          ),
         );
       }
     } catch (e, s) {
       reportCaught('update display name', e, s);
       if (mounted) {
         messenger.showSnackBar(
-          const SnackBar(content: Text('Display name not saved. Try again.')),
+          SnackBar(
+            content: Text(context.l10n.settingsAccountDisplayNameNotSaved),
+          ),
         );
       }
     } finally {
@@ -105,18 +110,18 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take photo'),
+              title: Text(context.l10n.commonTakePhoto),
               onTap: () => Navigator.of(context).pop(_AvatarAction.camera),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from gallery'),
+              title: Text(context.l10n.commonChooseFromGallery),
               onTap: () => Navigator.of(context).pop(_AvatarAction.gallery),
             ),
             if (_profile?.avatarUrl != null)
               ListTile(
                 leading: const Icon(Icons.delete_outline),
-                title: const Text('Remove photo'),
+                title: Text(context.l10n.commonRemovePhoto),
                 onTap: () => Navigator.of(context).pop(_AvatarAction.remove),
               ),
           ],
@@ -148,13 +153,15 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
       }
       await _loadProfile(fresh: true);
       if (mounted) {
-        messenger.showSnackBar(const SnackBar(content: Text('Photo updated')));
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.l10n.commonPhotoUpdated)),
+        );
       }
     } catch (e, s) {
       if (!isPickerAccessDenied(e)) reportCaught('update profile photo', e, s);
       if (mounted) {
         messenger.showSnackBar(
-          const SnackBar(content: Text('Photo not saved. Try again.')),
+          SnackBar(content: Text(context.l10n.commonPhotoNotSaved)),
         );
       }
     } finally {
@@ -165,8 +172,9 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
   Future<void> _copyUsername(String userId) async {
     await Clipboard.setData(ClipboardData(text: userId));
     if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Username copied')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.settingsAccountUsernameCopied)),
+      );
     }
   }
 
@@ -188,28 +196,30 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
     );
     if (changed != true || !mounted) return;
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Password changed')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.settingsAccountPasswordChanged)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final client = ref.watch(matrixClientProvider);
     final displayName = _profile?.displayname;
     final userId = client.userID;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Account')),
+      appBar: AppBar(title: Text(l10n.settingsAccountTitle)),
       body: CardListView(
         children: [
           CardGroup(
-            title: 'Profile',
+            title: l10n.settingsAccountProfile,
             children: [
-              if (_profileError != null)
+              if (_profileFailed)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: Text(
-                    _profileError!,
+                    l10n.settingsAccountProfileLoadFailed,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
@@ -223,7 +233,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
                   toneSeed: userId ?? '',
                   radius: 20,
                 ),
-                title: const Text('Profile picture'),
+                title: Text(l10n.settingsAccountProfilePicture),
                 trailing: _savingAvatar
                     ? _rowSpinner
                     : const Icon(Icons.chevron_right_outlined),
@@ -231,10 +241,10 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
               ),
               ListTile(
                 leading: const Icon(Icons.badge_outlined),
-                title: const Text('Display name'),
+                title: Text(l10n.settingsAccountDisplayName),
                 subtitle: Text(
                   displayName == null || displayName.isEmpty
-                      ? 'Not set'
+                      ? l10n.settingsAccountDisplayNameNotSet
                       : displayName,
                 ),
                 trailing: _savingName
@@ -244,7 +254,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
               ),
               ListTile(
                 leading: const Icon(Icons.alternate_email_outlined),
-                title: const Text('Username'),
+                title: Text(l10n.commonUsername),
                 subtitle: Text(userId == null ? '' : withoutServer(userId)),
                 trailing: const Icon(Icons.copy_outlined),
                 onTap: userId == null
@@ -257,7 +267,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
             children: [
               ListTile(
                 leading: const Icon(Icons.password_outlined),
-                title: const Text('Change password'),
+                title: Text(l10n.settingsAccountChangePassword),
                 onTap: _changePassword,
               ),
             ],
@@ -293,21 +303,22 @@ class _EditDisplayNameDialogState extends State<_EditDisplayNameDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return AlertDialog(
-      title: const Text('Display name'),
+      title: Text(l10n.settingsAccountDisplayName),
       content: TextField(
         autofillHints: null,
         controller: _name,
         autofocus: true,
-        decoration: const InputDecoration(labelText: 'Display name'),
+        decoration: InputDecoration(labelText: l10n.settingsAccountDisplayName),
         onSubmitted: (_) => _submit(),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.commonCancel),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Save')),
+        FilledButton(onPressed: _submit, child: Text(l10n.commonSave)),
       ],
     );
   }

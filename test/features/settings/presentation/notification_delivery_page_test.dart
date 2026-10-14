@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/fcm_availability_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
@@ -43,7 +44,11 @@ Future<ProviderContainer> _pumpPage(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const MaterialApp(home: NotificationDeliveryPage()),
+      child: const MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: NotificationDeliveryPage(),
+      ),
     ),
   );
   if (settle) {
@@ -67,7 +72,9 @@ void main() {
 
     expect(find.text('Delivery method'), findsOneWidget);
     expect(
-      find.text(NotificationDeliveryMode.backgroundService.label),
+      find.text(
+        NotificationDeliveryMode.backgroundService.label(englishLocalizations),
+      ),
       findsOneWidget,
     );
     expect(

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/calls/call_audio_route.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_controls.dart';
@@ -29,6 +30,8 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoDarkTheme,
         home: Scaffold(
           body: Center(

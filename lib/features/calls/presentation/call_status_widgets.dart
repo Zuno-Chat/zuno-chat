@@ -3,21 +3,23 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/calls/models/call_quality.dart';
+import '../../../core/l10n/l10n.dart';
 
 class ConnectionQualityPill extends StatelessWidget {
   final CallQuality quality;
 
   const ConnectionQualityPill({required this.quality, super.key});
 
-  static String? labelFor(CallQuality quality) => switch (quality) {
-    CallQuality.good => null,
-    CallQuality.degraded => 'Weak connection',
-    CallQuality.poor => 'Poor connection, video reduced',
-  };
+  static String? labelFor(AppLocalizations l10n, CallQuality quality) =>
+      switch (quality) {
+        CallQuality.good => null,
+        CallQuality.degraded => l10n.callsConnectionWeak,
+        CallQuality.poor => l10n.callsConnectionPoor,
+      };
 
   @override
   Widget build(BuildContext context) {
-    final label = labelFor(quality);
+    final label = labelFor(context.l10n, quality);
     if (label == null) return const SizedBox.shrink();
     return CallBadge(icon: Icons.network_check, label: label);
   }
@@ -88,7 +90,7 @@ class ConfirmPersonPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final foreground = overVideo ? Colors.white : theme.colorScheme.onSurface;
-    final label = 'Confirm it is really $name';
+    final label = context.l10n.verificationConfirmPerson(name);
     const shape = StadiumBorder();
     return Semantics(
       button: true,
@@ -136,10 +138,11 @@ class ReconnectingNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final label = context.l10n.callsReconnecting;
     return Semantics(
       container: true,
       liveRegion: true,
-      label: 'Reconnecting…',
+      label: label,
       child: ExcludeSemantics(
         child: Container(
           color: Colors.black54,
@@ -150,7 +153,7 @@ class ReconnectingNotice extends StatelessWidget {
               const CircularProgressIndicator(color: Colors.white),
               const SizedBox(height: 16),
               Text(
-                'Reconnecting…',
+                label,
                 style: TextStyle(color: Colors.white.withValues(alpha: 0.9)),
               ),
             ],
@@ -180,10 +183,6 @@ class EncryptingLabel extends StatefulWidget {
     this.now = DateTime.now,
     super.key,
   });
-
-  static const label = 'Encrypting…';
-  static const hint =
-      'Still encrypting. If this continues, hang up and try again.';
 
   @override
   State<EncryptingLabel> createState() => _EncryptingLabelState();
@@ -218,10 +217,11 @@ class _EncryptingLabelState extends State<EncryptingLabel> {
   @override
   Widget build(BuildContext context) {
     final style = widget.style;
+    final l10n = context.l10n;
     return Semantics(
       container: true,
       liveRegion: true,
-      label: _showHint ? EncryptingLabel.hint : EncryptingLabel.label,
+      label: _showHint ? l10n.callsEncryptingHint : l10n.callsEncrypting,
       child: ExcludeSemantics(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -238,7 +238,7 @@ class _EncryptingLabelState extends State<EncryptingLabel> {
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
-                    EncryptingLabel.label,
+                    l10n.callsEncrypting,
                     style: style,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -250,7 +250,7 @@ class _EncryptingLabelState extends State<EncryptingLabel> {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  EncryptingLabel.hint,
+                  l10n.callsEncryptingHint,
                   style: widget.hintStyle ?? style,
                   maxLines: widget.hintMaxLines,
                   overflow: TextOverflow.ellipsis,

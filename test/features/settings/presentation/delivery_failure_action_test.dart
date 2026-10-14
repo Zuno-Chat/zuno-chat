@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/delivery_failure.dart';
@@ -90,6 +91,8 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Consumer(
               builder: (context, ref, _) => TextButton(
@@ -97,7 +100,7 @@ void main() {
                   context,
                   ref,
                   DeliveryFailure(
-                    message: 'Something is wrong',
+                    reason: DeliveryFailureReason.setupFailed,
                     action: action,
                   ),
                 ),
@@ -131,7 +134,7 @@ void main() {
     tester,
   ) async {
     const failure = DeliveryFailure(
-      message: 'Could not set up notifications on this device',
+      reason: DeliveryFailureReason.setupFailed,
       action: DeliveryFailureAction.retry,
     );
     final container = await pumpActor(

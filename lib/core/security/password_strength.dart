@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import '../l10n/l10n.dart';
+
 const minPasswordLength = 12;
 
 const recommendedPasswordLength = 15;
@@ -20,12 +22,16 @@ class PasswordAssessment {
   bool get isUsable => blocker == null;
 }
 
-PasswordAssessment assessPassword(String password, {String? username}) {
+PasswordAssessment assessPassword(
+  AppLocalizations l10n,
+  String password, {
+  String? username,
+}) {
   if (password.isEmpty) {
-    return const PasswordAssessment(
+    return PasswordAssessment(
       strength: PasswordStrength.unusable,
       blocker: null,
-      advice: 'At least $minPasswordLength characters. Longer is stronger.',
+      advice: l10n.securityPasswordEmptyAdvice(minPasswordLength),
     );
   }
   final length = password.runes.length;
@@ -33,8 +39,8 @@ PasswordAssessment assessPassword(String password, {String? username}) {
     final missing = minPasswordLength - length;
     return PasswordAssessment(
       strength: PasswordStrength.unusable,
-      blocker: 'Use at least $minPasswordLength characters',
-      advice: '$missing more character${missing == 1 ? '' : 's'} to go.',
+      blocker: l10n.securityPasswordTooShort(minPasswordLength),
+      advice: l10n.securityPasswordMissing(missing),
     );
   }
 
@@ -43,46 +49,46 @@ PasswordAssessment assessPassword(String password, {String? username}) {
   if (username != null && username.isNotEmpty) {
     final name = username.toLowerCase();
     if (lower == name) {
-      return const PasswordAssessment(
+      return PasswordAssessment(
         strength: PasswordStrength.unusable,
-        blocker: 'Your password is your username',
-        advice: 'It is the first thing anyone trying to get in will try.',
+        blocker: l10n.securityPasswordIsUsername,
+        advice: l10n.securityPasswordFirstGuess,
       );
     }
     if (name.length >= 4 && lower.contains(name)) {
-      return const PasswordAssessment(
+      return PasswordAssessment(
         strength: PasswordStrength.unusable,
-        blocker: 'Your password contains your username',
-        advice: 'It is the first thing anyone trying to get in will try.',
+        blocker: l10n.securityPasswordHasUsername,
+        advice: l10n.securityPasswordFirstGuess,
       );
     }
   }
   if (commonPasswords.contains(lower)) {
-    return const PasswordAssessment(
+    return PasswordAssessment(
       strength: PasswordStrength.unusable,
-      blocker: 'That is one of the most common passwords',
-      advice: 'Pick something nobody else would guess.',
+      blocker: l10n.securityPasswordCommon,
+      advice: l10n.securityPasswordPickUnique,
     );
   }
   final (:mask, :hasCommonWord) = _predictableParts(lower);
   final bits =
       _entropyBits(_uncovered(password, mask)) +
       _spanCount(mask) * _predictableSpanBits;
-  if (_isRepeatedChunk(lower)) return _tooEasyToGuess;
+  if (_isRepeatedChunk(lower)) return _tooEasyToGuess(l10n);
   if (bits < _minGuessableBits) {
-    if (!hasCommonWord) return _tooEasyToGuess;
-    return const PasswordAssessment(
+    if (!hasCommonWord) return _tooEasyToGuess(l10n);
+    return PasswordAssessment(
       strength: PasswordStrength.unusable,
-      blocker: 'That is built on a common password',
-      advice: 'Numbers or symbols added to one are the first thing tried.',
+      blocker: l10n.securityPasswordBuiltOnCommon,
+      advice: l10n.securityPasswordSymbolsAdded,
     );
   }
 
   if (bits >= 60) {
-    return const PasswordAssessment(
+    return PasswordAssessment(
       strength: PasswordStrength.strong,
       blocker: null,
-      advice: 'Strong.',
+      advice: l10n.securityPasswordStrong,
     );
   }
   if (bits >= 40) {
@@ -90,21 +96,21 @@ PasswordAssessment assessPassword(String password, {String? username}) {
       strength: PasswordStrength.fair,
       blocker: null,
       advice: length < recommendedPasswordLength
-          ? 'Okay. A few more characters would make it much harder to guess.'
-          : 'Okay.',
+          ? l10n.securityPasswordFairShort
+          : l10n.securityPasswordFair,
     );
   }
-  return const PasswordAssessment(
+  return PasswordAssessment(
     strength: PasswordStrength.weak,
     blocker: null,
-    advice: 'Weak. Longer is the easiest way to fix it.',
+    advice: l10n.securityPasswordWeak,
   );
 }
 
-const _tooEasyToGuess = PasswordAssessment(
+PasswordAssessment _tooEasyToGuess(AppLocalizations l10n) => PasswordAssessment(
   strength: PasswordStrength.unusable,
-  blocker: 'That is too easy to guess',
-  advice: 'Avoid runs like 12345678 or aaaaaaaa.',
+  blocker: l10n.securityPasswordTooEasy,
+  advice: l10n.securityPasswordAvoidRuns,
 );
 
 const _minGuessableBits = 20;

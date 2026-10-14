@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/security/device_safety.dart';
 import '../../../core/ui/step_hero.dart';
 import '../../../core/ui/step_layout.dart';
@@ -17,18 +18,17 @@ class DeviceWarningPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
     return Scaffold(
       body: SafeArea(
         child: StepLayout(
           hero: const StepHero(icon: Icons.gpp_maybe_outlined),
-          title: 'This device may not be safe',
-          body:
-              'Zuno encrypts your messages, but it cannot protect them from '
-              'the device itself.',
+          title: l10n.authDeviceWarningTitle,
+          body: l10n.authDeviceWarningBody,
           actions: [
             FilledButton(
               onPressed: onContinue,
-              child: const Text('Continue anyway'),
+              child: Text(l10n.commonContinueAnyway),
             ),
           ],
           children: [
@@ -36,8 +36,7 @@ class DeviceWarningPage extends StatelessWidget {
               if (risks.contains(risk)) _RiskRow(risk: risk),
             const SizedBox(height: 8),
             Text(
-              'If you did not set this up yourself, someone else may have. '
-              'Consider using another device.',
+              l10n.authDeviceWarningAdvice,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -57,16 +56,17 @@ class _RiskRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final (icon, title, detail) = switch (risk) {
       DeviceRisk.unlockedBootloader => (
         Icons.lock_open_outlined,
-        'The bootloader is unlocked',
-        'The system software can be replaced without you noticing.',
+        l10n.authDeviceRiskBootloaderTitle,
+        l10n.authDeviceRiskBootloaderDetail,
       ),
       DeviceRisk.rooted => (
         Icons.admin_panel_settings_outlined,
-        'This device is rooted',
-        'An app with root access can read your messages and keys.',
+        l10n.authDeviceRiskRootedTitle,
+        l10n.authDeviceRiskRootedDetail,
       ),
     };
     return ListTile(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/navigation/zuno_links.dart';
 import 'package:zuno/features/settings/presentation/why_security_page.dart';
 
@@ -15,7 +16,13 @@ void main() {
     tester.view.devicePixelRatio = 1;
     tester.view.padding = FakeViewPadding(bottom: bottomInset);
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MaterialApp(home: page));
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: page,
+      ),
+    );
   }
 
   testWidgets('answers each question under its own heading', (tester) async {

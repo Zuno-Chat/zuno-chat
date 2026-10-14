@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/format/chat_list_time.dart';
+import '../../../core/format/date_labels.dart';
 import '../../../core/matrix/reactions.dart';
 import '../../../core/matrix/read_receipts.dart';
 import '../../../core/matrix/undecryptable_event.dart';
@@ -147,7 +147,7 @@ MessageRowData messageRowDataFor({
   required List<int> galleryFailureIndexes,
   required bool canRespond,
   required DateTime now,
-  required bool use24Hour,
+  required DateLabels labels,
 }) {
   final displayEvent = event.getDisplayEvent(timeline);
   final sender = event.senderFromMemoryOrFallback;
@@ -169,8 +169,8 @@ MessageRowData messageRowDataFor({
     redacted: event.redacted,
     displayEventId: displayEvent.eventId,
     edited: displayEvent.eventId != event.eventId,
-    timeLabel: clockLabel(event.originServerTs.toLocal(), use24Hour),
-    dayLabel: startsDay ? dateDividerLabel(event.originServerTs, now) : null,
+    timeLabel: labels.clock(event.originServerTs),
+    dayLabel: startsDay ? labels.day(event.originServerTs, now: now) : null,
     isOwn: isOwn,
     isDirect: event.room.isDirectChat,
     senderName: sender.calcDisplayname(),

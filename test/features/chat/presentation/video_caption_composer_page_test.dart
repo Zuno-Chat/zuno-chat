@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
 
 import '../../../helpers/fake_video_player.dart';
@@ -23,6 +24,8 @@ void main() {
   Future<void> open(WidgetTester tester, {bool settle = true}) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: routeLauncher<ComposedVideo>(
           (_) => const VideoCaptionComposerPage(
             path: '/cache/clip.mp4',

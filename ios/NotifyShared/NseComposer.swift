@@ -16,8 +16,6 @@ enum NseComposer {
   static let fixedThread = "zuno"
   static let maxCharacters = 300
   static let nothingTitle = "Zuno"
-  static let newMessage = "New message"
-  static let testBody = "Notifications work"
 
   static func sanitize(_ text: String) -> String {
     let kept = String(
@@ -57,17 +55,19 @@ enum NseComposer {
   }
 
   static func messageLines(text: String, names: NseNames) -> (title: String, body: String) {
-    let body = names.isDm || names.sender.isEmpty ? text : "\(names.sender): \(text)"
+    let body =
+      names.isDm || names.sender.isEmpty ? text : L10n.notificationsSenderText(names.sender, text)
     return (names.title, body)
   }
 
   static func invitationLines(inviter: String, roomName: String?) -> (title: String, body: String) {
     let room = nonEmpty(roomName.map(CallerName.sanitize)) ?? ""
-    return (inviter, room.isEmpty ? "Invited you to chat" : "Invited you to \(room)")
+    let body = room.isEmpty ? L10n.roomsInvitedYouToChat : L10n.notificationsInvitedToRoom(room)
+    return (inviter, body)
   }
 
   static func verificationLines(sender: String) -> (title: String, body: String) {
-    (sender, "Wants to verify you")
+    (sender, L10n.notificationsWantsToVerify)
   }
 
   static func userInfo(_ tokens: NseTokens, kind: String, floor: Bool = false, rg: String? = nil)
@@ -97,7 +97,7 @@ enum NseComposer {
     loud: Bool, tone: Bool, tokens: NseTokens
   ) -> NseDelivery {
     if level == .none { return nothing(tokens: tokens, quiet: !loud, tone: tone) }
-    let shown = level == .name && !keepsTextWhenNameOnly ? newMessage : text
+    let shown = level == .name && !keepsTextWhenNameOnly ? L10n.notificationsNewMessage : text
     let lines = messageLines(text: shown, names: names)
     let (interruption, sound) = alert(loud: loud, tone: tone)
     return delivery(
@@ -108,7 +108,7 @@ enum NseComposer {
   static func floor(
     names: NseNames, level: PreviewLevel, loud: Bool, tone: Bool, tokens: NseTokens
   ) -> NseDelivery {
-    let lines = messageLines(text: newMessage, names: names)
+    let lines = messageLines(text: L10n.notificationsNewMessage, names: names)
     let (interruption, sound) = alert(loud: loud, tone: tone)
     return delivery(
       title: lines.title, body: lines.body, thread: threadId(level, tokens),
@@ -119,7 +119,7 @@ enum NseComposer {
   static func nothing(tokens: NseTokens, quiet: Bool, tone: Bool) -> NseDelivery {
     let (interruption, sound) = alert(loud: !quiet, tone: tone)
     return delivery(
-      title: nothingTitle, body: newMessage, thread: fixedThread,
+      title: nothingTitle, body: L10n.notificationsNewMessage, thread: fixedThread,
       userInfo: userInfo(tokens, kind: "msg", floor: true), interruption: interruption,
       sound: sound)
   }
@@ -144,29 +144,32 @@ enum NseComposer {
 
   static func callLine(names: NseNames, video: Bool, tokens: NseTokens) -> NseDelivery {
     delivery(
-      title: names.title, body: video ? "Video call" : "Voice call", thread: tokens.t,
-      userInfo: userInfo(tokens, kind: "call"), interruption: .passive, sound: .none)
+      title: names.title, body: video ? L10n.callsVideoCall : L10n.callsVoiceCall,
+      thread: tokens.t, userInfo: userInfo(tokens, kind: "call"), interruption: .passive,
+      sound: .none)
   }
 
   static func fallbackRing(
     names: NseNames, video: Bool, ringtone: Bool, tokens: NseTokens, rg: String
   ) -> NseDelivery {
     delivery(
-      title: names.title, body: video ? "Incoming video call" : "Incoming voice call",
+      title: names.title, body: video ? L10n.callsIncomingVideo : L10n.callsIncomingVoice,
       thread: tokens.t, userInfo: userInfo(tokens, kind: "call", rg: rg),
       interruption: .timeSensitive, sound: ringtone ? .ring : .silentRing)
   }
 
   static func readNotice(names: NseNames, tokens: NseTokens) -> NseDelivery {
     delivery(
-      title: names.title, body: newMessage, thread: tokens.t,
+      title: names.title, body: L10n.notificationsNewMessage, thread: tokens.t,
       userInfo: userInfo(tokens, kind: "sys"), interruption: .passive, sound: .none)
   }
 
   static func activity(names: NseNames, level: PreviewLevel, video: Bool?, tokens: NseTokens)
     -> NseDelivery
   {
-    let body = video.map { $0 ? "Video call" : "Voice call" } ?? "New activity"
+    let body =
+      video.map { $0 ? L10n.callsVideoCall : L10n.callsVoiceCall }
+      ?? L10n.notificationsNewActivity
     return delivery(
       title: names.title, body: body, thread: threadId(level, tokens),
       userInfo: userInfo(tokens, kind: "sys"), interruption: .passive, sound: .none)
@@ -186,7 +189,7 @@ enum NseComposer {
 
   static func test() -> NseDelivery {
     NseDelivery(
-      title: nothingTitle, body: testBody, threadId: fixedThread,
+      title: nothingTitle, body: L10n.notificationsTestWorks, threadId: fixedThread,
       userInfo: ["k": "sys", "test": "1"],
       interruption: .active, sound: .original, badge: nil, removals: [], usesOriginal: false)
   }

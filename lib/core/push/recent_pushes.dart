@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show immutable;
 
+import '../l10n/l10n.dart';
 import 'push_delivery_log.dart';
 import 'push_diagnostics_data.dart' show LedgerCall;
 
@@ -18,48 +19,55 @@ class RecentPush {
 
 const shownRecentPushes = 10;
 
-List<RecentPush> recentPushesFromDeliveries(List<PushDeliveryRecord> records) =>
-    [
-      for (final record in records)
-        RecentPush(
-          at: record.receivedAt,
-          summary: pushDeliverySummary(record),
-          late: record.late,
-        ),
-    ];
+List<RecentPush> recentPushesFromDeliveries(
+  AppLocalizations l10n,
+  List<PushDeliveryRecord> records,
+) => [
+  for (final record in records)
+    RecentPush(
+      at: record.receivedAt,
+      summary: pushDeliverySummary(l10n, record),
+      late: record.late,
+    ),
+];
 
-List<RecentPush> recentPushesFromLogs({
+List<RecentPush> recentPushesFromLogs(
+  AppLocalizations l10n, {
   required List<String> extension,
   required List<String> app,
   List<LedgerCall> ledger = const [],
 }) => [
-  for (final line in extension) ?_push(line, _extensionOutcome),
-  for (final line in app) ?_push(line, _ringOutcome),
+  for (final line in extension) ?_push(l10n, line, _extensionOutcome),
+  for (final line in app) ?_push(l10n, line, _ringOutcome),
   for (final call in ledger)
     if (call.source == 'push')
-      RecentPush(at: call.at, summary: _callStates[call.state] ?? 'Handled'),
+      RecentPush(at: call.at, summary: _callState(l10n, call.state)),
 ]..sort((a, b) => b.at.compareTo(a.at));
 
-String? _extensionOutcome(String event) {
+String? _extensionOutcome(AppLocalizations l10n, String event) {
   if (!event.startsWith('nse_') || event == 'nse_catchup') return null;
-  return _messageOutcomes[event.substring(4)] ?? 'Handled';
+  return _messageOutcome(l10n, event.substring(4));
 }
 
-String? _ringOutcome(String event) =>
-    event == 'metrickit' ? null : _ringOutcomes[event] ?? 'Handled';
+String? _ringOutcome(AppLocalizations l10n, String event) =>
+    event == 'metrickit' ? null : _callOutcome(l10n, event);
 
-RecentPush? _push(String line, String? Function(String event) outcome) {
+RecentPush? _push(
+  AppLocalizations l10n,
+  String line,
+  String? Function(AppLocalizations l10n, String event) outcome,
+) {
   final parts = line.split(' ');
   if (parts.length < 2) return null;
   final at = DateTime.tryParse(parts[0]);
-  final summary = outcome(parts[1]);
+  final summary = outcome(l10n, parts[1]);
   if (at == null || summary == null) return null;
   final lag = _lag(parts.skip(2));
   return RecentPush(
     at: at.toLocal(),
     summary: lag == null
         ? summary
-        : '$summary. Arrived after ${formatDeliveryDelay(lag)}',
+        : l10n.pushOutcomeArrivedAfter(summary, formatDeliveryDelay(l10n, lag)),
     late: lag != null && lag > lateArrival,
   );
 }
@@ -74,58 +82,56 @@ Duration? _lag(Iterable<String> fields) {
   return null;
 }
 
-const _messageOutcomes = {
-  'shown': 'Shown',
-  'quiet': 'Shown silently, it did not mention you',
-  'duplicate': 'Already shown',
-  'hidden': 'Nothing new to show',
-  'read': 'Already read on another device',
-  'gone': 'Shown without the message, it is no longer available',
-  'rate_limited': 'Shown without the message, too many arrived at once',
-  'auth': 'Shown without the message until Zuno is opened',
-  'route': 'Shown without the message, it could not be fetched',
-  'net': 'Shown without the message, there was no connection',
-  'utd': 'Could not be decrypted, shown without the message',
-  'mismatch': 'Shown without the message, it failed a security check',
-  'bfu': 'Shown without the message, it arrived before the first unlock',
-  'no_meta': 'Shown without the message until Zuno is opened',
-  'test': 'Test notification',
-  'nothing': 'Shown without details, as set in Notification content',
-  'fallback_ring': 'Ring shown by Zuno, the system call screen did not ring',
-  'call_handled': 'No notification needed for this call',
-  'safe_mode': 'Shown without the message after a recent crash',
-  'malformed': 'Shown as sent, the push was incomplete',
+String _messageOutcome(AppLocalizations l10n, String code) => switch (code) {
+  'shown' => l10n.pushOutcomeShown,
+  'quiet' => l10n.pushOutcomeQuiet,
+  'duplicate' => l10n.pushOutcomeAlreadyShown,
+  'hidden' => l10n.pushOutcomeNothingNew,
+  'read' => l10n.pushOutcomeReadElsewhere,
+  'gone' => l10n.pushOutcomeGone,
+  'rate_limited' => l10n.pushOutcomeRateLimited,
+  'auth' || 'no_meta' => l10n.pushOutcomeUntilOpened,
+  'route' => l10n.pushOutcomeNotFetched,
+  'net' => l10n.pushOutcomeNoConnection,
+  'utd' => l10n.pushOutcomeUndecryptable,
+  'mismatch' => l10n.pushOutcomeSecurityCheck,
+  'bfu' => l10n.pushOutcomeBeforeUnlock,
+  'test' => l10n.pushOutcomeTest,
+  'nothing' => l10n.pushOutcomeNoDetails,
+  'fallback_ring' => l10n.pushOutcomeFallbackRing,
+  'call_handled' => l10n.pushOutcomeCallHandled,
+  'safe_mode' => l10n.pushOutcomeSafeMode,
+  'malformed' => l10n.pushOutcomeMalformed,
+  _ => l10n.pushOutcomeHandled,
 };
 
-const _ringOutcomes = {
-  'ring': 'Call rang',
-  'duplicate': 'Call already ringing',
-  'stale': 'Call ended before it arrived',
-  'resolved': 'Call already answered or ended',
-  'busy_ringing': 'Arrived while another call was ringing',
-  'busy_active': 'Arrived during another call',
-  'canary': 'Call check, nothing shown',
-  'own_call': 'Your own call, nothing shown',
-  'forged': 'Call refused, it failed a security check',
-  'signed_out': 'Call arrived while signed out',
-  'no_session': 'Call arrived while signed out',
-  'version_unknown': "Call rang without the caller's name",
-  'kid_unknown': "Call rang without the caller's name",
-  'version_unknown_limit': 'Call not shown, the call key is out of date',
-  'kid_unknown_limit': 'Call not shown, the call key is out of date',
-  'version_unknown_busy': 'Arrived during another call',
-  'kid_unknown_busy': 'Arrived during another call',
-  'bfu_ring': "Call rang without the caller's name, before the first unlock",
-  'bfu_unreadable': 'Call not shown, it arrived before the first unlock',
-  'bfu_stale': 'Call ended before it arrived',
-  'bfu_skipped': 'Call not shown, it arrived before the first unlock',
-  'bfu_busy': 'Arrived during another call',
+String _callOutcome(AppLocalizations l10n, String code) => switch (code) {
+  'ring' => l10n.pushOutcomeCallRang,
+  'duplicate' => l10n.pushOutcomeCallAlreadyRinging,
+  'stale' || 'bfu_stale' => l10n.pushOutcomeCallEndedFirst,
+  'resolved' => l10n.pushOutcomeCallResolved,
+  'busy_ringing' => l10n.pushOutcomeBusyRinging,
+  'busy_active' ||
+  'version_unknown_busy' ||
+  'kid_unknown_busy' ||
+  'bfu_busy' => l10n.pushOutcomeBusyActive,
+  'canary' => l10n.pushOutcomeCanary,
+  'own_call' => l10n.pushOutcomeOwnCall,
+  'forged' => l10n.pushOutcomeCallForged,
+  'signed_out' || 'no_session' => l10n.pushOutcomeCallSignedOut,
+  'version_unknown' || 'kid_unknown' => l10n.pushOutcomeCallRangNoName,
+  'version_unknown_limit' ||
+  'kid_unknown_limit' => l10n.pushOutcomeCallKeyOutOfDate,
+  'bfu_ring' => l10n.pushOutcomeCallRangNoNameBeforeUnlock,
+  'bfu_unreadable' || 'bfu_skipped' => l10n.pushOutcomeCallNotShownBeforeUnlock,
+  _ => l10n.pushOutcomeHandled,
 };
 
-const _callStates = {
-  'ringing': 'Call ringing',
-  'answered': 'Call answered',
-  'ended': 'Call ended',
-  'declined': 'Call declined',
-  'missed': 'Missed call',
+String _callState(AppLocalizations l10n, String state) => switch (state) {
+  'ringing' => l10n.pushCallRinging,
+  'answered' => l10n.pushCallAnswered,
+  'ended' => l10n.pushCallEnded,
+  'declined' => l10n.pushCallDeclined,
+  'missed' => l10n.pushCallMissed,
+  _ => l10n.pushOutcomeHandled,
 };

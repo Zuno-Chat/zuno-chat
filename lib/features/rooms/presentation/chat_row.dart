@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/official_room.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/line_strut.dart';
@@ -96,7 +97,7 @@ class ChatRow extends StatelessWidget {
                     style: secondLineStyle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    child: _secondLine(scheme, secondLineStyle),
+                    child: _secondLine(context, scheme, secondLineStyle),
                   ),
                 ],
               ),
@@ -128,7 +129,7 @@ class ChatRow extends StatelessWidget {
     );
   }
 
-  Widget _secondLine(ColorScheme scheme, TextStyle base) {
+  Widget _secondLine(BuildContext context, ColorScheme scheme, TextStyle base) {
     Widget line(String text, TextStyle style) => Text(
       text,
       maxLines: 1,
@@ -141,7 +142,7 @@ class ChatRow extends StatelessWidget {
     final status = data.awaitingAcceptance
         ? data.pendingInviteSubtitle
         : data.partnerLeft
-        ? 'Left the chat'
+        ? context.l10n.chatLeftTheChat
         : null;
     if (status != null) return line(status, italic);
     final typing = data.typingText;

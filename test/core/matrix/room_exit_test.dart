@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/room_exit.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -92,6 +93,8 @@ void main() {
   Future<void> tapExit(WidgetTester tester, Room room) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(
@@ -254,7 +257,7 @@ void main() {
       final room = asLastAdmin(joinedRoom(exitClient()));
 
       expect(
-        await roomExitMessage(room),
+        await roomExitMessage(room, englishLocalizations),
         'You will stop getting messages here. Make someone else an admin of '
         'this room first, or nobody can manage it again.',
       );
@@ -265,7 +268,7 @@ void main() {
       room.summary.mJoinedMemberCount = 1;
 
       expect(
-        await roomExitMessage(room),
+        await roomExitMessage(room, englishLocalizations),
         'You will stop getting messages here.',
       );
     });
@@ -273,7 +276,10 @@ void main() {
     test('deleting a chat never warns about admins', () async {
       final room = asLastAdmin(direct(joinedRoom(exitClient())));
 
-      expect(await roomExitMessage(room), isNot(contains('admin')));
+      expect(
+        await roomExitMessage(room, englishLocalizations),
+        isNot(contains('admin')),
+      );
     });
 
     testWidgets('the leave prompt carries the warning', (tester) async {
@@ -290,17 +296,17 @@ void main() {
     test('a direct chat reads as deleting', () {
       final room = direct(joinedRoom(exitClient()));
 
-      expect(roomExitLabel(room), 'Delete chat');
-      expect(roomExitConfirmLabel(room), 'Delete');
-      expect(roomExitTitle(room), 'Delete chat?');
+      expect(roomExitLabel(room, englishLocalizations), 'Delete chat');
+      expect(roomExitConfirmLabel(room, englishLocalizations), 'Delete');
+      expect(roomExitTitle(room, englishLocalizations), 'Delete chat?');
     });
 
     test('a group room reads as leaving', () {
       final room = joinedRoom(exitClient());
 
-      expect(roomExitLabel(room), 'Leave room');
-      expect(roomExitConfirmLabel(room), 'Leave');
-      expect(roomExitTitle(room), 'Leave room?');
+      expect(roomExitLabel(room, englishLocalizations), 'Leave room');
+      expect(roomExitConfirmLabel(room, englishLocalizations), 'Leave');
+      expect(roomExitTitle(room, englishLocalizations), 'Leave room?');
     });
   });
 
@@ -387,17 +393,26 @@ void main() {
       final general = member(client, '!general:example.org', 'General');
 
       final empty = community(buildTestClient(userId: '@me:example.org'));
-      expect(roomExitLabel(empty), 'Leave community');
-      expect(roomExitTitle(empty), 'Leave community?');
-      expect(roomExitConfirmLabel(empty), 'Leave');
-      expect(await roomExitMessage(empty), 'You will stop seeing its rooms.');
+      expect(roomExitLabel(empty, englishLocalizations), 'Leave community');
+      expect(roomExitTitle(empty, englishLocalizations), 'Leave community?');
+      expect(roomExitConfirmLabel(empty, englishLocalizations), 'Leave');
+      expect(
+        await roomExitMessage(empty, englishLocalizations),
+        'You will stop seeing its rooms.',
+      );
 
       final one = community(client, rooms: [gear]);
-      expect(await roomExitMessage(one), 'You also leave Gear swap.');
+      expect(
+        await roomExitMessage(one, englishLocalizations),
+        'You also leave Gear swap.',
+      );
 
       client.rooms.remove(one);
       final two = community(client, rooms: [gear, general]);
-      expect(await roomExitMessage(two), 'You also leave 2 of its rooms.');
+      expect(
+        await roomExitMessage(two, englishLocalizations),
+        'You also leave 2 of its rooms.',
+      );
     });
 
     test('a community names what it would leave without an admin', () async {
@@ -409,7 +424,7 @@ void main() {
 
       final one = community(client, rooms: [gear, general]);
       expect(
-        await roomExitMessage(one),
+        await roomExitMessage(one, englishLocalizations),
         'You also leave 2 of its rooms. Make someone else an admin of Gear '
         'swap first, or nobody can manage it again.',
       );
@@ -417,10 +432,84 @@ void main() {
       asLastAdmin(one);
       asLastAdmin(general);
       expect(
-        await roomExitMessage(one),
+        await roomExitMessage(one, englishLocalizations),
         'You also leave 2 of its rooms. Make someone else an admin of this '
         'community and 2 of its rooms first, or nobody can manage them again.',
       );
+    });
+
+    group('names every mix it would leave without an admin', () {
+      Future<String> exitMessage({
+        required int rooms,
+        required bool communityToo,
+        int orphaned = 0,
+      }) {
+        final client = exitClient();
+        final members = [
+          for (final (i, name) in ['Gear swap', 'General', 'Trips'].indexed)
+            if (i < rooms) member(client, '!r$i:example.org', name),
+        ];
+        members.take(orphaned).forEach(asLastAdmin);
+        final space = community(client, rooms: members);
+        if (communityToo) asLastAdmin(space);
+        return roomExitMessage(space, englishLocalizations);
+      }
+
+      test('only the community, with no rooms', () async {
+        expect(
+          await exitMessage(rooms: 0, communityToo: true),
+          'You will stop seeing its rooms. Make someone else an admin of this '
+          'community first, or nobody can manage it again.',
+        );
+      });
+
+      test('only the community, with one room', () async {
+        expect(
+          await exitMessage(rooms: 1, communityToo: true),
+          'You also leave Gear swap. Make someone else an admin of this '
+          'community first, or nobody can manage it again.',
+        );
+      });
+
+      test('only its one room', () async {
+        expect(
+          await exitMessage(rooms: 1, communityToo: false, orphaned: 1),
+          'You also leave Gear swap. Make someone else an admin of Gear swap '
+          'first, or nobody can manage it again.',
+        );
+      });
+
+      test('the community and its one room', () async {
+        expect(
+          await exitMessage(rooms: 1, communityToo: true, orphaned: 1),
+          'You also leave Gear swap. Make someone else an admin of this '
+          'community and Gear swap first, or nobody can manage them again.',
+        );
+      });
+
+      test('only the community, with several rooms', () async {
+        expect(
+          await exitMessage(rooms: 2, communityToo: true),
+          'You also leave 2 of its rooms. Make someone else an admin of this '
+          'community first, or nobody can manage it again.',
+        );
+      });
+
+      test('several of its rooms', () async {
+        expect(
+          await exitMessage(rooms: 3, communityToo: false, orphaned: 2),
+          'You also leave 3 of its rooms. Make someone else an admin of 2 of '
+          'its rooms first, or nobody can manage them again.',
+        );
+      });
+
+      test('the community and one of several rooms', () async {
+        expect(
+          await exitMessage(rooms: 2, communityToo: true, orphaned: 1),
+          'You also leave 2 of its rooms. Make someone else an admin of this '
+          'community and Gear swap first, or nobody can manage them again.',
+        );
+      });
     });
 
     testWidgets('leaving a community ends a call in any room it takes along', (

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
 
@@ -21,6 +22,8 @@ void main() {
     ];
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: routeLauncher<List<ComposedImage>>(
           (_) => ImageCaptionComposerPage(images: images),
           onResult: (composed) {

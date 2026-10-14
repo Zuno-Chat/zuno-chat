@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
+import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/quoted_message_box.dart';
 import '../../../../core/ui/zuno_theme.dart';
 import '../../data/message_kinds.dart';
@@ -78,8 +79,8 @@ class _ReplyQuoteState extends State<ReplyQuote> {
     if (original == null) {
       return _QuotedMessageNotice(
         text: widget.cache.isResolved(widget.eventId)
-            ? 'Original message not available'
-            : 'Loading…',
+            ? context.l10n.chatOriginalUnavailable
+            : context.l10n.commonLoading,
         fill: fill,
         muted: muted,
       );
@@ -89,7 +90,7 @@ class _ReplyQuoteState extends State<ReplyQuote> {
     final kind = classifyAttachment(displayEvent);
     return QuotedMessageBox(
       senderName: original.senderFromMemoryOrFallback.calcDisplayname(),
-      snippet: previewSnippet(original, widget.timeline),
+      snippet: previewSnippet(context.l10n, original, widget.timeline),
       icon: switch (kind) {
         AttachmentKind.image => Icons.photo_outlined,
         AttachmentKind.video => Icons.videocam_outlined,

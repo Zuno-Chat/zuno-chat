@@ -1,6 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../../format/human_units.dart';
+import '../../l10n/l10n.dart';
 
 const callSummaryMsgtype = 'im.zuno.call_summary';
 const callInviteMsgtype = 'im.zuno.call_invite';
@@ -35,13 +36,29 @@ class CallSummary {
     required this.durationMs,
   });
 
-  String get label => kind == 'video' ? 'Video call' : 'Voice call';
+  bool get isVideo => kind == 'video';
 
-  String get displayBody => switch (status) {
-    CallSummaryStatus.missed => 'Missed $label',
-    CallSummaryStatus.declined => '$label declined',
-    CallSummaryStatus.ended =>
-      '$label · ${formatDuration(Duration(milliseconds: durationMs))}',
+  String get _duration => formatDuration(Duration(milliseconds: durationMs));
+
+  String get displayBody {
+    final label = isVideo ? 'Video call' : 'Voice call';
+    return switch (status) {
+      CallSummaryStatus.missed => 'Missed $label',
+      CallSummaryStatus.declined => '$label declined',
+      CallSummaryStatus.ended => '$label · $_duration',
+    };
+  }
+
+  String localizedLabel(AppLocalizations l10n) =>
+      isVideo ? l10n.callsVideoCall : l10n.callsVoiceCall;
+
+  String localizedBody(AppLocalizations l10n) => switch ((status, isVideo)) {
+    (CallSummaryStatus.missed, true) => l10n.callsSummaryMissedVideo,
+    (CallSummaryStatus.missed, false) => l10n.callsSummaryMissedVoice,
+    (CallSummaryStatus.declined, true) => l10n.callsSummaryDeclinedVideo,
+    (CallSummaryStatus.declined, false) => l10n.callsSummaryDeclinedVoice,
+    (CallSummaryStatus.ended, true) => l10n.callsSummaryEndedVideo(_duration),
+    (CallSummaryStatus.ended, false) => l10n.callsSummaryEndedVoice(_duration),
   };
 
   Map<String, Object?> toMessageContent({String? membershipEventId}) => {

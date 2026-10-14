@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -52,6 +53,8 @@ void main() {
           ),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: LocationMapPage(
             geo: geo,
             senderName: 'Ann',
@@ -65,17 +68,17 @@ void main() {
 
   group('accuracyLabel', () {
     test('is empty without an accuracy', () {
-      expect(accuracyLabel(null), isNull);
+      expect(accuracyLabel(englishLocalizations, null), isNull);
     });
 
     test('rounds to whole metres below a kilometre', () {
-      expect(accuracyLabel(12.4), 'about 12 m');
-      expect(accuracyLabel(999.4), 'about 999 m');
+      expect(accuracyLabel(englishLocalizations, 12.4), 'about 12 m');
+      expect(accuracyLabel(englishLocalizations, 999.4), 'about 999 m');
     });
 
     test('switches to kilometres once it rounds to one', () {
-      expect(accuracyLabel(999.6), 'about 1.0 km');
-      expect(accuracyLabel(1500), 'about 1.5 km');
+      expect(accuracyLabel(englishLocalizations, 999.6), 'about 1.0 km');
+      expect(accuracyLabel(englishLocalizations, 1500), 'about 1.5 km');
     });
   });
 
@@ -84,7 +87,10 @@ void main() {
 
     expect(find.widgetWithText(AppBar, 'Ann'), findsOneWidget);
     expect(find.text('52.5163, 13.3777'), findsOneWidget);
-    expect(find.text('about 12 m · Mon, Sep 14 · 6:05 PM'), findsOneWidget);
+    expect(
+      find.text('about 12 m · Sep 14, 2026 · 6:05\u202fPM'),
+      findsOneWidget,
+    );
     final map = tester.widget<LocationMapView>(find.byType(LocationMapView));
     expect(map.interactive, isTrue);
     expect(map.zoom, 16);
@@ -96,7 +102,7 @@ void main() {
       geo: const GeoUri(latitude: 52.5163, longitude: 13.3777),
     );
 
-    expect(find.text('Mon, Sep 14 · 6:05 PM'), findsOneWidget);
+    expect(find.text('Sep 14, 2026 · 6:05\u202fPM'), findsOneWidget);
   });
 
   testWidgets('the button hands the pin to a maps app', (tester) async {

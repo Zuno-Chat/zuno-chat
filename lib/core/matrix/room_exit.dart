@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 import '../calls/end_call.dart';
 import '../errors/caught_errors.dart';
 import '../errors/connection_error.dart';
+import '../l10n/l10n.dart';
 import 'communities.dart';
 import 'room_roles.dart';
 import 'room_title.dart';
@@ -24,52 +25,70 @@ Iterable<String> _roomIdsLeftBy(Room room) => [
   if (room.isSpace) ...roomsLeavingWith(room).map((left) => left.id),
 ];
 
-String roomExitLabel(Room room) {
-  if (room.isDirectChat) return 'Delete chat';
-  if (room.isSpace) return 'Leave community';
-  return 'Leave room';
+String roomExitLabel(Room room, AppLocalizations l10n) {
+  if (room.isDirectChat) return l10n.matrixRoomExitDeleteChat;
+  if (room.isSpace) return l10n.matrixRoomExitLeaveCommunity;
+  return l10n.matrixRoomExitLeaveRoom;
 }
 
-String roomExitTitle(Room room) => '${roomExitLabel(room)}?';
+String roomExitTitle(Room room, AppLocalizations l10n) {
+  if (room.isDirectChat) return l10n.matrixRoomExitDeleteChatTitle;
+  if (room.isSpace) return l10n.matrixRoomExitLeaveCommunityTitle;
+  return l10n.matrixRoomExitLeaveRoomTitle;
+}
 
-String roomExitConfirmLabel(Room room) =>
-    room.isDirectChat ? 'Delete' : 'Leave';
+String roomExitConfirmLabel(Room room, AppLocalizations l10n) =>
+    room.isDirectChat ? l10n.commonDelete : l10n.matrixRoomExitLeave;
 
-Future<String> roomExitMessage(Room room) async {
-  if (room.isDirectChat) {
-    return 'This chat and its messages leave this device. Nobody can undo this.';
-  }
+Future<String> roomExitMessage(Room room, AppLocalizations l10n) async {
+  if (room.isDirectChat) return l10n.matrixRoomExitDirectMessage;
   if (!room.isSpace) {
-    const leaving = 'You will stop getting messages here.';
-    if (!await isLastAdmin(room)) return leaving;
-    return '$leaving ${_handOnFirst('this room', 1)}';
+    return await isLastAdmin(room)
+        ? l10n.matrixRoomExitRoomMessageHandOn
+        : l10n.matrixRoomExitRoomMessage;
   }
   final rooms = roomsLeavingWith(room);
-  final leaving = switch (rooms.length) {
-    0 => 'You will stop seeing its rooms.',
-    1 => 'You also leave ${roomTitle(rooms.single)}.',
-    final count => 'You also leave $count of its rooms.',
-  };
-  final communityOrphaned = await isLastAdmin(room);
+  final communityToo = await isLastAdmin(room);
   final orphaned = [
     for (final left in rooms)
       if (await isLastAdmin(left)) left,
   ];
-  final targets = [
-    if (communityOrphaned) 'this community',
-    if (orphaned case [final only])
-      roomTitle(only)
-    else if (orphaned.isNotEmpty)
-      '${orphaned.length} of its rooms',
-  ];
-  if (targets.isEmpty) return leaving;
-  final count = orphaned.length + (communityOrphaned ? 1 : 0);
-  return '$leaving ${_handOnFirst(targets.join(' and '), count)}';
+  String title(Room left) => roomTitle(left, l10n);
+  final count = rooms.length;
+  return switch ((rooms, communityToo, orphaned)) {
+    ([], false, _) => l10n.matrixRoomExitCommunityNoRooms,
+    ([], true, _) => l10n.matrixRoomExitCommunityNoRoomsHandOnCommunity,
+    ([final only], false, []) => l10n.matrixRoomExitCommunityOneRoom(
+      title(only),
+    ),
+    ([final only], true, []) =>
+      l10n.matrixRoomExitCommunityOneRoomHandOnCommunity(title(only)),
+    ([final only], false, [_]) => l10n.matrixRoomExitCommunityOneRoomHandOnRoom(
+      title(only),
+    ),
+    ([final only], true, [_]) =>
+      l10n.matrixRoomExitCommunityOneRoomHandOnCommunityAndRoom(title(only)),
+    (_, false, []) => l10n.matrixRoomExitCommunityRooms(count),
+    (_, true, []) => l10n.matrixRoomExitCommunityRoomsHandOnCommunity(count),
+    (_, false, [final only]) => l10n.matrixRoomExitCommunityRoomsHandOnRoom(
+      count,
+      title(only),
+    ),
+    (_, true, [final only]) =>
+      l10n.matrixRoomExitCommunityRoomsHandOnCommunityAndRoom(
+        count,
+        title(only),
+      ),
+    (_, false, _) => l10n.matrixRoomExitCommunityRoomsHandOnRooms(
+      count,
+      orphaned.length,
+    ),
+    (_, true, _) => l10n.matrixRoomExitCommunityRoomsHandOnCommunityAndRooms(
+      count,
+      orphaned.length,
+    ),
+  };
 }
-
-String _handOnFirst(String target, int count) =>
-    'Make someone else an admin of $target first, or nobody can manage '
-    '${count == 1 ? 'it' : 'them'} again.';
 
 IconData roomExitIcon(Room room) =>
     room.isDirectChat ? Icons.delete_outline : Icons.logout_outlined;
@@ -81,21 +100,22 @@ Future<bool> confirmAndExitRoom(
 }) async {
   final isDirect = room.isDirectChat;
   final messenger = ScaffoldMessenger.of(context);
-  final message = await roomExitMessage(room);
+  final l10n = context.l10n;
+  final message = await roomExitMessage(room, l10n);
   if (!context.mounted) return false;
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text(roomExitTitle(room)),
+      title: Text(roomExitTitle(room, l10n)),
       content: Text(message),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: Text(l10n.commonCancel),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: Text(roomExitConfirmLabel(room)),
+          child: Text(roomExitConfirmLabel(room, l10n)),
         ),
       ],
     ),
@@ -110,14 +130,14 @@ Future<bool> confirmAndExitRoom(
     reportCaught('exit room', e, s);
     final String failed;
     if (isDirect) {
-      failed = 'Could not delete the chat.';
+      failed = l10n.matrixRoomExitDeleteChatFailed;
     } else if (room.isSpace) {
-      failed = 'Could not leave the community.';
+      failed = l10n.matrixRoomExitLeaveCommunityFailed;
     } else {
-      failed = 'Could not leave the room.';
+      failed = l10n.matrixRoomExitLeaveRoomFailed;
     }
     messenger.showSnackBar(
-      SnackBar(content: Text(failureMessage(e, failed: failed))),
+      SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
     );
     return false;
   }

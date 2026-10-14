@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/calls/models/call_status.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_stage.dart';
-import 'package:zuno/features/calls/presentation/call_status_widgets.dart';
 
 import '../../../helpers/real_fonts.dart';
+
+const _encryptingHint =
+    'Still encrypting. If this continues, hang up and try again.';
 
 void main() {
   Future<void> pump(WidgetTester tester, Widget child, {double width = 360}) {
@@ -15,6 +18,8 @@ void main() {
     addTearDown(tester.view.reset);
     return tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoDarkTheme,
         home: Scaffold(body: child),
       ),
@@ -106,7 +111,7 @@ void main() {
       for (final finder in [
         find.text('Ann Lindqvist'),
         find.text('Encrypting…'),
-        find.text(EncryptingLabel.hint),
+        find.text(_encryptingHint),
       ]) {
         final rect = tester.getRect(finder);
         expect(rect.top, greaterThanOrEqualTo(stage.top));
@@ -129,11 +134,11 @@ void main() {
           now: () => now,
         ),
       );
-      expect(find.text(EncryptingLabel.hint), findsNothing);
+      expect(find.text(_encryptingHint), findsNothing);
 
       now = now.add(const Duration(seconds: 2));
       await tester.pump(const Duration(seconds: 2));
-      expect(find.text(EncryptingLabel.hint), findsOneWidget);
+      expect(find.text(_encryptingHint), findsOneWidget);
     });
 
     testWidgets('is never cut short in the header, even at twice the font '
@@ -144,6 +149,8 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           theme: zunoDarkTheme,
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context)
@@ -163,7 +170,7 @@ void main() {
         ),
       );
 
-      final hint = tester.widget<Text>(find.text(EncryptingLabel.hint));
+      final hint = tester.widget<Text>(find.text(_encryptingHint));
       expect(hint.maxLines, isNull);
       expect(tester.takeException(), isNull);
     });
@@ -185,7 +192,7 @@ void main() {
       expect(find.text('Ann Lindqvist'), findsOneWidget);
       expect(find.text('2:41'), findsOneWidget);
       expect(find.byIcon(Icons.lock_outline), findsOneWidget);
-      expect(find.text(EncryptingLabel.label), findsNothing);
+      expect(find.text('Encrypting…'), findsNothing);
     });
 
     testWidgets('while encrypting the status has its own block under the '
@@ -200,7 +207,7 @@ void main() {
         greaterThan(tester.getBottomLeft(find.text('Ann')).dy),
       );
       await tester.pump(const Duration(seconds: 8));
-      expect(find.text(EncryptingLabel.hint), findsOneWidget);
+      expect(find.text(_encryptingHint), findsOneWidget);
     });
 
     testWidgets('a long name never pushes the status out', (tester) async {

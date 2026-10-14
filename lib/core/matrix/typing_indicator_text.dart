@@ -1,12 +1,17 @@
 import 'package:matrix/matrix.dart';
 
-String? typingIndicatorText(List<User> typingUsers) {
+import '../l10n/l10n.dart';
+
+String? typingIndicatorText(AppLocalizations l10n, List<User> typingUsers) {
   if (typingUsers.isEmpty) return null;
   if (typingUsers.length == 1) {
-    return '${typingUsers.first.calcDisplayname()} is typing…';
+    return l10n.matrixTypingOne(typingUsers.first.calcDisplayname());
   }
   if (typingUsers.length == 2) {
-    return '${typingUsers[0].calcDisplayname()} and ${typingUsers[1].calcDisplayname()} are typing…';
+    return l10n.matrixTypingTwo(
+      typingUsers[0].calcDisplayname(),
+      typingUsers[1].calcDisplayname(),
+    );
   }
-  return 'Several people are typing…';
+  return l10n.matrixTypingSeveral;
 }

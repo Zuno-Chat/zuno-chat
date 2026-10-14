@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/rooms/presentation/public_rooms_sheet.dart';
 import 'package:zuno/features/rooms/presentation/room_kind_avatar.dart';
 
@@ -50,6 +51,8 @@ Future<_Opened> _open(
   final testClient = client ?? buildTestClient(userId: '@me:example.org');
   await tester.pumpWidget(
     MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: Builder(
           builder: (context) => TextButton(

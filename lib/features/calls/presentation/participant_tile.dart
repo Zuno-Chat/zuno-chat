@@ -5,6 +5,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/models/call_engine_participant.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'call_status_widgets.dart';
@@ -99,7 +100,7 @@ class _ParticipantTileState extends State<ParticipantTile> {
       );
     }
     if (!participant.isLocal && participant.lowBandwidth) {
-      return const CallBadge(label: 'Weak connection');
+      return CallBadge(label: context.l10n.callsConnectionWeak);
     }
     return null;
   }
@@ -114,7 +115,7 @@ class _ParticipantTileState extends State<ParticipantTile> {
     return CallBadge(
       icon: muted ? Icons.mic_off_outlined : null,
       label: name,
-      semanticLabel: muted ? '$name is muted' : name,
+      semanticLabel: muted ? context.l10n.callsNameMuted(name) : name,
     );
   }
 

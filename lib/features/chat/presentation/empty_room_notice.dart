@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/security/security_providers.dart';
@@ -26,15 +27,14 @@ class EmptyRoomNotice extends ConsumerWidget {
         : ref.watch(userTrustProvider(otherId));
     final name = otherId == null ? null : withoutServer(otherId);
 
-    const encrypted = 'Messages here are end-to-end encrypted.';
+    final l10n = context.l10n;
     final text = switch (trust) {
-      null => '$encrypted Only the people in this chat can read them.',
-      UserTrustState.noIdentity => encrypted,
+      null => l10n.chatEmptyEncryptedGroup,
+      UserTrustState.noIdentity => l10n.chatEmptyEncryptedNoIdentity,
       UserTrustState.confirmed || UserTrustState.confirmedWithPendingDevice =>
-        '$encrypted Only you and $name can read them.',
+        l10n.chatEmptyEncryptedConfirmed(name!),
       UserTrustState.unconfirmed || UserTrustState.identityChanged =>
-        '$encrypted Once you confirm it is really $name, only the two of '
-            'you can read them.',
+        l10n.chatEmptyEncryptedUnconfirmed(name!),
     };
     final offersWhy =
         trust == UserTrustState.unconfirmed ||
@@ -58,7 +58,7 @@ class EmptyRoomNotice extends ConsumerWidget {
             const SizedBox(height: 4),
             TextButton(
               onPressed: () => _explain(context, ref, otherId!),
-              child: const Text('Why confirm'),
+              child: Text(l10n.chatWhyConfirm),
             ),
           ],
         ],
@@ -76,7 +76,7 @@ class EmptyRoomNotice extends ConsumerWidget {
       context,
       name: name,
       unavailableReason: isAwaitingInviteAcceptance(room)
-          ? 'You can confirm $name once they join.'
+          ? context.l10n.chatConfirmAfterJoin(name)
           : null,
     );
     if (confirm != true || !context.mounted) return;

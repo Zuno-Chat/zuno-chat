@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../l10n/l10n.dart';
 import '../matrix/room_title.dart';
 import '../platform/platform_capabilities.dart';
 import 'active_call_provider.dart';
 import 'matrixrtc/call_session.dart';
 import 'models/call_engine_participant.dart';
+import 'models/call_failure.dart';
 import 'models/call_kind.dart';
 import 'notifications/call_notification_service.dart';
 import 'platform/system_call.dart';
@@ -69,7 +71,7 @@ class _SystemCallBinding {
     final start = await _systemCall.begin(
       roomId: _roomId,
       callId: session.callId,
-      title: roomTitle(session.room),
+      title: roomTitle(session.room, deviceLocalizations()),
       isVideo: session.kind == CallKind.video,
     );
     if (_ended) return;
@@ -125,7 +127,7 @@ class _SystemCallBinding {
     if (callId != session.callId || session.phase == CallSessionPhase.ended) {
       return;
     }
-    session.failedMessage = callDidNotConnectMessage;
+    session.failure = CallFailure.didNotConnect;
     session.endReason = CallEndReason.failed;
     unawaited(session.hangUp());
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/section_label.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 
@@ -8,6 +9,8 @@ void main() {
   testWidgets('shows its text small and muted', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         home: const Scaffold(body: SectionLabel('Invitations')),
       ),

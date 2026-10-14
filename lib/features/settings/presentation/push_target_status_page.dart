@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 import '../../../core/notifications/notification_delivery_mode.dart';
@@ -60,18 +62,17 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
 
   void _showNotRemoved() {
     ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Not removed. Try again.')));
+        .showSnackBar(SnackBar(content: Text(context.l10n.pushNotRemoved)));
   }
 
   Future<void> _removeTarget() async {
+    final l10n = context.l10n;
     final mode = _mode;
-    final removal = _removalFor(mode);
+    final removal = _removalFor(l10n, mode);
     if (removal == null) return;
     final confirmed = await _confirm(
-      title: 'Remove push target?',
-      message:
-          'This device stops receiving notifications until you register again '
-          'or Zuno restarts. ${removal.detail}',
+      title: l10n.pushRemoveTargetTitle,
+      message: l10n.pushRemoveTargetMessage(removal.detail),
     );
     if (confirmed != true || !mounted || _mode != mode) return;
     setState(() => _removing = true);
@@ -95,10 +96,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
   Future<void> _removeOtherPusher(PusherInfo pusher) async {
     final name = _pusherName(pusher);
     final confirmed = await _confirm(
-      title: 'Remove this push target?',
-      message:
-          '"$name" stops receiving push notifications for this account '
-          'until whichever app or device owns it registers again.',
+      title: context.l10n.pushRemoveOtherTitle,
+      message: context.l10n.pushRemoveOtherMessage(name),
     );
     if (confirmed != true) return;
     await _deletePushers([pusher]);
@@ -106,13 +105,8 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
 
   Future<void> _removeAllOtherPushers(List<PusherInfo> pushers) async {
     final confirmed = await _confirm(
-      title: pushers.length == 1
-          ? 'Remove this push target?'
-          : 'Remove ${pushers.length} push targets?',
-      message:
-          'Every other device and app registered for notifications on this '
-          'account stops receiving them until it registers again. This '
-          "device's own target is left alone.",
+      title: context.l10n.pushRemoveAllOthersTitle(pushers.length),
+      message: context.l10n.pushRemoveAllOthersMessage,
     );
     if (confirmed != true) return;
     await _deletePushers(pushers);
@@ -139,7 +133,10 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     await _refresh();
   }
 
-  Future<bool?> _confirm({required String title, required String message}) {
+  Future<bool?> _confirm({
+    @displayText required String title,
+    @displayText required String message,
+  }) {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -148,11 +145,11 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Remove'),
+            child: Text(context.l10n.commonRemove),
           ),
         ],
       ),
@@ -172,65 +169,66 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     final pushers = _pushers;
     final groups = groupPushers(pushers ?? const [], currentPushkey);
     final current = groups.currentSession;
-    final removal = _removalFor(mode);
+    final l10n = context.l10n;
+    final removal = _removalFor(l10n, mode);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Push target')),
+      appBar: AppBar(title: Text(l10n.pushTargetTitle)),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: CardListView(
           children: [
             CardGroup(
-              title: 'This device',
+              title: l10n.diagnosticsSectionDevice,
               children: [
                 if (mode == NotificationDeliveryMode.unifiedPush)
                   _DetailRow(
-                    label: 'Distributor',
+                    label: l10n.pushTargetDistributor,
                     value: switch (distributor) {
                       null => null,
-                      '' => 'None',
+                      '' => l10n.diagnosticsNone,
                       final name => unifiedPushDistributorDisplayName(name),
                     },
                   ),
-                _DetailRow(label: 'App ID', value: current?.appId),
                 _DetailRow(
-                  label: 'Push key',
+                  label: l10n.diagnosticsLabelAppId,
+                  value: current?.appId,
+                ),
+                _DetailRow(
+                  label: l10n.diagnosticsLabelPushKey,
                   value: current?.pushkey ?? currentPushkey,
                 ),
                 _DetailRow(
-                  label: 'App display name',
+                  label: l10n.pushTargetAppDisplayName,
                   value: current?.appDisplayName,
                 ),
                 _DetailRow(
-                  label: 'Device name',
+                  label: l10n.pushTargetDeviceName,
                   value: current?.deviceDisplayName,
                 ),
                 _DetailRow(
-                  label: 'Device ID',
+                  label: l10n.pushTargetDeviceId,
                   value: current?.deviceId ?? client.deviceID,
                 ),
                 _DetailRow(
-                  label: 'Push gateway URL',
+                  label: l10n.pushTargetGatewayUrl,
                   value: current?.url ?? gatewayUrl?.toString(),
                 ),
-                _DetailRow(label: 'Format', value: current?.format),
+                _DetailRow(
+                  label: l10n.diagnosticsLabelFormat,
+                  value: current?.format,
+                ),
                 if (_usesPublicGateway(current?.url ?? gatewayUrl?.toString()))
                   ListTile(
                     leading: Icon(Icons.info_outline, color: colors.tertiary),
-                    title: const Text('Using the public push bridge'),
-                    subtitle: const Text(
-                      'Your push server has no gateway of its own, so '
-                      'notifications go through a community-run one. It sees '
-                      'that a message arrived and when. It never sees who sent '
-                      'it or what it said. Use a push server with a built-in '
-                      'gateway, or host your own, to avoid this.',
-                    ),
+                    title: Text(l10n.pushPublicBridgeTitle),
+                    subtitle: Text(l10n.pushPublicBridgeMessage),
                   ),
                 if (lastPusherError != null)
                   ListTile(
                     leading: Icon(Icons.error_outline, color: colors.error),
-                    title: const Text('Last error'),
-                    subtitle: Text(lastPusherError),
+                    title: Text(l10n.pushLastError),
+                    subtitle: Text(lastPusherError.message(l10n)),
                   ),
                 if (removal != null)
                   ListTile(
@@ -245,7 +243,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
                           )
                         : Icon(Icons.delete_outline, color: colors.error),
                     title: Text(
-                      'Remove push target',
+                      l10n.pushRemoveTarget,
                       style: TextStyle(color: colors.error),
                     ),
                     subtitle: Text(removal.subtitle),
@@ -256,12 +254,12 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
             CardGroup(
               children: [
                 _SectionHeaderWithAction(
-                  title: 'Other push registrations',
+                  title: l10n.pushOtherRegistrations,
                   onRemoveAll: groups.others.isEmpty || _removing
                       ? null
                       : () => _removeAllOtherPushers(groups.others),
                 ),
-                ..._pusherRows(groups.others, pushers == null),
+                ..._pusherRows(l10n, groups.others, pushers == null),
               ],
             ),
             if (capabilities.voipRing) const VoipDevExportCard(),
@@ -271,12 +269,16 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     );
   }
 
-  List<Widget> _pusherRows(List<PusherInfo> pushers, bool loading) {
-    if (loading) return const [_EmptyNote('Loading…')];
+  List<Widget> _pusherRows(
+    AppLocalizations l10n,
+    List<PusherInfo> pushers,
+    bool loading,
+  ) {
+    if (loading) return [_EmptyNote(l10n.commonLoading)];
     if (_pushersFailed) {
-      return const [_EmptyNote('Could not load. Pull down to try again.')];
+      return [_EmptyNote(l10n.pushCouldNotLoad)];
     }
-    if (pushers.isEmpty) return const [_EmptyNote('None')];
+    if (pushers.isEmpty) return [_EmptyNote(l10n.diagnosticsNone)];
     return [
       for (final pusher in pushers)
         ListTile(
@@ -286,7 +288,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
           isThreeLine: true,
           trailing: IconButton(
             icon: const Icon(Icons.delete_outline),
-            tooltip: 'Remove',
+            tooltip: l10n.commonRemove,
             onPressed: _removing ? null : () => _removeOtherPusher(pusher),
           ),
         ),
@@ -300,28 +302,21 @@ typedef _Removal = ({
   Future<void> Function(Client client) remove,
 });
 
-_Removal? _removalFor(NotificationDeliveryMode mode) => switch (mode) {
-  NotificationDeliveryMode.fcm => (
-    subtitle:
-        "Makes the server forget this device and drops this device's "
-        'registration token',
-    detail:
-        "The server forgets this device, and this device's registration "
-        'token is dropped.',
-    remove: fcmDeliveryProvider.remove,
-  ),
-  NotificationDeliveryMode.unifiedPush => (
-    subtitle:
-        'Makes the server forget this device and unregisters from the '
-        'distributor',
-    detail:
-        'The server forgets this device, and the distributor '
-        'registration is dropped.',
-    remove: unifiedPushDeliveryProvider.remove,
-  ),
-  NotificationDeliveryMode.backgroundService ||
-  NotificationDeliveryMode.apns => null,
-};
+_Removal? _removalFor(AppLocalizations l10n, NotificationDeliveryMode mode) =>
+    switch (mode) {
+      NotificationDeliveryMode.fcm => (
+        subtitle: l10n.pushRemoveFcmSubtitle,
+        detail: l10n.pushRemoveFcmDetail,
+        remove: fcmDeliveryProvider.remove,
+      ),
+      NotificationDeliveryMode.unifiedPush => (
+        subtitle: l10n.pushRemoveUnifiedPushSubtitle,
+        detail: l10n.pushRemoveUnifiedPushDetail,
+        remove: unifiedPushDeliveryProvider.remove,
+      ),
+      NotificationDeliveryMode.backgroundService ||
+      NotificationDeliveryMode.apns => null,
+    };
 
 class _SectionHeaderWithAction extends StatelessWidget {
   final String title;
@@ -340,7 +335,7 @@ class _SectionHeaderWithAction extends StatelessWidget {
             if (onRemoveAll != null)
               TextButton(
                 onPressed: onRemoveAll,
-                child: const Text('Remove all'),
+                child: Text(context.l10n.pushRemoveAll),
               ),
           ],
         ),

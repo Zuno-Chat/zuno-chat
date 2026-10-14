@@ -1,5 +1,6 @@
 import 'package:matrix/matrix.dart';
 
+import '../l10n/l10n.dart';
 import 'communities.dart';
 import 'optimistic_room_state.dart';
 import 'room_permission.dart';
@@ -8,27 +9,24 @@ import 'room_roles.dart';
 enum RoomAccess { public, community, askToJoin, private }
 
 extension RoomAccessX on RoomAccess {
-  String get label => switch (this) {
-    RoomAccess.public => 'Public',
-    RoomAccess.community => 'Community',
-    RoomAccess.askToJoin => 'Ask to join',
-    RoomAccess.private => 'Private',
+  String label(AppLocalizations l10n) => switch (this) {
+    RoomAccess.public => l10n.matrixAccessPublic,
+    RoomAccess.community => l10n.matrixAccessCommunity,
+    RoomAccess.askToJoin => l10n.matrixAccessAskToJoin,
+    RoomAccess.private => l10n.matrixAccessPrivate,
   };
 
-  String get description => switch (this) {
-    RoomAccess.public => 'Anyone can find and join',
-    RoomAccess.community => 'Members of the community can join',
-    RoomAccess.askToJoin => 'Members can ask; a moderator lets them in',
-    RoomAccess.private => 'Invite only',
+  String description(AppLocalizations l10n) => switch (this) {
+    RoomAccess.public => l10n.matrixAccessPublicDescription,
+    RoomAccess.community => l10n.matrixAccessCommunityDescription,
+    RoomAccess.askToJoin => l10n.matrixAccessAskToJoinDescription,
+    RoomAccess.private => l10n.matrixAccessPrivateDescription,
   };
 }
 
 class RoomListingRefused implements Exception {
-  static const message =
-      'Public access is turned off here. Choose another option.';
-
   @override
-  String toString() => message;
+  String toString() => 'RoomListingRefused';
 }
 
 RoomAccess roomAccessOf(Room room) => switch (room.joinRules) {

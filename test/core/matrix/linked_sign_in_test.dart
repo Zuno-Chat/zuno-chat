@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/linked_sign_in.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -195,8 +196,8 @@ void main() {
 
       expect(failure, isA<MatrixException>());
       expect(
-        signInCodeIssueErrorMessage(failure!),
-        signInCodesUnsupportedMessage,
+        signInCodeIssueErrorMessage(englishLocalizations, failure!),
+        'This server cannot make sign-in codes.',
       );
     });
   });
@@ -337,12 +338,13 @@ void main() {
     test('a refused token says the code is not valid', () {
       expect(
         linkedSignInErrorMessage(
+          englishLocalizations,
           MatrixException.fromJson({
             'errcode': 'M_FORBIDDEN',
             'error': 'Invalid login token',
           }),
         ),
-        invalidSignInCodeMessage,
+        'That code is not valid or has expired. Make a new one on your other device.',
       );
     });
 
@@ -350,8 +352,8 @@ void main() {
       const error = SignInCodeForAnotherServer('other.example');
 
       expect(
-        linkedSignInErrorMessage(error),
-        codeForAnotherServerMessage('other.example'),
+        linkedSignInErrorMessage(englishLocalizations, error),
+        'This code is for other.example. Change the server on the sign-in screen first.',
       );
       expect(isLinkedSignInRefusal(error), isTrue);
     });
@@ -359,6 +361,7 @@ void main() {
     test('other sign-in failures keep their usual wording', () {
       expect(
         linkedSignInErrorMessage(
+          englishLocalizations,
           MatrixException.fromJson({
             'errcode': 'M_USER_DEACTIVATED',
             'error': 'deactivated',
@@ -370,8 +373,8 @@ void main() {
 
     test('issuing a code fails with a generic message otherwise', () {
       expect(
-        signInCodeIssueErrorMessage(StateError('boom')),
-        signInCodeIssueFailedMessage,
+        signInCodeIssueErrorMessage(englishLocalizations, StateError('boom')),
+        'Could not make a code. Check your connection and try again.',
       );
     });
   });

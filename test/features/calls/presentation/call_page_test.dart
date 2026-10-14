@@ -11,7 +11,9 @@ import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/cloudflare/webrtc_backend.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
+import 'package:zuno/core/calls/models/call_failure.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/account_security_status.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
@@ -29,6 +31,9 @@ import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
 import 'call_page_harness.dart';
+
+const _cameraDidNotTurnOn =
+    'Camera did not turn on. Check that Zuno can use the camera and try again.';
 
 void main() {
   group('with a real session', () {
@@ -66,6 +71,8 @@ void main() {
           UncontrolledProviderScope(
             container: container,
             child: MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
               theme: zunoLightTheme,
               home: CallPage(call: call),
             ),
@@ -304,7 +311,7 @@ void main() {
       });
 
       expect(session.engine.cameraEnabledRequests, [true]);
-      expect(find.text(cameraDidNotTurnOnMessage), findsOneWidget);
+      expect(find.text(_cameraDidNotTurnOn), findsOneWidget);
       expect(reports, contains('toggle camera'));
       expect(tester.takeException(), isNull);
       await harness.close();
@@ -321,7 +328,7 @@ void main() {
         await harness.settle();
       });
 
-      expect(find.text(cameraDidNotTurnOnMessage), findsOneWidget);
+      expect(find.text(_cameraDidNotTurnOn), findsOneWidget);
       expect(reports, isEmpty);
       expect(tester.takeException(), isNull);
       await harness.close();
@@ -342,7 +349,7 @@ void main() {
       await harness.settle();
 
       expect(session.engine.cameraEnabledRequests, [false]);
-      expect(find.text(cameraDidNotTurnOnMessage), findsNothing);
+      expect(find.text(_cameraDidNotTurnOn), findsNothing);
       expect(tester.takeException(), isNull);
       await harness.close();
     });
@@ -356,7 +363,7 @@ void main() {
       await tester.tap(find.byTooltip('Switch to video call'));
       await harness.settle();
 
-      expect(find.text(cameraDidNotTurnOnMessage), findsOneWidget);
+      expect(find.text(_cameraDidNotTurnOn), findsOneWidget);
       expect(session.kind, CallKind.voice);
       expect(harness.wakelockToggles, isEmpty);
       expect(tester.takeException(), isNull);
@@ -602,7 +609,10 @@ void main() {
       final harness = CallPageHarness(tester);
       final session = await talking(harness, CallKind.voice);
 
-      session.end(reason: CallEndReason.failed, message: 'Connection lost');
+      session.end(
+        reason: CallEndReason.failed,
+        failure: CallFailure.connectionLost,
+      );
       await harness.settle();
 
       expect(find.byType(CallPage), findsNothing);
@@ -620,7 +630,10 @@ void main() {
       await harness.settle();
       expect(harness.audioRoute, 'speaker');
 
-      session.end(reason: CallEndReason.failed, message: 'Connection lost');
+      session.end(
+        reason: CallEndReason.failed,
+        failure: CallFailure.connectionLost,
+      );
       await harness.settle();
 
       expect(find.text('Connection lost'), findsOneWidget);

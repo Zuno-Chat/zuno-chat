@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/device_safety.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/auth/presentation/device_warning_page.dart';
@@ -18,6 +19,8 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context)

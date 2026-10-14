@@ -1,9 +1,10 @@
 import 'dart:math' show min;
 import 'dart:typed_data';
 
+import '../brand.dart';
+
 const _opusSampleRate = 48000;
 const _serial = 0x5a554e4f;
-const _vendor = 'Zuno';
 const _maxSegments = 255;
 
 final Uint32List _crcTable = () {
@@ -153,8 +154,8 @@ Uint8List? oggOpusFromCaf(Uint8List caf) {
     ..setUint8(18, 0);
   final tags = BytesBuilder()
     ..add('OpusTags'.codeUnits)
-    ..add(_uint32le(_vendor.length))
-    ..add(_vendor.codeUnits)
+    ..add(_uint32le(zunoName.length))
+    ..add(zunoName.codeUnits)
     ..add(_uint32le(0));
 
   final out = BytesBuilder(copy: false)

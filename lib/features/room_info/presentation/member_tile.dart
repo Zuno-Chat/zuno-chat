@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_roles.dart';
@@ -19,7 +20,7 @@ class MemberTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final badge = memberBadge(room, user);
+    final badge = memberBadge(room, user, context.l10n);
     return ListTile(
       leading: MxcAvatar(
         client: room.client,

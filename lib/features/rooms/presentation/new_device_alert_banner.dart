@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/security/new_device_alert.dart';
 import '../../../core/security/new_device_alert_provider.dart';
 import '../../../core/security/security_emphasis.dart';
@@ -15,7 +16,7 @@ class NewDeviceAlertBanner extends ConsumerWidget {
     if (alerts.isEmpty) return const SizedBox.shrink();
 
     final alert = alerts.first;
-    final text = newDeviceNotificationText(alert);
+    final text = newDeviceNotificationText(context.l10n, alert);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
@@ -57,8 +58,9 @@ class NewDeviceAlertBanner extends ConsumerWidget {
                             ),
                             if (alerts.length > 1)
                               Text(
-                                '+${alerts.length - 1} more new sign-in'
-                                '${alerts.length > 2 ? 's' : ''}',
+                                context.l10n.roomsMoreSignIns(
+                                  alerts.length - 1,
+                                ),
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: colors.onErrorContainer,
                                   fontStyle: FontStyle.italic,
@@ -69,7 +71,7 @@ class NewDeviceAlertBanner extends ConsumerWidget {
                       ),
                       IconButton(
                         icon: Icon(Icons.close, color: colors.onErrorContainer),
-                        tooltip: 'Dismiss',
+                        tooltip: context.l10n.commonDismiss,
                         onPressed: () => ref
                             .read(newDeviceAlertProvider.notifier)
                             .dismiss(alert),

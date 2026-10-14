@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/matrixrtc/call_summary_message.dart';
 import '../../../core/errors/best_effort.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/retry_decrypt_last_event.dart';
 import '../../../core/matrix/undecryptable_event.dart';
@@ -87,11 +88,12 @@ class _LastMessagePreviewState extends State<LastMessagePreview> {
   Widget build(BuildContext context) {
     final event = _resolvedEvent;
     final strut = inheritedLineStrut(context);
-    if (event == null) return Text('No messages', strutStyle: strut);
-
+    if (event == null) {
+      return Text(context.l10n.roomsNoMessages, strutStyle: strut);
+    }
     if (!isPreviewableLastEvent(event)) return Text('', strutStyle: strut);
 
-    final summary = summarize(event);
+    final summary = summarize(context.l10n, event);
 
     switch (summary.kind) {
       case MessageKind.deleted:
@@ -169,7 +171,7 @@ class _LastMessagePreviewState extends State<LastMessagePreview> {
 }
 
 IconData _callSummaryIcon(CallSummary summary) {
-  final isVideo = summary.kind == 'video';
+  final isVideo = summary.isVideo;
   return switch (summary.status) {
     CallSummaryStatus.missed =>
       isVideo ? Icons.missed_video_call_outlined : Icons.call_missed_outlined,

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/format/date_labels.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_sharing.dart';
 import '../../../core/location/live_location_viewing.dart';
 import 'live_location_clock.dart';
@@ -36,7 +38,7 @@ class LiveLocationTile extends ConsumerWidget {
     final status = liveShareStatusText(
       share,
       watchLiveNow(ref),
-      liveClockFormat(context),
+      DateLabels.of(context),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -69,7 +71,7 @@ class LiveLocationTile extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Live location'),
+                    Text(context.l10n.locationLiveLocation),
                     Text(
                       status,
                       maxLines: 1,
@@ -90,7 +92,7 @@ class LiveLocationTile extends ConsumerWidget {
             child: TextButton(
               onPressed: () =>
                   ref.read(liveLocationSharingProvider).stopIn(room.id),
-              child: const Text('Stop sharing'),
+              child: Text(context.l10n.locationStopSharing),
             ),
           ),
       ],

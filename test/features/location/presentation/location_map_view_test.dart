@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/map_tiles.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
@@ -38,6 +39,8 @@ Widget _host({
     ),
   ],
   child: MaterialApp(
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: SizedBox.fromSize(
         size: interactive ? _fullScreenSize : _previewSize,

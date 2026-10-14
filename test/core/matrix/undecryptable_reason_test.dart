@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/undecryptable_reason.dart';
 
 void main() {
@@ -28,11 +29,17 @@ void main() {
   group('undecryptableCopy', () {
     test('only the recoverable case offers an action', () {
       expect(
-        undecryptableCopy(UndecryptableReason.recoverable).offersRecovery,
+        undecryptableCopy(
+          englishLocalizations,
+          UndecryptableReason.recoverable,
+        ).offersRecovery,
         isTrue,
       );
       expect(
-        undecryptableCopy(UndecryptableReason.keyNeverShared).offersRecovery,
+        undecryptableCopy(
+          englishLocalizations,
+          UndecryptableReason.keyNeverShared,
+        ).offersRecovery,
         isFalse,
       );
     });
@@ -40,7 +47,7 @@ void main() {
     test('neither line says "decrypt"', () {
       for (final reason in UndecryptableReason.values) {
         expect(
-          undecryptableCopy(reason).text.toLowerCase(),
+          undecryptableCopy(englishLocalizations, reason).text.toLowerCase(),
           isNot(contains('decrypt')),
           reason: reason.name,
         );

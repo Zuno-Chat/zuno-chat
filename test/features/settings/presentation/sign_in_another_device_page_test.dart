@@ -9,7 +9,7 @@ import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import 'package:zuno/core/matrix/linked_sign_in.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/settings/presentation/sign_in_another_device_page.dart';
 
@@ -70,7 +70,11 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: Scaffold()),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(),
+        ),
       ),
     );
     unawaited(
@@ -188,7 +192,7 @@ void main() {
       ),
     );
 
-    expect(find.text(signInCodesUnsupportedMessage), findsOneWidget);
+    expect(find.text('This server cannot make sign-in codes.'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Try again'), findsOneWidget);
     await leave(tester);
   });

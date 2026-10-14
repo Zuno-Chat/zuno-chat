@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/calls/models/call_status.dart';
 import '../../../core/format/human_units.dart';
+import '../../../core/l10n/l10n.dart';
 import 'call_status_widgets.dart';
 
 class CallStatusLine extends StatelessWidget {
@@ -35,11 +36,12 @@ class CallStatusLine extends StatelessWidget {
           color: theme.colorScheme.onSurfaceVariant,
         );
     final since = talkingSince;
+    final l10n = context.l10n;
     return switch (status) {
-      CallStatus.calling => Text('Calling…', style: style),
-      CallStatus.connecting => Text('Connecting…', style: style),
+      CallStatus.calling => Text(l10n.callsCalling, style: style),
+      CallStatus.connecting => Text(l10n.callsConnecting, style: style),
       CallStatus.waiting => Text(
-        'Waiting for the other side to join…',
+        l10n.callsWaitingForOther,
         style: style,
         textAlign: alignment == CrossAxisAlignment.center
             ? TextAlign.center
@@ -62,7 +64,7 @@ class CallStatusLine extends StatelessWidget {
             Icons.lock_outline,
             size: (style.fontSize ?? 14) + 2,
             color: style.color,
-            semanticLabel: 'Encrypted',
+            semanticLabel: l10n.callsEncrypted,
           ),
           const SizedBox(width: 4),
           if (since != null) CallTimer(since: since, now: now, style: style),

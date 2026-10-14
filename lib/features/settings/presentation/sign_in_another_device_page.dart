@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/linked_sign_in.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/uia_cancel.dart';
@@ -72,18 +73,19 @@ class _SignInAnotherDevicePageState
         Navigator.of(context).pop();
         return;
       }
-      setState(() => _error = signInCodeIssueErrorMessage(e));
+      setState(() => _error = signInCodeIssueErrorMessage(context.l10n, e));
     }
   }
 
   List<Widget> _body(BuildContext context) {
+    final l10n = context.l10n;
     final error = _error;
     final issued = _issued;
     if (error != null) {
       return [
         Text(error, textAlign: TextAlign.center),
         const SizedBox(height: 16),
-        FilledButton(onPressed: _request, child: const Text('Try again')),
+        FilledButton(onPressed: _request, child: Text(l10n.commonTryAgain)),
       ];
     }
     if (issued == null) {
@@ -91,17 +93,17 @@ class _SignInAnotherDevicePageState
     }
     if (_expired) {
       return [
-        const Text('This code has expired.', textAlign: TextAlign.center),
+        Text(l10n.settingsSignInExpired, textAlign: TextAlign.center),
         const SizedBox(height: 16),
-        FilledButton(onPressed: _request, child: const Text('New code')),
+        FilledButton(
+          onPressed: _request,
+          child: Text(l10n.settingsSignInNewCode),
+        ),
       ];
     }
     final theme = Theme.of(context);
     return [
-      const Text(
-        'Scan this with the new device, or type the code under it.',
-        textAlign: TextAlign.center,
-      ),
+      Text(l10n.settingsSignInScan, textAlign: TextAlign.center),
       const SizedBox(height: 16),
       Center(child: _QrImage(data: issued.code.encode())),
       const SizedBox(height: 16),
@@ -120,17 +122,14 @@ class _SignInAnotherDevicePageState
         onExpired: () => setState(() => _expired = true),
       ),
       const SizedBox(height: 16),
-      const Text(
-        'It works once. Anyone who sees it can sign in to your account.',
-        textAlign: TextAlign.center,
-      ),
+      Text(l10n.settingsSignInWorksOnce, textAlign: TextAlign.center),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign in on another device')),
+      appBar: AppBar(title: Text(context.l10n.settingsSignInTitle)),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -202,7 +201,7 @@ class _CountdownState extends State<_Countdown> {
     final minutes = _remaining.inMinutes;
     final seconds = (_remaining.inSeconds % 60).toString().padLeft(2, '0');
     return Text(
-      'Expires in $minutes:$seconds',
+      context.l10n.settingsSignInExpiresIn(minutes, seconds),
       textAlign: TextAlign.center,
       style: theme.textTheme.bodyMedium?.copyWith(
         color: theme.colorScheme.onSurfaceVariant,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/calls/models/call_quality.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/calls/presentation/call_status_widgets.dart';
 
 import '../../../helpers/zuno_app.dart';
@@ -66,7 +67,9 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 8));
 
-    final hint = tester.widget<Text>(find.text(EncryptingLabel.hint));
+    final hint = tester.widget<Text>(
+      find.text('Still encrypting. If this continues, hang up and try again.'),
+    );
     expect(hint.maxLines, 3);
     expect(hint.overflow, TextOverflow.ellipsis);
     expect(hint.textAlign, TextAlign.end);
@@ -79,6 +82,8 @@ void main() {
     ) async {
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Directionality(
             textDirection: direction,
             child: Scaffold(

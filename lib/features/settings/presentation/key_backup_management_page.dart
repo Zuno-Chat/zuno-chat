@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 
 class KeyBackupManagementPage extends ConsumerStatefulWidget {
@@ -66,21 +67,16 @@ class _KeyBackupManagementPageState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete key backup?'),
-        content: const Text(
-          'This deletes the online backup of your encrypted message keys. '
-          'Devices that have not already synced these keys another way '
-          'will not be able to recover them. This does not change Secure '
-          'backup itself — a new backup can be created again later.',
-        ),
+        title: Text(context.l10n.settingsKeyBackupDeleteTitle),
+        content: Text(context.l10n.settingsKeyBackupDeleteBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
+            child: Text(context.l10n.commonDelete),
           ),
         ],
       ),
@@ -88,6 +84,7 @@ class _KeyBackupManagementPageState
     if (confirmed != true || !mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     setState(() => _deleting = true);
     try {
       await ref.read(matrixClientProvider).deleteRoomKeysVersion(info.version);
@@ -96,7 +93,7 @@ class _KeyBackupManagementPageState
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            failureMessage(e, failed: 'Could not delete the key backup.'),
+            failureMessage(l10n, e, failed: l10n.settingsKeyBackupDeleteFailed),
           ),
         ),
       );
@@ -109,6 +106,7 @@ class _KeyBackupManagementPageState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final info = _info;
     final errorColor = Theme.of(context).colorScheme.error;
     Widget note(String text) => Padding(
@@ -116,7 +114,7 @@ class _KeyBackupManagementPageState
       child: Center(child: Text(text)),
     );
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage key backup')),
+      appBar: AppBar(title: Text(l10n.settingsKeyBackupTitle)),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -125,42 +123,39 @@ class _KeyBackupManagementPageState
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
                   if (_loadFailed)
-                    note(
-                      'Could not load the key backup. Pull down to try again.',
-                    )
+                    note(l10n.settingsKeyBackupLoadFailed)
                   else if (info == null)
-                    note('No key backup set up on this account.')
+                    note(l10n.settingsKeyBackupNone)
                   else ...[
                     ListTile(
                       leading: const Icon(Icons.backup_outlined),
-                      title: const Text('Status'),
+                      title: Text(l10n.commonStatus),
                       subtitle: Text(
                         _cachedOnThisDevice
-                            ? 'Active — this device can restore from it'
-                            : 'Active, but this device cannot restore from '
-                                  'it (set up Secure backup)',
+                            ? l10n.settingsKeyBackupActiveRestorable
+                            : l10n.settingsKeyBackupActiveNotRestorable,
                       ),
                     ),
                     ListTile(
                       leading: const Icon(Icons.key_outlined),
-                      title: const Text('Keys backed up'),
-                      subtitle: Text('${info.count}'),
+                      title: Text(l10n.settingsKeyBackupKeysBackedUp),
+                      subtitle: Text(l10n.commonCount(info.count)),
                     ),
                     ListTile(
                       leading: const Icon(Icons.numbers_outlined),
-                      title: const Text('Version'),
+                      title: Text(l10n.commonVersion),
                       subtitle: Text(info.version),
                     ),
                     ListTile(
                       leading: const Icon(Icons.lock_outlined),
-                      title: const Text('Algorithm'),
+                      title: Text(l10n.settingsKeyBackupAlgorithm),
                       subtitle: Text(info.algorithm.name),
                     ),
                     const Divider(),
                     ListTile(
                       leading: Icon(Icons.delete_outline, color: errorColor),
                       title: Text(
-                        'Delete key backup',
+                        l10n.settingsKeyBackupDelete,
                         style: TextStyle(color: errorColor),
                       ),
                       trailing: _deleting

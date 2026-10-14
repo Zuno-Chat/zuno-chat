@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/room_info/presentation/room_access_label.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -32,7 +33,11 @@ void main() {
   });
 
   Future<void> pump(WidgetTester tester) => tester.pumpWidget(
-    MaterialApp(home: Scaffold(body: RoomAccessLabel.of(room))),
+    MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Scaffold(body: RoomAccessLabel.of(room, englishLocalizations)),
+    ),
   );
 
   testWidgets('a room open to its community names the community', (

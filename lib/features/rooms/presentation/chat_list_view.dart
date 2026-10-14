@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/format/date_labels.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/communities.dart';
 import '../../../core/ui/empty_state.dart';
 import '../../../core/ui/row_memo.dart';
@@ -11,6 +13,7 @@ import '../../chat/presentation/chat_wallpaper.dart';
 import '../data/chat_row_data.dart';
 import 'chat_row.dart';
 import 'community_preview.dart';
+import 'home_bottom_bar.dart';
 import 'invitation_group.dart';
 import 'last_message_preview.dart';
 
@@ -19,8 +22,7 @@ class ChatListView extends StatefulWidget {
   final List<Room> invitations;
   final List<Room> rows;
   final Map<String, List<Room>> communityRooms;
-  final String rowsLabel;
-  final EmptyState empty;
+  final HomeTab section;
   final bool loading;
   final Map<String, int> unreadCorrections;
   final void Function(Room room) onOpen;
@@ -37,12 +39,7 @@ class ChatListView extends StatefulWidget {
   }) : invitations = layout.chatInvitations,
        rows = layout.chats,
        communityRooms = const {},
-       rowsLabel = 'Chats',
-       empty = const EmptyState(
-         icon: Icons.chat_bubble_outline,
-         title: 'No chats yet',
-         body: 'Tap + to start one.',
-       );
+       section = HomeTab.chats;
 
   ChatListView.communities({
     required this.client,
@@ -55,12 +52,7 @@ class ChatListView extends StatefulWidget {
   }) : invitations = layout.communityInvitations,
        rows = layout.communities,
        communityRooms = layout.communityRooms,
-       rowsLabel = 'Communities',
-       empty = const EmptyState(
-         icon: Icons.workspaces_outlined,
-         title: 'No communities yet',
-         body: 'Tap + to start one or find a public one.',
-       );
+       section = HomeTab.communities;
 
   @override
   State<ChatListView> createState() => _ChatListViewState();
@@ -69,11 +61,24 @@ class ChatListView extends StatefulWidget {
 class _ChatListViewState extends State<ChatListView> {
   final _memo = RowMemo<ChatRowData>();
 
-  late final _prototype = ChatRow(
+  ChatRow get _prototype => ChatRow(
     data: ChatRowData.prototype,
     client: widget.client,
-    preview: const Text('Preview'),
+    preview: Text(context.l10n.roomsPreviewSample),
   );
+
+  EmptyState _emptyState(AppLocalizations l10n) => switch (widget.section) {
+    HomeTab.chats => EmptyState(
+      icon: Icons.chat_bubble_outline,
+      title: l10n.roomsNoChatsYet,
+      body: l10n.roomsNoChatsHint,
+    ),
+    HomeTab.communities => EmptyState(
+      icon: Icons.workspaces_outlined,
+      title: l10n.roomsNoCommunitiesYet,
+      body: l10n.roomsNoCommunitiesHint,
+    ),
+  };
 
   @override
   void initState() {
@@ -88,7 +93,8 @@ class _ChatListViewState extends State<ChatListView> {
     final invitations = widget.invitations;
     final rows = widget.rows;
     const physics = AlwaysScrollableScrollPhysics();
-    final storage = PageStorageKey<String>(widget.rowsLabel);
+    final l10n = context.l10n;
+    final storage = PageStorageKey<String>(widget.section.name);
     _memo.retainOnly(rows.map((room) => room.id));
 
     if (invitations.isEmpty && rows.isEmpty) {
@@ -100,14 +106,14 @@ class _ChatListViewState extends State<ChatListView> {
             hasScrollBody: false,
             child: widget.loading
                 ? const Center(child: CircularProgressIndicator())
-                : widget.empty,
+                : _emptyState(l10n),
           ),
         ],
       );
     }
 
     final now = DateTime.now();
-    final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
+    final labels = DateLabels.of(context);
     final positions = {for (var i = 0; i < rows.length; i++) rows[i].id: i};
 
     return CustomScrollView(
@@ -115,10 +121,10 @@ class _ChatListViewState extends State<ChatListView> {
       physics: physics,
       slivers: [
         if (invitations.isNotEmpty) ...[
-          const SliverToBoxAdapter(child: SectionLabel('Invitations')),
+          SliverToBoxAdapter(child: SectionLabel(l10n.roomsInvitations)),
           InvitationGroup(invitations: invitations),
           if (rows.isNotEmpty)
-            SliverToBoxAdapter(child: SectionLabel(widget.rowsLabel)),
+            SliverToBoxAdapter(child: SectionLabel(widget.section.label(l10n))),
         ],
         SliverPrototypeExtentList(
           prototypeItem: _prototype,
@@ -131,14 +137,14 @@ class _ChatListViewState extends State<ChatListView> {
                       room,
                       unreadCorrections: widget.unreadCorrections,
                       now: now,
-                      use24Hour: use24Hour,
+                      labels: labels,
                     )
                   : communityRowDataFor(
                       room,
                       inside,
                       unreadCorrections: widget.unreadCorrections,
                       now: now,
-                      use24Hour: use24Hour,
+                      labels: labels,
                     );
               return _memo.obtain(
                 room.id,

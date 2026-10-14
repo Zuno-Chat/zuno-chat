@@ -8,9 +8,6 @@ final class ShareViewController: UIViewController {
     case text(String)
   }
 
-  private static let unreadable = "Could not read what was shared. Try again."
-  private static let openLater = "Open Zuno in the next few minutes to finish sharing."
-
   private let spinner = UIActivityIndicatorView(style: .medium)
   private let message = UILabel()
   private let button = UIButton(type: .system)
@@ -24,12 +21,12 @@ final class ShareViewController: UIViewController {
     isModalInPresentation = true
     view.backgroundColor = .systemBackground
     spinner.startAnimating()
-    message.text = "Preparing to share…"
+    message.text = L10n.matrixSharePreparing
     message.font = .preferredFont(forTextStyle: .body)
     message.adjustsFontForContentSizeCategory = true
     message.textAlignment = .center
     message.numberOfLines = 0
-    button.setTitle("Cancel", for: .normal)
+    button.setTitle(L10n.commonCancel, for: .normal)
     button.titleLabel?.font = .preferredFont(forTextStyle: .body)
     button.titleLabel?.adjustsFontForContentSizeCategory = true
     button.addTarget(self, action: #selector(cancel), for: .primaryActionTriggered)
@@ -48,10 +45,10 @@ final class ShareViewController: UIViewController {
   }
 
   private func share() async {
-    guard let root = ShareInbox.root() else { return show(Self.unreadable) }
+    guard let root = ShareInbox.root() else { return show(L10n.shareUnreadable) }
     _ = ShareInbox.sweep(root, now: Date())
     let created = CaughtErrors.attempt("share entry create") { try ShareEntry.create(in: root) }
-    guard var entry = created else { return show(Self.unreadable) }
+    guard var entry = created else { return show(L10n.shareUnreadable) }
     self.entry = entry
     var index = 0
     for item in extensionContext?.inputItems as? [NSExtensionItem] ?? [] {
@@ -85,11 +82,11 @@ final class ShareViewController: UIViewController {
       entry.discard()
       committed = false
     }
-    guard committed else { return show(Self.unreadable) }
+    guard committed else { return show(L10n.shareUnreadable) }
     if await openZuno() {
       finish { $0.completeRequest(returningItems: nil) }
     } else {
-      show(Self.openLater)
+      show(L10n.shareOpenLater)
     }
   }
 
@@ -254,7 +251,7 @@ final class ShareViewController: UIViewController {
     spinner.stopAnimating()
     spinner.isHidden = true
     message.text = text
-    button.setTitle("Close", for: .normal)
+    button.setTitle(L10n.commonClose, for: .normal)
     button.removeTarget(self, action: #selector(cancel), for: .primaryActionTriggered)
     button.addTarget(self, action: #selector(close), for: .primaryActionTriggered)
     button.isEnabled = true

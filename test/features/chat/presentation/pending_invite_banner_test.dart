@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/chat/presentation/pending_invite_banner.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -22,6 +23,8 @@ void main() {
 
   Future<void> pump(WidgetTester tester) => tester.pumpWidget(
     MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: PendingInviteBanner(room: room)),
     ),
   );

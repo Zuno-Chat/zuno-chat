@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/local_username_dialog.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -16,6 +17,8 @@ void main() {
       ..homeserver = Uri.parse('https://matrix.example.org');
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Builder(
           builder: (context) => TextButton(
             onPressed: () async {

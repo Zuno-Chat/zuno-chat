@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/push_diagnostics_report.dart';
@@ -20,6 +21,7 @@ class _Source implements PushDiagnosticsSource {
 
   @override
   Future<List<RecentPush>> recentPushes(
+    AppLocalizations l10n,
     PlatformCapabilities capabilities,
     NotificationDeliveryMode mode,
   ) async {
@@ -47,7 +49,11 @@ Future<void> _pump(WidgetTester tester, _Source source) async {
         platformCapabilitiesProvider.overrideWithValue(iosCapabilities),
         fixedDeliveryMode(NotificationDeliveryMode.apns),
       ],
-      child: const MaterialApp(home: RecentPushesPage()),
+      child: const MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: RecentPushesPage(),
+      ),
     ),
   );
   await tester.pumpAndSettle();

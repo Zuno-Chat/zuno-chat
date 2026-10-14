@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/fcm_availability_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -116,6 +117,35 @@ void main() {
     });
   });
 
+  group('deliveryModeEnabled', () {
+    test('agrees with the choice shown on screen for every mode and state', () {
+      for (final mode in NotificationDeliveryMode.values) {
+        for (final fcm in [null, ...FcmAvailability.values]) {
+          expect(
+            deliveryModeEnabled(mode, fcm: fcm),
+            deliveryModeChoice(englishLocalizations, mode, fcm: fcm).enabled,
+            reason: '$mode/$fcm',
+          );
+        }
+      }
+    });
+
+    test('Google services stays closed while unchecked or missing', () {
+      for (final fcm in [
+        null,
+        FcmAvailability.disabled,
+        FcmAvailability.unavailable,
+        FcmAvailability.notConfigured,
+      ]) {
+        expect(
+          deliveryModeEnabled(NotificationDeliveryMode.fcm, fcm: fcm),
+          isFalse,
+          reason: '$fcm',
+        );
+      }
+    });
+  });
+
   group('deliveryModeChoice', () {
     test('the other methods are always open, with their usual '
         'description', () {
@@ -125,9 +155,9 @@ void main() {
         NotificationDeliveryMode.apns,
       ]) {
         for (final fcm in [null, ...FcmAvailability.values]) {
-          expect(deliveryModeChoice(mode, fcm: fcm), (
+          expect(deliveryModeChoice(englishLocalizations, mode, fcm: fcm), (
             enabled: true,
-            subtitle: mode.description,
+            subtitle: mode.description(englishLocalizations),
           ), reason: '$mode/$fcm');
         }
       }
@@ -136,10 +166,16 @@ void main() {
     test('Google services is open on a device that can use it', () {
       expect(
         deliveryModeChoice(
+          englishLocalizations,
           NotificationDeliveryMode.fcm,
           fcm: FcmAvailability.available,
         ),
-        (enabled: true, subtitle: NotificationDeliveryMode.fcm.description),
+        (
+          enabled: true,
+          subtitle: NotificationDeliveryMode.fcm.description(
+            englishLocalizations,
+          ),
+        ),
       );
     });
 
@@ -147,10 +183,16 @@ void main() {
         'confirmed answer closes it', () {
       expect(
         deliveryModeChoice(
+          englishLocalizations,
           NotificationDeliveryMode.fcm,
           fcm: FcmAvailability.unknown,
         ),
-        (enabled: true, subtitle: NotificationDeliveryMode.fcm.description),
+        (
+          enabled: true,
+          subtitle: NotificationDeliveryMode.fcm.description(
+            englishLocalizations,
+          ),
+        ),
       );
     });
 
@@ -158,6 +200,7 @@ void main() {
         'what comes next', () {
       expect(
         deliveryModeChoice(
+          englishLocalizations,
           NotificationDeliveryMode.fcm,
           fcm: FcmAvailability.updateRequired,
         ),
@@ -186,18 +229,26 @@ void main() {
       ),
     ]) {
       test('${fcm.name} closes Google services and says why', () {
-        expect(deliveryModeChoice(NotificationDeliveryMode.fcm, fcm: fcm), (
-          enabled: false,
-          subtitle: reason,
-        ));
+        expect(
+          deliveryModeChoice(
+            englishLocalizations,
+            NotificationDeliveryMode.fcm,
+            fcm: fcm,
+          ),
+          (enabled: false, subtitle: reason),
+        );
       });
     }
 
     test('Google services waits while this device is checked', () {
-      expect(deliveryModeChoice(NotificationDeliveryMode.fcm, fcm: null), (
-        enabled: false,
-        subtitle: 'Checking this device…',
-      ));
+      expect(
+        deliveryModeChoice(
+          englishLocalizations,
+          NotificationDeliveryMode.fcm,
+          fcm: null,
+        ),
+        (enabled: false, subtitle: 'Checking this device…'),
+      );
     });
   });
 }

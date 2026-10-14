@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/calls/matrixrtc/call_summary_message.dart';
 import '../../../../core/format/human_units.dart';
+import '../../../../core/l10n/l10n.dart';
 import '../message_bubble.dart';
 
 class CallSummaryTile extends StatelessWidget {
@@ -25,7 +26,7 @@ class CallSummaryTile extends StatelessWidget {
     final IconData icon;
     if (missed) {
       icon = Icons.call_missed;
-    } else if (summary.kind == 'video') {
+    } else if (summary.isVideo) {
       icon = Icons.videocam_outlined;
     } else {
       icon = Icons.call_outlined;
@@ -42,7 +43,9 @@ class CallSummaryTile extends StatelessWidget {
         const SizedBox(width: 6),
         Flexible(
           child: Text(
-            ended ? summary.label : summary.displayBody,
+            ended
+                ? summary.localizedLabel(context.l10n)
+                : summary.localizedBody(context.l10n),
             overflow: TextOverflow.ellipsis,
             style: missed ? TextStyle(color: colors.error) : null,
           ),

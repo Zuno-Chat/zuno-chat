@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/account_security_status.dart';
@@ -72,6 +73,8 @@ Future<void> _pumpSettingsPage(
           ),
       ],
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: showFeedback == null
             ? const SettingsPage()
             : SettingsPage(showFeedback: showFeedback),
@@ -136,7 +139,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [matrixClientProvider.overrideWithValue(client)],
-        child: const MaterialApp(home: SettingsPage()),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: SettingsPage(),
+        ),
       ),
     );
     expect(find.text('Alex Doe'), findsOneWidget);
@@ -177,7 +184,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [matrixClientProvider.overrideWithValue(client)],
-        child: const MaterialApp(home: SettingsPage()),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: SettingsPage(),
+        ),
       ),
     );
     await tester.pump();

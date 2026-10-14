@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/send_failure.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -57,7 +58,10 @@ void main() {
 
   test('tooLargeToSendMessage names the server limit in whole megabytes', () {
     expect(
-      tooLargeToSendMessage(FileTooBigMatrixException(110000000, 52428800)),
+      tooLargeToSendMessage(
+        englishLocalizations,
+        FileTooBigMatrixException(110000000, 52428800),
+      ),
       'Too large to send. The limit is 52 MB.',
     );
   });

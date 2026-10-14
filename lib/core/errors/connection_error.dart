@@ -3,6 +3,8 @@ import 'dart:io' show SocketException, TlsException;
 
 import 'package:http/http.dart' show ClientException;
 
+import '../l10n/display_text.dart';
+import '../l10n/l10n.dart';
 import 'native_caught_error.dart';
 
 const _urlErrorDomain = 'NSURLErrorDomain';
@@ -39,7 +41,10 @@ bool _isNativeConnectionError(NativeCaughtError error) =>
     (error.domain == _urlErrorDomain &&
         _urlConnectionCodes.contains(error.code));
 
-String failureMessage(Object error, {required String failed}) =>
-    isConnectionError(error)
-    ? '$failed Check your connection and try again.'
+String failureMessage(
+  AppLocalizations l10n,
+  Object error, {
+  @displayText required String failed,
+}) => isConnectionError(error)
+    ? l10n.errorsFailedCheckConnection(failed)
     : failed;

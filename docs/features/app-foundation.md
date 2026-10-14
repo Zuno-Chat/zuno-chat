@@ -1,6 +1,6 @@
 # App foundation
 
-The layer every screen sits on: one Matrix client per process, startup, navigation, look and motion, the android/ios split, the iOS project and its single Flutter engine, encrypted storage, the sign-out wipe, connectivity and error handling.
+The layer every screen sits on: one Matrix client per process, startup, navigation, look and motion, the android/ios split, the iOS project and its single Flutter engine, encrypted storage, the sign-out wipe, connectivity, error handling and localization.
 
 ## Architecture
 
@@ -284,6 +284,35 @@ stateDiagram-v2
 - There is no pull-to-refresh: a running long-poll already returns as soon as the server has anything new.
 - Attachment sends survive backgrounding: an in-flight send holds a foreground service or background task (`chats-messaging.md`).
 
+### Localization (`lib/l10n/`, `lib/core/l10n/`, `tool/l10n/`, `tool/zuno_lints/`)
+
+Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-l10n`).
+
+- **Adding a left-to-right language** is `app_xx.arb` plus `dart run tool/l10n/generate_native.dart`. Right-to-left needs a layout pass first, since layouts are left-to-right.
+- **Language follows the phone**, and the per-app language on Android 13+ and iOS; there is no in-app picker. English is the fallback, pinned first by `preferred-supported-locales`.
+- **Reading strings**:
+
+| Code | How it gets strings |
+|---|---|
+| Widgets | From context |
+| Non-widget text builders | Take the strings as a parameter; the caller picks the language |
+| Headless paths (push engine, notifications, channel names) | Resolve the phone's language themselves |
+
+- **Stays English**: Matrix event bodies and fallbacks (other clients display them), logs, Sentry and the brand name. The shared push diagnostics report is always English, because support reads it; the screen is localized.
+- **Dates and times format in one place.** They follow the phone's region when its language matches the app language, and the phone's 12/24-hour setting wins.
+- **Native strings** are ARB keys tagged `x-native` (the Android modules `app`, `zuno_notifications`, `zuno_call_style` and/or `ios`) or `x-ios-infoplist`. The generator writes:
+
+| Platform | Output |
+|---|---|
+| Android | `values*/strings_l10n.xml` per module, `locales_config.xml` |
+| iOS | `Localizable.xcstrings`, `InfoPlist.xcstrings`, a typed Swift accessor, the Info.plist usage values and `CFBundleLocalizations` |
+
+- **Untranslated native keys fall back to English** (Android `values/`, the iOS English bundle).
+- **Generated native files are never hand-edited**: the generator overwrites them and a test fails when they are stale.
+- **`flutter analyze` cannot show analyzer-plugin diagnostics**, so CI and the commit routine run root `dart analyze --fatal-infos`, which enforces the `hardcoded_user_text` lint.
+- **Kotlin and Swift decision code returns kinds** and only presentation reads strings, so JVM tests stay resource-free.
+- **Android notification channel names are re-registered at each start**, so they follow the language.
+
 ### Errors
 
 - `main()` runs in `runZonedGuarded`, and the global handlers chain onto `FlutterError.onError` and `PlatformDispatcher.onError`. Unhandled errors go to crash reporting (`crash-reporting.md`) and, in debug builds only, to an error SnackBar.
@@ -304,7 +333,7 @@ stateDiagram-v2
 - **One app-owned iOS engine, not Flutter's `LaunchEngine` or a second headless engine.** `LaunchEngine` starts an engine at every launch and crashes when mixed with implicit-engine registration, and a separate ring engine would strand an answered call's WebRTC objects where the UI cannot reach them.
 - **The boot splash matches the OS launch screen pixel for pixel.** A cold start paints the mark twice, from two independent layers, and any mismatch reads as two loading screens. Holding launch targets behind it costs a plain cold start about a second, the price of no room-list flash under a ring.
 - **gzip only**: zstd saved little on real sync payloads, where IDs, keys and ciphertext do not compress, and it cost a dependency.
-- **No localization**: every string is hardcoded English.
+- **Native strings are generated from the one ARB, not kept in each platform's own files.** A word shared by Dart and native is translated once, and a translator reads one file per language.
 - **Compaction is the app's own, not the SDK's `SQfLiteEncryptionHelper.applyPragmaKey(ensureIncrementalAutoVacuum:)`**, because that helper also applies the key, and Zuno keys `zuno.db` through sqflite_sqlcipher's own open.
 - **Atomic batches, not a forked plugin.** A batch failing after `BEGIN` can still roll back another engine's write in that window, but only on a full disk, an I/O error or corruption. Owning a fork of the crypto database plugin was judged the bigger risk.
 

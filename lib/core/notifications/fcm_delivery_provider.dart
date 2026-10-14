@@ -18,6 +18,7 @@ import '../push/pusher_removal.dart';
 import '../push/registration_retry.dart';
 import 'notification_delivery_provider.dart';
 import 'notification_permission.dart';
+import 'pusher_failure.dart';
 
 export '../push/registration_retry.dart'
     show defaultRegistrationRetryDelay, registrationRecheckInterval;
@@ -47,7 +48,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
 
   final removed = ValueNotifier<bool>(false);
 
-  String? lastPusherError;
+  PusherFailure? lastPusherError;
 
   String? _token;
   String? get token => _token;
@@ -252,7 +253,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     status.value = FcmStatus.postingPusher;
     final gatewayUrl = fcmGatewayUri(client.homeserver);
     if (gatewayUrl == null) {
-      lastPusherError = 'No server to send notifications through yet.';
+      lastPusherError = const PusherServerMissing();
       status.value = FcmStatus.pusherFailed;
       return;
     }
@@ -277,7 +278,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
       );
     } catch (e, s) {
       reportCaught('fcm pusher post', e, s);
-      lastPusherError = e.toString();
+      lastPusherError = PusherPostFailed(e.toString());
       status.value = FcmStatus.pusherFailed;
       _retry.schedule(() => registerNow(client));
       return false;
@@ -380,13 +381,13 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
       }
     }
     if (tokens.isNotEmpty) {
-      String? failure;
+      PusherFailure? failure;
       for (final token in tokens) {
         try {
           await removePusher(client, fcmPusherId(token));
         } catch (e, s) {
           reportCaught('fcm pusher delete', e, s);
-          failure = 'Could not remove the push registration: $e';
+          failure = PusherRemoveFailed(e.toString());
         }
       }
       lastPusherError = failure;

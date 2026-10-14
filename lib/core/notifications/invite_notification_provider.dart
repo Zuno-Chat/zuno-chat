@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../calls/notifications/call_notification_service.dart';
 import '../calls/serial_lock.dart';
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 import '../matrix/join_requests.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../platform/platform_capabilities.dart';
@@ -25,9 +26,10 @@ MessageNotificationContent? inviteNotificationFor(Client client, Event event) {
   final room = event.room;
   final inviter = room.unsafeGetUserFromMemoryOrFallback(event.senderId);
   final name = inviter.calcDisplayname();
+  final l10n = deviceLocalizations();
   final body = room.name.isEmpty
-      ? 'Invited you to chat'
-      : 'Invited you to ${room.name}';
+      ? l10n.roomsInvitedYouToChat
+      : l10n.notificationsInvitedToRoom(room.name);
   return MessageNotificationContent(
     roomId: room.id,
     title: name,

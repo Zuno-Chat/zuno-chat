@@ -1,0 +1,4984 @@
+{
+  "@@locale": "en",
+  "ageDays": "{days, plural, one{{days} day ago} other{{days} days ago}}",
+  "@ageDays": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "ageHours": "{hours, plural, other{{hours} h ago}}",
+  "@ageHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "ageJustNow": "Just now",
+  "@ageJustNow": {
+    "description": "Status: a time less than a minute ago, on its own (e.g. a diagnostics value)"
+  },
+  "ageJustNowInSentence": "just now",
+  "@ageJustNowInSentence": {
+    "description": "A time less than a minute ago, inside a sentence (lowercase)"
+  },
+  "ageMinutes": "{minutes, plural, other{{minutes} min ago}}",
+  "@ageMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "appCannotConnect": "Cannot connect right now. Trying again…",
+  "appCouldNotStart": "Zuno could not start. Close it and open it again.",
+  "appLiveLocationDenied": "Live location stopped because location access was turned off.",
+  "appLiveLocationServicesOff": "Live location stopped because location is off.",
+  "appLiveLocationStopped": "Live location stopped. Share it again to continue.",
+  "appNoInternet": "No internet connection",
+  "authAccountLivesOn": "Your account lives on {server}.",
+  "@authAccountLivesOn": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "authChangeServer": "Change",
+  "@authChangeServer": {
+    "description": "Button on the sign-in screen: change the server"
+  },
+  "authCheckEmailForCode": "Check {email} for your code. It expires in 24 hours.",
+  "@authCheckEmailForCode": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authCodeEmailExplainer": "Zuno sends a single-use code to your email address to keep automated sign-ups out. The address is used only to send the code and to limit how often codes are requested. It is not stored with your account.",
+  "authCodeLabel": "Code",
+  "@authCodeLabel": {
+    "description": "Field label: the sign-in code typed from another device"
+  },
+  "authConfirmPasswordLabel": "Confirm password",
+  "@authConfirmPasswordLabel": {
+    "description": "Field label on the create-account screen: repeat the password"
+  },
+  "authConnectToServer": "Connect to a server",
+  "authConnecting": "Connecting…",
+  "@authConnecting": {
+    "description": "Button label while connecting to the server"
+  },
+  "authCreateAccount": "Create account",
+  "@authCreateAccount": {
+    "description": "Button and screen action: create a new account"
+  },
+  "authCreateYourAccount": "Create your account",
+  "authCreatingAccount": "Creating account…",
+  "@authCreatingAccount": {
+    "description": "Button label while the account is being created"
+  },
+  "authDeviceRiskBootloaderDetail": "The system software can be replaced without you noticing.",
+  "authDeviceRiskBootloaderTitle": "The bootloader is unlocked",
+  "authDeviceRiskRootedDetail": "An app with root access can read your messages and keys.",
+  "authDeviceRiskRootedTitle": "This device is rooted",
+  "authDeviceWarningAdvice": "If you did not set this up yourself, someone else may have. Consider using another device.",
+  "authDeviceWarningBody": "Zuno encrypts your messages, but it cannot protect them from the device itself.",
+  "authDeviceWarningTitle": "This device may not be safe",
+  "authEmailLabel": "Email address",
+  "@authEmailLabel": {
+    "description": "Field label: email address for the sign-up code"
+  },
+  "authEnterCode": "Enter the code",
+  "authEnterEmailCode": "Enter the code from your email",
+  "authEnterPassword": "Enter your password",
+  "authEnterUsername": "Enter your username",
+  "authGetSignUpCode": "Get a sign-up code",
+  "authHaveCodeAlready": "I already have a code",
+  "authHomeserverHint": "chat.example.org",
+  "@authHomeserverHint": {
+    "description": "Example server address in the empty server field."
+  },
+  "authLinkedInstructions": "On a device that is already signed in, open Settings, then Your devices, then Sign in on another device.",
+  "authLinkedScanTitle": "Scan the sign-in code",
+  "authLinkedScanWithoutCamera": "You can still type the code instead.",
+  "authOrTypeCode": "Or type the code it shows",
+  "authPasswordHide": "Hide password",
+  "@authPasswordHide": {
+    "description": "Tooltip on the eye button of a password field: hide what was typed"
+  },
+  "authPasswordShow": "Show password",
+  "@authPasswordShow": {
+    "description": "Tooltip on the eye button of a password field: show what was typed"
+  },
+  "authRegisterAgreement": "Creating an account means you agree to the terms and the privacy policy.",
+  "authRegisterUsernameHelper": "Letters, numbers, dots and underscores",
+  "authScanCode": "Scan code",
+  "@authScanCode": {
+    "description": "Button: scan the sign-in QR code shown on another device"
+  },
+  "authSendCode": "Send code",
+  "@authSendCode": {
+    "description": "Button: email a sign-up code"
+  },
+  "authSendNewCode": "Send a new code",
+  "authSendingCode": "Sending code…",
+  "@authSendingCode": {
+    "description": "Button label while the sign-up code is being sent"
+  },
+  "authServerHelper": "A hostname or a full https:// address",
+  "authServerLabel": "Server",
+  "@authServerLabel": {
+    "description": "Field label: the chat server address"
+  },
+  "authSignIn": "Sign in",
+  "@authSignIn": {
+    "description": "Sign-in screen title and its button"
+  },
+  "authSignInWithCode": "Sign in with the code",
+  "authSignInWithOtherDevice": "Sign in with your other device",
+  "authSignUpCodeHelper": "From the email Zuno sent",
+  "authSignUpCodeLabel": "Sign-up code",
+  "@authSignUpCodeLabel": {
+    "description": "Field label: the code received by email to create an account"
+  },
+  "authSigningIn": "Signing in…",
+  "@authSigningIn": {
+    "description": "Button label while signing in"
+  },
+  "authUseAnotherServer": "Use another server",
+  "blockingBlocked": "{name} blocked",
+  "@blockingBlocked": {
+    "description": "Snack bar after blocking someone; name is the person",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "blockingExplanation": "Messages and invitations from {name} will no longer reach you. In rooms you share, their messages are hidden. They are not told that you blocked them. You can unblock them in Settings.",
+  "@blockingExplanation": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "blockingFailed": "Not blocked. Try again.",
+  "blockingInProgress": "Blocking…",
+  "@blockingInProgress": {
+    "description": "Button label while blocking someone"
+  },
+  "blockingLeavesChat": "You leave your chat with {name}, and unblocking does not bring it back.",
+  "@blockingLeavesChat": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "blockingNobody": "Nobody is blocked",
+  "blockingPageTitle": "Blocked people",
+  "@blockingPageTitle": {
+    "description": "Screen title: the list of people you blocked"
+  },
+  "blockingTitle": "Block {name}?",
+  "@blockingTitle": {
+    "description": "Dialog title asking to confirm blocking a person",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "blockingUnblock": "Unblock",
+  "@blockingUnblock": {
+    "description": "Button next to a blocked person: stop blocking them"
+  },
+  "blockingUnblockFailed": "Not unblocked. Try again.",
+  "blockingUnblocked": "{name} unblocked",
+  "@blockingUnblocked": {
+    "description": "Snack bar after unblocking someone; name is the person",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "callsAccept": "Accept",
+  "@callsAccept": {
+    "description": "Button on the incoming call screen: answer the call"
+  },
+  "callsCalling": "Calling…",
+  "@callsCalling": {
+    "description": "Call status while the other side is being rung"
+  },
+  "callsCameraDidNotTurnOn": "Camera did not turn on. Check that Zuno can use the camera and try again.",
+  "callsCameraOff": "Turn camera off",
+  "callsCameraOn": "Turn camera on",
+  "callsChannelGroupCalls": "Calls",
+  "@callsChannelGroupCalls": {
+    "description": "Android notification settings: group name for call notification categories",
+    "x-native": [
+      "app"
+    ]
+  },
+  "callsChannelIncomingCalls": "Incoming calls",
+  "@callsChannelIncomingCalls": {
+    "description": "Android notification category name: ringing for calls in a one-to-one chat"
+  },
+  "callsChannelIncomingCallsDescription": "Ringing for a call in a chat",
+  "callsChannelIncomingRoomCalls": "Incoming room calls",
+  "callsChannelIncomingRoomCallsDescription": "Ringing for a call in a room",
+  "callsChannelOngoingCallDescription": "Shows while you are in a call",
+  "@callsChannelOngoingCallDescription": {
+    "x-native": [
+      "app"
+    ]
+  },
+  "callsConnecting": "Connecting…",
+  "@callsConnecting": {
+    "description": "Call status while the call connects"
+  },
+  "callsConnectionPoor": "Poor connection, video reduced",
+  "callsConnectionWeak": "Weak connection",
+  "@callsConnectionWeak": {
+    "description": "Call badge: the network connection is weak"
+  },
+  "callsCouldNotOpenCall": "Could not open that call. The room is not available.",
+  "callsCouldNotOpenCallScreen": "Could not open the call screen.",
+  "callsDecline": "Decline",
+  "@callsDecline": {
+    "description": "Button on the incoming call screen: reject the call"
+  },
+  "callsEncrypted": "Encrypted",
+  "@callsEncrypted": {
+    "description": "Screen-reader label for the lock icon: the call is encrypted"
+  },
+  "callsEncrypting": "Encrypting…",
+  "@callsEncrypting": {
+    "description": "Call status while the call sets up encryption"
+  },
+  "callsEncryptingHint": "Still encrypting. If this continues, hang up and try again.",
+  "callsEndCall": "End call",
+  "@callsEndCall": {
+    "description": "Tooltip on the call control: hang up"
+  },
+  "callsFailureCallFull": "{count, plural, one{This call is full. Up to {count} person can join a call.} other{This call is full. Up to {count} people can join a call.}}",
+  "@callsFailureCallFull": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "callsFailureConnectionLost": "Connection lost",
+  "@callsFailureConnectionLost": {
+    "description": "Message shown when a call drops because the connection was lost"
+  },
+  "callsFailureDidNotConnect": "Call did not connect",
+  "callsFailureMicrophone": "Allow Zuno to use the microphone, then call back.",
+  "callsFailureNoPermission": "You do not have permission to start calls in this room",
+  "callsFailureOnAnotherDevice": "You are in this call on another device. Hang up there to join here.",
+  "callsGenericRingName": "Zuno call",
+  "@callsGenericRingName": {
+    "description": "iPhone call screen: caller name when the real name is unknown",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsHangUp": "Hang up",
+  "@callsHangUp": {
+    "description": "Android picture-in-picture button: end the call",
+    "x-native": [
+      "app"
+    ]
+  },
+  "callsIncomingCall": "Incoming call",
+  "@callsIncomingCall": {
+    "description": "Android call notification: caller name when the real name is unknown",
+    "x-native": [
+      "zuno_call_style"
+    ]
+  },
+  "callsIncomingVideo": "Incoming video call",
+  "@callsIncomingVideo": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsIncomingVoice": "Incoming voice call",
+  "@callsIncomingVoice": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsMinimize": "Minimize call",
+  "@callsMinimize": {
+    "description": "Tooltip on the call screen: shrink the call to a small window"
+  },
+  "callsMissedBeforeUnlock": "Unlock this device after a restart to answer calls.",
+  "@callsMissedBeforeUnlock": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsMissedCallFrom": "Missed call from {name}",
+  "@callsMissedCallFrom": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "callsMissedCallTitle": "Missed call",
+  "@callsMissedCallTitle": {
+    "description": "iPhone notification title: a call was missed",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsMute": "Mute",
+  "@callsMute": {
+    "description": "Tooltip on the call control: turn your microphone off"
+  },
+  "callsMuted": "Muted",
+  "@callsMuted": {
+    "description": "Screen-reader state on the call bar: your microphone is off"
+  },
+  "callsNameMuted": "{name} is muted",
+  "@callsNameMuted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "callsOngoingCall": "Ongoing call",
+  "@callsOngoingCall": {
+    "description": "Android notification title and category name while you are in a call",
+    "x-native": [
+      "app"
+    ]
+  },
+  "callsOngoingTapToReturn": "Tap to return to the call",
+  "callsReconnecting": "Reconnecting…",
+  "@callsReconnecting": {
+    "description": "Call status while the call reconnects"
+  },
+  "callsReturnToCall": "Return to call",
+  "callsScreenCaptureHidden": "Zuno is hidden while the screen is recorded or shared.",
+  "@callsScreenCaptureHidden": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsSpeakerOff": "Turn speaker off",
+  "callsSpeakerOn": "Turn speaker on",
+  "callsStartCall": "Call",
+  "@callsStartCall": {
+    "description": "Button: start a voice call (room info and call confirmation dialog)"
+  },
+  "callsStartVideoCall": "Video call",
+  "@callsStartVideoCall": {
+    "description": "Tooltip on the button that starts a video call"
+  },
+  "callsStartVoiceCall": "Voice call",
+  "@callsStartVoiceCall": {
+    "description": "Tooltip on the button that starts a voice call"
+  },
+  "callsSummaryDeclinedVideo": "Video call declined",
+  "@callsSummaryDeclinedVideo": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsSummaryDeclinedVoice": "Voice call declined",
+  "@callsSummaryDeclinedVoice": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsSummaryEndedVideo": "Video call · {duration}",
+  "@callsSummaryEndedVideo": {
+    "x-native": [
+      "ios"
+    ],
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "callsSummaryEndedVoice": "Voice call · {duration}",
+  "@callsSummaryEndedVoice": {
+    "x-native": [
+      "ios"
+    ],
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "callsSummaryMissedVideo": "Missed Video call",
+  "@callsSummaryMissedVideo": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsSummaryMissedVoice": "Missed Voice call",
+  "@callsSummaryMissedVoice": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsSwitchCamera": "Switch camera",
+  "@callsSwitchCamera": {
+    "description": "Tooltip on the call control: switch between front and back camera"
+  },
+  "callsSwitchToVideo": "Switch to video call",
+  "callsUnmute": "Unmute",
+  "@callsUnmute": {
+    "description": "Tooltip on the call control: turn your microphone back on"
+  },
+  "callsVideoCall": "Video call",
+  "@callsVideoCall": {
+    "description": "Label for a call made with video, in chat history and notifications",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsVoiceCall": "Voice call",
+  "@callsVoiceCall": {
+    "description": "Label for a call made without video, in chat history and notifications",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "callsWaiting": "Waiting…",
+  "@callsWaiting": {
+    "description": "Call status while waiting for others to join"
+  },
+  "callsWaitingForOther": "Waiting for the other side to join…",
+  "chatAddMembers": "Add members",
+  "@chatAddMembers": {
+    "description": "Chat menu item and dialog title: invite people to this room"
+  },
+  "chatAddToHomeScreen": "Add to home screen",
+  "chatAlreadyInCall": "You are already in a call",
+  "chatCallTitle": "Call {name}?",
+  "@chatCallTitle": {
+    "description": "Dialog title asking to confirm calling a person",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatCameraAccessDenied": "Allow camera access to take photos and videos",
+  "chatCameraDidNotOpen": "Camera did not open. Try again.",
+  "chatCancelRecording": "Cancel recording",
+  "@chatCancelRecording": {
+    "description": "Tooltip in the message composer: discard the voice message being recorded"
+  },
+  "chatCannotSend": "You cannot send messages here",
+  "chatCaptionHint": "Add a caption…",
+  "chatCaptionPageOf": "{page} of {total}",
+  "@chatCaptionPageOf": {
+    "placeholders": {
+      "page": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "total": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "chatCaptionTitle": "Add a caption",
+  "chatChatInfo": "Chat info",
+  "@chatChatInfo": {
+    "description": "Chat menu item: open details of this one-to-one chat"
+  },
+  "chatChooseFile": "Choose file",
+  "@chatChooseFile": {
+    "description": "Attachment menu item: pick a file to send"
+  },
+  "chatConfirmAfterJoin": "You can confirm {name} once they join.",
+  "@chatConfirmAfterJoin": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatConfirmedLabel": "Confirmed",
+  "@chatConfirmedLabel": {
+    "description": "Screen-reader label for the check icon: this person is confirmed"
+  },
+  "chatCopied": "Copied",
+  "@chatCopied": {
+    "description": "Snack bar after copying a message"
+  },
+  "chatDeleteAll": "Delete all",
+  "@chatDeleteAll": {
+    "description": "Dialog button: delete all selected messages"
+  },
+  "chatDeleteAllCount": "{count, plural, other{Delete all ({count})}}",
+  "@chatDeleteAllCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "chatDeleteManyBody": "Deletes them for everyone. Nobody can undo this.",
+  "chatDeleteManyFailed": "Some items not deleted. Try again.",
+  "chatDeleteOneBody": "Deletes it for everyone. Nobody can undo this.",
+  "chatDeleteOneFailed": "Message not deleted. Try again.",
+  "chatDeleteTitle": "{count, plural, one{Delete message?} other{Delete {count} items?}}",
+  "@chatDeleteTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "chatDeleteUnsentBody": "It was not sent, so only this device has it. Nobody can undo this.",
+  "chatEdit": "Edit",
+  "@chatEdit": {
+    "description": "Message menu item: edit your message"
+  },
+  "chatEdited": "edited",
+  "@chatEdited": {
+    "description": "Small marker next to a message that was edited (lowercase)"
+  },
+  "chatEditingMessage": "Editing message",
+  "@chatEditingMessage": {
+    "description": "Bar above the composer while editing a message"
+  },
+  "chatEmptyEncryptedConfirmed": "Messages here are end-to-end encrypted. Only you and {name} can read them.",
+  "@chatEmptyEncryptedConfirmed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatEmptyEncryptedGroup": "Messages here are end-to-end encrypted. Only the people in this chat can read them.",
+  "chatEmptyEncryptedNoIdentity": "Messages here are end-to-end encrypted.",
+  "chatEmptyEncryptedUnconfirmed": "Messages here are end-to-end encrypted. Once you confirm it is really {name}, only the two of you can read them.",
+  "@chatEmptyEncryptedUnconfirmed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatFilesDidNotOpen": "Files did not open. Try again.",
+  "chatGalleryNotSent": "{count, plural, one{Not sent. Tap to try again.} other{Not sent. Tap an item to try again.}}",
+  "@chatGalleryNotSent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatHiddenMessage": "Hidden message: {body}",
+  "@chatHiddenMessage": {
+    "placeholders": {
+      "body": {
+        "type": "String"
+      }
+    }
+  },
+  "chatIdentityChanged": "{count, plural, one{{name}'s security details changed} other{{count} people's security details changed}}",
+  "@chatIdentityChanged": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatIdentityChangedConfirm": "Confirm",
+  "@chatIdentityChangedConfirm": {
+    "description": "Banner button: confirm a person whose security key changed"
+  },
+  "chatIdentityChangedHint": "Usually a new device or a reinstall. It can also mean someone is listening in.",
+  "chatLeftTheChat": "Left the chat",
+  "chatLiveLocationEnded": "Live location ended",
+  "chatLocation": "Location",
+  "@chatLocation": {
+    "description": "Attachment menu item: share your location"
+  },
+  "chatLocationNotSent": "Location not sent. Try again.",
+  "chatMessageDeleted": "Message deleted",
+  "@chatMessageDeleted": {
+    "description": "Placeholder in the chat where a deleted message was"
+  },
+  "chatMessagesNotReloaded": "Messages not reloaded. Try again.",
+  "chatMicrophoneAccessNeeded": "Allow microphone access to record voice messages",
+  "chatMoreReactions": "More reactions",
+  "@chatMoreReactions": {
+    "description": "Tooltip on the button that opens all reaction emoji"
+  },
+  "chatNoConnection": "No connection. Try again once back online.",
+  "chatNoEarlierMessages": "No earlier messages",
+  "chatNoFileInfo": "No file information available",
+  "chatNoJoinCallPermission": "You do not have permission to join calls in this room",
+  "chatNobodyJoined": "Nobody has joined this chat yet",
+  "chatNotSeenYet": "Not seen yet",
+  "chatNotSent": "Not sent",
+  "@chatNotSent": {
+    "description": "Message status: it failed to send"
+  },
+  "chatNotSentRetry": "Not sent · Tap to retry",
+  "chatNotSentTryAgain": "Not sent. Try again.",
+  "chatOriginalUnavailable": "Original message not available",
+  "chatPartnerLeft": "{name} left this chat",
+  "@chatPartnerLeft": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatPendingInviteHint": "Your messages will be here when they join.",
+  "chatPhotoAccessDenied": "Allow photo access to send photos and videos",
+  "chatPhotosDidNotOpen": "Photos did not open. Try again.",
+  "chatProgressLabel": "{label} {percent}%",
+  "@chatProgressLabel": {
+    "description": "Upload progress of an attachment; label is its name",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "chatReactionNotSent": "Reaction not sent. Try again.",
+  "chatRecordVideo": "Record video",
+  "@chatRecordVideo": {
+    "description": "Attachment menu item: record a video to send"
+  },
+  "chatRecordingDidNotStart": "Recording did not start. Try again.",
+  "chatRecoveryCodeBody": "This message looks like your recovery code. Anyone who has it can read your messages on another device. Zuno never asks for it.",
+  "chatRecoveryCodeTitle": "Send your recovery code?",
+  "chatReleaseToCancel": "Release to cancel",
+  "chatReload": "Reload",
+  "@chatReload": {
+    "description": "Dialog button: reload the chat history"
+  },
+  "chatReloadBody": "Clears the messages saved on this device for this chat and downloads them again. Nothing is deleted on the server.",
+  "chatReloadMessages": "Reload messages",
+  "@chatReloadMessages": {
+    "description": "Chat menu item: reload the chat history"
+  },
+  "chatReloadTitle": "Reload messages?",
+  "@chatReloadTitle": {
+    "description": "Dialog title asking to confirm reloading the chat history"
+  },
+  "chatRemoveItem": "Remove this item",
+  "chatRemovePhoto": "Remove this photo",
+  "chatReplyingTo": "Replying to {name}",
+  "@chatReplyingTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatReportExplainDirect": "The report goes to Zuno. It names the message and who sent it, not what it says. Zuno cannot read your messages, so describe what happened.",
+  "chatReportExplainGroup": "The report goes to Zuno. It names the message and who sent it, not what it says. Room admins can remove messages and people. A report is for what they cannot fix.",
+  "chatReportTitle": "Report message",
+  "@chatReportTitle": {
+    "description": "Sheet title: report a message"
+  },
+  "chatRoomInfo": "Room info",
+  "@chatRoomInfo": {
+    "description": "Chat menu item: open details of this room"
+  },
+  "chatSaveAll": "{count, plural, other{Save all ({count})}}",
+  "@chatSaveAll": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "chatScrollToLatest": "Scroll to latest",
+  "chatSeenBy": "Seen by {people}",
+  "@chatSeenBy": {
+    "placeholders": {
+      "people": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSeenByEntry": "{name} · {time}",
+  "@chatSeenByEntry": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSendAll": "Send all",
+  "@chatSendAll": {
+    "description": "Tooltip on the send button when several photos or videos are selected"
+  },
+  "chatSendAnyway": "Send anyway",
+  "@chatSendAnyway": {
+    "description": "Warning button: send a message that looks like a recovery code"
+  },
+  "chatSenderDeviceHint": "They can approve it from another of their devices. There is nothing for you to do.",
+  "chatSenderDeviceUnapproved": "Sent from a device {name} has not approved yet",
+  "@chatSenderDeviceUnapproved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSending": "Sending…",
+  "@chatSending": {
+    "description": "Message status: it is still being sent"
+  },
+  "chatSentAt": "Sent {time}",
+  "@chatSentAt": {
+    "description": "Message details: when it was sent; time is a date and time",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "chatShareAll": "{count, plural, other{Share all ({count})}}",
+  "@chatShareAll": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "chatShortcutFailed": "Shortcut not added. Try again.",
+  "chatShortcutRequested": "Confirm on your home screen to finish adding it",
+  "chatShortcutUnsupported": "This launcher does not support home screen shortcuts",
+  "chatSlideToCancel": "Slide up to cancel",
+  "chatStartVideoCall": "Start a video call.",
+  "chatStartVoiceCall": "Start a voice call.",
+  "chatUnlockOlderMessages": "Unlock older messages",
+  "chatUnopenedShares": "{count, plural, one{One shared file could not be opened. Share it again.} other{{count} shared files could not be opened. Share them again.}}",
+  "@chatUnopenedShares": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "chatVideoCallInProgress": "Video call in progress",
+  "chatVideoNoPreview": "This video cannot be previewed.",
+  "chatVoiceCallInProgress": "Voice call in progress",
+  "chatVoiceMessageDidNotLoad": "Voice message did not load. Try again.",
+  "chatVoiceMessageNotSent": "Voice message not sent. Try again.",
+  "chatWhyConfirm": "Why confirm",
+  "@chatWhyConfirm": {
+    "description": "Button in an empty chat: explain why to confirm the person"
+  },
+  "commonBlock": "Block",
+  "@commonBlock": {
+    "description": "Button and menu item: block a person"
+  },
+  "commonCancel": "Cancel",
+  "@commonCancel": {
+    "description": "Button: cancel and close",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "commonChangeRole": "Change role",
+  "@commonChangeRole": {
+    "description": "Member menu item: change the role of a member"
+  },
+  "commonChecking": "Checking…",
+  "@commonChecking": {
+    "description": "Status while something is being checked"
+  },
+  "commonChooseFromGallery": "Choose from gallery",
+  "commonClose": "Close",
+  "@commonClose": {
+    "description": "Button: close the sheet or screen",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "commonContinue": "Continue",
+  "@commonContinue": {
+    "description": "Button: go to the next step"
+  },
+  "commonContinueAnyway": "Continue anyway",
+  "@commonContinueAnyway": {
+    "description": "Button: go on despite the warning shown"
+  },
+  "commonCopy": "Copy",
+  "@commonCopy": {
+    "description": "Button and tooltip: copy to the clipboard"
+  },
+  "commonCount": "{count}",
+  "@commonCount": {
+    "description": "A count shown on its own as a value",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "commonDecline": "Decline",
+  "@commonDecline": {
+    "description": "Button: turn down an invitation or request"
+  },
+  "commonDelete": "Delete",
+  "@commonDelete": {
+    "description": "Button and menu item: delete"
+  },
+  "commonDismiss": "Dismiss",
+  "@commonDismiss": {
+    "description": "Button and tooltip: hide this banner or notice"
+  },
+  "commonDone": "Done",
+  "@commonDone": {
+    "description": "Button: finish and close"
+  },
+  "commonInvitationNotSent": "Invitation not sent. Try again.",
+  "commonInvitationSent": "Invitation sent",
+  "@commonInvitationSent": {
+    "description": "Snack bar after inviting someone to a room or community"
+  },
+  "commonInvite": "Invite",
+  "@commonInvite": {
+    "description": "Button: invite the person entered or chosen"
+  },
+  "commonJoin": "Join",
+  "@commonJoin": {
+    "description": "Button: join a room or community"
+  },
+  "commonLoading": "Loading…",
+  "@commonLoading": {
+    "description": "Status while content loads"
+  },
+  "commonMarkAsRead": "Mark as read",
+  "@commonMarkAsRead": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "commonMemberNotBanned": "Not banned. Try again.",
+  "commonMemberNotRemoved": "Not removed. Try again.",
+  "commonMessageHint": "Message",
+  "@commonMessageHint": {
+    "description": "Placeholder in the field where you type a message or a reply",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "commonNotNow": "Not now",
+  "@commonNotNow": {
+    "description": "Button: skip for now"
+  },
+  "commonOpenSettings": "Open settings",
+  "@commonOpenSettings": {
+    "description": "Button: open the phone settings for Zuno"
+  },
+  "commonPassword": "Password",
+  "@commonPassword": {
+    "description": "Field label: your account password"
+  },
+  "commonPhotoNotSaved": "Photo not saved. Try again.",
+  "commonPhotoUpdated": "Photo updated",
+  "@commonPhotoUpdated": {
+    "description": "Snack bar after a profile or room photo changed"
+  },
+  "commonPrivacyPolicy": "Privacy policy",
+  "@commonPrivacyPolicy": {
+    "description": "Link: open the privacy policy"
+  },
+  "commonReadMore": "Read more",
+  "@commonReadMore": {
+    "description": "Link: expand long text"
+  },
+  "commonRemove": "Remove",
+  "@commonRemove": {
+    "description": "Button and tooltip: remove an item or person"
+  },
+  "commonRemovePhoto": "Remove photo",
+  "@commonRemovePhoto": {
+    "description": "Photo menu item: remove the current photo"
+  },
+  "commonReply": "Reply",
+  "@commonReply": {
+    "description": "Action on a message or message notification: reply to it",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "commonReport": "Report",
+  "@commonReport": {
+    "description": "Menu item: report a message or person to the server admins"
+  },
+  "commonReportSent": "Report sent",
+  "@commonReportSent": {
+    "description": "Snack bar after a report was sent"
+  },
+  "commonRetry": "Retry",
+  "@commonRetry": {
+    "description": "Button: try the failed step again"
+  },
+  "commonReview": "Review",
+  "@commonReview": {
+    "description": "Button: look at a pending request or sign-in"
+  },
+  "commonRoleNotChanged": "Role not changed. Try again.",
+  "commonSave": "Save",
+  "@commonSave": {
+    "description": "Button and tooltip: save"
+  },
+  "commonSaveFailed": "Could not save. Try again.",
+  "commonSend": "Send",
+  "@commonSend": {
+    "description": "Button and tooltip: send the message or reply",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "commonShare": "Share",
+  "@commonShare": {
+    "description": "Button and tooltip: share with another app"
+  },
+  "commonShowLess": "Show less",
+  "@commonShowLess": {
+    "description": "Link: collapse expanded text"
+  },
+  "commonStatus": "Status",
+  "@commonStatus": {
+    "description": "Row label: the current status of a feature"
+  },
+  "commonTakePhoto": "Take photo",
+  "@commonTakePhoto": {
+    "description": "Photo menu item: take a photo with the camera"
+  },
+  "commonTerms": "Terms",
+  "@commonTerms": {
+    "description": "Link: open the terms of service"
+  },
+  "commonTryAgain": "Try again",
+  "@commonTryAgain": {
+    "description": "Button: try the failed step again"
+  },
+  "commonUsername": "Username",
+  "@commonUsername": {
+    "description": "Field and row label: your account username"
+  },
+  "commonVersion": "Version",
+  "@commonVersion": {
+    "description": "Row label: a version number"
+  },
+  "commonWrongPassword": "Wrong password.",
+  "@commonWrongPassword": {
+    "description": "Error shown when the password entered is wrong"
+  },
+  "commonYou": "You",
+  "@commonYou": {
+    "description": "Name shown for yourself (call tiles, map, notifications)",
+    "x-native": [
+      "zuno_notifications"
+    ]
+  },
+  "communitiesAsk": "Ask",
+  "@communitiesAsk": {
+    "description": "Button: ask to join a room in a community"
+  },
+  "communitiesAskToJoin": "Ask to join",
+  "communitiesAskingToJoin": "Asking to join",
+  "communitiesAskingToJoinRoom": "Asking to join {name}",
+  "@communitiesAskingToJoinRoom": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "communitiesAsksToJoin": "Asks to join",
+  "communitiesBanFromCommunity": "Ban from community",
+  "communitiesCommunityName": "Community name",
+  "@communitiesCommunityName": {
+    "description": "Field label and hint: the name of a community"
+  },
+  "communitiesDeclineFailed": "Could not decline the request.",
+  "communitiesInviteTitle": "Invite to community",
+  "communitiesLetIn": "Let in",
+  "@communitiesLetIn": {
+    "description": "Button on a join request: let the person in"
+  },
+  "communitiesLetInFailed": "Could not let them in.",
+  "communitiesLetInInvites": "Letting someone in invites them to the room.",
+  "communitiesLoadFailed": "Could not load more rooms.",
+  "communitiesMore": "More",
+  "@communitiesMore": {
+    "description": "Tooltip on the community screen menu button: more options"
+  },
+  "communitiesMoreRooms": "More rooms",
+  "@communitiesMoreRooms": {
+    "description": "Section heading on a community: rooms you have not joined"
+  },
+  "communitiesNameAndOthers": "{name} and {count, plural, one{{count} other} other{{count} others}}",
+  "@communitiesNameAndOthers": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "communitiesNoRooms": "No rooms here yet",
+  "communitiesNoRoomsCanAdd": "Add the first one with New room.",
+  "communitiesNoRoomsCannotAdd": "Rooms added to this community show here.",
+  "communitiesRemoveFromCommunity": "Remove from community",
+  "communitiesRequestFailed": "Could not send the request.",
+  "communitiesRequested": "Requested",
+  "@communitiesRequested": {
+    "description": "Button state: you asked to join and are waiting"
+  },
+  "communitiesRoomNotAdded": "Room created, but not added to {name}.",
+  "@communitiesRoomNotAdded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "communitiesSettings": "Community settings",
+  "@communitiesSettings": {
+    "description": "Community menu item: open the community settings"
+  },
+  "communitiesUnnamedRoom": "Unnamed room",
+  "@communitiesUnnamedRoom": {
+    "description": "Name shown for a room in a community that has no name"
+  },
+  "communitiesWithdraw": "Withdraw",
+  "@communitiesWithdraw": {
+    "description": "Dialog button: cancel your request to join"
+  },
+  "communitiesWithdrawBody": "You can ask again later.",
+  "communitiesWithdrawFailed": "Could not withdraw the request.",
+  "communitiesWithdrawTitle": "Withdraw your request?",
+  "communitiesYourRooms": "Your rooms",
+  "@communitiesYourRooms": {
+    "description": "Section heading on a community: rooms you are in"
+  },
+  "dateAtTime": "{date} at {time}",
+  "@dateAtTime": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "dateToday": "Today",
+  "@dateToday": {
+    "description": "Date divider in a chat: today"
+  },
+  "dateYesterday": "Yesterday",
+  "@dateYesterday": {
+    "description": "Date divider and chat list time: yesterday"
+  },
+  "diagnosticsAllowed": "Allowed",
+  "@diagnosticsAllowed": {
+    "description": "Push diagnostics value: a permission is allowed"
+  },
+  "diagnosticsAppIdMismatch": "{registered}, expected {expected}",
+  "@diagnosticsAppIdMismatch": {
+    "placeholders": {
+      "registered": {
+        "type": "String"
+      },
+      "expected": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticsAvailable": "Available",
+  "@diagnosticsAvailable": {
+    "description": "Push diagnostics value: a service is available"
+  },
+  "diagnosticsBackgroundDataExempt": "Allowed while Data Saver is on",
+  "diagnosticsBackgroundDataRestricted": "Restricted by Data Saver",
+  "diagnosticsBatteryOptimized": "Optimized",
+  "@diagnosticsBatteryOptimized": {
+    "description": "Push diagnostics value: Android limits Zuno to save battery"
+  },
+  "diagnosticsBatteryUnrestricted": "Unrestricted",
+  "@diagnosticsBatteryUnrestricted": {
+    "description": "Push diagnostics value: Android does not limit Zuno to save battery"
+  },
+  "diagnosticsCallKeyCurrent": "Current",
+  "@diagnosticsCallKeyCurrent": {
+    "description": "Push diagnostics value: the call key is up to date"
+  },
+  "diagnosticsCallKeyOutOfDate": "Out of date",
+  "diagnosticsCallSetupKeyNotKept": "Refused {age} (server kept another key)",
+  "@diagnosticsCallSetupKeyNotKept": {
+    "placeholders": {
+      "age": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticsCallSetupRefusedByServer": "Refused {age} ({status} {errcode})",
+  "@diagnosticsCallSetupRefusedByServer": {
+    "placeholders": {
+      "age": {
+        "type": "String"
+      },
+      "status": {
+        "type": "int"
+      },
+      "errcode": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticsChannelBlocked": "Blocked",
+  "@diagnosticsChannelBlocked": {
+    "description": "Push diagnostics value: a notification category is turned off"
+  },
+  "diagnosticsChannelSilent": "Silent",
+  "@diagnosticsChannelSilent": {
+    "description": "Push diagnostics value: a notification category shows without sound"
+  },
+  "diagnosticsChannelSilentMinimized": "Silent and minimized",
+  "diagnosticsChannelSound": "Sound",
+  "@diagnosticsChannelSound": {
+    "description": "Push diagnostics value: a notification category plays a sound"
+  },
+  "diagnosticsChannelSoundPopUp": "Sound and pop-up",
+  "diagnosticsCorrect": "Correct",
+  "@diagnosticsCorrect": {
+    "description": "Push diagnostics value: a setting matches what Zuno expects"
+  },
+  "diagnosticsCouldNotCheck": "Could not check",
+  "diagnosticsCouldNotCheckPullDown": "Could not check. Pull down to try again.",
+  "diagnosticsCountAbnormal": "Ended unexpectedly",
+  "@diagnosticsCountAbnormal": {
+    "description": "Push diagnostics: how a background run ended, ended unexpectedly"
+  },
+  "diagnosticsCountBadAccess": "Crashed",
+  "@diagnosticsCountBadAccess": {
+    "description": "Push diagnostics: how a background run ended, crashed"
+  },
+  "diagnosticsCountCpu": "Used too much processing time",
+  "diagnosticsCountEntry": "{label}: {count}",
+  "@diagnosticsCountEntry": {
+    "description": "Push diagnostics: one counted item; label is what was counted",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "diagnosticsCountExtensionMemory": "Notification extension out of memory",
+  "diagnosticsCountLockedFile": "Held a file while suspended",
+  "diagnosticsCountMemory": "Out of memory",
+  "diagnosticsCountPushkitUnreported": "Call not shown in time",
+  "diagnosticsCountTaskTimeout": "Background time ran out",
+  "diagnosticsCountWatchdog": "Took too long",
+  "diagnosticsDifferent": "Different",
+  "@diagnosticsDifferent": {
+    "description": "Push diagnostics value: a setting differs from what Zuno expects"
+  },
+  "diagnosticsEnvironmentDevelopment": "Development",
+  "@diagnosticsEnvironmentDevelopment": {
+    "description": "Push diagnostics value: Apple push environment for test builds"
+  },
+  "diagnosticsEnvironmentProduction": "Production",
+  "@diagnosticsEnvironmentProduction": {
+    "description": "Push diagnostics value: Apple push environment for released builds"
+  },
+  "diagnosticsExtensionAccessExpired": "Expired",
+  "@diagnosticsExtensionAccessExpired": {
+    "description": "Push diagnostics value: the notification extension sign-in has expired"
+  },
+  "diagnosticsExtensionAccessValid": "Valid",
+  "@diagnosticsExtensionAccessValid": {
+    "description": "Push diagnostics value: the notification extension sign-in is valid"
+  },
+  "diagnosticsExtensionVersionMismatch": "{version}. Zuno is {appVersion}. Restart this device if this does not change after the next notification.",
+  "@diagnosticsExtensionVersionMismatch": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "appVersion": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticsFailedAgo": "Failed {age}",
+  "@diagnosticsFailedAgo": {
+    "description": "Push diagnostics value: failed; age is how long ago",
+    "placeholders": {
+      "age": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticsLabelAppId": "App ID",
+  "@diagnosticsLabelAppId": {
+    "description": "Push diagnostics row label: the app ID registered for push"
+  },
+  "diagnosticsLabelAppStandby": "App standby",
+  "@diagnosticsLabelAppStandby": {
+    "description": "Push diagnostics row label: Android app standby group"
+  },
+  "diagnosticsLabelBackgroundData": "Background data",
+  "@diagnosticsLabelBackgroundData": {
+    "description": "Row label: whether Android lets Zuno use data in the background"
+  },
+  "diagnosticsLabelBatteryUse": "Battery use",
+  "@diagnosticsLabelBatteryUse": {
+    "description": "Push diagnostics row label: Android battery setting for Zuno"
+  },
+  "diagnosticsLabelCallKey": "Call key",
+  "@diagnosticsLabelCallKey": {
+    "description": "Push diagnostics row label: the key used to ring for calls"
+  },
+  "diagnosticsLabelCallPushKey": "Call push key",
+  "diagnosticsLabelCallSetup": "Call setup",
+  "@diagnosticsLabelCallSetup": {
+    "description": "Push diagnostics row label: result of the last call setup"
+  },
+  "diagnosticsLabelDelivery": "Delivery",
+  "@diagnosticsLabelDelivery": {
+    "description": "Push diagnostics row label: how notifications are delivered"
+  },
+  "diagnosticsLabelDeviceToken": "Device token",
+  "@diagnosticsLabelDeviceToken": {
+    "description": "Push diagnostics row label: the push token from Apple"
+  },
+  "diagnosticsLabelDroppedRegistrations": "Dropped registrations",
+  "@diagnosticsLabelDroppedRegistrations": {
+    "description": "Push diagnostics row label: how many push registrations were lost"
+  },
+  "diagnosticsLabelEnvironment": "Environment",
+  "@diagnosticsLabelEnvironment": {
+    "description": "Push diagnostics row label: Apple push environment"
+  },
+  "diagnosticsLabelExtensionAccess": "Extension access",
+  "@diagnosticsLabelExtensionAccess": {
+    "description": "Push diagnostics row label: sign-in of the notification extension"
+  },
+  "diagnosticsLabelExtensionCheckedIn": "Extension last checked in",
+  "diagnosticsLabelFailingSince": "Failing since",
+  "@diagnosticsLabelFailingSince": {
+    "description": "Push diagnostics row label: when deliveries started failing"
+  },
+  "diagnosticsLabelFormat": "Format",
+  "@diagnosticsLabelFormat": {
+    "description": "Push diagnostics row label: the push message format"
+  },
+  "diagnosticsLabelFullScreenCallAlerts": "Full-screen call alerts",
+  "diagnosticsLabelGateway": "Gateway",
+  "@diagnosticsLabelGateway": {
+    "description": "Push diagnostics row label: the push gateway server"
+  },
+  "diagnosticsLabelGooglePlayServices": "Google Play services",
+  "diagnosticsLabelLastCallActivity": "Last call activity",
+  "diagnosticsLabelLastDelivery": "Last delivery",
+  "@diagnosticsLabelLastDelivery": {
+    "description": "Push diagnostics row label: when the server last delivered a push"
+  },
+  "diagnosticsLabelLastPush": "Last push",
+  "@diagnosticsLabelLastPush": {
+    "description": "Push diagnostics row label: the last push this device received"
+  },
+  "diagnosticsLabelLastRing": "Last ring",
+  "@diagnosticsLabelLastRing": {
+    "description": "Push diagnostics row label: the last call ring"
+  },
+  "diagnosticsLabelLastRingSent": "Last ring sent",
+  "diagnosticsLabelLastRun": "Last run",
+  "@diagnosticsLabelLastRun": {
+    "description": "Push diagnostics row label: when the notification extension last ran"
+  },
+  "diagnosticsLabelNotificationCategories": "Notification categories",
+  "@diagnosticsLabelNotificationCategories": {
+    "description": "Push diagnostics row label: Android notification categories"
+  },
+  "diagnosticsLabelNotifications": "Notifications",
+  "@diagnosticsLabelNotifications": {
+    "description": "Push diagnostics row label: notification permission"
+  },
+  "diagnosticsLabelPushKey": "Push key",
+  "@diagnosticsLabelPushKey": {
+    "description": "Push diagnostics row label: the key the server pushes to"
+  },
+  "diagnosticsLabelReachable": "Reachable",
+  "@diagnosticsLabelReachable": {
+    "description": "Push diagnostics row label: whether the push server can be reached"
+  },
+  "diagnosticsLabelRecentResults": "Recent results",
+  "@diagnosticsLabelRecentResults": {
+    "description": "Push diagnostics row label: recent notification extension results"
+  },
+  "diagnosticsLabelRegistration": "Registration",
+  "@diagnosticsLabelRegistration": {
+    "description": "Push diagnostics row label: push registration on the server"
+  },
+  "diagnosticsLabelSettings": "Settings",
+  "@diagnosticsLabelSettings": {
+    "description": "Push diagnostics row label: phone notification settings"
+  },
+  "diagnosticsLabelSharedDataUpdated": "Shared data updated",
+  "diagnosticsLabelSystemCallScreen": "System call screen",
+  "diagnosticsLabelZunoVersion": "Zuno version",
+  "@diagnosticsLabelZunoVersion": {
+    "description": "Push diagnostics row label: the installed Zuno version"
+  },
+  "diagnosticsLastPushSummary": "{summary} ({age})",
+  "@diagnosticsLastPushSummary": {
+    "description": "Push diagnostics value: what the last push was, and how long ago",
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      },
+      "age": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticsLastRingNotReceived": "Sent but not received on this device",
+  "diagnosticsMissing": "Missing",
+  "@diagnosticsMissing": {
+    "description": "Push diagnostics value: something required is missing"
+  },
+  "diagnosticsNever": "Never",
+  "@diagnosticsNever": {
+    "description": "Push diagnostics value: never happened"
+  },
+  "diagnosticsNo": "No",
+  "@diagnosticsNo": {
+    "description": "Push diagnostics value: no"
+  },
+  "diagnosticsNone": "None",
+  "@diagnosticsNone": {
+    "description": "Push diagnostics value: none"
+  },
+  "diagnosticsNoneYet": "None yet",
+  "@diagnosticsNoneYet": {
+    "description": "Push diagnostics value: nothing recorded yet"
+  },
+  "diagnosticsNotAllowed": "Not allowed",
+  "@diagnosticsNotAllowed": {
+    "description": "Push diagnostics value: a permission is not allowed"
+  },
+  "diagnosticsNotAvailableHere": "Not available here",
+  "diagnosticsNotReceived": "Not received",
+  "@diagnosticsNotReceived": {
+    "description": "Push diagnostics value: the push token was not received"
+  },
+  "diagnosticsOff": "Off",
+  "@diagnosticsOff": {
+    "description": "Push diagnostics value: a phone setting is off"
+  },
+  "diagnosticsOn": "On",
+  "@diagnosticsOn": {
+    "description": "Push diagnostics value: a phone setting is on"
+  },
+  "diagnosticsPlayNeedsUpdate": "Needs an update",
+  "diagnosticsPlayNotIncluded": "Not included in this version of Zuno",
+  "diagnosticsPlayNotOnDevice": "Not on this device",
+  "diagnosticsPresent": "Present",
+  "@diagnosticsPresent": {
+    "description": "Push diagnostics value: a key is present"
+  },
+  "diagnosticsPushTargetHint": "How notifications reach this device",
+  "diagnosticsReachNotOnServer": "Not available on this server",
+  "diagnosticsReachStarting": "Starting",
+  "@diagnosticsReachStarting": {
+    "description": "Push diagnostics value: the reachability check is starting"
+  },
+  "diagnosticsReceived": "Received",
+  "@diagnosticsReceived": {
+    "description": "Push diagnostics value: the push token was received"
+  },
+  "diagnosticsRecentPushesHint": "When notifications arrived and what happened",
+  "diagnosticsRefusedAgo": "Refused {age}",
+  "@diagnosticsRefusedAgo": {
+    "description": "Push diagnostics value: refused; age is how long ago",
+    "placeholders": {
+      "age": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticsRegistrationNotRegistered": "Not registered",
+  "@diagnosticsRegistrationNotRegistered": {
+    "description": "Push diagnostics value: not registered for push"
+  },
+  "diagnosticsRegistrationNotSetUp": "Not set up",
+  "diagnosticsRegistrationRegistered": "Registered",
+  "@diagnosticsRegistrationRegistered": {
+    "description": "Push diagnostics value: registered for push"
+  },
+  "diagnosticsReportCrashes": "Crashes",
+  "@diagnosticsReportCrashes": {
+    "description": "Push diagnostics row label: crash reports from the phone"
+  },
+  "diagnosticsReportEntry": "{counts} ({age})",
+  "@diagnosticsReportEntry": {
+    "description": "Push diagnostics value: report counts, and how long ago",
+    "placeholders": {
+      "counts": {
+        "type": "String"
+      },
+      "age": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticsReportExits": "Background exits",
+  "@diagnosticsReportExits": {
+    "description": "Push diagnostics row label: times the phone stopped Zuno in the background"
+  },
+  "diagnosticsReportMemory": "Memory limits",
+  "@diagnosticsReportMemory": {
+    "description": "Push diagnostics row label: times Zuno hit the memory limit"
+  },
+  "diagnosticsReportTitle": "Zuno notification diagnostics",
+  "diagnosticsSectionCalls": "Calls",
+  "@diagnosticsSectionCalls": {
+    "description": "Push diagnostics section heading: calls"
+  },
+  "diagnosticsSectionDelivery": "Delivery",
+  "@diagnosticsSectionDelivery": {
+    "description": "Push diagnostics section heading: notification delivery"
+  },
+  "diagnosticsSectionDevice": "This device",
+  "@diagnosticsSectionDevice": {
+    "description": "Section heading: details of this device"
+  },
+  "diagnosticsSectionExtension": "Notification extension",
+  "@diagnosticsSectionExtension": {
+    "description": "Push diagnostics section heading: the iPhone notification extension"
+  },
+  "diagnosticsSectionPermission": "Permission",
+  "@diagnosticsSectionPermission": {
+    "description": "Push diagnostics section heading: notification permissions"
+  },
+  "diagnosticsSectionReports": "Device reports",
+  "@diagnosticsSectionReports": {
+    "description": "Push diagnostics section heading: reports from the phone"
+  },
+  "diagnosticsSectionStatus": "Status",
+  "@diagnosticsSectionStatus": {
+    "description": "Push diagnostics section heading: overall status"
+  },
+  "diagnosticsSendTest": "Send a test notification",
+  "diagnosticsSentAgo": "Sent {age}",
+  "@diagnosticsSentAgo": {
+    "description": "Push diagnostics value: sent; age is how long ago",
+    "placeholders": {
+      "age": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticsSeparator": ", ",
+  "@diagnosticsSeparator": {
+    "description": "Separator between items in a list (comma and space)"
+  },
+  "diagnosticsSettingAlerts": "Alerts",
+  "@diagnosticsSettingAlerts": {
+    "description": "Push diagnostics row label: iPhone notification setting, alerts"
+  },
+  "diagnosticsSettingAnnounce": "Announce notifications",
+  "@diagnosticsSettingAnnounce": {
+    "description": "Push diagnostics row label: iPhone notification setting, announce notifications"
+  },
+  "diagnosticsSettingBadges": "Badges",
+  "@diagnosticsSettingBadges": {
+    "description": "Push diagnostics row label: iPhone notification setting, badges"
+  },
+  "diagnosticsSettingBannerStyle": "Banner style",
+  "@diagnosticsSettingBannerStyle": {
+    "description": "Push diagnostics row label: iPhone notification setting, banner style"
+  },
+  "diagnosticsSettingCarPlay": "CarPlay",
+  "@diagnosticsSettingCarPlay": {
+    "description": "Push diagnostics row label: iPhone notification setting, CarPlay"
+  },
+  "diagnosticsSettingCriticalAlerts": "Critical alerts",
+  "@diagnosticsSettingCriticalAlerts": {
+    "description": "Push diagnostics row label: iPhone notification setting, critical alerts"
+  },
+  "diagnosticsSettingDirectMessages": "Direct messages",
+  "@diagnosticsSettingDirectMessages": {
+    "description": "Push diagnostics row label: iPhone notification setting, direct messages"
+  },
+  "diagnosticsSettingLockScreen": "Lock screen",
+  "@diagnosticsSettingLockScreen": {
+    "description": "Push diagnostics row label: iPhone notification setting, lock screen"
+  },
+  "diagnosticsSettingNotificationCenter": "Notification Center",
+  "@diagnosticsSettingNotificationCenter": {
+    "description": "Push diagnostics row label: iPhone notification setting, Notification Center"
+  },
+  "diagnosticsSettingScheduledSummary": "Scheduled summary",
+  "@diagnosticsSettingScheduledSummary": {
+    "description": "Push diagnostics row label: iPhone notification setting, scheduled summary"
+  },
+  "diagnosticsSettingSettingsLink": "Link from iOS Settings",
+  "diagnosticsSettingShowPreviews": "Show previews",
+  "@diagnosticsSettingShowPreviews": {
+    "description": "Push diagnostics row label: iPhone notification setting, show previews"
+  },
+  "diagnosticsSettingSounds": "Sounds",
+  "@diagnosticsSettingSounds": {
+    "description": "Push diagnostics row label: iPhone notification setting, sounds"
+  },
+  "diagnosticsSettingTimeSensitive": "Time Sensitive notifications",
+  "diagnosticsSettingsNotAvailable": "Not available on this device",
+  "diagnosticsShare": "Share diagnostics",
+  "@diagnosticsShare": {
+    "description": "Row on the push diagnostics screen: share the diagnostics report"
+  },
+  "diagnosticsShareHint": "Leaves out names, addresses and message content",
+  "diagnosticsStandbyActive": "Active",
+  "@diagnosticsStandbyActive": {
+    "description": "Push diagnostics value: Android app standby group, active"
+  },
+  "diagnosticsStandbyExempt": "Exempt",
+  "@diagnosticsStandbyExempt": {
+    "description": "Push diagnostics value: Android app standby group, exempt"
+  },
+  "diagnosticsStandbyNeverUsed": "Never used",
+  "@diagnosticsStandbyNeverUsed": {
+    "description": "Push diagnostics value: Android app standby group, never used"
+  },
+  "diagnosticsStandbyRestricted": "Restricted",
+  "@diagnosticsStandbyRestricted": {
+    "description": "Push diagnostics value: Android app standby group, restricted"
+  },
+  "diagnosticsStandbyUsedOften": "Used often",
+  "@diagnosticsStandbyUsedOften": {
+    "description": "Push diagnostics value: Android app standby group, used often"
+  },
+  "diagnosticsStandbyUsedRarely": "Used rarely",
+  "@diagnosticsStandbyUsedRarely": {
+    "description": "Push diagnostics value: Android app standby group, used rarely"
+  },
+  "diagnosticsStandbyUsedRegularly": "Used regularly",
+  "@diagnosticsStandbyUsedRegularly": {
+    "description": "Push diagnostics value: Android app standby group, used regularly"
+  },
+  "diagnosticsTestFailed": "Test not sent. Check your connection and try again.",
+  "diagnosticsTestNotAvailable": "Test notifications are not available on this server.",
+  "diagnosticsTestNotOnServer": "Not available on this server",
+  "diagnosticsTestNotWithBackgroundSync": "Not available with background sync",
+  "diagnosticsTestRateLimited": "Too many tests in the last hour. Try again later.",
+  "diagnosticsTestSent": "Test notification sent. If nothing arrives within a minute, notifications are not reaching this device.",
+  "diagnosticsTestShowsWhileOpen": "It shows even while Zuno is open",
+  "diagnosticsTitle": "Diagnostics",
+  "@diagnosticsTitle": {
+    "description": "Push diagnostics screen title and the row that opens it"
+  },
+  "diagnosticsTurnedOff": "Turned off",
+  "@diagnosticsTurnedOff": {
+    "description": "Push diagnostics value: a service is turned off"
+  },
+  "diagnosticsUnknown": "Unknown",
+  "@diagnosticsUnknown": {
+    "description": "Push diagnostics value: unknown"
+  },
+  "diagnosticsValueAllowedForNow": "Allowed for now",
+  "diagnosticsValueAlways": "Always",
+  "@diagnosticsValueAlways": {
+    "description": "Push diagnostics value: iPhone setting, always"
+  },
+  "diagnosticsValueDeliveredQuietly": "Delivered quietly",
+  "@diagnosticsValueDeliveredQuietly": {
+    "description": "Push diagnostics value: iPhone delivers notifications quietly"
+  },
+  "diagnosticsValueNotAskedYet": "Not asked yet",
+  "diagnosticsValueNotAvailable": "Not available",
+  "@diagnosticsValueNotAvailable": {
+    "description": "Push diagnostics value: the setting is not available"
+  },
+  "diagnosticsValuePersistent": "Persistent",
+  "@diagnosticsValuePersistent": {
+    "description": "Push diagnostics value: iPhone banner style, persistent"
+  },
+  "diagnosticsValueTemporary": "Temporary",
+  "@diagnosticsValueTemporary": {
+    "description": "Push diagnostics value: iPhone banner style, temporary"
+  },
+  "diagnosticsValueWhenUnlocked": "When unlocked",
+  "@diagnosticsValueWhenUnlocked": {
+    "description": "Push diagnostics value: iPhone previews show only when unlocked"
+  },
+  "diagnosticsYes": "Yes",
+  "@diagnosticsYes": {
+    "description": "Push diagnostics value: yes"
+  },
+  "errorsFailedCheckConnection": "{failed} Check your connection and try again.",
+  "@errorsFailedCheckConnection": {
+    "placeholders": {
+      "failed": {
+        "type": "String"
+      }
+    }
+  },
+  "feedbackExplanation": "Your feedback goes to a reporting service with your app version and system version. Names and addresses are removed. Nothing identifies you, so there is no reply.",
+  "feedbackLabel": "Your feedback",
+  "@feedbackLabel": {
+    "description": "Field label on the feedback sheet"
+  },
+  "feedbackNotSent": "Feedback not sent. Check your connection and try again.",
+  "feedbackSent": "Feedback sent.",
+  "@feedbackSent": {
+    "description": "Snack bar after sending feedback"
+  },
+  "feedbackSheetTitle": "Send feedback",
+  "@feedbackSheetTitle": {
+    "description": "Feedback sheet title and its send button"
+  },
+  "locationAccuracyKilometers": "about {km} km",
+  "@locationAccuracyKilometers": {
+    "placeholders": {
+      "km": {
+        "type": "double",
+        "format": "decimalPatternDigits",
+        "optionalParameters": {
+          "decimalDigits": 1
+        }
+      }
+    }
+  },
+  "locationAccuracyMeters": "about {meters} m",
+  "@locationAccuracyMeters": {
+    "placeholders": {
+      "meters": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "locationAllowToSee": "Allow location access to see where you are.",
+  "locationAllowToShare": "Allow location access to share where you are.",
+  "locationAlreadySharing": "You are already sharing your live location here.",
+  "locationAndroidMayPause": "Android can pause live location while your device sits still.",
+  "locationApproximate": "Approximate location",
+  "@locationApproximate": {
+    "description": "Detail on the location sheet: the position is approximate"
+  },
+  "locationBack": "Back",
+  "@locationBack": {
+    "description": "Button on the location sheet: go back"
+  },
+  "locationBlocked": "Location access is blocked. Allow it in Settings.",
+  "locationBubbleLabel": "Location",
+  "@locationBubbleLabel": {
+    "description": "Label on a shared location in the chat"
+  },
+  "locationChannelLiveLocationDescription": "Shows while you share your live location",
+  "@locationChannelLiveLocationDescription": {
+    "x-native": [
+      "app"
+    ]
+  },
+  "locationDurationHours": "{count, plural, one{{count} hour} other{{count} hours}}",
+  "@locationDurationHours": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "locationDurationMinutes": "{count, plural, one{{count} minute} other{{count} minutes}}",
+  "@locationDurationMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "locationFinding": "Finding your location…",
+  "locationHideYours": "Hide your location",
+  "locationLiveApproximate": "Your location is approximate.",
+  "locationLiveAudienceChat": "Everyone in this chat sees where you are until the time is up or you stop. Sharing goes on while Zuno is in the background, which uses more battery.",
+  "locationLiveAudienceRoom": "Everyone in this room sees where you are until the time is up or you stop. Sharing goes on while Zuno is in the background, which uses more battery.",
+  "locationLiveLocation": "Live location",
+  "@locationLiveLocation": {
+    "description": "Title of a live location share, its Android notification and notification category",
+    "x-native": [
+      "app"
+    ]
+  },
+  "locationLiveNeedsAdmin": "A room admin can turn on live location under Permissions.",
+  "locationLiveNotInChat": "Live location is not available in this chat.",
+  "locationNoMapsApp": "No maps app found",
+  "locationNobodySharing": "Nobody is sharing live location here right now.",
+  "locationNotFound": "Could not find your location.",
+  "locationNoticeChats": "In {chats, plural, one{{chats} chat} other{{chats} chats}}",
+  "@locationNoticeChats": {
+    "placeholders": {
+      "chats": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "locationNoticeChatsAndRooms": "In {chats, plural, one{{chats} chat} other{{chats} chats}} and {rooms, plural, one{{rooms} room} other{{rooms} rooms}}",
+  "@locationNoticeChatsAndRooms": {
+    "placeholders": {
+      "chats": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "rooms": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "locationNoticeIn": "In {name}",
+  "@locationNoticeIn": {
+    "description": "Live location notification text: shared in a room; name is the room",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "locationNoticeRooms": "In {rooms, plural, one{{rooms} room} other{{rooms} rooms}}",
+  "@locationNoticeRooms": {
+    "placeholders": {
+      "rooms": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "locationNoticeTitle": "Sharing live location",
+  "locationNoticeWith": "With {name}",
+  "@locationNoticeWith": {
+    "description": "Live location notification text: shared with a person; name is the person",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "locationOffInSettings": "Location is off. Turn on Location Services in Settings, under Privacy & Security.",
+  "locationOffTurnOnToSee": "Location is off. Turn it on to see where you are.",
+  "locationOffTurnOnToShare": "Location is off. Turn it on to share where you are.",
+  "locationOpenInMaps": "Open in maps app",
+  "locationRunUnrestricted": "Let Zuno run unrestricted",
+  "locationSend": "Send location",
+  "@locationSend": {
+    "description": "Button: send your current location"
+  },
+  "locationShareLive": "Share live location",
+  "locationSharersMany": "{name} and {count, plural, one{{count} other} other{{count} others}} are sharing live location",
+  "@locationSharersMany": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "locationSharersOne": "{name} is sharing live location",
+  "@locationSharersOne": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "locationSharersTwo": "{first} and {second} are sharing live location",
+  "@locationSharersTwo": {
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "locationSharersYouAndMany": "You and {count, plural, one{{count} other} other{{count} others}} are sharing live location",
+  "@locationSharersYouAndMany": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "locationSharersYouAndOne": "You and {name} are sharing live location",
+  "@locationSharersYouAndOne": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "locationShowYours": "Show your location",
+  "locationStartCaptureUnavailable": "Live location could not start. Check that location is on, then try again.",
+  "locationStartFailed": "Live location did not start. Try again.",
+  "locationStartNotAllowed": "You cannot share live location here.",
+  "locationStartSharing": "Start sharing",
+  "@locationStartSharing": {
+    "description": "Button: start sharing live location"
+  },
+  "locationStatusLive": "Until {time} · updated {age}",
+  "@locationStatusLive": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "age": {
+        "type": "String"
+      }
+    }
+  },
+  "locationStatusStale": "Until {time} · not updated since {since}",
+  "@locationStatusStale": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "since": {
+        "type": "String"
+      }
+    }
+  },
+  "locationStatusUpdatingLive": "Until {time} · updating, last updated {age}",
+  "@locationStatusUpdatingLive": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "age": {
+        "type": "String"
+      }
+    }
+  },
+  "locationStatusUpdatingStale": "Until {time} · updating, not updated since {since}",
+  "@locationStatusUpdatingStale": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "since": {
+        "type": "String"
+      }
+    }
+  },
+  "locationStatusUpdatingWaiting": "Until {time} · updating, waiting for location",
+  "@locationStatusUpdatingWaiting": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "locationStatusWaiting": "Until {time} · waiting for location",
+  "@locationStatusWaiting": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "locationStop": "Stop",
+  "@locationStop": {
+    "description": "Banner button: stop sharing live location"
+  },
+  "locationStopSharing": "Stop sharing",
+  "@locationStopSharing": {
+    "description": "Button and Android notification action: stop sharing live location",
+    "x-native": [
+      "app"
+    ]
+  },
+  "locationUntil": "Until {time}",
+  "@locationUntil": {
+    "description": "Live location status: shared until a time",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "locationWaiting": "Waiting for location",
+  "locationYouSharing": "You are sharing your live location",
+  "locationYourLocation": "Your location",
+  "@locationYourLocation": {
+    "description": "Location sheet title: your current location"
+  },
+  "matrixAccessAskToJoin": "Ask to join",
+  "matrixAccessAskToJoinDescription": "Members can ask; a moderator lets them in",
+  "matrixAccessCommunity": "Community",
+  "@matrixAccessCommunity": {
+    "description": "Room access option: anyone in the community can join"
+  },
+  "matrixAccessCommunityDescription": "Members of the community can join",
+  "matrixAccessPrivate": "Private",
+  "@matrixAccessPrivate": {
+    "description": "Room access option: only invited people can join"
+  },
+  "matrixAccessPrivateDescription": "Invite only",
+  "@matrixAccessPrivateDescription": {
+    "description": "Explanation under the private room access option"
+  },
+  "matrixAccessPublic": "Public",
+  "@matrixAccessPublic": {
+    "description": "Room access option: anyone can find and join"
+  },
+  "matrixAccessPublicDescription": "Anyone can find and join",
+  "matrixAuthCannotConnect": "Cannot connect. Check your connection and try again.",
+  "matrixAuthCodeInvalid": "That code is not valid or has expired.",
+  "matrixAuthDeactivated": "This account is deactivated",
+  "matrixAuthRateLimited": "Too many attempts. Wait a moment and try again.",
+  "matrixAuthRateLimitedMinutes": "{count, plural, one{Too many attempts. Try again in {count} minute.} other{Too many attempts. Try again in {count} minutes.}}",
+  "@matrixAuthRateLimitedMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixAuthRateLimitedSeconds": "{count, plural, one{Too many attempts. Try again in {count} second.} other{Too many attempts. Try again in {count} seconds.}}",
+  "@matrixAuthRateLimitedSeconds": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixAuthSignedOut": "This device was signed out. Sign in again.",
+  "matrixAuthUnexpected": "Something went wrong. Try again.",
+  "matrixAuthUsernameNotAllowed": "That username is not allowed",
+  "matrixAuthUsernameTaken": "That username is already taken",
+  "matrixAuthWrongCredentials": "Wrong username or password",
+  "matrixBadgeInvited": "Invited",
+  "@matrixBadgeInvited": {
+    "description": "Badge next to a member who is invited but has not joined"
+  },
+  "matrixBadgeOwner": "Owner",
+  "@matrixBadgeOwner": {
+    "description": "Badge next to the member who owns the room"
+  },
+  "matrixCodeInvalidEmail": "That email address does not look right.",
+  "matrixCodeOffline": "No connection. Try again.",
+  "matrixCodeRateLimited": "Too many code requests. Try again later.",
+  "matrixCodeServerError": "Zuno could not send a code. Try again.",
+  "matrixCodeUnavailable": "New accounts are not being created right now.",
+  "matrixCompressingPhoto": "Compressing photo…",
+  "@matrixCompressingPhoto": {
+    "description": "Send progress: a photo is being compressed"
+  },
+  "matrixCompressingVideo": "Compressing video…",
+  "@matrixCompressingVideo": {
+    "description": "Send progress: a video is being compressed"
+  },
+  "matrixGalleryPosition": "{position} of {total}",
+  "@matrixGalleryPosition": {
+    "placeholders": {
+      "position": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "total": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixHomeserverEnterServer": "Enter a server, such as chat.example.org",
+  "matrixHomeserverInsecure": "That server uses http, which is not secure. Zuno connects only over https.",
+  "matrixHomeserverLooksLikeUsername": "That looks like a username. Enter just the server part, such as chat.example.org",
+  "matrixHomeserverNoPassword": "That server does not support signing in with a password.",
+  "matrixHomeserverNotAServer": "That address is not a server Zuno can use. Check it.",
+  "matrixHomeserverShape": "Enter a hostname, such as chat.example.org, or a full https:// address",
+  "matrixHomeserverUnreachable": "Cannot reach that server. Check the address and your connection.",
+  "matrixHomeserverUseHttps": "Use https://. An http address is not secure.",
+  "matrixInvitePeopleInvited": "{count, plural, other{{count} people invited}}",
+  "@matrixInvitePeopleInvited": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixInviteWaitingForPeople": "{count, plural, other{Waiting for {count} people to accept}}",
+  "@matrixInviteWaitingForPeople": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixInviteWaitingForPerson": "Waiting for {name} to accept",
+  "@matrixInviteWaitingForPerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixInviteWaitingForThem": "Waiting for them to accept",
+  "matrixLinkedSignInInvalid": "That code is not valid or has expired. Make a new one on your other device.",
+  "matrixLinkedSignInIssueFailed": "Could not make a code. Check your connection and try again.",
+  "matrixLinkedSignInNotACode": "That is not a Zuno sign-in code.",
+  "matrixLinkedSignInOtherServer": "This code is for {server}. Change the server on the sign-in screen first.",
+  "@matrixLinkedSignInOtherServer": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixLinkedSignInUnsupported": "This server cannot make sign-in codes.",
+  "matrixOfficial": "Official",
+  "@matrixOfficial": {
+    "description": "Badge on an official Zuno room"
+  },
+  "matrixPermissionAddRooms": "Add rooms",
+  "@matrixPermissionAddRooms": {
+    "description": "Permission name: who can add rooms to a community"
+  },
+  "matrixPermissionBan": "Ban people",
+  "@matrixPermissionBan": {
+    "description": "Permission name: who can ban people"
+  },
+  "matrixPermissionCalls": "Start or join calls",
+  "matrixPermissionCanonicalAlias": "Change the room address",
+  "matrixPermissionCommunityAvatar": "Change photo",
+  "@matrixPermissionCommunityAvatar": {
+    "description": "Permission name: who can change the community photo"
+  },
+  "matrixPermissionCommunityName": "Change name",
+  "@matrixPermissionCommunityName": {
+    "description": "Permission name: who can change the community name"
+  },
+  "matrixPermissionCommunityTopic": "Change description",
+  "@matrixPermissionCommunityTopic": {
+    "description": "Permission name: who can change the community description"
+  },
+  "matrixPermissionEncryption": "Turn on encryption",
+  "matrixPermissionEventsDefault": "Send messages",
+  "@matrixPermissionEventsDefault": {
+    "description": "Permission name: who can send messages"
+  },
+  "matrixPermissionGroupAdvanced": "Advanced",
+  "@matrixPermissionGroupAdvanced": {
+    "description": "Heading of the advanced room permissions"
+  },
+  "matrixPermissionGroupBasic": "Basic",
+  "@matrixPermissionGroupBasic": {
+    "description": "Heading of the basic room permissions"
+  },
+  "matrixPermissionGroupMembers": "Members",
+  "@matrixPermissionGroupMembers": {
+    "description": "Heading of the community permissions about members"
+  },
+  "matrixPermissionGroupRooms": "Rooms",
+  "@matrixPermissionGroupRooms": {
+    "description": "Heading of the community permissions about rooms"
+  },
+  "matrixPermissionGroupSettings": "Settings",
+  "@matrixPermissionGroupSettings": {
+    "description": "Heading of the community permissions about settings"
+  },
+  "matrixPermissionHistoryVisibility": "Change who can read history",
+  "matrixPermissionInvite": "Invite people",
+  "@matrixPermissionInvite": {
+    "description": "Permission name: who can invite people"
+  },
+  "matrixPermissionKick": "Remove people",
+  "@matrixPermissionKick": {
+    "description": "Permission name: who can remove people"
+  },
+  "matrixPermissionLiveLocation": "Share live location",
+  "matrixPermissionNotifyRoom": "Notify everyone",
+  "@matrixPermissionNotifyRoom": {
+    "description": "Permission name: who can notify everyone in the room"
+  },
+  "matrixPermissionPowerLevels": "Change permissions",
+  "@matrixPermissionPowerLevels": {
+    "description": "Permission name: who can change permissions"
+  },
+  "matrixPermissionRedact": "Delete other people's messages",
+  "matrixPermissionRoomAvatar": "Change room photo",
+  "matrixPermissionRoomName": "Change room name",
+  "matrixPermissionRoomTopic": "Change topic",
+  "@matrixPermissionRoomTopic": {
+    "description": "Permission name: who can change the room topic"
+  },
+  "matrixPermissionStateDefault": "Change settings",
+  "@matrixPermissionStateDefault": {
+    "description": "Permission name: who can change room settings"
+  },
+  "matrixPermissionUsersDefault": "Default role for new members",
+  "matrixPlay": "Play",
+  "@matrixPlay": {
+    "description": "Tooltip on the play button of a video"
+  },
+  "matrixReportReasonHarassment": "Harassment",
+  "@matrixReportReasonHarassment": {
+    "description": "Report reason option: harassment"
+  },
+  "matrixReportReasonIllegal": "Illegal content",
+  "@matrixReportReasonIllegal": {
+    "description": "Report reason option: illegal content"
+  },
+  "matrixReportReasonOther": "Something else",
+  "@matrixReportReasonOther": {
+    "description": "Report reason option: another reason"
+  },
+  "matrixReportReasonSpam": "Spam",
+  "@matrixReportReasonSpam": {
+    "description": "Report reason option: spam"
+  },
+  "matrixRoleAdmin": "Admin",
+  "@matrixRoleAdmin": {
+    "description": "Member role name: admin"
+  },
+  "matrixRoleMember": "Member",
+  "@matrixRoleMember": {
+    "description": "Member role name: regular member"
+  },
+  "matrixRoleModerator": "Moderator",
+  "@matrixRoleModerator": {
+    "description": "Member role name: moderator"
+  },
+  "matrixRoleReadOnly": "Read-only",
+  "@matrixRoleReadOnly": {
+    "description": "Member role name: can read but not send"
+  },
+  "matrixRoomExitCommunityNoRooms": "You will stop seeing its rooms.",
+  "matrixRoomExitCommunityNoRoomsHandOnCommunity": "You will stop seeing its rooms. Make someone else an admin of this community first, or nobody can manage it again.",
+  "matrixRoomExitCommunityOneRoom": "You also leave {room}.",
+  "@matrixRoomExitCommunityOneRoom": {
+    "placeholders": {
+      "room": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixRoomExitCommunityOneRoomHandOnCommunity": "You also leave {room}. Make someone else an admin of this community first, or nobody can manage it again.",
+  "@matrixRoomExitCommunityOneRoomHandOnCommunity": {
+    "placeholders": {
+      "room": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixRoomExitCommunityOneRoomHandOnCommunityAndRoom": "You also leave {room}. Make someone else an admin of this community and {room} first, or nobody can manage them again.",
+  "@matrixRoomExitCommunityOneRoomHandOnCommunityAndRoom": {
+    "placeholders": {
+      "room": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixRoomExitCommunityOneRoomHandOnRoom": "You also leave {room}. Make someone else an admin of {room} first, or nobody can manage it again.",
+  "@matrixRoomExitCommunityOneRoomHandOnRoom": {
+    "placeholders": {
+      "room": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixRoomExitCommunityRooms": "{count, plural, other{You also leave {count} of its rooms.}}",
+  "@matrixRoomExitCommunityRooms": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixRoomExitCommunityRoomsHandOnCommunity": "{count, plural, other{You also leave {count} of its rooms. Make someone else an admin of this community first, or nobody can manage it again.}}",
+  "@matrixRoomExitCommunityRoomsHandOnCommunity": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixRoomExitCommunityRoomsHandOnCommunityAndRoom": "{count, plural, other{You also leave {count} of its rooms. Make someone else an admin of this community and {room} first, or nobody can manage them again.}}",
+  "@matrixRoomExitCommunityRoomsHandOnCommunityAndRoom": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "room": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixRoomExitCommunityRoomsHandOnCommunityAndRooms": "{count, plural, other{{orphaned, plural, other{You also leave {count} of its rooms. Make someone else an admin of this community and {orphaned} of its rooms first, or nobody can manage them again.}}}}",
+  "@matrixRoomExitCommunityRoomsHandOnCommunityAndRooms": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "orphaned": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixRoomExitCommunityRoomsHandOnRoom": "{count, plural, other{You also leave {count} of its rooms. Make someone else an admin of {room} first, or nobody can manage it again.}}",
+  "@matrixRoomExitCommunityRoomsHandOnRoom": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "room": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixRoomExitCommunityRoomsHandOnRooms": "{count, plural, other{{orphaned, plural, other{You also leave {count} of its rooms. Make someone else an admin of {orphaned} of its rooms first, or nobody can manage them again.}}}}",
+  "@matrixRoomExitCommunityRoomsHandOnRooms": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "orphaned": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixRoomExitDeleteChat": "Delete chat",
+  "@matrixRoomExitDeleteChat": {
+    "description": "Menu item: delete a one-to-one chat"
+  },
+  "matrixRoomExitDeleteChatFailed": "Could not delete the chat.",
+  "matrixRoomExitDeleteChatTitle": "Delete chat?",
+  "@matrixRoomExitDeleteChatTitle": {
+    "description": "Dialog title asking to confirm deleting a one-to-one chat"
+  },
+  "matrixRoomExitDirectMessage": "This chat and its messages leave this device. Nobody can undo this.",
+  "matrixRoomExitLeave": "Leave",
+  "@matrixRoomExitLeave": {
+    "description": "Dialog button: leave the room or community"
+  },
+  "matrixRoomExitLeaveCommunity": "Leave community",
+  "@matrixRoomExitLeaveCommunity": {
+    "description": "Menu item: leave a community"
+  },
+  "matrixRoomExitLeaveCommunityFailed": "Could not leave the community.",
+  "matrixRoomExitLeaveCommunityTitle": "Leave community?",
+  "@matrixRoomExitLeaveCommunityTitle": {
+    "description": "Dialog title asking to confirm leaving a community"
+  },
+  "matrixRoomExitLeaveRoom": "Leave room",
+  "@matrixRoomExitLeaveRoom": {
+    "description": "Menu item: leave a room"
+  },
+  "matrixRoomExitLeaveRoomFailed": "Could not leave the room.",
+  "matrixRoomExitLeaveRoomTitle": "Leave room?",
+  "@matrixRoomExitLeaveRoomTitle": {
+    "description": "Dialog title asking to confirm leaving a room"
+  },
+  "matrixRoomExitRoomMessage": "You will stop getting messages here.",
+  "matrixRoomExitRoomMessageHandOn": "You will stop getting messages here. Make someone else an admin of this room first, or nobody can manage it again.",
+  "matrixRoomListingRefused": "Public access is turned off here. Choose another option.",
+  "matrixRoomNameNoZuno": "Names cannot include Zuno",
+  "matrixSaveNone": "Could not save",
+  "matrixSaved": "Saved",
+  "@matrixSaved": {
+    "description": "Snack bar after saving an attachment to the phone"
+  },
+  "matrixSavedItems": "{count, plural, one{Saved {count} item} other{Saved {count} items}}",
+  "@matrixSavedItems": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixSavedSome": "Saved {saved} of {total}",
+  "@matrixSavedSome": {
+    "placeholders": {
+      "saved": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "total": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixSavedToPhotos": "Saved to Photos",
+  "matrixSavedToVideos": "Saved to Videos",
+  "matrixShareFailed": "Could not share. Try again.",
+  "matrixSharePreparing": "Preparing to share…",
+  "@matrixSharePreparing": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "matrixSignOutOffline": "Not signed out. Check your connection and try again.",
+  "matrixSignupChooseUsername": "Choose a username",
+  "matrixSignupEnterJustUsername": "Enter just a username, without @ or a server name",
+  "matrixSignupPasswordTooLong": "{count, plural, other{Use at most {count} characters}}",
+  "@matrixSignupPasswordTooLong": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixSignupPasswordsDiffer": "Passwords do not match",
+  "matrixSignupUsernameChars": "Usernames can use a–z, 0–9, dots and underscores",
+  "matrixSignupUsernameLetter": "Usernames need at least one letter",
+  "matrixSignupUsernameTooLong": "That username is too long",
+  "matrixSignupUsernameUnderscore": "Usernames cannot start with an underscore",
+  "matrixStateAddressChanged": "{sender} changed the room address",
+  "@matrixStateAddressChanged": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateAvatarChanged": "{sender} changed the room photo",
+  "@matrixStateAvatarChanged": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateBanned": "{sender} banned {target}",
+  "@matrixStateBanned": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateCreated": "{sender} created the room",
+  "@matrixStateCreated": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateEncryptionOn": "{sender} turned on encryption",
+  "@matrixStateEncryptionOn": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateGuestAccessChanged": "{sender} changed guest access",
+  "@matrixStateGuestAccessChanged": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateHistoryChanged": "{sender} changed who can read the room history",
+  "@matrixStateHistoryChanged": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateInvited": "{sender} invited {target}",
+  "@matrixStateInvited": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateJoinRulesChanged": "{sender} changed who can join the room",
+  "@matrixStateJoinRulesChanged": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateJoined": "{target} joined",
+  "@matrixStateJoined": {
+    "description": "Chat event: a person joined; target is their name",
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateKnocked": "{target} requested to join",
+  "@matrixStateKnocked": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateLeft": "{target} left",
+  "@matrixStateLeft": {
+    "description": "Chat event: a person left; target is their name",
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateMembershipUpdated": "{sender} updated {target}'s membership",
+  "@matrixStateMembershipUpdated": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateNameChanged": "{sender} changed the room name to \"{name}\"",
+  "@matrixStateNameChanged": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateNameRemoved": "{sender} removed the room name",
+  "@matrixStateNameRemoved": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStatePermissionsChanged": "{sender} changed the room permissions",
+  "@matrixStatePermissionsChanged": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateRemoved": "{sender} removed {target}",
+  "@matrixStateRemoved": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateTopicChanged": "{sender} changed the topic to \"{topic}\"",
+  "@matrixStateTopicChanged": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "topic": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateTopicRemoved": "{sender} removed the room topic",
+  "@matrixStateTopicRemoved": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateUpgraded": "{sender} upgraded the room",
+  "@matrixStateUpgraded": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixSummaryDeleted": "Message deleted",
+  "@matrixSummaryDeleted": {
+    "description": "Chat list preview and notification text for a deleted message",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "matrixSummaryLiveLocation": "Live location",
+  "@matrixSummaryLiveLocation": {
+    "description": "Chat list preview and notification text for a live location message",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "matrixSummaryLocation": "Location",
+  "@matrixSummaryLocation": {
+    "description": "Chat list preview and notification text for a location message",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "matrixSummaryOtherEvent": "{type} event",
+  "@matrixSummaryOtherEvent": {
+    "description": "Preview of an unknown event; type is its technical type",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    },
+    "x-native": [
+      "ios"
+    ]
+  },
+  "matrixSummaryPhoto": "Photo",
+  "@matrixSummaryPhoto": {
+    "description": "Chat list preview and notification text for a photo without caption",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "matrixSummaryUndecryptable": "Message cannot be read on this device",
+  "matrixSummaryVideo": "Video",
+  "@matrixSummaryVideo": {
+    "description": "Chat list preview and notification text for a video without caption",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "matrixSummaryVoice": "Voice message",
+  "@matrixSummaryVoice": {
+    "description": "Chat list preview and notification text for a voice message",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "matrixTooLargeToSend": "Too large to send. The limit is {limit} MB.",
+  "@matrixTooLargeToSend": {
+    "placeholders": {
+      "limit": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixTypingOne": "{name} is typing…",
+  "@matrixTypingOne": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixTypingSeveral": "Several people are typing…",
+  "matrixTypingTwo": "{first} and {second} are typing…",
+  "@matrixTypingTwo": {
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixUndecryptableKeyNeverShared": "The sender's device did not share the key for this message.",
+  "matrixUndecryptableRecoverable": "Sent before this device signed in.",
+  "matrixUploadingFile": "Uploading…",
+  "@matrixUploadingFile": {
+    "description": "Send progress and Android upload notification: a file is uploading",
+    "x-native": [
+      "app"
+    ]
+  },
+  "matrixUploadingPhoto": "Uploading photo…",
+  "@matrixUploadingPhoto": {
+    "description": "Send progress: a photo is uploading"
+  },
+  "matrixUploadingVideo": "Uploading video…",
+  "@matrixUploadingVideo": {
+    "description": "Send progress: a video is uploading"
+  },
+  "matrixUsernameHint": "username",
+  "@matrixUsernameHint": {
+    "description": "Hint in the field for a username after @ (lowercase)"
+  },
+  "matrixVideoLoadFailed": "Video did not load. Try again.",
+  "navigationEmailNotOpened": "Email not opened. Write to {address} from your email.",
+  "@navigationEmailNotOpened": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "navigationLinkNotOpened": "Link not opened. Visit {address} in a browser.",
+  "@navigationLinkNotOpened": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsActionSwitchToUnifiedPush": "Switch to UnifiedPush",
+  "notificationsActionTurnOnPlayServices": "Turn on Google Play services",
+  "notificationsActionUpdatePlayServices": "Update Google Play services",
+  "notificationsActionUseBackgroundSync": "Use background sync",
+  "notificationsAllMessages": "All messages",
+  "@notificationsAllMessages": {
+    "description": "Notification option: notify for every message"
+  },
+  "notificationsAsksToJoin": "{name} asks to join",
+  "@notificationsAsksToJoin": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsAutostart": "Autostart",
+  "@notificationsAutostart": {
+    "description": "Row: phone setting that lets Zuno start on its own"
+  },
+  "notificationsAutostartHint": "This device stops closed apps from starting when a message arrives. Turn on Autostart for Zuno so notifications are not held until you open it.",
+  "notificationsBackgroundDataAllowed": "Background sync can use data even when the screen is off",
+  "notificationsBackgroundDataRestricted": "Data Saver stops background sync from using data while the screen is off. Tap to allow it.",
+  "notificationsBackgroundSyncWaiting": "Waiting for messages and calls",
+  "@notificationsBackgroundSyncWaiting": {
+    "x-native": [
+      "app"
+    ]
+  },
+  "notificationsBatteryBackgroundSyncOff": "Android may pause background sync to save power. Tap to let it run unrestricted.",
+  "notificationsBatteryBackgroundSyncOn": "Android will not pause background sync to save power",
+  "notificationsBatteryFcmOff": "Android can hold notifications back while your device sleeps. Tap to let Zuno run unrestricted.",
+  "notificationsBatteryFcmOn": "Android will not hold notifications back to save power",
+  "notificationsBatteryUnifiedPushOff": "Android puts Zuno to sleep after your device has been locked a while, and notifications stop arriving. Tap to allow.",
+  "notificationsBatteryUnifiedPushOn": "Android will not put Zuno to sleep, so notifications arrive while your device is locked",
+  "notificationsChannelBackgroundSync": "Background sync",
+  "@notificationsChannelBackgroundSync": {
+    "description": "Android notification category name: background sync running",
+    "x-native": [
+      "app"
+    ]
+  },
+  "notificationsChannelBackgroundSyncDescription": "Shows while background sync keeps Zuno connected",
+  "@notificationsChannelBackgroundSyncDescription": {
+    "x-native": [
+      "app"
+    ]
+  },
+  "notificationsChannelChatMessages": "Chat messages",
+  "@notificationsChannelChatMessages": {
+    "description": "Android notification category name: messages in one-to-one chats"
+  },
+  "notificationsChannelChatMessagesDescription": "New messages in one-to-one chats",
+  "notificationsChannelGroupAccount": "Account",
+  "@notificationsChannelGroupAccount": {
+    "description": "Android notification settings: group name for account notification categories"
+  },
+  "notificationsChannelGroupBackground": "Background",
+  "@notificationsChannelGroupBackground": {
+    "description": "Android notification settings: group name for background task categories",
+    "x-native": [
+      "app"
+    ]
+  },
+  "notificationsChannelGroupChats": "Chats",
+  "@notificationsChannelGroupChats": {
+    "description": "Android notification settings: group name for chat notification categories"
+  },
+  "notificationsChannelNewSignIns": "New sign-ins",
+  "@notificationsChannelNewSignIns": {
+    "description": "Android notification category name: new sign-ins to your account"
+  },
+  "notificationsChannelNewSignInsDescription": "A new device signed in to your account",
+  "notificationsChannelQuietMessages": "Quiet messages",
+  "@notificationsChannelQuietMessages": {
+    "description": "Android notification category name: messages that arrive silently"
+  },
+  "notificationsChannelQuietMessagesDescription": "Messages that do not mention you, while notifications are set to mentions only",
+  "notificationsChannelRoomMessages": "Room messages",
+  "@notificationsChannelRoomMessages": {
+    "description": "Android notification category name: messages in rooms"
+  },
+  "notificationsChannelRoomMessagesDescription": "New messages in rooms",
+  "notificationsChannelSilenced": "{channel} are silenced",
+  "@notificationsChannelSilenced": {
+    "placeholders": {
+      "channel": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsChannelSilencedHint": "Android shows them without a sound, or not at all. Tap to change.",
+  "notificationsContent": "Notification content",
+  "@notificationsContent": {
+    "description": "Section heading in notification settings: what notifications show"
+  },
+  "notificationsContentFootnote": "This device keeps a copy of what notifications show. With Name only or Nothing, message text stays in Zuno. Incoming calls follow this setting too.",
+  "notificationsDelivery": "Delivery",
+  "@notificationsDelivery": {
+    "description": "Notification settings row and screen title: how notifications reach this phone"
+  },
+  "notificationsDeliveryIntro": "How messages and calls reach you while Zuno is closed. Background sync needs no setup. UnifiedPush needs a distributor app, such as ntfy, installed. Google services needs Google Play services.",
+  "notificationsDeliveryMethod": "Delivery method",
+  "@notificationsDeliveryMethod": {
+    "description": "Row label: the chosen notification delivery method"
+  },
+  "notificationsDiagnosticsHint": "Check how notifications and calls reach this device",
+  "notificationsDistributorBattery": "{name} battery",
+  "@notificationsDistributorBattery": {
+    "description": "Row: battery setting of a UnifiedPush app; name is that app",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsDistributorBatteryHint": "Set its battery use to Unrestricted so notifications reach Zuno while the device sleeps",
+  "notificationsEnable": "Enable notifications",
+  "@notificationsEnable": {
+    "description": "Switch: turn notifications on"
+  },
+  "notificationsEnabledCallsFullScreen": "Calls can ring full screen",
+  "notificationsEnabledMessagesOnly": "New messages show on this device, even while Zuno is closed",
+  "notificationsEnabledWithBackgroundSync": "Calls can ring full screen, and background sync shows its status in the notification shade",
+  "notificationsFailureAutoSelected": "{mode, select, backgroundService{Google services cannot be used, so notifications use background sync} unifiedPush{Google services cannot be used, so notifications use UnifiedPush} apns{Google services cannot be used, so notifications use Apple push} other{Google services cannot be used, so notifications use {mode}}}",
+  "@notificationsFailureAutoSelected": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsFailureCallsSetup": "Could not set up calls to ring while Zuno is closed",
+  "notificationsFailureDistributorBattery": "{name} is battery restricted, so notifications can arrive late",
+  "@notificationsFailureDistributorBattery": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsFailureDistributorBatteryUnnamed": "Your distributor app is battery restricted, so notifications can arrive late",
+  "notificationsFailureMayNotReach": "Notifications may not reach this device",
+  "notificationsFailureNotRegistered": "This device is not registered for notifications",
+  "notificationsFallbackChatName": "Chat",
+  "@notificationsFallbackChatName": {
+    "description": "Android chat shortcut name when a chat has no name",
+    "x-native": [
+      "zuno_notifications"
+    ]
+  },
+  "notificationsFor": "Notifications for",
+  "@notificationsFor": {
+    "description": "Section heading: which messages notify you"
+  },
+  "notificationsFullScreenOff": "Off. Calls show only as a regular notification, even while locked. Tap to allow.",
+  "notificationsFullScreenOn": "A call takes over the screen while the device is locked",
+  "notificationsGoogleNotIncludedSubtitle": "This version of Zuno does not include Google services.",
+  "notificationsInvitedToRoom": "Invited you to {room}",
+  "@notificationsInvitedToRoom": {
+    "placeholders": {
+      "room": {
+        "type": "String"
+      }
+    },
+    "x-native": [
+      "ios"
+    ]
+  },
+  "notificationsKeepAsIs": "Keep as is",
+  "notificationsLookForDistributor": "Look for a distributor",
+  "notificationsMentionsOnly": "Mentions only",
+  "@notificationsMentionsOnly": {
+    "description": "Notification option: notify only when mentioned"
+  },
+  "notificationsMentionsOnlyHint": "Other messages show silently",
+  "notificationsMessageTone": "Message tone",
+  "@notificationsMessageTone": {
+    "description": "Switch: play a sound for new messages"
+  },
+  "notificationsMessageToneHint": "Play a sound for new messages",
+  "notificationsMissedPushes": "Some notifications could not be delivered. Open Zuno to see new messages.",
+  "@notificationsMissedPushes": {
+    "x-native": [
+      "zuno_notifications"
+    ]
+  },
+  "notificationsModeApplePush": "Apple push",
+  "@notificationsModeApplePush": {
+    "description": "Notification delivery method name: Apple push"
+  },
+  "notificationsModeApplePushDescription": "Instant, through Apple, with no setup",
+  "notificationsModeBackgroundSync": "Background sync",
+  "@notificationsModeBackgroundSync": {
+    "description": "Notification delivery method name: Zuno stays connected in the background"
+  },
+  "notificationsModeBackgroundSyncDescription": "No Google services or setup needed. Keeps a quiet notification showing.",
+  "notificationsModeGoogleDescription": "Instant, and works on most devices with no setup",
+  "notificationsModeGoogleServices": "Google services",
+  "@notificationsModeGoogleServices": {
+    "description": "Notification delivery method name: Google Play services"
+  },
+  "notificationsModeUnifiedPush": "UnifiedPush",
+  "@notificationsModeUnifiedPush": {
+    "description": "Notification delivery method name: UnifiedPush (product name)"
+  },
+  "notificationsModeUnifiedPushDescription": "Instant, without Google. Needs a distributor app such as ntfy.",
+  "notificationsMoreChats": "{count, plural, one{New messages in {count} more chat} other{New messages in {count} more chats}}",
+  "@notificationsMoreChats": {
+    "x-native": [
+      "ios"
+    ],
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "notificationsMoreChatsAndRooms": "{count, plural, other{New messages in {count} more chats and rooms}}",
+  "@notificationsMoreChatsAndRooms": {
+    "x-native": [
+      "ios"
+    ],
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "notificationsMoreRooms": "{count, plural, one{New messages in {count} more room} other{New messages in {count} more rooms}}",
+  "@notificationsMoreRooms": {
+    "x-native": [
+      "ios"
+    ],
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "notificationsNewActivity": "New activity",
+  "@notificationsNewActivity": {
+    "description": "iPhone notification text when an event cannot be described",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "notificationsNewMessage": "New message",
+  "@notificationsNewMessage": {
+    "description": "Notification text when the message is hidden",
+    "x-native": [
+      "zuno_notifications",
+      "ios"
+    ]
+  },
+  "notificationsOffNotRegistered": "Off. This device is not registered for notifications, so nothing is delivered to it.",
+  "notificationsPlayMissingSubtitle": "This device does not have Google Play services.",
+  "notificationsPlayTurnedOffHint": "Google Play services is turned off. Turn it on in your device settings to use this.",
+  "notificationsPlayUpdateOffered": "Google Play services needs an update. Zuno offers the update once you choose this.",
+  "notificationsPreviewFull": "Name and message",
+  "notificationsPreviewFullDescription": "Who wrote and what they said",
+  "notificationsPreviewNameOnly": "Name only",
+  "@notificationsPreviewNameOnly": {
+    "description": "Notification preview option: show only the sender name"
+  },
+  "notificationsPreviewNameOnlyDescription": "Who wrote, without the message",
+  "notificationsPreviewNothing": "Nothing",
+  "@notificationsPreviewNothing": {
+    "description": "Notification preview option: show nothing"
+  },
+  "notificationsPreviewNothingDescription": "Only that something new arrived",
+  "notificationsRedacted": "Redacted",
+  "@notificationsRedacted": {
+    "description": "iPhone notification text for a message that was removed",
+    "x-native": [
+      "ios"
+    ]
+  },
+  "notificationsRegister": "Register",
+  "@notificationsRegister": {
+    "description": "Button: register this phone for push notifications"
+  },
+  "notificationsReplyNotSent": "Message not sent. Open Zuno and send it again.",
+  "@notificationsReplyNotSent": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "notificationsRetentionHint": "Name only keeps message text out of notifications.",
+  "notificationsRetentionTitle": "This iOS version can keep notification text after it is deleted",
+  "notificationsRingtone": "Ringtone",
+  "@notificationsRingtone": {
+    "description": "Switch: ring for incoming calls"
+  },
+  "notificationsRingtoneHint": "Play a ringtone for incoming calls, and a ringing tone while you wait for someone to answer",
+  "notificationsSenderText": "{sender}: {text}",
+  "@notificationsSenderText": {
+    "description": "Notification text in a room: sender name, then message",
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "text": {
+        "type": "String"
+      }
+    },
+    "x-native": [
+      "ios"
+    ]
+  },
+  "notificationsSounds": "Sounds",
+  "@notificationsSounds": {
+    "description": "Section heading in notification settings: sounds"
+  },
+  "notificationsSoundsAndVibration": "Sounds & vibration",
+  "notificationsTapToOpen": "Tap to open",
+  "@notificationsTapToOpen": {
+    "x-native": [
+      "zuno_notifications"
+    ]
+  },
+  "notificationsTestWorks": "Notifications work",
+  "@notificationsTestWorks": {
+    "description": "Test notification text: notifications work",
+    "x-native": [
+      "zuno_notifications",
+      "ios"
+    ]
+  },
+  "notificationsTitle": "Notifications",
+  "@notificationsTitle": {
+    "description": "Notification settings screen title"
+  },
+  "notificationsUnifiedPushRegistrationMessage": "Zuno wants to receive notifications",
+  "notificationsUnknownFormat": "Unknown message format of type \"{type}\"",
+  "@notificationsUnknownFormat": {
+    "x-native": [
+      "ios"
+    ],
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsUnrestrictedBattery": "Unrestricted battery usage",
+  "notificationsUseNameOnly": "Use Name only",
+  "notificationsVibrateCalls": "Vibrate for calls",
+  "notificationsVibrateCallsHint": "Buzz while a call is ringing",
+  "notificationsVibrateMessages": "Vibrate for messages",
+  "notificationsVibrateMessagesHint": "Buzz once for a new message",
+  "notificationsVolumeFootnote": "Ringing and message tones follow your device's ring and notification volume, and stay silent when it is on silent.",
+  "notificationsWantsToVerify": "Wants to verify you",
+  "@notificationsWantsToVerify": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "onboardingAddPhoto": "Add a photo",
+  "onboardingAllow": "Allow",
+  "@onboardingAllow": {
+    "description": "Button during setup: allow Zuno to run in the background"
+  },
+  "onboardingAutostartBody": "This device stops closed apps from starting when a message arrives. Turn on Autostart for Zuno, or messages and calls will wait until you open it.",
+  "onboardingAutostartTitle": "Let Zuno start on its own",
+  "onboardingBatteryBody": "Android puts apps to sleep when your device has been locked for a while. Zuno needs an exception, or messages and calls will not reach you until you open it.",
+  "onboardingBatteryTitle": "Let Zuno wake up",
+  "onboardingChangePhoto": "Change photo",
+  "@onboardingChangePhoto": {
+    "description": "Screen-reader label on your profile photo during setup: change it"
+  },
+  "onboardingConfirmBody": "Every chat in Zuno is encrypted. To know the person on the other end is who they say, confirm them once: scan their code in person, or compare pictures on a call. Zuno shows you how when you start a chat.",
+  "onboardingConfirmTitle": "Make sure it is really them",
+  "onboardingDeliveryBody": "This decides how Zuno hears about new messages and calls while it is closed. You can change it later in Settings.",
+  "onboardingDeliveryTitle": "How should messages reach you?",
+  "onboardingDistributorNote": "{name} delivers notifications to Zuno and is put to sleep too. Set its battery use to Unrestricted as well.",
+  "@onboardingDistributorNote": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingFullScreenBody": "Android keeps this permission in its own settings screen. Without it, a call on a locked device shows as a small banner instead of a ringing screen.",
+  "onboardingFullScreenTitle": "Let calls take over the screen",
+  "onboardingGetStarted": "Get started",
+  "@onboardingGetStarted": {
+    "description": "Button on the welcome screen: begin setup"
+  },
+  "onboardingNameLabel": "Name",
+  "@onboardingNameLabel": {
+    "description": "Field label during setup: your display name"
+  },
+  "onboardingNotSaved": "Not saved. You can set it later in Settings.",
+  "onboardingNotificationsBodyMessages": "Zuno needs your permission to show new messages.",
+  "onboardingNotificationsBodyMessagesAndCalls": "Zuno needs your permission to show new messages and ring for calls.",
+  "onboardingNotificationsTitle": "Hear about new messages",
+  "onboardingOpen": "Open",
+  "@onboardingOpen": {
+    "description": "Button during setup: open the phone setting"
+  },
+  "onboardingOpenDistributorSettings": "Open {name} settings",
+  "@onboardingOpenDistributorSettings": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingPhotoNotAdded": "Photo not added. You can add one later in Settings.",
+  "onboardingProfileBody": "This is the name and photo people see in chats. You can change both later.",
+  "onboardingProfileTitle": "What should people call you?",
+  "onboardingSkip": "Skip",
+  "@onboardingSkip": {
+    "description": "Button during setup: skip this step"
+  },
+  "onboardingTurnOnNotifications": "Turn on notifications",
+  "onboardingWelcomeBody": "Many chat apps are paid for with data about the people who use them. Zuno has no advertisers and no investors. Your messages are end-to-end encrypted, and it works like any chat app.",
+  "onboardingWelcomeTitle": "Welcome to Zuno",
+  "permissionsCameraUsage": "Zuno uses the camera for video calls, photos and videos you take, and scanning sign-in and verification codes.",
+  "@permissionsCameraUsage": {
+    "x-ios-infoplist": [
+      "NSCameraUsageDescription"
+    ]
+  },
+  "permissionsLocationUsage": "Zuno uses your location only when you send it or share it live in a chat or room.",
+  "@permissionsLocationUsage": {
+    "x-ios-infoplist": [
+      "NSLocationAlwaysAndWhenInUseUsageDescription",
+      "NSLocationWhenInUseUsageDescription"
+    ]
+  },
+  "permissionsMicrophoneUsage": "Zuno uses the microphone for calls, voice messages and videos you record.",
+  "@permissionsMicrophoneUsage": {
+    "x-ios-infoplist": [
+      "NSMicrophoneUsageDescription"
+    ]
+  },
+  "permissionsPhotoLibraryAddUsage": "Zuno saves photos and videos to your library only when you tap Save.",
+  "@permissionsPhotoLibraryAddUsage": {
+    "x-ios-infoplist": [
+      "NSPhotoLibraryAddUsageDescription"
+    ]
+  },
+  "permissionsPhotoLibraryUsage": "Zuno uses only the photos and videos you choose, to send them or to set a profile or room photo.",
+  "@permissionsPhotoLibraryUsage": {
+    "x-ios-infoplist": [
+      "NSPhotoLibraryUsageDescription"
+    ]
+  },
+  "pushActive": "Active. Receiving notifications.",
+  "pushCallAnswered": "Call answered",
+  "@pushCallAnswered": {
+    "description": "Recent pushes outcome: the call was answered"
+  },
+  "pushCallDeclined": "Call declined",
+  "@pushCallDeclined": {
+    "description": "Recent pushes outcome: the call was declined"
+  },
+  "pushCallEnded": "Call ended",
+  "@pushCallEnded": {
+    "description": "Recent pushes outcome: the call ended"
+  },
+  "pushCallMissed": "Missed call",
+  "@pushCallMissed": {
+    "description": "Recent pushes outcome: the call was missed"
+  },
+  "pushCallRinging": "Call ringing",
+  "@pushCallRinging": {
+    "description": "Recent pushes outcome: the call rang"
+  },
+  "pushCheckingDevice": "Checking this device…",
+  "pushCouldNotFinishRegistration": "Could not finish registration",
+  "pushCouldNotLoad": "Could not load. Pull down to try again.",
+  "pushCouldNotRemoveRegistration": "Could not remove the push registration: {error}",
+  "@pushCouldNotRemoveRegistration": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "pushDelayHours": "{hours, plural, other{{hours} h}}",
+  "@pushDelayHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "pushDelayMinutes": "{minutes, plural, other{{minutes} min}}",
+  "@pushDelayMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "pushDelaySeconds": "{seconds, plural, other{{seconds} s}}",
+  "@pushDelaySeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "pushDelaySubSecond": "{seconds} s",
+  "@pushDelaySubSecond": {
+    "description": "Delivery delay under a second; seconds is a decimal",
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "pushDistributorRefused": "The distributor app refused to register this device",
+  "pushDistributorRefusedRegistration": "The distributor refused the registration",
+  "pushFinishingRegistration": "Finishing registration…",
+  "@pushFinishingRegistration": {
+    "description": "Push status: finishing registration with the server"
+  },
+  "pushGoogleServicesNotIncluded": "This version of Zuno does not include Google services",
+  "pushInactive": "Inactive",
+  "@pushInactive": {
+    "description": "Push status: not active"
+  },
+  "pushLastError": "Last error",
+  "@pushLastError": {
+    "description": "Row label on the push target screen: the last error"
+  },
+  "pushNoDistributorFound": "No distributor app on this device to deliver through",
+  "pushNoDistributorInstalled": "None installed. Install one, such as ntfy, then refresh.",
+  "pushNoServerYet": "No server to send notifications through yet.",
+  "pushNoneSelected": "None selected",
+  "@pushNoneSelected": {
+    "description": "UnifiedPush status: no distributor app chosen"
+  },
+  "pushNoneYet": "None yet",
+  "@pushNoneYet": {
+    "description": "Recent pushes screen: no pushes received yet"
+  },
+  "pushNotRegisteredYet": "Not registered yet",
+  "pushNotRemoved": "Not removed. Try again.",
+  "pushOtherRegistrations": "Other push registrations",
+  "pushOutcomeAlreadyShown": "Already shown",
+  "@pushOutcomeAlreadyShown": {
+    "description": "Recent pushes outcome: the message was already shown"
+  },
+  "pushOutcomeArrivedAfter": "{outcome}. Arrived after {delay}",
+  "@pushOutcomeArrivedAfter": {
+    "placeholders": {
+      "outcome": {
+        "type": "String"
+      },
+      "delay": {
+        "type": "String"
+      }
+    }
+  },
+  "pushOutcomeBeforeUnlock": "Shown without the message, it arrived before the first unlock",
+  "pushOutcomeBusyActive": "Arrived during another call",
+  "pushOutcomeBusyRinging": "Arrived while another call was ringing",
+  "pushOutcomeCallAlreadyRinging": "Call already ringing",
+  "pushOutcomeCallEndedFirst": "Call ended before it arrived",
+  "pushOutcomeCallForged": "Call refused, it failed a security check",
+  "pushOutcomeCallHandled": "No notification needed for this call",
+  "pushOutcomeCallKeyOutOfDate": "Call not shown, the call key is out of date",
+  "pushOutcomeCallNotShownBeforeUnlock": "Call not shown, it arrived before the first unlock",
+  "pushOutcomeCallRang": "Call rang",
+  "@pushOutcomeCallRang": {
+    "description": "Recent pushes outcome: the call rang"
+  },
+  "pushOutcomeCallRangNoName": "Call rang without the caller's name",
+  "pushOutcomeCallRangNoNameBeforeUnlock": "Call rang without the caller's name, before the first unlock",
+  "pushOutcomeCallResolved": "Call already answered or ended",
+  "pushOutcomeCallSignedOut": "Call arrived while signed out",
+  "pushOutcomeCanary": "Call check, nothing shown",
+  "pushOutcomeFallbackRing": "Ring shown by Zuno, the system call screen did not ring",
+  "pushOutcomeGone": "Shown without the message, it is no longer available",
+  "pushOutcomeHandled": "Handled",
+  "@pushOutcomeHandled": {
+    "description": "Recent pushes outcome: handled"
+  },
+  "pushOutcomeMalformed": "Shown as sent, the push was incomplete",
+  "pushOutcomeNoConnection": "Shown without the message, there was no connection",
+  "pushOutcomeNoDetails": "Shown without details, as set in Notification content",
+  "pushOutcomeNotFetched": "Shown without the message, it could not be fetched",
+  "pushOutcomeNothingNew": "Nothing new to show",
+  "pushOutcomeOwnCall": "Your own call, nothing shown",
+  "pushOutcomeQuiet": "Shown silently, it did not mention you",
+  "pushOutcomeRateLimited": "Shown without the message, too many arrived at once",
+  "pushOutcomeReadElsewhere": "Already read on another device",
+  "pushOutcomeSafeMode": "Shown without the message after a recent crash",
+  "pushOutcomeSecurityCheck": "Shown without the message, it failed a security check",
+  "pushOutcomeShown": "Shown",
+  "@pushOutcomeShown": {
+    "description": "Recent pushes outcome: the notification was shown"
+  },
+  "pushOutcomeTest": "Test notification",
+  "@pushOutcomeTest": {
+    "description": "Recent pushes outcome: a test notification"
+  },
+  "pushOutcomeUndecryptable": "Could not be decrypted, shown without the message",
+  "pushOutcomeUntilOpened": "Shown without the message until Zuno is opened",
+  "pushPlayServicesMissing": "This device does not have Google Play services",
+  "pushPlayServicesNeedsUpdate": "Google Play services needs an update",
+  "pushPlayServicesTurnedOff": "Google Play services is turned off",
+  "pushPublicBridgeMessage": "Your push server has no gateway of its own, so notifications go through a community-run one. It sees that a message arrived and when. It never sees who sent it or what it said. Use a push server with a built-in gateway, or host your own, to avoid this.",
+  "pushPublicBridgeTitle": "Using the public push bridge",
+  "pushReceivedDayTime": "{day}, {time}",
+  "@pushReceivedDayTime": {
+    "description": "When a push arrived: day, then time",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "pushRecentTitle": "Recent pushes",
+  "@pushRecentTitle": {
+    "description": "Screen title and row: list of recent pushes"
+  },
+  "pushRegistering": "Registering…",
+  "@pushRegistering": {
+    "description": "Push status: registering"
+  },
+  "pushRemoveAll": "Remove all",
+  "@pushRemoveAll": {
+    "description": "Button: remove all other push targets"
+  },
+  "pushRemoveAllOthersMessage": "Every other device and app registered for notifications on this account stops receiving them until it registers again. This device's own target is left alone.",
+  "pushRemoveAllOthersTitle": "{count, plural, one{Remove this push target?} other{Remove {count} push targets?}}",
+  "@pushRemoveAllOthersTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "pushRemoveFcmDetail": "The server forgets this device, and this device's registration token is dropped.",
+  "pushRemoveFcmSubtitle": "Makes the server forget this device and drops this device's registration token",
+  "pushRemoveOtherMessage": "\"{name}\" stops receiving push notifications for this account until whichever app or device owns it registers again.",
+  "@pushRemoveOtherMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pushRemoveOtherTitle": "Remove this push target?",
+  "pushRemoveTarget": "Remove push target",
+  "pushRemoveTargetMessage": "This device stops receiving notifications until you register again or Zuno restarts. {detail}",
+  "@pushRemoveTargetMessage": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "pushRemoveTargetTitle": "Remove push target?",
+  "pushRemoveUnifiedPushDetail": "The server forgets this device, and the distributor registration is dropped.",
+  "pushRemoveUnifiedPushSubtitle": "Makes the server forget this device and unregisters from the distributor",
+  "pushSearching": "Searching…",
+  "@pushSearching": {
+    "description": "UnifiedPush status: looking for distributor apps"
+  },
+  "pushSetupFailed": "Could not set up notifications on this device",
+  "pushSummaryArrived": "Arrived",
+  "@pushSummaryArrived": {
+    "description": "Push log: the push arrived"
+  },
+  "pushSummaryArrivedAfter": "Arrived after {delay}",
+  "@pushSummaryArrivedAfter": {
+    "placeholders": {
+      "delay": {
+        "type": "String"
+      }
+    }
+  },
+  "pushSummaryDeviceAsleep": "device asleep",
+  "@pushSummaryDeviceAsleep": {
+    "description": "Push log detail: the phone was asleep (lowercase, joined with other details)"
+  },
+  "pushSummaryPriority": "{priority, select, high{high priority} normal{normal priority} other{{priority} priority}}",
+  "@pushSummaryPriority": {
+    "placeholders": {
+      "priority": {
+        "type": "String"
+      }
+    }
+  },
+  "pushSummaryPriorityLowered": "lowered to normal priority",
+  "pushSummaryStandbyBucket": "{bucket, select, rare{standby bucket rare} restricted{standby bucket restricted} never{standby bucket never} other{standby bucket {bucket}}}",
+  "@pushSummaryStandbyBucket": {
+    "placeholders": {
+      "bucket": {
+        "type": "String"
+      }
+    }
+  },
+  "pushTargetAppDisplayName": "App display name",
+  "pushTargetDeviceId": "Device ID",
+  "@pushTargetDeviceId": {
+    "description": "Row label on the push target screen: device ID"
+  },
+  "pushTargetDeviceName": "Device name",
+  "@pushTargetDeviceName": {
+    "description": "Row label on the push target screen: device name"
+  },
+  "pushTargetDistributor": "Distributor",
+  "@pushTargetDistributor": {
+    "description": "Row label: the UnifiedPush distributor app"
+  },
+  "pushTargetGatewayUrl": "Push gateway URL",
+  "pushTargetTitle": "Push target",
+  "@pushTargetTitle": {
+    "description": "Screen title and row: where the server sends pushes for this device"
+  },
+  "reportsNotSent": "The report was not sent. Try again.",
+  "reportsSend": "Send report",
+  "@reportsSend": {
+    "description": "Button on the report sheet: send the report"
+  },
+  "reportsWhatHappened": "What happened",
+  "@reportsWhatHappened": {
+    "description": "Field label on the report sheet: describe what happened"
+  },
+  "reportsWhatHappenedOptional": "What happened (optional)",
+  "roomInfoAccessBullet": "• {line}",
+  "@roomInfoAccessBullet": {
+    "description": "One bullet point in a list of consequences",
+    "placeholders": {
+      "line": {
+        "type": "String"
+      }
+    }
+  },
+  "roomInfoAccessCommunityLeavesList": "The community leaves the public list.",
+  "roomInfoAccessCommunityMembersJoin": "Members of the community can join without an invite.",
+  "roomInfoAccessCommunityRoomsKeep": "Its rooms keep their own access.",
+  "roomInfoAccessCommunitySeesAndAsks": "Members of the community see it and can ask to join.",
+  "roomInfoAccessFindable": "Anyone can find it under Find public rooms.",
+  "roomInfoAccessHistoryDepends": "Whether new members can read older messages depends on Who can read history.",
+  "roomInfoAccessJoinFree": "Anyone can join without an invite.",
+  "roomInfoAccessMembersStay": "Current members stay. Nobody is removed.",
+  "roomInfoAccessModeratorsDecide": "Moderators and admins decide who gets in.",
+  "roomInfoAccessNeedInvite": "New people need an invite to join.",
+  "roomInfoAccessNotListed": "It is not listed under Find public rooms.",
+  "roomInfoAccessRoomLeavesList": "The room leaves the public list.",
+  "roomInfoAdminsOnlyBanner": "Only admins can change these. You can view them here.",
+  "roomInfoAdvanced": "Advanced",
+  "@roomInfoAdvanced": {
+    "description": "Section heading on room info: advanced details"
+  },
+  "roomInfoBan": "Ban",
+  "@roomInfoBan": {
+    "description": "Dialog button: ban the member"
+  },
+  "roomInfoBanCommunityBody": "They are removed from the community and cannot rejoin unless unbanned. They stay in rooms they already joined.",
+  "roomInfoBanFromRoom": "Ban from room",
+  "roomInfoBanRoomBody": "They are removed from the room and cannot rejoin unless unbanned.",
+  "roomInfoBanTitle": "Ban {name}?",
+  "@roomInfoBanTitle": {
+    "description": "Dialog title asking to confirm banning a member",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomInfoBanned": "Banned",
+  "@roomInfoBanned": {
+    "description": "Section heading on room info: banned people"
+  },
+  "roomInfoBlockPerson": "Block {name}",
+  "@roomInfoBlockPerson": {
+    "description": "Row on chat info: block this person",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomInfoCannotTurnOff": "Cannot be turned off again",
+  "roomInfoChatInfo": "Chat info",
+  "@roomInfoChatInfo": {
+    "description": "Screen title: details of a one-to-one chat"
+  },
+  "roomInfoCommunityAccess": "Community access",
+  "@roomInfoCommunityAccess": {
+    "description": "Row label: who can join the community"
+  },
+  "roomInfoCommunityAccessNotSaved": "Community access not saved. Try again.",
+  "roomInfoCommunityAccessUpdated": "Community access updated",
+  "roomInfoCommunityDefaults": "Community defaults",
+  "@roomInfoCommunityDefaults": {
+    "description": "Section heading: default permissions for rooms in this community"
+  },
+  "roomInfoCommunityInfo": "Community info",
+  "@roomInfoCommunityInfo": {
+    "description": "Section heading on community settings: basic details"
+  },
+  "roomInfoCommunityNameNotSaved": "Community name not saved. Try again.",
+  "roomInfoCommunityNameUpdated": "Community name updated",
+  "roomInfoCommunityPhoto": "Community photo",
+  "@roomInfoCommunityPhoto": {
+    "description": "Row label: the community photo"
+  },
+  "roomInfoCommunitySettings": "Community settings",
+  "@roomInfoCommunitySettings": {
+    "description": "Screen title: community settings"
+  },
+  "roomInfoConfirmOnceJoined": "You can confirm them once they join",
+  "roomInfoConfirmThemAgain": "Confirm them again",
+  "roomInfoConfirmedCount": "{confirmed, plural, other{{confirmed} of {total} confirmed}}",
+  "@roomInfoConfirmedCount": {
+    "placeholders": {
+      "confirmed": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "total": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "roomInfoConfirmedOn": "Confirmed {date}. Covers any device they add later. You will not need to do this again.",
+  "@roomInfoConfirmedOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "roomInfoCouldNotLoadMedia": "Could not load media.",
+  "roomInfoCouldNotStartChat": "Could not start the chat. Try again.",
+  "roomInfoCoversLater": "Covers any device they add later. You will not need to do this again.",
+  "roomInfoDefaultRoleHint": "The role everyone starts with when they join.",
+  "roomInfoDescription": "Description",
+  "@roomInfoDescription": {
+    "description": "Row and field label: the community description"
+  },
+  "roomInfoDescriptionNotSaved": "Description not saved. Try again.",
+  "roomInfoDescriptionUpdated": "Description updated",
+  "@roomInfoDescriptionUpdated": {
+    "description": "Snack bar after the community description changed"
+  },
+  "roomInfoEnableEncryption": "Enable encryption",
+  "@roomInfoEnableEncryption": {
+    "description": "Row and dialog button: turn on encryption for the room"
+  },
+  "roomInfoEnableEncryptionBody": "Messages sent from now on are end-to-end encrypted. Nobody can turn it off again.",
+  "roomInfoEnableEncryptionTitle": "Enable encryption?",
+  "@roomInfoEnableEncryptionTitle": {
+    "description": "Dialog title asking to confirm turning on encryption"
+  },
+  "roomInfoEncrypted": "Encrypted",
+  "@roomInfoEncrypted": {
+    "description": "Status on room info: messages here are encrypted"
+  },
+  "roomInfoEncryptionNotEnabled": "Encryption not enabled. Try again.",
+  "roomInfoFiles": "Files",
+  "@roomInfoFiles": {
+    "description": "Tab on the room media screen: shared files"
+  },
+  "roomInfoGroupIdentityChanged": "{count, plural, one{{name}'s security details changed} other{{count} people’s security details changed}}",
+  "@roomInfoGroupIdentityChanged": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomInfoHistoryAnyone": "Anyone",
+  "@roomInfoHistoryAnyone": {
+    "description": "Room history visibility option: anyone can read the history"
+  },
+  "roomInfoHistoryInvited": "Members, from when they were invited",
+  "roomInfoHistoryJoined": "Members, from when they joined",
+  "roomInfoHistorySettingNotSaved": "History setting not saved. Try again.",
+  "roomInfoHistorySettingUpdated": "History setting updated",
+  "roomInfoHistoryShared": "Members, including history before they joined",
+  "roomInfoIdentityChangedHint": "Usually a new device or a reinstall. Confirm them again.",
+  "roomInfoInviteToRoom": "Invite to room",
+  "roomInfoIsConfirmed": "{name} is confirmed",
+  "@roomInfoIsConfirmed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomInfoLetMembersAskTitle": "Let members ask to join?",
+  "roomInfoLetThemAsk": "Let them ask",
+  "roomInfoLoadOlder": "Load older",
+  "@roomInfoLoadOlder": {
+    "description": "Button on the room media screen: load older items"
+  },
+  "roomInfoMainAddress": "Main address",
+  "@roomInfoMainAddress": {
+    "description": "Row, dialog title and field label: the main address of the room"
+  },
+  "roomInfoMainAddressNotSaved": "Main address not saved. Try again.",
+  "roomInfoMainAddressUpdated": "Main address updated",
+  "roomInfoMakeCommunityPrivateTitle": "Make community private?",
+  "roomInfoMakeCommunityPublicTitle": "Make community public?",
+  "roomInfoMakePrivate": "Make private",
+  "@roomInfoMakePrivate": {
+    "description": "Dialog button: make the room or community private"
+  },
+  "roomInfoMakePublic": "Make public",
+  "@roomInfoMakePublic": {
+    "description": "Dialog button: make the room or community public"
+  },
+  "roomInfoMakeRoomPrivateTitle": "Make room private?",
+  "roomInfoMakeRoomPublicTitle": "Make room public?",
+  "roomInfoMedia": "Media",
+  "@roomInfoMedia": {
+    "description": "Section heading and screen title: photos, videos and files shared in the room"
+  },
+  "roomInfoMembers": "Members",
+  "@roomInfoMembers": {
+    "description": "Heading of the member list"
+  },
+  "roomInfoMembersCount": "{count, plural, other{Members ({count})}}",
+  "@roomInfoMembersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "roomInfoMoreMediaAndFiles": "More media and files",
+  "roomInfoNoFiles": "No files yet.",
+  "roomInfoNoMediaShared": "No media shared yet.",
+  "roomInfoNoMembersFound": "No members found",
+  "roomInfoNoPhotosOrVideos": "No photos or videos yet.",
+  "roomInfoNoRecoverySetUp": "They have not set up recovery, so there is nothing to confirm yet",
+  "roomInfoNobodyConfirmed": "Nobody here is confirmed yet",
+  "roomInfoNotEncrypted": "Not encrypted",
+  "@roomInfoNotEncrypted": {
+    "description": "Status on room info: messages here are not encrypted"
+  },
+  "roomInfoNotEncryptedHint": "Messages in this chat reach the server unencrypted",
+  "roomInfoNotMuted": "Not muted. Try again.",
+  "roomInfoNotSaved": "Not saved. Try again.",
+  "roomInfoNotSet": "Not set",
+  "@roomInfoNotSet": {
+    "description": "Value of a room setting with nothing entered yet (name, topic, address)"
+  },
+  "roomInfoNotUnbanned": "Not unbanned. Try again.",
+  "roomInfoNotUnmuted": "Not unmuted. Try again.",
+  "roomInfoNothingRecent": "Nothing in recent messages.",
+  "roomInfoOpenToCommunityTitle": "Open to community members?",
+  "roomInfoOpenToMembers": "Open to members",
+  "roomInfoPendingDevice": "They have a device they have not approved yet.",
+  "roomInfoPeople": "People",
+  "@roomInfoPeople": {
+    "description": "Row label on room info: the people in this chat and whether they are confirmed"
+  },
+  "roomInfoPersonIdentityChanged": "{name}'s security details changed",
+  "@roomInfoPersonIdentityChanged": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomInfoPhotosAndVideos": "Photos and videos",
+  "roomInfoPrivacy": "Privacy",
+  "@roomInfoPrivacy": {
+    "description": "Section heading on room settings: privacy"
+  },
+  "roomInfoRemoveCommunityBody": "They are removed from the community and can rejoin if invited again. They stay in rooms they already joined.",
+  "roomInfoRemoveFromRoom": "Remove from room",
+  "roomInfoRemoveRoomBody": "They are removed from the room and can rejoin if invited again.",
+  "roomInfoRemoveTitle": "Remove {name}?",
+  "@roomInfoRemoveTitle": {
+    "description": "Dialog title asking to confirm removing a member",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomInfoReportExplainDirect": "The report goes to Zuno and names this person. Zuno cannot read your messages, so describe what happened.",
+  "roomInfoReportExplainGroup": "The report goes to Zuno and names this person. Room admins can remove people from this room. A report is for what they cannot fix.",
+  "roomInfoReportPerson": "Report {name}",
+  "@roomInfoReportPerson": {
+    "description": "Row and sheet title: report this person",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomInfoRolesAndPermissions": "Roles & permissions",
+  "roomInfoRolesTitle": "Roles & permissions",
+  "roomInfoRoomAccess": "Room access",
+  "@roomInfoRoomAccess": {
+    "description": "Row label: who can join the room"
+  },
+  "roomInfoRoomAccessNotSaved": "Room access not saved. Try again.",
+  "roomInfoRoomAccessUpdated": "Room access updated",
+  "roomInfoRoomAlias": "Room alias",
+  "@roomInfoRoomAlias": {
+    "description": "Row label on room info: the room alias (address)"
+  },
+  "roomInfoRoomAliasCopied": "Room alias copied",
+  "roomInfoRoomDefaults": "Room defaults",
+  "@roomInfoRoomDefaults": {
+    "description": "Section heading: default permissions in this room"
+  },
+  "roomInfoRoomId": "Room ID",
+  "@roomInfoRoomId": {
+    "description": "Row label on room info: the technical room ID"
+  },
+  "roomInfoRoomIdCopied": "Room ID copied",
+  "roomInfoRoomInfo": "Room info",
+  "@roomInfoRoomInfo": {
+    "description": "Screen title and section heading: room details"
+  },
+  "roomInfoRoomNameNotSaved": "Room name not saved. Try again.",
+  "roomInfoRoomNameUpdated": "Room name updated",
+  "roomInfoRoomPhoto": "Room photo",
+  "@roomInfoRoomPhoto": {
+    "description": "Row label: the room photo"
+  },
+  "roomInfoRoomSettings": "Room settings",
+  "@roomInfoRoomSettings": {
+    "description": "Row and screen title: room settings"
+  },
+  "roomInfoRoomSettingsHint": "Name, topic, photo",
+  "roomInfoScanOrCompare": "Scan their code in person, or compare pictures on a call",
+  "roomInfoSearchMembers": "Search members",
+  "@roomInfoSearchMembers": {
+    "description": "Hint in the search field of the member list"
+  },
+  "roomInfoSecurity": "Security",
+  "@roomInfoSecurity": {
+    "description": "Section heading on room info: security"
+  },
+  "roomInfoStartChat": "Start a chat",
+  "roomInfoTopic": "Topic",
+  "@roomInfoTopic": {
+    "description": "Row and field label: the room topic"
+  },
+  "roomInfoTopicNotSaved": "Topic not saved. Try again.",
+  "roomInfoTopicUpdated": "Topic updated",
+  "@roomInfoTopicUpdated": {
+    "description": "Snack bar after the room topic changed"
+  },
+  "roomInfoUnban": "Unban",
+  "@roomInfoUnban": {
+    "description": "Button next to a banned person: lift the ban"
+  },
+  "roomInfoVideo": "Video",
+  "@roomInfoVideo": {
+    "description": "Quick action label on room info: start a video call"
+  },
+  "roomInfoViewAllMembers": "View all members",
+  "roomInfoViewOnly": "View only",
+  "@roomInfoViewOnly": {
+    "description": "Row subtitle: you can view permissions but not change them"
+  },
+  "roomInfoWhoCanDoWhat": "Who can do what",
+  "roomInfoWhoCanReadHistory": "Who can read history",
+  "roomNameEmpty": "Empty chat",
+  "@roomNameEmpty": {
+    "description": "Chat name when a chat has nobody else in it"
+  },
+  "roomNameGroupWith": "Group with {names}",
+  "@roomNameGroupWith": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "roomNameInvitedBy": "Invited by {name}",
+  "@roomNameInvitedBy": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomNameUnknownUser": "Unknown user",
+  "@roomNameUnknownUser": {
+    "description": "Name shown for a person whose name is unknown"
+  },
+  "roomNameWasDirectChat": "Empty chat (was {name})",
+  "@roomNameWasDirectChat": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomsAnyoneInCommunityCanJoin": "Anyone in {community} can join",
+  "@roomsAnyoneInCommunityCanJoin": {
+    "placeholders": {
+      "community": {
+        "type": "String"
+      }
+    }
+  },
+  "roomsBlockAndDecline": "Block and decline",
+  "roomsChats": "Chats",
+  "@roomsChats": {
+    "description": "Bottom tab, screen title and section heading: chats"
+  },
+  "roomsCommunities": "Communities",
+  "@roomsCommunities": {
+    "description": "Bottom tab, screen title and section heading: communities"
+  },
+  "roomsCouldNotCreateCommunity": "Could not create the community.",
+  "roomsCouldNotCreateRoom": "Could not create the room.",
+  "roomsCouldNotDecline": "Could not decline.",
+  "roomsCouldNotJoin": "Could not join.",
+  "roomsCouldNotJoinCommunity": "Could not join the community.",
+  "roomsCouldNotJoinRoom": "Could not join the room.",
+  "roomsCouldNotLoadCommunities": "Could not load communities",
+  "roomsCouldNotLoadRooms": "Could not load rooms",
+  "roomsCouldNotStartChat": "Could not start the chat.",
+  "roomsCreate": "Create",
+  "@roomsCreate": {
+    "description": "Dialog button: create the new room or community"
+  },
+  "roomsFindPublicCommunities": "Find public communities",
+  "roomsFindPublicRooms": "Find public rooms",
+  "roomsInvitation": "Invitation",
+  "@roomsInvitation": {
+    "description": "Screen title: an invitation to a room or community"
+  },
+  "roomsInvitations": "Invitations",
+  "@roomsInvitations": {
+    "description": "Section heading in the chat list: invitations"
+  },
+  "roomsInvitedToCommunity": "{name} invited you to this community.",
+  "@roomsInvitedToCommunity": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomsInvitedToRoom": "{name} invited you to this room.",
+  "@roomsInvitedToRoom": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomsInvitedYou": "{name} invited you",
+  "@roomsInvitedYou": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomsInvitedYouToChat": "Invited you to chat",
+  "@roomsInvitedYouToChat": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "roomsInvitedYouToCommunity": "{name} invited you to a community",
+  "@roomsInvitedYouToCommunity": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roomsJoined": "Joined",
+  "@roomsJoined": {
+    "description": "Label next to a public room you already joined"
+  },
+  "roomsMoreSignIns": "{count, plural, one{+{count} more new sign-in} other{+{count} more new sign-ins}}",
+  "@roomsMoreSignIns": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "roomsMute": "Mute",
+  "@roomsMute": {
+    "description": "Action on a room: turn off its notifications"
+  },
+  "roomsNewChat": "New chat",
+  "@roomsNewChat": {
+    "description": "Menu item, dialog title and tooltip: start a one-to-one chat"
+  },
+  "roomsNewCommunity": "New community",
+  "@roomsNewCommunity": {
+    "description": "Menu item, dialog title and tooltip: create a community"
+  },
+  "roomsNewRoom": "New room",
+  "@roomsNewRoom": {
+    "description": "Menu item, quick action and dialog title: create a room"
+  },
+  "roomsNoChatsHint": "Tap + to start one.",
+  "roomsNoChatsYet": "No chats yet",
+  "roomsNoCommunitiesFound": "No communities found",
+  "roomsNoCommunitiesHint": "Tap + to start one or find a public one.",
+  "roomsNoCommunitiesYet": "No communities yet",
+  "roomsNoMessages": "No messages",
+  "@roomsNoMessages": {
+    "description": "Chat list preview when a chat has no messages"
+  },
+  "roomsNoRoomsFound": "No rooms found",
+  "roomsNoRoomsJoined": "No rooms joined yet",
+  "roomsNotMarkedAsRead": "Not marked as read.",
+  "roomsNotMuted": "Not muted.",
+  "@roomsNotMuted": {
+    "description": "Snack bar when muting a room failed"
+  },
+  "roomsNotUnmuted": "Not unmuted.",
+  "@roomsNotUnmuted": {
+    "description": "Snack bar when unmuting a room failed"
+  },
+  "roomsPreviewSample": "Preview",
+  "@roomsPreviewSample": {
+    "description": "Never shown. Sizes the chat list rows."
+  },
+  "roomsPublicCommunities": "Public communities",
+  "@roomsPublicCommunities": {
+    "description": "Sheet title: public communities on the server"
+  },
+  "roomsPublicRooms": "Public rooms",
+  "@roomsPublicRooms": {
+    "description": "Sheet title: public rooms on the server"
+  },
+  "roomsRecoveryPromptBody": "Right now they exist only on this device. A recovery code is twelve words that bring them back on a new one.",
+  "roomsRecoveryPromptTitle": "Keep your messages if you lose this device",
+  "roomsReportAndDecline": "Report and decline",
+  "roomsReportInvitation": "Report invitation",
+  "@roomsReportInvitation": {
+    "description": "Sheet title: report an invitation"
+  },
+  "roomsReportInvitationExplain": "The report goes to Zuno and names who invited you. The invitation is declined once the report is sent.",
+  "roomsRoomName": "Room name",
+  "@roomsRoomName": {
+    "description": "Field label and hint: the name of a room"
+  },
+  "roomsSearchHint": "Search by name or topic",
+  "roomsSettings": "Settings",
+  "@roomsSettings": {
+    "description": "Tooltip on the chat list settings button"
+  },
+  "roomsSomeone": "Someone",
+  "@roomsSomeone": {
+    "description": "Inviter name when it is unknown"
+  },
+  "roomsStart": "Start",
+  "@roomsStart": {
+    "description": "Dialog button: start the new chat"
+  },
+  "roomsUnmute": "Unmute",
+  "@roomsUnmute": {
+    "description": "Action on a room: turn its notifications back on"
+  },
+  "roomsUnread": "Unread",
+  "@roomsUnread": {
+    "description": "Screen-reader state on a bottom tab: it has unread messages"
+  },
+  "roomsWantsToChat": "{name} wants to chat with you.",
+  "@roomsWantsToChat": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "securityCancelAcceptedBody": "Another one of your devices picked this up first. Nothing to do here.",
+  "securityCancelAcceptedTitle": "Answered somewhere else",
+  "securityCancelDefaultBody": "The two devices stopped agreeing partway through. Nothing changed. Starting again usually fixes it.",
+  "securityCancelDefaultTitle": "That did not finish",
+  "securityCancelMismatchOtherBody": "The two screens showed different codes, so they were not confirmed. Try again in person if you can. If it keeps happening, treat this chat as unconfirmed.",
+  "securityCancelMismatchOwnBody": "The two screens showed different codes, so this device was not approved. Try again on a network you trust. If it keeps happening, sign that device out.",
+  "securityCancelMismatchTitle": "The codes did not match",
+  "securityCancelTimeoutBody": "Nobody answered in time, so the check stopped on its own. Nothing changed.",
+  "securityCancelTimeoutTitle": "Timed out",
+  "@securityCancelTimeoutTitle": {
+    "description": "Title when a verification was canceled because it took too long"
+  },
+  "securityCancelUserMismatchBody": "The check was answered by a different account than the one it was started with. Nothing was confirmed.",
+  "securityCancelUserMismatchTitle": "That was someone else",
+  "securityCancelUserOtherBody": "One of you canceled the check. Nothing changed. Start it again whenever you like.",
+  "securityCancelUserOwnBody": "The check was canceled on one of the two devices. Nothing changed. Start it again whenever you like.",
+  "securityCancelUserTitle": "Canceled",
+  "@securityCancelUserTitle": {
+    "description": "Title when a verification was canceled by a person"
+  },
+  "securityDeviceLockedAction": "Unlock them",
+  "@securityDeviceLockedAction": {
+    "description": "Security card button: unlock your other devices"
+  },
+  "securityDeviceLockedBody": "Approve this device from another one, or enter your recovery code.",
+  "securityDeviceLockedTitle": "Older messages are not on this device yet",
+  "securityDeviceWaitingBody": "Check it is you, then approve it.",
+  "securityDeviceWaitingTitle": "A new sign-in is waiting for approval",
+  "securityEnterRecoveryCode": "Enter recovery code",
+  "securityNewSignInBody": "{device} just signed in to your account. If that was not you, sign it out now.",
+  "@securityNewSignInBody": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "securityNewSignInTitle": "New sign-in",
+  "@securityNewSignInTitle": {
+    "description": "Notification and banner title: someone signed in to your account"
+  },
+  "securityNoRecoveryBody": "Set up a recovery code so you can read them again on a new device.",
+  "securityNoRecoveryTitle": "If you lose this device, your messages go with it",
+  "securityOrdinal": "{n, select, 1{1st} 2{2nd} 3{3rd} other{{n}th}}",
+  "@securityOrdinal": {
+    "description": "Position of a word in the recovery code, 1 to 12. English: 1st, 2nd, 3rd, 4th to 12th.",
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "securityPasswordAvoidRuns": "Avoid runs like 12345678 or aaaaaaaa.",
+  "securityPasswordBuiltOnCommon": "That is built on a common password",
+  "securityPasswordCommon": "That is one of the most common passwords",
+  "securityPasswordEmptyAdvice": "{count, plural, other{At least {count} characters. Longer is stronger.}}",
+  "@securityPasswordEmptyAdvice": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "securityPasswordFair": "Okay.",
+  "@securityPasswordFair": {
+    "description": "Password strength hint: the password is okay"
+  },
+  "securityPasswordFairShort": "Okay. A few more characters would make it much harder to guess.",
+  "securityPasswordFirstGuess": "It is the first thing anyone trying to get in will try.",
+  "securityPasswordHasUsername": "Your password contains your username",
+  "securityPasswordIsUsername": "Your password is your username",
+  "securityPasswordMissing": "{count, plural, one{{count} more character to go.} other{{count} more characters to go.}}",
+  "@securityPasswordMissing": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "securityPasswordPickUnique": "Pick something nobody else would guess.",
+  "securityPasswordStrong": "Strong.",
+  "@securityPasswordStrong": {
+    "description": "Password strength hint: the password is strong"
+  },
+  "securityPasswordSymbolsAdded": "Numbers or symbols added to one are the first thing tried.",
+  "securityPasswordTooEasy": "That is too easy to guess",
+  "securityPasswordTooShort": "{count, plural, other{Use at least {count} characters}}",
+  "@securityPasswordTooShort": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "securityPasswordWeak": "Weak. Longer is the easiest way to fix it.",
+  "securityProtectedBody": "You can get them back on a new device, and your other devices are approved.",
+  "securityProtectedTitle": "Your messages are protected",
+  "securityRecoveryStaleAction": "Enter code",
+  "@securityRecoveryStaleAction": {
+    "description": "Security card button: enter your recovery code"
+  },
+  "securityRecoveryStaleBody": "Enter the current one so it can read your backed-up messages.",
+  "securityRecoveryStaleTitle": "This device has an old recovery code",
+  "securitySaveRecoveryCodeTitle": "Save your recovery code",
+  "securitySetUpRecovery": "Set up recovery",
+  "securityUnvouchedDeviceBody": "Their account has not been set up to vouch for its own devices, so this one can read what you send from now on. If you were not expecting it, check with them before sending anything sensitive.",
+  "securityUnvouchedDeviceTitle": "{name} signed in on a new device",
+  "@securityUnvouchedDeviceTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAboutAppVersion": "App version",
+  "@settingsAboutAppVersion": {
+    "description": "Row label on the About screen: app version"
+  },
+  "settingsAboutAppVersionBuild": "{version} (build {build})",
+  "@settingsAboutAppVersionBuild": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "build": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAboutChatLibraryVersion": "Chat library version",
+  "settingsAboutCrashReports": "Send crash and error reports",
+  "settingsAboutCrashReportsSubtitle": "Sends the technical details of a crash or error to a reporting service, with message content, names and addresses removed. No report is sent while this is off",
+  "settingsAboutDiagnostics": "Diagnostics",
+  "@settingsAboutDiagnostics": {
+    "description": "Section heading on the About screen: diagnostics"
+  },
+  "settingsAboutDonate": "Donate",
+  "@settingsAboutDonate": {
+    "description": "Row on the About screen: donate to Zuno"
+  },
+  "settingsAboutDonateSubtitle": "Donations help pay for running Zuno.",
+  "settingsAboutEncryptionLibraryVersion": "Encryption library version",
+  "settingsAboutHiddenMessages": "Show hidden messages",
+  "settingsAboutHiddenMessagesSubtitle": "Shows the call-signaling events Zuno normally hides, marked apart from real messages",
+  "settingsAboutLicenseNotice": "Copyright 2026 The Zuno Chat Authors.\n\nFree software under the GNU Affero General Public License, version 3 or later, with no warranty. The full text is listed under zuno below.",
+  "settingsAboutLicenses": "Open source licenses",
+  "settingsAboutSourceCode": "Source code",
+  "@settingsAboutSourceCode": {
+    "description": "Row on the About screen: open the source code"
+  },
+  "settingsAboutTitle": "About",
+  "@settingsAboutTitle": {
+    "description": "About screen title"
+  },
+  "settingsAboutUnknown": "Unknown",
+  "@settingsAboutUnknown": {
+    "description": "Value on the About screen when a version cannot be read"
+  },
+  "settingsAccountChangePassword": "Change password",
+  "@settingsAccountChangePassword": {
+    "description": "Row on the account screen: change your password"
+  },
+  "settingsAccountDisplayName": "Display name",
+  "@settingsAccountDisplayName": {
+    "description": "Row, dialog title and field label: your display name"
+  },
+  "settingsAccountDisplayNameNotSaved": "Display name not saved. Try again.",
+  "settingsAccountDisplayNameNotSet": "Not set",
+  "@settingsAccountDisplayNameNotSet": {
+    "description": "Row value: you have not set a display name"
+  },
+  "settingsAccountDisplayNameUpdated": "Display name updated",
+  "settingsAccountPasswordChanged": "Password changed",
+  "@settingsAccountPasswordChanged": {
+    "description": "Snack bar after changing your password"
+  },
+  "settingsAccountProfile": "Profile",
+  "@settingsAccountProfile": {
+    "description": "Section heading on the account screen: profile"
+  },
+  "settingsAccountProfileLoadFailed": "Could not load your profile.",
+  "settingsAccountProfilePicture": "Profile picture",
+  "@settingsAccountProfilePicture": {
+    "description": "Row label on the account screen: your profile photo"
+  },
+  "settingsAccountTitle": "Account",
+  "@settingsAccountTitle": {
+    "description": "Account settings screen title"
+  },
+  "settingsAccountUsernameCopied": "Username copied",
+  "@settingsAccountUsernameCopied": {
+    "description": "Snack bar after copying your username"
+  },
+  "settingsAdvancedCopySessionId": "Copy session ID",
+  "settingsAdvancedCopySessionKey": "Copy session key",
+  "settingsAdvancedCrossSigning": "Cross-signing",
+  "@settingsAdvancedCrossSigning": {
+    "description": "Row label on the advanced security screen: cross-signing (encryption term)"
+  },
+  "settingsAdvancedCrossSigningKeysHere": "Enabled · Private keys are on this device",
+  "settingsAdvancedCrossSigningKeysNotHere": "Enabled · Private keys are not on this device",
+  "settingsAdvancedCrossSigningNotSetUp": "Not set up",
+  "settingsAdvancedCryptography": "Cryptography",
+  "@settingsAdvancedCryptography": {
+    "description": "Section heading on the advanced security screen: cryptography"
+  },
+  "settingsAdvancedExportKeys": "Export E2E room keys",
+  "settingsAdvancedExportKeysSubtitle": "Save an encrypted copy of your room keys to a file",
+  "settingsAdvancedImportKeys": "Import E2E room keys",
+  "settingsAdvancedImportKeysSubtitle": "Restore room keys from a previously exported file",
+  "settingsAdvancedIntro": "The raw mechanics behind recovery and device approval. You don't need any of this for day-to-day use.",
+  "settingsAdvancedKeyBackupActive": "Active",
+  "@settingsAdvancedKeyBackupActive": {
+    "description": "Row value: key backup is on"
+  },
+  "settingsAdvancedKeyBackupNotSetUp": "Not set up",
+  "settingsAdvancedKeysManagement": "Cryptography keys management",
+  "settingsAdvancedManageKeyBackup": "Manage key backup",
+  "settingsAdvancedSecretStorage": "Secret storage",
+  "@settingsAdvancedSecretStorage": {
+    "description": "Section heading on the advanced security screen: secret storage (encryption term)"
+  },
+  "settingsAdvancedSecretStorageIntro": "Alternatives to the generated recovery code — a raw security key to paste between clients, or a phrase you choose yourself. Setting up either one replaces your current recovery code.",
+  "settingsAdvancedSessionId": "Session ID",
+  "@settingsAdvancedSessionId": {
+    "description": "Row label: the technical ID of this session"
+  },
+  "settingsAdvancedSessionIdCopied": "Session ID copied",
+  "settingsAdvancedSessionKey": "Session key",
+  "@settingsAdvancedSessionKey": {
+    "description": "Row label: the encryption key of this session"
+  },
+  "settingsAdvancedSessionKeyCopied": "Session key copied",
+  "settingsAdvancedSessionName": "Session name",
+  "@settingsAdvancedSessionName": {
+    "description": "Row label: the name of this session"
+  },
+  "settingsAdvancedTitle": "Advanced",
+  "@settingsAdvancedTitle": {
+    "description": "Advanced security screen title"
+  },
+  "settingsAdvancedUnknown": "Unknown",
+  "@settingsAdvancedUnknown": {
+    "description": "Row value when the session ID is unknown"
+  },
+  "settingsAdvancedUnnamedSession": "Unnamed session",
+  "@settingsAdvancedUnnamedSession": {
+    "description": "Row value when this session has no name"
+  },
+  "settingsAdvancedUseSecurityKey": "Use a security key",
+  "settingsAdvancedUseSecurityKeySubtitle": "Generate a raw key to store somewhere safe, like a password manager",
+  "settingsAdvancedUseSecurityPhrase": "Use a security phrase",
+  "settingsAdvancedUseSecurityPhraseSubtitle": "Choose a secret phrase of your own",
+  "settingsChangePasswordChanging": "Changing password…",
+  "@settingsChangePasswordChanging": {
+    "description": "Button label while the password is being changed"
+  },
+  "settingsChangePasswordConfirm": "Confirm new password",
+  "settingsChangePasswordCurrent": "Current password",
+  "@settingsChangePasswordCurrent": {
+    "description": "Field label: your current password"
+  },
+  "settingsChangePasswordFailed": "Password not changed. Try again.",
+  "settingsChangePasswordFillBoth": "Fill in both password fields",
+  "settingsChangePasswordMismatch": "New passwords do not match",
+  "settingsChangePasswordNew": "New password",
+  "@settingsChangePasswordNew": {
+    "description": "Field label: your new password"
+  },
+  "settingsChangePasswordTitle": "Change password",
+  "@settingsChangePasswordTitle": {
+    "description": "Dialog title and its button: change your password"
+  },
+  "settingsChatsCallsAppearance": "Appearance",
+  "@settingsChatsCallsAppearance": {
+    "description": "Section heading in chats and calls settings: appearance"
+  },
+  "settingsChatsCallsCalls": "Calls",
+  "@settingsChatsCallsCalls": {
+    "description": "Section heading in chats and calls settings: calls"
+  },
+  "settingsChatsCallsChats": "Chats",
+  "@settingsChatsCallsChats": {
+    "description": "Section heading in chats and calls settings: chats"
+  },
+  "settingsChatsCallsDark": "Dark",
+  "@settingsChatsCallsDark": {
+    "description": "Theme option: dark"
+  },
+  "settingsChatsCallsFollowSystem": "Follow system",
+  "@settingsChatsCallsFollowSystem": {
+    "description": "Theme option: follow the phone setting"
+  },
+  "settingsChatsCallsLight": "Light",
+  "@settingsChatsCallsLight": {
+    "description": "Theme option: light"
+  },
+  "settingsChatsCallsPreventAccidental": "Prevent accidental calls",
+  "settingsChatsCallsPreventAccidentalSubtitle": "Asks before starting a voice or video call",
+  "settingsChatsCallsTitle": "Chats & calls",
+  "settingsChatsCallsTyping": "Show when you are typing",
+  "settingsChatsCallsTypingSubtitle": "You still see when others are typing",
+  "settingsComingSoon": "Coming soon",
+  "@settingsComingSoon": {
+    "description": "Chip on a setting that is not available yet"
+  },
+  "settingsConfirmedOnlyNeedsApproval": "Approve this device to turn this on",
+  "settingsConfirmedOnlyNeedsRecovery": "Set up recovery to turn this on",
+  "settingsConfirmedOnlySubtitle": "Only people you have confirmed, and your approved devices, can read what you send from this device",
+  "settingsConfirmedOnlyTitle": "Confirmed people only",
+  "settingsCopiedSensitive": "Copied. Clears from the clipboard in 90 seconds.",
+  "settingsDataCacheCleared": "Cache cleared",
+  "@settingsDataCacheCleared": {
+    "description": "Snack bar after clearing the cache"
+  },
+  "settingsDataClearCache": "Clear cache",
+  "@settingsDataClearCache": {
+    "description": "Row and dialog button: clear cached files"
+  },
+  "settingsDataClearCacheBody": "Clears the messages and room details saved on this device, then downloads them again. Nothing is deleted on the server.",
+  "settingsDataClearCacheFailed": "Cache not cleared. Try again.",
+  "settingsDataClearCacheSubtitle": "Messages and room details saved on this device. They download again.",
+  "settingsDataClearCacheTitle": "Clear cache?",
+  "@settingsDataClearCacheTitle": {
+    "description": "Dialog title asking to confirm clearing the cache"
+  },
+  "settingsDataClearMediaCache": "Clear media cache",
+  "settingsDataClearMediaCacheSubtitle": "Images and photos saved on this device for up to a day",
+  "settingsDataLowDataCalls": "Use less data for calls",
+  "settingsDataLowDataCallsSubtitle": "Video calls use less data, but the picture is less sharp.",
+  "settingsDataMediaCacheCleared": "Media cache cleared",
+  "settingsDataReduceMedia": "Reduce media size",
+  "settingsDataReduceMediaSubtitle": "Photos and videos send faster and use less data, but look less sharp.",
+  "settingsDataStorage": "Storage",
+  "@settingsDataStorage": {
+    "description": "Section heading in data settings: storage"
+  },
+  "settingsDataTitle": "Data & storage",
+  "settingsDataUse": "Data use",
+  "@settingsDataUse": {
+    "description": "Section heading in data settings: mobile data use"
+  },
+  "settingsDeleteAccount": "Delete account",
+  "@settingsDeleteAccount": {
+    "description": "Row and dialog button: delete your account"
+  },
+  "settingsDeleteAccountConfirmTitle": "Confirm deletion",
+  "@settingsDeleteAccountConfirmTitle": {
+    "description": "Dialog title: confirm deleting your account"
+  },
+  "settingsDeleteAccountTypeUsername": "Type your username to confirm: {username}",
+  "@settingsDeleteAccountTypeUsername": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsDeleteAccountUiaTitle": "Confirm your password to delete your account",
+  "settingsDeleteAccountWarningBody": "Your account, profile and messages are permanently removed. People you have messaged keep their copies. Nobody can reach you at this username again, and nobody can undo this. Zuno then erases everything it stored on this device and closes.",
+  "settingsDeleteAccountWarningTitle": "Delete your account?",
+  "settingsDeleteAccountWindDownCall": "Confirming ends your call, even if the password is wrong.",
+  "settingsDeleteAccountWindDownCallAndLocation": "Confirming ends your call and stops sharing your location, even if the password is wrong.",
+  "settingsDeleteAccountWindDownLocation": "Confirming stops sharing your location, even if the password is wrong.",
+  "settingsKeyBackupActiveNotRestorable": "Active, but this device cannot restore from it (set up Secure backup)",
+  "settingsKeyBackupActiveRestorable": "Active — this device can restore from it",
+  "settingsKeyBackupAlgorithm": "Algorithm",
+  "@settingsKeyBackupAlgorithm": {
+    "description": "Row label on the key backup screen: encryption algorithm"
+  },
+  "settingsKeyBackupDelete": "Delete key backup",
+  "settingsKeyBackupDeleteBody": "This deletes the online backup of your encrypted message keys. Devices that have not already synced these keys another way will not be able to recover them. This does not change Secure backup itself — a new backup can be created again later.",
+  "settingsKeyBackupDeleteFailed": "Could not delete the key backup.",
+  "settingsKeyBackupDeleteTitle": "Delete key backup?",
+  "settingsKeyBackupKeysBackedUp": "Keys backed up",
+  "settingsKeyBackupLoadFailed": "Could not load the key backup. Pull down to try again.",
+  "settingsKeyBackupNone": "No key backup set up on this account.",
+  "settingsKeyBackupTitle": "Manage key backup",
+  "settingsPageAbout": "About",
+  "@settingsPageAbout": {
+    "description": "Settings row: open the About screen"
+  },
+  "settingsPageAboutDonate": "Version, donate, diagnostics",
+  "settingsPageAboutTerms": "Version, terms, diagnostics",
+  "settingsPageChatsCalls": "Chats & calls",
+  "settingsPageChatsCallsSubtitle": "Theme, typing, calls",
+  "settingsPageDataStorage": "Data & storage",
+  "settingsPageDataStorageSubtitle": "Media size, call data, cache",
+  "settingsPageNotifications": "Notifications",
+  "@settingsPageNotifications": {
+    "description": "Settings row: open notification settings"
+  },
+  "settingsPageNotificationsDelivery": "Sounds, delivery",
+  "@settingsPageNotificationsDelivery": {
+    "description": "Settings row subtitle: what notification settings contain"
+  },
+  "settingsPageNotificationsMentions": "Sounds, mentions",
+  "@settingsPageNotificationsMentions": {
+    "description": "Settings row subtitle: what notification settings contain"
+  },
+  "settingsPageProfileSubtitle": "{username} · Profile, password",
+  "@settingsPageProfileSubtitle": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsPageSecurity": "Security",
+  "@settingsPageSecurity": {
+    "description": "Settings row: open security settings"
+  },
+  "settingsPageSecurityScreenContent": "Recovery, devices, screen content",
+  "settingsPageSecurityScreenshots": "Recovery, devices, screenshots",
+  "settingsPageSendFeedback": "Send feedback",
+  "@settingsPageSendFeedback": {
+    "description": "Settings row: send feedback"
+  },
+  "settingsPageSignOutAnyway": "Sign out anyway",
+  "settingsPageSignOutBody": "Zuno erases everything it stored on this device and closes. You will need your password to sign back in. Your recovery code brings your messages back.",
+  "settingsPageSignOutBodyNoRecovery": "Zuno erases everything it stored on this device and closes. Messages on this device are gone for good. Without a recovery code, nobody can restore them.",
+  "settingsPageSignOutTitle": "Sign out?",
+  "@settingsPageSignOutTitle": {
+    "description": "Dialog title asking to confirm signing out"
+  },
+  "settingsPageTitle": "Settings",
+  "@settingsPageTitle": {
+    "description": "Settings screen title"
+  },
+  "settingsRecoveryCodeHint": "{count, plural, other{{count} words, separated by spaces}}",
+  "@settingsRecoveryCodeHint": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "settingsRecoveryCodeLabel": "Recovery code",
+  "@settingsRecoveryCodeLabel": {
+    "description": "Field label: your recovery code"
+  },
+  "settingsRecoveryConfirmBody": "Type the {first} and {second} words from your saved copy.",
+  "@settingsRecoveryConfirmBody": {
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsRecoveryConfirmTitle": "Check your saved copy",
+  "settingsRecoveryCopiedStays": "Copied. It stays on the clipboard until you copy something else.",
+  "settingsRecoveryLooksRight": "Looks right.",
+  "@settingsRecoveryLooksRight": {
+    "description": "Check under the recovery code field: the code looks valid"
+  },
+  "settingsRecoveryMismatch": "That does not match. Check your saved copy.",
+  "settingsRecoveryNotACode": "That file does not hold a recovery code.",
+  "settingsRecoveryOpenDialogTitle": "Open your recovery code",
+  "settingsRecoveryOpenFailed": "Could not open that file. Try again.",
+  "settingsRecoveryOpenSavedFile": "Open a saved file",
+  "settingsRecoveryPrepareFailed": "Could not prepare a recovery code. Go back and try again.",
+  "settingsRecoveryRevealBody": "If you lose this device and every other signed-in device, this code is the only way back to your messages. Nobody can restore them for you. Write it down, save it as a file, or copy it into a password manager.",
+  "settingsRecoveryRevealTitle": "{count, plural, other{These {count} words are your recovery code}}",
+  "@settingsRecoveryRevealTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "settingsRecoverySaveAsFile": "Save as a file",
+  "settingsRecoverySaved": "Saved",
+  "@settingsRecoverySaved": {
+    "description": "Snack bar after saving the recovery code file"
+  },
+  "settingsRecoveryShowAgain": "Show the code again",
+  "settingsRecoveryTooManyWords": "{count, plural, other{That is {count} words. A code has {expected}.}}",
+  "@settingsRecoveryTooManyWords": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "expected": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "settingsRecoveryUnknownWord": "\"{word}\" is not one of the words.",
+  "@settingsRecoveryUnknownWord": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsRecoveryUnknownWordSuggestions": "\"{word}\" is not one of the words. Did you mean {suggestions}?",
+  "@settingsRecoveryUnknownWordSuggestions": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      },
+      "suggestions": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsRecoveryWordLabel": "{position} word",
+  "@settingsRecoveryWordLabel": {
+    "description": "Field label: one word of the recovery code; position is an ordinal",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsRecoveryWordNumber": "{number}",
+  "@settingsRecoveryWordNumber": {
+    "description": "Number before each word of the recovery code",
+    "placeholders": {
+      "number": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "settingsRecoveryWordsToGo": "{count, plural, one{{count} more word to go.} other{{count} more words to go.}}",
+  "@settingsRecoveryWordsToGo": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "settingsSecureBackupAllSet": "All set",
+  "@settingsSecureBackupAllSet": {
+    "description": "Title when recovery setup finished"
+  },
+  "settingsSecureBackupBadBody": "Part of the recovery data on this account is unreadable. Continue to set up fresh recovery, leaving the unreadable parts as they are, or cancel.",
+  "settingsSecureBackupBadTitle": "Some recovery data cannot be read",
+  "settingsSecureBackupCreateKeyBody": "This generates a security key that unlocks your account's encrypted history on a new device, and lets other devices trust each other automatically. You'll see it once, right after — save it somewhere safe, like a password manager.",
+  "settingsSecureBackupCreateKeyTitle": "Create a security key",
+  "settingsSecureBackupEnterSubtitle": "The words you saved when recovery was set up. A security key or phrase from another app works here too.",
+  "settingsSecureBackupEnterTitle": "Enter your recovery code",
+  "settingsSecureBackupExistingBody": "Another device set it up. Enter that code to unlock your messages here, or start over with a new one. Starting over stops the old code working, your other devices need approving again, and anyone you have confirmed needs confirming again.",
+  "settingsSecureBackupExistingTitle": "This account already has recovery set up",
+  "settingsSecureBackupFailed": "That did not work. Try again.",
+  "settingsSecureBackupGenerateKey": "Generate security key",
+  "settingsSecureBackupKeyCopied": "Copied — clears in 90 seconds",
+  "settingsSecureBackupOlderSubtitle": "This account has more than one old recovery secret on file. Enter each one to migrate it.",
+  "settingsSecureBackupOlderTitle": "Enter an older recovery code",
+  "settingsSecureBackupPhraseBody": "Pick a secret phrase only you know — you'll need it to unlock encrypted history on a new device. This also generates a backup security key, shown once right after, in case you forget the phrase.",
+  "settingsSecureBackupPhraseConfirmLabel": "Confirm security phrase",
+  "settingsSecureBackupPhraseLabel": "Security phrase",
+  "@settingsSecureBackupPhraseLabel": {
+    "description": "Field label: your security phrase"
+  },
+  "settingsSecureBackupPhraseMismatch": "That doesn't match the phrase above",
+  "settingsSecureBackupPhraseTitle": "Choose a security phrase",
+  "settingsSecureBackupProtected": "Your messages are protected.",
+  "settingsSecureBackupRestored": "Restored",
+  "@settingsSecureBackupRestored": {
+    "description": "Title when your messages were restored"
+  },
+  "settingsSecureBackupSaveKeyBody": "This is the only time you'll see it. Store it somewhere safe — a password manager works well. You'll need it to restore encrypted history on any future device.",
+  "settingsSecureBackupSaveKeyTitle": "Save your recovery key",
+  "settingsSecureBackupSavedKey": "I've saved my recovery key",
+  "settingsSecureBackupSettingUp": "Setting up…",
+  "@settingsSecureBackupSettingUp": {
+    "description": "Status while recovery is being set up"
+  },
+  "settingsSecureBackupStartOver": "Start over with a new code",
+  "settingsSecureBackupTitle": "Recovery",
+  "@settingsSecureBackupTitle": {
+    "description": "Recovery screen title"
+  },
+  "settingsSecureBackupUnlock": "Unlock",
+  "@settingsSecureBackupUnlock": {
+    "description": "Button: unlock your backup with the code or phrase"
+  },
+  "settingsSecureBackupUnlockFailed": "That did not work. Check the code and try again.",
+  "settingsSecurityAdvanced": "Advanced",
+  "@settingsSecurityAdvanced": {
+    "description": "Security settings row: advanced options"
+  },
+  "settingsSecurityAdvancedSubtitle": "Keys, secret storage, key backup",
+  "settingsSecurityBlockedPeople": "Blocked people",
+  "@settingsSecurityBlockedPeople": {
+    "description": "Security settings row: open the list of blocked people"
+  },
+  "settingsSecurityBlockedPeopleSubtitle": "People whose messages and invitations do not reach you",
+  "settingsSecurityCardCheckFailed": "Could not check right now",
+  "settingsSecurityCardCheckFailedBody": "It usually clears once you reconnect.",
+  "settingsSecurityChangeRecovery": "Change your recovery code",
+  "settingsSecurityChangeRecoverySubtitle": "Replaces the current one. Your other devices will need approving again.",
+  "settingsSecurityHideScreenContent": "Hide screen content",
+  "settingsSecurityHideScreenContentSubtitle": "Hides Zuno in the app switcher and while the screen is recorded or shared. Screenshots still work.",
+  "settingsSecurityHowThisWorks": "How this works",
+  "settingsSecurityHowThisWorksSubtitle": "Recovery, devices and confirming people",
+  "settingsSecurityIncognitoKeyboard": "Incognito keyboard",
+  "@settingsSecurityIncognitoKeyboard": {
+    "description": "Switch: ask the keyboard not to learn what you type"
+  },
+  "settingsSecurityIncognitoKeyboardSubtitle": "Asks the keyboard not to learn from what you type",
+  "settingsSecurityOnThisDevice": "On this device",
+  "settingsSecurityPreventScreenshots": "Prevent screenshots",
+  "@settingsSecurityPreventScreenshots": {
+    "description": "Switch: block screenshots of Zuno"
+  },
+  "settingsSecurityPreventScreenshotsSubtitle": "Blocks screenshots and screen recording, and hides Zuno in the recent apps preview",
+  "settingsSecuritySetUpRecoverySubtitle": "Twelve words that bring your messages back on a new device",
+  "settingsSecurityTitle": "Security",
+  "@settingsSecurityTitle": {
+    "description": "Security settings screen title"
+  },
+  "settingsSecurityYourDevices": "Your devices",
+  "@settingsSecurityYourDevices": {
+    "description": "Security settings row: open the list of your devices"
+  },
+  "settingsSecurityYourDevicesSubtitle": "See what is signed in, and sign things out",
+  "settingsSessionsApprove": "Approve",
+  "@settingsSessionsApprove": {
+    "description": "Button next to a device: approve it"
+  },
+  "settingsSessionsApproveFailed": "Could not start approving that device. Try again.",
+  "settingsSessionsApproveThisDevice": "Approve this device",
+  "settingsSessionsApproved": "Approved",
+  "@settingsSessionsApproved": {
+    "description": "Device status: approved"
+  },
+  "settingsSessionsCannotCheck": "Cannot check from this device",
+  "settingsSessionsHideIp": "Hide IP",
+  "@settingsSessionsHideIp": {
+    "description": "Button: hide the IP addresses of your devices"
+  },
+  "settingsSessionsLastActive": "Last active {when}",
+  "@settingsSessionsLastActive": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsSessionsLastActivityUnknown": "Last activity unknown",
+  "settingsSessionsLoadFailed": "Could not load your devices. Pull down to try again.",
+  "settingsSessionsNone": "No devices found.",
+  "settingsSessionsNotApproved": "Not approved yet",
+  "settingsSessionsRefreshFailed": "Could not refresh your devices.",
+  "settingsSessionsShowIp": "Show IP",
+  "@settingsSessionsShowIp": {
+    "description": "Button: show the IP addresses of your devices"
+  },
+  "settingsSessionsSignInOnAnother": "Sign in on another device",
+  "settingsSessionsSignInOnAnotherSubtitle": "The new device scans a code instead of typing the password.",
+  "settingsSessionsSignOutEverywhereElse": "Sign out everywhere else",
+  "settingsSessionsSignOutFailed": "Not signed out. Try again.",
+  "settingsSessionsSignOutOneBody": "That device will need to sign in again.",
+  "settingsSessionsSignOutOneTitle": "Sign out of \"{name}\"?",
+  "@settingsSessionsSignOutOneTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsSessionsSignOutOthersBody": "Every other device on this account will need to sign in again. This device is not affected.",
+  "settingsSessionsSignOutOthersTitle": "{count, plural, one{Sign out of {count} other device?} other{Sign out of {count} other devices?}}",
+  "@settingsSessionsSignOutOthersTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "settingsSessionsSignOutThisBody": "Zuno erases everything it stored on this device and closes. Without a recovery code, the messages on it are gone for good.",
+  "settingsSessionsSignOutThisDevice": "Sign out this device",
+  "settingsSessionsSignOutThisTitle": "Sign out of this device?",
+  "settingsSessionsSignOutThisTooltip": "Sign out of this device",
+  "settingsSessionsSignedIn": "Signed in",
+  "@settingsSessionsSignedIn": {
+    "description": "Heading on the devices screen: devices signed in to your account"
+  },
+  "settingsSessionsThisDevice": "This device",
+  "@settingsSessionsThisDevice": {
+    "description": "Chip marking the device you are using"
+  },
+  "settingsSessionsTitle": "Your devices",
+  "@settingsSessionsTitle": {
+    "description": "Screen title: your devices"
+  },
+  "settingsSignInExpired": "This code has expired.",
+  "settingsSignInExpiresIn": "Expires in {minutes}:{seconds}",
+  "@settingsSignInExpiresIn": {
+    "placeholders": {
+      "minutes": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsSignInNewCode": "New code",
+  "@settingsSignInNewCode": {
+    "description": "Button: create a new sign-in code"
+  },
+  "settingsSignInScan": "Scan this with the new device, or type the code under it.",
+  "settingsSignInTitle": "Sign in on another device",
+  "settingsSignInWorksOnce": "It works once. Anyone who sees it can sign in to your account.",
+  "settingsSignOut": "Sign out",
+  "@settingsSignOut": {
+    "description": "Row and dialog button: sign out"
+  },
+  "settingsUiaConfirm": "Confirm",
+  "@settingsUiaConfirm": {
+    "description": "Button in the password prompt: confirm with your password"
+  },
+  "settingsUiaDefaultTitle": "Confirm your password",
+  "settingsVoipCopy": "Copy test values",
+  "settingsVoipDevOnly": "Development build only",
+  "settingsVoipDevOnlySubtitle": "These let a test tool on your computer ring this device. Anyone holding them can do the same until the next sign-in.",
+  "settingsVoipKeyId": "Key id",
+  "@settingsVoipKeyId": {
+    "description": "Developer row label: ID of the call push key"
+  },
+  "settingsVoipTestValues": "Call push test values",
+  "settingsVoipToken": "Call push token",
+  "settingsWhyAllProtections": "All of Zuno's protections",
+  "settingsWhyApprovalDeliberate": "Until then, the new device cannot read anything older than itself. That is deliberate: if it were not really you, it would get nothing.",
+  "settingsWhyApprovalHeading": "Why new devices ask for approval",
+  "settingsWhyApprovalStranger": "When you sign in somewhere new, your other devices have no way to tell it apart from a stranger signing in as you. Approving it, by scanning a code between the two, is how they find out.",
+  "settingsWhyConfirmedOnlyHeading": "Confirmed people only",
+  "settingsWhyConfirmedOnlyNormally": "Normally, everyone in a chat can read what you send, on every device they have approved. If someone has not set up recovery, all of their devices can.",
+  "settingsWhyConfirmedOnlyTurnOn": "Turn on Confirmed people only, and what you send from this device can be read only by people you have confirmed and by your own approved devices. Everyone else sees a message they cannot read. Once you confirm them, they can read what you send after that.",
+  "settingsWhyConfirmingHeading": "Why confirming people matters",
+  "settingsWhyConfirmingHow": "Confirming someone, in person by scanning or on a call by comparing pictures, checks their details through a channel the server does not control. It only needs doing once per person, even if they change devices later.",
+  "settingsWhyConfirmingServer": "Zuno asks the server which devices belong to your friend. A dishonest server could answer with one of its own and read along. Encryption alone does not stop that, because the wrong source was asked.",
+  "settingsWhyInterruptsBody": "Almost never. A new sign-in on your own account, and a person whose security details changed after you confirmed them. Both mean something you can act on. Everything else stays out of your way.",
+  "settingsWhyInterruptsHeading": "When Zuno interrupts you",
+  "settingsWhyIntroEncrypted": "Your messages are encrypted on your device before they are sent, and only the devices in the chat can decrypt them. Not Zuno, and not the server they pass through.",
+  "settingsWhyIntroLimits": "Encryption protects what you say. It does not hide who you talk to, and it cannot stop a screenshot or a compromised device.",
+  "settingsWhyRecoveryHeading": "Why a recovery code",
+  "settingsWhyRecoveryLocked": "The ability to decrypt your messages lives on your devices, not on the server. That is what keeps them private. It also means that if you lose every device you own, your old messages stay locked forever.",
+  "settingsWhyRecoveryWay": "A recovery code is the way back. Twelve words, saved somewhere safe. Enter them on a new device and your messages come back.",
+  "settingsWhyTitle": "How this works",
+  "shareNoChats": "No chats found",
+  "shareOpenLater": "Open Zuno in the next few minutes to finish sharing.",
+  "@shareOpenLater": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "shareSearchChats": "Search chats",
+  "@shareSearchChats": {
+    "description": "Hint in the search field when choosing where to share"
+  },
+  "shareTo": "Share to",
+  "@shareTo": {
+    "description": "Screen title: choose a chat to share to"
+  },
+  "shareUnreadable": "Could not read what was shared. Try again.",
+  "@shareUnreadable": {
+    "x-native": [
+      "ios"
+    ]
+  },
+  "startupDeleteAndStartOver": "Delete and start over",
+  "startupFailedBody": "The chats and keys stored on this device could not be opened. Nothing has been deleted. Try again, and if this keeps happening, restart your device or free up some storage.",
+  "startupFailedTitle": "Zuno could not start",
+  "startupStartOver": "Start over on this device",
+  "startupStartOverBody": "This deletes the chats and encryption keys Zuno stored on this device. You then sign in again, and your message history comes back only with your recovery code or another signed-in device. Nobody can undo this.",
+  "startupStartOverTitle": "Start over on this device?",
+  "uiMoveToBottomLeft": "Move to bottom left",
+  "uiMoveToBottomRight": "Move to bottom right",
+  "uiMoveToTopLeft": "Move to top left",
+  "uiMoveToTopRight": "Move to top right",
+  "unitsBytes": "{count} B",
+  "@unitsBytes": {
+    "description": "File size in bytes",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unitsKilobytes": "{size} KB",
+  "@unitsKilobytes": {
+    "description": "File size in kilobytes",
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "unitsMegabytes": "{size} MB",
+  "@unitsMegabytes": {
+    "description": "File size in megabytes",
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "unitsMembers": "{count, plural, one{{count} member} other{{count} members}}",
+  "@unitsMembers": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "uploadsChannelSendingFiles": "Sending files",
+  "@uploadsChannelSendingFiles": {
+    "description": "Android notification category name: files being sent",
+    "x-native": [
+      "app"
+    ]
+  },
+  "uploadsChannelSendingFilesDescription": "Progress while photos, videos and files are sent",
+  "@uploadsChannelSendingFilesDescription": {
+    "x-native": [
+      "app"
+    ]
+  },
+  "verificationAccept": "Accept",
+  "@verificationAccept": {
+    "description": "Dialog button: accept a verification request"
+  },
+  "verificationApproveBody": "Approve this device and your message history comes back.",
+  "verificationApproveFromOther": "Approve from another device",
+  "verificationApproveHeading": "Older messages are not here yet",
+  "verificationApproveTitle": "Approve this device",
+  "verificationApproved": "Approved",
+  "@verificationApproved": {
+    "description": "Title when this device was approved"
+  },
+  "verificationApprovedBody": "This device can now read your messages.",
+  "verificationBackToChat": "Back to chat",
+  "verificationCameraBusy": "Another app may be using it. Go back and try again. {withoutCamera}",
+  "@verificationCameraBusy": {
+    "placeholders": {
+      "withoutCamera": {
+        "type": "String"
+      }
+    }
+  },
+  "verificationCameraDidNotStart": "The camera did not start",
+  "verificationCameraNeeded": "Zuno needs the camera to scan the code. {withoutCamera}",
+  "@verificationCameraNeeded": {
+    "placeholders": {
+      "withoutCamera": {
+        "type": "String"
+      }
+    }
+  },
+  "verificationCheckOtherBody": "{name} scanned your code. Check their screen says it worked before you finish.",
+  "@verificationCheckOtherBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "verificationCheckOtherQuestion": "Did their screen show a check mark?",
+  "verificationCheckOwnBody": "Your other device scanned this code. Check it says it worked before you finish.",
+  "verificationCheckOwnQuestion": "Did your other device show a check mark?",
+  "verificationCompareOther": "Check these match. Read them out to each other.",
+  "verificationCompareOwn": "Check these match on both devices",
+  "verificationComparePictures": "Not together? Compare pictures instead",
+  "verificationConfirmPerson": "Confirm it is really {name}",
+  "@verificationConfirmPerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "verificationConfirmTitle": "Confirm it is them",
+  "verificationConfirmed": "Confirmed",
+  "@verificationConfirmed": {
+    "description": "Title when a person was confirmed"
+  },
+  "verificationConfirmedBody": "You are talking to the real {name}. You will not need to do this again, even if they get a new device.",
+  "@verificationConfirmedBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "verificationCouldNotSend": "Could not send that. Try again.",
+  "verificationCouldNotStart": "Could not start. Try again.",
+  "verificationLostCode": "Lost the code? Start over",
+  "verificationNoOtherDevices": "Could not find your other devices yet.",
+  "verificationNoStop": "No, stop",
+  "@verificationNoStop": {
+    "description": "Button: the codes do not match, stop"
+  },
+  "verificationQrOtherTitle": "Let them scan this",
+  "verificationQrOwnTitle": "Scan this with your other device",
+  "verificationRequestBody": "{name} wants to verify with you.",
+  "@verificationRequestBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "verificationRequestTitle": "Verification request",
+  "@verificationRequestTitle": {
+    "description": "Dialog title: someone asks to verify"
+  },
+  "verificationScanCaption": "Point the camera at the code on the other device.",
+  "verificationScanOtherDevice": "Scan the other device",
+  "verificationScanOtherDeviceTitle": "Scan your other device",
+  "verificationScanOtherScreenTitle": "Scan the code on their screen",
+  "verificationScanOwnScreenTitle": "Scan the code on your other device",
+  "verificationScanTheirCode": "Scan their code",
+  "verificationScanWithoutCamera": "You can still compare pictures instead.",
+  "verificationScanned": "Scanned",
+  "@verificationScanned": {
+    "description": "Title after the QR code was scanned"
+  },
+  "verificationScannedOther": "Tell them it worked so they can finish on their side.",
+  "verificationScannedOwn": "Confirm on your other device to finish.",
+  "verificationSetUpRecoveryBody": "Before you can confirm someone else, this device needs its own recovery set up. It only takes a moment.",
+  "verificationSetUpRecoveryTitle": "Set up recovery first",
+  "verificationSomeoneElse": "Someone else?",
+  "@verificationSomeoneElse": {
+    "description": "Label in the explainer diagram: maybe another person"
+  },
+  "verificationStartOver": "Start over",
+  "@verificationStartOver": {
+    "description": "Button: start device approval again"
+  },
+  "verificationStartOverBody": "Your current recovery code stops working, your other devices need approving again, and messages older than this device stay locked. Nobody can undo this. Only do it if the old code is gone for good.",
+  "verificationStartOverTitle": "Start over with a new code?",
+  "verificationTheyDoNotMatch": "They do not match",
+  "verificationTheyHaveNoRecovery": "They have not set up recovery yet, so there is nothing to confirm.",
+  "verificationTheyMatch": "They match",
+  "@verificationTheyMatch": {
+    "description": "Button: the emoji on both devices match"
+  },
+  "verificationUnlockFirst": "Unlock this device first",
+  "verificationUnlockFirstBody": "Go to Settings, then Security, and enter your recovery code. Then try again.",
+  "verificationWaitingForOther": "Waiting for the other device…",
+  "verificationWhyEncryption": "Encryption keeps your messages to {name}'s devices, but cannot tell on its own whether each one is really {name}'s. A device someone else added could read along and write as {name}.",
+  "@verificationWhyEncryption": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "verificationWhyHow": "Scan {name}'s code in person, or compare pictures on a call. Once per person. If anything changes later, Zuno tells you.",
+  "@verificationWhyHow": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "verificationWhyTitle": "Make sure it is really {name}",
+  "@verificationWhyTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "verificationYesFinish": "Yes, finish",
+  "@verificationYesFinish": {
+    "description": "Button: confirm and finish verification"
+  }
+}

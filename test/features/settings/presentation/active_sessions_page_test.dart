@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -177,7 +178,11 @@ void main() {
                   ),
           ),
         ],
-        child: const MaterialApp(home: ActiveSessionsPage()),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ActiveSessionsPage(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -235,7 +240,7 @@ void main() {
 
       expect(
         subtitleOf(tester, 'Zuno on Android'),
-        startsWith('Approved · Last active Sep 26, 2026 at 9:30 AM'),
+        startsWith('Approved · Last active Sep 26, 2026 at 9:30\u202fAM'),
       );
       expect(subtitleOf(tester, 'Tablet'), startsWith('Not approved yet'));
       expect(subtitleOf(tester, 'Pixel'), startsWith('Approved'));

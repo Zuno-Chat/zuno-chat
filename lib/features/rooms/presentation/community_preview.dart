@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/ui/line_strut.dart';
 import 'last_message_preview.dart';
@@ -14,8 +15,9 @@ class CommunityPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final strut = inheritedLineStrut(context);
     final room = this.room;
-    if (room == null) return Text('No rooms joined yet', strutStyle: strut);
-
+    if (room == null) {
+      return Text(context.l10n.roomsNoRoomsJoined, strutStyle: strut);
+    }
     return LayoutBuilder(
       builder: (context, constraints) => Row(
         children: [
@@ -25,7 +27,7 @@ class CommunityPreview extends StatelessWidget {
               TextSpan(
                 children: [
                   TextSpan(
-                    text: roomTitle(room),
+                    text: roomTitle(room, context.l10n),
                     style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
                   const TextSpan(text: ' ·'),

@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
 import '../errors/retry_backoff.dart';
+import '../l10n/l10n.dart';
 import '../matrix/connectivity_provider.dart';
 import '../matrix/ephemeral_to_device.dart';
 import '../matrix/matrix_client_provider.dart';
@@ -344,7 +345,9 @@ class LiveLocationSharing {
         if (_client.getRoomById(share.roomId) case final room?)
           (room: room, endsAt: share.endsAt),
     ];
-    return entries.isEmpty ? null : liveLocationNotice(entries);
+    return entries.isEmpty
+        ? null
+        : liveLocationNotice(deviceLocalizations(), entries);
   }
 
   void _setLatest(LivePosition position, int seq) {

@@ -2,6 +2,7 @@ import 'package:matrix/matrix.dart';
 
 import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 
 bool isDiscardablePlaceholder(Event? event) =>
     event != null && !event.status.isSent;
@@ -23,7 +24,10 @@ Future<void> discardSendPlaceholder(Room room, String txid) async {
 
 const _bytesPerMegabyte = 1000000;
 
-String tooLargeToSendMessage(FileTooBigMatrixException error) {
+String tooLargeToSendMessage(
+  AppLocalizations l10n,
+  FileTooBigMatrixException error,
+) {
   final limitMb = (error.maxFileSize / _bytesPerMegabyte).round();
-  return 'Too large to send. The limit is $limitMb MB.';
+  return l10n.matrixTooLargeToSend(limitMb);
 }

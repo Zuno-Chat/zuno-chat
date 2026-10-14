@@ -9,6 +9,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/security/security_emphasis.dart';
@@ -94,7 +95,7 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
       reportCaught(label, e, s);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not send that. Try again.')),
+        SnackBar(content: Text(context.l10n.verificationCouldNotSend)),
       );
     } finally {
       _sending = false;
@@ -139,8 +140,8 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
       MaterialPageRoute(
         builder: (_) => QrScannerPage(
           title: widget.isOwnDevice
-              ? 'Scan your other device'
-              : 'Scan their code',
+              ? context.l10n.verificationScanOtherDeviceTitle
+              : context.l10n.verificationScanTheirCode,
         ),
       ),
     );
@@ -174,7 +175,9 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.isOwnDevice ? 'Approve this device' : 'Confirm it is them',
+          widget.isOwnDevice
+              ? context.l10n.verificationApproveTitle
+              : context.l10n.verificationConfirmTitle,
         ),
       ),
       body: SafeArea(child: _body(context)),
@@ -183,15 +186,16 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
 
   Widget _body(BuildContext context) {
     final kv = widget.keyVerification;
+    final l10n = context.l10n;
 
     if (kv.canceled) return _stoppedMessage(kv, Icons.cancel_outlined);
 
     switch (kv.state) {
       case KeyVerificationState.askChoice:
         if (!_offersQr) {
-          return const _StatusMessage(
+          return _StatusMessage(
             spinner: true,
-            title: 'Waiting for the other device…',
+            title: l10n.verificationWaitingForOther,
           );
         }
         return _QrChoiceScreen(
@@ -213,10 +217,10 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
       case KeyVerificationState.showQRSuccess:
         return _StatusMessage(
           icon: Icons.check_circle_outline,
-          title: 'Scanned',
+          title: l10n.verificationScanned,
           subtitle: widget.isOwnDevice
-              ? 'Confirm on your other device to finish.'
-              : 'Tell them it worked so they can finish on their side.',
+              ? l10n.verificationScannedOwn
+              : l10n.verificationScannedOther,
         );
 
       case KeyVerificationState.confirmQRScan:
@@ -230,14 +234,19 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
       case KeyVerificationState.done:
         return _StatusMessage(
           icon: Icons.check_circle_outline,
-          title: widget.isOwnDevice ? 'Approved' : 'Confirmed',
+          title: widget.isOwnDevice
+              ? l10n.verificationApproved
+              : l10n.verificationConfirmed,
           subtitle: widget.isOwnDevice
-              ? 'This device can now read your messages.'
-              : 'You are talking to the real $_subject. You will not need to '
-                    'do this again, even if they get a new device.',
+              ? l10n.verificationApprovedBody
+              : l10n.verificationConfirmedBody(_subject),
           action: FilledButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(widget.isOwnDevice ? 'Done' : 'Back to chat'),
+            child: Text(
+              widget.isOwnDevice
+                  ? l10n.commonDone
+                  : l10n.verificationBackToChat,
+            ),
           ),
         );
 
@@ -245,26 +254,25 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
         return _stoppedMessage(kv, Icons.error_outline);
 
       case KeyVerificationState.askSSSS:
-        return const _StatusMessage(
+        return _StatusMessage(
           icon: Icons.lock_outline,
-          title: 'Unlock this device first',
-          subtitle:
-              'Go to Settings, then Security, and enter your recovery code. '
-              'Then try again.',
+          title: l10n.verificationUnlockFirst,
+          subtitle: l10n.verificationUnlockFirstBody,
         );
 
       case KeyVerificationState.waitingAccept:
       case KeyVerificationState.waitingSas:
       case KeyVerificationState.askAccept:
-        return const _StatusMessage(
+        return _StatusMessage(
           spinner: true,
-          title: 'Waiting for the other device…',
+          title: l10n.verificationWaitingForOther,
         );
     }
   }
 
   Widget _stoppedMessage(KeyVerification kv, IconData fallbackIcon) {
     final message = verificationCancelMessage(
+      context.l10n,
       code: kv.canceledCode,
       isOwnDevice: widget.isOwnDevice,
     );
@@ -291,15 +299,15 @@ class _QrChoiceScreen extends StatelessWidget {
     required this.onUseEmoji,
   });
 
-  String get _title {
+  String _title(AppLocalizations l10n) {
     if (qrData != null) {
       return isOwnDevice
-          ? 'Scan this with your other device'
-          : 'Let them scan this';
+          ? l10n.verificationQrOwnTitle
+          : l10n.verificationQrOtherTitle;
     }
     return isOwnDevice
-        ? 'Scan the code on your other device'
-        : 'Scan the code on their screen';
+        ? l10n.verificationScanOwnScreenTitle
+        : l10n.verificationScanOtherScreenTitle;
   }
 
   @override
@@ -308,7 +316,7 @@ class _QrChoiceScreen extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       children: [
         Text(
-          _title,
+          _title(context.l10n),
           style: Theme.of(context).textTheme.titleMedium,
           textAlign: TextAlign.center,
         ),
@@ -322,14 +330,16 @@ class _QrChoiceScreen extends StatelessWidget {
             onPressed: onScan,
             icon: const Icon(Icons.qr_code_scanner_outlined),
             label: Text(
-              isOwnDevice ? 'Scan the other device' : 'Scan their code',
+              isOwnDevice
+                  ? context.l10n.verificationScanOtherDevice
+                  : context.l10n.verificationScanTheirCode,
             ),
           ),
           const SizedBox(height: 8),
         ],
         TextButton(
           onPressed: onUseEmoji,
-          child: const Text('Not together? Compare pictures instead'),
+          child: Text(context.l10n.verificationComparePictures),
         ),
       ],
     );
@@ -387,6 +397,7 @@ class _ConfirmScanScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -396,24 +407,25 @@ class _ConfirmScanScreen extends StatelessWidget {
           const SizedBox(height: 24),
           Text(
             isOwnDevice
-                ? 'Did your other device show a check mark?'
-                : 'Did their screen show a check mark?',
+                ? l10n.verificationCheckOwnQuestion
+                : l10n.verificationCheckOtherQuestion,
             style: Theme.of(context).textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
           Text(
             isOwnDevice
-                ? 'Your other device scanned this code. Check it says it '
-                      'worked before you finish.'
-                : '$subject scanned your code. Check their screen says it '
-                      'worked before you finish.',
+                ? l10n.verificationCheckOwnBody
+                : l10n.verificationCheckOtherBody(subject),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),
-          FilledButton(onPressed: onConfirm, child: const Text('Yes, finish')),
+          FilledButton(
+            onPressed: onConfirm,
+            child: Text(l10n.verificationYesFinish),
+          ),
           const SizedBox(height: 8),
-          TextButton(onPressed: onReject, child: const Text('No, stop')),
+          TextButton(onPressed: onReject, child: Text(l10n.verificationNoStop)),
         ],
       ),
     );
@@ -480,13 +492,14 @@ class _SasComparison extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
         Text(
           isOwnDevice
-              ? 'Check these match on both devices'
-              : 'Check these match. Read them out to each other.',
+              ? l10n.verificationCompareOwn
+              : l10n.verificationCompareOther,
           style: Theme.of(context).textTheme.titleMedium,
           textAlign: TextAlign.center,
         ),
@@ -514,11 +527,14 @@ class _SasComparison extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 32),
-        FilledButton(onPressed: onMatch, child: const Text('They match')),
+        FilledButton(
+          onPressed: onMatch,
+          child: Text(l10n.verificationTheyMatch),
+        ),
         const SizedBox(height: 8),
         TextButton(
           onPressed: onNoMatch,
-          child: const Text('They do not match'),
+          child: Text(l10n.verificationTheyDoNotMatch),
         ),
       ],
     );

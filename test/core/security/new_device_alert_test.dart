@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/known_devices_store.dart';
 import 'package:zuno/core/security/new_device_alert.dart';
 
@@ -75,6 +76,7 @@ void main() {
   group('newDeviceNotificationText', () {
     test('names the device, and says what to do', () {
       final text = newDeviceNotificationText(
+        englishLocalizations,
         const NewDeviceAlert(deviceId: 'BBB', displayName: 'Pixel 8a'),
       );
 
@@ -85,11 +87,15 @@ void main() {
 
     test('an unnamed device falls back to its ID, never to "Unknown"', () {
       expect(
-        newDeviceNotificationText(const NewDeviceAlert(deviceId: 'BBB')).body,
+        newDeviceNotificationText(
+          englishLocalizations,
+          const NewDeviceAlert(deviceId: 'BBB'),
+        ).body,
         contains('BBB'),
       );
       expect(
         newDeviceNotificationText(
+          englishLocalizations,
           const NewDeviceAlert(deviceId: 'BBB', displayName: '   '),
         ).body,
         contains('BBB'),

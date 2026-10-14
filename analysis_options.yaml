@@ -5,6 +5,7 @@ analyzer:
     - build/**
     - android/**
     - ios/**
+    - tool/zuno_lints/**
 
 formatter:
   page_width: 80
@@ -15,3 +16,7 @@ linter:
     - directives_ordering
     - prefer_relative_imports
     - prefer_single_quotes
+
+plugins:
+  zuno_lints:
+    path: tool/zuno_lints

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_sound_settings.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
@@ -202,7 +203,10 @@ void main() {
     await provider.start(client);
 
     expect(provider.status.value, ApnsStatus.pusherFailed);
-    expect(provider.lastPusherError, contains('M_UNKNOWN'));
+    expect(
+      provider.lastPusherError?.message(englishLocalizations),
+      contains('M_UNKNOWN'),
+    );
     expect(provider.retryScheduled, isTrue);
 
     client.postError = null;
@@ -545,7 +549,10 @@ void main() {
 
     await provider.stop(client);
 
-    expect(provider.lastPusherError, contains('M_FORBIDDEN'));
+    expect(
+      provider.lastPusherError?.message(englishLocalizations),
+      contains('M_FORBIDDEN'),
+    );
     expect(provider.status.value, ApnsStatus.idle);
   });
 

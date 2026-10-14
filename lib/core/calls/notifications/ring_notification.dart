@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 
+import '../../l10n/l10n.dart';
 import '../../matrix/room_title.dart';
 import '../../matrix/room_user_display.dart';
 import '../../platform/platform_capabilities.dart';
@@ -32,7 +33,9 @@ Future<RingOutcome> postRingNotification(
     roomId: call.room.id,
     callId: call.callId,
     isGroupCall: !call.room.isDirectChat,
-    roomName: call.room.isDirectChat ? null : roomTitle(call.room),
+    roomName: call.room.isDirectChat
+        ? null
+        : roomTitle(call.room, deviceLocalizations()),
     avatarBytes: avatarBytes,
     ringingNow: ringingNow,
   );

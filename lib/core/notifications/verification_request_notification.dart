@@ -1,5 +1,6 @@
 import 'package:matrix/matrix.dart';
 
+import '../l10n/l10n.dart';
 import 'message_notification_content.dart';
 
 MessageNotificationContent? verificationRequestNotificationFor(
@@ -14,7 +15,7 @@ MessageNotificationContent? verificationRequestNotificationFor(
   final room = event.room;
   final sender = room.unsafeGetUserFromMemoryOrFallback(event.senderId);
   final name = sender.calcDisplayname();
-  const body = 'Wants to verify you';
+  final body = deviceLocalizations().notificationsWantsToVerify;
   return MessageNotificationContent(
     roomId: room.id,
     title: name,

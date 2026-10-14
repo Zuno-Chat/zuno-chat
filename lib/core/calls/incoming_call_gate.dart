@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/calls/presentation/call_page.dart';
 import '../errors/best_effort.dart';
 import '../errors/global_error_handler.dart';
+import '../l10n/l10n.dart';
 import '../navigation/global_navigator.dart';
 import 'active_call_controller.dart';
 import 'active_call_provider.dart';
@@ -113,7 +114,9 @@ class IncomingCallGate extends Notifier<void> {
         .unsafeGetUserFromMemoryOrFallback(call.callerId)
         .calcDisplayname();
     globalScaffoldMessengerKey.currentState?.showSnackBar(
-      SnackBar(content: Text('Missed call from $callerName')),
+      SnackBar(
+        content: Text(deviceLocalizations().callsMissedCallFrom(callerName)),
+      ),
     );
   }
 }

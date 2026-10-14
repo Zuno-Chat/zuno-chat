@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/verification/presentation/qr_scanner_page.dart';
 
 import '../../../helpers/fake_permissions.dart';
@@ -31,6 +32,8 @@ void main() {
   }) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: routeLauncher<Uint8List>((_) => page, onResult: results.add),
         ),

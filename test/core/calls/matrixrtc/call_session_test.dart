@@ -17,6 +17,7 @@ import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
+import 'package:zuno/core/calls/models/call_failure.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
@@ -332,7 +333,7 @@ void main() {
 
       expect(session.phase, CallSessionPhase.active);
       expect(session.endReason, isNull);
-      expect(session.failedMessage, isNull);
+      expect(session.failure, isNull);
       expect(engine.joined, isTrue);
       expect(engine.appliedKey, testKey());
       expect(phases, [CallSessionPhase.connecting, CallSessionPhase.active]);
@@ -372,7 +373,7 @@ void main() {
 
         expect(session.phase, CallSessionPhase.ended);
         expect(session.endReason, CallEndReason.failed);
-        expect(session.failedMessage, callDidNotConnectMessage);
+        expect(session.failure, CallFailure.didNotConnect);
       },
     );
 
@@ -393,7 +394,7 @@ void main() {
         await expectLater(accepting, throwsA(isA<StateError>()));
         await hangingUp;
 
-        expect(session.failedMessage, isNull);
+        expect(session.failure, isNull);
         expect(session.endReason, isNot(CallEndReason.failed));
       },
     );
@@ -410,7 +411,7 @@ void main() {
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failedMessage, callDidNotConnectMessage);
+      expect(session.failure, CallFailure.didNotConnect);
       expect(engine.leaveCalls, 1);
       expect(engine.disposeCalls, 1);
       expect(r.attempts, isEmpty);
@@ -433,10 +434,7 @@ void main() {
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(
-        session.failedMessage,
-        'You do not have permission to start calls in this room',
-      );
+      expect(session.failure, CallFailure.noPermissionToStart);
     });
 
     group('what an answer that fails reports', () {
@@ -473,7 +471,7 @@ void main() {
           throwsA(isA<MicrophoneUnavailable>()),
         );
 
-        expect(session.failedMessage, microphoneUnavailableMessage);
+        expect(session.failure, CallFailure.microphoneUnavailable);
         expect(reported(logs), isEmpty);
       });
     });
@@ -492,7 +490,7 @@ void main() {
 
         expect(session.phase, CallSessionPhase.ended);
         expect(session.endReason, CallEndReason.failed);
-        expect(session.failedMessage, 'Connection lost');
+        expect(session.failure, CallFailure.connectionLost);
         expect(r.sentEvents.last['call_id'], session.callId);
       },
     );
@@ -516,7 +514,7 @@ void main() {
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failedMessage, 'Connection lost');
+      expect(session.failure, CallFailure.connectionLost);
 
       final callsBeforeSeed = engine.updateRemoteParticipantCalls;
       joinTheCall(raceRoom, _bob);
@@ -583,7 +581,7 @@ void main() {
         expect(failure, isNotNull);
         expect(session.phase, CallSessionPhase.ended);
         expect(session.endReason, CallEndReason.failed);
-        expect(session.failedMessage, microphoneUnavailableMessage);
+        expect(session.failure, CallFailure.microphoneUnavailable);
         expect(permissions.calls, ['checkPermissionStatus']);
         expect(engine.joined, isFalse);
         expect(engine.startLocalMediaCalls, 0);
@@ -686,7 +684,7 @@ void main() {
 
         expect(failure, isException);
         expect(session.phase, CallSessionPhase.ended);
-        expect(session.failedMessage, microphoneUnavailableMessage);
+        expect(session.failure, CallFailure.microphoneUnavailable);
         expect(permissions.calls, ['checkPermissionStatus']);
         expect(engine.joined, isFalse);
       });
@@ -707,7 +705,7 @@ void main() {
       ]);
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failedMessage, microphoneUnavailableMessage);
+      expect(session.failure, CallFailure.microphoneUnavailable);
     });
 
     test('on Android, a microphone refused at the prompt fails the call with '
@@ -723,7 +721,7 @@ void main() {
       expect(permissions.calls, ['requestPermissions']);
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failedMessage, microphoneUnavailableMessage);
+      expect(session.failure, CallFailure.microphoneUnavailable);
       expect(engine.startLocalMediaCalls, 0);
       expect(engine.joined, isFalse);
     });
@@ -1540,7 +1538,7 @@ void main() {
 
       expect(r.attempts, isEmpty);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failedMessage, microphoneUnavailableMessage);
+      expect(session.failure, CallFailure.microphoneUnavailable);
       expect(engine.startLocalMediaCalls, 0);
     });
 
@@ -1562,10 +1560,7 @@ void main() {
 
       await untilPhase(session, CallSessionPhase.ended);
 
-      expect(
-        session.failedMessage,
-        'You do not have permission to start calls in this room',
-      );
+      expect(session.failure, CallFailure.noPermissionToStart);
       expect(reported(logs), isEmpty);
     });
 
@@ -1579,10 +1574,7 @@ void main() {
 
       await untilPhase(session, CallSessionPhase.ended);
 
-      expect(
-        session.failedMessage,
-        'You do not have permission to start calls in this room',
-      );
+      expect(session.failure, CallFailure.noPermissionToStart);
       expect(reported(logs), isEmpty);
     });
 
@@ -1592,7 +1584,7 @@ void main() {
 
       await untilPhase(session, CallSessionPhase.ended);
 
-      expect(session.failedMessage, callDidNotConnectMessage);
+      expect(session.failure, CallFailure.didNotConnect);
       expect(reported(logs), [
         'zuno/caught: start an outgoing call: Bad state: boom',
       ]);
@@ -1608,7 +1600,7 @@ void main() {
       await pumpEventQueue();
 
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failedMessage, callDidNotConnectMessage);
+      expect(session.failure, CallFailure.didNotConnect);
       expect(engine.leaveCalls, 1);
       expect(engine.disposeCalls, 1);
       expect(engine.joined, isFalse);
@@ -1636,7 +1628,7 @@ void main() {
       expect(summary?.status, CallSummaryStatus.missed);
       expect(summary?.callId, session.callId);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failedMessage, callDidNotConnectMessage);
+      expect(session.failure, CallFailure.didNotConnect);
       expect(engine.disposeCalls, 1);
     });
 
@@ -1739,7 +1731,7 @@ void main() {
 
       expect(engine.journal.take(2), ['camera false', 'local media']);
       expect(r.sentEvents.single['msgtype'], callInviteMsgtype);
-      expect(session.failedMessage, isNull);
+      expect(session.failure, isNull);
     });
 
     test('leaving the room while the invite is going out ends the call '
@@ -2354,10 +2346,7 @@ void main() {
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(
-        session.failedMessage,
-        'You are in this call on another device. Hang up there to join here.',
-      );
+      expect(session.failure, CallFailure.onAnotherDevice);
       expect(engine.joined, isFalse);
       expect(memberPuts, isEmpty);
       expect(r.attempts, isEmpty);
@@ -2376,8 +2365,6 @@ void main() {
   });
 
   group('call capacity', () {
-    const callFull = 'This call is full. Up to 6 people can join a call.';
-
     void fill(Room r, int count) {
       for (var i = 1; i <= count; i++) {
         joinTheCall(r, '@p$i:example.org', createdAtMs: i);
@@ -2404,7 +2391,7 @@ void main() {
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failedMessage, callFull);
+      expect(session.failure, CallFailure.callFull);
       expect(engineBuilds, 0);
     });
 
@@ -2454,7 +2441,7 @@ void main() {
 
         expect(session.phase, CallSessionPhase.ended);
         expect(session.endReason, CallEndReason.failed);
-        expect(session.failedMessage, callFull);
+        expect(session.failure, CallFailure.callFull);
         expect(engine.leaveCalls, 1);
         expect(r.sentEvents, isEmpty);
       },

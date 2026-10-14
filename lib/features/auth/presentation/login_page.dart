@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/registration_support.dart';
@@ -49,11 +50,11 @@ class _LoginPageState extends ConsumerState<LoginPage>
     final username = _username.text.trim();
 
     if (username.isEmpty) {
-      setState(() => _error = 'Enter your username');
+      setState(() => _error = context.l10n.authEnterUsername);
       return;
     }
     if (_password.text.isEmpty) {
-      setState(() => _error = 'Enter your password');
+      setState(() => _error = context.l10n.authEnterPassword);
       return;
     }
 
@@ -80,7 +81,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
     } catch (e, s) {
       if (!isLoginRefusal(e)) reportCaught('sign in', e, s);
       if (!mounted) return;
-      setState(() => _error = loginErrorMessage(e));
+      setState(() => _error = loginErrorMessage(context.l10n, e));
       holdRetriesFor(e, whenOver: () => _error = null);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -103,16 +104,17 @@ class _LoginPageState extends ConsumerState<LoginPage>
   Widget build(BuildContext context) {
     final serverName = ref.watch(serverNameProvider);
     final registration = ref.watch(registrationSupportProvider).value;
+    final l10n = context.l10n;
 
     return AuthScaffold(
-      title: 'Sign in',
+      title: l10n.authSignIn,
       footer: [
         if (registration?.isAvailable ?? false)
           OutlinedButton(
             onPressed: _loading
                 ? null
                 : () => _open(_createAccountPage(registration)),
-            child: const Text('Create account'),
+            child: Text(l10n.authCreateAccount),
           ),
         if (serverName != null)
           Row(
@@ -131,7 +133,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 onPressed: _loading
                     ? null
                     : () => _open(const HomeserverPage()),
-                child: const Text('Change'),
+                child: Text(l10n.authChangeServer),
               ),
             ],
           ),
@@ -149,15 +151,15 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 autofillHints: const [AutofillHints.username],
                 inputFormatters: [lowercaseFormatter],
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Username',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: l10n.commonUsername,
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 16),
               PasswordField(
                 controller: _password,
-                labelText: 'Password',
+                labelText: l10n.commonPassword,
                 enabled: !_loading,
                 revealed: passwordRevealed,
                 onToggleReveal: togglePasswordReveal,
@@ -178,11 +180,11 @@ class _LoginPageState extends ConsumerState<LoginPage>
         const SizedBox(height: 24),
         FilledButton(
           onPressed: _loading || waitingToRetry ? null : _login,
-          child: Text(_loading ? 'Signing in…' : 'Sign in'),
+          child: Text(_loading ? l10n.authSigningIn : l10n.authSignIn),
         ),
         TextButton(
           onPressed: _loading ? null : () => _open(const LinkedSignInPage()),
-          child: const Text('Sign in with your other device'),
+          child: Text(l10n.authSignInWithOtherDevice),
         ),
       ],
     );

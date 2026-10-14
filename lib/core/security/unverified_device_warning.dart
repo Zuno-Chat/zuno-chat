@@ -1,5 +1,6 @@
 import 'package:matrix/matrix.dart';
 
+import '../l10n/l10n.dart';
 import '../matrix/room_access.dart';
 
 Set<String> unvouchedNewDeviceIds({
@@ -11,12 +12,12 @@ Set<String> unvouchedNewDeviceIds({
   return currentDeviceIds.difference(knownDeviceIds);
 }
 
-({String title, String body}) unvouchedDeviceWarningText(String name) => (
-  title: '$name signed in on a new device',
-  body:
-      'Their account has not been set up to vouch for its own devices, so this '
-      'one can read what you send from now on. If you were not expecting it, '
-      'check with them before sending anything sensitive.',
+({String title, String body}) unvouchedDeviceWarningText(
+  AppLocalizations l10n,
+  String name,
+) => (
+  title: l10n.securityUnvouchedDeviceTitle(name),
+  body: l10n.securityUnvouchedDeviceBody,
 );
 
 Set<String> peopleWhoseDevicesWeWatch(Client client) {

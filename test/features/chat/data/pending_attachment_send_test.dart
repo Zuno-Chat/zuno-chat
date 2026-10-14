@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/send_progress.dart';
 import 'package:zuno/features/chat/data/composed_image.dart';
@@ -22,7 +23,7 @@ void main() {
       expect(file.stage, SendStage.uploading);
       expect(file.compresses, isFalse);
       expect(file.progress, 0);
-      expect(file.progressLabel, 'Uploading…');
+      expect(file.progressLabel(englishLocalizations), 'Uploading…');
     });
 
     test('a stage change keeps the preview and reports combined progress', () {
@@ -38,7 +39,7 @@ void main() {
       expect(pending.previewBytes, same(preview));
       expect((pending.width, pending.height), (40, 30));
       expect(pending.progress, 0.75);
-      expect(pending.progressLabel, 'Uploading video…');
+      expect(pending.progressLabel(englishLocalizations), 'Uploading video…');
     });
 
     test('a preview arriving later keeps the stage and known size', () {
@@ -56,7 +57,10 @@ void main() {
       expect((withPreview.width, withPreview.height), (40, 30));
       expect(withPreview.stage, SendStage.compressing);
       expect(withPreview.stageProgress, 0.4);
-      expect(withPreview.progressLabel, 'Compressing video…');
+      expect(
+        withPreview.progressLabel(englishLocalizations),
+        'Compressing video…',
+      );
 
       final resized = pending.withPreview(bytes, width: 80, height: 60);
       expect((resized.width, resized.height), (80, 60));

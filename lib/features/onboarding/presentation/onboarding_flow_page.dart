@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/picker_access.dart';
@@ -178,7 +179,7 @@ class _OnboardingFlowPageState extends ConsumerState<OnboardingFlowPage> {
                           ),
                           child: TextButton(
                             onPressed: _skip,
-                            child: const Text('Skip'),
+                            child: Text(context.l10n.onboardingSkip),
                           ),
                         ),
                       ),
@@ -326,14 +327,11 @@ class _WelcomeStep extends StatelessWidget {
           height: 56,
         ),
       ),
-      title: 'Welcome to Zuno',
-      body:
-          'Many chat apps are paid for with data about the people who use '
-          'them. Zuno has no advertisers and no investors. Your messages are '
-          'end-to-end encrypted, and it works like any chat app.',
+      title: context.l10n.onboardingWelcomeTitle,
+      body: context.l10n.onboardingWelcomeBody,
       action: FilledButton(
         onPressed: () => onDone(),
-        child: const Text('Get started'),
+        child: Text(context.l10n.onboardingGetStarted),
       ),
     );
   }
@@ -348,15 +346,11 @@ class _ConfirmPeopleStep extends StatelessWidget {
   Widget build(BuildContext context) {
     return _StepScaffold(
       icon: Icons.how_to_reg_outlined,
-      title: 'Make sure it is really them',
-      body:
-          'Every chat in Zuno is encrypted. To know the person on the other '
-          'end is who they say, confirm them once: scan their code in person, '
-          'or compare pictures on a call. Zuno shows you how when you start a '
-          'chat.',
+      title: context.l10n.onboardingConfirmTitle,
+      body: context.l10n.onboardingConfirmBody,
       action: FilledButton(
         onPressed: () => onDone(),
-        child: const Text('Continue'),
+        child: Text(context.l10n.commonContinue),
       ),
     );
   }
@@ -380,7 +374,7 @@ class _DeliveryStepState extends ConsumerState<_DeliveryStep> {
     required FcmAvailability? fcm,
   }) {
     final picked = _picked;
-    if (picked == null || !deliveryModeChoice(picked, fcm: fcm).enabled) {
+    if (picked == null || !deliveryModeEnabled(picked, fcm: fcm)) {
       return current;
     }
     return picked;
@@ -414,15 +408,14 @@ class _DeliveryStepState extends ConsumerState<_DeliveryStep> {
       current: ref.watch(notificationDeliveryModeProvider),
       fcm: fcm,
     );
+    final l10n = context.l10n;
     return _StepScaffold(
       icon: Icons.send_outlined,
-      title: 'How should messages reach you?',
-      body:
-          'This decides how Zuno hears about new messages and calls while '
-          'it is closed. You can change it later in Settings.',
+      title: l10n.onboardingDeliveryTitle,
+      body: l10n.onboardingDeliveryBody,
       action: FilledButton(
         onPressed: _saving ? null : _confirm,
-        child: const Text('Continue'),
+        child: Text(l10n.commonContinue),
       ),
       children: [
         RadioGroup<NotificationDeliveryMode>(
@@ -434,14 +427,14 @@ class _DeliveryStepState extends ConsumerState<_DeliveryStep> {
             children: [
               for (final mode
                   in ref.watch(platformCapabilitiesProvider).deliveryModes)
-                if (deliveryModeChoice(mode, fcm: fcm) case (
+                if (deliveryModeChoice(l10n, mode, fcm: fcm) case (
                   :final enabled,
                   :final subtitle,
                 ))
                   RadioListTile<NotificationDeliveryMode>(
                     value: mode,
                     enabled: enabled,
-                    title: Text(mode.label),
+                    title: Text(mode.label(l10n)),
                     subtitle: Text(subtitle),
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -484,6 +477,7 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
   Future<void> _pickAvatar() async {
     final client = ref.read(matrixClientProvider);
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       final picked = await ImagePicker().pickImage(
         source: ImageSource.gallery,
@@ -500,9 +494,7 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
     } catch (e, s) {
       if (!isPickerAccessDenied(e)) reportCaught('pick onboarding photo', e, s);
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Photo not added. You can add one later in Settings.'),
-        ),
+        SnackBar(content: Text(l10n.onboardingPhotoNotAdded)),
       );
     }
   }
@@ -515,6 +507,7 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
     setState(() => _saving = true);
     final client = ref.read(matrixClientProvider);
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       if (name.isNotEmpty) {
         await client.setProfileField(client.userID!, 'displayname', {
@@ -524,11 +517,7 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
       if (avatar != null) await client.setAvatar(avatar);
     } catch (e, s) {
       reportCaught('save onboarding profile', e, s);
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Not saved. You can set it later in Settings.'),
-        ),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(l10n.onboardingNotSaved)));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -539,6 +528,7 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final avatar = _avatar;
+    final l10n = context.l10n;
     return _StepScaffold(
       hero: Stack(
         children: [
@@ -546,7 +536,9 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
             icon: Icons.person_outline,
             image: avatar == null ? null : MemoryImage(avatar.bytes),
             onTap: _saving ? null : _pickAvatar,
-            semanticLabel: avatar == null ? 'Add a photo' : 'Change photo',
+            semanticLabel: avatar == null
+                ? l10n.onboardingAddPhoto
+                : l10n.onboardingChangePhoto,
           ),
           Positioned(
             right: 0,
@@ -570,10 +562,8 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
           ),
         ],
       ),
-      title: 'What should people call you?',
-      body:
-          'This is the name and photo people see in chats. You can change '
-          'both later.',
+      title: l10n.onboardingProfileTitle,
+      body: l10n.onboardingProfileBody,
       action: FilledButton(
         onPressed: _saving || !_canSave ? null : _save,
         child: _saving
@@ -582,7 +572,7 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
                 width: 16,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            : const Text('Save'),
+            : Text(l10n.commonSave),
       ),
       children: [
         TextField(
@@ -590,9 +580,9 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
           controller: _name,
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(
-            labelText: 'Name',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: l10n.onboardingNameLabel,
+            border: const OutlineInputBorder(),
           ),
           onSubmitted: (_) => _save(),
         ),
@@ -681,18 +671,16 @@ class _NotificationsStepState extends ConsumerState<_NotificationsStep>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     if (_needsFullScreen) {
       return _StepScaffold(
         icon: Icons.phonelink_ring_outlined,
-        title: 'Let calls take over the screen',
-        body:
-            'Android keeps this permission in its own settings screen. Without '
-            'it, a call on a locked device shows as a small banner instead of '
-            'a ringing screen.',
+        title: l10n.onboardingFullScreenTitle,
+        body: l10n.onboardingFullScreenBody,
         action: FilledButton(
           onPressed: () =>
               CallNotificationService.instance.openFullScreenIntentSettings(),
-          child: const Text('Open settings'),
+          child: Text(l10n.commonOpenSettings),
         ),
       );
     }
@@ -700,14 +688,13 @@ class _NotificationsStepState extends ConsumerState<_NotificationsStep>
     final callKit = ref.watch(platformCapabilitiesProvider).callKit;
     return _StepScaffold(
       icon: Icons.notifications_none_outlined,
-      title: 'Hear about new messages',
+      title: l10n.onboardingNotificationsTitle,
       body: callKit
-          ? 'Zuno needs your permission to show new messages.'
-          : 'Zuno needs your permission to show new messages and ring for '
-                'calls.',
+          ? l10n.onboardingNotificationsBodyMessages
+          : l10n.onboardingNotificationsBodyMessagesAndCalls,
       action: FilledButton(
         onPressed: _asking ? null : _request,
-        child: const Text('Turn on notifications'),
+        child: Text(l10n.onboardingTurnOnNotifications),
       ),
     );
   }
@@ -758,15 +745,12 @@ class _BatteryStepState extends ConsumerState<_BatteryStep>
         NotificationDeliveryMode.unifiedPush;
     return _StepScaffold(
       icon: Icons.battery_saver_outlined,
-      title: 'Let Zuno wake up',
-      body:
-          'Android puts apps to sleep when your device has been locked for a '
-          'while. Zuno needs an exception, or messages and calls will not '
-          'reach you until you open it.',
+      title: context.l10n.onboardingBatteryTitle,
+      body: context.l10n.onboardingBatteryBody,
       action: FilledButton(
         onPressed: () =>
             BackgroundSyncService.instance.requestIgnoreBatteryOptimizations(),
-        child: const Text('Allow'),
+        child: Text(context.l10n.onboardingAllow),
       ),
       children: [if (forUnifiedPush) const _DistributorBatteryNote()],
     );
@@ -787,14 +771,11 @@ class _AutostartStep extends StatelessWidget {
   Widget build(BuildContext context) {
     return _StepScaffold(
       icon: Icons.restart_alt_outlined,
-      title: 'Let Zuno start on its own',
-      body:
-          'This device stops closed apps from starting when a message '
-          'arrives. Turn on Autostart for Zuno, or messages and calls will '
-          'wait until you open it.',
+      title: context.l10n.onboardingAutostartTitle,
+      body: context.l10n.onboardingAutostartBody,
       action: FilledButton(
         onPressed: _open,
-        child: const Text('Open settings'),
+        child: Text(context.l10n.commonOpenSettings),
       ),
     );
   }
@@ -819,15 +800,16 @@ class _DistributorBatteryNote extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                '$name delivers notifications to Zuno and is put to sleep too. '
-                'Set its battery use to Unrestricted as well.',
+                context.l10n.onboardingDistributorNote(name),
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 8),
               OutlinedButton(
                 onPressed: () =>
                     BackgroundSyncService.instance.openAppSettings(distributor),
-                child: Text('Open $name settings'),
+                child: Text(
+                  context.l10n.onboardingOpenDistributorSettings(name),
+                ),
               ),
             ],
           ),
@@ -860,7 +842,7 @@ class _SecurityStep extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final copy = accountSecurityCopy(status);
+    final copy = accountSecurityCopy(context.l10n, status);
     return _StepScaffold(
       icon: status == AccountSecurityStatus.deviceLocked
           ? Icons.lock_outline
@@ -869,7 +851,7 @@ class _SecurityStep extends ConsumerWidget {
       body: copy.body,
       action: FilledButton(
         onPressed: () => _open(context, ref),
-        child: Text(copy.action ?? 'Open'),
+        child: Text(copy.action ?? context.l10n.onboardingOpen),
       ),
     );
   }

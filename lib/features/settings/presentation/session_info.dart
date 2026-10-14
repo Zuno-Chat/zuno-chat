@@ -87,27 +87,3 @@ List<DeviceSessionInfo> mergeSessionInfo({
     });
   return sessions;
 }
-
-const _monthNames = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-String formatLastActivity(DateTime? time) {
-  if (time == null) return 'Unknown';
-  final local = time.toLocal();
-  final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
-  final period = local.hour < 12 ? 'AM' : 'PM';
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '${_monthNames[local.month - 1]} ${local.day}, ${local.year} at $hour12:$minute $period';
-}

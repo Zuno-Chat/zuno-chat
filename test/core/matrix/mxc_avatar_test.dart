@@ -10,6 +10,7 @@ import 'package:http/testing.dart';
 import 'package:image/image.dart' as img;
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/core/matrix/mxc_avatar_image.dart';
@@ -90,6 +91,8 @@ void main() {
       });
 
   Widget host(Uri? avatarUrl) => MaterialApp(
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: MxcAvatar(
         client: client,
@@ -195,6 +198,8 @@ void main() {
     Future<double?> initialSize(double radius) async {
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: MxcAvatar(
             client: client,
             avatarUrl: null,
@@ -239,6 +244,8 @@ void main() {
       'circle', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: MxcAvatar(
             client: client,
@@ -259,6 +266,8 @@ void main() {
   testWidgets('blank text falls back to a question mark', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: MxcAvatar(
           client: client,
           avatarUrl: null,
@@ -279,6 +288,8 @@ void main() {
     await tester.runAsync(() async {
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Row(
               children: [

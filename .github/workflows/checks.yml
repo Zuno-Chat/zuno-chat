@@ -25,7 +25,13 @@ jobs:
           flutter-version: 3.47.5
           cache: true
       - run: flutter pub get
-      - run: flutter analyze
+      - run: dart pub get
+        working-directory: tool/zuno_lints
+      - run: dart analyze --fatal-infos
+        working-directory: tool/zuno_lints
+      - run: dart test
+        working-directory: tool/zuno_lints
+      - run: dart analyze --fatal-infos
       - run: |
           flutter test --file-reporter json:build/test-report.json ${{ inputs.coverage && '--coverage' || '' }} || {
             dart tool/ci/failed_tests.dart build/test-report.json | tee -a "$GITHUB_STEP_SUMMARY"

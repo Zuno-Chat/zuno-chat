@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/calls/models/call_status.dart';
+import '../../../core/l10n/l10n.dart';
 import 'call_status_line.dart';
 import 'call_status_widgets.dart';
 
@@ -38,7 +39,10 @@ class VoiceCallStage extends StatelessWidget {
         ),
         if (remoteWeak) ...[
           const SizedBox(height: 12),
-          const CallBadge(icon: Icons.network_check, label: 'Weak connection'),
+          CallBadge(
+            icon: Icons.network_check,
+            label: context.l10n.callsConnectionWeak,
+          ),
         ],
       ],
     );
@@ -82,7 +86,7 @@ class CallPortrait extends StatelessWidget {
             Icons.mic_off_outlined,
             size: 20,
             color: theme.colorScheme.onSurfaceVariant,
-            semanticLabel: '$name is muted',
+            semanticLabel: context.l10n.callsNameMuted(name),
           ),
         ],
       ],
@@ -152,6 +156,7 @@ class VideoCallHeader extends StatelessWidget {
     final label = theme.textTheme.labelLarge!.copyWith(color: Colors.white);
     final talking = status == CallStatus.talking;
     final since = talkingSince;
+    final l10n = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -162,11 +167,11 @@ class VideoCallHeader extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (talking) ...[
-                const Icon(
+                Icon(
                   Icons.lock_outline,
                   size: 15,
                   color: Colors.white,
-                  semanticLabel: 'Encrypted',
+                  semanticLabel: l10n.callsEncrypted,
                 ),
                 const SizedBox(width: 6),
               ],
@@ -184,7 +189,7 @@ class VideoCallHeader extends StatelessWidget {
                   Icons.mic_off_outlined,
                   size: 16,
                   color: Colors.white,
-                  semanticLabel: '$name is muted',
+                  semanticLabel: l10n.callsNameMuted(name),
                 ),
               ],
               if (talking && since != null)
@@ -212,7 +217,7 @@ class VideoCallHeader extends StatelessWidget {
         ],
         if (remoteWeak) ...[
           const SizedBox(height: 6),
-          const CallBadge(icon: Icons.network_check, label: 'Weak connection'),
+          CallBadge(icon: Icons.network_check, label: l10n.callsConnectionWeak),
         ],
       ],
     );

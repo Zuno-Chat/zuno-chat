@@ -145,32 +145,6 @@ void main() {
     });
   });
 
-  group('formatLastActivity', () {
-    test('null time reads as Unknown', () {
-      expect(formatLastActivity(null), 'Unknown');
-    });
-
-    test('formats a real time as a human-friendly date and 12-hour time', () {
-      final time = DateTime(2026, 8, 31, 14, 32);
-      expect(formatLastActivity(time), 'Aug 31, 2026 at 2:32 PM');
-    });
-
-    test('pads the minute but not the day/hour', () {
-      final time = DateTime(2026, 1, 2, 3, 4);
-      expect(formatLastActivity(time), 'Jan 2, 2026 at 3:04 AM');
-    });
-
-    test('midnight reads as 12 AM, not 0 AM', () {
-      final time = DateTime(2026, 1, 1, 0, 0);
-      expect(formatLastActivity(time), 'Jan 1, 2026 at 12:00 AM');
-    });
-
-    test('noon reads as 12 PM, not 0 PM', () {
-      final time = DateTime(2026, 1, 1, 12, 0);
-      expect(formatLastActivity(time), 'Jan 1, 2026 at 12:00 PM');
-    });
-  });
-
   group('sessionApproval', () {
     test('this phone is approved once it holds the identity keys', () {
       expect(

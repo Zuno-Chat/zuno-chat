@@ -40,7 +40,7 @@ Background sync has no push at all: a foreground service keeps `/sync` running.
 - **The platform decides which modes exist** (`capabilities.deliveryModes`). A stored mode the platform does not offer resolves to the platform's default.
 - **Registration heals itself.** Transient failures retry with backoff, and a periodic check re-posts a pusher the homeserver dropped. Final failures, such as missing Play services, are not retried.
 - **Pushers.** Every pusher uses format `event_id_only`, so no message content passes through Google or Apple and every push costs a fetch. FCM and APNs pushers point at the homeserver's own host, which must route to Sygnal (see the `zuno_push` contract). A UnifiedPush pusher points at the distributor server's own Matrix gateway when it advertises one over https, else at the public one, since Dart refuses http (`app-foundation.md`).
-- **A failure becomes one `DeliveryFailure`**: a message and one action, shown on the home banner and, on iOS, as a problem row on the Notifications page. While notifications are off, only the iOS calls failure still shows, since a VoIP ring needs no notification permission.
+- **A failure becomes one `DeliveryFailure`**: a reason and one action, rendered in the screen's language, shown on the home banner and, on iOS, as a problem row on the Notifications page. While notifications are off, only the iOS calls failure still shows, since a VoIP ring needs no notification permission.
 - **Auto-fallback.** When FCM cannot work (no Play services, or a build without Firebase config), the user never chose a mode and no FCM registration exists, the mode moves to UnifiedPush if a distributor is installed, else to background sync. A one-time notice says so.
 - **Settings → Notifications** holds the permission, sounds, Notify me, Diagnostics and, on iOS, Notification content (the preview level). Delivery gets its own page only on Android, where there is a mode choice.
 
@@ -211,7 +211,7 @@ Both platforms show the permission, this device's registration and the module's 
 - **Send a test notification** goes through the module and Synapse's pusher, so it is unavailable without the module or under background sync. It shows even in front. On Android a test push never reaches Dart (`PushKind.TEST`), so Dart never fetches its fake event.
 - **Recent pushes** merges the FCM delivery log, the extension and app logs and the call ledger into one list, never with text or names. Android shows it only under FCM, the one mode where app code sees every push.
 - **Push target** shows this device's pusher details and last error, and lets the user remove other registrations.
-- **Share diagnostics** redacts Matrix ids, URLs and long tokens.
+- **Share diagnostics** redacts Matrix ids, URLs and long tokens, and is always English because support reads it, while the screen follows the phone's language.
 
 ## Decisions
 

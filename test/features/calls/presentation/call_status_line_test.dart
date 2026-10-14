@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/calls/models/call_status.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_status_line.dart';
-import 'package:zuno/features/calls/presentation/call_status_widgets.dart';
+
+const _encryptingHint =
+    'Still encrypting. If this continues, hang up and try again.';
 
 void main() {
   Future<void> pump(WidgetTester tester, Widget child) => tester.pumpWidget(
     MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: zunoDarkTheme,
       home: Scaffold(body: Center(child: child)),
     ),
@@ -34,15 +39,12 @@ void main() {
 
     expect(find.text('Encrypting…'), findsOneWidget);
     expect(find.byIcon(Icons.lock_outline), findsOneWidget);
-    expect(find.text(EncryptingLabel.hint), findsNothing);
+    expect(find.text(_encryptingHint), findsNothing);
 
     await tester.pump(const Duration(seconds: 8));
+    expect(find.text(_encryptingHint), findsOneWidget);
     expect(
-      find.text('Still encrypting. If this continues, hang up and try again.'),
-      findsOneWidget,
-    );
-    expect(
-      tester.widget<Text>(find.text(EncryptingLabel.hint)).textAlign,
+      tester.widget<Text>(find.text(_encryptingHint)).textAlign,
       TextAlign.center,
     );
   });

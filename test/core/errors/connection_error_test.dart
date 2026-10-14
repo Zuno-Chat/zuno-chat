@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/errors/connection_error.dart';
 import 'package:zuno/core/errors/native_caught_error.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 
 void main() {
   final refusal = MatrixException.fromJson({
@@ -111,6 +112,7 @@ void main() {
   test('a connection failure reads as what failed and what to do', () {
     expect(
       failureMessage(
+        englishLocalizations,
         http.ClientException('Failed host lookup'),
         failed: 'Could not leave the room.',
       ),
@@ -125,7 +127,11 @@ void main() {
   ]) {
     test('$name reads only as what failed', () {
       expect(
-        failureMessage(error, failed: 'Could not leave the room.'),
+        failureMessage(
+          englishLocalizations,
+          error,
+          failed: 'Could not leave the room.',
+        ),
         'Could not leave the room.',
       );
     });

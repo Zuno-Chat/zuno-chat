@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/notifications/delivery_auto_fallback.dart';
 import '../../../core/notifications/delivery_failure.dart';
 import '../../../core/notifications/delivery_failure_provider.dart';
@@ -21,10 +22,11 @@ class NotificationDeliveryBanner extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final failure = ref.watch(deliveryFailureProvider);
     final dismissed = ref.watch(dismissedDeliveryFailureProvider);
-    if (failure == null || deliveryFailureIsDismissed(failure, dismissed)) {
+    if (failure == null || failure == dismissed) {
       return const SizedBox.shrink();
     }
 
+    final l10n = context.l10n;
     final colors = Theme.of(context).colorScheme;
     final background = failure.notice
         ? colors.secondaryContainer
@@ -56,7 +58,7 @@ class NotificationDeliveryBanner extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            failure.message,
+                            failure.message(l10n),
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
                                   color: foreground,
@@ -72,7 +74,10 @@ class NotificationDeliveryBanner extends ConsumerWidget {
                                 failure,
                               ),
                               child: Text(
-                                deliveryFailureActionLabel(failure.action),
+                                deliveryFailureActionLabel(
+                                  l10n,
+                                  failure.action,
+                                ),
                               ),
                             ),
                           ),
@@ -81,7 +86,7 @@ class NotificationDeliveryBanner extends ConsumerWidget {
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
-                      tooltip: 'Dismiss',
+                      tooltip: l10n.commonDismiss,
                       color: foreground,
                       onPressed: () => _dismiss(ref, failure),
                     ),

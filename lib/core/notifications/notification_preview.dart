@@ -1,25 +1,34 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 import '../platform/platform_capabilities.dart';
 
 enum NotificationPreview {
-  full('full', 'Name and message', 'Who wrote and what they said'),
-  nameOnly('name', 'Name only', 'Who wrote, without the message'),
-  nothing('none', 'Nothing', 'Only that something new arrived');
+  full('full'),
+  nameOnly('name'),
+  nothing('none');
 
-  const NotificationPreview(this.wire, this.label, this.description);
+  const NotificationPreview(this.wire);
 
   final String wire;
-  final String label;
-  final String description;
+
+  String label(AppLocalizations l10n) => switch (this) {
+    full => l10n.notificationsPreviewFull,
+    nameOnly => l10n.notificationsPreviewNameOnly,
+    nothing => l10n.notificationsPreviewNothing,
+  };
+
+  String description(AppLocalizations l10n) => switch (this) {
+    full => l10n.notificationsPreviewFullDescription,
+    nameOnly => l10n.notificationsPreviewNameOnlyDescription,
+    nothing => l10n.notificationsPreviewNothingDescription,
+  };
 }
 
 const notificationPreviewKey = 'settings.notification_preview';
 const notificationPreviewHintKey = 'settings.notification_preview_hint_done';
 const previewThread = 'zuno';
-const previewNothingTitle = 'Zuno';
-const previewHiddenText = 'New message';
 
 NotificationPreview notificationPreviewFromPreferences(
   SharedPreferences prefs,

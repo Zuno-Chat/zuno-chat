@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/location/presentation/own_live_location_banner.dart';
 
 import '../../../helpers/fake_live_location.dart';
@@ -23,6 +24,8 @@ void main() {
       ProviderScope(
         overrides: harness.overrides,
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Column(children: [OwnLiveLocationBanner(onOpen: opened.add)]),
           ),

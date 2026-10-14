@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/push/push_delivery_log.dart';
 
 void main() {
@@ -86,6 +87,7 @@ void main() {
     test('a prompt high priority push', () {
       expect(
         pushDeliverySummary(
+          englishLocalizations,
           _record(delayMs: 400, original: 'high', delivered: 'high'),
         ),
         'Arrived after 0.4 s, high priority',
@@ -95,6 +97,7 @@ void main() {
     test('a push held while the device slept after being downgraded', () {
       expect(
         pushDeliverySummary(
+          englishLocalizations,
           _record(
             delayMs: 12 * 60 * 1000,
             original: 'high',
@@ -109,15 +112,30 @@ void main() {
     });
 
     test('a push with no send time or priority', () {
-      expect(pushDeliverySummary(_record()), 'Arrived');
+      expect(pushDeliverySummary(englishLocalizations, _record()), 'Arrived');
     });
   });
 
   test('formatDeliveryDelay picks a readable unit', () {
-    expect(formatDeliveryDelay(const Duration(milliseconds: 80)), '0.1 s');
-    expect(formatDeliveryDelay(const Duration(seconds: 42)), '42 s');
-    expect(formatDeliveryDelay(const Duration(minutes: 5)), '5 min');
-    expect(formatDeliveryDelay(const Duration(hours: 3)), '3 h');
+    expect(
+      formatDeliveryDelay(
+        englishLocalizations,
+        const Duration(milliseconds: 80),
+      ),
+      '0.1 s',
+    );
+    expect(
+      formatDeliveryDelay(englishLocalizations, const Duration(seconds: 42)),
+      '42 s',
+    );
+    expect(
+      formatDeliveryDelay(englishLocalizations, const Duration(minutes: 5)),
+      '5 min',
+    );
+    expect(
+      formatDeliveryDelay(englishLocalizations, const Duration(hours: 3)),
+      '3 h',
+    );
   });
 }
 

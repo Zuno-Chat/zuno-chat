@@ -10,6 +10,7 @@ import 'package:unifiedpush_platform_interface/data/failed_reason.dart';
 import 'package:unifiedpush_platform_interface/data/public_key_set.dart';
 import 'package:unifiedpush_platform_interface/data/push_endpoint.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
+import 'package:zuno/core/notifications/pusher_failure.dart';
 import 'package:zuno/core/notifications/unified_push_delivery_provider.dart';
 import 'package:zuno/core/push/unified_push_pusher.dart';
 import 'package:zuno/core/push/unified_push_registration_store.dart';
@@ -346,7 +347,7 @@ void main() {
 
       await provider.stop(env.client);
 
-      expect(provider.lastPusherError, isNotNull);
+      expect(provider.lastPusherError, isA<PusherRemoveFailed>());
       expect(fake.unregistrations, 1);
       expect(
         readUnifiedPushRegistration(await SharedPreferences.getInstance()),

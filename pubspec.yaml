@@ -30,6 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
 
   # This app's own Android vibration channel — see its pubspec.yaml and
   # ZunoVibrationPlugin's doc comment for why it's a real local plugin
@@ -157,6 +160,7 @@ hooks:
       source: system
 
 flutter:
+  generate: true
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

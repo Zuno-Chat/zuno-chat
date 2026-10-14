@@ -1,3 +1,5 @@
+import '../l10n/l10n.dart';
+
 class VerificationCancelMessage {
   final String title;
   final String body;
@@ -10,62 +12,49 @@ class VerificationCancelMessage {
   });
 }
 
-VerificationCancelMessage verificationCancelMessage({
+VerificationCancelMessage verificationCancelMessage(
+  AppLocalizations l10n, {
   required String? code,
   required bool isOwnDevice,
 }) {
   switch (code) {
     case 'm.user':
       return VerificationCancelMessage(
-        title: 'Canceled',
+        title: l10n.securityCancelUserTitle,
         body: isOwnDevice
-            ? 'The check was canceled on one of the two devices. Nothing '
-                  'changed. Start it again whenever you like.'
-            : 'One of you canceled the check. Nothing changed. Start it again '
-                  'whenever you like.',
+            ? l10n.securityCancelUserOwnBody
+            : l10n.securityCancelUserOtherBody,
       );
     case 'm.timeout':
-      return const VerificationCancelMessage(
-        title: 'Timed out',
-        body:
-            'Nobody answered in time, so the check stopped on its own. '
-            'Nothing changed.',
+      return VerificationCancelMessage(
+        title: l10n.securityCancelTimeoutTitle,
+        body: l10n.securityCancelTimeoutBody,
       );
     case 'm.accepted':
-      return const VerificationCancelMessage(
-        title: 'Answered somewhere else',
-        body:
-            'Another one of your devices picked this up first. Nothing '
-            'to do here.',
+      return VerificationCancelMessage(
+        title: l10n.securityCancelAcceptedTitle,
+        body: l10n.securityCancelAcceptedBody,
       );
     case 'm.key_mismatch':
     case 'm.mismatched_sas':
     case 'm.mismatched_commitment':
       return VerificationCancelMessage(
-        title: 'The codes did not match',
-        isAlarming: true,
+        title: l10n.securityCancelMismatchTitle,
         body: isOwnDevice
-            ? 'The two screens showed different codes, so this device was not '
-                  'approved. Try again on a network you trust. If it keeps '
-                  'happening, sign that device out.'
-            : 'The two screens showed different codes, so they were not '
-                  'confirmed. Try again in person if you can. If it keeps '
-                  'happening, treat this chat as unconfirmed.',
+            ? l10n.securityCancelMismatchOwnBody
+            : l10n.securityCancelMismatchOtherBody,
+        isAlarming: true,
       );
     case 'm.user_mismatch':
-      return const VerificationCancelMessage(
-        title: 'That was someone else',
+      return VerificationCancelMessage(
+        title: l10n.securityCancelUserMismatchTitle,
+        body: l10n.securityCancelUserMismatchBody,
         isAlarming: true,
-        body:
-            'The check was answered by a different account than the one '
-            'it was started with. Nothing was confirmed.',
       );
     default:
-      return const VerificationCancelMessage(
-        title: 'That did not finish',
-        body:
-            'The two devices stopped agreeing partway through. Nothing '
-            'changed. Starting again usually fixes it.',
+      return VerificationCancelMessage(
+        title: l10n.securityCancelDefaultTitle,
+        body: l10n.securityCancelDefaultBody,
       );
   }
 }

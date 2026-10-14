@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/features/settings/presentation/fcm_status_display.dart';
 
@@ -30,16 +31,16 @@ void main() {
 
   test('names the fix for what it does, and only where there is one', () {
     expect(
-      fcmFixLabel(FcmStatus.playServicesUpdateRequired),
+      fcmFixLabel(englishLocalizations, FcmStatus.playServicesUpdateRequired),
       'Update Google Play services',
     );
     expect(
-      fcmFixLabel(FcmStatus.playServicesDisabled),
+      fcmFixLabel(englishLocalizations, FcmStatus.playServicesDisabled),
       'Turn on Google Play services',
     );
     for (final status in FcmStatus.values) {
       expect(
-        fcmFixLabel(status) != null,
+        fcmFixLabel(englishLocalizations, status) != null,
         fcmStatusAction(status) == PushStatusAction.fix,
         reason: '$status',
       );
@@ -83,7 +84,11 @@ void main() {
         'This version of Zuno does not include Google services',
       ),
     ]) {
-      expect(fcmStatusLabel(status), label, reason: '$status');
+      expect(
+        fcmStatusLabel(englishLocalizations, status),
+        label,
+        reason: '$status',
+      );
     }
   });
 
@@ -93,9 +98,12 @@ void main() {
   });
 
   test('says how far registration got', () {
-    expect(fcmStatusLabel(FcmStatus.postingPusher), 'Finishing registration…');
     expect(
-      fcmStatusLabel(FcmStatus.pusherFailed),
+      fcmStatusLabel(englishLocalizations, FcmStatus.postingPusher),
+      'Finishing registration…',
+    );
+    expect(
+      fcmStatusLabel(englishLocalizations, FcmStatus.pusherFailed),
       'Could not finish registration',
     );
   });
@@ -103,7 +111,7 @@ void main() {
   test('every status has a label that never names the server, shouts or '
       'uses a contraction', () {
     for (final status in FcmStatus.values) {
-      final label = fcmStatusLabel(status);
+      final label = fcmStatusLabel(englishLocalizations, status);
       expect(label, isNotEmpty, reason: '$status');
       expect(label.toLowerCase(), isNot(contains('server')), reason: label);
       expect(label, isNot(contains('!')), reason: label);

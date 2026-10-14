@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/display_text.dart';
 import '../platform/platform_capabilities.dart';
 
 const _channel = MethodChannel('zuno/files');
@@ -9,7 +10,7 @@ Future<bool> exportFile({
   required String name,
   required Uint8List bytes,
   required String mimeType,
-  String? dialogTitle,
+  @displayText String? dialogTitle,
   PlatformCapabilities? capabilities,
 }) async {
   if ((capabilities ?? ambientCapabilities).nativeSensitiveFileExport) {

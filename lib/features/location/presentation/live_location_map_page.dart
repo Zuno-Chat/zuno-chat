@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/format/date_labels.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/current_position.dart';
 import '../../../core/location/geo_uri.dart';
 import '../../../core/location/live_location_sharing.dart';
@@ -56,13 +58,13 @@ class _LiveLocationMapPageState extends ConsumerState<LiveLocationMapPage> {
     return LiveLocationWatchScope(
       roomId: room.id,
       child: Scaffold(
-        appBar: AppBar(title: Text(roomTitle(room))),
+        appBar: AppBar(title: Text(roomTitle(room, context.l10n))),
         body: shares.isEmpty
-            ? const Center(
+            ? Center(
                 child: Padding(
-                  padding: EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(24),
                   child: Text(
-                    'Nobody is sharing live location here right now.',
+                    context.l10n.locationNobodySharing,
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -220,8 +222,9 @@ class _LiveMapState extends ConsumerState<_LiveMap> with VisibleInFront {
 
   void _explain(LocationFailure reason) {
     final copy = locationFailureCopy(
+      context.l10n,
       reason,
-      goal: 'see where you are',
+      goal: LocationGoal.seeWhereYouAre,
       servicesSettings: ref
           .read(platformCapabilitiesProvider)
           .locationServicesSettings,
@@ -232,7 +235,10 @@ class _LiveMapState extends ConsumerState<_LiveMap> with VisibleInFront {
         content: Text(copy.message),
         action: openSettings == null
             ? null
-            : SnackBarAction(label: 'Open settings', onPressed: openSettings),
+            : SnackBarAction(
+                label: context.l10n.commonOpenSettings,
+                onPressed: openSettings,
+              ),
       ),
     );
   }
@@ -375,8 +381,8 @@ class _LiveMapState extends ConsumerState<_LiveMap> with VisibleInFront {
           child: FloatingActionButton.small(
             heroTag: null,
             tooltip: _ownLocation.showing
-                ? 'Hide your location'
-                : 'Show your location',
+                ? context.l10n.locationHideYours
+                : context.l10n.locationShowYours,
             onPressed: _toggleOwnLocation,
             child: Icon(
               _ownLocation.showing
@@ -429,7 +435,7 @@ class _WaitingForLocation extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Waiting for location',
+              context.l10n.locationWaiting,
               style: TextStyle(color: colors.onSurfaceVariant),
             ),
           ],
@@ -503,7 +509,7 @@ class _Sharers extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final me = room.client.userID;
-    final clock = liveClockFormat(context);
+    final labels = DateLabels.of(context);
     return SafeArea(
       top: false,
       child: ConstrainedBox(
@@ -519,7 +525,7 @@ class _Sharers extends ConsumerWidget {
                 room: room,
                 share: share,
                 mine: share.userId == me,
-                status: liveShareStatusText(share, now, clock),
+                status: liveShareStatusText(share, now, labels),
                 onFocus: onFocus,
                 onStop: () =>
                     ref.read(liveLocationSharingProvider).stopIn(room.id),
@@ -564,11 +570,11 @@ class _SharerRow extends StatelessWidget {
     if (mine) {
       trailing = TextButton(
         onPressed: onStop,
-        child: const Text('Stop sharing'),
+        child: Text(context.l10n.locationStopSharing),
       );
     } else if (position != null) {
       trailing = IconButton(
-        tooltip: 'Open in maps app',
+        tooltip: context.l10n.locationOpenInMaps,
         icon: const Icon(Icons.map_outlined),
         onPressed: () => onOpenInMaps(position.geo),
       );
@@ -582,7 +588,7 @@ class _SharerRow extends StatelessWidget {
         fallbackText: name,
         toneSeed: share.userId,
       ),
-      title: Text(mine ? 'You' : name),
+      title: Text(mine ? context.l10n.commonYou : name),
       subtitle: Text(status),
       onTap: position == null ? null : () => onFocus(share.userId),
       trailing: trailing,

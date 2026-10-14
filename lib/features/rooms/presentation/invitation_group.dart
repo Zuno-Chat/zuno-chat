@@ -5,6 +5,8 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/notifications/invite_notification_provider.dart';
@@ -41,7 +43,7 @@ class _InvitationGroupState extends State<InvitationGroup> {
             final corners = _cornersAt(index, invitations.length);
             return _memo.obtain(
               room.id,
-              (_viewOf(room), corners),
+              (_viewOf(room, context.l10n), corners),
               source: room,
               () => _Invitation(
                 key: ValueKey(room.id),
@@ -75,20 +77,20 @@ typedef _InvitationView = ({
   AvatarShape shape,
 });
 
-_InvitationView _viewOf(Room room) {
+_InvitationView _viewOf(Room room, AppLocalizations l10n) {
   final inviter = inviterId(room);
   final inviterUser = inviter == null
       ? null
       : room.unsafeGetUserFromMemoryOrFallback(inviter);
-  final inviterName = inviterUser?.calcDisplayname() ?? 'Someone';
+  final inviterName = inviterUser?.calcDisplayname() ?? l10n.roomsSomeone;
   final isGroup = room.name.isNotEmpty;
   final String subtitle;
   if (room.isSpace) {
-    subtitle = '$inviterName invited you to a community';
+    subtitle = l10n.roomsInvitedYouToCommunity(inviterName);
   } else if (isGroup) {
-    subtitle = '$inviterName invited you';
+    subtitle = l10n.roomsInvitedYou(inviterName);
   } else {
-    subtitle = 'Invited you to chat';
+    subtitle = l10n.roomsInvitedYouToChat;
   }
   return (
     name: isGroup ? room.name : inviterName,
@@ -122,9 +124,10 @@ class _InvitationState extends State<_Invitation> {
 
   Future<void> _answer(
     Future<void> Function() action, {
-    required String failed,
+    @displayText required String failed,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     setState(() => _busy = true);
     unawaited(cancelInviteNotification(widget.room));
     try {
@@ -132,7 +135,7 @@ class _InvitationState extends State<_Invitation> {
     } catch (e, s) {
       reportCaught('answer invitation', e, s);
       messenger.showSnackBar(
-        SnackBar(content: Text(failureMessage(e, failed: failed))),
+        SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -143,7 +146,8 @@ class _InvitationState extends State<_Invitation> {
   Widget build(BuildContext context) {
     final room = widget.room;
     final theme = Theme.of(context);
-    final view = _viewOf(room);
+    final l10n = context.l10n;
+    final view = _viewOf(room, l10n);
 
     return Material(
       color: theme.colorScheme.secondaryContainer,
@@ -201,9 +205,9 @@ class _InvitationState extends State<_Invitation> {
                         ? null
                         : () => _answer(
                             () => declineInvite(room),
-                            failed: 'Could not decline.',
+                            failed: l10n.roomsCouldNotDecline,
                           ),
-                    child: const Text('Decline'),
+                    child: Text(l10n.commonDecline),
                   ),
                   const SizedBox(width: 4),
                   FilledButton(
@@ -211,9 +215,9 @@ class _InvitationState extends State<_Invitation> {
                         ? null
                         : () => _answer(
                             () => acceptInvite(room),
-                            failed: 'Could not join.',
+                            failed: l10n.roomsCouldNotJoin,
                           ),
-                    child: const Text('Join'),
+                    child: Text(l10n.commonJoin),
                   ),
                 ],
               ),

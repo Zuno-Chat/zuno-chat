@@ -10,6 +10,8 @@ import '../../../core/calls/matrixrtc/call_member_state.dart';
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/local_username_dialog.dart';
 import '../../../core/matrix/matrix_ids.dart';
@@ -113,7 +115,9 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            muted ? 'Not muted. Try again.' : 'Not unmuted. Try again.',
+            muted
+                ? context.l10n.roomInfoNotMuted
+                : context.l10n.roomInfoNotUnmuted,
           ),
         ),
       );
@@ -191,20 +195,23 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     final userId = await showLocalUsernameDialog(
       context,
       client: client,
-      title: 'Invite to room',
-      actionLabel: 'Invite',
+      title: context.l10n.roomInfoInviteToRoom,
+      actionLabel: context.l10n.commonInvite,
     );
     if (userId == null || !mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       await widget.room.invite(userId);
-      messenger.showSnackBar(const SnackBar(content: Text('Invitation sent')));
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.commonInvitationSent)),
+      );
       _showMembership(userId, Membership.invite);
     } catch (e, s) {
       if (!isUnknownInvitee(e)) reportCaught('invite', e, s);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Invitation not sent. Try again.')),
+        SnackBar(content: Text(l10n.commonInvitationNotSent)),
       );
     }
   }
@@ -221,13 +228,14 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     if (chosen == null || chosen == current || !mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       await setUserRoomRole(room, user.id, chosen);
       if (mounted) setState(() {});
     } catch (e, s) {
       reportCaught('change role', e, s);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Role not changed. Try again.')),
+        SnackBar(content: Text(l10n.commonRoleNotChanged)),
       );
     }
   }
@@ -284,37 +292,37 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
           children: [
             ListTile(
               leading: const Icon(Icons.chat_bubble_outline),
-              title: const Text('Start a chat'),
+              title: Text(context.l10n.roomInfoStartChat),
               onTap: () => Navigator.of(context).pop(_MemberAction.message),
             ),
             if (canChangeRole)
               ListTile(
                 leading: const Icon(Icons.badge_outlined),
-                title: const Text('Change role'),
+                title: Text(context.l10n.commonChangeRole),
                 onTap: () =>
                     Navigator.of(context).pop(_MemberAction.changeRole),
               ),
             if (canRemove)
               ListTile(
                 leading: const Icon(Icons.person_remove_outlined),
-                title: const Text('Remove from room'),
+                title: Text(context.l10n.roomInfoRemoveFromRoom),
                 onTap: () => Navigator.of(context).pop(_MemberAction.remove),
               ),
             if (canBanUser)
               ListTile(
                 leading: const Icon(Icons.block_outlined),
-                title: const Text('Ban from room'),
+                title: Text(context.l10n.roomInfoBanFromRoom),
                 onTap: () => Navigator.of(context).pop(_MemberAction.ban),
               ),
             if (canBlockPerson(user.id))
               ListTile(
                 leading: const Icon(Icons.do_not_disturb_on_outlined),
-                title: const Text('Block'),
+                title: Text(context.l10n.commonBlock),
                 onTap: () => Navigator.of(context).pop(_MemberAction.block),
               ),
             ListTile(
               leading: const Icon(Icons.flag_outlined),
-              title: const Text('Report'),
+              title: Text(context.l10n.commonReport),
               onTap: () => Navigator.of(context).pop(_MemberAction.report),
             ),
           ],
@@ -355,15 +363,13 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
   Future<void> _reportPerson(String userId, String name) async {
     final room = widget.room;
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     final sent = await showReportSheet(
       context,
-      title: 'Report $name',
+      title: l10n.roomInfoReportPerson(name),
       explanation: room.isDirectChat
-          ? 'The report goes to Zuno and names this person. Zuno cannot read '
-                'your messages, so describe what happened.'
-          : 'The report goes to Zuno and names this person. Room admins can '
-                'remove people from this room. A report is for what they '
-                'cannot fix.',
+          ? l10n.roomInfoReportExplainDirect
+          : l10n.roomInfoReportExplainGroup,
       onSend: (reason, note) => reportPerson(
         room.client,
         userId,
@@ -373,13 +379,14 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
       ),
     );
     if (sent) {
-      messenger.showSnackBar(const SnackBar(content: Text('Report sent')));
+      messenger.showSnackBar(SnackBar(content: Text(l10n.commonReportSent)));
     }
   }
 
   Future<void> _messageMember(User user) async {
     final client = widget.room.client;
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       final roomId = await client.startDirectChat(
         user.id,
@@ -393,7 +400,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     } catch (e, s) {
       reportCaught('start chat', e, s);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Could not start the chat. Try again.')),
+        SnackBar(content: Text(l10n.roomInfoCouldNotStartChat)),
       );
     }
   }
@@ -403,32 +410,37 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
       context,
       name: user.calcDisplayname(),
       ban: ban,
-      place: 'room',
+      place: RemoveMemberPlace.room,
     );
     if (!confirmed || !mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       await (ban ? widget.room.ban(user.id) : widget.room.kick(user.id));
       _showMembership(user.id, ban ? Membership.ban : Membership.leave);
     } catch (e, s) {
       reportCaught(ban ? 'ban member' : 'remove member', e, s);
-      final failure = ban ? 'Not banned' : 'Not removed';
-      messenger.showSnackBar(SnackBar(content: Text('$failure. Try again.')));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            ban ? l10n.commonMemberNotBanned : l10n.commonMemberNotRemoved,
+          ),
+        ),
+      );
     }
   }
 
   Future<void> _unbanMember(String userId) async {
     if (!canManageMember(widget.room, userId)) return;
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       await widget.room.unban(userId);
       _showMembership(userId, Membership.leave);
     } catch (e, s) {
       reportCaught('unban', e, s);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Not unbanned. Try again.')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(l10n.roomInfoNotUnbanned)));
     }
   }
 
@@ -447,7 +459,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
       trailing: canManageMember(room, userId)
           ? TextButton(
               onPressed: () => _unbanMember(userId),
-              child: const Text('Unban'),
+              child: Text(context.l10n.roomInfoUnban),
             )
           : null,
     );
@@ -457,21 +469,18 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Enable encryption?'),
+        title: Text(context.l10n.roomInfoEnableEncryptionTitle),
         actionsOverflowDirection: VerticalDirection.up,
         actionsOverflowButtonSpacing: 4,
-        content: const Text(
-          'Messages sent from now on are end-to-end encrypted. Nobody can turn '
-          'it off again.',
-        ),
+        content: Text(context.l10n.roomInfoEnableEncryptionBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Enable encryption'),
+            child: Text(context.l10n.roomInfoEnableEncryption),
           ),
         ],
       ),
@@ -479,6 +488,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     if (confirmed != true || !mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       await widget.room.enableEncryption();
       applyOptimisticRoomState(widget.room, EventTypes.Encryption, {
@@ -487,30 +497,31 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     } catch (e, s) {
       reportCaught('enable encryption', e, s);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Encryption not enabled. Try again.')),
+        SnackBar(content: Text(l10n.roomInfoEncryptionNotEnabled)),
       );
     }
   }
 
   String _membersTitle(Room room, List<User>? participants) {
-    if (participants == null) return 'Members';
+    if (participants == null) return context.l10n.roomInfoMembers;
     final count = _membersFromMemory
         ? _summaryMemberCount(room, participants.length)
         : participants.length;
-    return 'Members ($count)';
+    return context.l10n.roomInfoMembersCount(count);
   }
 
-  void _copyToClipboard(String label, String value) {
+  void _copyToClipboard(@displayText String copiedMessage, String value) {
     Clipboard.setData(ClipboardData(text: value));
     ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('$label copied')));
+        .showSnackBar(SnackBar(content: Text(copiedMessage)));
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
     final room = widget.room;
-    final name = roomTitle(room);
+    final name = roomTitle(room, l10n);
     final topic = room.topic.trim();
     final participants = _participants;
     final members = membersOwnerFirst(room, participants ?? const <User>[]);
@@ -544,7 +555,9 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(room.isDirectChat ? 'Chat info' : 'Room info'),
+        title: Text(
+          room.isDirectChat ? l10n.roomInfoChatInfo : l10n.roomInfoRoomInfo,
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: () =>
@@ -581,7 +594,10 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                             color: colors.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
-                          Text('Encrypted', style: theme.textTheme.bodySmall),
+                          Text(
+                            l10n.roomInfoEncrypted,
+                            style: theme.textTheme.bodySmall,
+                          ),
                         ],
                         if (room.encrypted && !room.isDirectChat)
                           Padding(
@@ -591,7 +607,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                               style: theme.textTheme.bodySmall,
                             ),
                           ),
-                        if (!room.isDirectChat) RoomAccessLabel.of(room),
+                        if (!room.isDirectChat) RoomAccessLabel.of(room, l10n),
                       ],
                     ),
                   ],
@@ -611,16 +627,16 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                     Flexible(
                       child: QuickAction(
                         icon: Icons.call_outlined,
-                        label: 'Call',
-                        tooltip: 'Voice call',
+                        label: l10n.callsStartCall,
+                        tooltip: l10n.callsStartVoiceCall,
                         onTap: () => onStartCall(CallKind.voice),
                       ),
                     ),
                     Flexible(
                       child: QuickAction(
                         icon: Icons.videocam_outlined,
-                        label: 'Video',
-                        tooltip: 'Video call',
+                        label: l10n.roomInfoVideo,
+                        tooltip: l10n.callsStartVideoCall,
                         onTap: () => onStartCall(CallKind.video),
                       ),
                     ),
@@ -630,7 +646,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                       icon: muted
                           ? Icons.notifications_outlined
                           : Icons.notifications_off_outlined,
-                      label: muted ? 'Unmute' : 'Mute',
+                      label: muted ? l10n.roomsUnmute : l10n.roomsMute,
                       onTap: () => _setMuted(!muted),
                     ),
                   ),
@@ -638,7 +654,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                     Flexible(
                       child: QuickAction(
                         icon: Icons.person_add_alt_outlined,
-                        label: 'Invite',
+                        label: l10n.commonInvite,
                         onTap: _invite,
                       ),
                     ),
@@ -651,8 +667,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                   if (canEditAnyRoomSetting)
                     ListTile(
                       leading: const CircleIcon(Icons.edit_outlined),
-                      title: const Text('Room settings'),
-                      subtitle: const Text('Name, topic, photo'),
+                      title: Text(l10n.roomInfoRoomSettings),
+                      subtitle: Text(l10n.roomInfoRoomSettingsHint),
                       trailing: const Icon(Icons.chevron_right_outlined),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
@@ -665,11 +681,11 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                       leading: const CircleIcon(
                         Icons.admin_panel_settings_outlined,
                       ),
-                      title: const Text('Roles & permissions'),
+                      title: Text(l10n.roomInfoRolesAndPermissions),
                       subtitle: Text(
                         permissionsAccess == RoomPermissionsAccess.readOnly
-                            ? 'View only'
-                            : 'Who can do what',
+                            ? l10n.roomInfoViewOnly
+                            : l10n.roomInfoWhoCanDoWhat,
                       ),
                       trailing: const Icon(Icons.chevron_right_outlined),
                       onTap: () => Navigator.of(context).push(
@@ -682,16 +698,14 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
               ),
             if (showSecurity)
               CardGroup(
-                title: 'Security',
+                title: l10n.roomInfoSecurity,
                 children: [
                   if (!room.encrypted)
                     ListTile(
                       dense: true,
                       leading: Icon(notEncryptedIcon, color: colors.error),
-                      title: const Text('Not encrypted'),
-                      subtitle: const Text(
-                        'Messages in this chat reach the server unencrypted',
-                      ),
+                      title: Text(l10n.roomInfoNotEncrypted),
+                      subtitle: Text(l10n.roomInfoNotEncryptedHint),
                     ),
                   if (room.encrypted)
                     PeopleTrustTile(room: room, participants: participants)
@@ -699,8 +713,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                     ListTile(
                       dense: true,
                       leading: const Icon(Icons.enhanced_encryption_outlined),
-                      title: const Text('Enable encryption'),
-                      subtitle: const Text('Cannot be turned off again'),
+                      title: Text(l10n.roomInfoEnableEncryption),
+                      subtitle: Text(l10n.roomInfoCannotTurnOff),
                       onTap: _enableEncryption,
                     ),
                 ],
@@ -729,7 +743,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                       Center(
                         child: TextButton(
                           onPressed: _viewAllMembers,
-                          child: const Text('View all members'),
+                          child: Text(l10n.roomInfoViewAllMembers),
                         ),
                       ),
                   ],
@@ -737,7 +751,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
               ),
             if (room.canBan && bannedUserIds(room).isNotEmpty)
               CardGroup(
-                title: 'Banned',
+                title: l10n.roomInfoBanned,
                 children: [
                   for (final userId in bannedUserIds(room))
                     _bannedMemberTile(room, userId),
@@ -751,19 +765,19 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                       leading: const CircleIcon(
                         Icons.do_not_disturb_on_outlined,
                       ),
-                      title: Text('Block $name'),
+                      title: Text(l10n.roomInfoBlockPerson(name)),
                       onTap: () => _blockPerson(chatPartnerId, name),
                     ),
                   ListTile(
                     leading: const CircleIcon(Icons.flag_outlined),
-                    title: Text('Report $name'),
+                    title: Text(l10n.roomInfoReportPerson(name)),
                     onTap: () => _reportPerson(chatPartnerId, name),
                   ),
                 ],
                 ListTile(
                   leading: CircleIcon(roomExitIcon(room), danger: true),
                   title: Text(
-                    roomExitLabel(room),
+                    roomExitLabel(room, l10n),
                     style: TextStyle(color: colors.error),
                   ),
                   onTap: _exit,
@@ -772,26 +786,28 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
             ),
             if (canSeeAdvancedRoomInfo(room))
               CardGroup(
-                title: 'Advanced',
+                title: l10n.roomInfoAdvanced,
                 children: [
                   ListTile(
                     dense: true,
                     leading: const Icon(Icons.tag_outlined),
-                    title: const Text('Room ID'),
+                    title: Text(l10n.roomInfoRoomId),
                     subtitle: Text(withoutServer(room.id)),
                     trailing: const Icon(Icons.copy_outlined, size: 18),
-                    onTap: () =>
-                        _copyToClipboard('Room ID', withoutServer(room.id)),
+                    onTap: () => _copyToClipboard(
+                      l10n.roomInfoRoomIdCopied,
+                      withoutServer(room.id),
+                    ),
                   ),
                   if (canonicalAlias.isNotEmpty)
                     ListTile(
                       dense: true,
                       leading: const Icon(Icons.alternate_email_outlined),
-                      title: const Text('Room alias'),
+                      title: Text(l10n.roomInfoRoomAlias),
                       subtitle: Text(withoutServer(canonicalAlias)),
                       trailing: const Icon(Icons.copy_outlined, size: 18),
                       onTap: () => _copyToClipboard(
-                        'Room alias',
+                        l10n.roomInfoRoomAliasCopied,
                         withoutServer(canonicalAlias),
                       ),
                     ),

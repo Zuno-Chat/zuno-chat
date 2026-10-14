@@ -9,6 +9,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/blocking/presentation/block_person.dart';
@@ -120,6 +121,8 @@ void main() {
           sharedPreferencesProvider.overrideWithValue(prefs),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: routeLauncher(
               (_) => RoomInvitePage(room: room, blockPerson: blockPerson),

@@ -3,6 +3,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/communities.dart';
 import '../../../core/matrix/mxc_avatar.dart';
@@ -18,14 +20,15 @@ import '../../../core/ui/sheet.dart';
 
 enum _AvatarAction { camera, gallery, remove }
 
-String _historyVisibilityLabel(HistoryVisibility visibility) =>
-    switch (visibility) {
-      HistoryVisibility.worldReadable => 'Anyone',
-      HistoryVisibility.shared =>
-        'Members, including history before they joined',
-      HistoryVisibility.invited => 'Members, from when they were invited',
-      HistoryVisibility.joined => 'Members, from when they joined',
-    };
+String _historyVisibilityLabel(
+  AppLocalizations l10n,
+  HistoryVisibility visibility,
+) => switch (visibility) {
+  HistoryVisibility.worldReadable => l10n.roomInfoHistoryAnyone,
+  HistoryVisibility.shared => l10n.roomInfoHistoryShared,
+  HistoryVisibility.invited => l10n.roomInfoHistoryInvited,
+  HistoryVisibility.joined => l10n.roomInfoHistoryJoined,
+};
 
 HistoryVisibility _historyVisibilityOf(Room room) =>
     room.historyVisibility ?? HistoryVisibility.shared;
@@ -45,8 +48,6 @@ class RoomSettingsPage extends StatefulWidget {
 
 class _RoomSettingsPageState extends State<RoomSettingsPage> {
   late final bool _community = widget.room.isSpace;
-  late final String _noun = _community ? 'Community' : 'Room';
-  late final String _topicLabel = _community ? 'Description' : 'Topic';
   bool _savingName = false;
   bool _savingTopic = false;
   bool _savingAvatar = false;
@@ -54,24 +55,36 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
   bool _savingHistoryVisibility = false;
   bool _savingAccess = false;
 
+  String _nameLabel(AppLocalizations l10n) =>
+      _community ? l10n.communitiesCommunityName : l10n.roomsRoomName;
+
+  String _topicLabel(AppLocalizations l10n) =>
+      _community ? l10n.roomInfoDescription : l10n.roomInfoTopic;
+
   Future<void> _editName() async {
     final room = widget.room;
+    final l10n = context.l10n;
     final name = await showDialog<String>(
       context: context,
       builder: (_) => _EditTextFieldDialog(
-        title: '$_noun name',
+        title: _nameLabel(l10n),
         initialValue: room.name,
-        labelText: '$_noun name',
+        labelText: _nameLabel(l10n),
         maxLength: roomNameMaxLength,
-        validator: roomNameError,
+        validator: (name) => roomNameError(l10n, name),
       ),
     );
     if (name == null || name.isEmpty || name == room.name || !mounted) return;
 
     await _save(
       setSaving: (saving) => _savingName = saving,
-      success: '$_noun name updated',
-      failure: '$_noun name not saved',
+      label: 'save name',
+      success: _community
+          ? l10n.roomInfoCommunityNameUpdated
+          : l10n.roomInfoRoomNameUpdated,
+      failure: _community
+          ? l10n.roomInfoCommunityNameNotSaved
+          : l10n.roomInfoRoomNameNotSaved,
       write: () async {
         await room.setName(name);
         applyOptimisticRoomState(room, EventTypes.RoomName, {'name': name});
@@ -81,8 +94,9 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
   Future<void> _save({
     required void Function(bool saving) setSaving,
-    required String success,
-    required String failure,
+    required String label,
+    @displayText required String success,
+    @displayText required String failure,
     required Future<void> Function() write,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -95,13 +109,13 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
     } on RoomListingRefused {
       if (mounted) {
         messenger.showSnackBar(
-          const SnackBar(content: Text(RoomListingRefused.message)),
+          SnackBar(content: Text(context.l10n.matrixRoomListingRefused)),
         );
       }
     } catch (e, s) {
-      reportCaught(failure, e, s);
+      reportCaught(label, e, s);
       if (mounted) {
-        messenger.showSnackBar(SnackBar(content: Text('$failure. Try again.')));
+        messenger.showSnackBar(SnackBar(content: Text(failure)));
       }
     } finally {
       if (mounted) setState(() => setSaving(false));
@@ -110,12 +124,13 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
   Future<void> _editTopic() async {
     final room = widget.room;
+    final l10n = context.l10n;
     final topic = await showDialog<String>(
       context: context,
       builder: (_) => _EditTextFieldDialog(
-        title: _topicLabel,
+        title: _topicLabel(l10n),
         initialValue: room.topic,
-        labelText: _topicLabel,
+        labelText: _topicLabel(l10n),
         maxLines: 3,
         maxLength: roomTopicMaxLength,
       ),
@@ -124,8 +139,13 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
     await _save(
       setSaving: (saving) => _savingTopic = saving,
-      success: '$_topicLabel updated',
-      failure: '$_topicLabel not saved',
+      label: 'save topic',
+      success: _community
+          ? l10n.roomInfoDescriptionUpdated
+          : l10n.roomInfoTopicUpdated,
+      failure: _community
+          ? l10n.roomInfoDescriptionNotSaved
+          : l10n.roomInfoTopicNotSaved,
       write: () async {
         await room.setDescription(topic);
         applyOptimisticRoomState(room, EventTypes.RoomTopic, {'topic': topic});
@@ -135,14 +155,15 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
   Future<void> _editAlias() async {
     final room = widget.room;
+    final l10n = context.l10n;
     final domain = room.client.userID!.domain;
     final current = room.canonicalAlias.localpart ?? '';
     final localpart = await showDialog<String>(
       context: context,
       builder: (_) => _EditTextFieldDialog(
-        title: 'Main address',
+        title: l10n.roomInfoMainAddress,
         initialValue: current,
-        labelText: 'Main address',
+        labelText: l10n.roomInfoMainAddress,
         prefixText: '#',
         maxLength: roomAliasMaxLength,
       ),
@@ -151,8 +172,9 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
     await _save(
       setSaving: (saving) => _savingAlias = saving,
-      success: 'Main address updated',
-      failure: 'Main address not saved',
+      label: 'save main address',
+      success: l10n.roomInfoMainAddressUpdated,
+      failure: l10n.roomInfoMainAddressNotSaved,
       write: () => localpart.isEmpty
           ? _clearAlias(room)
           : _setAlias(room, '#$localpart:$domain'),
@@ -186,6 +208,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
   Future<void> _changeHistoryVisibility() async {
     final room = widget.room;
+    final l10n = context.l10n;
     final current = _historyVisibilityOf(room);
     final chosen = await showSheet<HistoryVisibility>(
       context: context,
@@ -197,7 +220,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                 leading: visibility == current
                     ? const Icon(Icons.check_outlined)
                     : const SizedBox(width: 24),
-                title: Text(_historyVisibilityLabel(visibility)),
+                title: Text(_historyVisibilityLabel(l10n, visibility)),
                 onTap: () => Navigator.of(context).pop(visibility),
               ),
           ],
@@ -208,8 +231,9 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
     await _save(
       setSaving: (saving) => _savingHistoryVisibility = saving,
-      success: 'History setting updated',
-      failure: 'History setting not saved',
+      label: 'save history visibility',
+      success: l10n.roomInfoHistorySettingUpdated,
+      failure: l10n.roomInfoHistorySettingNotSaved,
       write: () async {
         await room.setHistoryVisibility(chosen);
         applyOptimisticRoomState(room, EventTypes.HistoryVisibility, {
@@ -221,6 +245,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
   Future<void> _changeAvatar() async {
     final room = widget.room;
+    final l10n = context.l10n;
     final action = await showSheet<_AvatarAction>(
       context: context,
       builder: (context) => SafeArea(
@@ -228,18 +253,18 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take photo'),
+              title: Text(l10n.commonTakePhoto),
               onTap: () => Navigator.of(context).pop(_AvatarAction.camera),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from gallery'),
+              title: Text(l10n.commonChooseFromGallery),
               onTap: () => Navigator.of(context).pop(_AvatarAction.gallery),
             ),
             if (room.avatar != null)
               ListTile(
                 leading: const Icon(Icons.delete_outline),
-                title: const Text('Remove photo'),
+                title: Text(l10n.commonRemovePhoto),
                 onTap: () => Navigator.of(context).pop(_AvatarAction.remove),
               ),
           ],
@@ -269,13 +294,15 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
         await setRoomAvatar(room, shrunk);
       }
       if (mounted) {
-        messenger.showSnackBar(const SnackBar(content: Text('Photo updated')));
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.commonPhotoUpdated)),
+        );
       }
     } catch (e, s) {
       if (!isPickerAccessDenied(e)) reportCaught('update room photo', e, s);
       if (mounted) {
         messenger.showSnackBar(
-          const SnackBar(content: Text('Photo not saved. Try again.')),
+          SnackBar(content: Text(l10n.commonPhotoNotSaved)),
         );
       }
     } finally {
@@ -285,6 +312,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
   Future<void> _changeAccess() async {
     final room = widget.room;
+    final l10n = context.l10n;
     final current = roomAccessOf(room);
     final communities = _community ? const <Room>[] : communitiesOf(room);
     final inCommunity = !_community && room.spaceParents.isNotEmpty;
@@ -304,8 +332,8 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                 leading: access == current
                     ? const Icon(Icons.check_outlined)
                     : const SizedBox(width: 24),
-                title: Text(access.label),
-                subtitle: Text(access.description),
+                title: Text(access.label(l10n)),
+                subtitle: Text(access.description(l10n)),
                 onTap: () => Navigator.of(context).pop(access),
               ),
           ],
@@ -319,19 +347,40 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
     await _save(
       setSaving: (saving) => _savingAccess = saving,
-      success: '$_noun access updated',
-      failure: '$_noun access not saved',
+      label: 'save access',
+      success: _community
+          ? l10n.roomInfoCommunityAccessUpdated
+          : l10n.roomInfoRoomAccessUpdated,
+      failure: _community
+          ? l10n.roomInfoCommunityAccessNotSaved
+          : l10n.roomInfoRoomAccessNotSaved,
       write: () => setRoomAccess(room, chosen),
     );
   }
 
   Future<bool> _confirmAccessChange(RoomAccess chosen) async {
-    final noun = _noun.toLowerCase();
+    final l10n = context.l10n;
     final (title, action) = switch (chosen) {
-      RoomAccess.public => ('Make $noun public?', 'Make public'),
-      RoomAccess.community => ('Open to community members?', 'Open to members'),
-      RoomAccess.askToJoin => ('Let members ask to join?', 'Let them ask'),
-      RoomAccess.private => ('Make $noun private?', 'Make private'),
+      RoomAccess.public => (
+        _community
+            ? l10n.roomInfoMakeCommunityPublicTitle
+            : l10n.roomInfoMakeRoomPublicTitle,
+        l10n.roomInfoMakePublic,
+      ),
+      RoomAccess.community => (
+        l10n.roomInfoOpenToCommunityTitle,
+        l10n.roomInfoOpenToMembers,
+      ),
+      RoomAccess.askToJoin => (
+        l10n.roomInfoLetMembersAskTitle,
+        l10n.roomInfoLetThemAsk,
+      ),
+      RoomAccess.private => (
+        _community
+            ? l10n.roomInfoMakeCommunityPrivateTitle
+            : l10n.roomInfoMakeRoomPrivateTitle,
+        l10n.roomInfoMakePrivate,
+      ),
     };
     final confirmed = await showDialog<bool>(
       context: context,
@@ -341,17 +390,17 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final line in _accessConsequences(chosen, _community))
+            for (final line in _accessConsequences(l10n, chosen, _community))
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text('• $line'),
+                child: Text(l10n.roomInfoAccessBullet(line)),
               ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
@@ -366,6 +415,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final room = widget.room;
+    final l10n = context.l10n;
     final canEditName = room.canChangeStateEvent(EventTypes.RoomName);
     final canEditTopic = room.canChangeStateEvent(EventTypes.RoomTopic);
     final canEditAvatar =
@@ -391,23 +441,35 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('$_noun settings')),
+      appBar: AppBar(
+        title: Text(
+          _community
+              ? l10n.roomInfoCommunitySettings
+              : l10n.roomInfoRoomSettings,
+        ),
+      ),
       body: CardListView(
         children: [
           CardGroup(
-            title: '$_noun info',
+            title: _community
+                ? l10n.roomInfoCommunityInfo
+                : l10n.roomInfoRoomInfo,
             children: [
               if (!room.isDirectChat)
                 ListTile(
                   leading: MxcAvatar(
                     client: room.client,
                     avatarUrl: room.avatar,
-                    fallbackText: roomTitle(room),
+                    fallbackText: roomTitle(room, l10n),
                     toneSeed: roomToneSeed(room),
                     radius: 20,
                     shape: AvatarShape.forRoom(room),
                   ),
-                  title: Text('$_noun photo'),
+                  title: Text(
+                    _community
+                        ? l10n.roomInfoCommunityPhoto
+                        : l10n.roomInfoRoomPhoto,
+                  ),
                   trailing: trailingFor(_savingAvatar, canEditAvatar),
                   onTap: (_savingAvatar || !canEditAvatar)
                       ? null
@@ -415,16 +477,18 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                 ),
               ListTile(
                 leading: const Icon(Icons.title_outlined),
-                title: Text('$_noun name'),
-                subtitle: Text(room.name.isEmpty ? 'Not set' : room.name),
+                title: Text(_nameLabel(l10n)),
+                subtitle: Text(
+                  room.name.isEmpty ? l10n.roomInfoNotSet : room.name,
+                ),
                 trailing: trailingFor(_savingName, canEditName),
                 onTap: (_savingName || !canEditName) ? null : _editName,
               ),
               ListTile(
                 leading: const Icon(Icons.notes_outlined),
-                title: Text(_topicLabel),
+                title: Text(_topicLabel(l10n)),
                 subtitle: Text(
-                  room.topic.isEmpty ? 'Not set' : room.topic,
+                  room.topic.isEmpty ? l10n.roomInfoNotSet : room.topic,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -434,9 +498,11 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
               if (!_community)
                 ListTile(
                   leading: const Icon(Icons.tag_outlined),
-                  title: const Text('Main address'),
+                  title: Text(l10n.roomInfoMainAddress),
                   subtitle: Text(
-                    aliasLocalpart == null ? 'Not set' : '#$aliasLocalpart',
+                    aliasLocalpart == null
+                        ? l10n.roomInfoNotSet
+                        : '#$aliasLocalpart',
                   ),
                   trailing: trailingFor(_savingAlias, canEditAlias),
                   onTap: (_savingAlias || !canEditAlias) ? null : _editAlias,
@@ -444,14 +510,14 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
             ],
           ),
           CardGroup(
-            title: 'Privacy',
+            title: l10n.roomInfoPrivacy,
             children: [
               if (!_community)
                 ListTile(
                   leading: const Icon(Icons.history_outlined),
-                  title: const Text('Who can read history'),
+                  title: Text(l10n.roomInfoWhoCanReadHistory),
                   subtitle: Text(
-                    _historyVisibilityLabel(_historyVisibilityOf(room)),
+                    _historyVisibilityLabel(l10n, _historyVisibilityOf(room)),
                   ),
                   trailing: trailingFor(
                     _savingHistoryVisibility,
@@ -464,8 +530,12 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
               if (!room.isDirectChat)
                 ListTile(
                   leading: const Icon(Icons.public_outlined),
-                  title: Text('$_noun access'),
-                  subtitle: Text(roomAccessOf(room).label),
+                  title: Text(
+                    _community
+                        ? l10n.roomInfoCommunityAccess
+                        : l10n.roomInfoRoomAccess,
+                  ),
+                  subtitle: Text(roomAccessOf(room).label(l10n)),
                   trailing: trailingFor(_savingAccess, canEditAccess),
                   onTap: (_savingAccess || !canEditAccess)
                       ? null
@@ -479,32 +549,36 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
   }
 }
 
-List<String> _accessConsequences(RoomAccess access, bool community) =>
-    switch (access) {
-      RoomAccess.public => [
-        'Anyone can find it under Find public rooms.',
-        'Anyone can join without an invite.',
-        community
-            ? 'Its rooms keep their own access.'
-            : 'Whether new members can read older messages depends on '
-                  'Who can read history.',
-      ],
-      RoomAccess.community => const [
-        'Members of the community can join without an invite.',
-        'It is not listed under Find public rooms.',
-        'Current members stay. Nobody is removed.',
-      ],
-      RoomAccess.askToJoin => const [
-        'Members of the community see it and can ask to join.',
-        'Moderators and admins decide who gets in.',
-        'Current members stay. Nobody is removed.',
-      ],
-      RoomAccess.private => [
-        'The ${community ? 'community' : 'room'} leaves the public list.',
-        'New people need an invite to join.',
-        'Current members stay. Nobody is removed.',
-      ],
-    };
+List<String> _accessConsequences(
+  AppLocalizations l10n,
+  RoomAccess access,
+  bool community,
+) => switch (access) {
+  RoomAccess.public => [
+    l10n.roomInfoAccessFindable,
+    l10n.roomInfoAccessJoinFree,
+    community
+        ? l10n.roomInfoAccessCommunityRoomsKeep
+        : l10n.roomInfoAccessHistoryDepends,
+  ],
+  RoomAccess.community => [
+    l10n.roomInfoAccessCommunityMembersJoin,
+    l10n.roomInfoAccessNotListed,
+    l10n.roomInfoAccessMembersStay,
+  ],
+  RoomAccess.askToJoin => [
+    l10n.roomInfoAccessCommunitySeesAndAsks,
+    l10n.roomInfoAccessModeratorsDecide,
+    l10n.roomInfoAccessMembersStay,
+  ],
+  RoomAccess.private => [
+    community
+        ? l10n.roomInfoAccessCommunityLeavesList
+        : l10n.roomInfoAccessRoomLeavesList,
+    l10n.roomInfoAccessNeedInvite,
+    l10n.roomInfoAccessMembersStay,
+  ],
+};
 
 class _EditTextFieldDialog extends StatefulWidget {
   final String title;
@@ -572,9 +646,9 @@ class _EditTextFieldDialogState extends State<_EditTextFieldDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(context.l10n.commonCancel),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Save')),
+        FilledButton(onPressed: _submit, child: Text(context.l10n.commonSave)),
       ],
     );
   }

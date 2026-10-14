@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/homeserver_input.dart';
@@ -38,7 +39,7 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
 
   Future<void> _continue() async {
     closeKeyboard();
-    final parsed = parseHomeserverInput(_homeserver.text);
+    final parsed = parseHomeserverInput(context.l10n, _homeserver.text);
     final shapeError = parsed.error;
     if (shapeError != null) {
       setState(() => _error = shapeError);
@@ -58,7 +59,7 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
     } catch (e, s) {
       if (homeserverProblem(e).reported) reportCaught('use homeserver', e, s);
       if (!mounted) return;
-      setState(() => _error = homeserverErrorMessage(e));
+      setState(() => _error = homeserverErrorMessage(context.l10n, e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -66,8 +67,9 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return AuthScaffold(
-      title: 'Connect to a server',
+      title: l10n.authConnectToServer,
       children: [
         TextField(
           autofillHints: null,
@@ -76,11 +78,11 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
           keyboardType: TextInputType.url,
           autocorrect: false,
           onSubmitted: (_) => _continue(),
-          decoration: const InputDecoration(
-            labelText: 'Server',
-            hintText: 'chat.example.org',
-            helperText: 'A hostname or a full https:// address',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: l10n.authServerLabel,
+            hintText: l10n.authHomeserverHint,
+            helperText: l10n.authServerHelper,
+            border: const OutlineInputBorder(),
           ),
         ),
         if (_error != null) ...[
@@ -93,7 +95,7 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
         const SizedBox(height: 24),
         FilledButton(
           onPressed: _loading ? null : _continue,
-          child: Text(_loading ? 'Connecting…' : 'Continue'),
+          child: Text(_loading ? l10n.authConnecting : l10n.commonContinue),
         ),
       ],
     );

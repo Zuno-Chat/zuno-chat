@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_media_feed.dart';
 import '../../../core/ui/card_group.dart';
 import 'room_media_page.dart';
@@ -45,9 +46,9 @@ class _RoomMediaSectionState extends ConsumerState<RoomMediaSection> {
       );
     }
     if (total == 0 && !_feed.hasMore) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Text('No media shared yet.'),
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Text(context.l10n.roomInfoNoMediaShared),
       );
     }
     return Column(
@@ -60,7 +61,7 @@ class _RoomMediaSectionState extends ConsumerState<RoomMediaSection> {
           ),
         _CountTile(
           icon: Icons.perm_media_outlined,
-          title: 'More media and files',
+          title: context.l10n.roomInfoMoreMediaAndFiles,
           count: total == 0 ? null : '$total${_feed.hasMore ? '+' : ''}',
           onTap: _openAll,
         ),
@@ -72,8 +73,10 @@ class _RoomMediaSectionState extends ConsumerState<RoomMediaSection> {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: _feed,
-      builder: (context, _) =>
-          CardGroup(title: 'Media', children: [_body(context)]),
+      builder: (context, _) => CardGroup(
+        title: context.l10n.roomInfoMedia,
+        children: [_body(context)],
+      ),
     );
   }
 }

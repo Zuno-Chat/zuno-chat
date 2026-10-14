@@ -163,7 +163,7 @@ class NotificationDeliveryModeNotifier
   bool _pickableNow(NotificationDeliveryMode mode) {
     if (!ref.exists(fcmAvailabilityProvider)) return true;
     final fcm = ref.read(fcmAvailabilityProvider).value;
-    return deliveryModeChoice(mode, fcm: fcm).enabled;
+    return deliveryModeEnabled(mode, fcm: fcm);
   }
 
   Future<bool> set(NotificationDeliveryMode mode) async {

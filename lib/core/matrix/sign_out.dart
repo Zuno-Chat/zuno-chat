@@ -6,6 +6,7 @@ import '../calls/active_call_provider.dart';
 import '../calls/end_call.dart';
 import '../calls/matrixrtc/call_session.dart';
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 import '../location/live_location_sharing.dart';
 import '../notifications/notification_delivery_provider.dart';
 import 'connectivity_provider.dart';
@@ -36,11 +37,9 @@ Future<void> signOutThisDeviceOrExplain(
   WidgetRef ref,
 ) async {
   if (ref.read(isOfflineProvider).value ?? false) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Not signed out. Check your connection and try again.'),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.l10n.matrixSignOutOffline)));
     return;
   }
   await signOutThisDevice(

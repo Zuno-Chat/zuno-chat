@@ -1,6 +1,7 @@
 import 'package:matrix/matrix.dart';
 import 'package:unifiedpush_platform_interface/data/public_key_set.dart';
 
+import '../brand.dart';
 import 'pusher_format.dart';
 
 const unifiedPushAppId = 'im.zuno.chat.unifiedpush';
@@ -15,7 +16,7 @@ Pusher buildUnifiedPushPusher({
   return Pusher(
     appId: unifiedPushAppId,
     pushkey: endpointUrl.toString(),
-    appDisplayName: 'Zuno',
+    appDisplayName: zunoName,
     deviceDisplayName: deviceDisplayName,
     kind: 'http',
     lang: 'en',
@@ -32,7 +33,7 @@ Pusher buildUnifiedPushWebPusher({
   return Pusher(
     appId: unifiedPushAppId,
     pushkey: keys.pubKey,
-    appDisplayName: 'Zuno',
+    appDisplayName: zunoName,
     deviceDisplayName: deviceDisplayName,
     kind: 'http',
     lang: 'en',

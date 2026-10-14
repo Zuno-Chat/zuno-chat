@@ -1,9 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/verification_cancel_message.dart';
 
 void main() {
-  VerificationCancelMessage message(String? code) =>
-      verificationCancelMessage(code: code, isOwnDevice: false);
+  VerificationCancelMessage message(String? code) => verificationCancelMessage(
+    englishLocalizations,
+    code: code,
+    isOwnDevice: false,
+  );
 
   test('a plain cancel says cancelled, and says nothing happened', () {
     final result = message('m.user');
@@ -51,6 +55,7 @@ void main() {
 
   test('own-device copy talks about devices, not people', () {
     final own = verificationCancelMessage(
+      englishLocalizations,
       code: 'm.key_mismatch',
       isOwnDevice: true,
     );

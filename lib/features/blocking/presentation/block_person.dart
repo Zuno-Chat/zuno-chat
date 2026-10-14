@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/end_call.dart';
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/official_room.dart';
 
 typedef BlockPerson = Future<void> Function(String userId);
@@ -30,6 +31,7 @@ Future<bool> confirmAndBlockPerson(
   BlockPerson? block,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
+  final l10n = context.l10n;
   final blocked = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
@@ -43,7 +45,7 @@ Future<bool> confirmAndBlockPerson(
     ),
   );
   if (blocked != true) return false;
-  messenger.showSnackBar(SnackBar(content: Text('$name blocked')));
+  messenger.showSnackBar(SnackBar(content: Text(l10n.blockingBlocked(name))));
   return true;
 }
 
@@ -92,30 +94,24 @@ class _BlockDialogState extends State<_BlockDialog> {
   @override
   Widget build(BuildContext context) {
     final name = widget.name;
+    final l10n = context.l10n;
     return PopScope(
       canPop: !_blocking,
       child: AlertDialog(
-        title: Text('Block $name?'),
+        title: Text(l10n.blockingTitle(name)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Messages and invitations from $name will no longer reach you. '
-              'In rooms you share, their messages are hidden. They are not '
-              'told that you blocked them. You can unblock them in Settings.',
-            ),
+            Text(l10n.blockingExplanation(name)),
             if (widget.leavesChat) ...[
               const SizedBox(height: 12),
-              Text(
-                'You leave your chat with $name, and unblocking does not '
-                'bring it back.',
-              ),
+              Text(l10n.blockingLeavesChat(name)),
             ],
             if (_failed) ...[
               const SizedBox(height: 12),
               Text(
-                'Not blocked. Try again.',
+                l10n.blockingFailed,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
@@ -126,11 +122,11 @@ class _BlockDialogState extends State<_BlockDialog> {
             onPressed: _blocking
                 ? null
                 : () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: _blocking ? null : _block,
-            child: Text(_blocking ? 'Blocking…' : 'Block'),
+            child: Text(_blocking ? l10n.blockingInProgress : l10n.commonBlock),
           ),
         ],
       ),

@@ -8,10 +8,10 @@ enum NotificationCategories {
 
   static var all: Set<UNNotificationCategory> {
     let reply = UNTextInputNotificationAction(
-      identifier: replyAction, title: "Reply", options: [.authenticationRequired],
-      textInputButtonTitle: "Send", textInputPlaceholder: "Message")
+      identifier: replyAction, title: L10n.commonReply, options: [.authenticationRequired],
+      textInputButtonTitle: L10n.commonSend, textInputPlaceholder: L10n.commonMessageHint)
     let markRead = UNNotificationAction(
-      identifier: markReadAction, title: "Mark as read", options: [])
+      identifier: markReadAction, title: L10n.commonMarkAsRead, options: [])
     return [
       UNNotificationCategory(
         identifier: message, actions: [reply, markRead], intentIdentifiers: [], options: []),

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../../core/format/human_units.dart';
+import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/cached_attachment_image.dart';
 import '../../../../core/matrix/gallery_viewer_page.dart';
 import '../../../../core/matrix/image_viewer_page.dart';
@@ -384,7 +385,7 @@ class GalleryFailedThumbnail extends StatelessWidget {
                 const Icon(Icons.refresh_outlined, color: Colors.white),
                 const SizedBox(height: 2),
                 Text(
-                  'Retry',
+                  context.l10n.commonRetry,
                   style: Theme.of(context).textTheme.labelSmall
                       ?.copyWith(color: Colors.white),
                 ),
@@ -540,7 +541,7 @@ class _MediaBubbleBody extends StatelessWidget {
         if (pending != null) ...[
           const SizedBox(height: 4),
           AttachmentProgressBar(
-            label: pending.progressLabel,
+            label: pending.progressLabel(context.l10n),
             progress: pending.progress,
           ),
         ],

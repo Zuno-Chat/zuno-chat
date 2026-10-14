@@ -13,6 +13,7 @@ import 'package:unifiedpush_platform_interface/data/push_message.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 import '../matrix/session_display_name.dart';
 import '../push/fcm_gateway.dart';
 import '../push/headless_push_runner.dart';
@@ -28,6 +29,7 @@ import '../push/unified_push_registration_store.dart';
 import 'background_sync_service.dart';
 import 'notification_delivery_provider.dart';
 import 'notification_permission.dart';
+import 'pusher_failure.dart';
 
 export '../push/registration_retry.dart' show registrationRecheckInterval;
 export '../push/unified_push_pusher.dart' show unifiedPushViaHomeserverGateway;
@@ -70,7 +72,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   FailedReason? lastFailureReason;
 
-  String? lastPusherError;
+  PusherFailure? lastPusherError;
 
   String? savedDistributor;
 
@@ -348,7 +350,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     await UnifiedPushPlatform.instance.register(
       _instance,
       const [],
-      'Zuno wants to receive notifications',
+      deviceLocalizations().notificationsUnifiedPushRegistrationMessage,
       null,
     );
   }
@@ -373,7 +375,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
         lastPusherError = null;
       } catch (e, s) {
         reportCaught('unifiedpush pusher delete', e, s);
-        lastPusherError = 'Could not remove the push registration: $e';
+        lastPusherError = PusherRemoveFailed(e.toString());
       }
     }
     await UnifiedPushPlatform.instance.unregister(_instance);
@@ -414,7 +416,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
       await client.postPusher(pusher);
     } catch (e, s) {
       reportCaught('unifiedpush pusher post', e, s);
-      lastPusherError = e.toString();
+      lastPusherError = PusherPostFailed(e.toString());
       status.value = UnifiedPushStatus.pusherFailed;
       _retry.schedule(() => _retryWithLiveClient());
       return;

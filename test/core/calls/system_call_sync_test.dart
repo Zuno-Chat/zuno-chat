@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
+import 'package:zuno/core/calls/models/call_failure.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
@@ -346,7 +347,7 @@ void main() {
       await sendFromNative('callFailed', _call);
       await pumpEventQueue();
 
-      expect(session.failedMessage, callDidNotConnectMessage);
+      expect(session.failure, CallFailure.didNotConnect);
       expect(session.endReason, CallEndReason.failed);
       expect(session.hangUpsByUser, [false]);
 
@@ -369,7 +370,7 @@ void main() {
       await pumpEventQueue();
 
       expect(session.hangUps, 0);
-      expect(session.failedMessage, isNull);
+      expect(session.failure, isNull);
       expect(session.endReason, isNull);
     });
 
@@ -383,7 +384,7 @@ void main() {
       await pumpEventQueue();
 
       expect(session.hangUps, 0);
-      expect(session.failedMessage, isNull);
+      expect(session.failure, isNull);
       expect(session.endReason, CallEndReason.hungUp);
     });
   });
@@ -575,7 +576,7 @@ void main() {
       expect(session.engine.microphoneMutedRequests, isEmpty);
       expect(session.membershipRefreshes, 0);
       expect(session.hangUps, 0);
-      expect(session.failedMessage, isNull);
+      expect(session.failure, isNull);
     });
   });
 
@@ -597,7 +598,7 @@ void main() {
       expect(session.engine.microphoneMutedRequests, isEmpty);
       expect(session.membershipRefreshes, 0);
       expect(session.hangUps, 0);
-      expect(session.failedMessage, isNull);
+      expect(session.failure, isNull);
       expect(session.endReason, isNull);
 
       session.end();

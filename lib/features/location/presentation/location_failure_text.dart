@@ -1,5 +1,6 @@
 import 'package:geolocator/geolocator.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/current_position.dart';
 
 typedef LocationFailureCopy = ({
@@ -7,31 +8,38 @@ typedef LocationFailureCopy = ({
   Future<bool> Function()? openSettings,
 });
 
+enum LocationGoal { seeWhereYouAre, shareWhereYouAre }
+
 LocationFailureCopy locationFailureCopy(
+  AppLocalizations l10n,
   LocationFailure reason, {
-  required String goal,
+  required LocationGoal goal,
   required bool servicesSettings,
 }) => switch (reason) {
   LocationFailure.servicesOff when servicesSettings => (
-    message: 'Location is off. Turn it on to $goal.',
+    message: switch (goal) {
+      LocationGoal.seeWhereYouAre => l10n.locationOffTurnOnToSee,
+      LocationGoal.shareWhereYouAre => l10n.locationOffTurnOnToShare,
+    },
     openSettings: Geolocator.openLocationSettings,
   ),
   LocationFailure.servicesOff => (
-    message:
-        'Location is off. Turn on Location Services in Settings, under '
-        'Privacy & Security.',
+    message: l10n.locationOffInSettings,
     openSettings: null,
   ),
   LocationFailure.denied => (
-    message: 'Allow location access to $goal.',
+    message: switch (goal) {
+      LocationGoal.seeWhereYouAre => l10n.locationAllowToSee,
+      LocationGoal.shareWhereYouAre => l10n.locationAllowToShare,
+    },
     openSettings: null,
   ),
   LocationFailure.deniedForever => (
-    message: 'Location access is blocked. Allow it in Settings.',
+    message: l10n.locationBlocked,
     openSettings: Geolocator.openAppSettings,
   ),
   LocationFailure.unavailable => (
-    message: 'Could not find your location.',
+    message: l10n.locationNotFound,
     openSettings: null,
   ),
 };

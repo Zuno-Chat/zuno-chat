@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/security/password_strength.dart';
 
 class PasswordStrengthBar extends StatelessWidget {
@@ -11,7 +12,11 @@ class PasswordStrengthBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final assessment = assessPassword(password, username: username);
+    final assessment = assessPassword(
+      context.l10n,
+      password,
+      username: username,
+    );
 
     final filled = switch (assessment.strength) {
       PasswordStrength.unusable => 0,

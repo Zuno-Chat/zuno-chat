@@ -1,3 +1,4 @@
+import '../../../core/l10n/l10n.dart';
 import '../../../core/notifications/delivery_failure.dart';
 import '../../../core/notifications/fcm_delivery_provider.dart';
 
@@ -23,15 +24,18 @@ PushStatusAction fcmStatusAction(FcmStatus status) {
   }
 }
 
-String? fcmFixLabel(FcmStatus status) => switch (status) {
-  FcmStatus.playServicesUpdateRequired => deliveryFailureActionLabel(
-    DeliveryFailureAction.updatePlayServices,
-  ),
-  FcmStatus.playServicesDisabled => deliveryFailureActionLabel(
-    DeliveryFailureAction.turnOnPlayServices,
-  ),
-  _ => null,
-};
+String? fcmFixLabel(AppLocalizations l10n, FcmStatus status) =>
+    switch (status) {
+      FcmStatus.playServicesUpdateRequired => deliveryFailureActionLabel(
+        l10n,
+        DeliveryFailureAction.updatePlayServices,
+      ),
+      FcmStatus.playServicesDisabled => deliveryFailureActionLabel(
+        l10n,
+        DeliveryFailureAction.turnOnPlayServices,
+      ),
+      _ => null,
+    };
 
 bool fcmStatusIsBusy(FcmStatus status) {
   switch (status) {
@@ -51,29 +55,29 @@ bool fcmStatusIsBusy(FcmStatus status) {
   }
 }
 
-String fcmStatusLabel(FcmStatus status) {
+String fcmStatusLabel(AppLocalizations l10n, FcmStatus status) {
   switch (status) {
     case FcmStatus.idle:
-      return 'Inactive';
+      return l10n.pushInactive;
     case FcmStatus.checkingPlayServices:
-      return 'Checking this device…';
+      return l10n.pushCheckingDevice;
     case FcmStatus.playServicesUnavailable:
-      return 'This device does not have Google Play services';
+      return l10n.pushPlayServicesMissing;
     case FcmStatus.playServicesUpdateRequired:
-      return 'Google Play services needs an update';
+      return l10n.pushPlayServicesNeedsUpdate;
     case FcmStatus.playServicesDisabled:
-      return 'Google Play services is turned off';
+      return l10n.pushPlayServicesTurnedOff;
     case FcmStatus.notConfigured:
-      return 'This version of Zuno does not include Google services';
+      return l10n.pushGoogleServicesNotIncluded;
     case FcmStatus.registering:
-      return 'Registering…';
+      return l10n.pushRegistering;
     case FcmStatus.tokenFailed:
-      return 'Could not set up notifications on this device';
+      return l10n.pushSetupFailed;
     case FcmStatus.postingPusher:
-      return 'Finishing registration…';
+      return l10n.pushFinishingRegistration;
     case FcmStatus.ready:
-      return 'Active. Receiving notifications.';
+      return l10n.pushActive;
     case FcmStatus.pusherFailed:
-      return 'Could not finish registration';
+      return l10n.pushCouldNotFinishRegistration;
   }
 }

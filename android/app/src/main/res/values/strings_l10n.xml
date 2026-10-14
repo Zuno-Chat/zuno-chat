@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="callsChannelGroupCalls">Calls</string>
+    <string name="callsChannelOngoingCallDescription">Shows while you are in a call</string>
+    <string name="callsHangUp">Hang up</string>
+    <string name="callsOngoingCall">Ongoing call</string>
+    <string name="locationChannelLiveLocationDescription">Shows while you share your live location</string>
+    <string name="locationLiveLocation">Live location</string>
+    <string name="locationStopSharing">Stop sharing</string>
+    <string name="matrixUploadingFile">Uploading…</string>
+    <string name="notificationsBackgroundSyncWaiting">Waiting for messages and calls</string>
+    <string name="notificationsChannelBackgroundSync">Background sync</string>
+    <string name="notificationsChannelBackgroundSyncDescription">Shows while background sync keeps Zuno connected</string>
+    <string name="notificationsChannelGroupBackground">Background</string>
+    <string name="uploadsChannelSendingFiles">Sending files</string>
+    <string name="uploadsChannelSendingFilesDescription">Progress while photos, videos and files are sent</string>
+</resources>

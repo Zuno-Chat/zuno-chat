@@ -48,9 +48,9 @@ enum CatchUpComposer {
     let rooms = max(moreRooms, 0)
     switch (chats, rooms) {
     case (0, 0): return nil
-    case (_, 0): return "New messages in \(chats) more \(chats == 1 ? "chat" : "chats")"
-    case (0, _): return "New messages in \(rooms) more \(rooms == 1 ? "room" : "rooms")"
-    default: return "New messages in \(chats + rooms) more chats and rooms"
+    case (_, 0): return L10n.notificationsMoreChats(chats)
+    case (0, _): return L10n.notificationsMoreRooms(rooms)
+    default: return L10n.notificationsMoreChatsAndRooms(chats + rooms)
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/push/push_delivery_log.dart';
 import 'package:zuno/core/push/push_diagnostics_data.dart';
 import 'package:zuno/core/push/recent_pushes.dart';
@@ -56,6 +57,7 @@ void main() {
   group('Apple logs', () {
     test('message and call lines read in plain words, newest first', () {
       final pushes = recentPushesFromLogs(
+        englishLocalizations,
         extension: [
           '2026-10-03T21:00:00.000Z nse_shown t=abcd1234 ms=120 lag=1200 safe=0',
           '2026-10-03T21:02:00.000Z nse_utd t=abcd1234 ms=300 lag=90000 safe=0',
@@ -79,6 +81,7 @@ void main() {
       'catch-up summaries, device reports and broken lines are left out',
       () {
         final pushes = recentPushesFromLogs(
+          englishLocalizations,
           extension: [
             '2026-10-03T21:00:00.000Z nse_catchup posted=2 hidden=0',
             'not a log line',
@@ -95,6 +98,7 @@ void main() {
     test('an unknown outcome reads as Handled, and a missing or broken lag '
         'adds nothing', () {
       final pushes = recentPushesFromLogs(
+        englishLocalizations,
         extension: ['2026-10-03T21:00:00.000Z nse_brand_new t=- ms=1 safe=0'],
         app: ['2026-10-03T21:01:00.000Z new_ring_rule ms=4 lag=soon'],
       );
@@ -105,6 +109,7 @@ void main() {
 
     test('a clock running ahead never gives a negative delay', () {
       final push = recentPushesFromLogs(
+        englishLocalizations,
         extension: [
           '2026-10-03T21:00:00.000Z nse_shown t=- ms=1 lag=-4000 safe=0',
         ],
@@ -118,6 +123,7 @@ void main() {
     test('every extension outcome and ring decision has its own words', () {
       for (final code in _messageCodes) {
         final push = recentPushesFromLogs(
+          englishLocalizations,
           extension: ['2026-10-03T21:00:00.000Z nse_$code'],
           app: const [],
         ).single;
@@ -125,6 +131,7 @@ void main() {
       }
       for (final code in _ringCodes) {
         final push = recentPushesFromLogs(
+          englishLocalizations,
           extension: const [],
           app: ['2026-10-03T21:00:00.000Z $code'],
         ).single;
@@ -136,6 +143,7 @@ void main() {
         'do not', () {
       final at = DateTime(2026, 10, 3, 21, 5);
       final pushes = recentPushesFromLogs(
+        englishLocalizations,
         extension: const [],
         app: const [],
         ledger: [
@@ -151,7 +159,7 @@ void main() {
 
   test('Android deliveries keep their summary and late flag', () {
     final received = DateTime(2026, 10, 3, 21);
-    final pushes = recentPushesFromDeliveries([
+    final pushes = recentPushesFromDeliveries(englishLocalizations, [
       PushDeliveryRecord(
         receivedAt: received,
         sentAt: received.subtract(const Duration(minutes: 5)),

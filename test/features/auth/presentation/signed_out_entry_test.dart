@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/device_safety.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -83,7 +84,11 @@ void main() {
             return pendingCheck ?? Future.value(risks);
           }),
         ],
-        child: const MaterialApp(home: SignedOutEntry()),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: SignedOutEntry(),
+        ),
       ),
     );
     await settle(tester);

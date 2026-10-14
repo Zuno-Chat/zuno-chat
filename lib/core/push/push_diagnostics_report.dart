@@ -4,9 +4,12 @@ import '../../features/settings/presentation/fcm_status_display.dart'
     show fcmStatusLabel;
 import '../../features/settings/presentation/unified_push_status_display.dart'
     show unifiedPushStatusLabel;
+import '../brand.dart';
 import '../calls/notifications/call_notification_service.dart'
     show alertingMessageChannelIds, ringChannelIds;
 import '../errors/crash_scrubber.dart';
+import '../format/date_labels.dart';
+import '../l10n/l10n.dart';
 import '../notifications/fcm_delivery_provider.dart' show FcmStatus;
 import '../notifications/notification_delivery_mode.dart';
 import '../notifications/unified_push_delivery_provider.dart'
@@ -101,29 +104,24 @@ class PushDiagnosticsInputs {
   final VoipRefusal? voipRefusal;
 }
 
-List<DiagnosticSection> buildPushDiagnostics(PushDiagnosticsInputs inputs) => [
-  if (inputs.capabilities.apnsRegistration) ...[
-    _permission(inputs.snapshot.settings),
-    _device(inputs),
-  ] else ...[
-    _androidPermission(inputs),
-    _androidDevice(inputs),
-  ],
-  if (inputs.capabilities.voipRing) _calls(inputs),
-  if (inputs.capabilities.nseNotifications) _extension(inputs),
-  _delivery(inputs),
-  if (inputs.snapshot.metrics.isNotEmpty) _reports(inputs),
-];
-
-String ageLabel(DateTime at, DateTime now, {bool midSentence = false}) {
-  final age = now.difference(at);
-  if (age < const Duration(minutes: 1)) {
-    return midSentence ? 'just now' : 'Just now';
-  }
-  if (age < const Duration(hours: 1)) return '${age.inMinutes} min ago';
-  if (age < const Duration(days: 1)) return '${age.inHours} h ago';
-  final days = age.inDays;
-  return days == 1 ? '1 day ago' : '$days days ago';
+List<DiagnosticSection> buildPushDiagnostics(
+  PushDiagnosticsInputs inputs,
+  DateLabels labels,
+) {
+  final l10n = labels.l10n;
+  return [
+    if (inputs.capabilities.apnsRegistration) ...[
+      _permission(l10n, inputs.snapshot.settings),
+      _device(l10n, inputs),
+    ] else ...[
+      _androidPermission(l10n, inputs),
+      _androidDevice(l10n, inputs),
+    ],
+    if (inputs.capabilities.voipRing) _calls(labels, inputs),
+    if (inputs.capabilities.nseNotifications) _extension(labels, inputs),
+    _delivery(labels, inputs),
+    if (inputs.snapshot.metrics.isNotEmpty) _reports(labels, inputs),
+  ];
 }
 
 bool sameBuild(String a, String b) {
@@ -142,13 +140,14 @@ String redactDiagnostics(String text) =>
         .replaceAll(_longTokenPattern, '[redacted]');
 
 String redactedDiagnosticsText(
+  AppLocalizations l10n,
   List<DiagnosticSection> sections, {
   required DateTime now,
   required String appVersion,
 }) {
   final buffer = StringBuffer()
-    ..writeln('Zuno notification diagnostics')
-    ..writeln('Zuno $appVersion, ${now.toUtc().toIso8601String()}');
+    ..writeln(l10n.diagnosticsReportTitle)
+    ..writeln('$zunoName $appVersion, ${now.toUtc().toIso8601String()}');
   for (final section in sections) {
     buffer
       ..writeln()
@@ -178,42 +177,44 @@ const _settingOrder = [
   'providesAppSettings',
 ];
 
-const _settingLabels = {
-  'authorization': 'Notifications',
-  'alert': 'Alerts',
-  'alertStyle': 'Banner style',
-  'sound': 'Sounds',
-  'badge': 'Badges',
-  'lockScreen': 'Lock screen',
-  'notificationCenter': 'Notification Center',
-  'showPreviews': 'Show previews',
-  'timeSensitive': 'Time Sensitive notifications',
-  'scheduledDelivery': 'Scheduled summary',
-  'directMessages': 'Direct messages',
-  'announcement': 'Announce notifications',
-  'carPlay': 'CarPlay',
-  'criticalAlert': 'Critical alerts',
-  'providesAppSettings': 'Link from iOS Settings',
+String _settingLabel(AppLocalizations l10n, String key) => switch (key) {
+  'authorization' => l10n.diagnosticsLabelNotifications,
+  'alert' => l10n.diagnosticsSettingAlerts,
+  'alertStyle' => l10n.diagnosticsSettingBannerStyle,
+  'sound' => l10n.diagnosticsSettingSounds,
+  'badge' => l10n.diagnosticsSettingBadges,
+  'lockScreen' => l10n.diagnosticsSettingLockScreen,
+  'notificationCenter' => l10n.diagnosticsSettingNotificationCenter,
+  'showPreviews' => l10n.diagnosticsSettingShowPreviews,
+  'timeSensitive' => l10n.diagnosticsSettingTimeSensitive,
+  'scheduledDelivery' => l10n.diagnosticsSettingScheduledSummary,
+  'directMessages' => l10n.diagnosticsSettingDirectMessages,
+  'announcement' => l10n.diagnosticsSettingAnnounce,
+  'carPlay' => l10n.diagnosticsSettingCarPlay,
+  'criticalAlert' => l10n.diagnosticsSettingCriticalAlerts,
+  'providesAppSettings' => l10n.diagnosticsSettingSettingsLink,
+  _ => key,
 };
 
-const _settingValues = {
-  'authorized': 'Allowed',
-  'denied': 'Not allowed',
-  'notDetermined': 'Not asked yet',
-  'provisional': 'Delivered quietly',
-  'ephemeral': 'Allowed for now',
-  'enabled': 'On',
-  'disabled': 'Off',
-  'notSupported': 'Not available',
-  'unknown': 'Unknown',
-  'none': 'None',
-  'banner': 'Temporary',
-  'alert': 'Persistent',
-  'always': 'Always',
-  'whenAuthenticated': 'When unlocked',
-  'never': 'Never',
-  'true': 'Yes',
-  'false': 'No',
+String _settingValue(AppLocalizations l10n, String value) => switch (value) {
+  'authorized' => l10n.diagnosticsAllowed,
+  'denied' => l10n.diagnosticsNotAllowed,
+  'notDetermined' => l10n.diagnosticsValueNotAskedYet,
+  'provisional' => l10n.diagnosticsValueDeliveredQuietly,
+  'ephemeral' => l10n.diagnosticsValueAllowedForNow,
+  'enabled' => l10n.diagnosticsOn,
+  'disabled' => l10n.diagnosticsOff,
+  'notSupported' => l10n.diagnosticsValueNotAvailable,
+  'unknown' => l10n.diagnosticsUnknown,
+  'none' => l10n.diagnosticsNone,
+  'banner' => l10n.diagnosticsValueTemporary,
+  'alert' => l10n.diagnosticsValuePersistent,
+  'always' => l10n.diagnosticsValueAlways,
+  'whenAuthenticated' => l10n.diagnosticsValueWhenUnlocked,
+  'never' => l10n.diagnosticsNever,
+  'true' => l10n.diagnosticsYes,
+  'false' => l10n.diagnosticsNo,
+  _ => value,
 };
 
 DiagnosticStatus _settingStatus(String key, String value) =>
@@ -226,30 +227,36 @@ DiagnosticStatus _settingStatus(String key, String value) =>
       _ => DiagnosticStatus.info,
     };
 
-const _reportLabels = {
-  'exits': 'Background exits',
-  'crash': 'Crashes',
-  'memory': 'Memory limits',
+String _reportLabel(AppLocalizations l10n, String kind) => switch (kind) {
+  'exits' => l10n.diagnosticsReportExits,
+  'crash' => l10n.diagnosticsReportCrashes,
+  'memory' => l10n.diagnosticsReportMemory,
+  _ => kind,
 };
 
-const _countLabels = {
-  'locked_file': 'Held a file while suspended',
-  'memory': 'Out of memory',
-  'watchdog': 'Took too long',
-  'task_timeout': 'Background time ran out',
-  'cpu': 'Used too much processing time',
-  'bad_access': 'Crashed',
-  'abnormal': 'Ended unexpectedly',
-  'pushkit_unreported': 'Call not shown in time',
-  'extension_memory': 'Notification extension out of memory',
+String _countLabel(AppLocalizations l10n, String key) => switch (key) {
+  'locked_file' => l10n.diagnosticsCountLockedFile,
+  'memory' => l10n.diagnosticsCountMemory,
+  'watchdog' => l10n.diagnosticsCountWatchdog,
+  'task_timeout' => l10n.diagnosticsCountTaskTimeout,
+  'cpu' => l10n.diagnosticsCountCpu,
+  'bad_access' => l10n.diagnosticsCountBadAccess,
+  'abnormal' => l10n.diagnosticsCountAbnormal,
+  'pushkit_unreported' => l10n.diagnosticsCountPushkitUnreported,
+  'extension_memory' => l10n.diagnosticsCountExtensionMemory,
+  _ => key,
 };
 
-DiagnosticSection _permission(Map<String, String> settings) {
+DiagnosticSection _permission(
+  AppLocalizations l10n,
+  Map<String, String> settings,
+) {
+  final title = l10n.diagnosticsSectionPermission;
   if (settings.isEmpty) {
-    return const DiagnosticSection('Permission', [
+    return DiagnosticSection(title, [
       DiagnosticRow(
-        'Settings',
-        'Not available on this device',
+        l10n.diagnosticsLabelSettings,
+        l10n.diagnosticsSettingsNotAvailable,
         DiagnosticStatus.warning,
       ),
     ]);
@@ -258,17 +265,17 @@ DiagnosticSection _permission(Map<String, String> settings) {
     ..._settingOrder.where(settings.containsKey),
     ...settings.keys.where((key) => !_settingOrder.contains(key)),
   ];
-  return DiagnosticSection('Permission', [
+  return DiagnosticSection(title, [
     for (final key in keys)
       DiagnosticRow(
-        _settingLabels[key] ?? key,
-        _settingValues[settings[key]] ?? settings[key]!,
+        _settingLabel(l10n, key),
+        _settingValue(l10n, settings[key]!),
         _settingStatus(key, settings[key]!),
       ),
   ]);
 }
 
-DiagnosticSection _device(PushDiagnosticsInputs inputs) {
+DiagnosticSection _device(AppLocalizations l10n, PushDiagnosticsInputs inputs) {
   final environment = inputs.voip?.environment ?? inputs.snapshot.environment;
   final expectedAppId = switch (environment) {
     'production' => apnsProductionAppId,
@@ -277,36 +284,35 @@ DiagnosticSection _device(PushDiagnosticsInputs inputs) {
   };
   final current = _currentPusher(inputs);
   final registeredAppId = current?.appId;
-  return DiagnosticSection('This device', [
-    DiagnosticRow('Environment', switch (environment) {
-      'production' => 'Production',
-      'development' => 'Development',
-      _ => 'Unknown',
+  final appIdLabel = l10n.diagnosticsLabelAppId;
+  return DiagnosticSection(l10n.diagnosticsSectionDevice, [
+    DiagnosticRow(l10n.diagnosticsLabelEnvironment, switch (environment) {
+      'production' => l10n.diagnosticsEnvironmentProduction,
+      'development' => l10n.diagnosticsEnvironmentDevelopment,
+      _ => l10n.diagnosticsUnknown,
     }, environment == null ? DiagnosticStatus.warning : DiagnosticStatus.info),
     if (expectedAppId != null)
       registeredAppId == null || registeredAppId == expectedAppId
-          ? DiagnosticRow('App ID', expectedAppId)
+          ? DiagnosticRow(appIdLabel, expectedAppId)
           : DiagnosticRow(
-              'App ID',
-              '$registeredAppId, expected $expectedAppId',
+              appIdLabel,
+              l10n.diagnosticsAppIdMismatch(registeredAppId, expectedAppId),
               DiagnosticStatus.problem,
             ),
-    ..._registrationRows(inputs, current),
+    ..._registrationRows(l10n, inputs, current),
     if (inputs.snapshot.registeredForRemoteNotifications case final token?)
-      token
-          ? const DiagnosticRow('Device token', 'Received', DiagnosticStatus.ok)
-          : const DiagnosticRow(
-              'Device token',
-              'Not received',
-              DiagnosticStatus.problem,
-            ),
+      DiagnosticRow(
+        l10n.diagnosticsLabelDeviceToken,
+        token ? l10n.diagnosticsReceived : l10n.diagnosticsNotReceived,
+        token ? DiagnosticStatus.ok : DiagnosticStatus.problem,
+      ),
     if (inputs.droppedRegistrations case final dropped?)
       DiagnosticRow(
-        'Dropped registrations',
-        '$dropped',
+        l10n.diagnosticsLabelDroppedRegistrations,
+        l10n.commonCount(dropped),
         dropped > 0 ? DiagnosticStatus.warning : DiagnosticStatus.info,
       ),
-    DiagnosticRow('Zuno version', inputs.appVersion),
+    DiagnosticRow(l10n.diagnosticsLabelZunoVersion, inputs.appVersion),
   ]);
 }
 
@@ -318,118 +324,147 @@ PusherInfo? _currentPusher(PushDiagnosticsInputs inputs) {
 }
 
 List<DiagnosticRow> _registrationRows(
+  AppLocalizations l10n,
   PushDiagnosticsInputs inputs,
   PusherInfo? current,
 ) => [
   inputs.currentPushkey == null
-      ? const DiagnosticRow('Push key', 'Missing', DiagnosticStatus.problem)
-      : const DiagnosticRow('Push key', 'Present', DiagnosticStatus.ok),
-  _registration(inputs.currentPushkey, inputs.pushers, current),
+      ? DiagnosticRow(
+          l10n.diagnosticsLabelPushKey,
+          l10n.diagnosticsMissing,
+          DiagnosticStatus.problem,
+        )
+      : DiagnosticRow(
+          l10n.diagnosticsLabelPushKey,
+          l10n.diagnosticsPresent,
+          DiagnosticStatus.ok,
+        ),
+  _registration(l10n, inputs.currentPushkey, inputs.pushers, current),
   if (current != null)
-    ..._fitRows(pusherFit(current, gatewayUrl: inputs.expectedGateway)),
+    ..._fitRows(l10n, pusherFit(current, gatewayUrl: inputs.expectedGateway)),
 ];
 
-List<DiagnosticRow> _fitRows(PusherFit fit) => [
-  fit.gateway
-      ? const DiagnosticRow('Gateway', 'Correct', DiagnosticStatus.ok)
-      : const DiagnosticRow('Gateway', 'Different', DiagnosticStatus.problem),
-  fit.format
-      ? const DiagnosticRow('Format', 'Correct', DiagnosticStatus.ok)
-      : const DiagnosticRow('Format', 'Different', DiagnosticStatus.problem),
+List<DiagnosticRow> _fitRows(AppLocalizations l10n, PusherFit fit) => [
+  _fitRow(l10n, l10n.diagnosticsLabelGateway, matches: fit.gateway),
+  _fitRow(l10n, l10n.diagnosticsLabelFormat, matches: fit.format),
 ];
 
-DiagnosticRow _unknown(String label) =>
-    DiagnosticRow(label, 'Unknown', DiagnosticStatus.warning);
+DiagnosticRow _fitRow(
+  AppLocalizations l10n,
+  String label, {
+  required bool matches,
+}) => matches
+    ? DiagnosticRow(label, l10n.diagnosticsCorrect, DiagnosticStatus.ok)
+    : DiagnosticRow(label, l10n.diagnosticsDifferent, DiagnosticStatus.problem);
 
-DiagnosticSection _androidPermission(PushDiagnosticsInputs inputs) {
+DiagnosticRow _unknown(AppLocalizations l10n, String label) =>
+    DiagnosticRow(label, l10n.diagnosticsUnknown, DiagnosticStatus.warning);
+
+DiagnosticSection _androidPermission(
+  AppLocalizations l10n,
+  PushDiagnosticsInputs inputs,
+) {
   final android = inputs.snapshot.android;
   final capabilities = inputs.capabilities;
   final channels = android.channels;
-  return DiagnosticSection('Permission', [
+  final notifications = l10n.diagnosticsLabelNotifications;
+  final fullScreen = l10n.diagnosticsLabelFullScreenCallAlerts;
+  final battery = l10n.diagnosticsLabelBatteryUse;
+  final backgroundData = l10n.diagnosticsLabelBackgroundData;
+  return DiagnosticSection(l10n.diagnosticsSectionPermission, [
     switch (android.notificationsEnabled) {
-      true => const DiagnosticRow(
-        'Notifications',
-        'Allowed',
+      true => DiagnosticRow(
+        notifications,
+        l10n.diagnosticsAllowed,
         DiagnosticStatus.ok,
       ),
-      false => const DiagnosticRow(
-        'Notifications',
-        'Not allowed',
+      false => DiagnosticRow(
+        notifications,
+        l10n.diagnosticsNotAllowed,
         DiagnosticStatus.problem,
       ),
-      null => _unknown('Notifications'),
+      null => _unknown(l10n, notifications),
     },
     if (channels == null)
-      _unknown('Notification categories')
+      _unknown(l10n, l10n.diagnosticsLabelNotificationCategories)
     else
       for (final channel in channels)
-        _channelRow(channel, quiet: android.notificationsEnabled == false),
+        _channelRow(
+          l10n,
+          channel,
+          quiet: android.notificationsEnabled == false,
+        ),
     if (capabilities.fullScreenIntent)
       switch (android.fullScreenIntent) {
-        true => const DiagnosticRow(
-          'Full-screen call alerts',
-          'Allowed',
-          DiagnosticStatus.ok,
-        ),
-        false => const DiagnosticRow(
-          'Full-screen call alerts',
-          'Not allowed',
-          DiagnosticStatus.warning,
-        ),
-        null => _unknown('Full-screen call alerts'),
-      },
-    if (capabilities.batteryExemption)
-      switch (android.batteryOptimizationIgnored) {
-        true => const DiagnosticRow(
-          'Battery use',
-          'Unrestricted',
+        true => DiagnosticRow(
+          fullScreen,
+          l10n.diagnosticsAllowed,
           DiagnosticStatus.ok,
         ),
         false => DiagnosticRow(
-          'Battery use',
-          'Optimized',
+          fullScreen,
+          l10n.diagnosticsNotAllowed,
+          DiagnosticStatus.warning,
+        ),
+        null => _unknown(l10n, fullScreen),
+      },
+    if (capabilities.batteryExemption)
+      switch (android.batteryOptimizationIgnored) {
+        true => DiagnosticRow(
+          battery,
+          l10n.diagnosticsBatteryUnrestricted,
+          DiagnosticStatus.ok,
+        ),
+        false => DiagnosticRow(
+          battery,
+          l10n.diagnosticsBatteryOptimized,
           deliveryDependsOnBatteryExemption(inputs.deliveryMode)
               ? DiagnosticStatus.warning
               : DiagnosticStatus.info,
         ),
-        null => _unknown('Battery use'),
+        null => _unknown(l10n, battery),
       },
     if (capabilities.backgroundDataRestriction)
       switch (android.backgroundData) {
-        'allowed' => const DiagnosticRow(
-          'Background data',
-          'Allowed',
+        'allowed' => DiagnosticRow(
+          backgroundData,
+          l10n.diagnosticsAllowed,
           DiagnosticStatus.ok,
         ),
-        'exempt' => const DiagnosticRow(
-          'Background data',
-          'Allowed while Data Saver is on',
+        'exempt' => DiagnosticRow(
+          backgroundData,
+          l10n.diagnosticsBackgroundDataExempt,
           DiagnosticStatus.ok,
         ),
-        'restricted' => const DiagnosticRow(
-          'Background data',
-          'Restricted by Data Saver',
+        'restricted' => DiagnosticRow(
+          backgroundData,
+          l10n.diagnosticsBackgroundDataRestricted,
           DiagnosticStatus.warning,
         ),
-        _ => _unknown('Background data'),
+        _ => _unknown(l10n, backgroundData),
       },
     _standby(
+      l10n,
       inputs.deliveries?.firstOrNull?.standbyBucket,
       android.standbyBucket,
     ),
   ]);
 }
 
-DiagnosticRow _channelRow(AndroidChannelState channel, {required bool quiet}) {
+DiagnosticRow _channelRow(
+  AppLocalizations l10n,
+  AndroidChannelState channel, {
+  required bool quiet,
+}) {
   final rings = ringChannelIds.contains(channel.id);
   final alerting = rings || alertingMessageChannelIds.contains(channel.id);
   final value = switch (channel.importance) {
-    'none' => 'Blocked',
-    'min' => 'Silent and minimized',
-    'low' => 'Silent',
-    'default' => 'Sound',
-    'high' || 'max' => 'Sound and pop-up',
-    _ => 'Unknown',
+    'none' => l10n.diagnosticsChannelBlocked,
+    'min' => l10n.diagnosticsChannelSilentMinimized,
+    'low' => l10n.diagnosticsChannelSilent,
+    'default' => l10n.diagnosticsChannelSound,
+    'high' || 'max' => l10n.diagnosticsChannelSoundPopUp,
+    _ => l10n.diagnosticsUnknown,
   };
   final status = quiet || !alerting
       ? DiagnosticStatus.info
@@ -442,71 +477,87 @@ DiagnosticRow _channelRow(AndroidChannelState channel, {required bool quiet}) {
   return DiagnosticRow(channel.name, value, status);
 }
 
-DiagnosticRow _standby(int? recorded, int? live) {
+DiagnosticRow _standby(AppLocalizations l10n, int? recorded, int? live) {
   final bucket = recorded ?? live;
   final measured = recorded != null;
+  final label = l10n.diagnosticsLabelAppStandby;
   DiagnosticStatus level(DiagnosticStatus status) =>
       measured ? status : DiagnosticStatus.info;
   return switch (bucket) {
-    5 => DiagnosticRow('App standby', 'Exempt', level(DiagnosticStatus.ok)),
-    10 => DiagnosticRow('App standby', 'Active', level(DiagnosticStatus.ok)),
-    20 => DiagnosticRow(
-      'App standby',
-      'Used often',
+    5 => DiagnosticRow(
+      label,
+      l10n.diagnosticsStandbyExempt,
       level(DiagnosticStatus.ok),
     ),
-    30 => const DiagnosticRow('App standby', 'Used regularly'),
+    10 => DiagnosticRow(
+      label,
+      l10n.diagnosticsStandbyActive,
+      level(DiagnosticStatus.ok),
+    ),
+    20 => DiagnosticRow(
+      label,
+      l10n.diagnosticsStandbyUsedOften,
+      level(DiagnosticStatus.ok),
+    ),
+    30 => DiagnosticRow(label, l10n.diagnosticsStandbyUsedRegularly),
     40 => DiagnosticRow(
-      'App standby',
-      'Used rarely',
+      label,
+      l10n.diagnosticsStandbyUsedRarely,
       level(DiagnosticStatus.warning),
     ),
     45 => DiagnosticRow(
-      'App standby',
-      'Restricted',
+      label,
+      l10n.diagnosticsStandbyRestricted,
       level(DiagnosticStatus.problem),
     ),
     50 => DiagnosticRow(
-      'App standby',
-      'Never used',
+      label,
+      l10n.diagnosticsStandbyNeverUsed,
       level(DiagnosticStatus.problem),
     ),
-    _ => const DiagnosticRow('App standby', 'Unknown'),
+    _ => DiagnosticRow(label, l10n.diagnosticsUnknown),
   };
 }
 
-DiagnosticSection _androidDevice(PushDiagnosticsInputs inputs) {
+DiagnosticSection _androidDevice(
+  AppLocalizations l10n,
+  PushDiagnosticsInputs inputs,
+) {
   final mode = inputs.deliveryMode;
-  return DiagnosticSection('This device', [
-    DiagnosticRow('Delivery', mode.label),
-    ?_deliveryStatus(inputs),
+  return DiagnosticSection(l10n.diagnosticsSectionDevice, [
+    DiagnosticRow(l10n.diagnosticsLabelDelivery, mode.label(l10n)),
+    ?_deliveryStatus(l10n, inputs),
     if (inputs.capabilities.deliveryModes.contains(
       NotificationDeliveryMode.fcm,
     ))
       _playServices(
+        l10n,
         inputs.playServices,
         needed: mode == NotificationDeliveryMode.fcm,
       ),
     if (mode != NotificationDeliveryMode.backgroundService)
-      ..._registrationRows(inputs, _currentPusher(inputs)),
-    DiagnosticRow('Zuno version', inputs.appVersion),
+      ..._registrationRows(l10n, inputs, _currentPusher(inputs)),
+    DiagnosticRow(l10n.diagnosticsLabelZunoVersion, inputs.appVersion),
   ]);
 }
 
-DiagnosticRow? _deliveryStatus(PushDiagnosticsInputs inputs) => switch ((
+DiagnosticRow? _deliveryStatus(
+  AppLocalizations l10n,
+  PushDiagnosticsInputs inputs,
+) => switch ((
   inputs.deliveryMode,
   inputs.fcmStatus,
   inputs.unifiedPushStatus,
 )) {
   (NotificationDeliveryMode.fcm, final FcmStatus status, _) => DiagnosticRow(
-    'Status',
-    fcmStatusLabel(status),
+    l10n.commonStatus,
+    fcmStatusLabel(l10n, status),
     _fcmStatusLevel(status),
   ),
   (NotificationDeliveryMode.unifiedPush, _, final UnifiedPushStatus status) =>
     DiagnosticRow(
-      'Status',
-      unifiedPushStatusLabel(status),
+      l10n.commonStatus,
+      unifiedPushStatusLabel(l10n, status),
       _unifiedPushStatusLevel(status),
     ),
   _ => null,
@@ -540,71 +591,83 @@ DiagnosticStatus _unifiedPushStatusLevel(UnifiedPushStatus status) =>
     };
 
 DiagnosticRow _playServices(
+  AppLocalizations l10n,
   FcmAvailability? availability, {
   required bool needed,
 }) {
-  const label = 'Google Play services';
+  final label = l10n.diagnosticsLabelGooglePlayServices;
   final missing = needed ? DiagnosticStatus.problem : DiagnosticStatus.info;
   return switch (availability) {
-    FcmAvailability.available => const DiagnosticRow(
+    FcmAvailability.available => DiagnosticRow(
       label,
-      'Available',
+      l10n.diagnosticsAvailable,
       DiagnosticStatus.ok,
     ),
-    FcmAvailability.updateRequired => const DiagnosticRow(
+    FcmAvailability.updateRequired => DiagnosticRow(
       label,
-      'Needs an update',
+      l10n.diagnosticsPlayNeedsUpdate,
       DiagnosticStatus.warning,
     ),
-    FcmAvailability.disabled => DiagnosticRow(label, 'Turned off', missing),
+    FcmAvailability.disabled => DiagnosticRow(
+      label,
+      l10n.diagnosticsTurnedOff,
+      missing,
+    ),
     FcmAvailability.unavailable => DiagnosticRow(
       label,
-      'Not on this device',
+      l10n.diagnosticsPlayNotOnDevice,
       missing,
     ),
     FcmAvailability.notConfigured => DiagnosticRow(
       label,
-      'Not included in this version of Zuno',
+      l10n.diagnosticsPlayNotIncluded,
       missing,
     ),
-    FcmAvailability.unknown || null => const DiagnosticRow(
+    FcmAvailability.unknown || null => DiagnosticRow(
       label,
-      'Could not check',
+      l10n.diagnosticsCouldNotCheck,
       DiagnosticStatus.warning,
     ),
   };
 }
 
 DiagnosticRow _registration(
+  AppLocalizations l10n,
   String? pushkey,
   List<PusherInfo>? pushers,
   PusherInfo? current,
 ) {
+  final label = l10n.diagnosticsLabelRegistration;
   if (pushkey == null) {
-    return const DiagnosticRow(
-      'Registration',
-      'Not set up',
+    return DiagnosticRow(
+      label,
+      l10n.diagnosticsRegistrationNotSetUp,
       DiagnosticStatus.problem,
     );
   }
   if (pushers == null) {
-    return const DiagnosticRow(
-      'Registration',
-      'Could not check',
+    return DiagnosticRow(
+      label,
+      l10n.diagnosticsCouldNotCheck,
       DiagnosticStatus.warning,
     );
   }
   if (current == null) {
-    return const DiagnosticRow(
-      'Registration',
-      'Not registered',
+    return DiagnosticRow(
+      label,
+      l10n.diagnosticsRegistrationNotRegistered,
       DiagnosticStatus.problem,
     );
   }
-  return const DiagnosticRow('Registration', 'Registered', DiagnosticStatus.ok);
+  return DiagnosticRow(
+    label,
+    l10n.diagnosticsRegistrationRegistered,
+    DiagnosticStatus.ok,
+  );
 }
 
-DiagnosticSection _calls(PushDiagnosticsInputs inputs) {
+DiagnosticSection _calls(DateLabels labels, PushDiagnosticsInputs inputs) {
+  final l10n = labels.l10n;
   final voip = inputs.voip;
   final health = inputs.health;
   final ledger = inputs.snapshot.ledger;
@@ -622,190 +685,219 @@ DiagnosticSection _calls(PushDiagnosticsInputs inputs) {
       lastActivity = call.at;
     }
   }
-  return DiagnosticSection('Calls', [
+  final callScreen = l10n.diagnosticsLabelSystemCallScreen;
+  final callPushKey = l10n.diagnosticsLabelCallPushKey;
+  final callKey = l10n.diagnosticsLabelCallKey;
+  final lastActivityLabel = l10n.diagnosticsLabelLastCallActivity;
+  return DiagnosticSection(l10n.diagnosticsSectionCalls, [
     switch (voip?.callKit) {
-      true => const DiagnosticRow(
-        'System call screen',
-        'Available',
+      true => DiagnosticRow(
+        callScreen,
+        l10n.diagnosticsAvailable,
         DiagnosticStatus.ok,
       ),
-      false => const DiagnosticRow(
-        'System call screen',
-        'Not available here',
+      false => DiagnosticRow(
+        callScreen,
+        l10n.diagnosticsNotAvailableHere,
         DiagnosticStatus.warning,
       ),
-      null => const DiagnosticRow(
-        'System call screen',
-        'Unknown',
-        DiagnosticStatus.warning,
-      ),
+      null => _unknown(l10n, callScreen),
     },
     switch (voip?.hasToken) {
-      true => const DiagnosticRow(
-        'Call push key',
-        'Present',
+      true => DiagnosticRow(
+        callPushKey,
+        l10n.diagnosticsPresent,
         DiagnosticStatus.ok,
       ),
-      false => const DiagnosticRow(
-        'Call push key',
-        'Missing',
+      false => DiagnosticRow(
+        callPushKey,
+        l10n.diagnosticsMissing,
         DiagnosticStatus.problem,
       ),
-      null => const DiagnosticRow(
-        'Call push key',
-        'Unknown',
-        DiagnosticStatus.warning,
-      ),
+      null => _unknown(l10n, callPushKey),
     },
     if (health == null)
-      const DiagnosticRow(
-        'Call key',
-        'Could not check',
+      DiagnosticRow(
+        callKey,
+        l10n.diagnosticsCouldNotCheck,
         DiagnosticStatus.warning,
       )
     else if (voip == null)
-      const DiagnosticRow('Call key', 'Unknown', DiagnosticStatus.warning)
+      _unknown(l10n, callKey)
     else if (found(RingMismatchKind.notRegistered))
-      const DiagnosticRow(
-        'Call key',
-        'Not registered',
+      DiagnosticRow(
+        callKey,
+        l10n.diagnosticsRegistrationNotRegistered,
         DiagnosticStatus.problem,
       )
     else if (found(RingMismatchKind.keyDiffers))
-      const DiagnosticRow('Call key', 'Out of date', DiagnosticStatus.warning)
-    else
-      const DiagnosticRow('Call key', 'Current', DiagnosticStatus.ok),
-    if (ledger == null)
-      const DiagnosticRow(
-        'Last call activity',
-        'Unknown',
+      DiagnosticRow(
+        callKey,
+        l10n.diagnosticsCallKeyOutOfDate,
         DiagnosticStatus.warning,
       )
     else
       DiagnosticRow(
-        'Last call activity',
-        lastActivity == null ? 'None yet' : ageLabel(lastActivity, inputs.now),
+        callKey,
+        l10n.diagnosticsCallKeyCurrent,
+        DiagnosticStatus.ok,
       ),
-    _lastRingSent(health, inputs.now),
+    if (ledger == null)
+      _unknown(l10n, lastActivityLabel)
+    else
+      DiagnosticRow(
+        lastActivityLabel,
+        lastActivity == null
+            ? l10n.diagnosticsNoneYet
+            : labels.age(lastActivity, inputs.now),
+      ),
+    _lastRingSent(labels, health, inputs.now),
     if (found(RingMismatchKind.lastRingNotReceived))
-      const DiagnosticRow(
-        'Last ring',
-        'Sent but not received on this device',
+      DiagnosticRow(
+        l10n.diagnosticsLabelLastRing,
+        l10n.diagnosticsLastRingNotReceived,
         DiagnosticStatus.problem,
       ),
-    if (inputs.voipRefusal case final refusal?) _callSetup(refusal, inputs.now),
+    if (inputs.voipRefusal case final refusal?)
+      _callSetup(labels, refusal, inputs.now),
   ]);
 }
 
-DiagnosticRow _callSetup(VoipRefusal refusal, DateTime now) {
-  final refused = 'Refused ${ageLabel(refusal.at, now, midSentence: true)}';
-  return DiagnosticRow('Call setup', switch (refusal) {
+DiagnosticRow _callSetup(DateLabels labels, VoipRefusal refusal, DateTime now) {
+  final l10n = labels.l10n;
+  final age = labels.age(refusal.at, now, inSentence: true);
+  return DiagnosticRow(l10n.diagnosticsLabelCallSetup, switch (refusal) {
     VoipRefusedByServer(:final reply) => [
-      '$refused (${reply.status} ${reply.errcode})',
+      l10n.diagnosticsCallSetupRefusedByServer(
+        age,
+        reply.status,
+        reply.errcode,
+      ),
       ?reply.error,
     ].join('\n'),
-    VoipKeyNotKept() => '$refused (server kept another key)',
+    VoipKeyNotKept() => l10n.diagnosticsCallSetupKeyNotKept(age),
   }, DiagnosticStatus.problem);
 }
 
-DiagnosticRow _lastRingSent(ServerHealth? health, DateTime now) {
+DiagnosticRow _lastRingSent(
+  DateLabels labels,
+  ServerHealth? health,
+  DateTime now,
+) {
+  final l10n = labels.l10n;
+  final label = l10n.diagnosticsLabelLastRingSent;
   if (health == null) {
-    return const DiagnosticRow(
-      'Last ring sent',
-      'Could not check',
+    return DiagnosticRow(
+      label,
+      l10n.diagnosticsCouldNotCheck,
       DiagnosticStatus.warning,
     );
   }
   final at = health.voipLastAt;
   if (at == null) {
-    return const DiagnosticRow('Last ring sent', 'None yet');
+    return DiagnosticRow(label, l10n.diagnosticsNoneYet);
   }
   final sentAt = health.toDevice(at);
-  final age = ageLabel(sentAt, now, midSentence: true);
+  final age = labels.age(sentAt, now, inSentence: true);
   return switch (health.voipLastResult) {
-    'sent' => DiagnosticRow('Last ring sent', 'Sent $age', DiagnosticStatus.ok),
+    'sent' => DiagnosticRow(
+      label,
+      l10n.diagnosticsSentAgo(age),
+      DiagnosticStatus.ok,
+    ),
     'failed' => DiagnosticRow(
-      'Last ring sent',
-      'Failed $age',
+      label,
+      l10n.diagnosticsFailedAgo(age),
       DiagnosticStatus.problem,
     ),
     'rejected' => DiagnosticRow(
-      'Last ring sent',
-      'Refused $age',
+      label,
+      l10n.diagnosticsRefusedAgo(age),
       DiagnosticStatus.problem,
     ),
-    _ => DiagnosticRow('Last ring sent', ageLabel(sentAt, now)),
+    _ => DiagnosticRow(label, labels.age(sentAt, now)),
   };
 }
 
-DiagnosticSection _extension(PushDiagnosticsInputs inputs) {
+DiagnosticSection _extension(DateLabels labels, PushDiagnosticsInputs inputs) {
+  final l10n = labels.l10n;
   final snapshot = inputs.snapshot;
   final lastRun = snapshot.extensionLastRun;
   final version = snapshot.extensionVersion;
   final updated = snapshot.readModelUpdatedAt;
-  return DiagnosticSection('Notification extension', [
+  final versionLabel = l10n.commonVersion;
+  final updatedLabel = l10n.diagnosticsLabelSharedDataUpdated;
+  return DiagnosticSection(l10n.diagnosticsSectionExtension, [
     lastRun == null
-        ? const DiagnosticRow('Last run', 'Never', DiagnosticStatus.warning)
-        : DiagnosticRow('Last run', ageLabel(lastRun, inputs.now)),
+        ? DiagnosticRow(
+            l10n.diagnosticsLabelLastRun,
+            l10n.diagnosticsNever,
+            DiagnosticStatus.warning,
+          )
+        : DiagnosticRow(
+            l10n.diagnosticsLabelLastRun,
+            labels.age(lastRun, inputs.now),
+          ),
     if (version == null)
-      const DiagnosticRow('Version', 'Unknown')
+      DiagnosticRow(versionLabel, l10n.diagnosticsUnknown)
     else if (sameBuild(version, inputs.appVersion))
-      DiagnosticRow('Version', version, DiagnosticStatus.ok)
+      DiagnosticRow(versionLabel, version, DiagnosticStatus.ok)
     else
       DiagnosticRow(
-        'Version',
-        '$version. Zuno is ${inputs.appVersion}. Restart this device if this '
-            'does not change after the next notification.',
+        versionLabel,
+        l10n.diagnosticsExtensionVersionMismatch(version, inputs.appVersion),
         DiagnosticStatus.warning,
       ),
     updated == null
-        ? const DiagnosticRow(
-            'Shared data updated',
-            'Never',
+        ? DiagnosticRow(
+            updatedLabel,
+            l10n.diagnosticsNever,
             DiagnosticStatus.warning,
           )
-        : DiagnosticRow('Shared data updated', ageLabel(updated, inputs.now)),
+        : DiagnosticRow(updatedLabel, labels.age(updated, inputs.now)),
     DiagnosticRow(
-      'Recent results',
+      l10n.diagnosticsLabelRecentResults,
       snapshot.extensionLog.isEmpty
-          ? 'None yet'
+          ? l10n.diagnosticsNoneYet
           : snapshot.extensionLog.join('\n'),
     ),
   ]);
 }
 
-DiagnosticSection _delivery(PushDiagnosticsInputs inputs) {
+DiagnosticSection _delivery(DateLabels labels, PushDiagnosticsInputs inputs) {
+  final l10n = labels.l10n;
   final health = inputs.health;
+  final reachable = l10n.diagnosticsLabelReachable;
+  final unmetNeed =
+      inputs.capabilities.voipRing || inputs.capabilities.nseNotifications
+      ? DiagnosticStatus.problem
+      : DiagnosticStatus.info;
   final rows = <DiagnosticRow>[
     switch (inputs.reach) {
-      ServerReach.reachable => const DiagnosticRow(
-        'Reachable',
-        'Yes',
+      ServerReach.reachable => DiagnosticRow(
+        reachable,
+        l10n.diagnosticsYes,
         DiagnosticStatus.ok,
       ),
-      ServerReach.starting => const DiagnosticRow(
-        'Reachable',
-        'Starting',
+      ServerReach.starting => DiagnosticRow(
+        reachable,
+        l10n.diagnosticsReachStarting,
         DiagnosticStatus.warning,
       ),
-      ServerReach.unreachable => const DiagnosticRow(
-        'Reachable',
-        'No',
+      ServerReach.unreachable => DiagnosticRow(
+        reachable,
+        l10n.diagnosticsNo,
         DiagnosticStatus.problem,
       ),
       ServerReach.turnedOff => DiagnosticRow(
-        'Reachable',
-        'Turned off',
-        inputs.capabilities.voipRing || inputs.capabilities.nseNotifications
-            ? DiagnosticStatus.problem
-            : DiagnosticStatus.info,
+        reachable,
+        l10n.diagnosticsTurnedOff,
+        unmetNeed,
       ),
       ServerReach.notInstalled => DiagnosticRow(
-        'Reachable',
-        'Not available on this server',
-        inputs.capabilities.voipRing || inputs.capabilities.nseNotifications
-            ? DiagnosticStatus.problem
-            : DiagnosticStatus.info,
+        reachable,
+        l10n.diagnosticsReachNotOnServer,
+        unmetNeed,
       ),
     },
   ];
@@ -822,79 +914,89 @@ DiagnosticSection _delivery(PushDiagnosticsInputs inputs) {
     final lastSuccess = pusher?.lastSuccess;
     rows.add(
       DiagnosticRow(
-        'Last delivery',
+        l10n.diagnosticsLabelLastDelivery,
         lastSuccess == null
-            ? 'None yet'
-            : ageLabel(health.toDevice(lastSuccess), inputs.now),
+            ? l10n.diagnosticsNoneYet
+            : labels.age(health.toDevice(lastSuccess), inputs.now),
       ),
     );
     final failingSince = pusher?.failingSince;
     if (failingSince != null) {
       rows.add(
         DiagnosticRow(
-          'Failing since',
-          ageLabel(health.toDevice(failingSince), inputs.now),
+          l10n.diagnosticsLabelFailingSince,
+          labels.age(health.toDevice(failingSince), inputs.now),
           DiagnosticStatus.problem,
         ),
       );
     }
     if (inputs.capabilities.nseNotifications) {
+      final access = l10n.diagnosticsLabelExtensionAccess;
       rows.add(switch (health.credentialExpires) {
-        null => const DiagnosticRow(
-          'Extension access',
-          'None',
+        null => DiagnosticRow(
+          access,
+          l10n.diagnosticsNone,
           DiagnosticStatus.warning,
         ),
         final DateTime expires
             when health.toDevice(expires).isBefore(inputs.now) =>
-          const DiagnosticRow(
-            'Extension access',
-            'Expired',
+          DiagnosticRow(
+            access,
+            l10n.diagnosticsExtensionAccessExpired,
             DiagnosticStatus.problem,
           ),
-        _ => const DiagnosticRow(
-          'Extension access',
-          'Valid',
+        _ => DiagnosticRow(
+          access,
+          l10n.diagnosticsExtensionAccessValid,
           DiagnosticStatus.ok,
         ),
       });
       final fetched = health.lastFetch;
       rows.add(
         DiagnosticRow(
-          'Extension last checked in',
+          l10n.diagnosticsLabelExtensionCheckedIn,
           fetched == null
-              ? 'Never'
-              : ageLabel(health.toDevice(fetched), inputs.now),
+              ? l10n.diagnosticsNever
+              : labels.age(health.toDevice(fetched), inputs.now),
         ),
       );
     }
   }
   if (inputs.deliveries case final deliveries?) {
     final last = deliveries.firstOrNull;
+    final label = l10n.diagnosticsLabelLastPush;
     rows.add(
       last == null
-          ? const DiagnosticRow('Last push', 'None yet')
+          ? DiagnosticRow(label, l10n.diagnosticsNoneYet)
           : DiagnosticRow(
-              'Last push',
-              '${pushDeliverySummary(last)} (${ageLabel(last.receivedAt, inputs.now)})',
+              label,
+              l10n.diagnosticsLastPushSummary(
+                pushDeliverySummary(l10n, last),
+                labels.age(last.receivedAt, inputs.now),
+              ),
               last.late ? DiagnosticStatus.warning : DiagnosticStatus.info,
             ),
     );
   }
-  return DiagnosticSection('Delivery', rows);
+  return DiagnosticSection(l10n.diagnosticsSectionDelivery, rows);
 }
 
-DiagnosticSection _reports(PushDiagnosticsInputs inputs) =>
-    DiagnosticSection('Device reports', [
-      for (final report in inputs.snapshot.metrics)
-        DiagnosticRow(
-          _reportLabels[report.kind] ?? report.kind,
-          '${_countsText(report.counts)} (${ageLabel(report.end, inputs.now)})',
-          DiagnosticStatus.warning,
+DiagnosticSection _reports(DateLabels labels, PushDiagnosticsInputs inputs) {
+  final l10n = labels.l10n;
+  return DiagnosticSection(l10n.diagnosticsSectionReports, [
+    for (final report in inputs.snapshot.metrics)
+      DiagnosticRow(
+        _reportLabel(l10n, report.kind),
+        l10n.diagnosticsReportEntry(
+          _countsText(l10n, report.counts),
+          labels.age(report.end, inputs.now),
         ),
-    ]);
+        DiagnosticStatus.warning,
+      ),
+  ]);
+}
 
-String _countsText(Map<String, int> counts) => [
+String _countsText(AppLocalizations l10n, Map<String, int> counts) => [
   for (final MapEntry(:key, :value) in counts.entries)
-    '${_countLabels[key] ?? key}: $value',
-].join(', ');
+    l10n.diagnosticsCountEntry(_countLabel(l10n, key), value),
+].join(l10n.diagnosticsSeparator);

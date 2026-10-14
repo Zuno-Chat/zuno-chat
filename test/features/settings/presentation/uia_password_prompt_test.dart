@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/prepared_uia_password.dart';
 import 'package:zuno/features/settings/presentation/uia_password_prompt.dart';
 
@@ -28,7 +29,13 @@ void main() {
     String? Function()? prepared,
     Future<void> Function(AuthenticationData? auth)? request,
   }) async {
-    await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+    await tester.pumpWidget(
+      const MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(),
+      ),
+    );
     final context = tester.element(find.byType(Scaffold));
     final sub = client.onUiaRequest.stream.listen(
       (uia) => answerUiaWithPassword(

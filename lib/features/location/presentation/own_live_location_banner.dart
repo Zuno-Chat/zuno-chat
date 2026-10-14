@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_notice.dart';
 import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -24,7 +25,7 @@ class OwnLiveLocationBanner extends ConsumerWidget {
               (room: room, endsAt: share.endsAt),
         ];
         if (entries.isEmpty) return const SizedBox.shrink();
-        final notice = liveLocationNotice(entries);
+        final notice = liveLocationNotice(context.l10n, entries);
         final only = entries.length == 1 ? entries.single.room : null;
         final scheme = Theme.of(context).colorScheme;
         final text = TextStyle(color: scheme.onSecondaryContainer);
@@ -55,7 +56,7 @@ class OwnLiveLocationBanner extends ConsumerWidget {
                   ),
                   FilledButton.tonal(
                     onPressed: sharing.stopAll,
-                    child: const Text('Stop'),
+                    child: Text(context.l10n.locationStop),
                   ),
                 ],
               ),

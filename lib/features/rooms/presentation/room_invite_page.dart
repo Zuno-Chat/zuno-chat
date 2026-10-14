@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/calls/end_call.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
@@ -43,6 +44,7 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
   }) async {
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     setState(() => _busy = true);
     unawaited(cancelInviteNotification(widget.room));
     try {
@@ -57,9 +59,9 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
     } catch (e, s) {
       reportCaught('answer invitation', e, s);
       if (mounted) setState(() => _busy = false);
-      final failed = join ? 'Could not join.' : 'Could not decline.';
+      final failed = join ? l10n.roomsCouldNotJoin : l10n.roomsCouldNotDecline;
       messenger.showSnackBar(
-        SnackBar(content: Text(failureMessage(e, failed: failed))),
+        SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
       );
     }
   }
@@ -67,13 +69,12 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
   Future<void> _reportAndDecline(String inviter) async {
     final room = widget.room;
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     final sent = await showReportSheet(
       context,
-      title: 'Report invitation',
-      explanation:
-          'The report goes to Zuno and names who invited you. The invitation '
-          'is declined once the report is sent.',
-      sendLabel: 'Report and decline',
+      title: l10n.roomsReportInvitation,
+      explanation: l10n.roomsReportInvitationExplain,
+      sendLabel: l10n.roomsReportAndDecline,
       onSend: (reason, note) => reportPerson(
         room.client,
         inviter,
@@ -83,7 +84,7 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
       ),
     );
     if (!sent || !mounted) return;
-    messenger.showSnackBar(const SnackBar(content: Text('Report sent')));
+    messenger.showSnackBar(SnackBar(content: Text(l10n.commonReportSent)));
     await _answer(() => declineInvite(room), join: false);
   }
 
@@ -105,6 +106,7 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
   @override
   Widget build(BuildContext context) {
     final room = widget.room;
+    final l10n = context.l10n;
     final client = room.client;
     final inviter = inviterId(room);
     final inviterUser = inviter == null
@@ -112,12 +114,12 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
         : room.unsafeGetUserFromMemoryOrFallback(inviter);
     final inviterName =
         inviterUser?.calcDisplayname() ??
-        (inviter == null ? 'Someone' : withoutServer(inviter));
+        (inviter == null ? l10n.roomsSomeone : withoutServer(inviter));
     final isGroup = room.name.isNotEmpty;
     final isCommunity = room.isSpace;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Invitation')),
+      appBar: AppBar(title: Text(l10n.roomsInvitation)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -144,10 +146,10 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
               const SizedBox(height: 8),
               Text(
                 isCommunity
-                    ? '$inviterName invited you to this community.'
+                    ? l10n.roomsInvitedToCommunity(inviterName)
                     : isGroup
-                    ? '$inviterName invited you to this room.'
-                    : '$inviterName wants to chat with you.',
+                    ? l10n.roomsInvitedToRoom(inviterName)
+                    : l10n.roomsWantsToChat(inviterName),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -171,27 +173,27 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
                         () => room.join(waitForSync: true),
                         join: true,
                       ),
-                child: const Text('Join'),
+                child: Text(l10n.commonJoin),
               ),
               const SizedBox(height: 8),
               OutlinedButton(
                 onPressed: _busy
                     ? null
                     : () => _answer(() => declineInvite(room), join: false),
-                child: const Text('Decline'),
+                child: Text(l10n.commonDecline),
               ),
               if (inviter != null) ...[
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: _busy ? null : () => _reportAndDecline(inviter),
-                  child: const Text('Report and decline'),
+                  child: Text(l10n.roomsReportAndDecline),
                 ),
                 if (canBlockPerson(inviter))
                   TextButton(
                     onPressed: _busy
                         ? null
                         : () => _blockAndDecline(inviter, inviterName),
-                    child: const Text('Block and decline'),
+                    child: Text(l10n.roomsBlockAndDecline),
                   ),
               ],
             ],

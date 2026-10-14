@@ -1,3 +1,5 @@
+import '../l10n/l10n.dart';
+
 enum SendStage { compressing, uploading }
 
 enum SendMediaKind { photo, video, file }
@@ -15,13 +17,16 @@ double? combinedSendProgress({
   };
 }
 
-String sendStageLabel({required SendMediaKind kind, required SendStage stage}) {
-  final verb = stage == SendStage.compressing && kind != SendMediaKind.file
-      ? 'Compressing'
-      : 'Uploading';
-  return switch (kind) {
-    SendMediaKind.photo => '$verb photo…',
-    SendMediaKind.video => '$verb video…',
-    SendMediaKind.file => '$verb…',
+String sendStageLabel(
+  AppLocalizations l10n, {
+  required SendMediaKind kind,
+  required SendStage stage,
+}) {
+  return switch ((kind, stage)) {
+    (SendMediaKind.photo, SendStage.compressing) => l10n.matrixCompressingPhoto,
+    (SendMediaKind.photo, SendStage.uploading) => l10n.matrixUploadingPhoto,
+    (SendMediaKind.video, SendStage.compressing) => l10n.matrixCompressingVideo,
+    (SendMediaKind.video, SendStage.uploading) => l10n.matrixUploadingVideo,
+    (SendMediaKind.file, _) => l10n.matrixUploadingFile,
   };
 }

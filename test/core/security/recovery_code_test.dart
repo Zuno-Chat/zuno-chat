@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:math' show Random, min;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/recovery_code.dart';
 
 import '../../helpers/fixtures.dart';
@@ -238,16 +239,16 @@ void main() {
 
   group('ordinal', () {
     test('handles the ordinary cases', () {
-      expect(ordinal(1), '1st');
-      expect(ordinal(2), '2nd');
-      expect(ordinal(3), '3rd');
-      expect(ordinal(7), '7th');
+      expect(englishLocalizations.securityOrdinal('1'), '1st');
+      expect(englishLocalizations.securityOrdinal('2'), '2nd');
+      expect(englishLocalizations.securityOrdinal('3'), '3rd');
+      expect(englishLocalizations.securityOrdinal('7'), '7th');
     });
 
     test('handles the teens, which the mod-10 rule alone gets wrong', () {
-      expect(ordinal(11), '11th');
-      expect(ordinal(12), '12th');
-      expect(ordinal(13), '13th');
+      expect(englishLocalizations.securityOrdinal('11'), '11th');
+      expect(englishLocalizations.securityOrdinal('12'), '12th');
+      expect(englishLocalizations.securityOrdinal('13'), '13th');
     });
   });
 

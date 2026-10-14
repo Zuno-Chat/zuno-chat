@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/encryption.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/ui/close_own_route.dart';
 
@@ -49,17 +50,21 @@ class _VerificationRequestDialogState extends State<VerificationRequestDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return AlertDialog(
-      title: const Text('Verification request'),
+      title: Text(l10n.verificationRequestTitle),
       content: Text(
-        '${withoutServer(_request.userId)} wants to verify with you.',
+        l10n.verificationRequestBody(withoutServer(_request.userId)),
       ),
       actions: [
         TextButton(
           onPressed: () => _answer(false),
-          child: const Text('Decline'),
+          child: Text(l10n.commonDecline),
         ),
-        TextButton(onPressed: () => _answer(true), child: const Text('Accept')),
+        TextButton(
+          onPressed: () => _answer(true),
+          child: Text(l10n.verificationAccept),
+        ),
       ],
     );
   }

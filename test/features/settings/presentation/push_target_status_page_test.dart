@@ -7,10 +7,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
+import 'package:zuno/core/notifications/pusher_failure.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm_pusher.dart';
 import 'package:zuno/core/push/unified_push_pusher.dart';
@@ -141,6 +143,8 @@ void main() {
         UncontrolledProviderScope(
           container: container,
           child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: routeLauncher((_) => const PushTargetStatusPage()),
           ),
         ),
@@ -233,7 +237,9 @@ void main() {
       });
 
       testWidgets('the last error is shown', (tester) async {
-        fcmDeliveryProvider.lastPusherError = 'M_FORBIDDEN';
+        fcmDeliveryProvider.lastPusherError = const PusherPostFailed(
+          'M_FORBIDDEN',
+        );
         await pumpPage(tester, NotificationDeliveryMode.fcm);
 
         expect(

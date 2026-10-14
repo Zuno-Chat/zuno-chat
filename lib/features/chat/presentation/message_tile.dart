@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../core/calls/matrixrtc/call_summary_message.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_viewing.dart';
 import '../../../core/location/location_message.dart';
 import '../../../core/matrix/image_caption.dart';
@@ -88,12 +89,14 @@ class MessageTile extends StatelessWidget {
     Event displayEvent, {
     required LiveShareView? liveShare,
   }) {
+    final l10n = context.l10n;
     final isHiddenState = displayEvent.stateKey != null;
     if (isHiddenState || isCallSignalingMessage(displayEvent.messageType)) {
       return _HiddenEventRow(
         text: isHiddenState
-            ? (describeStateEvent(displayEvent) ?? '${displayEvent.type} event')
-            : 'Hidden message: ${displayEvent.body}',
+            ? (describeStateEvent(l10n, displayEvent) ??
+                  l10n.matrixSummaryOtherEvent(displayEvent.type))
+            : l10n.chatHiddenMessage(displayEvent.body),
       );
     }
 
@@ -143,7 +146,7 @@ class MessageTile extends StatelessWidget {
     if (data.redacted) {
       content = _NoticeContent(
         icon: Icons.delete_outline,
-        text: 'Message deleted',
+        text: l10n.chatMessageDeleted,
         own: own,
         meta: meta,
       );
@@ -224,7 +227,7 @@ class MessageTile extends StatelessWidget {
     } else if (isLiveLocation) {
       content = _NoticeContent(
         icon: Icons.share_location_outlined,
-        text: 'Live location ended',
+        text: l10n.chatLiveLocationEnded,
         own: own,
         meta: meta,
       );

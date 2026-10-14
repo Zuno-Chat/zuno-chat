@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/ui/sheet.dart';
 
@@ -8,10 +10,10 @@ typedef SendReport = Future<void> Function(ReportReason reason, String note);
 
 Future<bool> showReportSheet(
   BuildContext context, {
-  required String title,
-  required String explanation,
+  @displayText required String title,
+  @displayText required String explanation,
   required SendReport onSend,
-  String sendLabel = 'Send report',
+  @displayText String? sendLabel,
 }) async {
   final sent = await showSheet<bool>(
     context: context,
@@ -29,7 +31,7 @@ Future<bool> showReportSheet(
 class _ReportSheet extends StatefulWidget {
   final String title;
   final String explanation;
-  final String sendLabel;
+  final String? sendLabel;
   final SendReport onSend;
 
   const _ReportSheet({
@@ -80,6 +82,7 @@ class _ReportSheetState extends State<_ReportSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final canSend = !_sending && canSendReport(_reason, _note.text);
+    final l10n = context.l10n;
 
     return SafeArea(
       child: Padding(
@@ -113,7 +116,7 @@ class _ReportSheetState extends State<_ReportSheet> {
                   children: [
                     for (final reason in ReportReason.values)
                       RadioListTile<ReportReason>(
-                        title: Text(reason.label),
+                        title: Text(reason.label(l10n)),
                         value: reason,
                       ),
                   ],
@@ -131,11 +134,9 @@ class _ReportSheetState extends State<_ReportSheet> {
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
                     labelText: _reason == ReportReason.other
-                        ? 'What happened'
-                        : 'What happened (optional)',
-                    errorText: _failed
-                        ? 'The report was not sent. Try again.'
-                        : null,
+                        ? l10n.reportsWhatHappened
+                        : l10n.reportsWhatHappenedOptional,
+                    errorText: _failed ? l10n.reportsNotSent : null,
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
@@ -144,7 +145,7 @@ class _ReportSheetState extends State<_ReportSheet> {
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 child: FilledButton(
                   onPressed: canSend ? _send : null,
-                  child: Text(widget.sendLabel),
+                  child: Text(widget.sendLabel ?? l10n.reportsSend),
                 ),
               ),
             ],

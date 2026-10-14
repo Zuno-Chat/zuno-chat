@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/format/date_labels.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/security/security_emphasis.dart';
@@ -23,11 +25,11 @@ class PeopleTrustTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final participants = this.participants;
     if (participants == null) {
-      return const ListTile(
+      return ListTile(
         dense: true,
-        leading: Icon(Icons.people_outline),
-        title: Text('People'),
-        subtitle: Text('Loading…'),
+        leading: const Icon(Icons.people_outline),
+        title: Text(context.l10n.roomInfoPeople),
+        subtitle: Text(context.l10n.commonLoading),
       );
     }
 
@@ -40,9 +42,11 @@ class PeopleTrustTile extends ConsumerWidget {
         dense: true,
         leading: const Icon(Icons.schedule_outlined),
         title: Text(
-          others.length == 1 ? withoutServer(others.single.id) : 'People',
+          others.length == 1
+              ? withoutServer(others.single.id)
+              : context.l10n.roomInfoPeople,
         ),
-        subtitle: const Text('You can confirm them once they join'),
+        subtitle: Text(context.l10n.roomInfoConfirmOnceJoined),
       );
     }
 
@@ -53,30 +57,11 @@ class PeopleTrustTile extends ConsumerWidget {
   }
 }
 
-String _confirmedSubtitle(WidgetRef ref, String userId) {
-  const covers =
-      'Covers any device they add later. You will not need to do this again.';
+String _confirmedSubtitle(BuildContext context, WidgetRef ref, String userId) {
+  final l10n = context.l10n;
   final at = ref.watch(confirmedIdentityStoreProvider).confirmedAt(userId);
-  if (at == null) return covers;
-  return 'Confirmed ${_formatDate(at)}. $covers';
-}
-
-String _formatDate(DateTime at) {
-  const months = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ];
-  return '${at.day} ${months[at.month - 1]} ${at.year}';
+  if (at == null) return l10n.roomInfoCoversLater;
+  return l10n.roomInfoConfirmedOn(DateLabels.of(context).longDate(at));
 }
 
 class _PersonTrustRow extends ConsumerWidget {
@@ -90,6 +75,7 @@ class _PersonTrustRow extends ConsumerWidget {
     final state = ref.watch(userTrustProvider(userId));
     final name = withoutServer(userId);
     final colors = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
 
     switch (state) {
       case UserTrustState.noIdentity:
@@ -97,43 +83,40 @@ class _PersonTrustRow extends ConsumerWidget {
           dense: true,
           leading: const Icon(Icons.person_outline),
           title: Text(name),
-          subtitle: const Text(
-            'They have not set up recovery, so there is nothing to confirm yet',
-          ),
+          subtitle: Text(l10n.roomInfoNoRecoverySetUp),
         );
       case UserTrustState.unconfirmed:
         return ListTile(
           leading: const Icon(Icons.person_outline),
-          title: Text('Confirm it is really $name'),
-          subtitle: const Text(
-            'Scan their code in person, or compare pictures on a call',
-          ),
+          title: Text(l10n.verificationConfirmPerson(name)),
+          subtitle: Text(l10n.roomInfoScanOrCompare),
           trailing: const Icon(Icons.chevron_right_outlined),
           onTap: () => confirmPerson(context, ref, userId),
         );
       case UserTrustState.confirmed:
         return ListTile(
           leading: Icon(Icons.check_circle_outline, color: colors.primary),
-          title: Text('$name is confirmed'),
-          subtitle: Text(_confirmedSubtitle(ref, userId)),
+          title: Text(l10n.roomInfoIsConfirmed(name)),
+          subtitle: Text(_confirmedSubtitle(context, ref, userId)),
         );
       case UserTrustState.confirmedWithPendingDevice:
         return ListTile(
           leading: Icon(Icons.check_circle_outline, color: colors.primary),
-          title: Text('$name is confirmed'),
-          subtitle: Text(
-            '${_confirmedSubtitle(ref, userId)}\n'
-            'They have a device they have not approved yet.',
+          title: Text(l10n.roomInfoIsConfirmed(name)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_confirmedSubtitle(context, ref, userId)),
+              Text(l10n.roomInfoPendingDevice),
+            ],
           ),
           isThreeLine: true,
         );
       case UserTrustState.identityChanged:
         return ListTile(
           leading: Icon(attentionIcon, color: colors.error),
-          title: Text("$name's security details changed"),
-          subtitle: const Text(
-            'Usually a new device or a reinstall. Confirm them again.',
-          ),
+          title: Text(l10n.roomInfoPersonIdentityChanged(name)),
+          subtitle: Text(l10n.roomInfoIdentityChangedHint),
           trailing: const Icon(Icons.chevron_right_outlined),
           onTap: () => confirmPerson(context, ref, userId),
         );
@@ -171,11 +154,11 @@ class _GroupTrustRow extends ConsumerWidget {
       return ListTile(
         dense: true,
         leading: const Icon(Icons.people_outline),
-        title: const Text('People'),
+        title: Text(context.l10n.roomInfoPeople),
         subtitle: Text(
           confirmed == 0
-              ? 'Nobody here is confirmed yet'
-              : '$confirmed of ${others.length} confirmed',
+              ? context.l10n.roomInfoNobodyConfirmed
+              : context.l10n.roomInfoConfirmedCount(confirmed, others.length),
         ),
       );
     }
@@ -183,11 +166,12 @@ class _GroupTrustRow extends ConsumerWidget {
     return ListTile(
       leading: Icon(attentionIcon, color: colors.error),
       title: Text(
-        changed.length == 1
-            ? "${withoutServer(changed.single.id)}'s security details changed"
-            : '${changed.length} people’s security details changed',
+        context.l10n.roomInfoGroupIdentityChanged(
+          changed.length,
+          withoutServer(changed.first.id),
+        ),
       ),
-      subtitle: const Text('Confirm them again'),
+      subtitle: Text(context.l10n.roomInfoConfirmThemAgain),
       trailing: const Icon(Icons.chevron_right_outlined),
       onTap: () => confirmPerson(context, ref, changed.first.id),
     );

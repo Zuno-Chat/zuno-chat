@@ -5,12 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Future<void> pumpMessengerApp(WidgetTester tester) => tester.pumpWidget(
     MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       scaffoldMessengerKey: globalScaffoldMessengerKey,
       home: const Scaffold(body: SizedBox.shrink()),
     ),
@@ -227,6 +230,8 @@ void main() {
         'inside a widget build', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           scaffoldMessengerKey: globalScaffoldMessengerKey,
           home: Builder(
             builder: (context) {

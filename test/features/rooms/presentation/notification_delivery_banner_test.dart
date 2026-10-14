@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/delivery_failure.dart';
 import 'package:zuno/core/notifications/delivery_failure_provider.dart';
@@ -13,9 +14,15 @@ import 'package:zuno/features/rooms/presentation/notification_delivery_banner.da
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_notifications_allowed.dart';
 
+const _bannerApp = MaterialApp(
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  supportedLocales: AppLocalizations.supportedLocales,
+  home: Scaffold(body: NotificationDeliveryBanner()),
+);
+
 Widget _wrap(DeliveryFailure? failure) => ProviderScope(
   overrides: [deliveryFailureProvider.overrideWithValue(failure)],
-  child: const MaterialApp(home: Scaffold(body: NotificationDeliveryBanner())),
+  child: _bannerApp,
 );
 
 void main() {
@@ -25,14 +32,14 @@ void main() {
     await tester.pumpWidget(
       _wrap(
         const DeliveryFailure(
-          message: 'This device does not have Google services',
+          reason: DeliveryFailureReason.playServicesMissing,
           action: DeliveryFailureAction.switchToUnifiedPush,
         ),
       ),
     );
 
     expect(
-      find.text('This device does not have Google services'),
+      find.text('This device does not have Google Play services'),
       findsOneWidget,
     );
     expect(find.byType(TextButton), findsOneWidget);
@@ -50,7 +57,7 @@ void main() {
     await tester.pumpWidget(
       _wrap(
         const DeliveryFailure(
-          message: 'Google Play services needs an update',
+          reason: DeliveryFailureReason.playServicesNeedsUpdate,
           action: DeliveryFailureAction.updatePlayServices,
         ),
       ),
@@ -66,11 +73,11 @@ void main() {
     'reappears when the failure changes to a different one while dismissed',
     (tester) async {
       const failureA = DeliveryFailure(
-        message: 'Could not set up notifications on this device',
+        reason: DeliveryFailureReason.setupFailed,
         action: DeliveryFailureAction.retry,
       );
       const failureB = DeliveryFailure(
-        message: 'This device does not have Google services',
+        reason: DeliveryFailureReason.playServicesMissing,
         action: DeliveryFailureAction.switchToUnifiedPush,
       );
 
@@ -87,7 +94,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('This device does not have Google services'),
+        find.text('This device does not have Google Play services'),
         findsOneWidget,
       );
     },
@@ -103,7 +110,7 @@ void main() {
     await tester.pumpWidget(
       _wrap(
         const DeliveryFailure(
-          message: 'Google Play services is turned off',
+          reason: DeliveryFailureReason.playServicesTurnedOff,
           action: DeliveryFailureAction.turnOnPlayServices,
         ),
       ),
@@ -144,9 +151,7 @@ void main() {
               AsyncData(distributorInstalled),
             ),
           ],
-          child: const MaterialApp(
-            home: Scaffold(body: NotificationDeliveryBanner()),
-          ),
+          child: _bannerApp,
         ),
       );
     }
@@ -192,9 +197,7 @@ void main() {
             sharedPreferencesProvider.overrideWithValue(prefs),
             deliveryFailureProvider.overrideWithValue(failure),
           ],
-          child: const MaterialApp(
-            home: Scaffold(body: NotificationDeliveryBanner()),
-          ),
+          child: _bannerApp,
         ),
       );
     }
@@ -205,7 +208,8 @@ void main() {
       await pumpBanner(
         tester,
         const DeliveryFailure(
-          message: 'Zuno switched to background sync',
+          reason: DeliveryFailureReason.autoSelected,
+          detail: 'backgroundService',
           action: DeliveryFailureAction.openSettings,
           notice: true,
         ),
@@ -234,7 +238,7 @@ void main() {
       await pumpBanner(
         tester,
         const DeliveryFailure(
-          message: 'Could not set up notifications on this device',
+          reason: DeliveryFailureReason.setupFailed,
           action: DeliveryFailureAction.retry,
         ),
       );

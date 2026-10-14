@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/section_label.dart';
 
 class SettingsSectionHeader extends StatelessWidget {
@@ -32,8 +33,8 @@ class ComingSoonTile extends StatelessWidget {
       leading: Icon(icon),
       title: Text(title),
       subtitle: subtitle == null ? null : Text(subtitle!),
-      trailing: const Chip(
-        label: Text('Coming soon'),
+      trailing: Chip(
+        label: Text(context.l10n.settingsComingSoon),
         visualDensity: VisualDensity.compact,
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),

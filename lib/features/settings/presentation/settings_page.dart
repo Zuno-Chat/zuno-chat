@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/feedback.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
@@ -33,6 +34,7 @@ class SettingsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final colors = Theme.of(context).colorScheme;
     final client = ref.watch(matrixClientProvider);
     final capabilities = ref.watch(platformCapabilitiesProvider);
@@ -40,7 +42,7 @@ class SettingsPage extends ConsumerWidget {
     final canChooseDelivery = capabilities.deliveryModes.length > 1;
     final paymentLinks = capabilities.externalPaymentLinks;
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(l10n.settingsPageTitle)),
       body: CardListView(
         children: [
           CardGroup(children: [_ProfileRow(client: client)]),
@@ -48,23 +50,23 @@ class SettingsPage extends ConsumerWidget {
             children: [
               _CategoryTile(
                 icon: Icons.notifications_outlined,
-                title: 'Notifications',
+                title: l10n.settingsPageNotifications,
                 subtitle: canChooseDelivery
-                    ? 'Sounds, delivery'
-                    : 'Sounds, mentions',
+                    ? l10n.settingsPageNotificationsDelivery
+                    : l10n.settingsPageNotificationsMentions,
                 page: const NotificationsSettingsPage(),
               ),
-              const _CategoryTile(
+              _CategoryTile(
                 icon: Icons.chat_bubble_outline,
-                title: 'Chats & calls',
-                subtitle: 'Theme, typing, calls',
-                page: ChatsCallsSettingsPage(),
+                title: l10n.settingsPageChatsCalls,
+                subtitle: l10n.settingsPageChatsCallsSubtitle,
+                page: const ChatsCallsSettingsPage(),
               ),
-              const _CategoryTile(
+              _CategoryTile(
                 icon: Icons.data_usage_outlined,
-                title: 'Data & storage',
-                subtitle: 'Media size, call data, cache',
-                page: DataStorageSettingsPage(),
+                title: l10n.settingsPageDataStorage,
+                subtitle: l10n.settingsPageDataStorageSubtitle,
+                page: const DataStorageSettingsPage(),
               ),
             ],
           ),
@@ -72,24 +74,24 @@ class SettingsPage extends ConsumerWidget {
             children: [
               _CategoryTile(
                 icon: Icons.shield_outlined,
-                title: 'Security',
+                title: l10n.settingsPageSecurity,
                 subtitle: screenshotBlocking
-                    ? 'Recovery, devices, screenshots'
-                    : 'Recovery, devices, screen content',
+                    ? l10n.settingsPageSecurityScreenshots
+                    : l10n.settingsPageSecurityScreenContent,
                 page: const SecurityPrivacySettingsPage(),
               ),
               _CategoryTile(
                 icon: Icons.info_outline,
-                title: 'About',
+                title: l10n.settingsPageAbout,
                 subtitle: paymentLinks
-                    ? 'Version, donate, diagnostics'
-                    : 'Version, terms, diagnostics',
+                    ? l10n.settingsPageAboutDonate
+                    : l10n.settingsPageAboutTerms,
                 page: const AboutPage(),
               ),
               if (showFeedback)
                 ListTile(
                   leading: const CircleIcon(Icons.feedback_outlined),
-                  title: const Text('Send feedback'),
+                  title: Text(l10n.settingsPageSendFeedback),
                   onTap: () => showFeedbackSheet(context),
                 ),
             ],
@@ -98,7 +100,10 @@ class SettingsPage extends ConsumerWidget {
             children: [
               ListTile(
                 leading: const CircleIcon(Icons.logout_outlined, danger: true),
-                title: Text('Sign out', style: TextStyle(color: colors.error)),
+                title: Text(
+                  l10n.settingsSignOut,
+                  style: TextStyle(color: colors.error),
+                ),
                 onTap: () => _confirmLogOut(context, ref),
               ),
               const DeleteAccountTile(),
@@ -114,39 +119,40 @@ class SettingsPage extends ConsumerWidget {
         ref.read(accountSecurityStatusProvider).value ==
         AccountSecurityStatus.noRecovery;
     final navigator = Navigator.of(context);
+    final l10n = context.l10n;
 
     final choice = await showDialog<_LogOutChoice>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sign out?'),
+        title: Text(l10n.settingsPageSignOutTitle),
         actionsOverflowDirection: VerticalDirection.up,
         actionsOverflowButtonSpacing: 4,
         content: Text(
           noRecovery
-              ? 'Zuno erases everything it stored on this device and closes. '
-                    'Messages on this device are gone for good. Without a '
-                    'recovery code, nobody can restore them.'
-              : 'Zuno erases everything it stored on this device and closes. '
-                    'You will need your password to sign back in. Your '
-                    'recovery code brings your messages back.',
+              ? l10n.settingsPageSignOutBodyNoRecovery
+              : l10n.settingsPageSignOutBody,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           if (noRecovery)
             TextButton(
               onPressed: () =>
                   Navigator.of(context).pop(_LogOutChoice.setUpRecovery),
-              child: const Text('Set up recovery'),
+              child: Text(l10n.securitySetUpRecovery),
             ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(_LogOutChoice.logOut),
             style: TextButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.error,
             ),
-            child: Text(noRecovery ? 'Sign out anyway' : 'Sign out'),
+            child: Text(
+              noRecovery
+                  ? l10n.settingsPageSignOutAnyway
+                  : l10n.settingsSignOut,
+            ),
           ),
         ],
       ),
@@ -269,7 +275,9 @@ class _ProfileRowState extends State<_ProfileRow> {
                     style: theme.textTheme.titleLarge,
                   ),
                   Text(
-                    '${withoutServer(userId).replaceFirst('@', '')} · Profile, password',
+                    context.l10n.settingsPageProfileSubtitle(
+                      withoutServer(userId).replaceFirst('@', ''),
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium!.copyWith(

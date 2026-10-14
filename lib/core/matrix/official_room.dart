@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../l10n/l10n.dart';
+
 const officialNoticesUserId = '@notices:zuno.chat';
 
 bool isOfficialZunoRoom(Room room) {
@@ -22,7 +24,7 @@ class OfficialBadge extends StatelessWidget {
         Icon(Icons.verified_outlined, size: 14, color: color),
         const SizedBox(width: 4),
         Text(
-          'Official',
+          context.l10n.matrixOfficial,
           style: theme.textTheme.labelSmall?.copyWith(color: color),
         ),
       ],

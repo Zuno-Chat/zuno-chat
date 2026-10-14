@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../l10n/l10n.dart';
 import 'server_name.dart';
 import 'username_field.dart';
 
@@ -50,16 +51,16 @@ class _LocalUsernameDialogState extends State<_LocalUsernameDialog> {
         autofocus: true,
         onSubmitted: (_) => _submit(),
         inputFormatters: [lowercaseFormatter, usernameCharsFormatter],
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           prefixText: '@',
-          border: OutlineInputBorder(),
-          hintText: 'username',
+          border: const OutlineInputBorder(),
+          hintText: context.l10n.matrixUsernameHint,
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(context.l10n.commonCancel),
         ),
         TextButton(onPressed: _submit, child: Text(widget.actionLabel)),
       ],

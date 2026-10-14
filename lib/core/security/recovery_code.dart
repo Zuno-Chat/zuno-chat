@@ -168,16 +168,6 @@ List<int> recoveryConfirmationIndices({Random? random}) {
   return [first, second]..sort();
 }
 
-String ordinal(int oneBased) {
-  if (oneBased >= 11 && oneBased <= 13) return '${oneBased}th';
-  return switch (oneBased % 10) {
-    1 => '${oneBased}st',
-    2 => '${oneBased}nd',
-    3 => '${oneBased}rd',
-    _ => '${oneBased}th',
-  };
-}
-
 bool looksLikeSecurityKey(String raw) {
   final compact = raw.replaceAll(RegExp(r'\s'), '');
   if (compact.length < 40) return false;

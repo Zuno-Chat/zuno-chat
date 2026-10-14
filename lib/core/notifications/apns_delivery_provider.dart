@@ -16,6 +16,7 @@ import '../push/registration_retry.dart';
 import 'notification_delivery_provider.dart';
 import 'notification_permission.dart';
 import 'notification_sound_settings.dart';
+import 'pusher_failure.dart';
 
 enum ApnsStatus {
   idle,
@@ -48,7 +49,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
 
   final dropped = ValueNotifier<int>(0);
 
-  String? lastPusherError;
+  PusherFailure? lastPusherError;
 
   _Registration? _registration;
   String? get token => _registration?.token;
@@ -288,7 +289,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
   }) async {
     final gatewayUrl = fcmGatewayUri(client.homeserver);
     if (gatewayUrl == null) {
-      lastPusherError = 'No server to send notifications through yet.';
+      lastPusherError = const PusherServerMissing();
       status.value = ApnsStatus.pusherFailed;
       _retry.schedule(() => _register(client));
       return false;
@@ -303,7 +304,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       );
     } catch (e, s) {
       reportCaught('apns pusher post', e, s);
-      lastPusherError = e.toString();
+      lastPusherError = PusherPostFailed(e.toString());
       status.value = ApnsStatus.pusherFailed;
       _retry.schedule(() => _register(client));
       return false;
@@ -351,7 +352,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
         lastPusherError = null;
       } catch (e, s) {
         reportCaught('apns pusher delete', e, s);
-        lastPusherError = 'Could not remove the push registration: $e';
+        lastPusherError = PusherRemoveFailed(e.toString());
       }
     }
     _registration = null;

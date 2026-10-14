@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/calls/call_audio_route.dart';
 import '../../../core/calls/models/call_kind.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/zuno_colors.dart';
 
 class CallControls extends StatelessWidget {
@@ -32,9 +33,9 @@ class CallControls extends StatelessWidget {
     this.overVideo = false,
   });
 
-  String get _cameraTooltip {
-    if (kind == CallKind.voice) return 'Switch to video call';
-    return cameraOn ? 'Turn camera off' : 'Turn camera on';
+  String _cameraTooltip(AppLocalizations l10n) {
+    if (kind == CallKind.voice) return l10n.callsSwitchToVideo;
+    return cameraOn ? l10n.callsCameraOff : l10n.callsCameraOn;
   }
 
   IconData get _audioRouteIcon => switch (audioRoute) {
@@ -46,6 +47,7 @@ class CallControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final speakerOn = audioRoute == CallAudioRoute.speaker;
     final colors = Theme.of(context).colorScheme;
     return Material(
@@ -59,7 +61,7 @@ class CallControls extends StatelessWidget {
           children: [
             _ControlButton(
               icon: micMuted ? Icons.mic_off_outlined : Icons.mic_outlined,
-              tooltip: micMuted ? 'Unmute' : 'Mute',
+              tooltip: micMuted ? l10n.callsUnmute : l10n.callsMute,
               on: micMuted,
               overVideo: overVideo,
               onPressed: enabled ? onToggleMute : null,
@@ -68,7 +70,7 @@ class CallControls extends StatelessWidget {
               icon: cameraOn
                   ? Icons.videocam_outlined
                   : Icons.videocam_off_outlined,
-              tooltip: _cameraTooltip,
+              tooltip: _cameraTooltip(l10n),
               on: cameraOn,
               overVideo: overVideo,
               onPressed: enabled ? onToggleCamera : null,
@@ -76,21 +78,21 @@ class CallControls extends StatelessWidget {
             if (cameraOn)
               _ControlButton(
                 icon: Icons.cameraswitch_outlined,
-                tooltip: 'Switch camera',
+                tooltip: l10n.callsSwitchCamera,
                 on: false,
                 overVideo: overVideo,
                 onPressed: enabled ? onSwitchCamera : null,
               ),
             _ControlButton(
               icon: _audioRouteIcon,
-              tooltip: speakerOn ? 'Turn speaker off' : 'Turn speaker on',
+              tooltip: speakerOn ? l10n.callsSpeakerOff : l10n.callsSpeakerOn,
               on: speakerOn,
               overVideo: overVideo,
               onPressed: enabled ? onToggleSpeaker : null,
             ),
             _ControlButton(
               icon: Icons.call_end,
-              tooltip: 'End call',
+              tooltip: l10n.callsEndCall,
               fill: callEndColor,
               ink: onCallActionColor,
               on: false,

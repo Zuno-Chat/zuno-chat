@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/linkified_text.dart';
 
 const _foldedTopicLines = 3;
@@ -55,7 +56,11 @@ class _RoomTopicState extends State<RoomTopic> {
             if (foldable)
               TextButton(
                 onPressed: () => setState(() => _expanded = !_expanded),
-                child: Text(_expanded ? 'Show less' : 'Read more'),
+                child: Text(
+                  _expanded
+                      ? context.l10n.commonShowLess
+                      : context.l10n.commonReadMore,
+                ),
               ),
           ],
         );

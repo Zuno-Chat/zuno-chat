@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
-import '../../../core/format/chat_list_time.dart';
+import '../../../core/format/date_labels.dart';
 import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/official_room.dart';
@@ -114,14 +114,15 @@ ChatRowData chatRowDataFor(
   Room room, {
   required Map<String, int> unreadCorrections,
   required DateTime now,
-  required bool use24Hour,
+  required DateLabels labels,
 }) {
-  final display = roomInviteDisplay(room);
+  final display = roomInviteDisplay(room, labels.l10n);
   final event = room.lastEvent;
   final summary = event != null && isPreviewableLastEvent(event)
-      ? summarize(event)
+      ? summarize(labels.l10n, event)
       : null;
   final typing = typingIndicatorText(
+    labels.l10n,
     room.typingUsers.where((user) => user.id != room.client.userID).toList(),
   );
 
@@ -138,17 +139,13 @@ ChatRowData chatRowDataFor(
     typingText: typing,
     timeLabel: event == null || display.awaitingAcceptance
         ? ''
-        : chatListTimeLabel(
-            event.originServerTs,
-            now: now,
-            use24Hour: use24Hour,
-          ),
+        : labels.chatList(event.originServerTs, now: now),
     unread: displayedUnreadCount(unreadCorrections, room),
     muted: room.pushRuleState == PushRuleState.dontNotify,
     encrypted: room.encrypted,
     awaitingAcceptance: display.awaitingAcceptance,
     pendingInviteSubtitle: display.awaitingAcceptance
-        ? pendingInviteSubtitle(room)
+        ? pendingInviteSubtitle(room, labels.l10n)
         : null,
     partnerLeft: display.partnerLeft,
     official: isOfficialZunoRoom(room),
@@ -160,12 +157,12 @@ ChatRowData communityRowDataFor(
   List<Room> rooms, {
   required Map<String, int> unreadCorrections,
   required DateTime now,
-  required bool use24Hour,
+  required DateLabels labels,
 }) {
   final newest = rooms.firstOrNull;
   final event = newest?.lastEvent;
   final summary = event != null && isPreviewableLastEvent(event)
-      ? summarize(event)
+      ? summarize(labels.l10n, event)
       : null;
   var unread = 0;
   for (final room in rooms) {
@@ -175,7 +172,7 @@ ChatRowData communityRowDataFor(
 
   return ChatRowData(
     roomId: community.id,
-    title: roomTitle(community),
+    title: roomTitle(community, labels.l10n),
     avatarUrl: community.avatar,
     isDirect: false,
     community: true,
@@ -184,15 +181,11 @@ ChatRowData communityRowDataFor(
     lastEventStatus: event?.status,
     previewKind: summary?.kind,
     previewText: summary?.text,
-    previewSource: newest == null ? null : roomTitle(newest),
+    previewSource: newest == null ? null : roomTitle(newest, labels.l10n),
     typingText: null,
     timeLabel: event == null
         ? ''
-        : chatListTimeLabel(
-            event.originServerTs,
-            now: now,
-            use24Hour: use24Hour,
-          ),
+        : labels.chatList(event.originServerTs, now: now),
     unread: unread,
     muted: false,
     encrypted: true,

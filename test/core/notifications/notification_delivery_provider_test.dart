@@ -6,6 +6,7 @@ import 'package:zuno/core/notifications/background_sync_delivery_provider.dart';
 import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
 import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/notifications/notification_delivery_provider.dart';
+import 'package:zuno/core/notifications/pusher_failure.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns_pusher.dart';
 import 'package:zuno/core/push/fcm_bridge.dart';
@@ -312,13 +313,13 @@ void main() {
     test(
       'the last error shown is the running transport, not the other one',
       () {
-        unifiedPushDeliveryProvider.lastPusherError =
-            'ntfy refused the endpoint';
+        const failure = PusherPostFailed('ntfy refused the endpoint');
+        unifiedPushDeliveryProvider.lastPusherError = failure;
 
         expect(lastPusherErrorFor(NotificationDeliveryMode.fcm), isNull);
         expect(
           lastPusherErrorFor(NotificationDeliveryMode.unifiedPush),
-          'ntfy refused the endpoint',
+          failure,
         );
       },
     );
@@ -349,12 +350,10 @@ void main() {
       });
 
       test('its last error is shown, not the Android one', () {
-        apnsDeliveryProvider.lastPusherError = 'M_FORBIDDEN';
+        const failure = PusherPostFailed('M_FORBIDDEN');
+        apnsDeliveryProvider.lastPusherError = failure;
 
-        expect(
-          lastPusherErrorFor(NotificationDeliveryMode.apns),
-          'M_FORBIDDEN',
-        );
+        expect(lastPusherErrorFor(NotificationDeliveryMode.apns), failure);
         expect(lastPusherErrorFor(NotificationDeliveryMode.fcm), isNull);
       });
     });

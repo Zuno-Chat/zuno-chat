@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/communities/presentation/join_requests_view.dart';
 
@@ -87,6 +88,8 @@ void main() {
   Future<void> pump(WidgetTester tester, Widget child) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         home: Scaffold(body: Column(children: [child])),
       ),
@@ -173,6 +176,17 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Maya'), findsOneWidget);
+    });
+
+    testWidgets('names the first asker and counts the rest', (tester) async {
+      levels(50);
+      asking('@maya:example.org', 'Maya');
+      asking('@leo:example.org', 'Leo');
+      asking('@sam:example.org', 'Sam');
+      asking('@ida:example.org', 'Ida');
+      await pump(tester, JoinRequestsBanner(room: room));
+
+      expect(find.textContaining('and 3 others'), findsOneWidget);
     });
 
     testWidgets('several requests open a sheet that closes when all are '

@@ -21,6 +21,8 @@ import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/calls/platform/system_ring.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
+import '../../../core/l10n/display_text.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/communities.dart';
 import '../../../core/matrix/join_requests.dart';
 import '../../../core/matrix/join_room.dart';
@@ -97,15 +99,21 @@ enum _NewChatType {
 
 enum _RoomAction { markRead, mute, unmute, exit }
 
-const _chatsMenu = [
-  (_NewChatType.directMessage, Icons.person_outline, 'New chat'),
-  (_NewChatType.group, Icons.groups_outlined, 'New room'),
-  (_NewChatType.findPublicRooms, Icons.search, 'Find public rooms'),
+List<(_NewChatType, IconData, String)> _chatsMenu(AppLocalizations l10n) => [
+  (_NewChatType.directMessage, Icons.person_outline, l10n.roomsNewChat),
+  (_NewChatType.group, Icons.groups_outlined, l10n.roomsNewRoom),
+  (_NewChatType.findPublicRooms, Icons.search, l10n.roomsFindPublicRooms),
 ];
 
-const _communitiesMenu = [
-  (_NewChatType.community, Icons.workspaces_outlined, 'New community'),
-  (_NewChatType.findPublicCommunities, Icons.search, 'Find public communities'),
+List<(_NewChatType, IconData, String)> _communitiesMenu(
+  AppLocalizations l10n,
+) => [
+  (_NewChatType.community, Icons.workspaces_outlined, l10n.roomsNewCommunity),
+  (
+    _NewChatType.findPublicCommunities,
+    Icons.search,
+    l10n.roomsFindPublicCommunities,
+  ),
 ];
 
 class RoomListPage extends ConsumerStatefulWidget {
@@ -128,7 +136,10 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
   }
 
   Future<void> _newChat(BuildContext context, Client client) async {
-    final options = _tab == HomeTab.chats ? _chatsMenu : _communitiesMenu;
+    final l10n = context.l10n;
+    final options = _tab == HomeTab.chats
+        ? _chatsMenu(l10n)
+        : _communitiesMenu(l10n);
     final type = await showSheet<_NewChatType>(
       context: context,
       builder: (context) => SafeArea(
@@ -164,15 +175,15 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     final userId = await showLocalUsernameDialog(
       context,
       client: client,
-      title: 'New chat',
-      actionLabel: 'Start',
+      title: context.l10n.roomsNewChat,
+      actionLabel: context.l10n.roomsStart,
     );
     if (userId == null || !context.mounted) return;
     await _createAndOpen(
       context,
       client,
       () => client.startDirectChat(userId, enableEncryption: true),
-      failed: 'Could not start the chat.',
+      failed: context.l10n.roomsCouldNotStartChat,
     );
   }
 
@@ -183,15 +194,15 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       context,
       client,
       () => createGroupRoom(client, name: newRoom.name, access: newRoom.access),
-      failed: 'Could not create the room.',
+      failed: context.l10n.roomsCouldNotCreateRoom,
     );
   }
 
   Future<void> _createCommunity(BuildContext context, Client client) async {
     final newCommunity = await showNewRoomDialog(
       context,
-      title: 'New community',
-      hint: 'Community name',
+      title: context.l10n.roomsNewCommunity,
+      hint: context.l10n.communitiesCommunityName,
     );
     if (newCommunity == null || newCommunity.name.isEmpty || !context.mounted) {
       return;
@@ -204,7 +215,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
         name: newCommunity.name,
         access: newCommunity.access,
       ),
-      failed: 'Could not create the community.',
+      failed: context.l10n.roomsCouldNotCreateCommunity,
     );
   }
 
@@ -229,8 +240,8 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
         return roomId;
       },
       failed: communities
-          ? 'Could not join the community.'
-          : 'Could not join the room.',
+          ? context.l10n.roomsCouldNotJoinCommunity
+          : context.l10n.roomsCouldNotJoinRoom,
     );
   }
 
@@ -238,9 +249,10 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     BuildContext context,
     Client client,
     Future<String> Function() action, {
-    required String failed,
+    @displayText required String failed,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       final roomId = await action();
       final room = client.getRoomById(roomId);
@@ -250,12 +262,12 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       }
     } on RoomListingRefused {
       messenger.showSnackBar(
-        const SnackBar(content: Text(RoomListingRefused.message)),
+        SnackBar(content: Text(l10n.matrixRoomListingRefused)),
       );
     } catch (e, s) {
       reportCaught('create or join room', e, s);
       messenger.showSnackBar(
-        SnackBar(content: Text(failureMessage(e, failed: failed))),
+        SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
       );
     }
   }
@@ -315,21 +327,18 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Keep your messages if you lose this device'),
+        title: Text(context.l10n.roomsRecoveryPromptTitle),
         actionsOverflowDirection: VerticalDirection.up,
         actionsOverflowButtonSpacing: 4,
-        content: const Text(
-          'Right now they exist only on this device. A recovery code is twelve '
-          'words that bring them back on a new one.',
-        ),
+        content: Text(context.l10n.roomsRecoveryPromptBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Not now'),
+            child: Text(context.l10n.commonNotNow),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Set up recovery'),
+            child: Text(context.l10n.securitySetUpRecovery),
           ),
         ],
       ),
@@ -345,6 +354,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
   ) async {
     if (keyVerification.isDone) return;
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     final isOwnDevice =
         keyVerification.userId == ref.read(matrixClientProvider).userID;
     final accept = await showDialog<bool>(
@@ -354,6 +364,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     );
     if (keyVerification.isDone) {
       final message = verificationCancelMessage(
+        l10n,
         code: keyVerification.canceledCode,
         isOwnDevice: isOwnDevice,
       );
@@ -390,7 +401,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
             if (hasUnread)
               ListTile(
                 leading: const Icon(Icons.mark_chat_read_outlined),
-                title: const Text('Mark as read'),
+                title: Text(context.l10n.commonMarkAsRead),
                 onTap: () => Navigator.of(context).pop(_RoomAction.markRead),
               ),
             if (!isCommunity)
@@ -400,7 +411,9 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
                       ? Icons.notifications_active_outlined
                       : Icons.notifications_off_outlined,
                 ),
-                title: Text(isMuted ? 'Unmute' : 'Mute'),
+                title: Text(
+                  isMuted ? context.l10n.roomsUnmute : context.l10n.roomsMute,
+                ),
                 onTap: () =>
                     Navigator.of(context)
                         .pop(isMuted ? _RoomAction.unmute : _RoomAction.mute),
@@ -411,7 +424,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
                 color: Theme.of(context).colorScheme.error,
               ),
               title: Text(
-                roomExitLabel(room),
+                roomExitLabel(room, context.l10n),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
               onTap: () => Navigator.of(context).pop(_RoomAction.exit),
@@ -423,16 +436,17 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     if (action == null || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     Future<void> attempt(
       Future<void> Function() write, {
-      required String failed,
+      @displayText required String failed,
     }) async {
       try {
         await write();
       } catch (e, s) {
         reportCaught('room action ${action.name}', e, s);
         messenger.showSnackBar(
-          SnackBar(content: Text(failureMessage(e, failed: failed))),
+          SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
         );
       }
     }
@@ -442,17 +456,17 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
         final lastEventId = room.lastEvent?.eventId;
         await attempt(
           () => room.setReadMarker(lastEventId, mRead: lastEventId),
-          failed: 'Not marked as read.',
+          failed: l10n.roomsNotMarkedAsRead,
         );
       case _RoomAction.mute:
         await attempt(
           () => room.setPushRuleState(PushRuleState.dontNotify),
-          failed: 'Not muted.',
+          failed: l10n.roomsNotMuted,
         );
       case _RoomAction.unmute:
         await attempt(
           () => room.setPushRuleState(PushRuleState.notify),
-          failed: 'Not unmuted.',
+          failed: l10n.roomsNotUnmuted,
         );
       case _RoomAction.exit:
         await confirmAndExitRoom(
@@ -549,13 +563,13 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
               centerTitle: false,
               titleSpacing: 20,
               title: Text(
-                communities ? 'Communities' : 'Chats',
+                _tab.label(context.l10n),
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.settings_outlined),
-                  tooltip: 'Settings',
+                  tooltip: context.l10n.roomsSettings,
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SettingsPage()),
                   ),

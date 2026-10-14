@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/apns_delivery_provider.dart';
 import 'package:zuno/core/notifications/delivery_failure.dart';
@@ -80,7 +81,11 @@ Future<ProviderContainer> _pumpPage(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: MaterialApp(home: NotificationsSettingsPage(osVersion: osVersion)),
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: NotificationsSettingsPage(osVersion: osVersion),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -100,6 +105,7 @@ class _DiagnosticsSource implements PushDiagnosticsSource {
 
   @override
   Future<List<RecentPush>> recentPushes(
+    AppLocalizations l10n,
     PlatformCapabilities capabilities,
     NotificationDeliveryMode mode,
   ) async => const [];
@@ -128,7 +134,7 @@ void main() {
     );
     expect(
       (row.subtitle! as Text).data,
-      NotificationDeliveryMode.backgroundService.label,
+      NotificationDeliveryMode.backgroundService.label(englishLocalizations),
     );
   });
 
@@ -360,7 +366,7 @@ void main() {
     testWidgets('with notifications off no problem shows, even one still '
         'reported', (tester) async {
       const failure = DeliveryFailure(
-        message: 'Could not set up notifications on this device',
+        reason: DeliveryFailureReason.setupFailed,
         action: DeliveryFailureAction.retry,
       );
       await pumpApplePush(
@@ -370,7 +376,7 @@ void main() {
         overrides: [deliveryFailureProvider.overrideWithValue(failure)],
       );
 
-      expect(find.text(failure.message), findsNothing);
+      expect(find.text(failure.message(englishLocalizations)), findsNothing);
       expect(retry(), findsNothing);
     });
 
