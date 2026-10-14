@@ -228,7 +228,7 @@ void main() {
         (
           LiveLocationAvailability.notAllowed,
           false,
-          'A room admin can turn on live location under Permissions.',
+          'A room admin can turn on live location under Roles & permissions.',
         ),
         (
           LiveLocationAvailability.notAllowed,

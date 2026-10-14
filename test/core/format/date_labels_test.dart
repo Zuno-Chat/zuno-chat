@@ -205,4 +205,14 @@ void main() {
     expect(greek.longDate(DateTime(2026, 1, 5)), contains('Ιανουαρίου'));
     expect(greek.day(DateTime(2026, 10, 13, 9), now: now), 'Χθες');
   });
+
+  test('a Portuguese phone gets Portuguese dates and words', () {
+    final portuguese = DateLabels(
+      lookupAppLocalizations(const Locale('pt', 'PT')),
+      locale: dateLocale('pt_PT', const [Locale('pt', 'PT')]),
+      use24Hour: true,
+    );
+    expect(portuguese.longDate(DateTime(2026, 1, 5)), contains('janeiro'));
+    expect(portuguese.day(DateTime(2026, 10, 13, 9), now: now), 'Ontem');
+  });
 }

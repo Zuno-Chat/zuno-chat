@@ -1761,7 +1761,7 @@
       "app"
     ]
   },
-  "locationLiveNeedsAdmin": "A room admin can turn on live location under Permissions.",
+  "locationLiveNeedsAdmin": "A room admin can turn on live location under Roles & permissions.",
   "locationLiveNotInChat": "Live location is not available in this chat.",
   "locationNoMapsApp": "No maps app found",
   "locationNobodySharing": "Nobody is sharing live location here right now.",

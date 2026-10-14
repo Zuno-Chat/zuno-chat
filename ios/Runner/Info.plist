@@ -6,6 +6,8 @@
 	<array>
 		<string>en</string>
 		<string>el</string>
+		<string>pt-BR</string>
+		<string>pt-PT</string>
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>

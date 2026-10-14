@@ -15,6 +15,18 @@
             "state" : "translated",
             "value" : "Zuno uses the camera for video calls, photos and videos you take, and scanning sign-in and verification codes."
           }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno usa a câmera para chamadas de vídeo, para as fotos e vídeos que você tira e para escanear códigos de login e de verificação."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno usa a câmara para videochamadas, para as fotografias e vídeos que tira e para ler códigos de início de sessão e de verificação."
+          }
         }
       }
     },
@@ -31,6 +43,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zuno uses your location only when you send it or share it live in a chat or room."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno usa sua localização só quando você a envia ou compartilha em tempo real em uma conversa ou sala."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno usa a sua localização só quando a envia ou a partilha em tempo real numa conversa ou sala."
           }
         }
       }
@@ -49,6 +73,18 @@
             "state" : "translated",
             "value" : "Zuno uses your location only when you send it or share it live in a chat or room."
           }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno usa sua localização só quando você a envia ou compartilha em tempo real em uma conversa ou sala."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno usa a sua localização só quando a envia ou a partilha em tempo real numa conversa ou sala."
+          }
         }
       }
     },
@@ -65,6 +101,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zuno uses the microphone for calls, voice messages and videos you record."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno usa o microfone para chamadas, mensagens de voz e vídeos que você grava."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno usa o microfone para chamadas, mensagens de voz e vídeos que grava."
           }
         }
       }
@@ -83,6 +131,18 @@
             "state" : "translated",
             "value" : "Zuno saves photos and videos to your library only when you tap Save."
           }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno salva fotos e vídeos na sua galeria só quando você toca em “Salvar”."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno guarda fotografias e vídeos na sua fototeca só quando toca em «Guardar»."
+          }
         }
       }
     },
@@ -99,6 +159,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zuno uses only the photos and videos you choose, to send them or to set a profile or room photo."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno usa só as fotos e vídeos que você escolher, para enviá-los ou para definir uma foto do perfil ou da sala."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Zuno usa só as fotografias e vídeos que escolher, para os enviar ou para definir uma fotografia de perfil ou de sala."
           }
         }
       }

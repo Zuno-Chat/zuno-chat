@@ -48,6 +48,27 @@ void main() {
       expect(AppLocale.instance.value, const Locale('el'));
     });
 
+    test('a regional answer maps to its own file', () async {
+      reply = () => 'pt_PT';
+
+      await AppLocale.instance.start();
+
+      expect(AppLocale.instance.value, const Locale('pt', 'PT'));
+      expect(deviceLocalizations().localeName, 'pt_PT');
+    });
+
+    testWidgets('a failed read gives a Portuguese phone its own region', (
+      tester,
+    ) async {
+      tester.platformDispatcher.localesTestValue = const [Locale('pt', 'PT')];
+      addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+      reply = () => throw PlatformException(code: 'boom');
+
+      await tester.runAsync(AppLocale.instance.start);
+
+      expect(AppLocale.instance.value, const Locale('pt', 'PT'));
+    });
+
     test('a language Zuno does not ship falls back to English', () async {
       reply = () => 'xx';
 
@@ -105,6 +126,24 @@ void main() {
 
   test('a Greek lookup is Greek', () {
     expect(lookupAppLocalizations(const Locale('el')).commonCancel, 'Ακύρωση');
+  });
+
+  test('Portuguese ships in two regions, each naming itself', () {
+    expect(
+      lookupAppLocalizations(const Locale('pt')).languageNativeName,
+      'Português (Brasil)',
+    );
+    expect(
+      lookupAppLocalizations(const Locale('pt', 'PT')).languageNativeName,
+      'Português (Portugal)',
+    );
+  });
+
+  test('European Portuguese counts zero as plural', () {
+    expect(
+      lookupAppLocalizations(const Locale('pt', 'PT')).unitsMembers(0),
+      '0 membros',
+    );
   });
 
   test('englishLocalizations is English', () {
