@@ -16,6 +16,12 @@
             "value" : "Zuno call"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel Zuno"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -43,6 +49,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Incoming video call"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel vidéo entrant"
           }
         },
         "pt-BR" : {
@@ -74,6 +86,12 @@
             "value" : "Incoming voice call"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel vocal entrant"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -101,6 +119,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unlock this device after a restart to answer calls."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez cet appareil après un redémarrage pour répondre aux appels."
           }
         },
         "pt-BR" : {
@@ -132,6 +156,12 @@
             "value" : "Missed call"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel manqué"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -159,6 +189,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zuno is hidden while the screen is recorded or shared."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno se masque pendant l’enregistrement ou le partage de l’écran."
           }
         },
         "pt-BR" : {
@@ -190,6 +226,12 @@
             "value" : "Video call declined"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel vidéo refusé"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -217,6 +259,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voice call declined"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel vocal refusé"
           }
         },
         "pt-BR" : {
@@ -248,6 +296,12 @@
             "value" : "Video call · %1$@"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel vidéo · %1$@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -275,6 +329,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voice call · %1$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel vocal · %1$@"
           }
         },
         "pt-BR" : {
@@ -306,6 +366,12 @@
             "value" : "Missed Video call"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel vidéo manqué"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -333,6 +399,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Missed Voice call"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel vocal manqué"
           }
         },
         "pt-BR" : {
@@ -364,6 +436,12 @@
             "value" : "Video call"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel vidéo"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -391,6 +469,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voice call"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appel vocal"
           }
         },
         "pt-BR" : {
@@ -422,6 +506,12 @@
             "value" : "Cancel"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuler"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -449,6 +539,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fermer"
           }
         },
         "pt-BR" : {
@@ -480,6 +576,12 @@
             "value" : "Mark as read"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marquer comme lu"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -504,6 +606,12 @@
           }
         },
         "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message"
+          }
+        },
+        "fr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Message"
@@ -538,6 +646,12 @@
             "value" : "Reply"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Répondre"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -565,6 +679,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Send"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoyer"
           }
         },
         "pt-BR" : {
@@ -596,6 +716,12 @@
             "value" : "en"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "fr"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -623,6 +749,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Preparing to share…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Préparation du partage…"
           }
         },
         "pt-BR" : {
@@ -654,6 +786,12 @@
             "value" : "Message deleted"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message supprimé"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -681,6 +819,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Live location"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Position en direct"
           }
         },
         "pt-BR" : {
@@ -712,6 +856,12 @@
             "value" : "Location"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Position"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -741,6 +891,12 @@
             "value" : "%1$@ event"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Événement %1$@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -765,6 +921,12 @@
           }
         },
         "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo"
+          }
+        },
+        "fr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Photo"
@@ -799,6 +961,12 @@
             "value" : "Video"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vidéo"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -828,6 +996,12 @@
             "value" : "Voice message"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message vocal"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -855,6 +1029,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Invited you to %1$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invitation à rejoindre « %1$@ »"
           }
         },
         "pt-BR" : {
@@ -905,6 +1085,24 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "New messages in %1$lld more chats"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nouveaux messages dans %1$lld autre conversation"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nouveaux messages dans %1$lld autres conversations"
                 }
               }
             }
@@ -975,6 +1173,18 @@
             }
           }
         },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nouveaux messages dans %1$lld autres conversations et salons"
+                }
+              }
+            }
+          }
+        },
         "pt-BR" : {
           "variations" : {
             "plural" : {
@@ -1040,6 +1250,24 @@
             }
           }
         },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nouveaux messages dans %1$lld autre salon"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nouveaux messages dans %1$lld autres salons"
+                }
+              }
+            }
+          }
+        },
         "pt-BR" : {
           "variations" : {
             "plural" : {
@@ -1093,6 +1321,12 @@
             "value" : "New activity"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouvelle activité"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1120,6 +1354,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New message"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau message"
           }
         },
         "pt-BR" : {
@@ -1151,6 +1391,12 @@
             "value" : "Redacted"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message supprimé"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1178,6 +1424,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Message not sent. Open Zuno and send it again."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message non envoyé. Ouvrez Zuno et renvoyez-le."
           }
         },
         "pt-BR" : {
@@ -1209,6 +1461,12 @@
             "value" : "%1$@: %2$@"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ : %2$@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1236,6 +1494,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notifications work"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les notifications fonctionnent"
           }
         },
         "pt-BR" : {
@@ -1267,6 +1531,12 @@
             "value" : "Unknown message format of type \"%1$@\""
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format de message inconnu de type \"%1$@\""
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1294,6 +1564,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wants to verify you"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Souhaite vous vérifier"
           }
         },
         "pt-BR" : {
@@ -1325,6 +1601,12 @@
             "value" : "Invited you to chat"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous invite à une conversation"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1354,6 +1636,12 @@
             "value" : "Open Zuno in the next few minutes to finish sharing."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez Zuno dans les prochaines minutes pour terminer le partage."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1381,6 +1669,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Could not read what was shared. Try again."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de lire le contenu partagé. Réessayez."
           }
         },
         "pt-BR" : {

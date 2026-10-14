@@ -215,4 +215,14 @@ void main() {
     expect(portuguese.longDate(DateTime(2026, 1, 5)), contains('janeiro'));
     expect(portuguese.day(DateTime(2026, 10, 13, 9), now: now), 'Ontem');
   });
+
+  test('a French phone gets French dates and words', () {
+    final french = DateLabels(
+      lookupAppLocalizations(const Locale('fr')),
+      locale: dateLocale('fr', const [Locale('fr', 'FR')]),
+      use24Hour: true,
+    );
+    expect(french.longDate(DateTime(2026, 1, 5)), contains('janvier'));
+    expect(french.day(DateTime(2026, 10, 13, 9), now: now), 'Hier');
+  });
 }

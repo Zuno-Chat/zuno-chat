@@ -74,7 +74,7 @@ void main() {
         'supported': true,
         'options': [
           {'tag': 'en', 'locale': 'en'},
-          {'tag': 'fr', 'locale': 'fr'},
+          {'tag': 'xx', 'locale': 'xx'},
         ],
       })!;
 
@@ -124,14 +124,14 @@ void main() {
         isNull,
       );
       expect(
-        parseAppLanguage({'supported': true, 'tag': 'fr', 'options': options})!
+        parseAppLanguage({'supported': true, 'tag': 'xx', 'options': options})!
             .chosen,
         isNull,
       );
       expect(
         parseAppLanguage({
           'supported': true,
-          'tag': 'fr',
+          'tag': 'xx',
           'locale': 'xx',
           'options': options,
         })!.chosen,

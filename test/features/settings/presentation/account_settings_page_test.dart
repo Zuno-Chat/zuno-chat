@@ -575,7 +575,7 @@ void main() {
     testWidgets('a tag that resolves to no row ticks nothing, not Device '
         'language', (tester) async {
       ambientCapabilities = androidCapabilities;
-      localeReply = {'supported': true, 'tag': 'fr', 'options': shipped};
+      localeReply = {'supported': true, 'tag': 'xx', 'options': shipped};
       mockLocaleChannel(tester);
       await pumpPage(tester);
 

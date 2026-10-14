@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="commonYou">Vous</string>
+    <string name="notificationsFallbackChatName">Conversation</string>
+    <string name="notificationsMissedPushes">Certaines notifications n’ont pas pu être distribuées. Ouvrez Zuno pour voir les nouveaux messages.</string>
+    <string name="notificationsNewMessage">Nouveau message</string>
+    <string name="notificationsTapToOpen">Touchez pour ouvrir</string>
+    <string name="notificationsTestWorks">Les notifications fonctionnent</string>
+</resources>

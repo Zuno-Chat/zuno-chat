@@ -146,6 +146,12 @@ void main() {
     );
   });
 
+  test('French names itself and counts zero as singular', () {
+    final french = lookupAppLocalizations(const Locale('fr'));
+    expect(french.languageNativeName, 'Français');
+    expect(french.unitsMembers(0), '0 membre');
+  });
+
   test('englishLocalizations is English', () {
     expect(englishLocalizations.localeName, 'en');
   });
