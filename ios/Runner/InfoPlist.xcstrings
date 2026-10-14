@@ -40,6 +40,12 @@
             "value" : "Zuno usa la fotocamera per le videochiamate, per le foto e i video che fai e per scansionare i codici di accesso e di verifica."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno używa kamery do połączeń wideo, robienia zdjęć i filmów oraz skanowania kodów logowania i weryfikacji."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -91,6 +97,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zuno usa la tua posizione solo quando la invii o la condividi in tempo reale in una chat o in una stanza."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno używa Twojej lokalizacji tylko wtedy, gdy ją wysyłasz lub udostępniasz na żywo w czacie albo pokoju."
           }
         },
         "pt-BR" : {
@@ -146,6 +158,12 @@
             "value" : "Zuno usa la tua posizione solo quando la invii o la condividi in tempo reale in una chat o in una stanza."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno używa Twojej lokalizacji tylko wtedy, gdy ją wysyłasz lub udostępniasz na żywo w czacie albo pokoju."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -197,6 +215,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zuno usa il microfono per le chiamate, i messaggi vocali e i video che registri."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno używa mikrofonu do połączeń, wiadomości głosowych i nagrywanych filmów."
           }
         },
         "pt-BR" : {
@@ -252,6 +276,12 @@
             "value" : "Zuno salva foto e video nella tua libreria solo quando tocchi «Salva»."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno zapisuje zdjęcia i filmy w Twojej bibliotece tylko wtedy, gdy dotkniesz „Zapisz”."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -303,6 +333,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zuno usa solo le foto e i video che scegli, per inviarli o impostarli come foto del profilo o della stanza."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno używa tylko wybranych przez Ciebie zdjęć i filmów, aby je wysłać lub ustawić zdjęcie profilowe albo zdjęcie pokoju."
           }
         },
         "pt-BR" : {

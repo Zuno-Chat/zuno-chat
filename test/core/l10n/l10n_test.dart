@@ -133,10 +133,24 @@ void main() {
       (Locale('es'), 'Español', '0 miembros'),
       (Locale('it'), 'Italiano', '0 membri'),
       (Locale('de'), 'Deutsch', '0 Mitglieder'),
+      (Locale('pl'), 'Polski', '0 członków'),
     ]) {
       final l10n = lookupAppLocalizations(locale);
       expect(l10n.languageNativeName, name, reason: '$locale');
       expect(l10n.unitsMembers(0), zero, reason: '$locale');
+    }
+  });
+
+  test('Polish counts 2 to 4 apart from 5 and up, except the teens', () {
+    final l10n = lookupAppLocalizations(const Locale('pl'));
+    for (final (count, text) in const [
+      (1, 'Ania i 1 inna osoba'),
+      (2, 'Ania i 2 inne osoby'),
+      (5, 'Ania i 5 innych osób'),
+      (12, 'Ania i 12 innych osób'),
+      (22, 'Ania i 22 inne osoby'),
+    ]) {
+      expect(l10n.communitiesNameAndOthers('Ania', count), text);
     }
   });
 

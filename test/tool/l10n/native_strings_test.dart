@@ -136,6 +136,29 @@ void main() {
     );
   });
 
+  test('a translation keeps the plural cases its language needs, few and '
+      'many included', () {
+    final out = buildOutputs(
+      _repo({
+        'app_en.arb': '''{
+  "@@locale": "en",
+  "moreChats": "{count, plural, one{{count} more chat} other{{count} more chats}}",
+  "@moreChats": {"x-native": ["ios", "zuno_notifications"], "placeholders": {"count": {"type": "int"}}}
+}''',
+        'app_pl.arb': '{"@@locale": "pl", "moreChats": "{count, plural, one{{count} czat} few{{count} czaty} many{{count} czatów} other{{count} czatów}}"}',
+      }),
+    );
+    final android =
+        out['packages/zuno_notifications/android/src/main/res/values-pl/strings_l10n.xml']!;
+    expect(android, contains(r'<item quantity="few">%1$d czaty</item>'));
+    expect(android, contains(r'<item quantity="many">%1$d czatów</item>'));
+    final polish =
+        _catalogLocalizations(out, 'moreChats')['pl']! as Map<String, Object?>;
+    final variations = polish['variations']! as Map<String, Object?>;
+    final plural = variations['plural']! as Map<String, Object?>;
+    expect(plural.keys, unorderedEquals(['one', 'few', 'many', 'other']));
+  });
+
   test(
     'an untranslated key falls back to English instead of an empty string',
     () {

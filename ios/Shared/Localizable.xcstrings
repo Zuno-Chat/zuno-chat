@@ -40,6 +40,12 @@
             "value" : "Chiamata Zuno"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Połączenie Zuno"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -91,6 +97,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Videochiamata in arrivo"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przychodzące połączenie wideo"
           }
         },
         "pt-BR" : {
@@ -146,6 +158,12 @@
             "value" : "Chiamata vocale in arrivo"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przychodzące połączenie głosowe"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -197,6 +215,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sblocca questo dispositivo dopo un riavvio per rispondere alle chiamate."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Po ponownym uruchomieniu odblokuj to urządzenie, aby odbierać połączenia."
           }
         },
         "pt-BR" : {
@@ -252,6 +276,12 @@
             "value" : "Chiamata persa"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieodebrane połączenie"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -303,6 +333,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zuno non è visibile durante la registrazione o la condivisione dello schermo."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Podczas nagrywania lub udostępniania ekranu Zuno się ukrywa."
           }
         },
         "pt-BR" : {
@@ -358,6 +394,12 @@
             "value" : "Videochiamata rifiutata"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odrzucone połączenie wideo"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -409,6 +451,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chiamata vocale rifiutata"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odrzucone połączenie głosowe"
           }
         },
         "pt-BR" : {
@@ -464,6 +512,12 @@
             "value" : "Videochiamata · %1$@"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Połączenie wideo · %1$@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -515,6 +569,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chiamata vocale · %1$@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Połączenie głosowe · %1$@"
           }
         },
         "pt-BR" : {
@@ -570,6 +630,12 @@
             "value" : "Videochiamata persa"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieodebrane połączenie wideo"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -621,6 +687,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chiamata vocale persa"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieodebrane połączenie głosowe"
           }
         },
         "pt-BR" : {
@@ -676,6 +748,12 @@
             "value" : "Videochiamata"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Połączenie wideo"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -727,6 +805,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chiamata vocale"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Połączenie głosowe"
           }
         },
         "pt-BR" : {
@@ -782,6 +866,12 @@
             "value" : "Annulla"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anuluj"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -833,6 +923,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chiudi"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zamknij"
           }
         },
         "pt-BR" : {
@@ -888,6 +984,12 @@
             "value" : "Segna come letto"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oznacz jako przeczytane"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -939,6 +1041,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Messaggio"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiadomość"
           }
         },
         "pt-BR" : {
@@ -994,6 +1102,12 @@
             "value" : "Rispondi"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odpowiedz"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1045,6 +1159,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Invia"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wyślij"
           }
         },
         "pt-BR" : {
@@ -1100,6 +1220,12 @@
             "value" : "it"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pl"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1151,6 +1277,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Preparazione della condivisione…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przygotowywanie do udostępnienia…"
           }
         },
         "pt-BR" : {
@@ -1206,6 +1338,12 @@
             "value" : "Messaggio eliminato"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiadomość usunięta"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1257,6 +1395,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Posizione in tempo reale"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokalizacja na żywo"
           }
         },
         "pt-BR" : {
@@ -1312,6 +1456,12 @@
             "value" : "Posizione"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokalizacja"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1363,6 +1513,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Evento %1$@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zdarzenie %1$@"
           }
         },
         "pt-BR" : {
@@ -1418,6 +1574,12 @@
             "value" : "Foto"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zdjęcie"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1469,6 +1631,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Video"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Film"
           }
         },
         "pt-BR" : {
@@ -1524,6 +1692,12 @@
             "value" : "Messaggio vocale"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiadomość głosowa"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1575,6 +1749,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Invito a «%1$@»"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zaprasza Cię do pokoju „%1$@”"
           }
         },
         "pt-BR" : {
@@ -1702,6 +1882,36 @@
             }
           }
         },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nowe wiadomości w %1$lld innych czatach"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nowe wiadomości w %1$lld innych czatach"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nowe wiadomości w %1$lld innym czacie"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nowe wiadomości w %1$lld innych czatach"
+                }
+              }
+            }
+          }
+        },
         "pt-BR" : {
           "variations" : {
             "plural" : {
@@ -1810,6 +2020,18 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "Nuovi messaggi in altre %1$lld chat e stanze"
+                }
+              }
+            }
+          }
+        },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nowe wiadomości w %1$lld innych czatach i pokojach"
                 }
               }
             }
@@ -1952,6 +2174,36 @@
             }
           }
         },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nowe wiadomości w %1$lld innych pokojach"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nowe wiadomości w %1$lld innych pokojach"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nowe wiadomości w %1$lld innym pokoju"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nowe wiadomości w %1$lld innych pokojach"
+                }
+              }
+            }
+          }
+        },
         "pt-BR" : {
           "variations" : {
             "plural" : {
@@ -2029,6 +2281,12 @@
             "value" : "Nuova attività"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nowa aktywność"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2080,6 +2338,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nuovo messaggio"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nowa wiadomość"
           }
         },
         "pt-BR" : {
@@ -2135,6 +2399,12 @@
             "value" : "Rimosso"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usunięto"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2188,6 +2458,12 @@
             "value" : "Messaggio non inviato. Apri Zuno e invialo di nuovo."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie wysłano wiadomości. Otwórz Zuno i wyślij ją ponownie."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2236,6 +2512,12 @@
           }
         },
         "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@"
+          }
+        },
+        "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@: %2$@"
@@ -2294,6 +2576,12 @@
             "value" : "Le notifiche funzionano"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Powiadomienia działają"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2345,6 +2633,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Formato di messaggio sconosciuto di tipo \"%1$@\""
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieznany format wiadomości typu \"%1$@\""
           }
         },
         "pt-BR" : {
@@ -2400,6 +2694,12 @@
             "value" : "Vuole verificarti"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chce Cię zweryfikować"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2451,6 +2751,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ti invita in una chat"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zaprasza Cię do czatu"
           }
         },
         "pt-BR" : {
@@ -2506,6 +2812,12 @@
             "value" : "Apri Zuno nei prossimi minuti per completare la condivisione."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otwórz Zuno w ciągu kilku minut, aby dokończyć udostępnianie."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2557,6 +2869,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossibile leggere il contenuto condiviso. Riprova."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się odczytać udostępnionej treści. Spróbuj ponownie."
           }
         },
         "pt-BR" : {
