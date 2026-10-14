@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="l10n_locale">en</string>
     <string name="callsChannelGroupCalls">Calls</string>
     <string name="callsChannelOngoingCallDescription">Shows while you are in a call</string>
     <string name="callsHangUp">Hang up</string>

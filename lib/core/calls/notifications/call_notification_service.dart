@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
-import 'dart:ui' show IsolateNameServer, Locale;
+import 'dart:ui' show IsolateNameServer;
 
 import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
@@ -359,9 +359,9 @@ class CallNotificationService {
     _ready = true;
   }
 
-  Future<void> refreshChannelNames(List<Locale> locales) async {
+  Future<void> refreshChannelNames(AppLocalizations l10n) async {
     if (!_ready) return;
-    await _registerChannels(deviceLocalizations(locales));
+    await _registerChannels(l10n);
   }
 
   Future<void> _registerChannels(AppLocalizations l10n) async {

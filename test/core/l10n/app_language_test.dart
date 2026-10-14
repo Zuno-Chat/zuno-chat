@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -51,17 +52,91 @@ void main() {
     });
   });
 
-  group('AppLanguage.locale', () {
-    test('matches a supported locale by language code', () {
-      expect(const AppLanguage('el-GR').locale?.languageCode, 'el');
+  group('the options', () {
+    test('come from the platform, each tag with the language it gets', () {
+      final language = parseAppLanguage({
+        'supported': true,
+        'tag': null,
+        'options': [
+          {'tag': 'en', 'locale': 'en'},
+          {'tag': 'el-GR', 'locale': 'el'},
+        ],
+      })!;
+
+      expect(language.options, [
+        (tag: 'en', locale: const Locale('en')),
+        (tag: 'el-GR', locale: const Locale('el')),
+      ]);
     });
 
-    test('is null for the device language', () {
-      expect(const AppLanguage(null).locale, isNull);
+    test('one naming a language Zuno does not ship is left out', () {
+      final language = parseAppLanguage({
+        'supported': true,
+        'options': [
+          {'tag': 'en', 'locale': 'en'},
+          {'tag': 'fr', 'locale': 'fr'},
+        ],
+      })!;
+
+      expect(language.options.map((o) => o.tag), ['en']);
     });
 
-    test('is null for a language Zuno does not ship', () {
-      expect(const AppLanguage('fr').locale, isNull);
+    test('none sent reads as none', () {
+      expect(parseAppLanguage({'supported': true})!.options, isEmpty);
+    });
+
+    test('the chosen one is the option with the exact tag', () {
+      final language = parseAppLanguage({
+        'supported': true,
+        'tag': 'el-GR',
+        'locale': 'el',
+        'options': [
+          {'tag': 'el', 'locale': 'el'},
+          {'tag': 'el-GR', 'locale': 'el'},
+        ],
+      })!;
+
+      expect(language.chosen?.tag, 'el-GR');
+    });
+
+    test('a tag no option has picks the option with the language Android '
+        'resolves it to', () {
+      final language = parseAppLanguage({
+        'supported': true,
+        'tag': 'el-GR',
+        'locale': 'el',
+        'options': [
+          {'tag': 'en', 'locale': 'en'},
+          {'tag': 'el', 'locale': 'el'},
+        ],
+      })!;
+
+      expect(language.chosen?.tag, 'el');
+    });
+
+    test('nothing is chosen for the device language or a tag that resolves '
+        'to no option', () {
+      const options = [
+        {'tag': 'el', 'locale': 'el'},
+      ];
+      expect(
+        parseAppLanguage({'supported': true, 'options': options})!.chosen,
+        isNull,
+      );
+      expect(
+        parseAppLanguage({'supported': true, 'tag': 'fr', 'options': options})!
+            .chosen,
+        isNull,
+      );
+      expect(
+        parseAppLanguage({
+          'supported': true,
+          'tag': 'fr',
+          'locale': 'xx',
+          'options': options,
+        })!.chosen,
+        isNull,
+      );
     });
   });
 

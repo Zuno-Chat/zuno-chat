@@ -8,6 +8,7 @@ import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/ringback_tone_player.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
 import 'package:zuno/core/calls/serial_lock.dart';
+import 'package:zuno/core/l10n/app_locale.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
@@ -47,6 +48,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   tearDown(KeyedSerialLock.forgetAllForTest);
   tearDown(RememberingIncomingCallPresenter.forgetForTest);
   tearDown(NativeRingbackTonePlayer.forgetForTest);
+  tearDown(AppLocale.instance.forgetForTest);
 
   await testMain();
 }

@@ -35,6 +35,7 @@ object PushEnginePlugins {
                 CaughtErrors.record(context, "push engine plugin $name", e)
             }
         }
+        AppLanguage.register(engine.dartExecutor.binaryMessenger, context)
         return engine
     }
 }

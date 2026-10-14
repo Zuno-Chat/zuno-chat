@@ -444,12 +444,16 @@ void main() {
 
   group('the language', () {
     const channel = MethodChannel('zuno/locale');
+    const shipped = [
+      {'tag': 'en', 'locale': 'en'},
+      {'tag': 'el', 'locale': 'el'},
+    ];
     late List<MethodCall> localeCalls;
-    Object? localeReply;
+    late Map<String, Object?> localeReply;
 
     setUp(() {
       localeCalls = [];
-      localeReply = {'supported': true, 'tag': null};
+      localeReply = {'supported': true, 'tag': null, 'options': shipped};
     });
 
     void mockLocaleChannel(WidgetTester tester) {
@@ -458,10 +462,7 @@ void main() {
       ) async {
         localeCalls.add(call);
         if (call.method == 'set') {
-          localeReply = {
-            'supported': true,
-            'tag': (call.arguments as Map)['tag'],
-          };
+          localeReply = {...localeReply, 'tag': (call.arguments as Map)['tag']};
         }
         return call.method == 'get' ? localeReply : null;
       });
@@ -472,6 +473,10 @@ void main() {
         ),
       );
     }
+
+    String? tickedTag(WidgetTester tester) => tester
+        .widget<RadioGroup<String>>(find.byType(RadioGroup<String>))
+        .groupValue;
 
     testWidgets('on Android 13 and up the row reads Device language until '
         'one is chosen', (tester) async {
@@ -513,9 +518,76 @@ void main() {
       expect(find.byType(RadioListTile<String>), findsNothing);
     });
 
+    testWidgets("the rows are the platform's list, and a choice sends its "
+        'exact tag', (tester) async {
+      ambientCapabilities = androidCapabilities;
+      localeReply = {
+        'supported': true,
+        'tag': null,
+        'options': [
+          {'tag': 'en-US', 'locale': 'en'},
+          {'tag': 'el', 'locale': 'el'},
+        ],
+      };
+      mockLocaleChannel(tester);
+      await pumpPage(tester);
+
+      await tester.tap(row('Language'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('English'));
+      await tester.pumpAndSettle();
+
+      final set = localeCalls.singleWhere((c) => c.method == 'set');
+      expect(set.arguments, {'tag': 'en-US'});
+    });
+
+    testWidgets('the chosen row is the one with the exact tag', (tester) async {
+      ambientCapabilities = androidCapabilities;
+      localeReply = {'supported': true, 'tag': 'el', 'options': shipped};
+      mockLocaleChannel(tester);
+      await pumpPage(tester);
+
+      await tester.tap(row('Language'));
+      await tester.pumpAndSettle();
+
+      expect(tickedTag(tester), 'el');
+    });
+
+    testWidgets('a regional tag Android reports ticks the row of the '
+        'language it resolves to', (tester) async {
+      ambientCapabilities = androidCapabilities;
+      localeReply = {
+        'supported': true,
+        'tag': 'el-GR',
+        'locale': 'el',
+        'options': shipped,
+      };
+      mockLocaleChannel(tester);
+      await pumpPage(tester);
+
+      expect(subtitleOf(tester, 'Language'), 'Ελληνικά');
+      await tester.tap(row('Language'));
+      await tester.pumpAndSettle();
+
+      expect(tickedTag(tester), 'el');
+    });
+
+    testWidgets('a tag that resolves to no row ticks nothing, not Device '
+        'language', (tester) async {
+      ambientCapabilities = androidCapabilities;
+      localeReply = {'supported': true, 'tag': 'fr', 'options': shipped};
+      mockLocaleChannel(tester);
+      await pumpPage(tester);
+
+      await tester.tap(row('Language'));
+      await tester.pumpAndSettle();
+
+      expect(tickedTag(tester), isNull);
+    });
+
     testWidgets('choosing Device language sends no tag', (tester) async {
       ambientCapabilities = androidCapabilities;
-      localeReply = {'supported': true, 'tag': 'el'};
+      localeReply = {'supported': true, 'tag': 'el', 'options': shipped};
       mockLocaleChannel(tester);
       await pumpPage(tester);
 
@@ -530,7 +602,7 @@ void main() {
 
     testWidgets('a chosen language shows as the subtitle', (tester) async {
       ambientCapabilities = androidCapabilities;
-      localeReply = {'supported': true, 'tag': 'el'};
+      localeReply = {'supported': true, 'tag': 'el', 'options': shipped};
       mockLocaleChannel(tester);
       await pumpPage(tester);
 

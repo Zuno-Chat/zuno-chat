@@ -662,8 +662,7 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, AppLanguage.CHANNEL)
-            .setMethodCallHandler(AppLanguage.handler(this))
+        AppLanguage.register(flutterEngine.dartExecutor.binaryMessenger, this)
 
         val deviceSafetyChannel =
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_SAFETY_CHANNEL)

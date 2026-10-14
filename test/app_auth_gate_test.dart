@@ -21,6 +21,7 @@ import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/l10n/app_language.dart';
+import 'package:zuno/core/l10n/app_locale.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
@@ -717,7 +718,6 @@ void main() {
   group('app lifecycle', () {
     testWidgets('a change of the app language reads the chosen language '
         'again', (tester) async {
-      const localeChannel = MethodChannel('zuno/locale');
       var reads = 0;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         localeChannel,
@@ -743,13 +743,50 @@ void main() {
       expect((await container.read(appLanguageProvider.future))!.tag, 'el');
     });
 
+    void answerResolved(WidgetTester tester, String Function() name) {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        localeChannel,
+        (call) async => call.method == 'resolved' ? name() : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          localeChannel,
+          null,
+        ),
+      );
+    }
+
+    testWidgets('the app shows the language the platform picked, and '
+        'follows when it picks another', (tester) async {
+      var picked = 'el';
+      answerResolved(tester, () => picked);
+      await tester.runAsync(AppLocale.instance.start);
+      await pumpApp(tester);
+      await settle(tester);
+
+      Locale? shown() =>
+          tester.widget<MaterialApp>(find.byType(MaterialApp)).locale;
+      expect(shown(), const Locale('el'));
+
+      picked = 'en';
+      tester.platformDispatcher.localesTestValue = const [Locale('en')];
+      addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+      await settle(tester);
+
+      expect(shown(), const Locale('en'));
+    });
+
     testWidgets('a change of the app language registers the notification '
         'channels again under the new names', (tester) async {
+      var picked = 'en';
+      answerResolved(tester, () => picked);
+      await tester.runAsync(AppLocale.instance.start);
       await CallNotificationService.instance.initialize();
       await pumpApp(tester);
       await settle(tester);
       notifications.channels.clear();
 
+      picked = 'el';
       tester.platformDispatcher.localesTestValue = const [Locale('el')];
       addTearDown(tester.platformDispatcher.clearLocalesTestValue);
       await settle(tester);

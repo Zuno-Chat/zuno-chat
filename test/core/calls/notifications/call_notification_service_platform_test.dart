@@ -110,7 +110,7 @@ void main() {
         await service.initialize(claimDeclinePort: false);
         notifications.channels.clear();
 
-        await service.refreshChannelNames(const [Locale('el')]);
+        await service.refreshChannelNames(greek);
 
         final chat = notifications.channels.singleWhere(
           (c) => c['id'] == messagesChannelId,
@@ -125,7 +125,7 @@ void main() {
         capabilities: androidCapabilities,
       );
 
-      await service.refreshChannelNames(const [Locale('el')]);
+      await service.refreshChannelNames(greek);
 
       expect(notifications.channels, isEmpty);
     });
@@ -137,7 +137,7 @@ void main() {
       final service = CallNotificationService(capabilities: iosCapabilities);
       await service.initialize(claimDeclinePort: false);
 
-      await service.refreshChannelNames(const [Locale('el')]);
+      await service.refreshChannelNames(greek);
 
       expect(notifications.channels, isEmpty);
     });

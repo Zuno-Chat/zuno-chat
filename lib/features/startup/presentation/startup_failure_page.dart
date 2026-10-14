@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/brand.dart';
+import '../../../core/l10n/app_locale.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/client_startup.dart';
 import '../../../core/ui/zuno_theme.dart';
@@ -12,15 +13,19 @@ class StartupFailureApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: zunoName,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      theme: zunoLightTheme,
-      darkTheme: zunoDarkTheme,
-      themeMode: ThemeMode.system,
-      debugShowCheckedModeBanner: false,
-      home: StartupFailurePage(onChoice: onChoice),
+    return ValueListenableBuilder(
+      valueListenable: AppLocale.instance,
+      builder: (context, locale, _) => MaterialApp(
+        title: zunoName,
+        locale: locale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: zunoLightTheme,
+        darkTheme: zunoDarkTheme,
+        themeMode: ThemeMode.system,
+        debugShowCheckedModeBanner: false,
+        home: StartupFailurePage(onChoice: onChoice),
+      ),
     );
   }
 }

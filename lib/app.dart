@@ -16,6 +16,7 @@ import 'core/errors/caught_errors.dart';
 import 'core/errors/global_error_handler.dart';
 import 'core/errors/native_errors.dart';
 import 'core/l10n/app_language.dart';
+import 'core/l10n/app_locale.dart';
 import 'core/l10n/l10n.dart';
 import 'core/location/live_location_capture.dart';
 import 'core/location/live_location_sharing.dart';
@@ -65,18 +66,23 @@ class ZunoApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return MaterialApp(
-      title: zunoName,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      scaffoldMessengerKey: globalScaffoldMessengerKey,
-      navigatorKey: globalNavigatorKey,
-      theme: zunoLightTheme,
-      darkTheme: zunoDarkTheme,
-      themeMode: ref.watch(themeModeProvider),
-      builder: (context, child) =>
-          _AppFrame(child: child ?? const SizedBox.shrink()),
-      home: _AuthGate(pendingRing: pendingRing),
+    final themeMode = ref.watch(themeModeProvider);
+    return ValueListenableBuilder(
+      valueListenable: AppLocale.instance,
+      builder: (context, locale, _) => MaterialApp(
+        title: zunoName,
+        locale: locale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        scaffoldMessengerKey: globalScaffoldMessengerKey,
+        navigatorKey: globalNavigatorKey,
+        theme: zunoLightTheme,
+        darkTheme: zunoDarkTheme,
+        themeMode: themeMode,
+        builder: (context, child) =>
+            _AppFrame(child: child ?? const SizedBox.shrink()),
+        home: _AuthGate(pendingRing: pendingRing),
+      ),
     );
   }
 }
@@ -167,6 +173,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    AppLocale.instance.addListener(_onAppLocale);
     unawaited(drainNativeErrors());
     ref.listenManual(nseServicesProvider, (_, _) {});
     ref.listenManual(liveLocationViewingProvider, (_, _) {});
@@ -250,6 +257,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    AppLocale.instance.removeListener(_onAppLocale);
     _shortcutSub?.cancel();
     _shareSub?.cancel();
     _messageTapSub?.cancel();
@@ -259,11 +267,12 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   }
 
   @override
-  void didChangeLocales(List<Locale>? locales) {
-    if (locales == null) return;
-    ref.invalidate(appLanguageProvider);
-    unawaited(CallNotificationService.instance.refreshChannelNames(locales));
-  }
+  void didChangeLocales(List<Locale>? locales) =>
+      ref.invalidate(appLanguageProvider);
+
+  void _onAppLocale() => unawaited(
+    CallNotificationService.instance.refreshChannelNames(deviceLocalizations()),
+  );
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -521,15 +530,19 @@ class ZunoBootSplash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: zunoName,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      theme: zunoLightTheme,
-      darkTheme: zunoDarkTheme,
-      themeMode: ThemeMode.system,
-      debugShowCheckedModeBanner: false,
-      home: const ZunoSplash(),
+    return ValueListenableBuilder(
+      valueListenable: AppLocale.instance,
+      builder: (context, locale, _) => MaterialApp(
+        title: zunoName,
+        locale: locale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: zunoLightTheme,
+        darkTheme: zunoDarkTheme,
+        themeMode: ThemeMode.system,
+        debugShowCheckedModeBanner: false,
+        home: const ZunoSplash(),
+      ),
     );
   }
 }

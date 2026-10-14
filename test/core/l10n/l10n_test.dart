@@ -1,27 +1,98 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/l10n/app_locale.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 
 void main() {
-  test('a regional variant resolves to its language', () {
-    expect(resolveAppLocale(const [Locale('en', 'GB')]), const Locale('en'));
+  TestWidgetsFlutterBinding.ensureInitialized();
+  late List<String> reads;
+  late Object? Function() reply;
+
+  setUp(() {
+    reads = [];
+    reply = () => 'en';
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(localeChannel, (call) async {
+          reads.add(call.method);
+          return reply();
+        });
   });
 
-  test('an unsupported phone language falls back to English', () {
-    expect(resolveAppLocale(const [Locale('xx')]), const Locale('en'));
-  });
+  tearDown(
+    () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(localeChannel, null),
+  );
 
-  test('an engine reporting no languages falls back to English', () {
-    expect(resolveAppLocale(const []), const Locale('en'));
-  });
+  group('AppLocale', () {
+    test('the language the platform picked is the app language', () async {
+      reply = () => 'el';
 
-  test('the first supported language in the phone list wins', () {
-    expect(
-      resolveAppLocale(const [Locale('xx'), Locale('en', 'US')]),
-      const Locale('en'),
-    );
+      await AppLocale.instance.start();
+
+      expect(reads, ['resolved']);
+      expect(AppLocale.instance.value, const Locale('el'));
+      expect(deviceLocalizations().localeName, 'el');
+    });
+
+    testWidgets('a failed read falls back to Flutter resolving the phone '
+        'languages', (tester) async {
+      tester.platformDispatcher.localesTestValue = const [Locale('el', 'GR')];
+      addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+      reply = () => throw PlatformException(code: 'boom');
+
+      await tester.runAsync(AppLocale.instance.start);
+
+      expect(AppLocale.instance.value, const Locale('el'));
+    });
+
+    test('a language Zuno does not ship falls back to English', () async {
+      reply = () => 'xx';
+
+      await AppLocale.instance.start();
+
+      expect(AppLocale.instance.value, const Locale('en'));
+    });
+
+    testWidgets('a phone language change asks the platform again and tells '
+        'listeners', (tester) async {
+      await tester.runAsync(AppLocale.instance.start);
+      var changes = 0;
+      void count() => changes++;
+      AppLocale.instance.addListener(count);
+      addTearDown(() => AppLocale.instance.removeListener(count));
+      reply = () => 'el';
+
+      tester.platformDispatcher.localesTestValue = const [Locale('el')];
+      addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+      await tester.pump();
+
+      expect(reads, ['resolved', 'resolved']);
+      expect(AppLocale.instance.value, const Locale('el'));
+      expect(changes, 1);
+    });
+
+    testWidgets('the same answer after a change tells no one', (tester) async {
+      await tester.runAsync(AppLocale.instance.start);
+      var changes = 0;
+      void count() => changes++;
+      AppLocale.instance.addListener(count);
+      addTearDown(() => AppLocale.instance.removeListener(count));
+
+      tester.platformDispatcher.localesTestValue = const [Locale('en', 'GB')];
+      addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+      await tester.pump();
+
+      expect(reads, ['resolved', 'resolved']);
+      expect(changes, 0);
+    });
+
+    test('until asked, it is English in an English test run', () {
+      expect(AppLocale.instance.value, const Locale('en'));
+      expect(deviceLocalizations().commonCancel, 'Cancel');
+    });
   });
 
   test('English stays the first supported language whatever else lands', () {
@@ -32,21 +103,12 @@ void main() {
     );
   });
 
-  test('a Greek phone gets Greek', () {
-    expect(resolveAppLocale(const [Locale('el', 'GR')]), const Locale('el'));
+  test('a Greek lookup is Greek', () {
     expect(lookupAppLocalizations(const Locale('el')).commonCancel, 'Ακύρωση');
   });
 
   test('englishLocalizations is English', () {
     expect(englishLocalizations.localeName, 'en');
-  });
-
-  test('deviceLocalizations never throws', () {
-    expect(deviceLocalizations().commonCancel, 'Cancel');
-  });
-
-  test('deviceLocalizations resolves the locales it is given', () {
-    expect(deviceLocalizations(const [Locale('el', 'GR')]).localeName, 'el');
   });
 
   testWidgets('context.l10n reads the app strings', (tester) async {

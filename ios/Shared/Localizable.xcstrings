@@ -341,6 +341,23 @@
         }
       }
     },
+    "l10n_locale" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "en"
+          }
+        }
+      }
+    },
     "matrixSharePreparing" : {
       "extractionState" : "manual",
       "localizations" : {

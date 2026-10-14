@@ -1,8 +1,7 @@
-import 'dart:ui';
-
 import 'package:flutter/widgets.dart';
 
 import '../../l10n/app_localizations.dart';
+import 'app_locale.dart';
 
 export '../../l10n/app_localizations.dart';
 
@@ -10,12 +9,7 @@ extension L10nContext on BuildContext {
   AppLocalizations get l10n => AppLocalizations.of(this);
 }
 
-Locale resolveAppLocale(List<Locale> preferred) =>
-    basicLocaleListResolution(preferred, AppLocalizations.supportedLocales);
-
-AppLocalizations deviceLocalizations([List<Locale>? locales]) =>
-    lookupAppLocalizations(
-      resolveAppLocale(locales ?? PlatformDispatcher.instance.locales),
-    );
+AppLocalizations deviceLocalizations() =>
+    lookupAppLocalizations(AppLocale.instance.value);
 
 final englishLocalizations = lookupAppLocalizations(const Locale('en'));

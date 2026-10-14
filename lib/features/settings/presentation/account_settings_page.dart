@@ -212,8 +212,8 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
       showDragHandle: true,
       builder: (context) => SafeArea(
         child: RadioGroup<String>(
-          groupValue: current.locale?.languageCode ?? '',
-          onChanged: (code) => Navigator.of(context).pop(code),
+          groupValue: current.tag == null ? '' : current.chosen?.tag,
+          onChanged: (tag) => Navigator.of(context).pop(tag),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -221,12 +221,12 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
                 title: Text(l10n.settingsLanguageDevice),
                 value: '',
               ),
-              for (final locale in AppLocalizations.supportedLocales)
+              for (final option in current.options)
                 RadioListTile<String>(
                   title: Text(
-                    lookupAppLocalizations(locale).languageNativeName,
+                    lookupAppLocalizations(option.locale).languageNativeName,
                   ),
-                  value: locale.languageCode,
+                  value: option.tag,
                 ),
             ],
           ),
@@ -294,15 +294,17 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
       case AppLanguageSetting.inApp:
         final language = ref.watch(appLanguageProvider).value;
         if (language == null) return null;
-        final locale = language.locale;
+        final chosen = language.chosen;
         return ListTile(
           leading: const Icon(Icons.language_outlined),
           title: Text(l10n.settingsLanguage),
-          subtitle: Text(
-            locale == null
-                ? l10n.settingsLanguageDevice
-                : lookupAppLocalizations(locale).languageNativeName,
-          ),
+          subtitle: Text(switch ((language.tag, chosen)) {
+            (null, _) => l10n.settingsLanguageDevice,
+            (_, null) => l10n.languageNativeName,
+            (_, final option?) => lookupAppLocalizations(
+              option.locale,
+            ).languageNativeName,
+          }),
           trailing: const Icon(Icons.chevron_right_outlined),
           onTap: () => _chooseLanguage(language),
         );

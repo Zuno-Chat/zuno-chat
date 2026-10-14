@@ -64,6 +64,7 @@
 		4242263A539E1EA92D49323C /* MetricsSubscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B8F5ED41B666047C12EB9A9 /* MetricsSubscriber.swift */; };
 		435EC00CE71FC9D5107AEE69 /* ReadModelFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF351E2CD24BA4C6D33CBC45 /* ReadModelFiles.swift */; };
 		44CB7A0D163B5F1933BA1902 /* message_tone.caf in Resources */ = {isa = PBXBuildFile; fileRef = 6F411045E2239740CAF78C49 /* message_tone.caf */; };
+		44EC5F9693A52B7A42B9AE2C /* AppLanguagePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E8DCBA4BF5A8BE527A1E12C /* AppLanguagePlugin.swift */; };
 		44EED5A1D9122CC283547CD9 /* ImageResizerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 948D92CB356B1C18354C5748 /* ImageResizerPlugin.swift */; };
 		453DB4D589C39E805CDA13AA /* MegolmDecrypting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 511221D761D755281B58B702 /* MegolmDecrypting.swift */; };
 		463A9FDEAB663B3E48209B31 /* CaughtErrorsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B98C901A828B3257F2C45C2A /* CaughtErrorsTests.swift */; };
@@ -346,6 +347,7 @@
 		5A34BB306D7AEAEF660CEE49 /* PushEnvironmentTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PushEnvironmentTests.swift; sourceTree = "<group>"; };
 		5DC297BF69DB3B5BBE508386 /* DarwinHint.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DarwinHint.swift; sourceTree = "<group>"; };
 		5E36CF41907E8CD5A9840699 /* NsePipelineCalls.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NsePipelineCalls.swift; sourceTree = "<group>"; };
+		5E8DCBA4BF5A8BE527A1E12C /* AppLanguagePlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLanguagePlugin.swift; sourceTree = "<group>"; };
 		611C3FB129F7A7608E47A6C1 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 		65E5AFD25F013B88B8545627 /* RingDecisionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RingDecisionTests.swift; sourceTree = "<group>"; };
 		660787025A6B7CABCE1FA8C0 /* NotifyStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotifyStore.swift; sourceTree = "<group>"; };
@@ -762,6 +764,7 @@
 				ECF5B15AE734FBA5A5CFC54E /* ProtectedDataGate.swift */,
 				36484C533F53EE811B0E2E6D /* FileExportPlugin.swift */,
 				F7391C24D8AC716773287FB1 /* InfoPlist.xcstrings */,
+				5E8DCBA4BF5A8BE527A1E12C /* AppLanguagePlugin.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -1268,6 +1271,7 @@
 				557CB9B4DD259449FED62A4D /* ProtectedDataGate.swift in Sources */,
 				7E98C871A6534BE661EB7970 /* FileExportPlugin.swift in Sources */,
 				F5CE3BFDA86303311BC68268 /* L10n.swift in Sources */,
+				44EC5F9693A52B7A42B9AE2C /* AppLanguagePlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

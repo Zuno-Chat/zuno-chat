@@ -8,7 +8,6 @@ New
 • Opt-in crash reports now cover errors too.
 • See every way Zuno protects you, from How this works.
 • Double-tap a message to react with a heart.
-• Zuno in Greek.
-• Pick Zuno's language in Settings.
+• Use Zuno in more languages.
 
 Fixed 131 bugs.

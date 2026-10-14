@@ -15,6 +15,7 @@ import 'core/errors/best_effort.dart';
 import 'core/errors/crash_reporting.dart';
 import 'core/errors/device_log.dart';
 import 'core/errors/global_error_handler.dart';
+import 'core/l10n/app_locale.dart';
 import 'core/matrix/attachment_cache.dart';
 import 'core/matrix/client_startup.dart';
 import 'core/matrix/left_rooms_repair.dart';
@@ -43,6 +44,7 @@ Future<void> main(List<String> args) async {
 
 Future<void> _runApp(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppLocale.instance.start();
   await installAppHttpOverrides();
   if (kDebugMode) debugPrint('zuno/push: main(args=$args)');
   if (args.contains(_fcmBackgroundArg)) {

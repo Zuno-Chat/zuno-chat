@@ -289,14 +289,16 @@ stateDiagram-v2
 Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-l10n`), the template every other language translates. Supported: English and Greek (formal register).
 
 - **Adding a left-to-right language** is a complete `app_xx.arb`, a style guide `docs/brand-voice-xx.md` next to `brand-voice.md`, and `dart run tool/l10n/generate_native.dart`. Right-to-left needs a layout pass first, since layouts are left-to-right.
+- **A language spoken in several regions** is a complete base `app_xx.arb` that names its region (`"@@x-region"`), plus a complete `app_xx_YY.arb` per other region. The generator fails without the region, because the base's native tag needs it (`pt-BR`, never a bare `pt` beside `pt-PT`).
 - **Each language's glossary and style rules live in its own guide** (`docs/brand-voice-el.md` for Greek); `brand-voice.md` stays the English source.
 - **Every language must be complete**: a test fails when a translation misses a key or placeholder of the English template, so a new string ships with every language.
 - **Layouts are checked per language**: the layout-matrix widget tests also run each translated language on the smallest phone with larger text, to catch longer text overflowing.
-- **The platform owns the language and Zuno stores nothing.** Settings → Account → Language is the only picker, and each language file names itself (`languageNativeName`), so adding a language needs no code change:
+- **The platform owns the language and Zuno stores nothing.** Settings → Account → Language is the only picker, and each language file names itself (`languageNativeName`), so adding a language needs no code change.
+- **The platform also picks which language file Zuno uses.** The generator puts a marker naming each file into its native resources, and Dart reads the one the platform resolved over `zuno/locale` at every engine start and locale change. Dart screens and native text therefore always agree, parent regions included (a phone in pt-AO gets pt-PT). If the read fails, Flutter's own resolution is used and the failure is reported.
 
 | Platform | Behavior |
 |---|---|
-| Android 13+ | An in-app list sets the system per-app language through `zuno/locale`, the same setting as Android Settings, and the app switches live. |
+| Android 13+ | An in-app list, built from Android's own list of the app's languages, sets the system per-app language through `zuno/locale`, the same setting as Android Settings, and the app switches live. A tag Android stores that no row has (`el-GR`) ticks the row of the language it resolves to. |
 | Android 8-12 | No per-app language exists: the row is hidden and Zuno follows the device. |
 | iOS | No API sets an app's language, so the row opens Zuno's iOS Settings page. |
 
@@ -309,7 +311,7 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 |---|---|
 | Widgets | From context |
 | Non-widget text builders | Take the strings as a parameter; the caller picks the language |
-| Headless paths (push engine, notifications, channel names) | Resolve the phone's language themselves |
+| Headless paths (push engine, notifications, channel names) | Use the language the platform picked at engine start |
 
 - **Stays English**: Matrix event bodies and fallbacks (other clients display them), logs, Sentry and the brand name. The shared push diagnostics report is always English, because support reads it; the screen is localized.
 - **Dates and times format in one place.** They follow the phone's region when its language matches the app language, and the phone's 12/24-hour setting wins.
@@ -347,6 +349,7 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - **The boot splash matches the OS launch screen pixel for pixel.** A cold start paints the mark twice, from two independent layers, and any mismatch reads as two loading screens. Holding launch targets behind it costs a plain cold start about a second, the price of no room-list flash under a ring.
 - **gzip only**: zstd saved little on real sync payloads, where IDs, keys and ciphertext do not compress, and it cost a dependency.
 - **Native strings are generated from the one ARB, not kept in each platform's own files.** A word shared by Dart and native is translated once, and a translator reads one file per language.
+- **The platform, not Dart, decides which language file is used.** A Dart copy of that choice drifts from native text on parent regions and on each OS version's locale data; one owner keeps them identical.
 - **Compaction is the app's own, not the SDK's `SQfLiteEncryptionHelper.applyPragmaKey(ensureIncrementalAutoVacuum:)`**, because that helper also applies the key, and Zuno keys `zuno.db` through sqflite_sqlcipher's own open.
 - **Atomic batches, not a forked plugin.** A batch failing after `BEGIN` can still roll back another engine's write in that window, but only on a full disk, an I/O error or corruption. Owning a fork of the crypto database plugin was judged the bigger risk.
 

@@ -3,6 +3,10 @@ import 'dart:io';
 
 const templateLocale = 'en';
 
+const localeMarker = 'l10n_locale';
+
+const _markerModule = 'app';
+
 const androidResDirs = {
   'app': 'android/app/src/main/res',
   'zuno_notifications': 'packages/zuno_notifications/android/src/main/res',
@@ -20,7 +24,7 @@ const _extensionPlists = [
 ];
 
 final class Arb {
-  Arb(this.locale, this.messages, this.metadata);
+  Arb(this.locale, this.messages, this.metadata, {this.declaredRegion});
 
   factory Arb.parse(String fileName, String source) {
     final json = jsonDecode(source) as Map<String, Object?>;
@@ -37,12 +41,80 @@ final class Arb {
         messages[key] = value! as String;
       }
     }
-    return Arb(locale, messages, metadata);
+    return Arb(
+      locale,
+      messages,
+      metadata,
+      declaredRegion: json['@@x-region'] as String?,
+    );
   }
 
   final String locale;
   final Map<String, String> messages;
   final Map<String, Map<String, Object?>> metadata;
+  final String? declaredRegion;
+
+  List<String> get _subtags => locale.split(RegExp('[_-]'));
+
+  String get language => _subtags.first;
+
+  String? get region =>
+      _subtags.skip(1).where(_regionSubtag.hasMatch).firstOrNull;
+
+  String get fileName => 'app_$locale.arb';
+
+  String get nativeTag =>
+      [locale.replaceAll('_', '-'), ?declaredRegion].join('-');
+}
+
+final _regionSubtag = RegExp(r'^([A-Z]{2}|\d{3})$');
+
+void _checkRegions(List<Arb> arbs) {
+  for (final arb in arbs) {
+    final declared = arb.declaredRegion;
+    final region = arb.region;
+    if (declared != null) {
+      if (region != null) {
+        throw FormatException(
+          '${arb.locale}: only a base file declares @@x-region; this file is already regional',
+        );
+      }
+      if (!_regionSubtag.hasMatch(declared)) {
+        throw FormatException(
+          '${arb.locale}: @@x-region $declared must be two capital letters or three digits',
+        );
+      }
+      final siblings = arbs.where(
+        (other) => other.language == arb.language && other.region != null,
+      );
+      if (siblings.isEmpty) {
+        throw FormatException(
+          '${arb.locale}: @@x-region belongs only on a language that also has regional files',
+        );
+      }
+      for (final sibling in siblings) {
+        if (sibling.region == declared) {
+          throw FormatException(
+            '${arb.locale}: @@x-region $declared is already the region of ${sibling.fileName}',
+          );
+        }
+      }
+    }
+    if (region == null) continue;
+    final base = arbs
+        .where((other) => other.locale == arb.language)
+        .firstOrNull;
+    if (base == null) {
+      throw FormatException(
+        '${arb.locale}: a regional file needs a base app_${arb.language}.arb',
+      );
+    }
+    if (base.declaredRegion == null) {
+      throw FormatException(
+        '${arb.locale}: ${base.fileName} must declare @@x-region, the region it is written in',
+      );
+    }
+  }
 }
 
 sealed class Part {
@@ -238,8 +310,6 @@ List<Arb> readArbs(Directory root) {
   return arbs;
 }
 
-String languageTag(String locale) => locale.replaceAll('_', '-');
-
 String androidValuesDir(String locale) {
   if (locale == templateLocale) return 'values';
   final parts = locale.split(RegExp('[_-]'));
@@ -254,28 +324,34 @@ String androidValuesDir(String locale) {
 Map<String, String> buildOutputs(Directory root) {
   final arbs = readArbs(root);
   final template = arbs.first;
+  if (template.messages.containsKey(localeMarker)) {
+    throw const FormatException(
+      '$localeMarker: the name is reserved for the locale marker',
+    );
+  }
+  _checkRegions(arbs);
   final natives = _nativeStrings(template);
   _checkTranslations(natives, arbs);
   final outputs = <String, String>{};
   for (final MapEntry(key: module, value: resDir) in androidResDirs.entries) {
     final strings = natives.where((n) => n.modules.contains(module)).toList();
-    if (strings.isEmpty) continue;
+    final marked = module == _markerModule;
     for (final arb in arbs) {
       final present = strings
           .where((n) => arb.messages.containsKey(n.key))
           .toList();
-      if (present.isEmpty) continue;
+      if (present.isEmpty && !marked) continue;
       outputs['$resDir/${androidValuesDir(arb.locale)}/strings_l10n.xml'] =
-          _androidStrings(present, arb);
+          _androidStrings(present, arb, marked: marked);
     }
   }
   outputs[_localesConfig] = _localesConfigXml(arbs);
   final ios = natives.where((n) => n.ios).toList();
   final plist = natives.where((n) => n.plistKeys.isNotEmpty).toList();
-  outputs[_catalog] = _xcstrings(ios, arbs, (n) => [n.key]);
+  outputs[_catalog] = _xcstrings(ios, arbs, (n) => [n.key], marked: true);
   outputs[_plistCatalog] = _xcstrings(plist, arbs, (n) => n.plistKeys);
-  outputs[_swift] = _swiftAccessors(ios);
-  final languages = [for (final arb in arbs) languageTag(arb.locale)];
+  outputs[_swift] = _swiftAccessors(ios, template);
+  final languages = [for (final arb in arbs) arb.nativeTag];
   var runner = File('${root.path}/$_runnerPlist').readAsStringSync();
   for (final string in plist) {
     for (final plistKey in string.plistKeys) {
@@ -336,10 +412,17 @@ List<String> _orphans(Directory root, Map<String, String> outputs) {
   return orphans;
 }
 
-String _androidStrings(List<NativeString> strings, Arb arb) {
+String _androidStrings(
+  List<NativeString> strings,
+  Arb arb, {
+  required bool marked,
+}) {
   final buffer = StringBuffer(
     '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n',
   );
+  if (marked) {
+    buffer.writeln('    <string name="$localeMarker">${arb.locale}</string>');
+  }
   for (final string in strings) {
     final message = parseMessage(string.key, arb.messages[string.key]!);
     if (message.isPlural) {
@@ -392,8 +475,7 @@ String _escapeAndroid(String text, {required bool formatted}) {
 String _localesConfigXml(List<Arb> arbs) => [
   '<?xml version="1.0" encoding="utf-8"?>',
   '<locale-config xmlns:android="http://schemas.android.com/apk/res/android">',
-  for (final arb in arbs)
-    '    <locale android:name="${languageTag(arb.locale)}"/>',
+  for (final arb in arbs) '    <locale android:name="${arb.nativeTag}"/>',
   '</locale-config>',
   '',
 ].join('\n');
@@ -419,16 +501,25 @@ Map<String, Object?> _unit(String value) => {
 String _xcstrings(
   List<NativeString> strings,
   List<Arb> arbs,
-  List<String> Function(NativeString) catalogKeys,
-) {
-  final entries = <String, Object?>{};
+  List<String> Function(NativeString) catalogKeys, {
+  bool marked = false,
+}) {
+  final entries = <String, Object?>{
+    if (marked)
+      localeMarker: {
+        'extractionState': 'manual',
+        'localizations': {
+          for (final arb in arbs) arb.nativeTag: _unit(arb.locale),
+        },
+      },
+  };
   for (final string in strings) {
     final localizations = <String, Object?>{};
     for (final arb in arbs) {
       final source = arb.messages[string.key];
       if (source == null) continue;
       final message = parseMessage(string.key, source);
-      localizations[languageTag(arb.locale)] = message.isPlural
+      localizations[arb.nativeTag] = message.isPlural
           ? {
               'variations': {
                 'plural': {
@@ -450,7 +541,7 @@ String _xcstrings(
       };
     }
   }
-  return '${_xcodeJson({'sourceLanguage': templateLocale, 'strings': entries, 'version': '1.0'})}\n';
+  return '${_xcodeJson({'sourceLanguage': arbs.first.nativeTag, 'strings': entries, 'version': '1.0'})}\n';
 }
 
 String _xcodeJson(Object? value, [String indent = '']) {
@@ -461,8 +552,11 @@ String _xcodeJson(Object? value, [String indent = '']) {
   return '{\n${keys.map((k) => '$inner${jsonEncode(k)} : ${_xcodeJson(value[k], inner)}').join(',\n')}\n$indent}';
 }
 
-String _swiftAccessors(List<NativeString> strings) {
-  final buffer = StringBuffer('import Foundation\n\nenum L10n {\n');
+String _swiftAccessors(List<NativeString> strings, Arb template) {
+  final buffer = StringBuffer('import Foundation\n\nenum L10n {\n')
+    ..writeln(
+      '  static var appLocale: String { Bundle.main.localizedString(forKey: "$localeMarker", value: "${template.locale}", table: nil) }',
+    );
   for (final string in strings) {
     if (string.order.isEmpty) {
       buffer.writeln(
@@ -481,7 +575,7 @@ String _swiftAccessors(List<NativeString> strings) {
   }
   buffer.write(
     '\n  private static let missing = "\\u{1}"\n'
-    '  private static let english = Bundle.main.path(forResource: "$templateLocale", ofType: "lproj").flatMap(Bundle.init(path:)) ?? .main\n'
+    '  private static let english = Bundle.main.path(forResource: "${template.nativeTag}", ofType: "lproj").flatMap(Bundle.init(path:)) ?? .main\n'
     '\n  private static func text(_ key: String) -> String {\n'
     '    let localized = Bundle.main.localizedString(forKey: key, value: missing, table: nil)\n'
     '    return localized == missing ? english.localizedString(forKey: key, value: nil, table: nil) : localized\n'

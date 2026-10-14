@@ -1,6 +1,7 @@
 import Foundation
 
 enum L10n {
+  static var appLocale: String { Bundle.main.localizedString(forKey: "l10n_locale", value: "en", table: nil) }
   static var callsGenericRingName: String { text("callsGenericRingName") }
   static var callsIncomingVideo: String { text("callsIncomingVideo") }
   static var callsIncomingVoice: String { text("callsIncomingVoice") }

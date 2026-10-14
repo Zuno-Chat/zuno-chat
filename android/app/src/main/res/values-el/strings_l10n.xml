@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="l10n_locale">el</string>
     <string name="callsChannelGroupCalls">Κλήσεις</string>
     <string name="callsChannelOngoingCallDescription">Εμφανίζεται όσο βρίσκεστε σε κλήση</string>
     <string name="callsHangUp">Τερματισμός</string>

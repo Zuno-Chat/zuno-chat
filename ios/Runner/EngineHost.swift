@@ -104,6 +104,7 @@ final class EngineHost {
       ("ZunoErrorsPlugin", ErrorsPlugin.self),
       ("ZunoNsePlugin", NsePlugin.self),
       ("ZunoLiveLocationPlugin", LiveLocationPlugin.self),
+      ("ZunoAppLanguagePlugin", AppLanguagePlugin.self),
     ]
     for plugin in plugins {
       if let registrar = engine.registrar(forPlugin: plugin.key) {
