@@ -203,6 +203,7 @@ void main() {
       (Locale('fr'), Locale('fr', 'FR'), 'janvier', 'Hier'),
       (Locale('es'), Locale('es', 'ES'), 'enero', 'Ayer'),
       (Locale('it'), Locale('it', 'IT'), 'gennaio', 'Ieri'),
+      (Locale('de'), Locale('de', 'DE'), 'Januar', 'Gestern'),
     ]) {
       final translated = DateLabels(
         lookupAppLocalizations(app),

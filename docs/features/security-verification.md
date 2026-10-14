@@ -269,7 +269,7 @@ the commonest words of ordinary prose break any run.
 - **Vocabulary is a deliverable, not polish.** Security key and security
   phrase merge into one secret, the recovery code, under one mechanism,
   recovery. Own devices are approved; people are confirmed. Protocol words
-  appear only on Advanced. Word table: `../brand-voice.md`.
+  appear only on Advanced. Word table: `../brand-voice/README.md`.
 - **Confirm people, not devices.** A contact's unapproved device gets no room
   keys and only they can fix it, so it earns a passive line. An identity
   change voids a confirmation only the user can remake, so it gets a banner.

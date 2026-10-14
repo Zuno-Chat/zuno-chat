@@ -14,7 +14,7 @@ that takes it on.
   scrolling. The plain inline date dividers are the whole feature.
 - **Anything admin-facing.** The app calls no admin endpoint and keeps the
   server out of view (`../features/rooms-membership.md`,
-  `../brand-voice.md`). That rules out:
+  `../brand-voice/README.md`). That rules out:
   - **Admin detection**, such as a "homeserver admin" badge. It needs
     Synapse's proprietary admin API and would gate nothing.
   - **A homeserver information screen.** It would be the one screen that

@@ -286,12 +286,12 @@ stateDiagram-v2
 
 ### Localization (`lib/l10n/`, `lib/core/l10n/`, `tool/l10n/`, `tool/zuno_lints/`)
 
-Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-l10n`), the template every other language translates. Supported: English, Greek (formal register), French, Spanish, Italian, and Portuguese for Brazil (the base file) and Portugal.
+Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-l10n`), the template every other language translates. Supported: English, Greek (formal register), French, German, Spanish, Italian, and Portuguese for Brazil (the base file) and Portugal.
 
-- **Adding a left-to-right language** is a complete `app_xx.arb`, a style guide `docs/brand-voice-xx.md` next to `brand-voice.md`, and `dart run tool/l10n/generate_native.dart`. Right-to-left needs a layout pass first, since layouts are left-to-right.
+- **Adding a left-to-right language** is a complete `app_xx.arb`, a style guide `docs/brand-voice/xx.md` that follows `translating.md`, and `dart run tool/l10n/generate_native.dart`. Right-to-left needs a layout pass first, since layouts are left-to-right.
 - **A language spoken in several regions** is a complete base `app_xx.arb` that names its region (`"@@x-region"`), plus a complete `app_xx_YY.arb` per other region. The generator fails without the region, because the base's native tag needs it (`pt-BR`, never a bare `pt` beside `pt-PT`).
 - **The base is the region CLDR means by the bare language** (`pt` is Brazil), because Dart and iOS take plural rules from the file's tag: European Portuguese under `pt` would put 0 in the singular.
-- **Each language's glossary and style rules live in its own guide** (`docs/brand-voice-el.md` for Greek); `brand-voice.md` stays the English source.
+- **Each language's glossary and style rules live in its own guide** in `docs/brand-voice/`; the rules every translation shares live once in `translating.md`, and `README.md` there is the English source.
 - **Every language must be complete**: a test fails when a translation misses a key or placeholder of the English template, so a new string ships with every language.
 - **Layouts are checked per language**: the layout-matrix widget tests also run each translated language on the smallest phone with larger text, to catch longer text overflowing.
 - **The platform owns the language and Zuno stores nothing.** Settings → Account → Language is the only picker, and each language file names itself (`languageNativeName`), so adding a language needs no code change.

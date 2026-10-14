@@ -87,26 +87,27 @@ class _JoinRequestsBannerState extends State<JoinRequestsBanner>
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
           child: several
-              ? Row(
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _Avatar(room: room, user: first),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _Lines(
-                        title: l10n.communitiesNameAndOthers(
-                          _nameOf(first),
-                          requests.length - 1,
-                        ),
-                        subtitle: l10n.communitiesAskToJoin,
+                    _Who(
+                      room: room,
+                      user: first,
+                      title: l10n.communitiesNameAndOthers(
+                        _nameOf(first),
+                        requests.length - 1,
                       ),
+                      subtitle: l10n.communitiesAskToJoin,
                     ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: () async {
-                        await showJoinRequestsSheet(context, room);
-                        if (mounted) setState(() {});
-                      },
-                      child: Text(l10n.commonReview),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: FilledButton(
+                        onPressed: () async {
+                          await showJoinRequestsSheet(context, room);
+                          if (mounted) setState(() {});
+                        },
+                        child: Text(l10n.commonReview),
+                      ),
                     ),
                   ],
                 )
@@ -295,24 +296,17 @@ class _JoinRequestRowState extends State<JoinRequestRow> {
   Widget build(BuildContext context) {
     final user = widget.user;
     final l10n = context.l10n;
-    final who = Row(
-      children: [
-        _Avatar(room: widget.room, user: user),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _Lines(
-            title: _nameOf(user),
-            subtitle: widget.subtitle ?? withoutServer(user.id),
-          ),
-        ),
-      ],
-    );
     return Padding(
       padding: widget.padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          who,
+          _Who(
+            room: widget.room,
+            user: user,
+            title: _nameOf(user),
+            subtitle: widget.subtitle ?? withoutServer(user.id),
+          ),
           OverflowBar(
             alignment: MainAxisAlignment.end,
             overflowAlignment: OverflowBarAlignment.end,
@@ -341,45 +335,50 @@ class _JoinRequestRowState extends State<JoinRequestRow> {
   }
 }
 
-class _Avatar extends StatelessWidget {
+class _Who extends StatelessWidget {
   final Room room;
   final User user;
-
-  const _Avatar({required this.room, required this.user});
-
-  @override
-  Widget build(BuildContext context) => MxcAvatar(
-    client: room.client,
-    avatarUrl: user.avatarUrl,
-    fallbackText: _nameOf(user),
-    toneSeed: user.id,
-  );
-}
-
-class _Lines extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _Lines({required this.title, required this.subtitle});
+  const _Who({
+    required this.room,
+    required this.user,
+    required this.title,
+    required this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleSmall,
+        MxcAvatar(
+          client: room.client,
+          avatarUrl: user.avatarUrl,
+          fallbackText: _nameOf(user),
+          toneSeed: user.id,
         ),
-        Text(
-          subtitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall,
+              ),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ),
       ],

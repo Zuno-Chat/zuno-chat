@@ -56,7 +56,7 @@ Delete account (`authentication.md`).
   Clear media cache drops the attachment, map tile and image caches, with no
   server call.
 - **Donation is one static About row** that opens the site in the browser.
-  It is never a prompt, badge or popup (`../brand-voice.md`), and there is
+  It is never a prompt, badge or popup (`../brand-voice/README.md`), and there is
   no in-app payment.
 - **iOS has no Donate row**, because the App Store forbids linking out to
   pay the developer. The rule is one capability for the whole platform, not

@@ -4,6 +4,12 @@
     "callsGenericRingName" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno-Anruf"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -51,6 +57,12 @@
     "callsIncomingVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eingehender Videoanruf"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -98,6 +110,12 @@
     "callsIncomingVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eingehender Sprachanruf"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -145,6 +163,12 @@
     "callsMissedBeforeUnlock" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entsperre dieses Gerät nach einem Neustart, um Anrufe anzunehmen."
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -192,6 +216,12 @@
     "callsMissedCallTitle" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verpasster Anruf"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -239,6 +269,12 @@
     "callsScreenCaptureHidden" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno wird ausgeblendet, während der Bildschirm aufgenommen oder geteilt wird."
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -286,6 +322,12 @@
     "callsSummaryDeclinedVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videoanruf abgelehnt"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -333,6 +375,12 @@
     "callsSummaryDeclinedVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprachanruf abgelehnt"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -380,6 +428,12 @@
     "callsSummaryEndedVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videoanruf · %1$@"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -427,6 +481,12 @@
     "callsSummaryEndedVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprachanruf · %1$@"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -474,6 +534,12 @@
     "callsSummaryMissedVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verpasster Videoanruf"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -521,6 +587,12 @@
     "callsSummaryMissedVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verpasster Sprachanruf"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -568,6 +640,12 @@
     "callsVideoCall" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videoanruf"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -615,6 +693,12 @@
     "callsVoiceCall" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprachanruf"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -662,6 +746,12 @@
     "commonCancel" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbrechen"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -709,6 +799,12 @@
     "commonClose" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schließen"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -756,6 +852,12 @@
     "commonMarkAsRead" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Als gelesen markieren"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -803,6 +905,12 @@
     "commonMessageHint" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nachricht"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -850,6 +958,12 @@
     "commonReply" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antworten"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -897,6 +1011,12 @@
     "commonSend" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senden"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -944,6 +1064,12 @@
     "l10n_locale" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "de"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -991,6 +1117,12 @@
     "matrixSharePreparing" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teilen wird vorbereitet…"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1038,6 +1170,12 @@
     "matrixSummaryDeleted" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nachricht gelöscht"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1085,6 +1223,12 @@
     "matrixSummaryLiveLocation" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live-Standort"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1132,6 +1276,12 @@
     "matrixSummaryLocation" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standort"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1179,6 +1329,12 @@
     "matrixSummaryOtherEvent" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ereignis %1$@"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1226,6 +1382,12 @@
     "matrixSummaryPhoto" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1273,6 +1435,12 @@
     "matrixSummaryVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1320,6 +1488,12 @@
     "matrixSummaryVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprachnachricht"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1367,6 +1541,12 @@
     "notificationsInvitedToRoom" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hat dich in „%1$@“ eingeladen"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1414,6 +1594,24 @@
     "notificationsMoreChats" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Neue Nachrichten in %1$lld weiteren Chat"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Neue Nachrichten in %1$lld weiteren Chats"
+                }
+              }
+            }
+          }
+        },
         "el" : {
           "variations" : {
             "plural" : {
@@ -1545,6 +1743,18 @@
     "notificationsMoreChatsAndRooms" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Neue Nachrichten in %1$lld weiteren Chats und Räumen"
+                }
+              }
+            }
+          }
+        },
         "el" : {
           "variations" : {
             "plural" : {
@@ -1634,6 +1844,24 @@
     "notificationsMoreRooms" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Neue Nachrichten in %1$lld weiteren Raum"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Neue Nachrichten in %1$lld weiteren Räumen"
+                }
+              }
+            }
+          }
+        },
         "el" : {
           "variations" : {
             "plural" : {
@@ -1765,6 +1993,12 @@
     "notificationsNewActivity" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Aktivität"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1812,6 +2046,12 @@
     "notificationsNewMessage" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Nachricht"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1859,6 +2099,12 @@
     "notificationsRedacted" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entfernt"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1906,6 +2152,12 @@
     "notificationsReplyNotSent" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nachricht nicht gesendet. Öffne Zuno und sende sie erneut."
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1953,6 +2205,12 @@
     "notificationsSenderText" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2000,6 +2258,12 @@
     "notificationsTestWorks" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benachrichtigungen funktionieren"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2047,6 +2311,12 @@
     "notificationsUnknownFormat" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekanntes Nachrichtenformat vom Typ \"%1$@\""
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2094,6 +2364,12 @@
     "notificationsWantsToVerify" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Möchte dich verifizieren"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2141,6 +2417,12 @@
     "roomsInvitedYouToChat" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hat dich zum Chat eingeladen"
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2188,6 +2470,12 @@
     "shareOpenLater" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffne Zuno in den nächsten Minuten, um das Teilen abzuschließen."
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2235,6 +2523,12 @@
     "shareUnreadable" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Geteilte konnte nicht gelesen werden. Versuche es erneut."
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",

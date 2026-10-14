@@ -1,39 +1,38 @@
 # Brand voice: Italian (it)
 
-How Zuno sounds in Italian: the glossary and style rules behind `lib/l10n/app_it.arb`. Every new English string gets its Italian from here. A string that needs a term this guide lacks adds the term here first.
+Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `translating.md`; this guide holds only what is Italian.
 
 **Binding, set by the product owner:**
 - Address the reader as **tu**: «Tocca», «Inserisci», «Scegli», «il tuo/la tua».
-- Chat = **chat**, room = **stanza**, community = **comunità**. They never overlap; «gruppo», «canale», «spazio» and «community» are never used.
-- **Zuno** and **Matrix** stay exactly as written, with no article: «Zuno crittografa i tuoi messaggi», «la versione di Zuno».
+- Chat = **chat**, room = **stanza**, community = **comunità**. Never «gruppo», «canale», «spazio» or «community».
+- **Zuno**, **Matrix**, **Android**, **iOS**, **Google** and **Apple** take no article: «Zuno crittografa i tuoi messaggi», «la versione di Zuno».
+- `languageNativeName` → «Italiano».
 
 ---
 
 ## 1. Glossary
-
-Where a row has two forms, the first is the button/noun form and the second the verb used in body text (§2.2).
 
 ### 1.1 Brand-voice words
 
 | English | it | Notes |
 |---|---|---|
 | chat (one-to-one) | la chat · le chat | "New chat" → «Nuova chat». The "Chats" tab → «Chat». Never «conversazione» as the product noun. |
-| room (group chat) | la stanza · le stanze | Never «gruppo», «canale» or «sala». |
-| community | la comunità | Never «community», «spazio» or «server». |
+| room (group chat) | la stanza · le stanze | Never «sala». |
+| community | la comunità | Never «server». |
 | "Group with {names}" | «Chat con {names}» | |
-| device | il dispositivo | Never «telefono» or «sessione», even when the description says "phone". |
-| recovery code | il codice di recupero | The 12 words. Never «chiave» or «password». |
+| device | il dispositivo | Never «telefono». |
+| recovery code | il codice di recupero | Never «chiave» or «password». |
 | recovery | il recupero | "Set up recovery" → «Configura il recupero». |
 | sign in | Accedi / accedere · l’accesso | "New sign-in" → «Nuovo accesso». A signed-in device → «dispositivo connesso». |
 | sign out | Esci / uscire · la disconnessione | "Sign out everywhere else" → «Esci da tutti gli altri dispositivi». |
-| sign up, sign-up code | Crea account · la registrazione · il codice di registrazione | Push registration is «registrazione push» (§1.8); context keeps them apart. |
+| sign up, sign-up code | Crea account · la registrazione · il codice di registrazione | Push registration is «registrazione push». |
 | server, homeserver | il server | |
 
 ### 1.2 People
 
 | English | it | Notes |
 |---|---|---|
-| person, people | la persona · le persone | Grammatically feminine whatever the person's gender, so it never forces one. |
+| person, people | la persona · le persone | Grammatically feminine, so it forces no gender. |
 | user / member | l’utente / il membro | "Unknown user" → «Utente sconosciuto». |
 | You (own name on tiles and the map) | Tu | |
 | Someone / Anyone / Nobody / Everyone | Qualcuno / Chiunque / Nessuno / Tutti | |
@@ -48,7 +47,7 @@ Where a row has two forms, the first is the button/noun form and the second the 
 | reaction, react | la reazione · reagire | |
 | edit, edited | Modifica · modificato | The "edited" marker agrees with «messaggio». |
 | delete | Elimina / eliminare (eliminato) | "Message deleted" → «Messaggio eliminato». Never «cancella». |
-| remove (an item or person) | Rimuovi / rimuovere | Kept apart from delete. |
+| remove (an item or person) | Rimuovi / rimuovere | |
 | seen, seen by | Visualizzato · Visto da {people} | "Not seen yet" → «Non ancora visualizzato». |
 | typing | sta scrivendo… | "{name} is typing…" → «{name} sta scrivendo…». "Several people are typing…" → «Più persone stanno scrivendo…». |
 | mention | menzionare · la menzione | "Mentions only" → «Solo menzioni». |
@@ -58,7 +57,7 @@ Where a row has two forms, the first is the button/noun form and the second the 
 | caption, gallery | la didascalia · la galleria | iOS Photos app → «Foto». |
 | history | la cronologia | |
 | record, upload, download, reload | registrare · inviare · scaricare · ricaricare | "Uploading…" → «Invio in corso…». "Downloading…" → «Download in corso…». «Caricamento…» is Loading only. |
-| emoji | l’emoji | The verification emoji are «immagini», as in the English. |
+| emoji, verification emoji | l’emoji · le immagini | |
 
 ### 1.4 Calls
 
@@ -72,7 +71,7 @@ Where a row has two forms, the first is the button/noun form and the second the 
 | join (a call) | Partecipa / partecipare alla chiamata | |
 | speaker, mute, unmute | l’altoparlante · Disattiva microfono · Attiva microfono | "Muted" → «Microfono disattivato». "{name} is muted" → «Microfono di {name} disattivato». |
 | camera, microphone | la fotocamera · il microfono | |
-| connection, connecting, reconnecting | la connessione · Connessione in corso… · Riconnessione in corso… | "Weak connection" → «Connessione debole». "Calling…" → «Chiamata in corso…». |
+| connection, connecting, reconnecting | la connessione · Connessione in corso… · Riconnessione in corso… | "Weak connection" → «Connessione debole». "Poor connection" → «Connessione scarsa». "Calling…" → «Chiamata in corso…». |
 | picture-in-picture, minimize | picture in picture · Riduci | |
 
 ### 1.5 Security and encryption
@@ -80,23 +79,25 @@ Where a row has two forms, the first is the button/noun form and the second the 
 | English | it | Notes |
 |---|---|---|
 | encryption, encrypted, decrypt | la crittografia · crittografato · decrittografare | Never «cifratura» or «cifrato». |
-| end-to-end encrypted | con crittografia end-to-end | E2E stays E2E. |
-| confirm (a person) | Conferma / confermare | Zuno's word for checking a person. "Confirmed people only" → «Solo persone confermate». |
-| approve (own device) | Approva / approvare | Only for your own devices. Never mix with confirm. |
-| verify, verification | verificare · la verifica | Only where the English says verify. |
+| end-to-end encrypted | con crittografia end-to-end | |
+| confirm (a person) | Conferma / confermare | "Confirmed people only" → «Solo persone confermate». |
+| approve (own device) | Approva / approvare | |
+| verify, verification | verificare · la verifica | |
 | security details | i dati di sicurezza | |
 | key, room keys | la chiave · le chiavi delle stanze | |
 | backup, key backup, restore | il backup · il backup delle chiavi · ripristinare | |
-| security key, security phrase, recovery key | la chiave di sicurezza · la frase di sicurezza · la chiave di recupero | Advanced screens only; never the 12-word code. |
+| security key, security phrase, recovery key | la chiave di sicurezza · la frase di sicurezza · la chiave di recupero | |
 | cross-signing, secret storage | la firma incrociata · l’archivio segreto | |
-| session (Advanced only) | la sessione | Only where the English says "session". |
+| session | la sessione | |
 | unlock, trust | sbloccare · fidarsi | |
 | scan, QR code, code | Scansiona · il codice QR · il codice | "Scan code" → «Scansiona codice». A bare «codice» is never a password. |
 | screenshot, screen recording, screen sharing | lo screenshot · la registrazione dello schermo · la condivisione dello schermo | |
-| block | Blocca / sbloccare | Never for ban. |
+| block | Blocca / sbloccare | |
 | rooted device, compromised device | dispositivo con root · dispositivo compromesso | |
 | clipboard, password manager | gli appunti · il gestore di password | |
 | incognito keyboard | Tastiera in incognito | |
+| Cryptography | la crittografia | |
+| raw (security key), vouch for | non formattata · convalidare | |
 
 ### 1.6 Account, server and membership
 
@@ -104,24 +105,25 @@ Where a row has two forms, the first is the button/noun form and the second the 
 |---|---|---|
 | account, password | l’account · la password | "Wrong password." → «Password errata.» |
 | username, display name | il nome utente · il nome visualizzato | |
-| profile, profile photo | il profilo · la foto del profilo | One term for photo, picture and avatar. |
+| profile, profile photo | il profilo · la foto del profilo | |
 | email address | l’indirizzo email | |
-| invite | Invita · l’invito | The "Invited" badge → «Invito inviato»: a participle would force a gender (§2.5). |
-| join (a room or community) | Entra / entrare | "{target} joined" → «Nuovo membro: {target}» (§2.5). |
+| invite | Invita · l’invito | The "Invited" badge → «Invito inviato». |
+| join (a room or community) | Entra / entrare | "{target} joined" → «Nuovo membro: {target}» (§2.4). |
 | request, ask to join | la richiesta · Chiedi di entrare | "Let in" → «Accetta». "Withdraw" → «Ritira richiesta». |
 | leave | Esci / lasciare | "{target} left" → «{target} ha lasciato». |
 | remove (a person) | Rimuovi / rimuovere | The kick action. |
 | ban | Banna / revoca il ban | "Banned" heading → «Persone bannate». |
 | report | Segnala · la segnalazione | Reasons: «Molestie», «Contenuti illegali», «Spam», «Altro motivo». |
 | public / private | pubblica / privata | Feminine, agreeing with stanza and comunità. |
-| topic, description, address, ID | l’argomento · la descrizione · l’indirizzo · l’ID | |
+| topic, description, address, ID | l’argomento · la descrizione · l’indirizzo · l’ID | Room alias → «l’indirizzo della stanza». |
+| hostname | il nome del server | |
 
 ### 1.7 Roles and permissions
 
 | English | it | Notes |
 |---|---|---|
 | admin, moderator, owner | amministratore · moderatore · proprietario | Role badges, generic masculine. |
-| role, member, read-only | il ruolo · Membro · Sola lettura | |
+| role, member, read-only, view only | il ruolo · Membro · Sola lettura · Solo visualizzazione | |
 | permission (room or OS), access | l’autorizzazione · l’accesso | "Roles & permissions" → «Ruoli e autorizzazioni». |
 
 ### 1.8 Notifications and push
@@ -129,12 +131,13 @@ Where a row has two forms, the first is the button/noun form and the second the 
 | English | it | Notes |
 |---|---|---|
 | notification, test notification | la notifica · la notifica di prova | |
+| mute / unmute (a chat's notifications) | Disattiva notifiche / Riattiva notifiche | |
 | push, push target, push key | il push · la destinazione push · la chiave push | "push notifications" → «notifiche push». |
 | registration (push) | la registrazione / registrare (registrato) | |
 | delivery, background sync | la consegna · la sincronizzazione in background | "Delivery method" → «Metodo di consegna». |
 | battery use: Unrestricted / Optimized / Restricted | utilizzo della batteria: Senza restrizioni / Ottimizzato / Con restrizioni | Android's labels. |
 | Data Saver, Autostart | Risparmio dati · Avvio automatico | |
-| distributor, UnifiedPush, ntfy | il distributore · UnifiedPush · ntfy | |
+| distributor | il distributore | |
 | Google services / Google Play services | i servizi Google / Google Play Services | |
 | Apple push | il push di Apple | |
 | gateway, bridge, token | il gateway · il bridge · il token | |
@@ -142,6 +145,7 @@ Where a row has two forms, the first is the button/noun form and the second the 
 | notification category, notification shade | la categoria di notifiche · l’area notifiche | |
 | lock screen | la schermata di blocco | |
 | quiet, sound, vibration | silenziose · il suono · la vibrazione | "Message tone" → «Suono dei messaggi». |
+| standby bucket | il gruppo di standby | |
 
 ### 1.9 Location
 
@@ -149,7 +153,6 @@ Where a row has two forms, the first is the button/noun form and the second the 
 |---|---|---|
 | location, live location | la posizione · la posizione in tempo reale | |
 | share, start / stop sharing | Condividi · Avvia / Interrompi la condivisione | Also for sharing files. |
-| Location Services, Privacy & Security (iOS) | Localizzazione · Privacy e sicurezza | iOS labels. |
 | approximate, maps app | approssimativa · l’app di mappe | |
 
 ### 1.10 Settings, storage and data
@@ -159,48 +162,35 @@ Where a row has two forms, the first is the button/noun form and the second the 
 | Settings | le Impostazioni | Zuno's, Android's and iOS's. |
 | storage, data, cache | lo spazio di archiviazione · i dati · la cache | "Clear cache" → «Svuota cache». |
 | theme: Dark / Light / Follow system | Scuro / Chiaro / Predefinito di sistema | |
-| Appearance / About / Advanced, version | Aspetto / Informazioni / Avanzate · la versione | |
+| Appearance / About / Advanced, version, build | Aspetto / Informazioni / Avanzate · la versione · la build | |
 | feedback, crash reports | il feedback · i report sugli arresti anomali | "Send feedback" → «Invia feedback». |
 | donate, privacy, Privacy policy, Terms | fare una donazione · la privacy · Informativa sulla privacy · Termini | |
-| app, home screen, shortcut | l’app · la schermata Home · la scorciatoia | «app» is feminine. |
+| app, home screen, shortcut, launcher | l’app · la schermata Home · la scorciatoia · il launcher | «app» is feminine. |
 | recent apps, app switcher | le app recenti · il selettore app | |
-| Open source licenses, Source code | Licenze open source · Codice sorgente | License names stay in English. |
+| Open source licenses, Source code | Licenze open source · Codice sorgente | |
 
-### 1.11 Terms settled up front
+### 1.11 Settled phrases
 
 | English | it | Notes |
 |---|---|---|
-| hostname | il nome del server | Never left in English. |
-| Asking to join (admin heading over others' requests) | Richieste di accesso | "Asking to join {name}" → «Richieste di accesso a «{name}»». |
+| Asking to join (admin heading) | Richieste di accesso | "Asking to join {name}" → «Richieste di accesso a «{name}»». |
 | Ask to join (subtitle) / Asks to join | Chiedono di entrare / Chiede di entrare | The button stays «Chiedi di entrare». |
-| Let them ask (setting) | Consenti le richieste | Not a request the reader sends. |
+| Let them ask (setting) | Consenti le richieste | |
 | Joined (label on a public room or community) | Ne fai già parte | |
 | N other(s) | {count} altra persona · {count} altre persone | |
 | asleep (device) / suspended (app) | in standby / sospesa | «sospesa» agrees with «l’app». |
 | Call rang / ringing | La chiamata ha squillato / squilla | |
-| Hidden message | il messaggio nascosto | «segreto» reads as encrypted. |
-| Secure backup (screen) | «Recupero» | A legacy name for the Recovery screen: point to it by its title. |
+| Hidden message | il messaggio nascosto | Never «segreto». |
+| Secure backup (screen) | «Recupero» | |
 | Welcome to Zuno | Zuno ti dà il benvenuto | «Benvenuto» would force a gender. |
-| {name} is confirmed | Hai confermato {name} | A participle would agree with the person. |
+| {name} is confirmed | Hai confermato {name} | |
 | Invited you to {room} | Invito a «{room}» | «Ti ha invitato» would agree with the reader. |
-| character(s) | il carattere · i caratteri | |
-| link | il link | |
-| build (app version) | la build | |
-| Cryptography | la crittografia | |
-| Room alias | l’indirizzo della stanza | |
-| View only | Solo visualizzazione | Apart from «Sola lettura», the role. |
-| check mark | il segno di spunta | |
-| launcher | il launcher | |
-| vouch for (own devices) | convalidare | |
-| raw (security key) | non formattata | |
-| standby bucket | il gruppo di standby | Android's raw bucket names (rare, restricted, never) stay as they are. |
-| Poor connection | Connessione scarsa | Apart from «Connessione debole». |
-| mute / unmute (a chat's notifications) | Disattiva notifiche / Riattiva notifiche | |
-| Chat / Room / Community info | Informazioni sulla chat / sulla stanza / sulla comunità | |
-| Room / Community defaults | Impostazioni predefinite della stanza / della comunità | |
 | {name} invited you (to …) | {name} ti invita (in …) | The present tense avoids «ti ha invitato/a». |
 | Confirmed / Scanned / Approved (titles after a check) | Conferma completata / Scansione completata / Dispositivo approvato | |
+| Chat / Room / Community info | Informazioni sulla chat / sulla stanza / sulla comunità | |
+| Room / Community defaults | Impostazioni predefinite della stanza / della comunità | |
 | "You and {name} are…" | Recast so the verb is not plural «voi»: «Posizione in tempo reale condivisa da te e {name}». | |
+| character(s), link, check mark | il carattere · i caratteri · il link · il segno di spunta | |
 
 ### 1.12 UI actions
 
@@ -235,13 +225,13 @@ Where a row has two forms, the first is the button/noun form and the second the 
 
 ---
 
-## 2. Style rules
+## 2. Italian rules
 
 ### 2.1 Register
 - «tu» throughout, usually left implicit: «Tocca per riprovare», «Il tuo account è stato eliminato». Never «Lei», never «voi».
 - "tap" → «tocca», "type" → «scrivi», "enter" → «inserisci», "choose/pick" → «scegli», "pull down" → «scorri verso il basso».
 
-### 2.2 Buttons and body text
+### 2.2 Forms
 
 | Where | Form | Example |
 |---|---|---|
@@ -251,75 +241,45 @@ Where a row has two forms, the first is the button/noun form and the second the 
 | Titles that instruct | Imperative | «Salva il tuo codice di recupero» |
 | Confirmation titles ("Delete X?") | Infinitive + «?» | «Eliminare il tuo account?» |
 | Progress labels | Noun + «in corso…» or noun + «…» | «Creazione dell’account in corso…», «Caricamento…» |
-| Success snack bars | Participle, English period kept or left out | «Password cambiata», «Segnalazione inviata» |
+| Success snack bars | Participle | «Password cambiata», «Segnalazione inviata» |
 
-Buttons that answer a question stay statements: «Corrispondono», «Non corrispondono», «Sì, termina», «No, interrompi». First-person buttons stay first person: «Ho già un codice».
+Statement and first-person buttons: «Corrispondono», «Non corrispondono», «Sì, termina», «No, interrompi», «Ho già un codice».
 
-### 2.3 Case and punctuation
-- Sentence case everywhere, as in the English. Weekday and month names are lowercase. Never all caps.
-- No exclamation marks, no emoji. Keep «…» (one character) wherever the English has it.
-- **Apostrophe:** the typographic ’ (U+2019) everywhere: «l’app», «un’altra». Never the straight '. Capital E with grave accent is «È», never «E’».
-- Quotes: « » with no inner spaces, wherever the English has quotes. The one technical value keeps straight escaped quotes: `notificationsUnknownFormat` (`\"{type}\"`). Room, topic, device names and recovery words take « »: `«{name}»`.
-- When body text names a screen, row, option or button, use its exact Italian label in « ». «Impostazioni» alone needs none.
-- Keep the English «·» separators, colons and end punctuation exactly.
+### 2.3 Typography
+- Apostrophe: the typographic ’ (U+2019) everywhere: «l’app», «un’altra». Never the straight '.
+- Capital E with grave accent is «È», never «E’».
+- Quotes: « » with no inner spaces: `«{name}»`.
+- Colons stay exactly as in the English.
+- Weekday and month names are lowercase.
 
-### 2.4 How Zuno speaks
-- Zuno never speaks as «noi» or «io». Write «Zuno…» or recast impersonally.
-- «Zuno», «Android», «iOS», «Google», «Apple», no article.
-- Name no other apps beyond those the English names (ntfy, Google, Apple, CarPlay).
+### 2.4 Names
+- Subject names take verbs with «avere», whose participle never agrees: «{target} ha lasciato», «{sender} ha invitato {target}», «{target} ha chiesto di entrare».
+- Never a participle with «essere» or an adjective that agrees with a person, the reader included: no «è entrato/a», «connesso/a», «invitato/a», «benvenuto/a». Recast with a noun or an «avere» verb: «Nuovo membro: {target}», «Accesso effettuato», «Hai bloccato {name}».
+- "With {name}" → «Con {name}».
+- "they" → «questa persona» or drop the subject: "once they join" → «quando questa persona entra».
 
-### 2.5 Names and gender (critical)
-`{name}`, `{sender}`, `{target}`, `{first}`, `{second}`, `{people}` are display names of unknown gender, and the reader's gender is unknown too.
-1. Never put an article before a name.
-2. Subject names go first, bare, with verbs that take «avere», whose participle never agrees: «{target} ha lasciato», «{sender} ha invitato {target}», «{target} ha chiesto di entrare».
-3. Never a participle with «essere» or an adjective that agrees with a person, the reader included: no «è entrato/a», «connesso/a», «invitato/a», «benvenuto/a». Recast with a noun or an «avere» verb: «Nuovo membro: {target}», «Accesso effettuato», «Hai bloccato {name}». Where a noun is needed, use «la persona» or «questa persona».
-4. Short labels with a preposition are fine: «Con {name}», «Risposta a {name}», «Chiamata persa da {name}».
-5. English "they" for one person → «questa persona» or drop the subject: "once they join" → «quando questa persona entra». No «@», «*» or «ə» endings.
+### 2.5 Fixed phrases
+- Error pattern: «Impossibile inviare il messaggio. Controlla la connessione e riprova.»
+- "Check your connection and try again." → «Controlla la connessione e riprova.»
+- "Pull down to try again." → «Scorri verso il basso per riprovare.»
+- "Too many attempts." → «Troppi tentativi.» · "Something went wrong." → «Si è verificato un problema.»
+- "Nobody can undo this." → always «Nessuno può annullare questa azione.»
+- Never «Ci dispiace», «Purtroppo», «con successo» or «sicuro al 100%».
 
-### 2.6 Brand-voice moments
-
-| Moment | Pattern |
-|---|---|
-| Error: what happened, then what to do | «Impossibile inviare il messaggio. Controlla la connessione e riprova.» |
-| Fixed phrases | "Check your connection and try again." → «Controlla la connessione e riprova.» · "Pull down to try again." → «Scorri verso il basso per riprovare.» · "Too many attempts." → «Troppi tentativi.» · "Something went wrong." → «Si è verificato un problema.» |
-| Irreversible | "Nobody can undo this." → always «Nessuno può annullare questa azione.» |
-| Reassurance | Calm present tense, no alarm words. |
-| Success | Flat participle, no «con successo». |
-
-- Calm, plain, minimal. Italian runs about 20% longer than English: cut filler, never a limit, consequence or next step.
-- No «Ci dispiace», «Purtroppo», superlatives or «sicuro al 100%».
-
-### 2.7 Numbers, dates and units
-- Numbers, dates and times stay inside their placeholders; never hard-code a format.
+### 2.6 Numbers, dates and units
 - "{date} at {time}" → «{date} alle {time}» · "Until {time}" → «Fino alle {time}» · "{days} days ago" → «{days} giorni fa» · "{page} of {total}" → «{page} di {total}».
-- h, min, s, km, m, B, KB, MB stay as they are, with the space before them. Keep «%» where it is.
-- Technical values stay exactly: `chat.example.org`, `https://`, `a–z, 0–9`, `@`, `ID`, `CarPlay`, `E2E`.
+- Italian `one` is exactly 1.
 
-### 2.8 Ordinals
+### 2.7 Ordinals
 `securityOrdinal` precedes «parola» (feminine): `{n, select, 1{1ª} 2{2ª} 3{3ª} other{{n}ª}}`. `settingsRecoveryWordLabel` → «{position} parola». `settingsRecoveryConfirmBody` → «Scrivi la {first} e la {second} parola della copia salvata.»
 
-### 2.9 Platform labels
-- Name Android and iOS settings by that OS's Italian label. Both call Settings **Impostazioni**: "Settings → General → Language & Region" → «Impostazioni → Generali → Lingua e zona»; "Settings → Apps → Zuno → Language" → «Impostazioni → App → Zuno → Lingua».
-- iOS notification settings: «Schermata di blocco», «Centro Notifiche», «Banner», «Badge», «Suoni», «Mostra anteprime», «Riepilogo programmato», «Avvisi critici», «Notifiche urgenti», «Annuncia notifiche».
-- «iPhone» and «Android» as written. "your device" → «il tuo dispositivo», never «il tuo telefono».
+### 2.8 Platform labels
+- Android and iOS both call Settings **Impostazioni**: "Settings → General → Language & Region" → «Impostazioni → Generali → Lingua e zona»; "Settings → Apps → Zuno → Language" → «Impostazioni → App → Zuno → Lingua».
+- iOS: «Localizzazione», «Privacy e sicurezza», «Schermata di blocco», «Centro Notifiche», «Banner», «Badge», «Suoni», «Mostra anteprime», «Riepilogo programmato», «Avvisi critici», «Notifiche urgenti», «Annuncia notifiche».
 
 ---
 
-## 3. ICU and placeholder rules (the build breaks otherwise)
-
-- Copy every `{placeholder}` exactly. Never translate, rename, add or drop one; you may move it. A string made only of placeholders and symbols stays byte-identical (`{count}`, `{name} · {time}`, `{label}: {count}`, `{size} MB`, `CarPlay`, `UnifiedPush`).
-- **Plurals:** keep structure and selector name. Use only `one` (exactly 1 in Italian) and `other`. Always write the number as `{count}`, never «uno» or «1».
-  - Add a `one` case where the English has only `other` but Italian needs a singular: `matrixInvitePeopleInvited`, `matrixInviteWaitingForPeople`, `matrixSignupPasswordTooLong`, `securityPasswordTooShort`, `securityPasswordEmptyAdvice`, `settingsRecoveryCodeHint`, `settingsRecoveryRevealTitle`, `settingsRecoveryTooManyWords`, `roomInfoConfirmedCount`, and the `matrixRoomExitCommunityRooms*` family (both `count` and nested `orphaned`).
-  - No `one` needed (same text for every number): `ageHours`, `ageMinutes`, `pushDelayHours`, `pushDelayMinutes`, `pushDelaySeconds`, `chatDeleteAllCount`, `chatSaveAll`, `chatShareAll`, `roomInfoMembersCount`, `notificationsMoreChatsAndRooms`.
-  - Never add `zero`, `two`, `few`, `many` or `=n`; never use `#`. Every plural keeps `other`. Nested plurals keep their nesting.
-- **Selects** (`notificationsFailureAutoSelected`, `pushSummaryPriority`, `pushSummaryStandbyBucket`, `securityOrdinal`): keep every case key; translate only the text; never drop `other`.
-- **JSON:** apostrophes are literal (and typographic, §2.3). Escape `"` as `\"`. Put `\n` only where the English has it.
-- **Native strings** (`x-native`): plain English stays plain; the three native plurals (`notificationsMoreChats`, `notificationsMoreRooms`, `notificationsMoreChatsAndRooms`) stay whole-message plurals. The five `x-ios-infoplist` keys have no placeholders and start with «Zuno…». Notification strings are the shortest text: keep them short.
-- `languageNativeName` → «Italiano».
-
----
-
-## 4. Worked examples
+## 3. Worked examples
 
 | Key | English | it |
 |---|---|---|

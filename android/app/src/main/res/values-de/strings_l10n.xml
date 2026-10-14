@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="l10n_locale">de</string>
+    <string name="callsChannelGroupCalls">Anrufe</string>
+    <string name="callsChannelOngoingCallDescription">Wird angezeigt, während du in einem Anruf bist</string>
+    <string name="callsHangUp">Auflegen</string>
+    <string name="callsOngoingCall">Laufender Anruf</string>
+    <string name="locationChannelLiveLocationDescription">Wird angezeigt, während du deinen Live-Standort teilst</string>
+    <string name="locationLiveLocation">Live-Standort</string>
+    <string name="locationStopSharing">Teilen beenden</string>
+    <string name="matrixUploadingFile">Wird hochgeladen…</string>
+    <string name="notificationsBackgroundSyncWaiting">Warten auf Nachrichten und Anrufe</string>
+    <string name="notificationsChannelBackgroundSync">Hintergrundsynchronisierung</string>
+    <string name="notificationsChannelBackgroundSyncDescription">Wird angezeigt, während die Hintergrundsynchronisierung Zuno verbunden hält</string>
+    <string name="notificationsChannelGroupBackground">Hintergrund</string>
+    <string name="uploadsChannelSendingFiles">Senden von Dateien</string>
+    <string name="uploadsChannelSendingFilesDescription">Fortschritt beim Senden von Fotos, Videos und Dateien</string>
+</resources>

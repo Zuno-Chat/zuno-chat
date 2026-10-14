@@ -4,6 +4,12 @@
     "NSCameraUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno nutzt die Kamera für Videoanrufe, für Fotos und Videos, die du aufnimmst, und zum Scannen von Anmelde- und Verifizierungscodes."
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -51,6 +57,12 @@
     "NSLocationAlwaysAndWhenInUseUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno nutzt deinen Standort nur, wenn du ihn in einem Chat oder Raum sendest oder live teilst."
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -98,6 +110,12 @@
     "NSLocationWhenInUseUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno nutzt deinen Standort nur, wenn du ihn in einem Chat oder Raum sendest oder live teilst."
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -145,6 +163,12 @@
     "NSMicrophoneUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno nutzt das Mikrofon für Anrufe, Sprachnachrichten und Videos, die du aufnimmst."
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -192,6 +216,12 @@
     "NSPhotoLibraryAddUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno speichert Fotos und Videos nur dann in deiner Mediathek, wenn du auf „Speichern“ tippst."
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
@@ -239,6 +269,12 @@
     "NSPhotoLibraryUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno nutzt nur die Fotos und Videos, die du auswählst, um sie zu senden oder als Profil- oder Raumbild festzulegen."
+          }
+        },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
