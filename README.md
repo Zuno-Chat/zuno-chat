@@ -1,5 +1,7 @@
 # Zuno
 
+[![codecov](https://codecov.io/gh/Zuno-Chat/zuno-chat/graph/badge.svg?token=OD3PSTSAEH)](https://codecov.io/gh/Zuno-Chat/zuno-chat)
+
 A Matrix chat client for Android and iOS, written in Flutter.
 
 Runs on Android 8.0 and later, and iOS 18 and later.
