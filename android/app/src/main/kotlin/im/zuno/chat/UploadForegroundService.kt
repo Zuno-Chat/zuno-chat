@@ -1,7 +1,6 @@
 package im.zuno.chat
 
 import android.app.Notification
-import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -45,7 +44,6 @@ class UploadForegroundService : Service() {
     private data class Progress(val label: String?, val percent: Int?)
 
     companion object {
-        private const val CHANNEL_ID = "uploads"
         private const val NOTIFICATION_ID = 4004
 
         @Volatile private var running = false
@@ -83,7 +81,7 @@ class UploadForegroundService : Service() {
         private fun buildNotification(context: Context, progress: Progress): Notification {
             val contentIntent = AppLaunchIntent.pending(context, 0)
             val percent = progress.percent
-            return NotificationCompat.Builder(context, CHANNEL_ID)
+            return NotificationCompat.Builder(context, AppChannel.UPLOADS.id)
                 .setContentTitle(progress.label ?: context.getString(R.string.matrixUploadingFile))
                 .setSmallIcon(R.drawable.ic_stat_zuno_mark)
                 .setOngoing(true)
@@ -98,14 +96,7 @@ class UploadForegroundService : Service() {
         }
 
         private fun ensureChannel(context: Context) {
-            NotificationChannels.ensure(
-                context,
-                NotificationGroup.BACKGROUND,
-                CHANNEL_ID,
-                R.string.uploadsChannelSendingFiles,
-                R.string.uploadsChannelSendingFilesDescription,
-                NotificationManager.IMPORTANCE_LOW,
-            )
+            NotificationChannels.ensure(context, AppChannel.UPLOADS)
         }
     }
 }

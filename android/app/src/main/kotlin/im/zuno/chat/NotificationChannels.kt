@@ -11,24 +11,62 @@ enum class NotificationGroup(val id: String, @StringRes val title: Int) {
     BACKGROUND("background_group", R.string.notificationsChannelGroupBackground),
 }
 
+enum class AppChannel(
+    val id: String,
+    val group: NotificationGroup,
+    @StringRes val nameRes: Int,
+    @StringRes val descriptionRes: Int,
+    val importance: Int,
+) {
+    ONGOING_CALL(
+        "calls_ongoing",
+        NotificationGroup.CALLS,
+        R.string.callsOngoingCall,
+        R.string.callsChannelOngoingCallDescription,
+        NotificationManager.IMPORTANCE_LOW,
+    ),
+    BACKGROUND_SYNC(
+        "background_sync",
+        NotificationGroup.BACKGROUND,
+        R.string.notificationsChannelBackgroundSync,
+        R.string.notificationsChannelBackgroundSyncDescription,
+        NotificationManager.IMPORTANCE_MIN,
+    ),
+    LIVE_LOCATION(
+        "live_location",
+        NotificationGroup.BACKGROUND,
+        R.string.locationLiveLocation,
+        R.string.locationChannelLiveLocationDescription,
+        NotificationManager.IMPORTANCE_LOW,
+    ),
+    UPLOADS(
+        "uploads",
+        NotificationGroup.BACKGROUND,
+        R.string.uploadsChannelSendingFiles,
+        R.string.uploadsChannelSendingFilesDescription,
+        NotificationManager.IMPORTANCE_LOW,
+    ),
+}
+
 object NotificationChannels {
-    fun ensure(
-        context: Context,
-        group: NotificationGroup,
-        id: String,
-        @StringRes name: Int,
-        @StringRes description: Int,
-        importance: Int,
-    ) {
+    fun ensure(context: Context, channel: AppChannel) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannelGroup(
-            NotificationChannelGroup(group.id, context.getString(group.title)),
+            NotificationChannelGroup(channel.group.id, context.getString(channel.group.title)),
         )
         manager.createNotificationChannel(
-            NotificationChannel(id, context.getString(name), importance).apply {
-                this.description = context.getString(description)
-                this.group = group.id
-            },
+            NotificationChannel(channel.id, context.getString(channel.nameRes), channel.importance)
+                .apply {
+                    description = context.getString(channel.descriptionRes)
+                    group = channel.group.id
+                },
         )
+    }
+
+    fun refreshNames(context: Context) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        AppChannel.entries
+            .filter { manager.getNotificationChannel(it.id) != null }
+            .forEach { ensure(context, it) }
     }
 }

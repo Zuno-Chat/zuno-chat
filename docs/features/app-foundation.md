@@ -292,7 +292,17 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - **Each language's glossary and style rules live in its own guide** (`docs/brand-voice-el.md` for Greek); `brand-voice.md` stays the English source.
 - **Every language must be complete**: a test fails when a translation misses a key or placeholder of the English template, so a new string ships with every language.
 - **Layouts are checked per language**: the layout-matrix widget tests also run each translated language on the smallest phone with larger text, to catch longer text overflowing.
-- **Language follows the phone**, and the per-app language on Android 13+ and iOS; there is no in-app picker. English is the fallback, pinned first by `preferred-supported-locales`.
+- **The platform owns the language and Zuno stores nothing.** Settings → Account → Language is the only picker, and each language file names itself (`languageNativeName`), so adding a language needs no code change:
+
+| Platform | Behavior |
+|---|---|
+| Android 13+ | An in-app list sets the system per-app language through `zuno/locale`, the same setting as Android Settings, and the app switches live. |
+| Android 8-12 | No per-app language exists: the row is hidden and Zuno follows the device. |
+| iOS | No API sets an app's language, so the row opens Zuno's iOS Settings page. |
+
+- **iOS shows "Language" there only with 2+ preferred languages**, so with one the row first shows a two-step guide sheet.
+- **A language change re-registers Android notification channel names** (Dart and Kotlin) so they follow at once; IDs never change, so channel settings survive. The Language row re-reads the language on every locale change, since system settings can change it too.
+- English is the fallback, pinned first by `preferred-supported-locales`.
 - **Reading strings**:
 
 | Code | How it gets strings |

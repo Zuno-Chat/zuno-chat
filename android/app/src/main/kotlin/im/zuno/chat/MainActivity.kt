@@ -21,6 +21,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.LocaleList
 import android.os.Looper
 import android.os.PersistableBundle
 import android.os.PowerManager
@@ -191,6 +192,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         AudioSwitchManager.setAudioSessionManagementEnabled(false)
         super.configureFlutterEngine(flutterEngine)
+        lastLocales = resources.configuration.locales
         if (duplicate) return
         val kept = adopted
         host = kept?.host ?: HostState(this).also {
@@ -660,6 +662,9 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, AppLanguage.CHANNEL)
+            .setMethodCallHandler(AppLanguage.handler(this))
+
         val deviceSafetyChannel =
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_SAFETY_CHANNEL)
         deviceSafetyChannel.setMethodCallHandler { call, result ->
@@ -708,6 +713,7 @@ class MainActivity : FlutterActivity() {
 
     private val pipEntryMode = PictureInPictureDecision.entryMode(Build.VERSION.SDK_INT)
     private var started = false
+    private var lastLocales: LocaleList? = null
 
     override fun onStart() {
         super.onStart()
@@ -788,6 +794,13 @@ class MainActivity : FlutterActivity() {
 
     private fun hidePictureInPicture() {
         moveTaskToBack(false)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (newConfig.locales == lastLocales) return
+        lastLocales = newConfig.locales
+        NotificationChannels.refreshNames(this)
     }
 
     override fun onPictureInPictureModeChanged(

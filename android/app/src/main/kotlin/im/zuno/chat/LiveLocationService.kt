@@ -3,7 +3,6 @@ package im.zuno.chat
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
@@ -254,7 +253,6 @@ class LiveLocationService : Service() {
     }
 
     companion object {
-        private const val CHANNEL_ID = "live_location"
         private const val NOTIFICATION_ID = 4005
         private const val STOP_REQUEST_CODE = 4105
         private const val OPEN_REQUEST_CODE = 4106
@@ -344,14 +342,7 @@ class LiveLocationService : Service() {
         }
 
         private fun ensureChannel(context: Context) {
-            NotificationChannels.ensure(
-                context,
-                NotificationGroup.BACKGROUND,
-                CHANNEL_ID,
-                R.string.locationLiveLocation,
-                R.string.locationChannelLiveLocationDescription,
-                NotificationManager.IMPORTANCE_LOW,
-            )
+            NotificationChannels.ensure(context, AppChannel.LIVE_LOCATION)
         }
 
         private fun buildNotification(context: Context, notice: LiveLocationNotice): Notification {
@@ -370,7 +361,7 @@ class LiveLocationService : Service() {
                     .setAction(LiveLocationActionReceiver.ACTION_STOP),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            return NotificationCompat.Builder(context, CHANNEL_ID)
+            return NotificationCompat.Builder(context, AppChannel.LIVE_LOCATION.id)
                 .setSmallIcon(R.drawable.ic_stat_zuno_mark)
                 .setContentTitle(notice.title)
                 .setContentText(notice.text)

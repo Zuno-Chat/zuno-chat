@@ -318,6 +318,12 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
+    'appLanguage',
+    read: (c) => c.appLanguage,
+    android: AppLanguageSetting.inApp,
+    ios: AppLanguageSetting.systemSettings,
+  ),
+  _Capability(
     'mapsApp',
     read: (c) => c.mapsApp,
     android: MapsApp.geoIntent,

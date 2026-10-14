@@ -1,7 +1,5 @@
 package im.zuno.chat
 
-import android.app.Notification
-import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -20,7 +18,7 @@ class BackgroundSyncService : Service() {
 
         val contentIntent = AppLaunchIntent.pending(this, 0)
 
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(this, AppChannel.BACKGROUND_SYNC.id)
             .setContentTitle(PushNotice.BRAND_NAME)
             .setContentText(getString(R.string.notificationsBackgroundSyncWaiting))
             .setSmallIcon(R.drawable.ic_stat_zuno_mark)
@@ -49,18 +47,10 @@ class BackgroundSyncService : Service() {
     }
 
     private fun ensureChannel() {
-        NotificationChannels.ensure(
-            this,
-            NotificationGroup.BACKGROUND,
-            CHANNEL_ID,
-            R.string.notificationsChannelBackgroundSync,
-            R.string.notificationsChannelBackgroundSyncDescription,
-            NotificationManager.IMPORTANCE_MIN,
-        )
+        NotificationChannels.ensure(this, AppChannel.BACKGROUND_SYNC)
     }
 
     companion object {
-        private const val CHANNEL_ID = "background_sync"
         private const val NOTIFICATION_ID = 4003
 
         fun start(context: Context) {

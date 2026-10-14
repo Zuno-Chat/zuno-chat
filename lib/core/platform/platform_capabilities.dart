@@ -5,6 +5,8 @@ import '../location/maps_link.dart';
 import '../notifications/notification_delivery_mode.dart';
 import 'app_platform.dart';
 
+enum AppLanguageSetting { inApp, systemSettings }
+
 @immutable
 class PlatformCapabilities {
   final bool batteryExemption;
@@ -57,6 +59,7 @@ class PlatformCapabilities {
   final bool audioPlayerNeedsFile;
   final bool liveLocation;
   final bool nativeLogFloor;
+  final AppLanguageSetting appLanguage;
   final MapsApp mapsApp;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
@@ -112,6 +115,7 @@ class PlatformCapabilities {
     required this.audioPlayerNeedsFile,
     required this.liveLocation,
     required this.nativeLogFloor,
+    required this.appLanguage,
     required this.mapsApp,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
@@ -171,6 +175,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         audioPlayerNeedsFile: false,
         liveLocation: true,
         nativeLogFloor: true,
+        appLanguage: AppLanguageSetting.inApp,
         mapsApp: MapsApp.geoIntent,
         deliveryModes: [
           NotificationDeliveryMode.fcm,
@@ -230,6 +235,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         audioPlayerNeedsFile: true,
         liveLocation: true,
         nativeLogFloor: false,
+        appLanguage: AppLanguageSetting.systemSettings,
         mapsApp: MapsApp.appleMaps,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,

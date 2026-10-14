@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/app_language.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/avatar_photo.dart';
@@ -12,6 +13,8 @@ import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/picker_access.dart';
+import '../../../core/platform/app_settings_opener.dart';
+import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/sheet.dart';
@@ -201,9 +204,114 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
     );
   }
 
+  Future<void> _chooseLanguage(AppLanguage current) async {
+    final l10n = context.l10n;
+    final chosen = await showSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: RadioGroup<String>(
+          groupValue: current.locale?.languageCode ?? '',
+          onChanged: (code) => Navigator.of(context).pop(code),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<String>(
+                title: Text(l10n.settingsLanguageDevice),
+                value: '',
+              ),
+              for (final locale in AppLocalizations.supportedLocales)
+                RadioListTile<String>(
+                  title: Text(
+                    lookupAppLocalizations(locale).languageNativeName,
+                  ),
+                  value: locale.languageCode,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    try {
+      await ref
+          .read(appLanguageProvider.notifier)
+          .set(chosen.isEmpty ? null : chosen);
+    } catch (e, s) {
+      reportCaught('set app language', e, s);
+    }
+  }
+
+  Future<void> _openLanguageSettings() async {
+    final open = ref.read(appSettingsOpenerProvider);
+    if (View.of(context).platformDispatcher.locales.length > 1) {
+      await open();
+      return;
+    }
+    final l10n = context.l10n;
+    final proceed = await showSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                l10n.settingsLanguage,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              Text(l10n.settingsLanguageAddStep),
+              const SizedBox(height: 8),
+              Text(l10n.settingsLanguageChooseStep),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(l10n.settingsLanguageOpenSettings),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (proceed == true) await open();
+  }
+
+  Widget? _languageRow(AppLocalizations l10n) {
+    switch (ref.watch(platformCapabilitiesProvider).appLanguage) {
+      case AppLanguageSetting.systemSettings:
+        return ListTile(
+          leading: const Icon(Icons.language_outlined),
+          title: Text(l10n.settingsLanguage),
+          subtitle: Text(l10n.languageNativeName),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: _openLanguageSettings,
+        );
+      case AppLanguageSetting.inApp:
+        final language = ref.watch(appLanguageProvider).value;
+        if (language == null) return null;
+        final locale = language.locale;
+        return ListTile(
+          leading: const Icon(Icons.language_outlined),
+          title: Text(l10n.settingsLanguage),
+          subtitle: Text(
+            locale == null
+                ? l10n.settingsLanguageDevice
+                : lookupAppLocalizations(locale).languageNativeName,
+          ),
+          trailing: const Icon(Icons.chevron_right_outlined),
+          onTap: () => _chooseLanguage(language),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final languageRow = _languageRow(l10n);
     final client = ref.watch(matrixClientProvider);
     final displayName = _profile?.displayname;
     final userId = client.userID;
@@ -263,6 +371,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
               ),
             ],
           ),
+          if (languageRow != null) CardGroup(children: [languageRow]),
           CardGroup(
             children: [
               ListTile(

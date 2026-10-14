@@ -13,8 +13,9 @@ extension L10nContext on BuildContext {
 Locale resolveAppLocale(List<Locale> preferred) =>
     basicLocaleListResolution(preferred, AppLocalizations.supportedLocales);
 
-AppLocalizations deviceLocalizations() => lookupAppLocalizations(
-  resolveAppLocale(PlatformDispatcher.instance.locales),
-);
+AppLocalizations deviceLocalizations([List<Locale>? locales]) =>
+    lookupAppLocalizations(
+      resolveAppLocale(locales ?? PlatformDispatcher.instance.locales),
+    );
 
 final englishLocalizations = lookupAppLocalizations(const Locale('en'));

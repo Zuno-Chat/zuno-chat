@@ -3,11 +3,12 @@ New
 • Picture-in-picture for iPhone video calls.
 • Restore from a saved recovery code file.
 • Minimize a call and keep using Zuno.
-• Mute, use the speaker or turn your camera off while your call rings.
+• Mute, speaker or camera off while your call rings.
 • Drag your own view to any corner of a video call.
-• Crash reports, when you turn them on, now cover errors too.
+• Opt-in crash reports now cover errors too.
 • See every way Zuno protects you, from How this works.
 • Double-tap a message to react with a heart.
 • Zuno in Greek.
+• Pick Zuno's language in Settings.
 
 Fixed 130 bugs.

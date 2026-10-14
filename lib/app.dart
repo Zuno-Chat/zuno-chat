@@ -15,6 +15,7 @@ import 'core/calls/ring_coordinator.dart';
 import 'core/errors/caught_errors.dart';
 import 'core/errors/global_error_handler.dart';
 import 'core/errors/native_errors.dart';
+import 'core/l10n/app_language.dart';
 import 'core/l10n/l10n.dart';
 import 'core/location/live_location_capture.dart';
 import 'core/location/live_location_sharing.dart';
@@ -251,6 +252,13 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     _newDeviceTapSub?.cancel();
     _liveCaptureLostSub?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeLocales(List<Locale>? locales) {
+    if (locales == null) return;
+    ref.invalidate(appLanguageProvider);
+    unawaited(CallNotificationService.instance.refreshChannelNames(locales));
   }
 
   @override

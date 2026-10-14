@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
-import 'dart:ui' show IsolateNameServer;
+import 'dart:ui' show IsolateNameServer, Locale;
 
 import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
@@ -352,32 +352,42 @@ class CallNotificationService {
       onDidReceiveBackgroundNotificationResponse: _handleBackgroundCallResponse,
     );
 
+    await _registerChannels(l10n);
+    for (final channelId in _retiredChannelIds) {
+      await _android?.deleteNotificationChannel(channelId: channelId);
+    }
+    _ready = true;
+  }
+
+  Future<void> refreshChannelNames(List<Locale> locales) async {
+    if (!_ready) return;
+    await _registerChannels(deviceLocalizations(locales));
+  }
+
+  Future<void> _registerChannels(AppLocalizations l10n) async {
     final android = _android;
-    await android?.createNotificationChannelGroup(
+    if (android == null) return;
+    await android.createNotificationChannelGroup(
       AndroidNotificationChannelGroup(
         _callsGroupId,
         l10n.callsChannelGroupCalls,
       ),
     );
-    await android?.createNotificationChannelGroup(
+    await android.createNotificationChannelGroup(
       AndroidNotificationChannelGroup(
         _chatsGroupId,
         l10n.notificationsChannelGroupChats,
       ),
     );
-    await android?.createNotificationChannelGroup(
+    await android.createNotificationChannelGroup(
       AndroidNotificationChannelGroup(
         _accountGroupId,
         l10n.notificationsChannelGroupAccount,
       ),
     );
     for (final channel in _channels(l10n)) {
-      await android?.createNotificationChannel(channel);
+      await android.createNotificationChannel(channel);
     }
-    for (final channelId in _retiredChannelIds) {
-      await android?.deleteNotificationChannel(channelId: channelId);
-    }
-    _ready = true;
   }
 
   static const _markReadCategoryId = 'message';

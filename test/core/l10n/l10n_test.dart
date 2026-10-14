@@ -45,6 +45,10 @@ void main() {
     expect(deviceLocalizations().commonCancel, 'Cancel');
   });
 
+  test('deviceLocalizations resolves the locales it is given', () {
+    expect(deviceLocalizations(const [Locale('el', 'GR')]).localeName, 'el');
+  });
+
   testWidgets('context.l10n reads the app strings', (tester) async {
     late AppLocalizations l10n;
     await tester.pumpWidget(

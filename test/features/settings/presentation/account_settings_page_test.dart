@@ -10,11 +10,14 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/platform/app_settings_opener.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/settings/presentation/account_settings_page.dart';
 import 'package:zuno/features/settings/presentation/change_password_dialog.dart';
 
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/platform_capabilities.dart';
 
 const _me = '@alice:example.org';
 
@@ -99,10 +102,17 @@ void main() {
     picker = installFakeImagePicker();
   });
 
-  Future<void> pumpPage(WidgetTester tester) async {
+  Future<void> pumpPage(
+    WidgetTester tester, {
+    Future<bool> Function()? openSettings,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [matrixClientProvider.overrideWithValue(client)],
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          if (openSettings != null)
+            appSettingsOpenerProvider.overrideWithValue(openSettings),
+        ],
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -429,6 +439,190 @@ void main() {
 
       expect(client.passwordChanges, isEmpty);
       expect(find.byType(SnackBar), findsNothing);
+    });
+  });
+
+  group('the language', () {
+    const channel = MethodChannel('zuno/locale');
+    late List<MethodCall> localeCalls;
+    Object? localeReply;
+
+    setUp(() {
+      localeCalls = [];
+      localeReply = {'supported': true, 'tag': null};
+    });
+
+    void mockLocaleChannel(WidgetTester tester) {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        localeCalls.add(call);
+        if (call.method == 'set') {
+          localeReply = {
+            'supported': true,
+            'tag': (call.arguments as Map)['tag'],
+          };
+        }
+        return call.method == 'get' ? localeReply : null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+    }
+
+    testWidgets('on Android 13 and up the row reads Device language until '
+        'one is chosen', (tester) async {
+      ambientCapabilities = androidCapabilities;
+      mockLocaleChannel(tester);
+      await pumpPage(tester);
+
+      expect(subtitleOf(tester, 'Language'), 'Device language');
+    });
+
+    testWidgets('the list offers Device language and every language by its '
+        'own name', (tester) async {
+      ambientCapabilities = androidCapabilities;
+      mockLocaleChannel(tester);
+      await pumpPage(tester);
+
+      await tester.tap(row('Language'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RadioListTile<String>), findsNWidgets(3));
+      expect(find.text('Device language'), findsWidgets);
+      expect(find.text('English'), findsOneWidget);
+      expect(find.text('Ελληνικά'), findsOneWidget);
+    });
+
+    testWidgets('choosing Ελληνικά sets the app language to el and shows '
+        'it', (tester) async {
+      ambientCapabilities = androidCapabilities;
+      mockLocaleChannel(tester);
+      await pumpPage(tester);
+
+      await tester.tap(row('Language'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ελληνικά'));
+      await tester.pumpAndSettle();
+
+      final set = localeCalls.singleWhere((c) => c.method == 'set');
+      expect(set.arguments, {'tag': 'el'});
+      expect(find.byType(RadioListTile<String>), findsNothing);
+    });
+
+    testWidgets('choosing Device language sends no tag', (tester) async {
+      ambientCapabilities = androidCapabilities;
+      localeReply = {'supported': true, 'tag': 'el'};
+      mockLocaleChannel(tester);
+      await pumpPage(tester);
+
+      await tester.tap(row('Language'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Device language').last);
+      await tester.pumpAndSettle();
+
+      final set = localeCalls.singleWhere((c) => c.method == 'set');
+      expect(set.arguments, {'tag': null});
+    });
+
+    testWidgets('a chosen language shows as the subtitle', (tester) async {
+      ambientCapabilities = androidCapabilities;
+      localeReply = {'supported': true, 'tag': 'el'};
+      mockLocaleChannel(tester);
+      await pumpPage(tester);
+
+      expect(find.text('Ελληνικά'), findsOneWidget);
+    });
+
+    testWidgets('below Android 13 there is no Language row', (tester) async {
+      ambientCapabilities = androidCapabilities;
+      localeReply = {'supported': false};
+      mockLocaleChannel(tester);
+      await pumpPage(tester);
+
+      expect(row('Language'), findsNothing);
+      expect(find.text('Language'), findsNothing);
+    });
+
+    group('on iOS', () {
+      void setLocales(WidgetTester tester, List<Locale> locales) {
+        tester.platformDispatcher.localesTestValue = locales;
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+      }
+
+      testWidgets('the row shows the current language and the open icon', (
+        tester,
+      ) async {
+        ambientCapabilities = iosCapabilities;
+        mockLocaleChannel(tester);
+        await pumpPage(tester);
+
+        expect(subtitleOf(tester, 'Language'), 'English');
+        expect(find.byIcon(Icons.open_in_new), findsOneWidget);
+      });
+
+      testWidgets('with several device languages the tap opens the app '
+          'settings straight away', (tester) async {
+        ambientCapabilities = iosCapabilities;
+        setLocales(tester, const [Locale('en'), Locale('el')]);
+        mockLocaleChannel(tester);
+        var opened = 0;
+        await pumpPage(
+          tester,
+          openSettings: () async {
+            opened++;
+            return true;
+          },
+        );
+
+        await tester.tap(row('Language'));
+        await tester.pumpAndSettle();
+
+        expect(opened, 1);
+        expect(find.text('Open Settings'), findsNothing);
+        expect(localeCalls, isEmpty);
+      });
+
+      testWidgets('with one device language the tap explains the two steps '
+          'first, and Open Settings opens the app settings', (tester) async {
+        ambientCapabilities = iosCapabilities;
+        setLocales(tester, const [Locale('en')]);
+        mockLocaleChannel(tester);
+        var opened = 0;
+        await pumpPage(
+          tester,
+          openSettings: () async {
+            opened++;
+            return true;
+          },
+        );
+
+        await tester.tap(row('Language'));
+        await tester.pumpAndSettle();
+
+        expect(opened, 0);
+        expect(
+          find.text(
+            '1. Add the language in Settings → General → Language & '
+            'Region.',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.text('2. Choose it in Settings → Apps → Zuno → Language.'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.widgetWithText(FilledButton, 'Open Settings'));
+        await tester.pumpAndSettle();
+
+        expect(opened, 1);
+        expect(find.text('Open Settings'), findsNothing);
+        expect(localeCalls, isEmpty);
+      });
     });
   });
 }

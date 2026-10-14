@@ -1,8 +1,6 @@
 package im.zuno.chat
 
 import android.Manifest
-import android.app.Notification
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -43,7 +41,7 @@ class CallForegroundService : Service() {
         )
 
         val caller = Person.Builder().setName(title).build()
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(this, AppChannel.ONGOING_CALL.id)
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_stat_zuno_mark)
             .setOngoing(true)
@@ -82,19 +80,11 @@ class CallForegroundService : Service() {
     }
 
     private fun ensureChannel() {
-        NotificationChannels.ensure(
-            this,
-            NotificationGroup.CALLS,
-            CHANNEL_ID,
-            R.string.callsOngoingCall,
-            R.string.callsChannelOngoingCallDescription,
-            NotificationManager.IMPORTANCE_LOW,
-        )
+        NotificationChannels.ensure(this, AppChannel.ONGOING_CALL)
     }
 
     companion object {
         const val ACTION_OPEN_CALL = "im.zuno.chat.OPEN_CALL"
-        private const val CHANNEL_ID = "calls_ongoing"
         private const val NOTIFICATION_ID = 4001
         private const val EXTRA_TITLE = "title"
         private const val EXTRA_TEXT = "text"

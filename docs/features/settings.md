@@ -7,7 +7,7 @@ are documented with that feature.
 
 | Category | Holds | Behavior documented in |
 |---|---|---|
-| Account (the profile card) | Picture, display name, username, change password | here; password in `authentication.md` |
+| Account (the profile card) | Picture, display name, username, language, change password | here; language in `app-foundation.md`, password in `authentication.md` |
 | Notifications | Enable, notify-for, sounds, content (iOS), Delivery (Android), Diagnostics hub | `notifications.md` |
 | Chats & calls | Theme, typing indicator, prevent accidental calls | here; accidental calls in `calls.md` |
 | Data & storage | Reduce media size, less data for calls, clear cache, clear media cache | here; `chats-messaging.md`, `calls.md` |

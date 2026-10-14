@@ -20,6 +20,8 @@ import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
+import 'package:zuno/core/l10n/app_language.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/currently_open_room_provider.dart';
@@ -713,6 +715,55 @@ void main() {
   });
 
   group('app lifecycle', () {
+    testWidgets('a change of the app language reads the chosen language '
+        'again', (tester) async {
+      const localeChannel = MethodChannel('zuno/locale');
+      var reads = 0;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        localeChannel,
+        (call) async {
+          reads++;
+          return {'supported': true, 'tag': reads == 1 ? null : 'el'};
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          localeChannel,
+          null,
+        ),
+      );
+      final container = await pumpApp(tester);
+      await settle(tester);
+      expect((await container.read(appLanguageProvider.future))!.tag, isNull);
+
+      tester.platformDispatcher.localesTestValue = const [Locale('el')];
+      addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+      await settle(tester);
+
+      expect((await container.read(appLanguageProvider.future))!.tag, 'el');
+    });
+
+    testWidgets('a change of the app language registers the notification '
+        'channels again under the new names', (tester) async {
+      await CallNotificationService.instance.initialize();
+      await pumpApp(tester);
+      await settle(tester);
+      notifications.channels.clear();
+
+      tester.platformDispatcher.localesTestValue = const [Locale('el')];
+      addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+      await settle(tester);
+
+      final chat = notifications.channels.singleWhere(
+        (c) => c['id'] == messagesChannelId,
+      );
+      expect(
+        chat['name'],
+        lookupAppLocalizations(const Locale('el'))
+            .notificationsChannelChatMessages,
+      );
+    });
+
     testWidgets('a return to the app rechecks permission and the lock screen, '
         'the launch resume does not', (tester) async {
       await pumpApp(tester);

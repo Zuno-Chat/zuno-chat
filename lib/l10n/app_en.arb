@@ -1683,6 +1683,10 @@
   "@feedbackSheetTitle": {
     "description": "Feedback sheet title and its send button"
   },
+  "languageNativeName": "English",
+  "@languageNativeName": {
+    "description": "This language's own name, shown in the language list"
+  },
   "locationAccuracyKilometers": "about {km} km",
   "@locationAccuracyKilometers": {
     "placeholders": {
@@ -4375,6 +4379,11 @@
   "settingsKeyBackupLoadFailed": "Could not load the key backup. Pull down to try again.",
   "settingsKeyBackupNone": "No key backup set up on this account.",
   "settingsKeyBackupTitle": "Manage key backup",
+  "settingsLanguage": "Language",
+  "settingsLanguageDevice": "Device language",
+  "settingsLanguageAddStep": "1. Add the language in Settings → General → Language & Region.",
+  "settingsLanguageChooseStep": "2. Choose it in Settings → Apps → Zuno → Language.",
+  "settingsLanguageOpenSettings": "Open Settings",
   "settingsPageAbout": "About",
   "@settingsPageAbout": {
     "description": "Settings row: open the About screen"
