@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="commonYou">Tu</string>
+    <string name="notificationsFallbackChatName">Chat</string>
+    <string name="notificationsMissedPushes">Alcune notifiche non sono state consegnate. Apri Zuno per vedere i nuovi messaggi.</string>
+    <string name="notificationsNewMessage">Nuovo messaggio</string>
+    <string name="notificationsTapToOpen">Tocca per aprire</string>
+    <string name="notificationsTestWorks">Le notifiche funzionano</string>
+</resources>

@@ -40,7 +40,7 @@ When traits pull apart:
 ## Mechanics
 
 - American English. Sentence case for titles and buttons.
-- Each translation follows its own guide and glossary: Greek `docs/brand-voice-el.md` (formal plural), Brazilian Portuguese `docs/brand-voice-pt-BR.md` (você), European Portuguese `docs/brand-voice-pt-PT.md` (formal third person), French `docs/brand-voice-fr.md` (vous).
+- Each translation follows its own guide and glossary: Greek `docs/brand-voice-el.md` (formal plural), Brazilian Portuguese `docs/brand-voice-pt-BR.md` (você), European Portuguese `docs/brand-voice-pt-PT.md` (formal third person), French `docs/brand-voice-fr.md` (vous), Spanish `docs/brand-voice-es.md` (tú), Italian `docs/brand-voice-it.md` (tu).
 - No contractions: "cannot", "you are", "it is".
 - No emoji and no exclamation marks, anywhere.
 - No speaker: never "we" or "I". Say "Zuno" or rephrase.

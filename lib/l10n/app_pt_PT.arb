@@ -1044,6 +1044,7 @@
   "roomInfoPersonIdentityChanged": "Os dados de segurança de {name} mudaram",
   "roomInfoPhotosAndVideos": "Fotografias e vídeos",
   "roomInfoPrivacy": "Privacidade",
+  "roomInfoRemove": "Remover",
   "roomInfoRemoveCommunityBody": "A pessoa é removida da comunidade e pode voltar a entrar se receber um novo convite. Continua nas salas em que já entrou.",
   "roomInfoRemoveFromRoom": "Remover da sala",
   "roomInfoRemoveRoomBody": "A pessoa é removida da sala e pode voltar a entrar se receber um novo convite.",

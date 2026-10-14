@@ -1044,6 +1044,7 @@
   "roomInfoPersonIdentityChanged": "{name}: άλλαξαν τα στοιχεία ασφαλείας",
   "roomInfoPhotosAndVideos": "Φωτογραφίες και βίντεο",
   "roomInfoPrivacy": "Απόρρητο",
+  "roomInfoRemove": "Αφαίρεση",
   "roomInfoRemoveCommunityBody": "Αφαιρείται από την κοινότητα και μπορεί να μπει ξανά αν προσκληθεί ξανά. Παραμένει στις αίθουσες όπου έχει ήδη μπει.",
   "roomInfoRemoveFromRoom": "Αφαίρεση από την αίθουσα",
   "roomInfoRemoveRoomBody": "Αφαιρείται από την αίθουσα και μπορεί να μπει ξανά αν προσκληθεί ξανά.",

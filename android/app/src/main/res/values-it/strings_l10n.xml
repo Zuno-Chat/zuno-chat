@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="l10n_locale">it</string>
+    <string name="callsChannelGroupCalls">Chiamate</string>
+    <string name="callsChannelOngoingCallDescription">Visibile durante una chiamata</string>
+    <string name="callsHangUp">Termina chiamata</string>
+    <string name="callsOngoingCall">Chiamata in corso</string>
+    <string name="locationChannelLiveLocationDescription">Visibile mentre condividi la tua posizione in tempo reale</string>
+    <string name="locationLiveLocation">Posizione in tempo reale</string>
+    <string name="locationStopSharing">Interrompi la condivisione</string>
+    <string name="matrixUploadingFile">Invio in corso…</string>
+    <string name="notificationsBackgroundSyncWaiting">In attesa di messaggi e chiamate</string>
+    <string name="notificationsChannelBackgroundSync">Sincronizzazione in background</string>
+    <string name="notificationsChannelBackgroundSyncDescription">Visibile mentre la sincronizzazione in background mantiene attiva la connessione di Zuno</string>
+    <string name="notificationsChannelGroupBackground">Attività in background</string>
+    <string name="uploadsChannelSendingFiles">Invio di file</string>
+    <string name="uploadsChannelSendingFilesDescription">Avanzamento dell’invio di foto, video e file</string>
+</resources>

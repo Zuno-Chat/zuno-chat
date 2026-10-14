@@ -124,32 +124,19 @@ void main() {
     );
   });
 
-  test('a Greek lookup is Greek', () {
-    expect(lookupAppLocalizations(const Locale('el')).commonCancel, 'Ακύρωση');
-  });
-
-  test('Portuguese ships in two regions, each naming itself', () {
-    expect(
-      lookupAppLocalizations(const Locale('pt')).languageNativeName,
-      'Português (Brasil)',
-    );
-    expect(
-      lookupAppLocalizations(const Locale('pt', 'PT')).languageNativeName,
-      'Português (Portugal)',
-    );
-  });
-
-  test('European Portuguese counts zero as plural', () {
-    expect(
-      lookupAppLocalizations(const Locale('pt', 'PT')).unitsMembers(0),
-      '0 membros',
-    );
-  });
-
-  test('French names itself and counts zero as singular', () {
-    final french = lookupAppLocalizations(const Locale('fr'));
-    expect(french.languageNativeName, 'Français');
-    expect(french.unitsMembers(0), '0 membre');
+  test('each translation names itself and counts zero by its own rule', () {
+    for (final (locale, name, zero) in const [
+      (Locale('el'), 'Ελληνικά', '0 μέλη'),
+      (Locale('pt'), 'Português (Brasil)', '0 membro'),
+      (Locale('pt', 'PT'), 'Português (Portugal)', '0 membros'),
+      (Locale('fr'), 'Français', '0 membre'),
+      (Locale('es'), 'Español', '0 miembros'),
+      (Locale('it'), 'Italiano', '0 membri'),
+    ]) {
+      final l10n = lookupAppLocalizations(locale);
+      expect(l10n.languageNativeName, name, reason: '$locale');
+      expect(l10n.unitsMembers(0), zero, reason: '$locale');
+    }
   });
 
   test('englishLocalizations is English', () {

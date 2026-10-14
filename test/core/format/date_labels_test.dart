@@ -196,33 +196,29 @@ void main() {
     expect(l.dateTime(at), '${l.date(at)} at ${l.clock(at)}');
   });
 
-  test('a Greek phone gets Greek dates and words', () {
-    final greek = DateLabels(
-      lookupAppLocalizations(const Locale('el')),
-      locale: dateLocale('el', const [Locale('el', 'GR')]),
-      use24Hour: true,
-    );
-    expect(greek.longDate(DateTime(2026, 1, 5)), contains('Ιανουαρίου'));
-    expect(greek.day(DateTime(2026, 10, 13, 9), now: now), 'Χθες');
-  });
-
-  test('a Portuguese phone gets Portuguese dates and words', () {
-    final portuguese = DateLabels(
-      lookupAppLocalizations(const Locale('pt', 'PT')),
-      locale: dateLocale('pt_PT', const [Locale('pt', 'PT')]),
-      use24Hour: true,
-    );
-    expect(portuguese.longDate(DateTime(2026, 1, 5)), contains('janeiro'));
-    expect(portuguese.day(DateTime(2026, 10, 13, 9), now: now), 'Ontem');
-  });
-
-  test('a French phone gets French dates and words', () {
-    final french = DateLabels(
-      lookupAppLocalizations(const Locale('fr')),
-      locale: dateLocale('fr', const [Locale('fr', 'FR')]),
-      use24Hour: true,
-    );
-    expect(french.longDate(DateTime(2026, 1, 5)), contains('janvier'));
-    expect(french.day(DateTime(2026, 10, 13, 9), now: now), 'Hier');
+  test('each translated phone gets its own dates and words', () {
+    for (final (app, phone, month, yesterday) in const [
+      (Locale('el'), Locale('el', 'GR'), 'Ιανουαρίου', 'Χθες'),
+      (Locale('pt', 'PT'), Locale('pt', 'PT'), 'janeiro', 'Ontem'),
+      (Locale('fr'), Locale('fr', 'FR'), 'janvier', 'Hier'),
+      (Locale('es'), Locale('es', 'ES'), 'enero', 'Ayer'),
+      (Locale('it'), Locale('it', 'IT'), 'gennaio', 'Ieri'),
+    ]) {
+      final translated = DateLabels(
+        lookupAppLocalizations(app),
+        locale: dateLocale('$app', [phone]),
+        use24Hour: true,
+      );
+      expect(
+        translated.longDate(DateTime(2026, 1, 5)),
+        contains(month),
+        reason: '$app',
+      );
+      expect(
+        translated.day(DateTime(2026, 10, 13, 9), now: now),
+        yesterday,
+        reason: '$app',
+      );
+    }
   });
 }

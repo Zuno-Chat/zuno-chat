@@ -930,7 +930,7 @@
   },
   "commonRemove": "Remove",
   "@commonRemove": {
-    "description": "Button and tooltip: remove an item or person"
+    "description": "Button and tooltip: remove an item"
   },
   "commonRemovePhoto": "Remove photo",
   "@commonRemovePhoto": {
@@ -3691,6 +3691,10 @@
   "roomInfoPrivacy": "Privacy",
   "@roomInfoPrivacy": {
     "description": "Section heading on room settings: privacy"
+  },
+  "roomInfoRemove": "Remove",
+  "@roomInfoRemove": {
+    "description": "Dialog button: remove the member from the room or community"
   },
   "roomInfoRemoveCommunityBody": "They are removed from the community and can rejoin if invited again. They stay in rooms they already joined.",
   "roomInfoRemoveFromRoom": "Remove from room",

@@ -31,7 +31,7 @@ Future<bool> confirmRemoveMember(
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: Text(ban ? l10n.roomInfoBan : l10n.commonRemove),
+          child: Text(ban ? l10n.roomInfoBan : l10n.roomInfoRemove),
         ),
       ],
     ),
