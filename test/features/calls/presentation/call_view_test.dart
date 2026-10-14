@@ -835,8 +835,12 @@ void main() {
       onSelfCornerChanged: (_) {},
     );
 
-    Future<void> endCallReachable(WidgetTester tester, String name) async {
-      final end = tester.getRect(find.byTooltip('End call'));
+    Future<void> endCallReachable(
+      WidgetTester tester,
+      String name,
+      AppLocalizations l10n,
+    ) async {
+      final end = tester.getRect(find.byTooltip(l10n.callsEndCall));
       final screen = tester.view.physicalSize;
       final stages = find.byType(VoiceCallStage);
       if (stages.evaluate().isNotEmpty) {
@@ -857,7 +861,7 @@ void main() {
         tester,
         () => view(kind: CallKind.voice, others: ['Ann']),
         theme: zunoDarkTheme,
-        afterEach: (name) => endCallReachable(tester, name),
+        afterEach: (name, l10n) => endCallReachable(tester, name, l10n),
       );
     });
 
@@ -868,7 +872,7 @@ void main() {
         tester,
         () => view(kind: CallKind.video, others: ['Ann']),
         theme: zunoDarkTheme,
-        afterEach: (name) => endCallReachable(tester, name),
+        afterEach: (name, l10n) => endCallReachable(tester, name, l10n),
       );
     });
 
@@ -882,7 +886,7 @@ void main() {
           others: ['Ann', 'Ben', 'Cat', 'Dan', 'Eve'],
         ),
         theme: zunoDarkTheme,
-        afterEach: (name) => endCallReachable(tester, name),
+        afterEach: (name, l10n) => endCallReachable(tester, name, l10n),
       );
     });
 
@@ -898,7 +902,7 @@ void main() {
             confirmName: '@samantha.rivera',
           ),
           theme: zunoDarkTheme,
-          afterEach: (name) => endCallReachable(tester, name),
+          afterEach: (name, l10n) => endCallReachable(tester, name, l10n),
         );
       });
     }

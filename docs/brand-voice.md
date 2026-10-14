@@ -40,6 +40,7 @@ When traits pull apart:
 ## Mechanics
 
 - American English. Sentence case for titles and buttons.
+- Greek follows `docs/brand-voice-el.md` (formal plural and its own glossary).
 - No contractions: "cannot", "you are", "it is".
 - No emoji and no exclamation marks, anywhere.
 - No speaker: never "we" or "I". Say "Zuno" or rephrase.

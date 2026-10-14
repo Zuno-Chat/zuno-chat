@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="commonYou">Εσείς</string>
+    <string name="notificationsFallbackChatName">Συνομιλία</string>
+    <string name="notificationsMissedPushes">Ορισμένες ειδοποιήσεις δεν παραδόθηκαν. Ανοίξτε το Zuno για να δείτε τα νέα μηνύματα.</string>
+    <string name="notificationsNewMessage">Νέο μήνυμα</string>
+    <string name="notificationsTapToOpen">Πατήστε για άνοιγμα</string>
+    <string name="notificationsTestWorks">Οι ειδοποιήσεις λειτουργούν</string>
+</resources>

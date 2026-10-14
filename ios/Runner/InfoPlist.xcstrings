@@ -4,6 +4,12 @@
     "NSCameraUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το Zuno χρησιμοποιεί την κάμερα για βιντεοκλήσεις, για τις φωτογραφίες και τα βίντεο που τραβάτε και για τη σάρωση κωδικών σύνδεσης και επαλήθευσης."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15,6 +21,12 @@
     "NSLocationAlwaysAndWhenInUseUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το Zuno χρησιμοποιεί την τοποθεσία σας μόνο όταν τη στέλνετε ή την κοινοποιείτε ζωντανά σε μια συνομιλία ή αίθουσα."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -26,6 +38,12 @@
     "NSLocationWhenInUseUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το Zuno χρησιμοποιεί την τοποθεσία σας μόνο όταν τη στέλνετε ή την κοινοποιείτε ζωντανά σε μια συνομιλία ή αίθουσα."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -37,6 +55,12 @@
     "NSMicrophoneUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το Zuno χρησιμοποιεί το μικρόφωνο για κλήσεις, φωνητικά μηνύματα και τα βίντεο που τραβάτε."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -48,6 +72,12 @@
     "NSPhotoLibraryAddUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το Zuno αποθηκεύει φωτογραφίες και βίντεο στη βιβλιοθήκη σας μόνο όταν πατάτε «Αποθήκευση»."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -59,6 +89,12 @@
     "NSPhotoLibraryUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το Zuno χρησιμοποιεί μόνο τις φωτογραφίες και τα βίντεο που επιλέγετε, για να τα στείλετε ή για να ορίσετε φωτογραφία προφίλ ή αίθουσας."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",

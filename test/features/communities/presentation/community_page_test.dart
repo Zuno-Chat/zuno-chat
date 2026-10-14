@@ -979,14 +979,14 @@ void main() {
         ),
       ),
       theme: zunoLightTheme,
-      afterEach: (name) async {
+      afterEach: (name, l10n) async {
         await tester.pump();
         await tester.scrollUntilVisible(
-          find.text('Join'),
+          find.text(l10n.commonJoin),
           200,
           scrollable: find.byType(Scrollable).first,
         );
-        expect(find.text('Join'), findsOneWidget, reason: name);
+        expect(find.text(l10n.commonJoin), findsOneWidget, reason: name);
         expect(tester.takeException(), isNull, reason: name);
       },
     );

@@ -32,6 +32,11 @@ void main() {
     );
   });
 
+  test('a Greek phone gets Greek', () {
+    expect(resolveAppLocale(const [Locale('el', 'GR')]), const Locale('el'));
+    expect(lookupAppLocalizations(const Locale('el')).commonCancel, 'Ακύρωση');
+  });
+
   test('englishLocalizations is English', () {
     expect(englishLocalizations.localeName, 'en');
   });

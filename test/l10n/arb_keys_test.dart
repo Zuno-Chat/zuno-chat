@@ -59,4 +59,25 @@ void main() {
       expect(extra, isEmpty, reason: file.path);
     }
   });
+
+  test('every translation has every key with the template placeholders', () {
+    Iterable<String> declared(String key) => switch (template['@$key']) {
+      {'placeholders': final Map placeholders} =>
+        placeholders.keys.cast<String>(),
+      _ => const [],
+    };
+    for (final file in _files(['lib/l10n'], '.arb')) {
+      final arb = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      final problems = [
+        for (final key in keys)
+          if (arb[key] is! String)
+            '$key: missing'
+          else
+            for (final name in declared(key))
+              if (!RegExp('\\{$name\\s*[},]').hasMatch(arb[key] as String))
+                '$key: {$name} missing',
+      ];
+      expect(problems, isEmpty, reason: file.path);
+    }
+  });
 }

@@ -8,5 +8,6 @@ New
 • Crash reports, when you turn them on, now cover errors too.
 • See every way Zuno protects you, from How this works.
 • Double-tap a message to react with a heart.
+• Zuno in Greek.
 
 Fixed 130 bugs.

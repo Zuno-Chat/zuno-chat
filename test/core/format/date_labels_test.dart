@@ -195,4 +195,14 @@ void main() {
     final l = labels('en_US');
     expect(l.dateTime(at), '${l.date(at)} at ${l.clock(at)}');
   });
+
+  test('a Greek phone gets Greek dates and words', () {
+    final greek = DateLabels(
+      lookupAppLocalizations(const Locale('el')),
+      locale: dateLocale('el', const [Locale('el', 'GR')]),
+      use24Hour: true,
+    );
+    expect(greek.longDate(DateTime(2026, 1, 5)), contains('Ιανουαρίου'));
+    expect(greek.day(DateTime(2026, 10, 13, 9), now: now), 'Χθες');
+  });
 }

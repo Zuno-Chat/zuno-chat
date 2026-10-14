@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="callsChannelGroupCalls">Κλήσεις</string>
+    <string name="callsChannelOngoingCallDescription">Εμφανίζεται όσο βρίσκεστε σε κλήση</string>
+    <string name="callsHangUp">Τερματισμός</string>
+    <string name="callsOngoingCall">Κλήση σε εξέλιξη</string>
+    <string name="locationChannelLiveLocationDescription">Εμφανίζεται όσο κοινοποιείτε τη ζωντανή τοποθεσία σας</string>
+    <string name="locationLiveLocation">Ζωντανή τοποθεσία</string>
+    <string name="locationStopSharing">Διακοπή κοινοποίησης</string>
+    <string name="matrixUploadingFile">Μεταφόρτωση…</string>
+    <string name="notificationsBackgroundSyncWaiting">Αναμονή για μηνύματα και κλήσεις</string>
+    <string name="notificationsChannelBackgroundSync">Συγχρονισμός στο παρασκήνιο</string>
+    <string name="notificationsChannelBackgroundSyncDescription">Εμφανίζεται όσο ο συγχρονισμός στο παρασκήνιο διατηρεί το Zuno συνδεδεμένο</string>
+    <string name="notificationsChannelGroupBackground">Παρασκήνιο</string>
+    <string name="uploadsChannelSendingFiles">Αποστολή αρχείων</string>
+    <string name="uploadsChannelSendingFilesDescription">Πρόοδος κατά την αποστολή φωτογραφιών, βίντεο και αρχείων</string>
+</resources>

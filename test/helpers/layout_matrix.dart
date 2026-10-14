@@ -2,29 +2,42 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 
-const layoutMatrix = <({String name, Size size, double textScale, bool rtl})>[
-  (name: 'small phone', size: Size(360, 640), textScale: 1, rtl: false),
-  (
-    name: 'smallest phone, 2x text',
-    size: Size(320, 568),
-    textScale: 2,
-    rtl: false,
-  ),
-  (name: 'landscape', size: Size(640, 360), textScale: 1, rtl: false),
-  (
-    name: 'landscape, 1.3x text',
-    size: Size(640, 360),
-    textScale: 1.3,
-    rtl: false,
-  ),
-  (name: 'right to left', size: Size(360, 640), textScale: 1, rtl: true),
+class LayoutCase {
+  const LayoutCase(
+    this.name,
+    this.size, {
+    this.textScale = 1,
+    this.rtl = false,
+    this.locale,
+  });
+
+  final String name;
+  final Size size;
+  final double textScale;
+  final bool rtl;
+  final Locale? locale;
+}
+
+final layoutMatrix = [
+  const LayoutCase('small phone', Size(360, 640)),
+  const LayoutCase('smallest phone, 2x text', Size(320, 568), textScale: 2),
+  const LayoutCase('landscape', Size(640, 360)),
+  const LayoutCase('landscape, 1.3x text', Size(640, 360), textScale: 1.3),
+  const LayoutCase('right to left', Size(360, 640), rtl: true),
+  for (final locale in AppLocalizations.supportedLocales.skip(1))
+    LayoutCase(
+      '$locale, smallest phone, 1.3x text',
+      const Size(320, 568),
+      textScale: 1.3,
+      locale: locale,
+    ),
 ];
 
 Future<void> expectSurvivesLayoutMatrix(
   WidgetTester tester,
   Widget Function() build, {
   ThemeData? theme,
-  Future<void> Function(String caseName)? afterEach,
+  Future<void> Function(String caseName, AppLocalizations l10n)? afterEach,
 }) async {
   addTearDown(tester.view.reset);
   for (final entry in layoutMatrix) {
@@ -36,6 +49,7 @@ Future<void> expectSurvivesLayoutMatrix(
       MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        locale: entry.locale,
         theme: theme,
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context)
@@ -57,6 +71,11 @@ Future<void> expectSurvivesLayoutMatrix(
           '${entry.name}\n'
           '${error is FlutterError ? error.toStringDeep() : ''}',
     );
-    await afterEach?.call(entry.name);
+    await afterEach?.call(
+      entry.name,
+      lookupAppLocalizations(
+        entry.locale ?? AppLocalizations.supportedLocales.first,
+      ),
+    );
   }
 }

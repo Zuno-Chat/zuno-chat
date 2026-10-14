@@ -286,9 +286,12 @@ stateDiagram-v2
 
 ### Localization (`lib/l10n/`, `lib/core/l10n/`, `tool/l10n/`, `tool/zuno_lints/`)
 
-Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-l10n`).
+Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-l10n`), the template every other language translates. Supported: English and Greek (formal register).
 
-- **Adding a left-to-right language** is `app_xx.arb` plus `dart run tool/l10n/generate_native.dart`. Right-to-left needs a layout pass first, since layouts are left-to-right.
+- **Adding a left-to-right language** is a complete `app_xx.arb`, a style guide `docs/brand-voice-xx.md` next to `brand-voice.md`, and `dart run tool/l10n/generate_native.dart`. Right-to-left needs a layout pass first, since layouts are left-to-right.
+- **Each language's glossary and style rules live in its own guide** (`docs/brand-voice-el.md` for Greek); `brand-voice.md` stays the English source.
+- **Every language must be complete**: a test fails when a translation misses a key or placeholder of the English template, so a new string ships with every language.
+- **Layouts are checked per language**: the layout-matrix widget tests also run each translated language on the smallest phone with larger text, to catch longer text overflowing.
 - **Language follows the phone**, and the per-app language on Android 13+ and iOS; there is no in-app picker. English is the fallback, pinned first by `preferred-supported-locales`.
 - **Reading strings**:
 

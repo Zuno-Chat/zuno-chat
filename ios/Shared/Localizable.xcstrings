@@ -4,6 +4,12 @@
     "callsGenericRingName" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Κλήση Zuno"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15,6 +21,12 @@
     "callsIncomingVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Εισερχόμενη βιντεοκλήση"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -26,6 +38,12 @@
     "callsIncomingVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Εισερχόμενη φωνητική κλήση"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -37,6 +55,12 @@
     "callsMissedBeforeUnlock" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ξεκλειδώστε αυτή τη συσκευή μετά από επανεκκίνηση για να απαντάτε σε κλήσεις."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -48,6 +72,12 @@
     "callsMissedCallTitle" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αναπάντητη κλήση"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -59,6 +89,12 @@
     "callsScreenCaptureHidden" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το Zuno αποκρύπτεται όσο γίνεται εγγραφή ή κοινή χρήση της οθόνης."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -70,6 +106,12 @@
     "callsSummaryDeclinedVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Η βιντεοκλήση απορρίφθηκε"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -81,6 +123,12 @@
     "callsSummaryDeclinedVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Η φωνητική κλήση απορρίφθηκε"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -92,6 +140,12 @@
     "callsSummaryEndedVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Βιντεοκλήση · %1$@"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -103,6 +157,12 @@
     "callsSummaryEndedVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Φωνητική κλήση · %1$@"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -114,6 +174,12 @@
     "callsSummaryMissedVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αναπάντητη βιντεοκλήση"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -125,6 +191,12 @@
     "callsSummaryMissedVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αναπάντητη φωνητική κλήση"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -136,6 +208,12 @@
     "callsVideoCall" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Βιντεοκλήση"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -147,6 +225,12 @@
     "callsVoiceCall" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Φωνητική κλήση"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -158,6 +242,12 @@
     "commonCancel" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ακύρωση"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -169,6 +259,12 @@
     "commonClose" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Κλείσιμο"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -180,6 +276,12 @@
     "commonMarkAsRead" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Επισήμανση ως αναγνωσμένου"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -191,6 +293,12 @@
     "commonMessageHint" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Μήνυμα"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -202,6 +310,12 @@
     "commonReply" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Απάντηση"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -213,6 +327,12 @@
     "commonSend" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αποστολή"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -224,6 +344,12 @@
     "matrixSharePreparing" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Προετοιμασία κοινοποίησης…"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -235,6 +361,12 @@
     "matrixSummaryDeleted" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το μήνυμα διαγράφηκε"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -246,6 +378,12 @@
     "matrixSummaryLiveLocation" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ζωντανή τοποθεσία"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -257,6 +395,12 @@
     "matrixSummaryLocation" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τοποθεσία"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -268,6 +412,12 @@
     "matrixSummaryOtherEvent" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Συμβάν %1$@"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -279,6 +429,12 @@
     "matrixSummaryPhoto" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Φωτογραφία"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -290,6 +446,12 @@
     "matrixSummaryVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Βίντεο"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -301,6 +463,12 @@
     "matrixSummaryVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Φωνητικό μήνυμα"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -312,6 +480,12 @@
     "notificationsInvitedToRoom" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Σας προσκάλεσε στην αίθουσα «%1$@»"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -323,6 +497,24 @@
     "notificationsMoreChats" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Νέα μηνύματα σε %1$lld ακόμα συνομιλία"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Νέα μηνύματα σε %1$lld ακόμα συνομιλίες"
+                }
+              }
+            }
+          }
+        },
         "en" : {
           "variations" : {
             "plural" : {
@@ -346,6 +538,18 @@
     "notificationsMoreChatsAndRooms" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Νέα μηνύματα σε %1$lld ακόμα συνομιλίες και αίθουσες"
+                }
+              }
+            }
+          }
+        },
         "en" : {
           "variations" : {
             "plural" : {
@@ -363,6 +567,24 @@
     "notificationsMoreRooms" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Νέα μηνύματα σε %1$lld ακόμα αίθουσα"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Νέα μηνύματα σε %1$lld ακόμα αίθουσες"
+                }
+              }
+            }
+          }
+        },
         "en" : {
           "variations" : {
             "plural" : {
@@ -386,6 +608,12 @@
     "notificationsNewActivity" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Νέα δραστηριότητα"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -397,6 +625,12 @@
     "notificationsNewMessage" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Νέο μήνυμα"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -408,6 +642,12 @@
     "notificationsRedacted" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το μήνυμα αφαιρέθηκε"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -419,6 +659,12 @@
     "notificationsReplyNotSent" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το μήνυμα δεν στάλθηκε. Ανοίξτε το Zuno και στείλτε το ξανά."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -430,6 +676,12 @@
     "notificationsSenderText" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -441,6 +693,12 @@
     "notificationsTestWorks" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Οι ειδοποιήσεις λειτουργούν"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -452,6 +710,12 @@
     "notificationsUnknownFormat" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Άγνωστη μορφή μηνύματος τύπου \"%1$@\""
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -463,6 +727,12 @@
     "notificationsWantsToVerify" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Θέλει να σας επαληθεύσει"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -474,6 +744,12 @@
     "roomsInvitedYouToChat" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Σας προσκάλεσε σε συνομιλία"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -485,6 +761,12 @@
     "shareOpenLater" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ανοίξτε το Zuno μέσα στα επόμενα λίγα λεπτά για να ολοκληρωθεί η κοινοποίηση."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -496,6 +778,12 @@
     "shareUnreadable" : {
       "extractionState" : "manual",
       "localizations" : {
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Δεν ήταν δυνατή η ανάγνωση όσων κοινοποιήθηκαν. Δοκιμάστε ξανά."
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
