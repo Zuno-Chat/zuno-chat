@@ -49,6 +49,37 @@ void main() {
     expect(areas.bottom, 0);
   });
 
+  testWidgets('a sheet longer than its share of the screen scrolls to its '
+      'last row instead of overflowing', (tester) async {
+    final context = await pumpHost(tester);
+    int? chosen;
+
+    unawaited(
+      showSheet<int>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < 12; i++)
+              ListTile(
+                title: Text('Row $i'),
+                onTap: () => Navigator.of(context).pop(i),
+              ),
+          ],
+        ),
+      ).then((value) => chosen = value),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Row 11'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Row 11'));
+    await tester.pumpAndSettle();
+
+    expect(chosen, 11);
+  });
+
   testWidgets('hands its options to the bottom sheet', (tester) async {
     final context = await pumpHost(tester);
 

@@ -13,5 +13,9 @@ Future<T?> showSheet<T>({
   isScrollControlled: isScrollControlled,
   useSafeArea: useSafeArea,
   showDragHandle: showDragHandle,
-  builder: (context) => KeepClearArea.surface(child: builder(context)),
+  builder: (context) => KeepClearArea.surface(
+    child: isScrollControlled
+        ? builder(context)
+        : SingleChildScrollView(child: builder(context)),
+  ),
 );
