@@ -57,6 +57,12 @@
             "state" : "translated",
             "value" : "Chamada do Zuno"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje Zuno"
+          }
         }
       }
     },
@@ -115,6 +121,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Videochamada recebida"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje hyrëse me video"
           }
         }
       }
@@ -175,6 +187,12 @@
             "state" : "translated",
             "value" : "Chamada de voz recebida"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje hyrëse zanore"
+          }
         }
       }
     },
@@ -233,6 +251,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Desbloqueie este dispositivo após um reinício para atender chamadas."
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shkyç këtë pajisje pas rinisjes për t’iu përgjigjur thirrjeve."
           }
         }
       }
@@ -293,6 +317,12 @@
             "state" : "translated",
             "value" : "Chamada perdida"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje e humbur"
+          }
         }
       }
     },
@@ -351,6 +381,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O Zuno fica oculto enquanto o ecrã é gravado ou partilhado."
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno nuk shfaqet kur ekrani regjistrohet ose ndahet."
           }
         }
       }
@@ -411,6 +447,12 @@
             "state" : "translated",
             "value" : "Videochamada recusada"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje me video e refuzuar"
+          }
         }
       }
     },
@@ -469,6 +511,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chamada de voz recusada"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje zanore e refuzuar"
           }
         }
       }
@@ -529,6 +577,12 @@
             "state" : "translated",
             "value" : "Videochamada · %1$@"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje me video · %1$@"
+          }
         }
       }
     },
@@ -587,6 +641,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chamada de voz · %1$@"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje zanore · %1$@"
           }
         }
       }
@@ -647,6 +707,12 @@
             "state" : "translated",
             "value" : "Videochamada perdida"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje me video e humbur"
+          }
         }
       }
     },
@@ -705,6 +771,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chamada de voz perdida"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje zanore e humbur"
           }
         }
       }
@@ -765,6 +837,12 @@
             "state" : "translated",
             "value" : "Videochamada"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje me video"
+          }
         }
       }
     },
@@ -823,6 +901,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chamada de voz"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thirrje zanore"
           }
         }
       }
@@ -883,6 +967,12 @@
             "state" : "translated",
             "value" : "Cancelar"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anulo"
+          }
         }
       }
     },
@@ -941,6 +1031,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fechar"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mbyll"
           }
         }
       }
@@ -1001,6 +1097,12 @@
             "state" : "translated",
             "value" : "Marcar como lida"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shëno si të lexuar"
+          }
         }
       }
     },
@@ -1059,6 +1161,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mensagem"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mesazh"
           }
         }
       }
@@ -1119,6 +1227,12 @@
             "state" : "translated",
             "value" : "Responder"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Përgjigju"
+          }
         }
       }
     },
@@ -1177,6 +1291,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enviar"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dërgo"
           }
         }
       }
@@ -1237,6 +1357,12 @@
             "state" : "translated",
             "value" : "pt_PT"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sq"
+          }
         }
       }
     },
@@ -1295,6 +1421,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "A preparar a partilha…"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Po përgatitet ndarja…"
           }
         }
       }
@@ -1355,6 +1487,12 @@
             "state" : "translated",
             "value" : "Mensagem eliminada"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mesazhi u fshi"
+          }
         }
       }
     },
@@ -1413,6 +1551,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Localização em tempo real"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vendndodhje e drejtpërdrejtë"
           }
         }
       }
@@ -1473,6 +1617,12 @@
             "state" : "translated",
             "value" : "Localização"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vendndodhje"
+          }
         }
       }
     },
@@ -1531,6 +1681,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Evento %1$@"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ngjarje %1$@"
           }
         }
       }
@@ -1591,6 +1747,12 @@
             "state" : "translated",
             "value" : "Fotografia"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto"
+          }
         }
       }
     },
@@ -1649,6 +1811,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vídeo"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video"
           }
         }
       }
@@ -1709,6 +1877,12 @@
             "state" : "translated",
             "value" : "Mensagem de voz"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mesazh zanor"
+          }
         }
       }
     },
@@ -1767,6 +1941,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enviou-lhe um convite para «%1$@»"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Të ftoi në “%1$@”"
           }
         }
       }
@@ -1947,6 +2127,24 @@
               }
             }
           }
+        },
+        "sq" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Mesazhe të reja në %1$lld bisedë tjetër"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Mesazhe të reja në %1$lld biseda të tjera"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -2056,6 +2254,18 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "Mensagens novas em mais %1$lld conversas e salas"
+                }
+              }
+            }
+          }
+        },
+        "sq" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Mesazhe të reja në %1$lld biseda dhe dhoma të tjera"
                 }
               }
             }
@@ -2239,6 +2449,24 @@
               }
             }
           }
+        },
+        "sq" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Mesazhe të reja në %1$lld dhomë tjetër"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Mesazhe të reja në %1$lld dhoma të tjera"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -2297,6 +2525,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nova atividade"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktivitet i ri"
           }
         }
       }
@@ -2357,6 +2591,12 @@
             "state" : "translated",
             "value" : "Nova mensagem"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mesazh i ri"
+          }
         }
       }
     },
@@ -2415,6 +2655,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Removida"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mesazhi u hoq"
           }
         }
       }
@@ -2475,6 +2721,12 @@
             "state" : "translated",
             "value" : "Mensagem não enviada. Abra o Zuno e envie-a novamente."
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mesazhi nuk u dërgua. Hap Zuno dhe dërgoje sërish."
+          }
         }
       }
     },
@@ -2530,6 +2782,12 @@
           }
         },
         "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@"
+          }
+        },
+        "sq" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@: %2$@"
@@ -2593,6 +2851,12 @@
             "state" : "translated",
             "value" : "As notificações funcionam"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Njoftimet funksionojnë"
+          }
         }
       }
     },
@@ -2651,6 +2915,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Formato de mensagem desconhecido do tipo \"%1$@\""
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format i panjohur mesazhi i llojit \"%1$@\""
           }
         }
       }
@@ -2711,6 +2981,12 @@
             "state" : "translated",
             "value" : "Pede uma verificação"
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dëshiron të të verifikojë"
+          }
         }
       }
     },
@@ -2769,6 +3045,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enviou-lhe um convite para conversar"
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Të ftoi në bisedë"
           }
         }
       }
@@ -2829,6 +3111,12 @@
             "state" : "translated",
             "value" : "Abra o Zuno nos próximos minutos para concluir a partilha."
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hap Zuno brenda pak minutash për ta përfunduar ndarjen."
+          }
         }
       }
     },
@@ -2887,6 +3175,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Não foi possível ler o que foi partilhado. Tente novamente."
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuk u lexua ajo që u nda. Provo sërish."
           }
         }
       }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="commonYou">Ti</string>
+    <string name="notificationsFallbackChatName">Bisedë</string>
+    <string name="notificationsMissedPushes">Disa njoftime nuk arritën. Hap Zuno për të parë mesazhet e reja.</string>
+    <string name="notificationsNewMessage">Mesazh i ri</string>
+    <string name="notificationsTapToOpen">Prek për ta hapur</string>
+    <string name="notificationsTestWorks">Njoftimet funksionojnë</string>
+</resources>

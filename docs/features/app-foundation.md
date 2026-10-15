@@ -286,7 +286,7 @@ stateDiagram-v2
 
 ### Localization (`lib/l10n/`, `lib/core/l10n/`, `tool/l10n/`, `tool/zuno_lints/`)
 
-Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-l10n`), the template every other language translates. Supported: English, Greek (formal register), French, German, Spanish, Italian, Polish, and Portuguese for Brazil (the base file) and Portugal.
+Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-l10n`), the template every other language translates. Supported: English, Greek (formal register), French, German, Spanish, Italian, Polish, Albanian, and Portuguese for Brazil (the base file) and Portugal.
 
 - **Adding a left-to-right language** is a complete `app_xx.arb`, a style guide `docs/brand-voice/xx.md` that follows `translating.md`, and `dart run tool/l10n/generate_native.dart`. Right-to-left needs a layout pass first, since layouts are left-to-right.
 - **A language spoken in several regions** is a complete base `app_xx.arb` that names its region (`"@@x-region"`), plus a complete `app_xx_YY.arb` per other region. The generator fails without the region, because the base's native tag needs it (`pt-BR`, never a bare `pt` beside `pt-PT`).

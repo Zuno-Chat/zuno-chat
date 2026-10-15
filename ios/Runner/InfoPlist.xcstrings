@@ -57,6 +57,12 @@
             "state" : "translated",
             "value" : "O Zuno usa a câmara para videochamadas, para as fotografias e vídeos que tira e para ler códigos de início de sessão e de verificação."
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno përdor kamerën për thirrjet me video, për fotot dhe videot që bën, si dhe për të skanuar kodet e identifikimit dhe të verifikimit."
+          }
         }
       }
     },
@@ -115,6 +121,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O Zuno usa a sua localização só quando a envia ou a partilha em tempo real numa conversa ou sala."
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno përdor vendndodhjen tënde vetëm kur e dërgon ose e ndan drejtpërdrejt në një bisedë ose dhomë."
           }
         }
       }
@@ -175,6 +187,12 @@
             "state" : "translated",
             "value" : "O Zuno usa a sua localização só quando a envia ou a partilha em tempo real numa conversa ou sala."
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno përdor vendndodhjen tënde vetëm kur e dërgon ose e ndan drejtpërdrejt në një bisedë ose dhomë."
+          }
         }
       }
     },
@@ -233,6 +251,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O Zuno usa o microfone para chamadas, mensagens de voz e vídeos que grava."
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno përdor mikrofonin për thirrjet, mesazhet zanore dhe videot që regjistron."
           }
         }
       }
@@ -293,6 +317,12 @@
             "state" : "translated",
             "value" : "O Zuno guarda fotografias e vídeos na sua fototeca só quando toca em «Guardar»."
           }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno i ruan fotot dhe videot në bibliotekën tënde vetëm kur prek “Ruaj”."
+          }
         }
       }
     },
@@ -351,6 +381,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O Zuno usa só as fotografias e vídeos que escolher, para os enviar ou para definir uma fotografia de perfil ou de sala."
+          }
+        },
+        "sq" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno përdor vetëm fotot dhe videot që zgjedh ti, për t’i dërguar ose për të vendosur një foto profili ose dhome."
           }
         }
       }

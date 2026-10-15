@@ -12,6 +12,7 @@ Every translation follows this file and its own guide in this folder. This file 
 | `it.md` | `app_it.arb` | tu | chat / stanza / comunità |
 | `de.md` | `app_de.arb` | du | Chat / Raum / Community |
 | `pl.md` | `app_pl.arb` | ty («Twój» capitalized) | czat / pokój / społeczność |
+| `sq.md` | `app_sq.arb` | ti | bisedë / dhomë / komunitet |
 
 ## How a guide works
 

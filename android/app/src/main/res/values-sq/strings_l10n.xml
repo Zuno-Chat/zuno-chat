@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="l10n_locale">sq</string>
+    <string name="callsChannelGroupCalls">Thirrjet</string>
+    <string name="callsChannelOngoingCallDescription">Shfaqet kur je në një thirrje</string>
+    <string name="callsHangUp">Mbyll thirrjen</string>
+    <string name="callsOngoingCall">Thirrje në vazhdim</string>
+    <string name="locationChannelLiveLocationDescription">Shfaqet kur ndan vendndodhjen e drejtpërdrejtë</string>
+    <string name="locationLiveLocation">Vendndodhja e drejtpërdrejtë</string>
+    <string name="locationStopSharing">Ndalo ndarjen</string>
+    <string name="matrixUploadingFile">Po ngarkohet…</string>
+    <string name="notificationsBackgroundSyncWaiting">Në pritje të mesazheve dhe thirrjeve</string>
+    <string name="notificationsChannelBackgroundSync">Sinkronizimi në sfond</string>
+    <string name="notificationsChannelBackgroundSyncDescription">Shfaqet kur sinkronizimi në sfond e mban Zuno të lidhur</string>
+    <string name="notificationsChannelGroupBackground">Në sfond</string>
+    <string name="uploadsChannelSendingFiles">Dërgimi i skedarëve</string>
+    <string name="uploadsChannelSendingFilesDescription">Ecuria e dërgimit të fotove, videove dhe skedarëve</string>
+</resources>

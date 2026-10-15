@@ -134,6 +134,7 @@ void main() {
       (Locale('it'), 'Italiano', '0 membri'),
       (Locale('de'), 'Deutsch', '0 Mitglieder'),
       (Locale('pl'), 'Polski', '0 członków'),
+      (Locale('sq'), 'Shqip', '0 anëtarë'),
     ]) {
       final l10n = lookupAppLocalizations(locale);
       expect(l10n.languageNativeName, name, reason: '$locale');
