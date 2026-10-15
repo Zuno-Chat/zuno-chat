@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
+import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
@@ -67,12 +68,14 @@ void main() {
   ProviderContainer syncing(
     PlatformCapabilities capabilities, {
     CallSession? onCall,
+    bool controllerFirst = false,
   }) {
     final container = ProviderContainer(
       overrides: [platformCapabilitiesProvider.overrideWithValue(capabilities)],
     );
     addTearDown(container.dispose);
     if (onCall != null) container.read(activeCallProvider.notifier).set(onCall);
+    if (controllerFirst) container.read(activeCallControllerProvider);
     container.read(systemCallSyncProvider);
     return container;
   }
@@ -408,6 +411,24 @@ void main() {
           {..._call, 'reason': closedAs, 'byUser': false},
         ]);
         expect(container.read(activeCallProvider), isNull);
+      });
+    }
+
+    for (final byUser in [false, true]) {
+      test('a call that ends closes its system call as ended, not failed, '
+          '${byUser ? 'by the user ' : ''}when the call controller followed '
+          'the active call first', () async {
+        final container = syncing(iosCapabilities, controllerFirst: true);
+        final session = await start(container);
+        await goLive(session);
+
+        if (byUser) await session.hangUp(byUser: true);
+        session.end();
+        await pumpEventQueue();
+
+        expect(native.argsOf('endSystemCall'), [
+          {..._call, 'reason': 'remoteEnded', 'byUser': byUser},
+        ]);
       });
     }
 

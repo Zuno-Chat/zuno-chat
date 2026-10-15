@@ -498,6 +498,7 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | A call's UUID is UUIDv5 over room and call id | Sync, push, the extension and Dart all name the same call |
 | CallKit is the only ring UI; `IncomingCallPage` shows only when CallKit is unavailable | No double ring UI, and a ring filtered by Focus stays silent |
 | The system call follows `activeCallProvider`, not `CallPage` | Nothing renders while locked, so a lock-screen answer may never build the page |
+| A system call dropped from `activeCallProvider` ends with its session's own reason once the session has ended, and as failed only while it is live | The call controller may clear the active call before the system call hears of the end, and the lock screen shows a failed end as "Call Failed" |
 | The audio engine starts only from CallKit's `didActivate`, with flutter_webrtc's own session management off | Audio must start in the session CallKit activates |
 | Mute goes through the input mixer and mirrors CallKit's mute | A track mute would outlive the call, and CallKit's mute holds the uplink system-wide |
 | A native backstop ends a ring before CallKit's own timeout | CallKit's own end looks like a decline |

@@ -141,17 +141,26 @@ class _SystemCallBinding {
   }
 
   void _end() {
+    _closeAsEnded();
+    onEnded(session);
+  }
+
+  void abandon() {
+    if (_ended) return;
+    if (session.phase == CallSessionPhase.ended) {
+      _closeAsEnded();
+    } else {
+      _close(SystemCallEnd.failed);
+    }
+  }
+
+  void _closeAsEnded() {
     final end = switch (session.endReason) {
       CallEndReason.missed => SystemCallEnd.unanswered,
       CallEndReason.failed => SystemCallEnd.failed,
       _ => SystemCallEnd.remoteEnded,
     };
     _close(end, byUser: session.endedByUser);
-    onEnded(session);
-  }
-
-  void abandon() {
-    if (!_ended) _close(SystemCallEnd.failed);
   }
 
   void _close(SystemCallEnd end, {bool byUser = false}) {
