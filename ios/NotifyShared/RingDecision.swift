@@ -110,9 +110,6 @@ enum RingDecision {
     _ input: RingInput, header: VoipBlobHeader, ring: VoipRing, userId: String
   ) -> RingOutcome {
     let skip = input.mustReport == false
-    if ring.kind == .canary {
-      return end(input, log: "canary", reason: .remoteEnded)
-    }
     if ring.caller == userId {
       return end(input, log: "own_call", reason: .remoteEnded)
     }

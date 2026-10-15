@@ -115,7 +115,6 @@ String _callOutcome(AppLocalizations l10n, String code) => switch (code) {
   'version_unknown_busy' ||
   'kid_unknown_busy' ||
   'bfu_busy' => l10n.pushOutcomeBusyActive,
-  'canary' => l10n.pushOutcomeCanary,
   'own_call' => l10n.pushOutcomeOwnCall,
   'forged' => l10n.pushOutcomeCallForged,
   'signed_out' || 'no_session' => l10n.pushOutcomeCallSignedOut,

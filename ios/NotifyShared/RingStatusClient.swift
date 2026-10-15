@@ -2,7 +2,7 @@ import Foundation
 
 enum NseRingStatus: Equatable, Sendable {
   case sent(sentTs: Int64?)
-  case suppressed(rule: String?)
+  case suppressed
   case failed
   case noToken
   case pending
@@ -17,7 +17,6 @@ struct RingStatusReply: Equatable, Sendable {
 struct RingStatusClient: Sendable {
   static let maxWaitMs = 10_000
   static let slackMs = 2000
-  static let voipFailingRule = "voip_failing"
 
   let transport: NseTransport
 
@@ -37,7 +36,7 @@ struct RingStatusClient: Sendable {
     let status: NseRingStatus
     switch json["status"]?.string {
     case "sent": status = .sent(sentTs: json["sent_ts"]?.int64)
-    case "suppressed": status = .suppressed(rule: json["rule"]?.string)
+    case "suppressed": status = .suppressed
     case "failed": status = .failed
     case "no_token": status = .noToken
     case "pending": status = .pending

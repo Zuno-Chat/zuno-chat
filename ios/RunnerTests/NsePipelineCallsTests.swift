@@ -132,19 +132,6 @@ final class NsePipelineCallsTests: XCTestCase {
     }
   }
 
-  func testAFailingVoipRouteRingsTheFallbackLikeAFailure() async {
-    let harness = harness()
-    harness.transport.reply("nse/fetch", invite())
-    harness.transport.reply(
-      "ring/status",
-      NseFakeTransport.module(200, ["status": "suppressed", "rule": "voip_failing"]))
-
-    let result = await harness.run()
-
-    XCTAssertEqual(result.outcome, .fallbackRing)
-    XCTAssertEqual(result.delivery.interruption, .timeSensitive)
-  }
-
   func testAnUnknownStatusRingsTheFallback() async {
     let harness = harness()
     harness.transport.reply("nse/fetch", invite())

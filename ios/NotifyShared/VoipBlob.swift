@@ -4,7 +4,6 @@ import Foundation
 enum VoipKind: String, Equatable, Sendable {
   case voice
   case video
-  case canary
 }
 
 struct VoipRing: Equatable, Sendable {
@@ -83,13 +82,12 @@ enum VoipBlob {
     }
     guard
       let object = parsed as? [String: Any],
-      let room = object["room"] as? String,
+      let room = object["room"] as? String, !room.isEmpty,
       let call = object["call"] as? String, !call.isEmpty,
       let caller = object["caller"] as? String,
       let kindName = object["kind"] as? String, let kind = VoipKind(rawValue: kindName),
       let ts = (object["ts"] as? NSNumber)?.int64Value,
-      let rts = (object["rts"] as? NSNumber)?.int64Value,
-      kind == .canary || !room.isEmpty
+      let rts = (object["rts"] as? NSNumber)?.int64Value
     else { return nil }
     return VoipRing(
       room: room, call: call, caller: caller, cname: object["cname"] as? String ?? "",

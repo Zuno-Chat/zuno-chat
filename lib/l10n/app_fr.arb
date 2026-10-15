@@ -890,7 +890,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "L’appel a sonné sans le nom de la personne qui appelle, avant le premier déverrouillage",
   "pushOutcomeCallResolved": "Appel déjà décroché ou terminé",
   "pushOutcomeCallSignedOut": "Appel arrivé après la déconnexion",
-  "pushOutcomeCanary": "Vérification d’appel, rien d’affiché",
   "pushOutcomeFallbackRing": "Sonnerie affichée par Zuno, l’écran d’appel du système n’a pas sonné",
   "pushOutcomeGone": "Affiché sans le message, il n’est plus disponible",
   "pushOutcomeHandled": "Traité",

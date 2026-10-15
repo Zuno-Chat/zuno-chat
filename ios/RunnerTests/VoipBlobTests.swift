@@ -107,18 +107,6 @@ final class VoipBlobTests: XCTestCase {
     XCTAssertEqual(VoipBlob.open(blob, key: keys), .forged(header))
   }
 
-  func testTheCanaryOpensWithoutARoom() {
-    let blob = VoipBlobFixture.seal(
-      #"{"room":"","call":"canary-1790000000000","caller":"@zuno-push:zuno.im","cname":"","rname":"","kind":"canary","ts":1790000000000,"rts":1790000000000}"#
-    )
-
-    guard case .opened(_, let ring) = VoipBlob.open(blob, key: keys) else {
-      return XCTFail("the canary did not open")
-    }
-    XCTAssertEqual(ring.kind, .canary)
-    XCTAssertEqual(ring.room, "")
-  }
-
   func testAnUnknownKindIsForged() {
     let blob = VoipBlobFixture.seal(
       #"{"room":"!r:zuno.im","call":"c1","caller":"@a:zuno.im","cname":"","rname":"","kind":"fax","ts":1,"rts":1}"#

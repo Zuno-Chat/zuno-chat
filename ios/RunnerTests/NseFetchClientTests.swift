@@ -128,15 +128,10 @@ final class NseFetchClientTests: XCTestCase {
     XCTAssertNil(NseModuleUrl.endpoint("not a url", "nse/fetch"))
   }
 
-  private func ringReply(
-    _ status: String, sentTs: Int64? = nil, rule: String? = nil
-  ) -> NseHttpResult {
+  private func ringReply(_ status: String, sentTs: Int64? = nil) -> NseHttpResult {
     NseFakeTransport.module(
       200,
-      [
-        "status": status, "sent_ts": sentTs.map { $0 as Any } ?? NSNull(),
-        "rule": rule.map { $0 as Any } ?? NSNull(), "server_ts": 10,
-      ])
+      ["status": status, "sent_ts": sentTs.map { $0 as Any } ?? NSNull(), "server_ts": 10])
   }
 
   func testRingStatusRepliesMapToTheirStatuses() async {
@@ -144,9 +139,8 @@ final class NseFetchClientTests: XCTestCase {
     let cases: [(NseHttpResult, NseRingStatus)] = [
       (ringReply("sent", sentTs: 9), .sent(sentTs: 9)),
       (ringReply("sent"), .sent(sentTs: nil)),
-      (ringReply("suppressed", rule: "not_allowed"), .suppressed(rule: "not_allowed")),
-      (ringReply("suppressed"), .suppressed(rule: nil)),
-      (ringReply("no_token", rule: "voip_failing"), .noToken),
+      (ringReply("suppressed"), .suppressed),
+      (ringReply("no_token"), .noToken),
       (ringReply("failed"), .failed),
       (ringReply("pending"), .pending),
       (ringReply("queued"), .unknown),

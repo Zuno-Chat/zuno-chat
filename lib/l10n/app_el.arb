@@ -890,7 +890,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "Η κλήση χτύπησε χωρίς το όνομα του καλούντος, πριν από το πρώτο ξεκλείδωμα",
   "pushOutcomeCallResolved": "Η κλήση απαντήθηκε ή τερματίστηκε ήδη",
   "pushOutcomeCallSignedOut": "Η κλήση έφτασε μετά την αποσύνδεση",
-  "pushOutcomeCanary": "Έλεγχος κλήσης, δεν εμφανίστηκε τίποτα",
   "pushOutcomeFallbackRing": "Το κουδούνισμα εμφανίστηκε από το Zuno, η οθόνη κλήσης του συστήματος δεν χτύπησε",
   "pushOutcomeGone": "Εμφανίστηκε χωρίς το μήνυμα, δεν είναι πια διαθέσιμο",
   "pushOutcomeHandled": "Διεκπεραιώθηκε",

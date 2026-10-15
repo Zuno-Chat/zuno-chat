@@ -890,7 +890,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "Oproep ging over zonder de naam van de beller, vóór de eerste ontgrendeling",
   "pushOutcomeCallResolved": "Oproep al opgenomen of beëindigd",
   "pushOutcomeCallSignedOut": "Oproep binnengekomen terwijl je was uitgelogd",
-  "pushOutcomeCanary": "Oproepcontrole, niets getoond",
   "pushOutcomeFallbackRing": "Zuno liet de oproep overgaan, want het oproepscherm van het systeem ging niet over",
   "pushOutcomeGone": "Getoond zonder het bericht, want het is niet meer beschikbaar",
   "pushOutcomeHandled": "Afgehandeld",

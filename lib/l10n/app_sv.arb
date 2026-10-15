@@ -890,7 +890,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "Samtalet ringde utan uppringarens namn, före första upplåsningen",
   "pushOutcomeCallResolved": "Samtalet redan besvarat eller avslutat",
   "pushOutcomeCallSignedOut": "Samtalet kom medan enheten var utloggad",
-  "pushOutcomeCanary": "Samtalskontroll, ingenting visades",
   "pushOutcomeFallbackRing": "Ringningen visades av Zuno, systemets samtalsskärm ringde inte",
   "pushOutcomeGone": "Visad utan meddelandet, det är inte längre tillgängligt",
   "pushOutcomeHandled": "Hanterad",

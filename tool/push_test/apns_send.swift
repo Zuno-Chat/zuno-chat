@@ -222,8 +222,8 @@ enum VoipSeal {
     }
     let kid = UInt32(try options.number("kid", in: 1...4_294_967_295))
     let kind = options.optional("kind") ?? "video"
-    guard ["voice", "video", "canary"].contains(kind) else {
-      throw ToolError(description: "--kind must be voice, video or canary")
+    guard ["voice", "video"].contains(kind) else {
+      throw ToolError(description: "--kind must be voice or video")
     }
     let now = Int64(Date().timeIntervalSince1970 * 1000)
     let ts = try options.optionalNumber("ts", in: times) ?? now
@@ -692,10 +692,10 @@ let usage = """
            [--room-id ID] [--event-id ID] [--unread N] [--no-sound] [--production]
     voip   --p8 FILE --key-id ID --token HEX|PUSHKEY [--team-id 5V9UP3J9CK]
            [--topic im.zuno.chat.voip] --key B64 --kid N --room ID --call ID --caller MXID
-           [--cname NAME] [--rname NAME] [--kind voice|video|canary] [--nonce HEX]
+           [--cname NAME] [--rname NAME] [--kind voice|video] [--nonce HEX]
            [--ts MS] [--rts MS] [--production]
     seal   --key B64 --kid N --room ID --call ID --caller MXID [--cname NAME] [--rname NAME]
-           [--kind voice|video|canary] [--nonce HEX] [--ts MS] [--rts MS]
+           [--kind voice|video] [--nonce HEX] [--ts MS] [--rts MS]
     selftest
   a value that starts with -- goes as --name=value
   """

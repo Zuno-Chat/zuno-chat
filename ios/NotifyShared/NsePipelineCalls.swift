@@ -36,9 +36,7 @@ extension NsePipeline {
       waitMs: Int(budget))
     if ledgerHas(uuid, context) { return quiet }
     switch reply.status {
-    case .suppressed(let rule):
-      return rule == RingStatusClient.voipFailingRule ? fallback : quiet
-    case .pending:
+    case .suppressed, .pending:
       return quiet
     case .failed, .noToken, .unknown:
       return fallback

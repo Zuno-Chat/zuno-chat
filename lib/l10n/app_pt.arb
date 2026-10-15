@@ -891,7 +891,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "A chamada tocou sem o nome de quem ligou, antes do primeiro desbloqueio",
   "pushOutcomeCallResolved": "Chamada já atendida ou encerrada",
   "pushOutcomeCallSignedOut": "A chamada chegou com o dispositivo desconectado",
-  "pushOutcomeCanary": "Verificação de chamada, nada mostrado",
   "pushOutcomeFallbackRing": "Toque mostrado pelo Zuno, a tela de chamadas do sistema não tocou",
   "pushOutcomeGone": "Mostrada sem a mensagem, ela não está mais disponível",
   "pushOutcomeHandled": "Processada",

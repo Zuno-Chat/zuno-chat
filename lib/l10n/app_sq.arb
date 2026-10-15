@@ -890,7 +890,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "Ra zilja pa u shfaqur emri, para shkyçjes së parë",
   "pushOutcomeCallResolved": "Thirrja mori tashmë përgjigje ose përfundoi",
   "pushOutcomeCallSignedOut": "Thirrja mbërriti pas daljes nga llogaria",
-  "pushOutcomeCanary": "Kontroll thirrjesh, nuk u shfaq asgjë",
   "pushOutcomeFallbackRing": "Zilja u shfaq nga Zuno, në ekranin e thirrjeve të sistemit nuk ra zilja",
   "pushOutcomeGone": "U shfaq pa mesazhin, nuk ofrohet më",
   "pushOutcomeHandled": "U trajtua",

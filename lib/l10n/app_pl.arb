@@ -890,7 +890,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "Dzwoniono bez nazwy osoby dzwoniącej, przed pierwszym odblokowaniem",
   "pushOutcomeCallResolved": "Połączenie już odebrane lub zakończone",
   "pushOutcomeCallSignedOut": "Połączenie dotarło po wylogowaniu",
-  "pushOutcomeCanary": "Sprawdzenie połączeń, nic nie pokazano",
   "pushOutcomeFallbackRing": "Dzwonienie pokazane przez Zuno, systemowy ekran połączenia nie zadzwonił",
   "pushOutcomeGone": "Pokazano bez treści, wiadomość nie jest już dostępna",
   "pushOutcomeHandled": "Obsłużono",

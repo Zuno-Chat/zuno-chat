@@ -890,7 +890,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "Ringede uden at vise, hvem der ringede, før første oplåsning",
   "pushOutcomeCallResolved": "Opkaldet er allerede besvaret eller afsluttet",
   "pushOutcomeCallSignedOut": "Opkaldet kom, mens du var logget ud",
-  "pushOutcomeCanary": "Opkaldstjek, intet vist",
   "pushOutcomeFallbackRing": "Ringning vist af Zuno, systemets opkaldsskærm ringede ikke",
   "pushOutcomeGone": "Vist uden beskeden, den er ikke længere tilgængelig",
   "pushOutcomeHandled": "Håndteret",

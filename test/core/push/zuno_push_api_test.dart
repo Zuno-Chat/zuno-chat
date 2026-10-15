@@ -146,7 +146,7 @@ void main() {
           'last_ts': null,
         },
         'nse': {'credential_expires_ts': null, 'last_fetch_ts': null},
-        'canary': {'ok': true},
+        'from_a_newer_module': {'ok': true},
         'server_ts': 1790000000123,
       });
 

@@ -890,7 +890,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "Anruf hat ohne Namen der anrufenden Person geklingelt, vor dem ersten Entsperren",
   "pushOutcomeCallResolved": "Anruf bereits angenommen oder beendet",
   "pushOutcomeCallSignedOut": "Anruf kam an, während du abgemeldet warst",
-  "pushOutcomeCanary": "Anrufprüfung, nichts angezeigt",
   "pushOutcomeFallbackRing": "Klingeln von Zuno angezeigt, der Anrufbildschirm des Systems hat nicht geklingelt",
   "pushOutcomeGone": "Ohne Nachricht angezeigt, sie ist nicht mehr verfügbar",
   "pushOutcomeHandled": "Verarbeitet",

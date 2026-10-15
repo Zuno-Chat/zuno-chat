@@ -177,17 +177,6 @@ final class RingDecisionTests: XCTestCase {
     XCTAssertEqual(outcome.log, "forged")
   }
 
-  func testACanaryIsReportedThenEnded() {
-    let canary = VoipRing(
-      room: "!abc:zuno.im", call: "probe", caller: "@ops:zuno.im", cname: "", rname: "",
-      kind: .canary, ts: 1_790_000_000_000, rts: 1_790_000_000_000)
-
-    let outcome = decide(.opened(header, canary))
-
-    XCTAssertEqual(outcome.action, .reportThenEnd(uuid: placeholder, reason: .remoteEnded))
-    XCTAssertEqual(outcome.log, "canary")
-  }
-
   func testBeforeFirstUnlockAFreshRingIsGenericWithoutAnEngine() {
     for mustReport in delegates {
       let outcome = decide(.unknownKid(header), mustReport: mustReport, locked: true)

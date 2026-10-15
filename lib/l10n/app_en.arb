@@ -3285,7 +3285,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "Call rang without the caller's name, before the first unlock",
   "pushOutcomeCallResolved": "Call already answered or ended",
   "pushOutcomeCallSignedOut": "Call arrived while signed out",
-  "pushOutcomeCanary": "Call check, nothing shown",
   "pushOutcomeFallbackRing": "Ring shown by Zuno, the system call screen did not ring",
   "pushOutcomeGone": "Shown without the message, it is no longer available",
   "pushOutcomeHandled": "Handled",

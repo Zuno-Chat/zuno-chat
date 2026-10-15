@@ -185,7 +185,6 @@ final class PushRingHandler: NSObject {
         let clock = ServerClock(offsetMs: cache.meta()?.serverOffsetMs)
         if clock.isStale(expirySeconds: header.expiry, deviceMs: nowMs, atLeast: ring.ts)
           || cache.ledger().isResolved(identity) || ring.caller == cache.meta()?.user
-          || ring.kind == .canary
         {
           calls.endUnbound(uuid: uuid)
           continue

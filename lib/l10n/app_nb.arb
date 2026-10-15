@@ -890,7 +890,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "Anrop ringte uten navn på innringeren, før første opplåsing",
   "pushOutcomeCallResolved": "Anrop allerede besvart eller avsluttet",
   "pushOutcomeCallSignedOut": "Anrop kom mens du var logget av",
-  "pushOutcomeCanary": "Anropssjekk, ingenting vist",
   "pushOutcomeFallbackRing": "Ringing vist av Zuno, systemets anropsskjerm ringte ikke",
   "pushOutcomeGone": "Vist uten meldingen, den er ikke lenger tilgjengelig",
   "pushOutcomeHandled": "Håndtert",

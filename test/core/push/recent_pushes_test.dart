@@ -35,7 +35,6 @@ const _ringCodes = [
   'resolved',
   'busy_ringing',
   'busy_active',
-  'canary',
   'own_call',
   'forged',
   'signed_out',

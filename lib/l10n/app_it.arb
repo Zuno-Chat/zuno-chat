@@ -890,7 +890,6 @@
   "pushOutcomeCallRangNoNameBeforeUnlock": "La chiamata ha squillato senza il nome di chi chiama, prima del primo sblocco",
   "pushOutcomeCallResolved": "Chiamata già accettata o terminata",
   "pushOutcomeCallSignedOut": "Chiamata arrivata con l’account disconnesso",
-  "pushOutcomeCanary": "Controllo delle chiamate, nessuna notifica",
   "pushOutcomeFallbackRing": "Squillo mostrato da Zuno, la schermata di chiamata di sistema non ha squillato",
   "pushOutcomeGone": "Mostrato senza il messaggio, non è più disponibile",
   "pushOutcomeHandled": "Gestito",
