@@ -113,8 +113,10 @@ void main() {
     'join_rule': ?joinRule,
   });
 
-  Future<List<Override>> overrides() async {
-    SharedPreferences.setMockInitialValues({});
+  Future<List<Override>> overrides({List<String> asked = const []}) async {
+    SharedPreferences.setMockInitialValues({
+      if (asked.isNotEmpty) 'communities.asked.$_me': asked,
+    });
     final prefs = await SharedPreferences.getInstance();
     return [
       matrixClientProvider.overrideWithValue(client),
@@ -960,7 +962,7 @@ void main() {
       'name': 'The Saturday morning bouldering and climbing club of Lisbon',
     });
     makeAdmin();
-    final scope = await overrides();
+    final scope = await overrides(asked: ['!coaches:example.org']);
 
     await expectSurvivesLayoutMatrix(
       tester,
@@ -974,6 +976,16 @@ void main() {
               'Beginners who have never climbed before',
               members: 12345,
             ),
+            chunk(
+              '!setters:example.org',
+              'Route setters and everyone who wants to learn',
+              joinRule: 'knock',
+            ),
+            chunk(
+              '!coaches:example.org',
+              'Coaches for the youth team on weekday evenings',
+              joinRule: 'knock',
+            ),
           ],
           openRoom: (_, _) {},
         ),
@@ -981,13 +993,19 @@ void main() {
       theme: zunoLightTheme,
       afterEach: (name, l10n) async {
         await tester.pump();
-        await tester.scrollUntilVisible(
-          find.text(l10n.commonJoin),
-          200,
-          scrollable: find.byType(Scrollable).first,
-        );
-        expect(find.text(l10n.commonJoin), findsOneWidget, reason: name);
-        expect(tester.takeException(), isNull, reason: name);
+        for (final label in [
+          l10n.commonJoin,
+          l10n.communitiesAsk,
+          l10n.communitiesRequested,
+        ]) {
+          await tester.scrollUntilVisible(
+            find.text(label),
+            200,
+            scrollable: find.byType(Scrollable).first,
+          );
+          expect(find.text(label), findsOneWidget, reason: name);
+          expect(tester.takeException(), isNull, reason: name);
+        }
       },
     );
   });

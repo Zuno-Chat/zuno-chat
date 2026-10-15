@@ -13,6 +13,10 @@ Every translation follows this file and its own guide in this folder. This file 
 | `de.md` | `app_de.arb` | du | Chat / Raum / Community |
 | `pl.md` | `app_pl.arb` | ty («Twój» capitalized) | czat / pokój / społeczność |
 | `sq.md` | `app_sq.arb` | ti | bisedë / dhomë / komunitet |
+| `da.md` | `app_da.arb` | du | chat / rum / fællesskab |
+| `sv.md` | `app_sv.arb` | du | chatt / rum / gemenskap |
+| `nl.md` | `app_nl.arb` | je | chat / kamer / community |
+| `nb.md` | `app_nb.arb` (Bokmål) | du | chat / rom / fellesskap |
 
 ## How a guide works
 

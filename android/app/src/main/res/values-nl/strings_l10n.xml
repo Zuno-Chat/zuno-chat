@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="l10n_locale">nl</string>
+    <string name="callsChannelGroupCalls">Oproepen</string>
+    <string name="callsChannelOngoingCallDescription">Wordt getoond terwijl je in een oproep zit</string>
+    <string name="callsHangUp">Ophangen</string>
+    <string name="callsOngoingCall">Lopende oproep</string>
+    <string name="locationChannelLiveLocationDescription">Wordt getoond terwijl je je livelocatie deelt</string>
+    <string name="locationLiveLocation">Livelocatie</string>
+    <string name="locationStopSharing">Delen stoppen</string>
+    <string name="matrixUploadingFile">Uploaden…</string>
+    <string name="notificationsBackgroundSyncWaiting">Wachten op berichten en oproepen</string>
+    <string name="notificationsChannelBackgroundSync">Achtergrondsynchronisatie</string>
+    <string name="notificationsChannelBackgroundSyncDescription">Wordt getoond terwijl achtergrondsynchronisatie Zuno verbonden houdt</string>
+    <string name="notificationsChannelGroupBackground">Achtergrond</string>
+    <string name="uploadsChannelSendingFiles">Bestanden versturen</string>
+    <string name="uploadsChannelSendingFilesDescription">Voortgang tijdens het versturen van foto’s, video’s en bestanden</string>
+</resources>

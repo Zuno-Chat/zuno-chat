@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="l10n_locale">da</string>
+    <string name="callsChannelGroupCalls">Opkald</string>
+    <string name="callsChannelOngoingCallDescription">Vises, mens du er i et opkald</string>
+    <string name="callsHangUp">Læg på</string>
+    <string name="callsOngoingCall">Igangværende opkald</string>
+    <string name="locationChannelLiveLocationDescription">Vises, mens du deler din liveplacering</string>
+    <string name="locationLiveLocation">Liveplacering</string>
+    <string name="locationStopSharing">Stop deling</string>
+    <string name="matrixUploadingFile">Uploader…</string>
+    <string name="notificationsBackgroundSyncWaiting">Venter på beskeder og opkald</string>
+    <string name="notificationsChannelBackgroundSync">Baggrundssynkronisering</string>
+    <string name="notificationsChannelBackgroundSyncDescription">Vises, mens baggrundssynkronisering holder Zuno forbundet</string>
+    <string name="notificationsChannelGroupBackground">Baggrund</string>
+    <string name="uploadsChannelSendingFiles">Sender filer</string>
+    <string name="uploadsChannelSendingFilesDescription">Fremskridt, mens billeder, videoer og filer sendes</string>
+</resources>

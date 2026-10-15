@@ -4,6 +4,12 @@
     "NSCameraUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno bruger kameraet til videoopkald, til billeder og videoer, du tager, og til at scanne login- og verificeringskoder."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -40,6 +46,18 @@
             "value" : "Zuno usa la fotocamera per le videochiamate, per le foto e i video che fai e per scansionare i codici di accesso e di verifica."
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno bruker kameraet til videoanrop, til bilder og videoer du tar, og til å skanne påloggings- og verifiseringskoder."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno gebruikt de camera voor video-oproepen, foto’s en video’s die je maakt, en het scannen van inlog- en verificatiecodes."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -63,12 +81,24 @@
             "state" : "translated",
             "value" : "Zuno përdor kamerën për thirrjet me video, për fotot dhe videot që bën, si dhe për të skanuar kodet e identifikimit dhe të verifikimit."
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno använder kameran för videosamtal, för bilder och videor du tar och för att skanna inloggnings- och verifieringskoder."
+          }
         }
       }
     },
     "NSLocationAlwaysAndWhenInUseUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno bruger kun din placering, når du sender den eller deler den live i en chat eller et rum."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -105,6 +135,18 @@
             "value" : "Zuno usa la tua posizione solo quando la invii o la condividi in tempo reale in una chat o in una stanza."
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno bruker posisjonen din bare når du sender den eller deler den i sanntid i en chat eller et rom."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno gebruikt je locatie alleen als je die verstuurt of live deelt in een chat of kamer."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -127,6 +169,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zuno përdor vendndodhjen tënde vetëm kur e dërgon ose e ndan drejtpërdrejt në një bisedë ose dhomë."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno använder din plats bara när du skickar den eller delar den live i en chatt eller ett rum."
           }
         }
       }
@@ -134,6 +182,12 @@
     "NSLocationWhenInUseUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno bruger kun din placering, når du sender den eller deler den live i en chat eller et rum."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -170,6 +224,18 @@
             "value" : "Zuno usa la tua posizione solo quando la invii o la condividi in tempo reale in una chat o in una stanza."
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno bruker posisjonen din bare når du sender den eller deler den i sanntid i en chat eller et rom."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno gebruikt je locatie alleen als je die verstuurt of live deelt in een chat of kamer."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -193,12 +259,24 @@
             "state" : "translated",
             "value" : "Zuno përdor vendndodhjen tënde vetëm kur e dërgon ose e ndan drejtpërdrejt në një bisedë ose dhomë."
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno använder din plats bara när du skickar den eller delar den live i en chatt eller ett rum."
+          }
         }
       }
     },
     "NSMicrophoneUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno bruger mikrofonen til opkald, talebeskeder og videoer, du optager."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -235,6 +313,18 @@
             "value" : "Zuno usa il microfono per le chiamate, i messaggi vocali e i video che registri."
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno bruker mikrofonen til anrop, talemeldinger og videoer du tar opp."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno gebruikt de microfoon voor oproepen, spraakberichten en video’s die je opneemt."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -258,12 +348,24 @@
             "state" : "translated",
             "value" : "Zuno përdor mikrofonin për thirrjet, mesazhet zanore dhe videot që regjistron."
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno använder mikrofonen för samtal, röstmeddelanden och videor du spelar in."
+          }
         }
       }
     },
     "NSPhotoLibraryAddUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno gemmer kun billeder og videoer i dit bibliotek, når du trykker på “Gem”."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -300,6 +402,18 @@
             "value" : "Zuno salva foto e video nella tua libreria solo quando tocchi «Salva»."
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno lagrer bilder og videoer i biblioteket ditt bare når du trykker på «Lagre»."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno bewaart foto’s en video’s alleen in je bibliotheek als je op ‘Opslaan’ tikt."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -323,12 +437,24 @@
             "state" : "translated",
             "value" : "Zuno i ruan fotot dhe videot në bibliotekën tënde vetëm kur prek “Ruaj”."
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno sparar bilder och videor i ditt bibliotek bara när du trycker på ”Spara”."
+          }
         }
       }
     },
     "NSPhotoLibraryUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno bruger kun de billeder og videoer, du vælger, til at sende dem eller til at angive et profil- eller rumbillede."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -365,6 +491,18 @@
             "value" : "Zuno usa solo le foto e i video che scegli, per inviarli o impostarli come foto del profilo o della stanza."
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno bruker bare bildene og videoene du velger, for å sende dem eller angi et profil- eller rombilde."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno gebruikt alleen de foto’s en video’s die je kiest, om ze te versturen of als profiel- of kamerfoto in te stellen."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -387,6 +525,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zuno përdor vetëm fotot dhe videot që zgjedh ti, për t’i dërguar ose për të vendosur një foto profili ose dhome."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno använder bara de bilder och videor du väljer, för att skicka dem eller för att ange en profil- eller rumsbild."
           }
         }
       }

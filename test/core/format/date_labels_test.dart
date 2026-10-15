@@ -206,6 +206,10 @@ void main() {
       (Locale('de'), Locale('de', 'DE'), 'Januar', 'Gestern'),
       (Locale('pl'), Locale('pl', 'PL'), 'stycznia', 'Wczoraj'),
       (Locale('sq'), Locale('sq', 'AL'), 'janar', 'Dje'),
+      (Locale('da'), Locale('da', 'DK'), 'januar', 'I går'),
+      (Locale('sv'), Locale('sv', 'SE'), 'januari', 'I går'),
+      (Locale('nl'), Locale('nl', 'NL'), 'januari', 'Gisteren'),
+      (Locale('nb'), Locale('nb', 'NO'), 'januar', 'I går'),
     ]) {
       final translated = DateLabels(
         lookupAppLocalizations(app),

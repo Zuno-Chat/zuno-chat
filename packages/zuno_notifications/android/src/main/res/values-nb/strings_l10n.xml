@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="commonYou">Du</string>
+    <string name="notificationsFallbackChatName">Chat</string>
+    <string name="notificationsMissedPushes">Noen varsler kunne ikke leveres. Åpne Zuno for å se nye meldinger.</string>
+    <string name="notificationsNewMessage">Ny melding</string>
+    <string name="notificationsTapToOpen">Trykk for å åpne</string>
+    <string name="notificationsTestWorks">Varsler fungerer</string>
+</resources>

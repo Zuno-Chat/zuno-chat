@@ -5,15 +5,19 @@
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>en</string>
+		<string>da</string>
 		<string>de</string>
 		<string>el</string>
 		<string>es</string>
 		<string>fr</string>
 		<string>it</string>
+		<string>nb</string>
+		<string>nl</string>
 		<string>pl</string>
 		<string>pt-BR</string>
 		<string>pt-PT</string>
 		<string>sq</string>
+		<string>sv</string>
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>

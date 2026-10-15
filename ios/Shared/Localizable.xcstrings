@@ -4,6 +4,12 @@
     "callsGenericRingName" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno-opkald"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -40,6 +46,18 @@
             "value" : "Chiamata Zuno"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno-anrop"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno-oproep"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -63,12 +81,24 @@
             "state" : "translated",
             "value" : "Thirrje Zuno"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno-samtal"
+          }
         }
       }
     },
     "callsIncomingVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indgående videoopkald"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -105,6 +135,18 @@
             "value" : "Videochiamata in arrivo"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Innkommende videoanrop"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inkomende video-oproep"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -128,12 +170,24 @@
             "state" : "translated",
             "value" : "Thirrje hyrëse me video"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inkommande videosamtal"
+          }
         }
       }
     },
     "callsIncomingVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indgående taleopkald"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -170,6 +224,18 @@
             "value" : "Chiamata vocale in arrivo"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Innkommende taleanrop"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inkomende spraakoproep"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -193,12 +259,24 @@
             "state" : "translated",
             "value" : "Thirrje hyrëse zanore"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inkommande röstsamtal"
+          }
         }
       }
     },
     "callsMissedBeforeUnlock" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lås denne enhed op efter en genstart for at besvare opkald."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -235,6 +313,18 @@
             "value" : "Sblocca questo dispositivo dopo un riavvio per rispondere alle chiamate."
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lås opp denne enheten etter en omstart for å svare på anrop."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ontgrendel dit apparaat na een herstart om oproepen op te nemen."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -258,12 +348,24 @@
             "state" : "translated",
             "value" : "Shkyç këtë pajisje pas rinisjes për t’iu përgjigjur thirrjeve."
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lås upp den här enheten efter en omstart för att svara på samtal."
+          }
         }
       }
     },
     "callsMissedCallTitle" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ubesvaret opkald"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -300,6 +402,18 @@
             "value" : "Chiamata persa"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapt anrop"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemiste oproep"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -323,12 +437,24 @@
             "state" : "translated",
             "value" : "Thirrje e humbur"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missat samtal"
+          }
         }
       }
     },
     "callsScreenCaptureHidden" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno skjules, mens skærmen optages eller deles."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -365,6 +491,18 @@
             "value" : "Zuno non è visibile durante la registrazione o la condivisione dello schermo."
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno skjules mens skjermen tas opp eller deles."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno is verborgen terwijl het scherm wordt opgenomen of gedeeld."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -388,12 +526,24 @@
             "state" : "translated",
             "value" : "Zuno nuk shfaqet kur ekrani regjistrohet ose ndahet."
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuno döljs medan skärmen spelas in eller delas."
+          }
         }
       }
     },
     "callsSummaryDeclinedVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videoopkald afvist"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -430,6 +580,18 @@
             "value" : "Videochiamata rifiutata"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videoanrop avvist"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video-oproep geweigerd"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -453,12 +615,24 @@
             "state" : "translated",
             "value" : "Thirrje me video e refuzuar"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videosamtal avvisat"
+          }
         }
       }
     },
     "callsSummaryDeclinedVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taleopkald afvist"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -495,6 +669,18 @@
             "value" : "Chiamata vocale rifiutata"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taleanrop avvist"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spraakoproep geweigerd"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -518,12 +704,24 @@
             "state" : "translated",
             "value" : "Thirrje zanore e refuzuar"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Röstsamtal avvisat"
+          }
         }
       }
     },
     "callsSummaryEndedVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videoopkald · %1$@"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -560,6 +758,18 @@
             "value" : "Videochiamata · %1$@"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videoanrop · %1$@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video-oproep · %1$@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -583,12 +793,24 @@
             "state" : "translated",
             "value" : "Thirrje me video · %1$@"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videosamtal · %1$@"
+          }
         }
       }
     },
     "callsSummaryEndedVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taleopkald · %1$@"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -625,6 +847,18 @@
             "value" : "Chiamata vocale · %1$@"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taleanrop · %1$@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spraakoproep · %1$@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -648,12 +882,24 @@
             "state" : "translated",
             "value" : "Thirrje zanore · %1$@"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Röstsamtal · %1$@"
+          }
         }
       }
     },
     "callsSummaryMissedVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ubesvaret videoopkald"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -690,6 +936,18 @@
             "value" : "Videochiamata persa"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapt videoanrop"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemiste video-oproep"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -713,12 +971,24 @@
             "state" : "translated",
             "value" : "Thirrje me video e humbur"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missat videosamtal"
+          }
         }
       }
     },
     "callsSummaryMissedVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ubesvaret taleopkald"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -755,6 +1025,18 @@
             "value" : "Chiamata vocale persa"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapt taleanrop"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemiste spraakoproep"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -778,12 +1060,24 @@
             "state" : "translated",
             "value" : "Thirrje zanore e humbur"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missat röstsamtal"
+          }
         }
       }
     },
     "callsVideoCall" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videoopkald"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -820,6 +1114,18 @@
             "value" : "Videochiamata"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videoanrop"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video-oproep"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -843,12 +1149,24 @@
             "state" : "translated",
             "value" : "Thirrje me video"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Videosamtal"
+          }
         }
       }
     },
     "callsVoiceCall" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taleopkald"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -885,6 +1203,18 @@
             "value" : "Chiamata vocale"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taleanrop"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spraakoproep"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -908,12 +1238,24 @@
             "state" : "translated",
             "value" : "Thirrje zanore"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Röstsamtal"
+          }
         }
       }
     },
     "commonCancel" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuller"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -950,6 +1292,18 @@
             "value" : "Annulla"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avbryt"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuleren"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -973,12 +1327,24 @@
             "state" : "translated",
             "value" : "Anulo"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avbryt"
+          }
         }
       }
     },
     "commonClose" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luk"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1015,6 +1381,18 @@
             "value" : "Chiudi"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lukk"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sluiten"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1038,12 +1416,24 @@
             "state" : "translated",
             "value" : "Mbyll"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stäng"
+          }
         }
       }
     },
     "commonMarkAsRead" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markér som læst"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1080,6 +1470,18 @@
             "value" : "Segna come letto"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merk som lest"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markeren als gelezen"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1103,12 +1505,24 @@
             "state" : "translated",
             "value" : "Shëno si të lexuar"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markera som läst"
+          }
         }
       }
     },
     "commonMessageHint" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Besked"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1145,6 +1559,18 @@
             "value" : "Messaggio"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Melding"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bericht"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1168,12 +1594,24 @@
             "state" : "translated",
             "value" : "Mesazh"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meddelande"
+          }
         }
       }
     },
     "commonReply" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Svar"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1210,6 +1648,18 @@
             "value" : "Rispondi"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Svar"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beantwoorden"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1233,12 +1683,24 @@
             "state" : "translated",
             "value" : "Përgjigju"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Svara"
+          }
         }
       }
     },
     "commonSend" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1275,6 +1737,18 @@
             "value" : "Invia"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versturen"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1298,12 +1772,24 @@
             "state" : "translated",
             "value" : "Dërgo"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skicka"
+          }
         }
       }
     },
     "l10n_locale" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "da"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1340,6 +1826,18 @@
             "value" : "it"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nb"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nl"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1363,12 +1861,24 @@
             "state" : "translated",
             "value" : "sq"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sv"
+          }
         }
       }
     },
     "matrixSharePreparing" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forbereder deling…"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1405,6 +1915,18 @@
             "value" : "Preparazione della condivisione…"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forbereder deling…"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delen voorbereiden…"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1428,12 +1950,24 @@
             "state" : "translated",
             "value" : "Po përgatitet ndarja…"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Förbereder delning…"
+          }
         }
       }
     },
     "matrixSummaryDeleted" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Besked slettet"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1470,6 +2004,18 @@
             "value" : "Messaggio eliminato"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Melding slettet"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bericht verwijderd"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1493,12 +2039,24 @@
             "state" : "translated",
             "value" : "Mesazhi u fshi"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meddelandet raderat"
+          }
         }
       }
     },
     "matrixSummaryLiveLocation" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liveplacering"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1535,6 +2093,18 @@
             "value" : "Posizione in tempo reale"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sanntidsposisjon"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Livelocatie"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1558,12 +2128,24 @@
             "state" : "translated",
             "value" : "Vendndodhje e drejtpërdrejtë"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liveplats"
+          }
         }
       }
     },
     "matrixSummaryLocation" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placering"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1600,6 +2182,18 @@
             "value" : "Posizione"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Posisjon"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locatie"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1623,12 +2217,24 @@
             "state" : "translated",
             "value" : "Vendndodhje"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plats"
+          }
         }
       }
     },
     "matrixSummaryOtherEvent" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hændelse: %1$@"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1665,6 +2271,18 @@
             "value" : "Evento %1$@"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hendelse: %1$@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gebeurtenis %1$@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1688,12 +2306,24 @@
             "state" : "translated",
             "value" : "Ngjarje %1$@"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Händelse: %1$@"
+          }
         }
       }
     },
     "matrixSummaryPhoto" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Billede"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1730,6 +2360,18 @@
             "value" : "Foto"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bilde"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1753,12 +2395,24 @@
             "state" : "translated",
             "value" : "Foto"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bild"
+          }
         }
       }
     },
     "matrixSummaryVideo" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1795,6 +2449,18 @@
             "value" : "Video"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1818,12 +2484,24 @@
             "state" : "translated",
             "value" : "Video"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video"
+          }
         }
       }
     },
     "matrixSummaryVoice" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Talebesked"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1860,6 +2538,18 @@
             "value" : "Messaggio vocale"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Talemelding"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spraakbericht"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1883,12 +2573,24 @@
             "state" : "translated",
             "value" : "Mesazh zanor"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Röstmeddelande"
+          }
         }
       }
     },
     "notificationsInvitedToRoom" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inviterede dig til “%1$@”"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1925,6 +2627,18 @@
             "value" : "Invito a «%1$@»"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inviterte deg til «%1$@»"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heeft je uitgenodigd voor ‘%1$@’"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1948,12 +2662,36 @@
             "state" : "translated",
             "value" : "Të ftoi në “%1$@”"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bjöd in dig till ”%1$@”"
+          }
         }
       }
     },
     "notificationsMoreChats" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nye beskeder i %1$lld anden chat"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nye beskeder i %1$lld andre chats"
+                }
+              }
+            }
+          }
+        },
         "de" : {
           "variations" : {
             "plural" : {
@@ -2062,6 +2800,42 @@
             }
           }
         },
+        "nb" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nye meldinger i %1$lld chat til"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nye meldinger i %1$lld chatter til"
+                }
+              }
+            }
+          }
+        },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nieuwe berichten in nog %1$lld chat"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nieuwe berichten in nog %1$lld chats"
+                }
+              }
+            }
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -2145,12 +2919,42 @@
               }
             }
           }
+        },
+        "sv" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nya meddelanden i %1$lld chatt till"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nya meddelanden i %1$lld chattar till"
+                }
+              }
+            }
+          }
         }
       }
     },
     "notificationsMoreChatsAndRooms" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nye beskeder i %1$lld andre chats og rum"
+                }
+              }
+            }
+          }
+        },
         "de" : {
           "variations" : {
             "plural" : {
@@ -2223,6 +3027,30 @@
             }
           }
         },
+        "nb" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nye meldinger i %1$lld chatter og rom til"
+                }
+              }
+            }
+          }
+        },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nieuwe berichten in nog %1$lld chats en kamers"
+                }
+              }
+            }
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -2270,12 +3098,42 @@
               }
             }
           }
+        },
+        "sv" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nya meddelanden i %1$lld chattar och rum till"
+                }
+              }
+            }
+          }
         }
       }
     },
     "notificationsMoreRooms" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nye beskeder i %1$lld andet rum"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nye beskeder i %1$lld andre rum"
+                }
+              }
+            }
+          }
+        },
         "de" : {
           "variations" : {
             "plural" : {
@@ -2384,6 +3242,42 @@
             }
           }
         },
+        "nb" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nye meldinger i %1$lld rom til"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nye meldinger i %1$lld rom til"
+                }
+              }
+            }
+          }
+        },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nieuwe berichten in nog %1$lld kamer"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nieuwe berichten in nog %1$lld kamers"
+                }
+              }
+            }
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -2467,12 +3361,36 @@
               }
             }
           }
+        },
+        "sv" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nya meddelanden i %1$lld rum till"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nya meddelanden i %1$lld rum till"
+                }
+              }
+            }
+          }
         }
       }
     },
     "notificationsNewActivity" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ny aktivitet"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2509,6 +3427,18 @@
             "value" : "Nuova attività"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ny aktivitet"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieuwe activiteit"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2532,12 +3462,24 @@
             "state" : "translated",
             "value" : "Aktivitet i ri"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ny aktivitet"
+          }
         }
       }
     },
     "notificationsNewMessage" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ny besked"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2574,6 +3516,18 @@
             "value" : "Nuovo messaggio"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ny melding"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieuw bericht"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2597,12 +3551,24 @@
             "state" : "translated",
             "value" : "Mesazh i ri"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nytt meddelande"
+          }
         }
       }
     },
     "notificationsRedacted" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fjernet"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2639,6 +3605,18 @@
             "value" : "Rimosso"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fjernet"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwijderd"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2662,12 +3640,24 @@
             "state" : "translated",
             "value" : "Mesazhi u hoq"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Borttaget"
+          }
         }
       }
     },
     "notificationsReplyNotSent" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beskeden blev ikke sendt. Åbn Zuno, og send den igen."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2704,6 +3694,18 @@
             "value" : "Messaggio non inviato. Apri Zuno e invialo di nuovo."
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meldingen ble ikke sendt. Åpne Zuno og send den på nytt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bericht niet verstuurd. Open Zuno en verstuur het opnieuw."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2727,12 +3729,24 @@
             "state" : "translated",
             "value" : "Mesazhi nuk u dërgua. Hap Zuno dhe dërgoje sërish."
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meddelandet skickades inte. Öppna Zuno och skicka det igen."
+          }
         }
       }
     },
     "notificationsSenderText" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2769,6 +3783,18 @@
             "value" : "%1$@: %2$@"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2792,12 +3818,24 @@
             "state" : "translated",
             "value" : "%1$@: %2$@"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@"
+          }
         }
       }
     },
     "notificationsTestWorks" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifikationer virker"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2834,6 +3872,18 @@
             "value" : "Le notifiche funzionano"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Varsler fungerer"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meldingen werken"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2857,12 +3907,24 @@
             "state" : "translated",
             "value" : "Njoftimet funksionojnë"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notiser fungerar"
+          }
         }
       }
     },
     "notificationsUnknownFormat" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ukendt beskedformat af typen \"%1$@\""
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2899,6 +3961,18 @@
             "value" : "Formato di messaggio sconosciuto di tipo \"%1$@\""
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ukjent meldingsformat av typen \"%1$@\""
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Onbekend berichtformaat van type \"%1$@\""
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2922,12 +3996,24 @@
             "state" : "translated",
             "value" : "Format i panjohur mesazhi i llojit \"%1$@\""
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Okänt meddelandeformat av typen \"%1$@\""
+          }
         }
       }
     },
     "notificationsWantsToVerify" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vil verificere dig"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2964,6 +4050,18 @@
             "value" : "Vuole verificarti"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vil verifisere deg"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wil je verifiëren"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2987,12 +4085,24 @@
             "state" : "translated",
             "value" : "Dëshiron të të verifikojë"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vill verifiera dig"
+          }
         }
       }
     },
     "roomsInvitedYouToChat" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Har inviteret dig til en chat"
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3029,6 +4139,18 @@
             "value" : "Ti invita in una chat"
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Har invitert deg til en chat"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heeft je uitgenodigd voor een chat"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3052,12 +4174,24 @@
             "state" : "translated",
             "value" : "Të ftoi në bisedë"
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bjöd in dig till en chatt"
+          }
         }
       }
     },
     "shareOpenLater" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Åbn Zuno inden for få minutter for at gøre delingen færdig."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3094,6 +4228,18 @@
             "value" : "Apri Zuno nei prossimi minuti per completare la condivisione."
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Åpne Zuno i løpet av de neste minuttene for å fullføre delingen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Zuno binnen een paar minuten om het delen af te ronden."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3117,12 +4263,24 @@
             "state" : "translated",
             "value" : "Hap Zuno brenda pak minutash për ta përfunduar ndarjen."
           }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öppna Zuno inom några minuter för att slutföra delningen."
+          }
         }
       }
     },
     "shareUnreadable" : {
       "extractionState" : "manual",
       "localizations" : {
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det delte kunne ikke læses. Prøv igen."
+          }
+        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3159,6 +4317,18 @@
             "value" : "Impossibile leggere il contenuto condiviso. Riprova."
           }
         },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunne ikke lese det som ble delt. Prøv igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kon niet lezen wat er is gedeeld. Probeer het opnieuw."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3181,6 +4351,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nuk u lexua ajo që u nda. Provo sërish."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det som delades kunde inte läsas. Försök igen."
           }
         }
       }

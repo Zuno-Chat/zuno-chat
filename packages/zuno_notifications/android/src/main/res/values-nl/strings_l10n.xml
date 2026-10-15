@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="commonYou">Jij</string>
+    <string name="notificationsFallbackChatName">Chat</string>
+    <string name="notificationsMissedPushes">Sommige meldingen konden niet worden bezorgd. Open Zuno om nieuwe berichten te zien.</string>
+    <string name="notificationsNewMessage">Nieuw bericht</string>
+    <string name="notificationsTapToOpen">Tik om te openen</string>
+    <string name="notificationsTestWorks">Meldingen werken</string>
+</resources>

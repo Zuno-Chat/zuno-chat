@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="commonYou">Du</string>
+    <string name="notificationsFallbackChatName">Chatt</string>
+    <string name="notificationsMissedPushes">Vissa notiser kunde inte levereras. Öppna Zuno för att se nya meddelanden.</string>
+    <string name="notificationsNewMessage">Nytt meddelande</string>
+    <string name="notificationsTapToOpen">Tryck för att öppna</string>
+    <string name="notificationsTestWorks">Notiser fungerar</string>
+</resources>

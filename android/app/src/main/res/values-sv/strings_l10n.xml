@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="l10n_locale">sv</string>
+    <string name="callsChannelGroupCalls">Samtal</string>
+    <string name="callsChannelOngoingCallDescription">Visas medan du är i ett samtal</string>
+    <string name="callsHangUp">Lägg på</string>
+    <string name="callsOngoingCall">Pågående samtal</string>
+    <string name="locationChannelLiveLocationDescription">Visas medan du delar din liveplats</string>
+    <string name="locationLiveLocation">Liveplats</string>
+    <string name="locationStopSharing">Sluta dela</string>
+    <string name="matrixUploadingFile">Laddar upp…</string>
+    <string name="notificationsBackgroundSyncWaiting">Väntar på meddelanden och samtal</string>
+    <string name="notificationsChannelBackgroundSync">Bakgrundssynkronisering</string>
+    <string name="notificationsChannelBackgroundSyncDescription">Visas medan bakgrundssynkroniseringen håller anslutningen öppen</string>
+    <string name="notificationsChannelGroupBackground">Bakgrund</string>
+    <string name="uploadsChannelSendingFiles">Skickar filer</string>
+    <string name="uploadsChannelSendingFilesDescription">Förlopp medan bilder, videor och filer skickas</string>
+</resources>

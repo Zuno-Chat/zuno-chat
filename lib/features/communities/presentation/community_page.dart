@@ -696,56 +696,65 @@ class _JoinableRoom extends StatelessWidget {
     ].join(' • ');
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 16, 10),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          RoomKindAvatar(
-            client: client,
-            avatarUrl: chunk.avatarUrl,
-            fallbackText: title,
-            isDirect: false,
-            radius: ChatRow.avatarRadius,
-            toneSeed: chunk.roomId,
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium,
+          Row(
+            children: [
+              RoomKindAvatar(
+                client: client,
+                avatarUrl: chunk.avatarUrl,
+                fallbackText: title,
+                isDirect: false,
+                radius: ChatRow.avatarRadius,
+                toneSeed: chunk.roomId,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      detail,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  detail,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colors.onSurfaceVariant,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: entry == _Entry.requested
+                ? OutlinedButton(
+                    onPressed: busy ? null : onTap,
+                    child: Text(l10n.communitiesRequested),
+                  )
+                : FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colors.secondaryContainer,
+                      foregroundColor: colors.onSecondaryContainer,
+                    ),
+                    onPressed: busy ? null : onTap,
+                    child: Text(
+                      entry == _Entry.ask
+                          ? l10n.communitiesAsk
+                          : l10n.commonJoin,
+                    ),
                   ),
-                ),
-              ],
-            ),
           ),
-          const SizedBox(width: 12),
-          if (entry == _Entry.requested)
-            OutlinedButton(
-              onPressed: busy ? null : onTap,
-              child: Text(l10n.communitiesRequested),
-            )
-          else
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: colors.secondaryContainer,
-                foregroundColor: colors.onSecondaryContainer,
-              ),
-              onPressed: busy ? null : onTap,
-              child: Text(
-                entry == _Entry.ask ? l10n.communitiesAsk : l10n.commonJoin,
-              ),
-            ),
         ],
       ),
     );

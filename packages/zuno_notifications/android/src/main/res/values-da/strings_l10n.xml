@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="commonYou">Dig</string>
+    <string name="notificationsFallbackChatName">Chat</string>
+    <string name="notificationsMissedPushes">Nogle notifikationer kunne ikke leveres. Åbn Zuno for at se nye beskeder.</string>
+    <string name="notificationsNewMessage">Ny besked</string>
+    <string name="notificationsTapToOpen">Tryk for at åbne</string>
+    <string name="notificationsTestWorks">Notifikationer virker</string>
+</resources>
