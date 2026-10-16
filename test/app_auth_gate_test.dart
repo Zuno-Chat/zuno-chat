@@ -34,6 +34,7 @@ import 'package:zuno/core/matrix/sync_coordinator.dart';
 import 'package:zuno/core/matrix/sync_coordinator_provider.dart';
 import 'package:zuno/core/matrix/sync_request_canceller.dart';
 import 'package:zuno/core/navigation/global_navigator.dart';
+import 'package:zuno/core/notifications/local_notifications.dart';
 import 'package:zuno/core/notifications/settings/notification_permission.dart';
 import 'package:zuno/core/notifications/settings/notifications_allowed_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
@@ -411,7 +412,9 @@ void main() {
       await pumpApp(tester);
       await settle(tester);
 
-      CallNotificationService.instance.onMessageTapForTest(room.id);
+      LocalNotifications.instance.onResponseForTest(
+        messageTapResponse(room.id),
+      );
       await pumpRoute(tester);
 
       expect(tester.widget<RoomPage>(find.byType(RoomPage)).room, same(room));
@@ -432,7 +435,9 @@ void main() {
       await settle(tester);
       expect(find.byType(CallPage), findsOneWidget);
 
-      CallNotificationService.instance.onMessageTapForTest(room.id);
+      LocalNotifications.instance.onResponseForTest(
+        messageTapResponse(room.id),
+      );
       await pumpRoute(tester);
       await settle(tester);
 
@@ -458,7 +463,9 @@ void main() {
       await pumpApp(tester);
       await settle(tester);
 
-      CallNotificationService.instance.onMessageTapForTest(club.id);
+      LocalNotifications.instance.onResponseForTest(
+        messageTapResponse(club.id),
+      );
       await pumpRoute(tester);
 
       expect(
@@ -473,7 +480,9 @@ void main() {
       await pumpApp(tester);
       await settle(tester);
 
-      CallNotificationService.instance.onMessageTapForTest('!gone:example.org');
+      LocalNotifications.instance.onResponseForTest(
+        messageTapResponse('!gone:example.org'),
+      );
       await pumpRoute(tester);
 
       expect(find.byType(RoomPage), findsNothing);
@@ -486,7 +495,7 @@ void main() {
       await pumpApp(tester);
       await settle(tester);
 
-      CallNotificationService.instance.onNewDeviceTapForTest();
+      LocalNotifications.instance.onResponseForTest(newDeviceTapResponse());
       await pumpRoute(tester);
 
       expect(find.byType(ActiveSessionsPage), findsOneWidget);
@@ -533,7 +542,7 @@ void main() {
       );
       logins.add(true);
       await settle(tester);
-      CallNotificationService.instance.onNewDeviceTapForTest();
+      LocalNotifications.instance.onResponseForTest(newDeviceTapResponse());
       await pumpRoute(tester);
       expect(find.byType(ActiveSessionsPage), findsOneWidget);
 
@@ -838,7 +847,7 @@ void main() {
       moveLifecycleTo(tester.binding, AppLifecycleState.paused);
       moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
 
-      expect(CallNotificationService.instance.stillHoldsDeclinePort(), isTrue);
+      expect(LocalNotifications.instance.stillHoldsDeclinePort(), isTrue);
       expect(
         IsolateNameServer.lookupPortByName(messageActionPortName),
         isNot(stranger.sendPort),

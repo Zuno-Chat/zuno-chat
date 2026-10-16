@@ -1,13 +1,9 @@
-import 'dart:ui';
-
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
-import 'package:zuno/core/l10n/l10n.dart';
 
 import '../../../helpers/fake_calls_channel.dart';
-import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -76,70 +72,5 @@ void main() {
     await service.openFullScreenIntentSettings();
 
     expect(calls, isEmpty);
-  });
-
-  test('on iOS it initializes without prompting: onboarding owns the '
-      'notification ask', () async {
-    final notifications = installFakeLocalNotifications(
-      platform: TargetPlatform.iOS,
-    );
-    final service = CallNotificationService(capabilities: iosCapabilities);
-
-    await service.initialize(claimDeclinePort: false);
-
-    expect(
-      notifications.initializeArguments,
-      allOf(
-        containsPair('requestAlertPermission', false),
-        containsPair('requestSoundPermission', false),
-        containsPair('requestBadgePermission', false),
-      ),
-    );
-  });
-
-  group('channel names follow a language change', () {
-    final greek = lookupAppLocalizations(const Locale('el'));
-
-    test(
-      'android registers the channels again under the new language',
-      () async {
-        final notifications = installFakeLocalNotifications();
-        final service = CallNotificationService(
-          capabilities: androidCapabilities,
-        );
-        await service.initialize(claimDeclinePort: false);
-        notifications.channels.clear();
-
-        await service.refreshChannelNames(greek);
-
-        final chat = notifications.channels.singleWhere(
-          (c) => c['id'] == messagesChannelId,
-        );
-        expect(chat['name'], greek.notificationsChannelChatMessages);
-      },
-    );
-
-    test('before the first setup there is nothing to refresh', () async {
-      final notifications = installFakeLocalNotifications();
-      final service = CallNotificationService(
-        capabilities: androidCapabilities,
-      );
-
-      await service.refreshChannelNames(greek);
-
-      expect(notifications.channels, isEmpty);
-    });
-
-    test('on iOS no channel is touched', () async {
-      final notifications = installFakeLocalNotifications(
-        platform: TargetPlatform.iOS,
-      );
-      final service = CallNotificationService(capabilities: iosCapabilities);
-      await service.initialize(claimDeclinePort: false);
-
-      await service.refreshChannelNames(greek);
-
-      expect(notifications.channels, isEmpty);
-    });
   });
 }

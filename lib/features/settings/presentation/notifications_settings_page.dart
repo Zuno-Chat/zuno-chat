@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/notifications/messages/message_notifications.dart';
 import '../../../core/notifications/settings/notification_permission.dart';
 import '../../../core/notifications/settings/notification_preview.dart';
 import '../../../core/notifications/settings/notifications_allowed_provider.dart';
@@ -69,7 +70,7 @@ class _NotificationsSettingsPageState
   }
 
   Future<void> _refreshSilencedChannels() async {
-    final silenced = await CallNotificationService.instance.silencedChannels();
+    final silenced = await MessageNotifications.instance.silencedChannels();
     if (mounted) setState(() => _silencedChannels = silenced);
   }
 

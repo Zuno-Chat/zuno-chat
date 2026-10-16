@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/notifications/messages/message_notification_content.dart';
+import 'package:zuno/core/notifications/messages/message_notifications.dart';
+import 'package:zuno/core/notifications/messages/notification_ids.dart';
 import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
@@ -34,7 +35,7 @@ void main() {
   });
 
   Future<void> post({String eventId = r'$e1', bool refine = false}) =>
-      CallNotificationService.instance.showMessage(
+      MessageNotifications.instance.showMessage(
         MessageNotificationContent(
           roomId: roomId,
           title: 'Alice',
@@ -99,7 +100,7 @@ void main() {
 
   test('where the platform posts no instant notices, nothing asks for '
       'one', () async {
-    final service = CallNotificationService(
+    final service = MessageNotifications(
       capabilities: capabilitiesLike(
         androidCapabilities,
         instantPushNotices: false,
@@ -182,14 +183,14 @@ void main() {
   });
 
   test('retractPushNotice cancels only the notice for that event', () async {
-    await CallNotificationService.instance.retractPushNotice(roomId, r'$e1');
+    await MessageNotifications.instance.retractPushNotice(roomId, r'$e1');
     expect(notifications.cancelled, isEmpty);
 
     noticed[roomId] = r'$e1';
-    await CallNotificationService.instance.retractPushNotice(roomId, r'$other');
+    await MessageNotifications.instance.retractPushNotice(roomId, r'$other');
     expect(notifications.cancelled, isEmpty);
 
-    await CallNotificationService.instance.retractPushNotice(roomId, r'$e1');
+    await MessageNotifications.instance.retractPushNotice(roomId, r'$e1');
     expect(notifications.cancelled, [id]);
   });
 }

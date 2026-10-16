@@ -5,7 +5,6 @@ import 'package:matrix/matrix.dart';
 
 import '../../calls/matrixrtc/call_summary_message.dart';
 import '../../calls/matrixrtc/incoming_call_provider.dart';
-import '../../calls/notifications/call_notification_service.dart';
 import '../../calls/notifications/ring_from_push.dart';
 import '../../calls/platform/incoming_call_presenter.dart';
 import '../../errors/caught_errors.dart';
@@ -15,6 +14,7 @@ import '../../matrix/zuno_client.dart';
 import '../../notifications/messages/message_notification_image.dart';
 import '../../notifications/messages/message_notification_poster.dart';
 import '../../notifications/messages/message_notification_provider.dart';
+import '../../notifications/messages/message_notifications.dart';
 import '../../notifications/room_invite_notification_provider.dart';
 import '../../notifications/settings/notify_me.dart';
 import '../../notifications/verification_request_notification.dart';
@@ -48,7 +48,7 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
   final eventId = notification.eventId;
   final forgetNotice = roomId == null || eventId == null
       ? null
-      : CallNotificationService.instance.expectPushNotice(roomId, eventId);
+      : MessageNotifications.instance.expectPushNotice(roomId, eventId);
   try {
     return await _handle(
       client,
@@ -290,11 +290,11 @@ class _Placeholder {
   }
 
   Future<void> retract() =>
-      _settle(CallNotificationService.instance.retractPushNotice);
+      _settle(MessageNotifications.instance.retractPushNotice);
 
   Future<void> settleAfterAnnounced({required bool replacedNotice}) {
     if (!replacedNotice) return retract();
-    return _settle(CallNotificationService.instance.takePushNotice);
+    return _settle(MessageNotifications.instance.takePushNotice);
   }
 
   Future<void> _settle(
@@ -305,7 +305,7 @@ class _Placeholder {
     if (roomId == null || eventId == null) return;
     await settleNotice(roomId, eventId);
     if (!_posted) return;
-    await CallNotificationService.instance.retractPlaceholder(roomId, eventId);
+    await MessageNotifications.instance.retractPlaceholder(roomId, eventId);
   }
 }
 

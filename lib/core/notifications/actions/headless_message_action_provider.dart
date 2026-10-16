@@ -2,8 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
-import '../../notifications/actions/message_notification_action.dart';
-import 'call_notification_service.dart';
+import '../local_notifications.dart';
+import 'message_notification_action.dart';
 
 final headlessMessageActionProvider =
     NotifierProvider<HeadlessMessageActionNotifier, void>(
@@ -17,9 +17,7 @@ class HeadlessMessageActionNotifier extends Notifier<void> {
 
   @override
   void build() {
-    final sub = CallNotificationService.instance.onMessageAction.listen(
-      _handle,
-    );
+    final sub = LocalNotifications.instance.onMessageAction.listen(_handle);
     ref.onDispose(sub.cancel);
   }
 

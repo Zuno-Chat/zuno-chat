@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../calls/notifications/call_notification_service.dart';
 import '../errors/best_effort.dart';
 import '../l10n/l10n.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../settings/app_preferences_provider.dart';
 import 'known_devices_store.dart';
 import 'new_device_alert.dart';
+import 'new_device_notifications.dart';
 
 final knownDevicesStoreProvider = Provider<KnownDevicesStore>((ref) {
   return KnownDevicesStore(ref.watch(sharedPreferencesProvider));
@@ -72,7 +72,7 @@ class NewDeviceAlertNotifier extends Notifier<List<NewDeviceAlert>> {
       for (final alert in alerts) {
         final text = newDeviceNotificationText(deviceLocalizations(), alert);
         await runBestEffort(
-          () => CallNotificationService.instance.showNewDevice(
+          () => NewDeviceNotifications.instance.show(
             deviceId: alert.deviceId,
             title: text.title,
             body: text.body,

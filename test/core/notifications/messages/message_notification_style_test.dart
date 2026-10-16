@@ -6,9 +6,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/notifications/messages/message_notification_content.dart';
+import 'package:zuno/core/notifications/messages/message_notifications.dart';
 import 'package:zuno/core/notifications/messages/notification_avatar_cache.dart';
+import 'package:zuno/core/notifications/messages/notification_ids.dart';
 import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
@@ -63,7 +64,7 @@ void main() {
     String? imageUri,
     String? imageMimeType,
     bool quiet = false,
-  }) => CallNotificationService.instance.showMessage(
+  }) => MessageNotifications.instance.showMessage(
     MessageNotificationContent(
       roomId: room,
       title: title,
@@ -159,13 +160,13 @@ void main() {
     await post(eventId: r'$1', text: 'hi');
     showing();
     final noticed = installFakeConversationsChannel(noticed: {roomId: r'$m'});
-    final forget = CallNotificationService.instance.expectPushNotice(
+    final forget = MessageNotifications.instance.expectPushNotice(
       roomId,
       r'$m',
     );
     addTearDown(forget);
 
-    await CallNotificationService.instance.showMessage(
+    await MessageNotifications.instance.showMessage(
       MessageNotificationContent(
         roomId: roomId,
         threadKey: own,
@@ -246,7 +247,7 @@ void main() {
     showing();
     await post(eventId: r'$2', text: 'New message', placeholder: true);
 
-    await CallNotificationService.instance.retractPlaceholder(roomId, r'$2');
+    await MessageNotifications.instance.retractPlaceholder(roomId, r'$2');
 
     expect(conversations.named('pushConversationShortcut'), hasLength(1));
   });
@@ -398,7 +399,7 @@ void main() {
   test('cancelling forgets the thread', () async {
     await post(eventId: r'$1');
 
-    await CallNotificationService.instance.cancelMessageNotification(roomId);
+    await MessageNotifications.instance.cancelMessageNotification(roomId);
 
     final prefs = await SharedPreferences.getInstance();
     expect(readNotificationThread(prefs, roomId), isNull);
@@ -409,7 +410,7 @@ void main() {
     await post(eventId: r'$1', text: 'New message', placeholder: true);
     showing();
 
-    await CallNotificationService.instance.retractPlaceholder(roomId, r'$1');
+    await MessageNotifications.instance.retractPlaceholder(roomId, r'$1');
 
     expect(notifications.cancelled, contains(roomNotificationId));
     final prefs = await SharedPreferences.getInstance();
@@ -421,7 +422,7 @@ void main() {
     showing();
     await post(eventId: r'$2', text: 'New message', placeholder: true);
 
-    await CallNotificationService.instance.retractPlaceholder(roomId, r'$2');
+    await MessageNotifications.instance.retractPlaceholder(roomId, r'$2');
 
     expect(messagesOf(lastRoomPost()).map((m) => m['text']), ['hi']);
     expect(lastRoomPost()['onlyAlertOnce'], isTrue);
@@ -596,7 +597,7 @@ void main() {
       );
       noticePendingFor(r'$a');
       showing();
-      final forget = CallNotificationService.instance.expectPushNotice(
+      final forget = MessageNotifications.instance.expectPushNotice(
         roomId,
         r'$a',
       );
@@ -618,7 +619,7 @@ void main() {
     test('a notice no push is waiting on any more is not taken', () async {
       noticePendingFor(r'$a');
       showing();
-      CallNotificationService.instance.expectPushNotice(roomId, r'$a')();
+      MessageNotifications.instance.expectPushNotice(roomId, r'$a')();
 
       await post(eventId: r'$b', text: 'second');
 

@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../notifications/actions/message_notification_action.dart';
+import '../../notifications/local_notifications.dart';
 import '../matrixrtc/call_decline.dart';
 import '../matrixrtc/resolved_call_ids_provider.dart';
 import '../platform/incoming_call_presenter.dart';
-import 'call_notification_service.dart';
 
 final headlessCallDeclineProvider =
     NotifierProvider<HeadlessCallDeclineNotifier, void>(
@@ -16,9 +16,7 @@ final headlessCallDeclineProvider =
 class HeadlessCallDeclineNotifier extends Notifier<void> {
   @override
   void build() {
-    final sub = CallNotificationService.instance.onHeadlessDecline.listen(
-      _handle,
-    );
+    final sub = LocalNotifications.instance.onHeadlessDecline.listen(_handle);
     ref.onDispose(sub.cancel);
   }
 

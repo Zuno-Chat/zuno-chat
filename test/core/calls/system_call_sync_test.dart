@@ -61,7 +61,7 @@ void main() {
         return startReply;
       },
     );
-    await CallNotificationService.instance.initialize(claimDeclinePort: false);
+    await CallNotificationService.instance.initialize(claimLiveRoutes: false);
     native.clear();
   });
 

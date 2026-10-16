@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/notifications/local_notifications.dart';
 import 'package:zuno/core/notifications/messages/message_notification_content.dart';
+import 'package:zuno/core/notifications/messages/message_notifications.dart';
+import 'package:zuno/core/notifications/messages/notification_ids.dart';
 import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
@@ -20,19 +22,23 @@ const _roomId = '!room:example.org';
 String _messagePayload(String roomId) =>
     jsonEncode({'type': 'message', 'roomId': roomId});
 
+MessageNotifications _messageNotifications(PlatformCapabilities capabilities) =>
+    MessageNotifications(
+      capabilities: capabilities,
+      threadIds: OpaqueThreadIds(threadKey: (roomId) async => 'tok-$roomId'),
+      notifications: LocalNotifications(capabilities: capabilities),
+    );
+
 void main() {
   late RecordedNotifications notifications;
-  late CallNotificationService service;
+  late MessageNotifications service;
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     ambientCapabilities = iosCapabilities;
     notifications = installFakeLocalNotifications(platform: TargetPlatform.iOS);
     installSilentNotificationSideChannels();
-    service = CallNotificationService(
-      capabilities: iosCapabilities,
-      threadIds: OpaqueThreadIds(threadKey: (roomId) async => 'tok-$roomId'),
-    );
+    service = _messageNotifications(iosCapabilities);
   });
 
   group('clearing', () {
@@ -255,13 +261,13 @@ void main() {
 
   test('before native actions, startup registers the Reply and Mark as read '
       'actions, running in the background with no screen opened', () async {
-    final flnOwned = CallNotificationService(
+    final flnOwned = LocalNotifications(
       capabilities: capabilitiesLike(
         iosCapabilities,
         nativeNotificationActions: false,
       ),
     );
-    await flnOwned.initialize(claimDeclinePort: false);
+    await flnOwned.initialize();
 
     final categories = {
       for (final category
@@ -305,9 +311,6 @@ void main() {
       nseNotifications: true,
       nativeNotificationActions: true,
     );
-    final threadIds = OpaqueThreadIds(
-      threadKey: (roomId) async => 'tok-$roomId',
-    );
     const message = MessageNotificationContent(
       roomId: _roomId,
       title: 'Alice',
@@ -316,10 +319,7 @@ void main() {
     );
 
     test('startup leaves the categories to native code', () async {
-      await CallNotificationService(
-        capabilities: native,
-        threadIds: threadIds,
-      ).initialize(claimDeclinePort: false);
+      await LocalNotifications(capabilities: native).initialize();
 
       expect(
         notifications.initializeArguments!['notificationCategories'],
@@ -338,10 +338,8 @@ void main() {
           notificationPreviewKey: preview.name,
         });
 
-        await CallNotificationService(
-          capabilities: native,
-          threadIds: threadIds,
-        ).showMessage(message, includeMessageActions: true);
+        await _messageNotifications(native)
+            .showMessage(message, includeMessageActions: true);
 
         expect(
           notifications.lastPlatformSpecifics['categoryIdentifier'],
@@ -357,14 +355,13 @@ void main() {
           notificationPreviewKey: NotificationPreview.nothing.name,
         });
 
-        await CallNotificationService(
-          capabilities: capabilitiesLike(
-            iosCapabilities,
-            nseNotifications: true,
-            nativeNotificationActions: false,
-          ),
-          threadIds: threadIds,
-        ).showMessage(message, includeMessageActions: true);
+        final beforeNative = capabilitiesLike(
+          iosCapabilities,
+          nseNotifications: true,
+          nativeNotificationActions: false,
+        );
+        await _messageNotifications(beforeNative)
+            .showMessage(message, includeMessageActions: true);
 
         expect(
           notifications.lastPlatformSpecifics['categoryIdentifier'],
@@ -378,10 +375,7 @@ void main() {
       SharedPreferences.setMockInitialValues({
         notificationPreviewKey: NotificationPreview.nameOnly.name,
       });
-      final service = CallNotificationService(
-        capabilities: native,
-        threadIds: threadIds,
-      );
+      final service = _messageNotifications(native);
       await service.showMessage(message, includeMessageActions: true);
       notifications.active = [
         {

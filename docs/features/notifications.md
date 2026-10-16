@@ -69,6 +69,7 @@ Background sync has no push at all: a foreground service keeps `/sync` running.
 - **Shortcuts of rooms the user is no longer in are removed**, after the first sync and whenever a sync reports a room left.
 - **New sign-in alerts** post for every new own device on the `security` channel, which chat mute cannot silence.
 - **Reply and Mark as read** run in flutter_local_notifications' (FLN) action engine. They go to the running app first, through its live route (`calls.md`). With no live app, they open a one-shot client under a background lease.
+- **`LocalNotifications` is the one FLN host**: it owns the channels and categories, every tap and action response, and the background action handler, while messages, new sign-ins and rings each post through it and read only their own taps.
 - **The native plugins in `packages/` are real `FlutterPlugin`s** (`zuno_notifications`, `zuno_vibration`, `zuno_call_style`), because a hand-attached channel exists only on the engine that attached it. On an engine without the handler, a call throws `MissingPluginException`, which best-effort callers swallow: no ring, no vibration, no error.
 
 | Channel group | Channels |
@@ -242,6 +243,7 @@ Both platforms show the permission, this device's registration and the module's 
 - **The FCM ack must not wait on a ring hold**, because the service handles one message at a time and the hang-up push would queue behind the hold.
 - **FCM and UnifiedPush share one push wake lock with a hold per push**: each hold needs its own release, matched by its push, and a release that matches no hold never lets go, because a redelivered event or a release replayed to a new engine would otherwise cut the lock mid-push.
 - **A plugin a push engine calls must be in `PushEnginePlugins`**, or its `MissingPluginException` is silently swallowed.
+- **FLN stores the background action handler by function name and file** (`local_notifications.dart`), so renaming or moving it leaves Reply, Mark as read and Decline dead on every notification posted before the update, until the app or a push next starts.
 - **Sound settings and the room-name cache are raw SharedPreferences keys**, because headless engines have no provider scope and native code reads the cache.
 - **Each maker's autostart package must be listed in the manifest's `<queries>`**, or Android 11+ hides it and the Autostart row never appears.
 - **Background sync must not be `dataSync` on Android 14+**, because Android 15 caps that type at 6 h a day and crashes the app past it.

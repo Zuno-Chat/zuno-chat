@@ -3,16 +3,16 @@ import 'dart:typed_data';
 
 import 'package:matrix/matrix.dart';
 
-import '../../errors/caught_errors.dart';
-import '../../matrix/bearer_authorization.dart';
+import '../errors/caught_errors.dart';
+import '../matrix/bearer_authorization.dart';
 
-const callerAvatarTimeout = Duration(seconds: 8);
+const notificationAvatarFetchTimeout = Duration(seconds: 8);
 
-Future<Uint8List?> fetchCallerAvatarBytes(
+Future<Uint8List?> fetchNotificationAvatarBytes(
   Client client,
   Uri? avatarUrl, {
   Future<Uint8List?> Function(Uri uri)? download,
-  Duration timeout = callerAvatarTimeout,
+  Duration timeout = notificationAvatarFetchTimeout,
 }) async {
   if (avatarUrl == null) return null;
   final fetch = download ?? (uri) => _downloadViaHttpClient(client, uri);
@@ -24,7 +24,7 @@ Future<Uint8List?> fetchCallerAvatarBytes(
     );
     return await fetch(thumbnailUri).timeout(timeout);
   } catch (e, s) {
-    reportCaught('fetch the caller avatar', e, s);
+    reportCaught('fetch a notification avatar', e, s);
     return null;
   }
 }

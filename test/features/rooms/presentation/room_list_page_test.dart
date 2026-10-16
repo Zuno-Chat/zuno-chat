@@ -9,9 +9,9 @@ import 'package:http/testing.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/actions/message_notification_action.dart';
+import 'package:zuno/core/notifications/local_notifications.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/security/security_prompt.dart';
@@ -283,7 +283,7 @@ void main() {
       'app\'s own client', (tester) async {
     await pumpRoomList(tester);
 
-    CallNotificationService.instance.onMessageActionForTest(
+    LocalNotifications.instance.onMessageActionForTest(
       HandedMessageAction((
         kind: MessageNotificationActionKind.markRead,
         roomId: room.id,

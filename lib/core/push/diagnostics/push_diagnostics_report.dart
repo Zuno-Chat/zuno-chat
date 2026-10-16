@@ -1,11 +1,10 @@
 import 'package:flutter/foundation.dart' show immutable, listEquals;
 
 import '../../brand.dart';
-import '../../calls/notifications/call_notification_service.dart'
-    show alertingMessageChannelIds, ringChannelIds;
 import '../../errors/crash_scrubber.dart';
 import '../../format/date_labels.dart';
 import '../../l10n/l10n.dart';
+import '../../notifications/local_notifications.dart';
 import '../../platform/platform_capabilities.dart';
 import '../apns/apns_pusher.dart';
 import '../delivery/notification_delivery_mode.dart';

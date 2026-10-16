@@ -22,7 +22,6 @@ import '../../../core/calls/matrixrtc/call_member_state.dart';
 import '../../../core/calls/matrixrtc/call_session.dart';
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/calls/models/call_kind.dart';
-import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/picked_file.dart';
@@ -59,6 +58,7 @@ import '../../../core/matrix/upload_foreground_service.dart';
 import '../../../core/matrix/video_send_preparation.dart';
 import '../../../core/matrix/voice_recording.dart';
 import '../../../core/navigation/chat_route.dart';
+import '../../../core/notifications/messages/message_notifications.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/recovery_code.dart';
 import '../../../core/security/recovery_code_leak.dart';
@@ -179,9 +179,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       if (share != null) unawaited(_applyPendingShare(share));
     });
     unawaited(
-      CallNotificationService.instance.cancelMessageNotification(
-        widget.room.id,
-      ),
+      MessageNotifications.instance.cancelMessageNotification(widget.room.id),
     );
     _scrollController.addListener(_maybeLoadMoreHistory);
     _scrollController.addListener(_updateScrollToBottomVisibility);
@@ -218,9 +216,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     if (isForeground) {
       _currentlyOpenRoomNotifier.set(widget.room.id);
       unawaited(
-        CallNotificationService.instance.cancelMessageNotification(
-          widget.room.id,
-        ),
+        MessageNotifications.instance.cancelMessageNotification(widget.room.id),
       );
       _markLatestRead();
     } else {

@@ -5,11 +5,11 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
-import 'package:zuno/core/calls/notifications/live_isolate_route.dart';
+import 'package:zuno/core/async/live_isolate_route.dart';
 import 'package:zuno/core/notifications/actions/message_notification_action.dart';
+import 'package:zuno/core/notifications/local_notifications.dart';
 
-import '../../../helpers/fake_local_notifications.dart';
+import '../../helpers/fake_local_notifications.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -32,15 +32,15 @@ void main() {
     IsolateNameServer.removePortNameMapping(messageActionPortName);
   });
 
-  Future<CallNotificationService> app() async {
-    final service = CallNotificationService();
+  Future<LocalNotifications> app() async {
+    final service = LocalNotifications()..claimLiveRoutes();
     await service.initialize();
     return service;
   }
 
-  Future<CallNotificationService> headless() async {
-    final service = CallNotificationService();
-    await service.initialize(claimDeclinePort: false);
+  Future<LocalNotifications> headless() async {
+    final service = LocalNotifications();
+    await service.initialize();
     return service;
   }
 
@@ -113,7 +113,7 @@ void main() {
     test('a claim asked for after a quiet initialize still claims', () async {
       final main = await headless();
 
-      await main.initialize();
+      main.claimLiveRoutes();
 
       expect(main.stillHoldsDeclinePort(), isTrue);
     });

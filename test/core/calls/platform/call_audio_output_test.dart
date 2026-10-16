@@ -194,9 +194,7 @@ void main() {
 
     setUp(() async {
       installFakeLocalNotifications();
-      await CallNotificationService.instance.initialize(
-        claimDeclinePort: false,
-      );
+      await CallNotificationService.instance.initialize(claimLiveRoutes: false);
     });
 
     test('reads the route and headsets from native', () async {

@@ -78,7 +78,7 @@ void main() {
 
   Future<void> startNotificationService() async {
     installFakeLocalNotifications();
-    await CallNotificationService.instance.initialize(claimDeclinePort: false);
+    await CallNotificationService.instance.initialize(claimLiveRoutes: false);
   }
 
   CallSession startOngoingCall(String callId) {

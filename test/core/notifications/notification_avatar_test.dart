@@ -8,10 +8,10 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/calls/notifications/caller_avatar.dart';
+import 'package:zuno/core/notifications/notification_avatar.dart';
 
-import '../../../helpers/caught_reports.dart';
-import '../../../helpers/fake_matrix.dart';
+import '../../helpers/caught_reports.dart';
+import '../../helpers/fake_matrix.dart';
 
 void main() {
   late Client client;
@@ -21,14 +21,14 @@ void main() {
   });
 
   test('returns null when there is no avatar url', () async {
-    final result = await fetchCallerAvatarBytes(client, null);
+    final result = await fetchNotificationAvatarBytes(client, null);
     expect(result, isNull);
   });
 
   test('returns the downloaded bytes on success', () async {
     final bytes = Uint8List.fromList([1, 2, 3]);
 
-    final result = await fetchCallerAvatarBytes(
+    final result = await fetchNotificationAvatarBytes(
       client,
       Uri.parse('mxc://example.org/avatar1'),
       download: (uri) async => bytes,
@@ -38,7 +38,7 @@ void main() {
   });
 
   test('returns null when the download throws', () async {
-    final result = await fetchCallerAvatarBytes(
+    final result = await fetchNotificationAvatarBytes(
       client,
       Uri.parse('mxc://example.org/avatar1'),
       download: (uri) async => throw Exception('offline'),
@@ -70,7 +70,7 @@ void main() {
       );
       served.homeserver = Uri.parse('https://example.org');
       served.accessToken = 'token';
-      return fetchCallerAvatarBytes(
+      return fetchNotificationAvatarBytes(
         served,
         Uri.parse('mxc://example.org/avatar1'),
       );
@@ -96,20 +96,20 @@ void main() {
       final result = await avatarAnswering(http.Response('', 500));
 
       expect(result, isNull);
-      expect(logs, [startsWith('zuno/caught: fetch the caller avatar:')]);
+      expect(logs, [startsWith('zuno/caught: fetch a notification avatar:')]);
     });
   });
 
   test('returns null when the download exceeds the timeout', () {
     fakeAsync((async) {
       Object? result = 'unset';
-      fetchCallerAvatarBytes(
+      fetchNotificationAvatarBytes(
         client,
         Uri.parse('mxc://example.org/avatar1'),
         download: (uri) => Completer<Uint8List>().future,
       ).then((bytes) => result = bytes);
 
-      async.elapse(callerAvatarTimeout);
+      async.elapse(notificationAvatarFetchTimeout);
 
       expect(result, isNull);
     });

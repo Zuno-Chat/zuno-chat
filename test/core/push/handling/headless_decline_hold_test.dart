@@ -10,12 +10,13 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/async/live_isolate_route.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
-import 'package:zuno/core/calls/notifications/live_isolate_route.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
+import 'package:zuno/core/notifications/local_notifications.dart';
 import 'package:zuno/core/push/handling/headless_decline_hold.dart';
 import 'package:zuno/core/push/handling/headless_push_runner.dart';
 
@@ -35,12 +36,12 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
-    await CallNotificationService.instance.initialize(claimDeclinePort: false);
+    await CallNotificationService.instance.initialize(claimLiveRoutes: false);
     initializeArguments ??= notifications.initializeArguments;
   });
 
   tearDown(() {
-    CallNotificationService.instance.releaseDeclinePort();
+    LocalNotifications.instance.releaseDeclinePort();
     IsolateNameServer.removePortNameMapping(declinePortName);
   });
 
@@ -59,7 +60,7 @@ void main() {
     'returns immediately when another isolate already holds the port',
     () async {
       expect(
-        await CallNotificationService.instance.claimDeclinePortUnlessLive(),
+        await LocalNotifications.instance.claimDeclinePortUnlessLive(),
         isTrue,
       );
       final runner = HeadlessPushRunner();
@@ -101,7 +102,7 @@ void main() {
 
       await time.advance(declinePollEvery);
       expect(completed, isTrue);
-      expect(CallNotificationService.instance.stillHoldsDeclinePort(), isFalse);
+      expect(LocalNotifications.instance.stillHoldsDeclinePort(), isFalse);
     },
   );
 
@@ -121,7 +122,7 @@ void main() {
     });
     await time.advance(const Duration(seconds: 3));
 
-    expect(CallNotificationService.instance.stillHoldsDeclinePort(), isTrue);
+    expect(LocalNotifications.instance.stillHoldsDeclinePort(), isTrue);
   });
 
   test('looks at the ring every few seconds, not every second', () async {
@@ -153,9 +154,9 @@ void main() {
     notifications.active = const [];
     await time.advance(const Duration(seconds: 3));
     expect(completed, isFalse);
-    expect(CallNotificationService.instance.stillHoldsDeclinePort(), isTrue);
+    expect(LocalNotifications.instance.stillHoldsDeclinePort(), isTrue);
 
-    CallNotificationService.instance.onHeadlessDeclineForTest(
+    LocalNotifications.instance.onHeadlessDeclineForTest(
       const HeadlessCallDecline(roomId: '!room:example.org', callId: 'call1'),
     );
     await time.settle();
@@ -226,7 +227,7 @@ void main() {
     addTearDown(sender.close);
     final replies = <Object?>[];
     sender.listen(replies.add);
-    CallNotificationService.instance.onHeadlessDeclineForTest(
+    LocalNotifications.instance.onHeadlessDeclineForTest(
       HeadlessCallDecline(
         roomId: '!room:example.org',
         callId: 'call1',
@@ -251,7 +252,7 @@ void main() {
     }) async {
       final hold = awaitHeadlessDecline(HeadlessPushRunner());
       await meanwhile?.call();
-      CallNotificationService.instance.onHeadlessDeclineForTest(
+      LocalNotifications.instance.onHeadlessDeclineForTest(
         HeadlessCallDecline(roomId: '!room:example.org', callId: callId),
       );
       await hold.timeout(const Duration(seconds: 3));
@@ -311,14 +312,14 @@ void main() {
       });
       await time.advance(const Duration(seconds: 5));
       expect(held, isTrue);
-      expect(CallNotificationService.instance.stillHoldsDeclinePort(), isTrue);
+      expect(LocalNotifications.instance.stillHoldsDeclinePort(), isTrue);
       _tapDeclineWhileHeadless(initializeArguments!);
       await time.settle();
 
       expect(held, isFalse);
       expect(sent.single['call_id'], 'call1');
       expect(presenter.cancels, 1);
-      expect(CallNotificationService.instance.stillHoldsDeclinePort(), isFalse);
+      expect(LocalNotifications.instance.stillHoldsDeclinePort(), isFalse);
     });
   });
 

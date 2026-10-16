@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/notifications/local_notifications.dart';
 
 import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
@@ -47,8 +48,11 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
-    service = CallNotificationService(capabilities: iosCapabilities);
-    await service.initialize(claimDeclinePort: false);
+    service = CallNotificationService(
+      capabilities: iosCapabilities,
+      notifications: LocalNotifications(capabilities: iosCapabilities),
+    );
+    await service.initialize(claimLiveRoutes: false);
   });
 
   test('an answer from the system call screen reaches whoever handles call '
@@ -241,10 +245,13 @@ void main() {
     test('on iOS tells CallKit a new Dart is up, once however often it '
         'starts', () async {
       final toNative = installFakeCallsChannel();
-      final fresh = CallNotificationService(capabilities: iosCapabilities);
+      final fresh = CallNotificationService(
+        capabilities: iosCapabilities,
+        notifications: LocalNotifications(capabilities: iosCapabilities),
+      );
 
-      await fresh.initialize(claimDeclinePort: false);
-      await fresh.initialize(claimDeclinePort: false);
+      await fresh.initialize(claimLiveRoutes: false);
+      await fresh.initialize(claimLiveRoutes: false);
 
       expect(toNative.calls.map((c) => [c.method, c.arguments]), [
         ['resetSystemCalls', null],
@@ -253,9 +260,12 @@ void main() {
 
     test('on Android sends nothing on the calls channel', () async {
       final toNative = installFakeCallsChannel();
-      final fresh = CallNotificationService(capabilities: androidCapabilities);
+      final fresh = CallNotificationService(
+        capabilities: androidCapabilities,
+        notifications: LocalNotifications(capabilities: androidCapabilities),
+      );
 
-      await fresh.initialize(claimDeclinePort: false);
+      await fresh.initialize(claimLiveRoutes: false);
 
       expect(toNative.calls, isEmpty);
     });
@@ -270,17 +280,20 @@ void main() {
         },
       );
       notifications.methods.clear();
-      final fresh = CallNotificationService(capabilities: iosCapabilities);
+      final fresh = CallNotificationService(
+        capabilities: iosCapabilities,
+        notifications: LocalNotifications(capabilities: iosCapabilities),
+      );
 
       await expectLater(
-        fresh.initialize(claimDeclinePort: false),
+        fresh.initialize(claimLiveRoutes: false),
         throwsA(isA<PlatformException>()),
       );
       expect(notifications.methods, isNot(contains('initialize')));
 
       failing = false;
-      await fresh.initialize(claimDeclinePort: false);
-      await fresh.initialize(claimDeclinePort: false);
+      await fresh.initialize(claimLiveRoutes: false);
+      await fresh.initialize(claimLiveRoutes: false);
 
       expect(toNative.count('resetSystemCalls'), 2);
       expect(
@@ -294,12 +307,15 @@ void main() {
       final release = Completer<void>();
       final toNative = installFakeCallsChannel(reply: (_) => release.future);
       notifications.methods.clear();
-      final fresh = CallNotificationService(capabilities: iosCapabilities);
+      final fresh = CallNotificationService(
+        capabilities: iosCapabilities,
+        notifications: LocalNotifications(capabilities: iosCapabilities),
+      );
 
-      final first = fresh.initialize(claimDeclinePort: false);
+      final first = fresh.initialize(claimLiveRoutes: false);
       var secondDone = false;
       final second = fresh
-          .initialize(claimDeclinePort: false)
+          .initialize(claimLiveRoutes: false)
           .then((_) => secondDone = true);
       await pumpEventQueue();
 
@@ -320,10 +336,13 @@ void main() {
     test('every caller of a failing start hears the failure', () async {
       final release = Completer<void>();
       installFakeCallsChannel(reply: (_) => release.future);
-      final fresh = CallNotificationService(capabilities: iosCapabilities);
+      final fresh = CallNotificationService(
+        capabilities: iosCapabilities,
+        notifications: LocalNotifications(capabilities: iosCapabilities),
+      );
 
-      final first = fresh.initialize(claimDeclinePort: false);
-      final second = fresh.initialize(claimDeclinePort: false);
+      final first = fresh.initialize(claimLiveRoutes: false);
+      final second = fresh.initialize(claimLiveRoutes: false);
       release.completeError(PlatformException(code: 'busy'));
 
       await expectLater(first, throwsA(isA<PlatformException>()));
@@ -333,9 +352,12 @@ void main() {
     test('on iOS without the calls plugin still finishes starting and hears '
         'the system call', () async {
       notifications.methods.clear();
-      final fresh = CallNotificationService(capabilities: iosCapabilities);
+      final fresh = CallNotificationService(
+        capabilities: iosCapabilities,
+        notifications: LocalNotifications(capabilities: iosCapabilities),
+      );
 
-      await fresh.initialize(claimDeclinePort: false);
+      await fresh.initialize(claimLiveRoutes: false);
       final hangUps = await collect(
         fresh.onHangUp,
         () => sendFromNative('hangUpCall', callOne),
@@ -359,7 +381,10 @@ void main() {
       final toNative = installFakeCallsChannel();
 
       await offerPictureInPicture(
-        CallNotificationService(capabilities: androidCapabilities),
+        CallNotificationService(
+          capabilities: androidCapabilities,
+          notifications: LocalNotifications(capabilities: androidCapabilities),
+        ),
       );
 
       expect(toNative.calls.map((c) => [c.method, c.arguments]), [
@@ -373,14 +398,16 @@ void main() {
     test('on iOS the video to show reaches the platform', () async {
       final toNative = installFakeCallsChannel();
 
-      await CallNotificationService(capabilities: iosCapabilities)
-          .setPictureInPicture(
-            eligible: true,
-            aspectWidth: 640,
-            aspectHeight: 480,
-            streamId: 'ann-video',
-            ownerTag: 'local',
-          );
+      await CallNotificationService(
+        capabilities: iosCapabilities,
+        notifications: LocalNotifications(capabilities: iosCapabilities),
+      ).setPictureInPicture(
+        eligible: true,
+        aspectWidth: 640,
+        aspectHeight: 480,
+        streamId: 'ann-video',
+        ownerTag: 'local',
+      );
 
       expect(toNative.calls.map((c) => [c.method, c.arguments]), [
         [

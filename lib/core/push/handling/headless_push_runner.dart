@@ -8,13 +8,14 @@ import '../../calls/notifications/call_notification_service.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
 import '../../matrix/client_lease.dart';
+import '../../notifications/messages/message_notifications.dart';
 import '../../notifications/settings/notify_me.dart';
 import 'incoming_push_handler.dart';
 import 'push_timing.dart';
 import 'push_wake_lock.dart';
 
 Future<void> initializeHeadlessNotifications() =>
-    CallNotificationService.instance.initialize(claimDeclinePort: false);
+    CallNotificationService.instance.initialize(claimLiveRoutes: false);
 
 Future<bool> prepareHeadlessPush({
   Future<void> Function() initializeNotifications =
@@ -289,7 +290,7 @@ class HeadlessPushRunner {
     final roomId = notification.roomId;
     final eventId = notification.eventId;
     if (roomId == null || eventId == null) return;
-    await CallNotificationService.instance.retractPushNotice(roomId, eventId);
+    await MessageNotifications.instance.retractPushNotice(roomId, eventId);
   }
 
   Future<bool> _reallyInFront(bool? verdict) async {
@@ -305,7 +306,7 @@ class HeadlessPushRunner {
   Future<void> _handleBadge(PushNotification notification) async {
     if (notification.counts?.unread == 0) {
       debugPrint('zuno/push: badge push says everything is read, clearing');
-      await CallNotificationService.instance.cancelAllMessageNotifications();
+      await MessageNotifications.instance.cancelAllMessageNotifications();
     }
     lastPushOutcome = IncomingPushOutcome.badge;
     await onPushHandled?.call(IncomingPushOutcome.badge);

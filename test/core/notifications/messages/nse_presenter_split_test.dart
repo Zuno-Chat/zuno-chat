@@ -4,10 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/matrix/currently_open_room_provider.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
+import 'package:zuno/core/notifications/messages/message_notifications.dart';
 import 'package:zuno/core/notifications/room_invite_notification_provider.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -229,11 +229,11 @@ void main() {
         eventId: r'$9',
       );
 
-      await CallNotificationService(capabilities: withExtension)
+      await MessageNotifications(capabilities: withExtension)
           .showMessage(content);
       expect(conversations.named('pushConversationShortcut'), isEmpty);
 
-      await CallNotificationService(
+      await MessageNotifications(
         capabilities: capabilitiesLike(
           iosCapabilities,
           notificationAvatars: true,
@@ -253,7 +253,7 @@ void main() {
   test(
     'without the extension an iOS post keeps the room as its thread',
     () async {
-      final service = CallNotificationService(
+      final service = MessageNotifications(
         capabilities: capabilitiesLike(
           iosCapabilities,
           nseNotifications: false,

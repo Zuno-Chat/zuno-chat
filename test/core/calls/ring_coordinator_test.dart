@@ -194,7 +194,7 @@ void main() {
     client.bearerToken = 'test-token';
     room = buildTestRoom(client);
     client.rooms.add(room);
-    await CallNotificationService.instance.initialize(claimDeclinePort: false);
+    await CallNotificationService.instance.initialize(claimLiveRoutes: false);
     native.clear();
   });
 

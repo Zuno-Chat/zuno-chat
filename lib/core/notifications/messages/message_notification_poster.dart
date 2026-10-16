@@ -2,15 +2,15 @@ import 'dart:typed_data';
 
 import 'package:matrix/matrix.dart';
 
-import '../../calls/notifications/call_notification_service.dart';
-import '../../calls/notifications/caller_avatar.dart';
 import '../../errors/best_effort.dart';
 import '../../matrix/attachment_cache.dart';
 import '../../matrix/mxc_avatar_image.dart' show AvatarBucket, avatarCacheKey;
 import '../../platform/platform_capabilities.dart';
 import '../../push/handling/push_timing.dart';
+import '../notification_avatar.dart';
 import 'message_notification_content.dart';
 import 'message_notification_image.dart';
+import 'message_notifications.dart';
 import 'notification_avatar_cache.dart';
 import 'notification_image_publisher.dart';
 
@@ -49,7 +49,7 @@ Future<void> postMessageNotification(
     bool refine = false,
     String? imageUri,
     String? imageMimeType,
-  }) => CallNotificationService.instance.showMessage(
+  }) => MessageNotifications.instance.showMessage(
     content,
     includeMessageActions: includeMessageActions,
     senderAvatar: avatar,
@@ -73,7 +73,7 @@ Future<void> postMessageNotification(
     if (needsAvatar) {
       final fetch =
           fetchAvatar ??
-          (client, url) => fetchCallerAvatarBytes(
+          (client, url) => fetchNotificationAvatarBytes(
             client,
             url,
             timeout: notificationAvatarTimeout,

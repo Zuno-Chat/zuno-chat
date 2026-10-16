@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/notifications/local_notifications.dart';
 
 import 'native_method_calls.dart';
 
@@ -73,6 +76,16 @@ class RecordedNotifications {
     return shown.single;
   }
 }
+
+NotificationResponse messageTapResponse(String roomId) => NotificationResponse(
+  notificationResponseType: NotificationResponseType.selectedNotification,
+  payload: jsonEncode({'type': messagePayloadType, 'roomId': roomId}),
+);
+
+NotificationResponse newDeviceTapResponse() => NotificationResponse(
+  notificationResponseType: NotificationResponseType.selectedNotification,
+  payload: jsonEncode({'type': newDevicePayloadType}),
+);
 
 RecordedNotifications installFakeLocalNotifications({
   TargetPlatform platform = TargetPlatform.android,

@@ -7,7 +7,6 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../calls/matrixrtc/call_summary_message.dart';
-import '../../calls/notifications/call_notification_service.dart';
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
 import '../../matrix/currently_open_room_provider.dart';
@@ -24,6 +23,7 @@ import 'apns_alert_removal.dart';
 import 'message_notification_content.dart';
 import 'message_notification_image.dart';
 import 'message_notification_poster.dart';
+import 'message_notifications.dart';
 import 'notification_room_cache.dart';
 
 export 'message_notification_content.dart';
@@ -234,7 +234,7 @@ class MessageNotificationNotifier extends Notifier<void> {
       await apnsAlertRemoval.removeForReadRooms(readRooms);
     }
     await Future.wait([for (final roomId in readRooms) ...?_posting[roomId]]);
-    await CallNotificationService.instance.cancelMessageNotificationsIfShowing(
+    await MessageNotifications.instance.cancelMessageNotificationsIfShowing(
       readRooms,
     );
   }
@@ -287,7 +287,7 @@ class MessageNotificationNotifier extends Notifier<void> {
     if (await _handleEvent(client, decrypted, refinesFloor: floorPosted)) {
       return;
     }
-    await CallNotificationService.instance.retractPlaceholder(
+    await MessageNotifications.instance.retractPlaceholder(
       decrypted.room.id,
       eventId,
     );

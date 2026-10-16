@@ -12,6 +12,7 @@ import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
+import 'package:zuno/core/notifications/local_notifications.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
@@ -458,7 +459,7 @@ void main() {
 
     await ring(const AndroidIncomingCallPresenter());
 
-    expect(CallNotificationService.instance.stillHoldsDeclinePort(), isTrue);
+    expect(LocalNotifications.instance.stillHoldsDeclinePort(), isTrue);
   });
 
   group('every presenter that really rings', () {

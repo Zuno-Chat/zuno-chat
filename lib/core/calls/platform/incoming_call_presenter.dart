@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../async/serial_lock.dart';
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
+import '../../notifications/local_notifications.dart';
 import '../../notifications/settings/notification_sound_settings.dart';
 import '../../platform/platform_capabilities.dart';
 import '../notifications/call_notification_service.dart';
@@ -92,7 +92,7 @@ abstract class RememberingIncomingCallPresenter
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
   }) => _turns.run(() async {
-    CallNotificationService.instance.reclaimLiveRoutes();
+    LocalNotifications.instance.reclaimLiveRoutes();
     if (await _alreadyRinging(callId, ringingNow)) {
       debugPrint('zuno/calls: $callId already rings, not ringing it again');
       return RingOutcome.shown;
@@ -190,7 +190,7 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
     Uint8List? avatarBytes,
   }) async {
     final sound = loadNotificationSoundSettings();
-    await _notifications.initialize(claimDeclinePort: false);
+    await _notifications.initialize(claimLiveRoutes: false);
     debugPrint(
       'zuno/push: posting ring for $callId '
       '(fullScreenIntentAllowed='
@@ -230,9 +230,10 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
 
   @override
   Future<RingingCallInfo?> activeRing() async {
-    await _notifications.initialize(claimDeclinePort: false);
+    await _notifications.initialize(claimLiveRoutes: false);
     try {
-      final active = await _android?.getActiveNotifications();
+      final active = await LocalNotifications.instance.android
+          ?.getActiveNotifications();
       final showing = active?.any((n) => n.id == _ringNotificationId) ?? false;
       if (!showing) return null;
       return await rememberedRing();
@@ -241,12 +242,6 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
       return null;
     }
   }
-
-  AndroidFlutterLocalNotificationsPlugin? get _android =>
-      FlutterLocalNotificationsPlugin()
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >();
 
   Future<T?> _invoke<T>(
     String method, [

@@ -33,12 +33,15 @@ import 'core/navigation/global_navigator.dart';
 import 'core/navigation/launch_route.dart';
 import 'core/navigation/root_route_reset.dart';
 import 'core/notifications/actions/native_notification_action_runner.dart';
+import 'core/notifications/local_notifications.dart';
+import 'core/notifications/messages/message_notifications.dart';
 import 'core/notifications/settings/notifications_allowed_provider.dart';
 import 'core/platform/platform_capabilities.dart';
 import 'core/push/delivery/notification_delivery.dart';
 import 'core/push/delivery/notification_delivery_mode.dart';
 import 'core/push/nse/nse_services.dart';
 import 'core/push/nse/opaque_thread_ids.dart';
+import 'core/security/new_device_notifications.dart';
 import 'core/security/zuno_text_field.dart';
 import 'core/settings/app_preferences_provider.dart';
 import 'core/share/inbound_share.dart';
@@ -195,10 +198,10 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     _shareSub = onInboundShare.listen(
       (share) => unawaited(_openSharePicker(share)),
     );
-    _messageTapSub = CallNotificationService.instance.onMessageTap.listen(
+    _messageTapSub = MessageNotifications.instance.onMessageTap.listen(
       _openRoomById,
     );
-    _newDeviceTapSub = CallNotificationService.instance.onNewDeviceTap.listen(
+    _newDeviceTapSub = NewDeviceNotifications.instance.onTap.listen(
       (_) => _openActiveSessions(),
     );
     ref.listenManual(notificationDeliveryModeProvider, (_, mode) {
@@ -271,14 +274,14 @@ class _AuthGateState extends ConsumerState<_AuthGate>
       ref.invalidate(appLanguageProvider);
 
   void _onAppLocale() => unawaited(
-    CallNotificationService.instance.refreshChannelNames(deviceLocalizations()),
+    LocalNotifications.instance.refreshChannelNames(deviceLocalizations()),
   );
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
     unawaited(drainNativeErrors());
-    CallNotificationService.instance.reclaimLiveRoutes();
+    LocalNotifications.instance.reclaimLiveRoutes();
     if (ref.read(platformCapabilitiesProvider).nativeNotificationActions) {
       unawaited(nativeNotificationActionRunner.drain());
     }
@@ -453,7 +456,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
         _pendingRingShown,
         _openLaunchRoom(takeLaunchRoomShortcut()),
         _openLaunchRoom(
-          CallNotificationService.instance.takeLaunchRoomIdFromNotification(),
+          MessageNotifications.instance.takeLaunchRoomIdFromNotification(),
         ),
         router.handleLaunchAction(instant: true),
         _openLaunchShare(),

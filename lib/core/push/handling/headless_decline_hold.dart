@@ -2,11 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 
+import '../../async/live_isolate_route.dart';
 import '../../calls/matrixrtc/call_decline.dart';
 import '../../calls/matrixrtc/resolved_call_ids_store.dart';
-import '../../calls/notifications/call_notification_service.dart';
 import '../../calls/platform/incoming_call_presenter.dart';
 import '../../matrix/client_lease.dart';
+import '../../notifications/local_notifications.dart';
 import '../../platform/platform_capabilities.dart';
 import 'headless_push_runner.dart';
 
@@ -19,19 +20,19 @@ Future<void> awaitHeadlessDecline(
   IncomingCallPresenter? presenter,
 }) async {
   final ring = presenter ?? incomingCallPresenterFor(ambientCapabilities);
-  final service = CallNotificationService.instance;
-  if (!await service.claimDeclinePortUnlessLive()) return;
+  final notifications = LocalNotifications.instance;
+  if (!await notifications.claimDeclinePortUnlessLive()) return;
   final finished = Completer<HeadlessCallDecline?>();
   void finish(HeadlessCallDecline? decline) {
     if (!finished.isCompleted) finished.complete(decline);
   }
 
-  final sub = service.onHeadlessDecline.listen(finish);
+  final sub = notifications.onHeadlessDecline.listen(finish);
   Timer? grace;
   var checking = false;
   final poll = Timer.periodic(declinePollEvery, (_) async {
     if (finished.isCompleted || checking) return;
-    if (!service.stillHoldsDeclinePort()) {
+    if (!notifications.stillHoldsDeclinePort()) {
       debugPrint('zuno/push: main isolate took over, headless standing down');
       finish(null);
       return;
@@ -58,18 +59,18 @@ Future<void> awaitHeadlessDecline(
     if (decline == null) return;
     await ring.cancelIncoming(roomId: decline.roomId, callId: decline.callId);
     await markCallResolved(decline.callId);
-    if (await _sendDecline(runner, service, decline)) decline.finished();
+    if (await _sendDecline(runner, notifications, decline)) decline.finished();
   } finally {
     poll.cancel();
     grace?.cancel();
     await sub.cancel();
-    service.releaseDeclinePort();
+    notifications.releaseDeclinePort();
   }
 }
 
 Future<bool> _sendDecline(
   HeadlessPushRunner runner,
-  CallNotificationService service,
+  LocalNotifications notifications,
   HeadlessCallDecline decline,
 ) async {
   try {
@@ -80,7 +81,7 @@ Future<bool> _sendDecline(
     return true;
   } on ClientLeaseDenied {
     debugPrint('zuno/push: the app holds the client, handing it the decline');
-    service.releaseDeclinePort();
+    notifications.releaseDeclinePort();
     return handOffToLiveIsolate(declinePortName, {
       'roomId': decline.roomId,
       'callId': decline.callId,

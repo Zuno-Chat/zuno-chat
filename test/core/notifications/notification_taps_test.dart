@@ -7,9 +7,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/notifications/local_notifications.dart';
+import 'package:zuno/core/notifications/messages/message_notifications.dart';
+import 'package:zuno/core/security/new_device_notifications.dart';
 
-import '../../../helpers/fake_calls_channel.dart';
-import '../../../helpers/fake_local_notifications.dart';
+import '../../helpers/fake_calls_channel.dart';
+import '../../helpers/fake_local_notifications.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -78,7 +81,7 @@ void main() {
 
     test('a message opens its chat', () async {
       final rooms = <String>[];
-      final sub = service.onMessageTap.listen(rooms.add);
+      final sub = MessageNotifications.instance.onMessageTap.listen(rooms.add);
       addTearDown(sub.cancel);
 
       await tap(
@@ -90,7 +93,7 @@ void main() {
 
     test('a new sign-in opens the device list', () async {
       var opened = 0;
-      final sub = service.onNewDeviceTap.listen((_) => opened++);
+      final sub = NewDeviceNotifications.instance.onTap.listen((_) => opened++);
       addTearDown(sub.cancel);
 
       await tap(payload: jsonEncode({'type': 'newDevice', 'deviceId': 'ABC'}));
@@ -102,8 +105,8 @@ void main() {
       final events = <Object?>[];
       final subs = [
         service.onAction.listen(events.add),
-        service.onMessageTap.listen(events.add),
-        service.onNewDeviceTap.listen(events.add),
+        MessageNotifications.instance.onMessageTap.listen(events.add),
+        NewDeviceNotifications.instance.onTap.listen(events.add),
       ];
       addTearDown(() {
         for (final sub in subs) {
@@ -139,7 +142,7 @@ void main() {
     }
 
     test('reaches the running app through the decline port', () async {
-      final declined = service.onHeadlessDecline.first;
+      final declined = LocalNotifications.instance.onHeadlessDecline.first;
 
       backgroundHandler()(declineResponse(ringPayload()));
 
@@ -150,7 +153,9 @@ void main() {
 
     test('with a broken payload sends nothing', () async {
       final declines = <HeadlessCallDecline>[];
-      final sub = service.onHeadlessDecline.listen(declines.add);
+      final sub = LocalNotifications.instance.onHeadlessDecline.listen(
+        declines.add,
+      );
       addTearDown(sub.cancel);
 
       backgroundHandler()(declineResponse('not json'));
@@ -171,7 +176,7 @@ void main() {
 
   test('a new sign-in is posted on the sign-ins channel and opens the device '
       'list when tapped', () async {
-    await service.showNewDevice(
+    await NewDeviceNotifications.instance.show(
       deviceId: 'ABC',
       title: 'New sign-in',
       body: 'Pixel 8a signed in',
@@ -195,7 +200,10 @@ void main() {
         },
       };
 
-      expect(await service.takeLaunchRoomIdFromNotification(), '!chat:x');
+      expect(
+        await MessageNotifications.instance.takeLaunchRoomIdFromNotification(),
+        '!chat:x',
+      );
     });
 
     test('a ring or no launch gives no chat', () async {
@@ -207,10 +215,16 @@ void main() {
           'payload': ringPayload(),
         },
       };
-      expect(await service.takeLaunchRoomIdFromNotification(), isNull);
+      expect(
+        await MessageNotifications.instance.takeLaunchRoomIdFromNotification(),
+        isNull,
+      );
 
       notifications.launchDetails = const {'notificationLaunchedApp': false};
-      expect(await service.takeLaunchRoomIdFromNotification(), isNull);
+      expect(
+        await MessageNotifications.instance.takeLaunchRoomIdFromNotification(),
+        isNull,
+      );
     });
   });
 
@@ -247,7 +261,7 @@ void main() {
           ),
         ];
 
-        expect(await service.silencedChannels(), [
+        expect(await MessageNotifications.instance.silencedChannels(), [
           (id: messagesChannelId, name: 'Chat messages'),
         ]);
       },

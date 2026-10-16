@@ -151,9 +151,7 @@ void main() {
     setUp(() async {
       installFakeLocalNotifications();
       installFakeCallsChannel();
-      await CallNotificationService.instance.initialize(
-        claimDeclinePort: false,
-      );
+      await CallNotificationService.instance.initialize(claimLiveRoutes: false);
     });
 
     Future<List<NativeRing>> ringsPassedOn() async {

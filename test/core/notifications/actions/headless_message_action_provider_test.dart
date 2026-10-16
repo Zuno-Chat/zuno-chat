@@ -6,11 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/async/live_isolate_route.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
-import 'package:zuno/core/calls/notifications/headless_message_action_provider.dart';
-import 'package:zuno/core/calls/notifications/live_isolate_route.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/notifications/actions/headless_message_action_provider.dart';
 import 'package:zuno/core/notifications/actions/message_notification_action.dart';
+import 'package:zuno/core/notifications/local_notifications.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -58,7 +59,7 @@ void main() {
       'that holds the room\'s encryption session, under the transaction id it '
       'came with, so a resend from the action engine is the same '
       'message', () async {
-    CallNotificationService.instance.onMessageActionForTest(
+    LocalNotifications.instance.onMessageActionForTest(
       HandedMessageAction((
         kind: MessageNotificationActionKind.reply,
         roomId: '!room:example.org',
@@ -93,8 +94,8 @@ void main() {
       txid: 'zuno-tx-twice',
     );
 
-    CallNotificationService.instance.onMessageActionForTest(handed());
-    CallNotificationService.instance.onMessageActionForTest(handed());
+    LocalNotifications.instance.onMessageActionForTest(handed());
+    LocalNotifications.instance.onMessageActionForTest(handed());
     await pumpEventQueue(times: 50);
 
     expect(requests.where((r) => r.contains('/send/')), hasLength(1));
@@ -104,11 +105,11 @@ void main() {
   test(
     'an action handed over again after it was done is not done twice',
     () async {
-      CallNotificationService.instance.onMessageActionForTest(
+      LocalNotifications.instance.onMessageActionForTest(
         HandedMessageAction(markRead, txid: 'zuno-tx-read'),
       );
       await pumpEventQueue(times: 50);
-      CallNotificationService.instance.onMessageActionForTest(
+      LocalNotifications.instance.onMessageActionForTest(
         HandedMessageAction(markRead, txid: 'zuno-tx-read'),
       );
       await pumpEventQueue(times: 50);
@@ -118,7 +119,7 @@ void main() {
   );
 
   test('an action for a room this device does not know does nothing', () async {
-    CallNotificationService.instance.onMessageActionForTest(
+    LocalNotifications.instance.onMessageActionForTest(
       HandedMessageAction((
         kind: MessageNotificationActionKind.markRead,
         roomId: '!unknown:example.org',

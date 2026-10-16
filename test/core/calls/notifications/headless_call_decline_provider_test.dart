@@ -6,11 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/async/live_isolate_route.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/headless_call_decline_provider.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/notifications/local_notifications.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -51,7 +53,7 @@ void main() {
 
   test('a decline for a room this device does not know still stops the '
       'ring, and sends nothing', () async {
-    CallNotificationService.instance.onHeadlessDeclineForTest(
+    LocalNotifications.instance.onHeadlessDeclineForTest(
       const HeadlessCallDecline(roomId: '!unknown:example.org', callId: 'c1'),
     );
     await pumpEventQueue();
@@ -66,7 +68,7 @@ void main() {
     final room = buildTestRoom(client);
     client.rooms.add(room);
 
-    CallNotificationService.instance.onHeadlessDeclineForTest(
+    LocalNotifications.instance.onHeadlessDeclineForTest(
       HeadlessCallDecline(roomId: room.id, callId: 'c1'),
     );
     await pumpEventQueue(times: 50);

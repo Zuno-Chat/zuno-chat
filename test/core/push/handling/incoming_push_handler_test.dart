@@ -22,6 +22,7 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/sync_coordinator.dart';
 import 'package:zuno/core/matrix/sync_request_canceller.dart';
 import 'package:zuno/core/matrix/zuno_client.dart';
+import 'package:zuno/core/notifications/messages/notification_ids.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
 import 'package:zuno/core/notifications/room_invite_notification_provider.dart';
 import 'package:zuno/core/notifications/settings/notify_me.dart';

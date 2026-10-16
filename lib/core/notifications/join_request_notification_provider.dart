@@ -4,7 +4,6 @@ import 'package:flutter/widgets.dart' show StringCharacters;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../calls/notifications/call_notification_service.dart';
 import '../errors/best_effort.dart';
 import '../l10n/l10n.dart';
 import '../matrix/join_requests.dart';
@@ -13,6 +12,7 @@ import '../matrix/matrix_ids.dart';
 import '../matrix/room_title.dart';
 import 'messages/message_notification_content.dart';
 import 'messages/message_notification_poster.dart';
+import 'messages/message_notifications.dart';
 
 const _nameLimit = 40;
 
@@ -124,7 +124,7 @@ class JoinRequestNotificationNotifier extends Notifier<void> {
     }
     if (answered.isEmpty) return;
     await Future.wait([for (final thread in answered) ?_posting[thread]]);
-    await CallNotificationService.instance.cancelMessageNotificationsIfShowing(
+    await MessageNotifications.instance.cancelMessageNotificationsIfShowing(
       answered,
     );
   }
