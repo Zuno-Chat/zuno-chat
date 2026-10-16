@@ -19,9 +19,7 @@ object PushEnginePlugins {
         "sqflite_sqlcipher" to { com.davidmartos96.sqflite_sqlcipher.SqfliteSqlCipherPlugin() },
         "sentry_flutter" to { io.sentry.flutter.SentryFlutterPlugin() },
         "jni" to { com.github.dart_lang.jni.JniPlugin() },
-        "zuno_call_style" to { im.zuno.chat.zuno_call_style.ZunoCallStylePlugin() },
         "zuno_notifications" to { im.zuno.chat.zuno_notifications.ZunoNotificationsPlugin() },
-        "zuno_vibration" to { im.zuno.chat.zuno_vibration.ZunoVibrationPlugin() },
     )
 
     val names: List<String> get() = factories.map { it.first }

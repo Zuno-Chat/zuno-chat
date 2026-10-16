@@ -1,4 +1,4 @@
-package im.zuno.chat.zuno_call_style
+package im.zuno.chat.zuno_notifications
 
 import android.app.Notification
 import android.app.PendingIntent
@@ -8,7 +8,6 @@ import android.graphics.BitmapFactory
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
 import androidx.core.graphics.drawable.IconCompat
-import im.zuno.chat.zuno_notifications.AppLaunchIntent
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -20,7 +19,7 @@ import io.flutter.plugin.common.PluginRegistry
 import java.util.UUID
 import org.json.JSONObject
 
-class ZunoCallStylePlugin :
+class CallStyleChannel :
     FlutterPlugin,
     MethodCallHandler,
     ActivityAware,

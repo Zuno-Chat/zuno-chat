@@ -77,7 +77,6 @@ class NotificationSoundPlayer {
       await _vibrationChannel.invokeMethod<void>('vibrate', {
         'pattern': messageVibrationPattern,
         'repeat': -1,
-        'usage': 'notification',
       });
     } catch (e, s) {
       reportCaught('message vibration', e, s);

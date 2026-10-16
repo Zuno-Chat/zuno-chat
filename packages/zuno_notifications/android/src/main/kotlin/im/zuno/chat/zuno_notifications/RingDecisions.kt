@@ -1,4 +1,4 @@
-package im.zuno.chat.zuno_call_style
+package im.zuno.chat.zuno_notifications
 
 class RingPlan(val ringtoneAsset: String?, val vibrationPattern: LongArray?) {
     companion object {
@@ -45,7 +45,7 @@ object RingDecisions {
     const val DECLINE_ACTION_ID = "decline"
     const val NOTIFICATION_ID_EXTRA = "notificationId"
     const val ACTION_ID_EXTRA = "actionId"
-    const val TOKEN_EXTRA = "im.zuno.chat.zuno_call_style.RING_TOKEN"
+    const val TOKEN_EXTRA = "im.zuno.chat.zuno_notifications.RING_TOKEN"
     private const val REMEMBERED_RING_MAX_AGE_MS = 45_000L
 
     fun ringLaunch(action: String?, notificationId: Int): Boolean =

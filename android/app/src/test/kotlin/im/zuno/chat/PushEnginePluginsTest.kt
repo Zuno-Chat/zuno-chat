@@ -23,9 +23,7 @@ class PushEnginePluginsTest {
             "shared_preferences",
             "sqflite_sqlcipher",
             "package_info_plus",
-            "zuno_call_style",
             "zuno_notifications",
-            "zuno_vibration",
         )) {
             assertTrue(needed, names.contains(needed))
         }

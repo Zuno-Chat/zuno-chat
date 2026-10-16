@@ -1,4 +1,4 @@
-package im.zuno.chat.zuno_call_style
+package im.zuno.chat.zuno_notifications
 
 import android.content.BroadcastReceiver
 import android.content.Context

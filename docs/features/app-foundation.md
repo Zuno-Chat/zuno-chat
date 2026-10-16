@@ -316,7 +316,7 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 
 - **Stays English**: Matrix event bodies and fallbacks (other clients display them), logs, Sentry and the brand name. The shared push diagnostics report is always English, because support reads it; the screen is localized.
 - **Dates and times format in one place.** They follow the phone's region when its language matches the app language, and the phone's 12/24-hour setting wins.
-- **Native strings** are ARB keys tagged `x-native` (the Android modules `app`, `zuno_notifications`, `zuno_call_style` and/or `ios`) or `x-ios-infoplist`. The generator writes:
+- **Native strings** are ARB keys tagged `x-native` (the Android modules `app`, `zuno_notifications` and/or `ios`) or `x-ios-infoplist`. The generator writes:
 
 | Platform | Output |
 |---|---|

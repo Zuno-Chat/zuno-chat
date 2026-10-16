@@ -1,4 +1,4 @@
-package im.zuno.chat.zuno_call_style
+package im.zuno.chat.zuno_notifications
 
 import android.app.AlarmManager
 import android.app.Notification
@@ -14,7 +14,6 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
-import im.zuno.chat.zuno_notifications.Vibration
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
@@ -22,9 +21,9 @@ import org.json.JSONObject
 
 object IncomingRing {
     const val NOTIFICATION_ID = 4002
-    const val ACTION_TIMED_OUT = "im.zuno.chat.zuno_call_style.RING_TIMED_OUT"
-    const val ACTION_DISMISSED = "im.zuno.chat.zuno_call_style.RING_DISMISSED"
-    const val ACTION_DECLINED = "im.zuno.chat.zuno_call_style.RING_DECLINED"
+    const val ACTION_TIMED_OUT = "im.zuno.chat.zuno_notifications.RING_TIMED_OUT"
+    const val ACTION_DISMISSED = "im.zuno.chat.zuno_notifications.RING_DISMISSED"
+    const val ACTION_DECLINED = "im.zuno.chat.zuno_notifications.RING_DECLINED"
     const val EXTRA_CALL_ID = "callId"
     private const val TAG = "IncomingRing"
     private const val PREFERENCES = "FlutterSharedPreferences"

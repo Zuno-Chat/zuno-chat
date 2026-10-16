@@ -117,14 +117,12 @@ void main() {
         expect(calls.map((c) => c.method), isNot(contains('vibrate')));
       });
 
-      test('vibrateForMessage buzzes with the message pattern tagged as a '
-          'notification, not an alarm', () async {
+      test('vibrateForMessage buzzes with the message pattern', () async {
         await player.vibrateForMessage();
 
         final vibrate = calls.singleWhere((c) => c.method == 'vibrate');
         expect(vibrate.arguments['pattern'], messageVibrationPattern);
         expect(vibrate.arguments['repeat'], -1);
-        expect(vibrate.arguments['usage'], 'notification');
       });
 
       test(

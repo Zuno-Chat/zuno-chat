@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="callsIncomingCall">Połączenie przychodzące</string>
     <string name="commonYou">Ty</string>
     <string name="notificationsFallbackChatName">Czat</string>
     <string name="notificationsMissedPushes">Nie udało się dostarczyć części powiadomień. Otwórz Zuno, aby zobaczyć nowe wiadomości.</string>

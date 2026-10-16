@@ -10,7 +10,6 @@ const _markerModule = 'app';
 const androidResDirs = {
   'app': 'android/app/src/main/res',
   'zuno_notifications': 'packages/zuno_notifications/android/src/main/res',
-  'zuno_call_style': 'packages/zuno_call_style/android/src/main/res',
 };
 
 const _localesConfig = 'android/app/src/main/res/xml/locales_config.xml';

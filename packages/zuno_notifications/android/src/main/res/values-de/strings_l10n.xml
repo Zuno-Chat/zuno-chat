@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="callsIncomingCall">Eingehender Anruf</string>
     <string name="commonYou">Du</string>
     <string name="notificationsFallbackChatName">Chat</string>
     <string name="notificationsMissedPushes">Einige Benachrichtigungen konnten nicht zugestellt werden. Öffne Zuno, um neue Nachrichten zu sehen.</string>

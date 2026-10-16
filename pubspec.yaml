@@ -34,22 +34,9 @@ dependencies:
     sdk: flutter
   intl: any
 
-  # This app's own Android vibration channel — see its pubspec.yaml and
-  # ZunoVibrationPlugin's doc comment for why it's a real local plugin
-  # rather than app-local Kotlin: flutter_local_notifications builds its
-  # own action FlutterEngine with no hook to manually attach a channel
-  # to, and only a real, GeneratedPluginRegistrant-registered plugin
-  # reaches every engine anyone builds, that one included.
-  zuno_vibration:
-    path: packages/zuno_vibration
-
-  # The CallStyle ring notification, native-side. A real local plugin for
-  # the same reason as zuno_vibration above — a ring can be declined from
-  # an action engine this app never constructs.
-  zuno_call_style:
-    path: packages/zuno_call_style
-  # Conversation shortcuts and headless wake locks; a real plugin for the
-  # same reason as the two above.
+  # Android native code that must run on every engine: a real local plugin
+  # rather than app-local Kotlin, because flutter_local_notifications builds
+  # its own action FlutterEngine and only GeneratedPluginRegistrant reaches it.
   zuno_notifications:
     path: packages/zuno_notifications
 

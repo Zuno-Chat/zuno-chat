@@ -1,1 +1,1 @@
-rootProject.name = "zuno_call_style"
+rootProject.name = "zuno_notifications"

@@ -399,7 +399,7 @@ declining it.
 
 **Android ring**
 
-- **The `CallStyle` notification is built natively** (`zuno_call_style`),
+- **The `CallStyle` notification is built natively** (`zuno_notifications`),
   since flutter_local_notifications has no `CallStyle` API. Its Accept and
   Decline intents copy that plugin's intent shape, so the plugin's own
   dispatch handles them.

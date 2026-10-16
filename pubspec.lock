@@ -1690,24 +1690,10 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.4"
-  zuno_call_style:
-    dependency: "direct main"
-    description:
-      path: "packages/zuno_call_style"
-      relative: true
-    source: path
-    version: "0.0.1"
   zuno_notifications:
     dependency: "direct main"
     description:
       path: "packages/zuno_notifications"
-      relative: true
-    source: path
-    version: "0.0.1"
-  zuno_vibration:
-    dependency: "direct main"
-    description:
-      path: "packages/zuno_vibration"
       relative: true
     source: path
     version: "0.0.1"

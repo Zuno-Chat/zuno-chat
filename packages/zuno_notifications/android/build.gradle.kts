@@ -53,8 +53,9 @@ kotlin {
 }
 
 dependencies {
-    // ShortcutManagerCompat / Person / IconCompat. Declared
-    // explicitly rather than relying on the Flutter embedding pulling it
-    // in transitively — this module is the only place they're compiled.
+    // ShortcutManagerCompat / NotificationCompat.CallStyle / Person /
+    // IconCompat. Declared explicitly rather than relying on the Flutter
+    // embedding pulling it in transitively — this module is the only place
+    // they're compiled.
     implementation("androidx.core:core-ktx:1.13.1")
 }

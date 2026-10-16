@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
   package="im.zuno.chat.zuno_notifications">
+    <uses-permission android:name="android.permission.VIBRATE" />
     <application>
+        <receiver
+            android:name="im.zuno.chat.zuno_notifications.RingStopReceiver"
+            android:exported="false" />
         <provider
             android:name="im.zuno.chat.zuno_notifications.NotificationFileProvider"
             android:authorities="${applicationId}.zuno_notifications"

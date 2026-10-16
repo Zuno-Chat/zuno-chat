@@ -6,6 +6,8 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.content.FileProvider
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
@@ -15,11 +17,14 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class ZunoNotificationsPlugin :
     FlutterPlugin,
+    ActivityAware,
     MethodCallHandler {
     private lateinit var conversations: MethodChannel
     private lateinit var wakeLocks: MethodChannel
     private lateinit var context: Context
     private var leaseEngine: Long? = null
+    private val callStyle = CallStyleChannel()
+    private val vibration = VibrationChannel()
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
@@ -28,6 +33,8 @@ class ZunoNotificationsPlugin :
         wakeLocks = MethodChannel(binding.binaryMessenger, WAKE_LOCK_CHANNEL)
         wakeLocks.setMethodCallHandler(this)
         leaseEngine = ClientLeases.attach(binding.binaryMessenger)
+        callStyle.onAttachedToEngine(binding)
+        vibration.onAttachedToEngine(binding)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -35,7 +42,20 @@ class ZunoNotificationsPlugin :
         wakeLocks.setMethodCallHandler(null)
         leaseEngine?.let { ClientLeases.detach(it) }
         leaseEngine = null
+        callStyle.onDetachedFromEngine(binding)
+        vibration.onDetachedFromEngine(binding)
     }
+
+    override fun onAttachedToActivity(binding: ActivityPluginBinding) =
+        callStyle.onAttachedToActivity(binding)
+
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) =
+        callStyle.onReattachedToActivityForConfigChanges(binding)
+
+    override fun onDetachedFromActivityForConfigChanges() =
+        callStyle.onDetachedFromActivityForConfigChanges()
+
+    override fun onDetachedFromActivity() = callStyle.onDetachedFromActivity()
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {

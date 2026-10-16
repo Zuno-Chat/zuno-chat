@@ -26,7 +26,6 @@ void main() {
     final kotlin = _files([
       'android/app/src/main/kotlin',
       'packages/zuno_notifications/android/src/main/kotlin',
-      'packages/zuno_call_style/android/src/main/kotlin',
     ], '.kt').map((f) => f.readAsStringSync()).join('\n');
     final swift =
         _files([

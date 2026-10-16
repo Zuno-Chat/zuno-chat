@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="callsIncomingCall">Indgående opkald</string>
     <string name="commonYou">Dig</string>
     <string name="notificationsFallbackChatName">Chat</string>
     <string name="notificationsMissedPushes">Nogle notifikationer kunne ikke leveres. Åbn Zuno for at se nye beskeder.</string>

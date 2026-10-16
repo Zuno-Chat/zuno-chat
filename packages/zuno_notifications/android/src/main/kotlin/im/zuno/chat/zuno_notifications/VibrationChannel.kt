@@ -1,17 +1,16 @@
-package im.zuno.chat.zuno_vibration
+package im.zuno.chat.zuno_notifications
 
 import android.content.Context
 import android.media.AudioAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
-import im.zuno.chat.zuno_notifications.Vibration
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 
-class ZunoVibrationPlugin :
+class VibrationChannel :
     FlutterPlugin,
     MethodCallHandler {
     private lateinit var channel: MethodChannel

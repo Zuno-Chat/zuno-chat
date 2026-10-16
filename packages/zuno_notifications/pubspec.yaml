@@ -1,10 +1,12 @@
 name: zuno_notifications
 description: >
-  Zuno's conversation shortcuts (so message notifications count as
-  conversations on Android 11+) and the wake locks headless notification
-  actions hold. A real plugin rather than a hand-attached channel so it is
-  auto-registered on every FlutterEngine, including the headless ones a push
-  or a notification action runs on. Not published; internal to the Zuno app.
+  Zuno's Android notification natives: the CallStyle ring with its native
+  sound and vibration, message vibration, conversation shortcuts (so message
+  notifications count as conversations on Android 11+), client leases and
+  the wake locks headless notification actions hold. A real plugin rather
+  than a hand-attached channel so it is auto-registered on every
+  FlutterEngine, including the headless ones a push or a notification action
+  runs on. Not published; internal to the Zuno app.
 version: 0.0.1
 publish_to: none
 

@@ -1,3 +1,3 @@
 ## 0.0.1
 
-* Conversation shortcuts and headless wake locks for Zuno's notifications.
+* The CallStyle ring, vibration, conversation shortcuts, client leases and headless wake locks for Zuno's notifications.

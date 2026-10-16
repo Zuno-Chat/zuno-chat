@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="callsIncomingCall">Inkomende oproep</string>
     <string name="commonYou">Jij</string>
     <string name="notificationsFallbackChatName">Chat</string>
     <string name="notificationsMissedPushes">Sommige meldingen konden niet worden bezorgd. Open Zuno om nieuwe berichten te zien.</string>

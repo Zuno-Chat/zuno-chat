@@ -1,9 +1,9 @@
 package im.zuno.chat
 
-import im.zuno.chat.zuno_call_style.RememberedRing
-import im.zuno.chat.zuno_call_style.RingCancel
-import im.zuno.chat.zuno_call_style.RingDecisions
-import im.zuno.chat.zuno_call_style.RingPlan
+import im.zuno.chat.zuno_notifications.RememberedRing
+import im.zuno.chat.zuno_notifications.RingCancel
+import im.zuno.chat.zuno_notifications.RingDecisions
+import im.zuno.chat.zuno_notifications.RingPlan
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

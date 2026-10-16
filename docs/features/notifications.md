@@ -70,7 +70,7 @@ Background sync has no push at all: a foreground service keeps `/sync` running.
 - **New sign-in alerts** post for every new own device on the `security` channel, which chat mute cannot silence.
 - **Reply and Mark as read** run in flutter_local_notifications' (FLN) action engine. They go to the running app first, through its live route (`calls.md`). With no live app, they open a one-shot client under a background lease.
 - **`LocalNotifications` is the one FLN host**: it owns the channels and categories, every tap and action response, and the background action handler, while messages, new sign-ins and rings each post through it and read only their own taps.
-- **The native plugins in `packages/` are real `FlutterPlugin`s** (`zuno_notifications`, `zuno_vibration`, `zuno_call_style`), because a hand-attached channel exists only on the engine that attached it. On an engine without the handler, a call throws `MissingPluginException`, which best-effort callers swallow: no ring, no vibration, no error.
+- **Native code a notification action can reach lives in one real `FlutterPlugin`, `zuno_notifications`**, because FLN builds its action engine itself and only registered plugins reach it; a hand-attached channel exists only on the engine that attached it. On an engine without the handler, a call throws `MissingPluginException`, which best-effort callers swallow: no ring, no vibration, no error.
 
 | Channel group | Channels |
 |---|---|

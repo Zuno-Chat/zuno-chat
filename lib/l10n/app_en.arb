@@ -302,7 +302,7 @@
   "@callsIncomingCall": {
     "description": "Android call notification: caller name when the real name is unknown",
     "x-native": [
-      "zuno_call_style"
+      "zuno_notifications"
     ]
   },
   "callsIncomingVideo": "Incoming video call",
