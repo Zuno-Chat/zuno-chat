@@ -414,20 +414,16 @@ void main() {
       expect(galleryOf(harness.sent.single)!['index'], 0);
     });
 
-    testWidgets('a photo that fails after leaving the chat still says so', (
-      tester,
-    ) async {
+    testWidgets('a photo that fails after leaving the chat says so, and waits '
+        'in the chat to go again', (tester) async {
       final upload = Completer<void>();
+      uploadsFail = true;
       picker.answer = [photo('IMG_1.jpg')];
-      await openRoom(tester);
+      await openRoom(tester, reopenable: true);
       final respond = harness.respond!;
       harness.respond = (request) async {
-        if (!request.url.path.contains('/upload')) return respond(request);
-        await upload.future;
-        return http.Response(
-          jsonEncode({'errcode': 'M_UNKNOWN', 'error': 'boom'}),
-          500,
-        );
+        if (request.url.path.contains('/upload')) await upload.future;
+        return respond(request);
       };
 
       await choose(tester, 'Take photo');
@@ -437,18 +433,27 @@ void main() {
         until: () =>
             harness.httpRequests.any((r) => r.url.path.contains('/upload')),
       );
-      await tester.pumpWidget(
-        await harness.app(home: const Scaffold(body: SizedBox())),
-      );
+      await tester.pageBack();
+      await harness.settle(tester);
       upload.complete();
       await pumpUntil(
         tester,
         () => shows('Not sent. Try again.'),
         reason: 'the failure to be reported',
       );
-
       expect(find.byType(RoomPage), findsNothing);
-      expect(find.text('Not sent. Try again.'), findsOneWidget);
+
+      uploadsFail = false;
+      await tester.tap(find.text('open'));
+      await harness.settle(tester);
+      await tester.tap(find.byType(GalleryFailedThumbnail));
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty,
+        reason: 'the photo to go again',
+      );
+
+      expect(harness.sent.single['msgtype'], 'm.image');
     });
 
     group('when you leave the chat mid-way', () {
@@ -620,6 +625,38 @@ void main() {
         );
         await harness.drive(tester, turns: 2);
         expect(pickerCopyLeft(picked), isTrue);
+
+        uploadsFail = false;
+        await tester.tap(find.byType(GalleryFailedThumbnail));
+        await pumpUntil(
+          tester,
+          () => harness.sent.isNotEmpty && !pickerCopyLeft(picked),
+          reason: 'the photo to go again and its copy to be removed',
+        );
+
+        expect(harness.sent.single['msgtype'], 'm.image');
+      });
+
+      testWidgets('a failed photo keeps its copy after leaving the chat, and '
+          'goes again from the chat opened again', (tester) async {
+        uploadsFail = true;
+        final picked = photo('IMG_1.jpg');
+        picker.answer = [picked];
+        await openRoom(tester, reopenable: true);
+
+        await choose(tester, 'Take photo');
+        await sendFromComposer(
+          tester,
+          awaiting: 'the photo to fail',
+          until: () => failedTiles() == 1,
+        );
+        await tester.pageBack();
+        await harness.settle(tester);
+        expect(pickerCopyLeft(picked), isTrue);
+
+        await tester.tap(find.text('open'));
+        await harness.settle(tester);
+        expect(failedTiles(), 1);
 
         uploadsFail = false;
         await tester.tap(find.byType(GalleryFailedThumbnail));

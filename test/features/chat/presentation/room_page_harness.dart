@@ -169,6 +169,9 @@ class RoomPageHarness {
         ...overrides,
       ],
     );
+    final login = container.listen(isLoggedInProvider.future, (_, _) {});
+    await login.read();
+    login.close();
     return UncontrolledProviderScope(
       container: container,
       child: MaterialApp(

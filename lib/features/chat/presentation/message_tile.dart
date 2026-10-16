@@ -18,6 +18,7 @@ import '../../location/presentation/location_map_page.dart';
 import '../data/message_kinds.dart';
 import '../data/message_row_data.dart';
 import '../data/pending_attachment_send.dart';
+import '../data/unsent_events.dart';
 import 'message_bubble.dart';
 import 'message_contents/call_summary_tile.dart';
 import 'message_contents/file_message.dart';

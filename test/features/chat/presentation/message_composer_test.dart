@@ -1,10 +1,33 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/voice_recording.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/message_composer.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
+import 'package:zuno/features/chat/presentation/voice_recorder.dart';
+
+import '../../../helpers/platform_capabilities.dart';
+
+class _ShownRecorder extends VoiceRecorder {
+  _ShownRecorder({required this.recording, required this._elapsed})
+    : super(
+        setup: voiceRecordingSetup(androidCapabilities),
+        onRecorded: (_) async {},
+        onProblem: (_) {},
+      );
+
+  final bool recording;
+  final ValueListenable<Duration> _elapsed;
+
+  @override
+  bool get isRecording => recording;
+
+  @override
+  ValueListenable<Duration> get elapsed => _elapsed;
+}
 
 void main() {
   late TextEditingController controller;
@@ -43,15 +66,10 @@ void main() {
                 onSend: () => sends++,
                 onAttach: () => attaches++,
                 attaching: attaching,
-                isRecording: recording,
-                recordingDuration: duration,
-                recordingWillCancel: false,
-                tapToggleRecording: false,
-                onMicPointerDown: (_) {},
-                onMicPointerMove: (_) {},
-                onMicPointerUp: (_) {},
-                onMicPointerCancel: (_) {},
-                onCancelRecording: () {},
+                recorder: _ShownRecorder(
+                  recording: recording,
+                  elapsed: duration,
+                ),
               ),
             ],
           ),

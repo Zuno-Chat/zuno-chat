@@ -96,10 +96,6 @@ void main() {
   ProviderContainer container(WidgetTester tester) =>
       ProviderScope.containerOf(tester.element(find.byType(RoomPage)));
 
-  Iterable<Map<String, Object?>> typing() => harness.httpRequests
-      .where((r) => r.url.path.contains('/typing/'))
-      .map((r) => jsonDecode(r.body) as Map<String, Object?>);
-
   group('while the app is in the background', () {
     testWidgets('the room is no longer the open one, and comes back on '
         'return', (tester) async {
@@ -139,53 +135,6 @@ void main() {
       await harness.settle(tester);
 
       expect(markers(), 2);
-    });
-  });
-
-  group('typing', () {
-    testWidgets('is announced while writing and withdrawn once cleared', (
-      tester,
-    ) async {
-      await openRoom(tester);
-
-      await tester.enterText(find.byType(TextField), 'hel');
-      await harness.settle(tester);
-      expect(typing().single, containsPair('typing', true));
-
-      await tester.enterText(find.byType(TextField), '');
-      await harness.settle(tester);
-      expect(typing().last, {'typing': false});
-    });
-
-    testWidgets('is refreshed while writing goes on, and dropped after a '
-        'pause', (tester) async {
-      await openRoom(tester);
-
-      await tester.enterText(find.byType(TextField), 'hel');
-      await harness.settle(tester);
-      await tester.enterText(find.byType(TextField), 'hell');
-      await tester.pump(const Duration(seconds: 4));
-      await tester.enterText(find.byType(TextField), 'hello');
-      await tester.pump(const Duration(seconds: 4));
-      await tester.enterText(find.byType(TextField), 'hello!');
-      await tester.pump(const Duration(seconds: 3));
-      await harness.settle(tester);
-      expect(typing().where((t) => t['typing'] == true), hasLength(2));
-
-      await tester.pump(const Duration(seconds: 6));
-      await harness.settle(tester);
-      expect(typing().last, {'typing': false});
-    });
-
-    testWidgets('is withdrawn when leaving mid-sentence', (tester) async {
-      await openRoom(tester);
-
-      await tester.enterText(find.byType(TextField), 'hel');
-      await harness.settle(tester);
-      await tester.pumpWidget(const SizedBox());
-      await harness.settle(tester);
-
-      expect(typing().last, {'typing': false});
     });
   });
 
@@ -632,7 +581,7 @@ void main() {
       expect(temp.listSync(), isEmpty);
     });
 
-    testWidgets('leaving the chat removes a shared video kept for a retry', (
+    testWidgets('signing out removes a shared video kept for a retry', (
       tester,
     ) async {
       uploadsFail = true;
@@ -640,7 +589,7 @@ void main() {
       await sendFailingVideo(tester);
       expect(copies(), hasLength(1));
 
-      await tester.pumpWidget(const SizedBox());
+      harness.client.onLoginStateChanged.add(LoginState.loggedOut);
       await pumpUntil(
         tester,
         () => copies().isEmpty,

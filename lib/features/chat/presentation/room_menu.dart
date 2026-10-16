@@ -1,0 +1,149 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:matrix/matrix.dart';
+
+import '../../../core/calls/end_call.dart';
+import '../../../core/errors/caught_errors.dart';
+import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/bearer_authorization.dart';
+import '../../../core/matrix/local_username_dialog.dart';
+import '../../../core/matrix/room_exit.dart';
+import '../../../core/matrix/room_invite.dart';
+import '../../../core/matrix/room_timeline_reload.dart';
+import '../../../core/matrix/room_title.dart';
+import '../../../core/platform/platform_capabilities.dart';
+import '../../../core/shortcuts/home_screen_shortcut.dart';
+
+List<PopupMenuEntry<void>> roomMenuItems(
+  BuildContext context,
+  WidgetRef ref,
+  Room room, {
+  required VoidCallback onOpenInfo,
+  required VoidCallback onReload,
+}) {
+  final l10n = context.l10n;
+  return [
+    PopupMenuItem(
+      onTap: onOpenInfo,
+      child: Text(room.isDirectChat ? l10n.chatChatInfo : l10n.chatRoomInfo),
+    ),
+    if (!room.isDirectChat && room.canInvite)
+      PopupMenuItem(
+        onTap: () => unawaited(_addMembers(context, room)),
+        child: Text(l10n.chatAddMembers),
+      ),
+    if (ref.read(platformCapabilitiesProvider).homeScreenShortcuts)
+      PopupMenuItem(
+        onTap: () => unawaited(_addToHomeScreen(context, room)),
+        child: Text(l10n.chatAddToHomeScreen),
+      ),
+    if (canReloadRoomTimeline(room))
+      PopupMenuItem(
+        onTap: () => unawaited(_confirmReload(context, onReload)),
+        child: Text(l10n.chatReloadMessages),
+      ),
+    PopupMenuItem(
+      onTap: () => unawaited(_exit(context, ref, room)),
+      child: Text(roomExitLabel(room, l10n)),
+    ),
+  ];
+}
+
+Future<void> _addMembers(BuildContext context, Room room) async {
+  final l10n = context.l10n;
+  final userId = await showLocalUsernameDialog(
+    context,
+    client: room.client,
+    title: l10n.chatAddMembers,
+    actionLabel: l10n.commonInvite,
+  );
+  if (userId == null || !context.mounted) return;
+
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await room.invite(userId);
+    messenger.showSnackBar(SnackBar(content: Text(l10n.commonInvitationSent)));
+  } catch (e, s) {
+    if (!isUnknownInvitee(e)) reportCaught('invite', e, s);
+    messenger.showSnackBar(
+      SnackBar(content: Text(l10n.commonInvitationNotSent)),
+    );
+  }
+}
+
+Future<void> _addToHomeScreen(BuildContext context, Room room) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final l10n = context.l10n;
+  final iconBytes = await _roomAvatarBytes(room);
+  try {
+    final requested = await pinRoomShortcut(
+      roomId: room.id,
+      label: roomTitle(room, l10n),
+      iconBytes: iconBytes,
+    );
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          requested ? l10n.chatShortcutRequested : l10n.chatShortcutUnsupported,
+        ),
+      ),
+    );
+  } catch (e, s) {
+    reportCaught('add shortcut', e, s);
+    messenger.showSnackBar(SnackBar(content: Text(l10n.chatShortcutFailed)));
+  }
+}
+
+Future<Uint8List?> _roomAvatarBytes(Room room) async {
+  final avatarUrl = room.avatar;
+  if (avatarUrl == null) return null;
+  try {
+    final client = room.client;
+    final uri = await avatarUrl.getThumbnailUri(
+      client,
+      width: 192,
+      height: 192,
+    );
+    final response = await client.httpClient.get(
+      uri,
+      headers: {'authorization': await bearerAuthorization(client)},
+    );
+    return response.statusCode == 200 ? response.bodyBytes : null;
+  } catch (e, s) {
+    reportCaught('fetch shortcut icon', e, s);
+    return null;
+  }
+}
+
+Future<void> _confirmReload(BuildContext context, VoidCallback reload) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(context.l10n.chatReloadTitle),
+      content: Text(context.l10n.chatReloadBody),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(context.l10n.commonCancel),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(context.l10n.chatReload),
+        ),
+      ],
+    ),
+  );
+  if (confirmed == true && context.mounted) reload();
+}
+
+Future<void> _exit(BuildContext context, WidgetRef ref, Room room) async {
+  final left = await confirmAndExitRoom(
+    context,
+    room,
+    endCallsIn: ref.read(endCallsInProvider),
+  );
+  if (left && context.mounted) Navigator.of(context).pop();
+}

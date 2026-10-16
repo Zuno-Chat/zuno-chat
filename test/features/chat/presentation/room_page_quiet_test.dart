@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/features/chat/presentation/message_composer.dart';
 import 'package:zuno/features/chat/presentation/message_list_view.dart';
-import 'package:zuno/features/chat/presentation/room_page.dart';
 
 import 'room_page_harness.dart';
 
@@ -45,10 +45,11 @@ void main() {
     await harness.pumpRoomPage(tester);
     final before = list(tester);
 
-    final state = tester.state(find.byType(RoomPage)) as dynamic;
-    (state.recordingDuration as ValueNotifier<Duration>).value = const Duration(
-      seconds: 3,
+    final composer = tester.widget<MessageComposer>(
+      find.byType(MessageComposer),
     );
+    (composer.recorder.elapsed as ValueNotifier<Duration>).value =
+        const Duration(seconds: 3);
     await tester.pump();
 
     expect(identical(list(tester), before), isTrue);

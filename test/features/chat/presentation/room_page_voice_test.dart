@@ -18,6 +18,7 @@ void main() {
   late Directory temp;
   late List<String> recorderCalls;
   late bool permitted;
+  late bool promptAllows;
   late Object? startError;
   late bool stopGivesPath;
   late bool sendFails;
@@ -32,6 +33,7 @@ void main() {
     temp = Directory.systemTemp.createTempSync('zuno_voice_');
     recorderCalls = [];
     permitted = true;
+    promptAllows = false;
     startError = null;
     stopGivesPath = true;
     sendFails = false;
@@ -121,6 +123,9 @@ void main() {
             addTearDown(() => messenger.setMockStreamHandler(events, null));
             return null;
           case 'hasPermission':
+            if (!permitted && args!['request'] == true) {
+              permitted = promptAllows;
+            }
             return permitted;
           case 'start':
             final error = startError;
@@ -230,6 +235,30 @@ void main() {
     expect(find.text('Release to cancel'), findsNothing);
   });
 
+  testWidgets('sliding redraws the composer only when it crosses the cancel '
+      'line', (tester) async {
+    await openRoom(tester);
+    final gesture = await holdMic(tester);
+    Widget hint() => tester.widget(find.text('Slide up to cancel'));
+    final before = hint();
+
+    await gesture.moveBy(const Offset(0, -30));
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, -30));
+    await tester.pump();
+    expect(identical(hint(), before), isTrue);
+
+    await gesture.moveBy(const Offset(0, -30));
+    await tester.pump();
+    expect(find.text('Release to cancel'), findsOneWidget);
+
+    await gesture.moveBy(const Offset(0, 60));
+    await tester.pump();
+    expect(find.text('Slide up to cancel'), findsOneWidget);
+    await gesture.cancel();
+    await pumpUntil(tester, recordingDone, reason: 'the recording to end');
+  });
+
   testWidgets('a tap starts hands-free recording, and another sends it', (
     tester,
   ) async {
@@ -309,7 +338,8 @@ void main() {
     expect(leftoverRecordings(), isEmpty);
   });
 
-  testWidgets('without the microphone it says how to allow it', (tester) async {
+  testWidgets('without the microphone it says how to allow it, and a tap once '
+      'allowed records', (tester) async {
     permitted = false;
     await openRoom(tester);
 
@@ -320,6 +350,42 @@ void main() {
       findsOneWidget,
     );
     expect(recorderCalls, isNot(contains('start')));
+
+    permitted = true;
+    ScaffoldMessenger.of(tester.element(mic())).removeCurrentSnackBar();
+    await tester.pump();
+    await tapMic(tester);
+
+    expect(recorderCalls, contains('start'));
+    expect(find.byTooltip('Cancel recording'), findsOneWidget);
+  });
+
+  testWidgets('a hold that has to ask for the microphone records nothing, '
+      'and the next hold records', (tester) async {
+    permitted = false;
+    promptAllows = true;
+    await openRoom(tester);
+
+    final asking = await holdMic(tester);
+    await asking.cancel();
+    await drive(tester, turns: 2);
+
+    expect(recorderCalls, isNot(contains('start')));
+    expect(find.text('Slide up to cancel'), findsNothing);
+    expect(find.byTooltip('Cancel recording'), findsNothing);
+    expect(find.byType(SnackBar), findsNothing);
+
+    final gesture = await holdMic(tester);
+    expect(find.text('Slide up to cancel'), findsOneWidget);
+    await realWait(tester, 350);
+    await gesture.up();
+    await pumpUntil(
+      tester,
+      () => voiceMessages().isNotEmpty && recordingDone(),
+      reason: 'the voice message to be sent',
+    );
+
+    expect(voiceMessages(), hasLength(1));
   });
 
   testWidgets('a recorder that will not start says so', (tester) async {

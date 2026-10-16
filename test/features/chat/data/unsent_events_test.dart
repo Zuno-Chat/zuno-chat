@@ -6,7 +6,7 @@ import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
-import 'package:zuno/features/chat/presentation/not_sent.dart';
+import 'package:zuno/features/chat/data/unsent_events.dart';
 
 import '../../../helpers/fake_matrix.dart';
 
