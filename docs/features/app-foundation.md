@@ -91,6 +91,7 @@ Shared pieces:
 | `StepLayout`, `StepHero` | One-question screens, with the actions pinned at the bottom above the keyboard. |
 | `RowMemo` | Returns the identical widget for an equal record from the same SDK object, so a list row rebuilds only when its value-equal record changes, and never keeps a `Room` the SDK has replaced. |
 | `RouteSettled` | `onRouteSettled()` fires once the push slide has finished, for work that would otherwise land mid-slide. |
+| `AlertBanner` | Every in-screen warning banner: the security alerts and the delivery failure. An attention or notice tone, at most one action and an optional ✕. |
 | `TopBannerFrame` | App-wide top banners (the call bar, the offline notice). They stack and slide in and out, and the content keeps its own status-bar inset, moving only by what that inset cannot hide. The slide re-lays out the content each frame, as the keyboard does: the one exception to animating position only. |
 | `KeepClearArea`, `showSheet` | Bottom chrome the floating call window keeps clear of: the composer, the home bar, caption bars. Every bottom sheet opens through `showSheet`, which marks the whole sheet. |
 

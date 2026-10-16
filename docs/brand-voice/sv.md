@@ -136,6 +136,7 @@ Swedish for `lib/l10n/app_sv.arb`, written for Sweden. The rules all languages s
 | English | sv | Notes |
 |---|---|---|
 | notification, test notification | notis · testnotis | Zuno's word. An OS label keeps the OS's own word («Aviseringar» on Android). |
+| alert, security alerts | varning · säkerhetsvarningar | iOS's Alerts → «Varningar»; call alerts → «samtalsnotiser». |
 | push, push target, push key | push · push-mål · push-nyckel | "push notifications" → «pushnotiser». |
 | registration (push) | registrering · registrera | |
 | delivery, background sync | leverans · bakgrundssynkronisering | "Delivery method" → «Leveransmetod». |

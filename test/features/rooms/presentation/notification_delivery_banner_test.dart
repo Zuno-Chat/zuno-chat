@@ -7,8 +7,8 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/push/delivery/delivery_failure.dart';
 import 'package:zuno/core/push/delivery/delivery_failure_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
-import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/ui/alert_banner.dart';
 import 'package:zuno/features/rooms/presentation/notification_delivery_banner.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -42,7 +42,7 @@ void main() {
       find.text('This device does not have Google Play services'),
       findsOneWidget,
     );
-    expect(find.byType(TextButton), findsOneWidget);
+    expect(find.byType(FilledButton), findsOneWidget);
     expect(find.text('Switch to UnifiedPush'), findsOneWidget);
   });
 
@@ -219,7 +219,12 @@ void main() {
         tester.element(find.byType(NotificationDeliveryBanner)),
       ).colorScheme;
       final banner = tester.widget<Material>(
-        find.byKey(const ValueKey('deliveryFailureBanner')),
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('deliveryFailureBanner')),
+              matching: find.byType(Material),
+            )
+            .first,
       );
       expect(banner.color, colors.secondaryContainer);
       expect(find.byType(AttentionStripe), findsNothing);
@@ -247,7 +252,12 @@ void main() {
         tester.element(find.byType(NotificationDeliveryBanner)),
       ).colorScheme;
       final banner = tester.widget<Material>(
-        find.byKey(const ValueKey('deliveryFailureBanner')),
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('deliveryFailureBanner')),
+              matching: find.byType(Material),
+            )
+            .first,
       );
       expect(banner.color, colors.errorContainer);
       expect(find.byType(AttentionStripe), findsOneWidget);

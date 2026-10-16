@@ -5,6 +5,7 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/account_security_status.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/core/security/security_providers.dart';
+import 'package:zuno/core/ui/alert_banner.dart';
 import 'package:zuno/features/settings/presentation/security_status_card.dart';
 
 void main() {

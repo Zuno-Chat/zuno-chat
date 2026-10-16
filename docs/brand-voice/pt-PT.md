@@ -131,6 +131,7 @@ European Portuguese for `lib/l10n/app_pt_PT.arb`, written for Portugal. The rule
 | English | pt-PT | Notes |
 |---|---|---|
 | notification, test notification | a notificação · a notificação de teste | |
+| alert | o alerta | "Security alerts" → «Alertas de segurança». |
 | push, push target, push key | o push · o destino push · a chave push | "push notifications" → «notificações push». |
 | registration (push) | o registo / registar (registado) | Never «inscrição», which is sign-up. |
 | delivery, background sync | a entrega · a sincronização em segundo plano | |

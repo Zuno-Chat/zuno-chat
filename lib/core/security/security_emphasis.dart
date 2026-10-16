@@ -4,8 +4,6 @@ const attentionIcon = Icons.warning_rounded;
 const settledIcon = Icons.check_circle_outline;
 const notEncryptedIcon = Icons.no_encryption;
 
-const attentionStripeWidth = 4.0;
-
 const deviceApprovedIcon = Icons.verified_user;
 const deviceUnapprovedIcon = Icons.gpp_maybe;
 
@@ -19,13 +17,3 @@ Color deviceUnapprovedColor(BuildContext context) =>
 
 IconData securityStatusIcon({required bool attention}) =>
     attention ? attentionIcon : settledIcon;
-
-class AttentionStripe extends StatelessWidget {
-  const AttentionStripe({super.key});
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: attentionStripeWidth,
-    color: Theme.of(context).colorScheme.error,
-  );
-}

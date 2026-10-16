@@ -149,6 +149,7 @@ Albanian for `lib/l10n/app_sq.arb`, written in standard Albanian for Albania and
 | notification extension, crash | shtesa e njoftimeve · ndërprerje | "Crashed" → «U ndërpre». |
 | diagnostics | diagnostikim | |
 | notification category, notification shade | kategori njoftimesh · paneli i njoftimeve | |
+| alert, security alerts | sinjalizim · Sinjalizimet e sigurisë | Never «njoftim», which is a notification. |
 | lock screen | ekrani i kyçjes | Android's. The iOS diagnostics row stays English (§2.8). |
 | quiet, sound, vibration | pa zë · tingull · dridhje | "Message tone" → «Tingulli i mesazhit». |
 | standby bucket | grup gatishmërie | |

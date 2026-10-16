@@ -11,7 +11,7 @@ import '../../helpers/platform_capabilities.dart';
 
 void main() {
   test('registers the channels in plain groups: two sound-bearing chat '
-      'channels, a quiet one, and new sign-ins under Account, and removes the '
+      'channels, a quiet one, and security alerts under Account, and removes the '
       'retired ones — silence is per post, not per channel', () async {
     final notifications = installFakeLocalNotifications();
 
@@ -44,11 +44,11 @@ void main() {
     expect(quiet['name'], 'Quiet messages');
     expect(quiet['playSound'], isFalse);
     expect(quiet['importance'], Importance.low.value);
-    final signIns = notifications.channels.singleWhere(
+    final security = notifications.channels.singleWhere(
       (c) => c['id'] == 'security',
     );
-    expect(signIns['name'], 'New sign-ins');
-    expect(signIns['groupId'], 'account_group');
+    expect(security['name'], 'Security alerts');
+    expect(security['groupId'], 'account_group');
     expect(
       notifications.deletedChannels,
       unorderedEquals([

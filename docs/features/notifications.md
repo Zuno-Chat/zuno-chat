@@ -7,7 +7,7 @@ This doc also owns the iOS VoIP push transport, the `zuno_push` contract, the ba
 - Ring presentation, declines and the extension's fallback ring: `calls.md`.
 - The client lease, `EngineHost`, the notify App Group, Keychain items and the `zuno/*` channel table: `app-foundation.md`.
 - What a notification says for each event: `chats-messaging.md` (`event_display.dart`).
-- Invitation announcements: `rooms-membership.md`. Join requests: `communities.md`. Which devices count as a new sign-in: `security-verification.md`.
+- Invitation announcements: `rooms-membership.md`. Join requests: `communities.md`. Which security alerts post a notification, and when: `security-verification.md`.
 - Why iOS works this way: `../decisions/ios-push-and-ring.md`.
 
 ## Architecture
@@ -67,16 +67,16 @@ Background sync has no push at all: a foreground service keeps `/sync` running.
 - **Each room is a `MessagingStyle` conversation**: a thread of its latest lines plus a long-lived conversation shortcut, which puts it in Android's Conversations section.
 - **Stored threads are capped**, and a full store drops threads whose notification no longer shows first, so a showing conversation keeps its lines.
 - **Shortcuts of rooms the user is no longer in are removed**, after the first sync and whenever a sync reports a room left.
-- **New sign-in alerts** post for every new own device on the `security` channel, which chat mute cannot silence.
+- **Security alerts** (a new sign-in, a recovery code replaced on another device) post on the `security` channel, "Security alerts", which chat mute cannot silence. They post only while Zuno runs, since the app's own sync raises them, and a tap opens Your devices.
 - **Reply and Mark as read** run in flutter_local_notifications' (FLN) action engine. They go to the running app first, through its live route (`calls.md`). With no live app, they open a one-shot client under a background lease.
-- **`LocalNotifications` is the one FLN host**: it owns the channels and categories, every tap and action response, and the background action handler, while messages, new sign-ins and rings each post through it and read only their own taps.
+- **`LocalNotifications` is the one FLN host**: it owns the channels and categories, every tap and action response, and the background action handler, while messages, security alerts and rings each post through it and read only their own taps.
 - **Native code a notification action can reach lives in one real `FlutterPlugin`, `zuno_notifications`**, because FLN builds its action engine itself and only registered plugins reach it; a hand-attached channel exists only on the engine that attached it. On an engine without the handler, a call throws `MissingPluginException`, which best-effort callers swallow: no ring, no vibration, no error.
 
 | Channel group | Channels |
 |---|---|
 | Chats | `direct_messages`, `group_messages`, `quiet_messages` (low importance) |
 | Calls | `calls_ringing`, `calls_ringing_group`, `calls_ongoing` |
-| Account | `security` (new sign-ins) |
+| Account | `security` (security alerts) |
 | Background | `background_sync`, `uploads` |
 
 ### Android: FCM pipeline

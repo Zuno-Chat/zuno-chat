@@ -131,6 +131,7 @@ Spanish for `lib/l10n/app_es.arb`, written for Spain and served to every Spanish
 | English | es | Notes |
 |---|---|---|
 | notification, test notification | la notificación · la notificación de prueba | |
+| alert | el aviso | "Security alerts" → «Avisos de seguridad». As iOS «Avisos críticos»; never «alerta». |
 | mute / unmute (a chat's notifications) | Silenciar / Dejar de silenciar | |
 | push, push target, push key | el push · el destino push · la clave push | "push notifications" → «notificaciones push». |
 | registration (push) | el registro / registrar (registrado) | |

@@ -9,46 +9,19 @@ import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../blocking/presentation/blocked_people_page.dart';
-import '../../verification/presentation/approve_this_device_page.dart';
 import 'active_sessions_page.dart';
 import 'confirmed_people_only_tile.dart';
 import 'secure_backup_page.dart';
+import 'security_status_action.dart';
 import 'security_status_card.dart';
 import 'settings_widgets.dart';
 import 'why_security_page.dart';
 
-class SecurityPrivacySettingsPage extends ConsumerStatefulWidget {
+class SecurityPrivacySettingsPage extends ConsumerWidget {
   const SecurityPrivacySettingsPage({super.key});
 
   @override
-  ConsumerState<SecurityPrivacySettingsPage> createState() =>
-      _SecurityPrivacySettingsPageState();
-}
-
-class _SecurityPrivacySettingsPageState
-    extends ConsumerState<SecurityPrivacySettingsPage> {
-  Future<void> _push(Widget page) async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
-    if (mounted) ref.invalidate(accountSecurityFactsProvider);
-  }
-
-  void _handleStatusAction(AccountSecurityStatus status) {
-    switch (status) {
-      case AccountSecurityStatus.noRecovery:
-        _push(const SecureBackupPage());
-      case AccountSecurityStatus.deviceLocked:
-        _push(const ApproveThisDevicePage());
-      case AccountSecurityStatus.deviceWaiting:
-        _push(const ActiveSessionsPage());
-      case AccountSecurityStatus.recoveryStale:
-        _push(const SecureBackupPage(autoRestoreExisting: true));
-      case AccountSecurityStatus.protected:
-        break;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final incognitoKeyboard = ref.watch(incognitoKeyboardProvider);
     final preventScreenshots = ref.watch(preventScreenshotsProvider);
@@ -61,7 +34,9 @@ class _SecurityPrivacySettingsPageState
       appBar: AppBar(title: Text(l10n.settingsSecurityTitle)),
       body: CardListView(
         children: [
-          SecurityStatusCard(onAction: _handleStatusAction),
+          SecurityStatusCard(
+            onAction: (status) => runSecurityStatusAction(context, ref, status),
+          ),
           CardGroup(
             children: [
               ListTile(
@@ -77,21 +52,24 @@ class _SecurityPrivacySettingsPageState
                       : l10n.settingsSecuritySetUpRecoverySubtitle,
                 ),
                 trailing: const Icon(Icons.chevron_right_outlined),
-                onTap: () => _push(const SecureBackupPage()),
+                onTap: () =>
+                    pushSecurityPage(context, ref, const SecureBackupPage()),
               ),
               ListTile(
                 leading: const Icon(Icons.devices_outlined),
                 title: Text(l10n.settingsSecurityYourDevices),
                 subtitle: Text(l10n.settingsSecurityYourDevicesSubtitle),
                 trailing: const Icon(Icons.chevron_right_outlined),
-                onTap: () => _push(const ActiveSessionsPage()),
+                onTap: () =>
+                    pushSecurityPage(context, ref, const ActiveSessionsPage()),
               ),
               ListTile(
                 leading: const Icon(Icons.do_not_disturb_on_outlined),
                 title: Text(l10n.settingsSecurityBlockedPeople),
                 subtitle: Text(l10n.settingsSecurityBlockedPeopleSubtitle),
                 trailing: const Icon(Icons.chevron_right_outlined),
-                onTap: () => _push(const BlockedPeoplePage()),
+                onTap: () =>
+                    pushSecurityPage(context, ref, const BlockedPeoplePage()),
               ),
             ],
           ),
@@ -136,7 +114,8 @@ class _SecurityPrivacySettingsPageState
                 title: Text(l10n.settingsSecurityHowThisWorks),
                 subtitle: Text(l10n.settingsSecurityHowThisWorksSubtitle),
                 trailing: const Icon(Icons.chevron_right_outlined),
-                onTap: () => _push(const WhySecurityPage()),
+                onTap: () =>
+                    pushSecurityPage(context, ref, const WhySecurityPage()),
               ),
               ComingSoonTile(
                 icon: Icons.tune_outlined,

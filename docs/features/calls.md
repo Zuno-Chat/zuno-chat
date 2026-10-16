@@ -265,10 +265,12 @@ tier.
 - **Confirming the other person**: in a one-to-one call, a pill offers to
   confirm someone unconfirmed or changed, once both ends can finish it
   (`security-verification.md`).
-- **The buttons and the notice over them (weak connection, or the confirm
-  offer) form one bottom dock**, and everything but a full-screen camera
-  sits above its measured height, since a fixed reserve under-measures the
-  notice at large text sizes.
+- **Unapproved devices**: a badge names whoever in the call is on a device
+  their own account never approved (`security-verification.md`).
+- **The buttons and the notices over them (the unapproved-device badge, weak
+  connection, the confirm offer) form one bottom dock**, and everything but
+  a full-screen camera sits above its measured height, since a fixed
+  reserve under-measures the notices at large text sizes.
 - **Your own view drags to any corner** and snaps to the nearest, for the
   rest of the call, minimizing included; a new call starts top-right. The
   bottom corners sit above the dock and the top-left one below the name and

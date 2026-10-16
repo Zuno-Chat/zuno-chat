@@ -46,6 +46,25 @@ class SelfSignedTestDeviceKeys extends DeviceKeys {
   bool get selfSigned => true;
 }
 
+class ApprovedTestDeviceKeys extends DeviceKeys {
+  ApprovedTestDeviceKeys(super.json, super.client) : super.fromJson();
+
+  @override
+  bool get verified => true;
+}
+
+class OwnerSignedTestDeviceKeys extends DeviceKeys {
+  OwnerSignedTestDeviceKeys(super.json, super.client) : super.fromJson();
+
+  @override
+  bool hasValidSignatureChain({
+    bool verifiedOnly = true,
+    Set<String>? visited,
+    Set<String>? onlyValidateUserIds,
+    bool verifiedByTheirMasterKey = false,
+  }) => verifiedByTheirMasterKey;
+}
+
 DeviceKeysList _keysOf(Client client, String userId) =>
     client.userDeviceKeys[userId] ??= DeviceKeysList(userId, client);
 
@@ -72,14 +91,20 @@ DeviceKeysList setSelfSignedTestDevices(
       id: SelfSignedTestDeviceKeys(testDeviceKeysJson(userId, id), client),
   };
 
-CrossSigningKey testMasterKey(Client client, String userId) {
-  final publicKey = 'master-$userId';
+CrossSigningKey testMasterKey(
+  Client client,
+  String userId, {
+  String? publicKey,
+}) {
+  publicKey ??= 'master-$userId';
   final key = CrossSigningKey.fromJson({
     'user_id': userId,
     'usage': ['master'],
     'keys': {'ed25519:$publicKey': publicKey},
     'signatures': <String, Object?>{},
   }, client);
-  _keysOf(client, userId).crossSigningKeys[publicKey] = key;
+  _keysOf(client, userId).crossSigningKeys
+    ..removeWhere((_, existing) => existing.usage.contains('master'))
+    ..[publicKey] = key;
   return key;
 }

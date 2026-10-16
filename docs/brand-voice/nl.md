@@ -137,6 +137,7 @@ Dutch for `lib/l10n/app_nl.arb`, written for the Netherlands and Flanders alike.
 | English | nl | Notes |
 |---|---|---|
 | notification, test notification | melding · testmelding | |
+| alert, security alerts | melding · beveiligingsmeldingen | Call and iOS alerts are «meldingen» too («Oproepmeldingen op volledig scherm»). |
 | push, push target, push key | push · pushdoel · pushsleutel | "push notifications" → «pushmeldingen». |
 | registration (push) | registratie · registreren | |
 | delivery, background sync | bezorging · achtergrondsynchronisatie | "Delivery method" → «Bezorgmethode». |

@@ -136,6 +136,7 @@ Danish for `lib/l10n/app_da.arb`, written for Denmark. The rules all languages s
 | English | da | Notes |
 |---|---|---|
 | notification, test notification | notifikation · testnotifikation | |
+| alert, security alerts | advarsel · sikkerhedsadvarsler | iOS's Alerts → «Advarsler»; call alerts → «opkaldsvarsler». |
 | push, push target, push key | push · push-mål · push-nøgle | "push notifications" → «push-notifikationer». |
 | registration (push) | registrering · registrer | |
 | delivery, background sync | levering · baggrundssynkronisering | "Delivery method" → «Leveringsmetode». |

@@ -142,6 +142,7 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | gateway, bridge, token | bramka · mostek · token | |
 | diagnostics | diagnostyka | |
 | notification category, notification shade | kategoria powiadomień · obszar powiadomień | |
+| alert, security alerts | alert · Alerty bezpieczeństwa | The same word as iOS «Alerty krytyczne». |
 | lock screen | ekran blokady | |
 | quiet, sound, vibration | bez dźwięku · dźwięk · wibracje | "Message tone" → «Dźwięk wiadomości». |
 | standby bucket | zasobnik gotowości | |

@@ -495,7 +495,7 @@ void main() {
       await pumpApp(tester);
       await settle(tester);
 
-      LocalNotifications.instance.onResponseForTest(newDeviceTapResponse());
+      LocalNotifications.instance.onResponseForTest(securityAlertTapResponse());
       await pumpRoute(tester);
 
       expect(find.byType(ActiveSessionsPage), findsOneWidget);
@@ -542,7 +542,7 @@ void main() {
       );
       logins.add(true);
       await settle(tester);
-      LocalNotifications.instance.onResponseForTest(newDeviceTapResponse());
+      LocalNotifications.instance.onResponseForTest(securityAlertTapResponse());
       await pumpRoute(tester);
       expect(find.byType(ActiveSessionsPage), findsOneWidget);
 

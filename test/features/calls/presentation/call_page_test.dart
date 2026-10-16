@@ -713,6 +713,25 @@ void main() {
       await tester.pump();
     }
 
+    testWidgets('someone on a device they never approved is named over the '
+        'buttons', (tester) async {
+      final harness = CallPageHarness(
+        tester,
+        unvouchedPeople: {'@ann:example.org'},
+      );
+      final session = sessionFor(CallKind.voice);
+      await harness.open(session);
+      session.engine.participants = [localParticipant(), remoteParticipant()];
+      session.moveTo(CallSessionPhase.active);
+      await harness.settle();
+
+      expect(
+        find.text('@ann is on a device they have not approved'),
+        findsOneWidget,
+      );
+      await harness.close();
+    });
+
     testWidgets('after half a minute with someone not yet confirmed, it '
         'offers to confirm them', (tester) async {
       final call = await talkingTo(tester);

@@ -38,10 +38,9 @@ import '../../../core/onboarding/onboarding_provider.dart';
 import '../../../core/onboarding/onboarding_step.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/push/delivery/delivery_auto_fallback.dart';
-import '../../../core/security/new_device_alert_provider.dart';
+import '../../../core/security/alerts/security_alerts_provider.dart';
 import '../../../core/security/security_prompt.dart';
 import '../../../core/security/security_prompt_provider.dart';
-import '../../../core/security/unverified_device_warning_provider.dart';
 import '../../../core/security/verification_cancel_message.dart';
 import '../../../core/ui/sheet.dart';
 import '../../../core/ui/zuno_motion.dart';
@@ -49,13 +48,13 @@ import '../../calls/presentation/incoming_call_page.dart';
 import '../../communities/presentation/community_page.dart';
 import '../../location/presentation/own_live_location_banner.dart';
 import '../../onboarding/presentation/onboarding_flow_page.dart';
+import '../../security_alerts/presentation/security_alert_banners.dart';
 import '../../settings/presentation/secure_backup_page.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../../verification/presentation/verification_page.dart';
 import '../../verification/presentation/verification_request_dialog.dart';
 import 'chat_list_view.dart';
 import 'home_bottom_bar.dart';
-import 'new_device_alert_banner.dart';
 import 'new_room_dialog.dart';
 import 'notification_delivery_banner.dart';
 import 'public_rooms_sheet.dart';
@@ -505,8 +504,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     final firstSyncPending = ref.watch(firstSyncProvider).isLoading;
     ref.watch(pushRuleMaintenanceProvider);
     ref.watch(deliveryAutoFallbackProvider);
-    ref.watch(newDeviceAlertProvider);
-    ref.watch(unvouchedDeviceWarningProvider);
+    ref.watch(securityAlertsProvider);
     ref.watch(headlessCallDeclineProvider);
     ref.watch(headlessMessageActionProvider);
     ref.watch(callNotificationRouterProvider);
@@ -586,7 +584,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
             ),
             body: Column(
               children: [
-                const NewDeviceAlertBanner(),
+                const SecurityAlertBanners.account(),
                 const NotificationDeliveryBanner(),
                 OwnLiveLocationBanner(onOpen: open),
                 Expanded(

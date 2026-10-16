@@ -131,6 +131,7 @@ French for `lib/l10n/app_fr.arb`, written for France and served to every French-
 | English | fr | Notes |
 |---|---|---|
 | notification, test notification | la notification · la notification de test | |
+| alert | l’alerte | "Security alerts" → «Alertes de sécurité». As iOS «Alertes critiques». |
 | push, push target, push key | le push · la cible push · la clé push | "push notifications" → «notifications push». |
 | registration (push) | l’enregistrement / enregistrer (enregistré) | |
 | delivery, background sync | la distribution · la synchronisation en arrière-plan | "Delivery method" → «Mode de distribution». |

@@ -91,6 +91,7 @@ void main() {
     CallQuality quality = CallQuality.good,
     Size size = const Size(360, 640),
     String? confirmName,
+    String? unvouchedDeviceWarning,
     SnapCorner selfCorner = SnapCorner.topRight,
   }) async {
     tester.view.devicePixelRatio = 1;
@@ -135,6 +136,7 @@ void main() {
           onConfirmPerson: confirmName == null
               ? null
               : () => pressed.add('confirm'),
+          unvouchedDeviceWarning: unvouchedDeviceWarning,
           selfCorner: selfCorner,
           onSelfCornerChanged: corners.add,
         ),
@@ -248,6 +250,25 @@ void main() {
       expect(shownStatus(tester), CallStatus.talking);
       expect(find.byIcon(Icons.lock_outline), findsOneWidget);
       expect(find.byType(CallTimer), findsOneWidget);
+    });
+
+    testWidgets('warns over the buttons when someone is on an unapproved '
+        'device, in full on a narrow phone', (tester) async {
+      const warning = '@robin is on a device they have not approved';
+      await pump(
+        tester,
+        remote: [person('Ann')],
+        quality: CallQuality.degraded,
+        size: const Size(320, 640),
+        unvouchedDeviceWarning: warning,
+      );
+
+      expect(find.text(warning), findsOneWidget);
+      expect(tester.widget<Text>(find.text(warning)).maxLines, 2);
+      expect(
+        tester.getBottomLeft(find.text(warning)).dy,
+        lessThan(tester.getTopLeft(find.text('Weak connection')).dy),
+      );
     });
 
     testWidgets('says Encrypting while either side still lacks the keys', (

@@ -36,7 +36,7 @@ const messageChannelIds = {
 };
 
 const messagePayloadType = 'message';
-const newDevicePayloadType = 'newDevice';
+const securityAlertPayloadType = 'newDevice';
 
 const _markReadCategoryId = 'message';
 const _replyOnlyCategoryId = 'reply';
@@ -340,8 +340,8 @@ class LocalNotifications {
     ),
     AndroidNotificationChannel(
       securityChannelId,
-      l10n.notificationsChannelNewSignIns,
-      description: l10n.notificationsChannelNewSignInsDescription,
+      l10n.notificationsChannelSecurity,
+      description: l10n.notificationsChannelSecurityDescription,
       importance: Importance.max,
       groupId: _accountGroupId,
     ),

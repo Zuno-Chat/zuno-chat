@@ -76,12 +76,12 @@ import '../../location/presentation/live_location_text.dart';
 import '../../location/presentation/location_share_sheet.dart';
 import '../../reports/presentation/report_sheet.dart';
 import '../../room_info/presentation/room_info_page.dart';
+import '../../security_alerts/presentation/security_alert_banners.dart';
 import '../data/discarded_sends.dart';
 import '../data/message_kinds.dart';
 import '../data/pending_attachment_send.dart';
 import '../data/sync_filter.dart';
 import 'chat_wallpaper.dart';
-import 'identity_change_banner.dart';
 import 'image_caption_composer_page.dart';
 import 'media_caption_composer_page.dart';
 import 'mention_suggestions.dart';
@@ -97,7 +97,6 @@ import 'reply_target_cache.dart';
 import 'room_app_bar.dart';
 import 'room_lifecycle.dart';
 import 'sender_device_tile.dart';
-import 'unvouched_device_banner.dart';
 import 'video_caption_composer_page.dart';
 
 const _doubleTapReaction = '❤️';
@@ -1893,8 +1892,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
             Positioned.fill(
               child: Column(
                 children: [
-                  IdentityChangeBanner(room: widget.room),
-                  UnvouchedDeviceBanner(room: widget.room),
+                  SecurityAlertBanners.room(widget.room),
                   PendingInviteBanner(room: widget.room),
                   JoinRequestsBanner(room: widget.room),
                   if (showActiveCallBanner)

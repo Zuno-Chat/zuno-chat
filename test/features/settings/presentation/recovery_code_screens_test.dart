@@ -476,6 +476,21 @@ void main() {
     List<String> validWords(int count) =>
         shippedRecoveryWordlist().words.take(count).toList();
 
+    testWidgets('opens with the keyboard down until the field is tapped', (
+      tester,
+    ) async {
+      await pumpField(tester);
+
+      expect(tester.testTextInput.isVisible, isFalse);
+      expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .focusNode
+            .hasFocus,
+        isFalse,
+      );
+    });
+
     for (final (name, typed, hint) in [
       ('a full code looks right', validWords(12).join(' '), 'Looks right.'),
       (

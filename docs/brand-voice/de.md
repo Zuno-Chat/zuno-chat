@@ -131,6 +131,7 @@ German for `lib/l10n/app_de.arb`, written for Germany and served to every German
 | English | de | Notes |
 |---|---|---|
 | notification, test notification | die Benachrichtigung · die Testbenachrichtigung | iOS screens call them «Mitteilungen» (§2.8). |
+| alert, security alerts | der Hinweis · die Sicherheitswarnungen | Call and iOS alerts are «Hinweise» («Anrufhinweise im Vollbild»); the Android category "Security alerts" is «Sicherheitswarnungen». |
 | push, push target, push key | der Push · das Push-Ziel · der Push-Schlüssel | "push notifications" → «Push-Benachrichtigungen». |
 | registration (push) | die Registrierung / registrieren (registriert) | |
 | delivery, background sync | die Zustellung · die Hintergrundsynchronisierung | "Delivery method" → «Zustellungsart». |
