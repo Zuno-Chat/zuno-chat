@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../async/serial_lock.dart';
 import '../calls/notifications/call_notification_service.dart';
-import '../calls/serial_lock.dart';
 import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
 import '../matrix/join_requests.dart';

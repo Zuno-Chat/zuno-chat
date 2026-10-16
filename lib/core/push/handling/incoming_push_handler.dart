@@ -2,18 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../calls/active_call_marker.dart';
 import '../../calls/matrixrtc/call_summary_message.dart';
-import '../../calls/matrixrtc/incoming_call.dart';
 import '../../calls/matrixrtc/incoming_call_provider.dart';
-import '../../calls/matrixrtc/resolved_call_ids_store.dart';
 import '../../calls/notifications/call_notification_service.dart';
-import '../../calls/notifications/ring_notification.dart';
-import '../../calls/notifications/ringing_call_store.dart';
+import '../../calls/notifications/ring_from_push.dart';
 import '../../calls/platform/incoming_call_presenter.dart';
-import '../../calls/platform/system_ring.dart';
 import '../../errors/caught_errors.dart';
 import '../../matrix/room_title.dart';
 import '../../matrix/undecryptable_event.dart';
@@ -141,13 +135,7 @@ Future<IncomingPushOutcome> _handle(
   }
 
   if (isCallSummaryMessage(event.messageType)) {
-    final callId = event.content.tryGet<String>('call_id');
-    if (callId != null) await markCallResolved(callId);
-    final ringAge = callId == null ? null : await _ringAge(callId);
-    if (ringAge != null && ringAge < _ringSummaryGrace) {
-      await Future<void>.delayed(_ringSummaryGrace - ringAge);
-    }
-    await ring.cancelIncoming(roomId: event.room.id, callId: callId);
+    await endRingForCallSummary(event, ring);
     if (!isMissedCallSummary(event)) {
       await placeholder.retract();
       return IncomingPushOutcome.ignored;
@@ -156,9 +144,11 @@ Future<IncomingPushOutcome> _handle(
 
   final call = incomingCallFromEvent(client, event);
   if (call != null) {
-    final outcome = await _ring(call, ring);
+    final ringing = await ringFromPush(call, ring);
     await placeholder.retract();
-    return outcome;
+    return ringing
+        ? IncomingPushOutcome.callRinging
+        : IncomingPushOutcome.ignored;
   }
 
   final invite = inviteNotificationFor(client, event);
@@ -316,78 +306,6 @@ class _Placeholder {
     await settleNotice(roomId, eventId);
     if (!_posted) return;
     await CallNotificationService.instance.retractPlaceholder(roomId, eventId);
-  }
-}
-
-Future<IncomingPushOutcome> _ring(
-  IncomingCall call,
-  IncomingCallPresenter ring,
-) async {
-  final callId = call.callId;
-  if (isCallActiveInProcess()) {
-    if (kDebugMode) {
-      debugPrint('zuno/push: already on a call, not ringing $callId');
-    }
-    return IncomingPushOutcome.ignored;
-  }
-  if (await isCallResolved(callId)) {
-    if (kDebugMode) {
-      debugPrint('zuno/push: $callId already resolved, not ringing');
-    }
-    return IncomingPushOutcome.ignored;
-  }
-  final heldHere = await _whileRinging(
-    SystemRing.instance.ringing.value?.callId,
-    callId,
-  );
-  if (heldHere != null) return heldHere;
-  final ringingNow = ring.activeRing();
-  final busy = await _whileRinging((await ringingNow)?.callId, callId);
-  if (busy != null) return busy;
-  SystemRing.instance.set(roomId: call.room.id, callId: callId);
-  var outcome = RingOutcome.unavailable;
-  try {
-    outcome = await postRingNotification(
-      call,
-      presenter: ring,
-      ringingNow: ringingNow,
-    );
-  } finally {
-    if (outcome != RingOutcome.shown) SystemRing.instance.clear(callId);
-  }
-  if (outcome != RingOutcome.shown) return IncomingPushOutcome.ignored;
-  if (kDebugMode) {
-    debugPrint('zuno/push: ring notification posted for $callId');
-  }
-  return IncomingPushOutcome.callRinging;
-}
-
-Future<IncomingPushOutcome?> _whileRinging(
-  String? ringing,
-  String callId,
-) async {
-  if (ringing == null) return null;
-  if (ringing == callId) {
-    if (kDebugMode) debugPrint('zuno/push: $callId already rings');
-    return IncomingPushOutcome.callRinging;
-  }
-  if (await isCallResolved(ringing)) return null;
-  if (kDebugMode) {
-    debugPrint('zuno/push: $ringing is ringing, not ringing $callId');
-  }
-  return IncomingPushOutcome.ignored;
-}
-
-const _ringSummaryGrace = Duration(seconds: 3);
-
-Future<Duration?> _ringAge(String callId) async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
-    return ringAgeFor(prefs, callId);
-  } catch (e, s) {
-    reportCaught('push ring age read', e, s);
-    return null;
   }
 }
 

@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../async/serial_lock.dart';
 import '../../errors/caught_errors.dart';
-import '../serial_lock.dart';
 
 const _legacyKey = 'calls.resolved';
 const _keyPrefix = 'calls.resolved.';

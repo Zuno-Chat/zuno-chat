@@ -143,7 +143,7 @@ The `zuno/*` channels, each behind its flag:
 | Media and uploads | `zuno/image`, `zuno/video`, `zuno/upload_service` | | |
 | Live location (`location-sharing.md`) | `zuno/live_location`, with its fix stream `zuno/live_location/fixes` | | |
 | Files and sharing (`chats-messaging.md`) | `zuno/files` (saving a file; the recovery code's export is iOS only), `zuno/share` (inbound) | `zuno/share_out` (outbound) | |
-| App | `zuno/app_data` (the sign-out wipe), `zuno/client_lease`, `zuno/errors` (the native error journal, `crash-reporting.md`), `zuno/network`, `zuno/shortcuts`, `zuno/wake_lock` | `zuno/device_safety` | `zuno/launch` (the wake reason) |
+| App | `zuno/app_data` (the sign-out wipe), `zuno/client_lease`, `zuno/errors` (the native error journal, `crash-reporting.md`), `zuno/network`, `zuno/shortcuts`, `zuno/wake_lock` | `zuno/device_safety`, `zuno/background_restrictions` (battery exemption, background data, autostart) | `zuno/launch` (the wake reason) |
 
 ### iOS project
 

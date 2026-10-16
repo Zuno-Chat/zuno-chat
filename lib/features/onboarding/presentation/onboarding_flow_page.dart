@@ -17,12 +17,14 @@ import '../../../core/notifications/settings/notification_permission.dart';
 import '../../../core/notifications/settings/notifications_allowed_provider.dart';
 import '../../../core/onboarding/onboarding_provider.dart';
 import '../../../core/onboarding/onboarding_step.dart';
+import '../../../core/platform/background_restrictions.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/push/background_sync/background_sync_service.dart';
+import '../../../core/push/delivery/notification_delivery.dart';
 import '../../../core/push/delivery/notification_delivery_mode.dart';
-import '../../../core/push/delivery/notification_delivery_provider.dart';
 import '../../../core/push/fcm/fcm_availability_provider.dart';
 import '../../../core/push/fcm/fcm_bridge.dart' show FcmAvailability;
+import '../../../core/push/unified_push/unified_push_delivery_provider.dart';
 import '../../../core/push/unified_push/unified_push_distributor_names.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_prompt_provider.dart';
@@ -750,7 +752,7 @@ class _BatteryStepState extends ConsumerState<_BatteryStep>
       body: context.l10n.onboardingBatteryBody,
       action: FilledButton(
         onPressed: () =>
-            BackgroundSyncService.instance.requestIgnoreBatteryOptimizations(),
+            BackgroundRestrictions.instance.requestIgnoreBatteryOptimizations(),
         child: Text(context.l10n.onboardingAllow),
       ),
       children: [if (forUnifiedPush) const _DistributorBatteryNote()],
@@ -764,7 +766,7 @@ class _AutostartStep extends StatelessWidget {
   const _AutostartStep({required this.onDone});
 
   Future<void> _open() async {
-    await BackgroundSyncService.instance.openAutostartSettings();
+    await BackgroundRestrictions.instance.openAutostartSettings();
     await onDone();
   }
 
@@ -806,8 +808,8 @@ class _DistributorBatteryNote extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               OutlinedButton(
-                onPressed: () =>
-                    BackgroundSyncService.instance.openAppSettings(distributor),
+                onPressed: () => BackgroundRestrictions.instance
+                    .openAppSettings(distributor),
                 child: Text(
                   context.l10n.onboardingOpenDistributorSettings(name),
                 ),

@@ -4,12 +4,11 @@ import 'package:http/http.dart' as http;
 
 import '../../errors/caught_errors.dart';
 import '../../network/app_http_overrides.dart';
+import '../pushers/push_gateway.dart';
 
 final fallbackMatrixGatewayUrl = Uri.parse(
   'https://matrix.gateway.unifiedpush.org/_matrix/push/v1/notify',
 );
-
-const matrixPushGatewayPath = '/_matrix/push/v1/notify';
 
 Future<Uri> resolveMatrixGatewayUrl(
   Uri endpointUrl, {

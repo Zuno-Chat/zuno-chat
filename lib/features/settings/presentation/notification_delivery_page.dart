@@ -5,21 +5,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/platform/background_restrictions.dart';
 import '../../../core/platform/platform_capabilities.dart';
-import '../../../core/push/background_sync/background_sync_service.dart';
+import '../../../core/push/delivery/notification_delivery.dart';
 import '../../../core/push/delivery/notification_delivery_mode.dart';
-import '../../../core/push/delivery/notification_delivery_provider.dart';
 import '../../../core/push/fcm/fcm_availability_provider.dart';
 import '../../../core/push/fcm/fcm_delivery_provider.dart';
+import '../../../core/push/fcm/fcm_status_display.dart';
 import '../../../core/push/unified_push/unified_push_delivery_provider.dart'
-    show UnifiedPushStatus;
+    show UnifiedPushStatus, unifiedPushDeliveryProvider;
 import '../../../core/push/unified_push/unified_push_distributor_names.dart';
+import '../../../core/push/unified_push/unified_push_status_display.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/sheet.dart';
-import 'fcm_status_display.dart';
-import 'unified_push_status_display.dart';
 
 const _statusSpinner = SizedBox(
   width: 24,
@@ -100,9 +100,9 @@ class _NotificationDeliveryPageState
   }
 
   Future<void> _refreshBackgroundSyncPermissions() async {
-    final ignoringBatteryOptimizations = await BackgroundSyncService.instance
+    final ignoringBatteryOptimizations = await BackgroundRestrictions.instance
         .isIgnoringBatteryOptimizations();
-    final backgroundDataRestricted = await BackgroundSyncService.instance
+    final backgroundDataRestricted = await BackgroundRestrictions.instance
         .isBackgroundDataRestricted();
     if (!mounted) return;
     setState(() {
@@ -112,7 +112,7 @@ class _NotificationDeliveryPageState
   }
 
   Future<void> _checkAutostartSettings() async {
-    final available = await BackgroundSyncService.instance
+    final available = await BackgroundRestrictions.instance
         .hasAutostartSettings();
     if (mounted) setState(() => _hasAutostartSettings = available);
   }
@@ -197,7 +197,7 @@ class _NotificationDeliveryPageState
                   ? const Icon(Icons.chevron_right)
                   : const Icon(Icons.check_circle_outline),
               onTap: () =>
-                  BackgroundSyncService.instance.openBackgroundDataSettings(),
+                  BackgroundRestrictions.instance.openBackgroundDataSettings(),
             ),
         ];
       case NotificationDeliveryMode.unifiedPush:
@@ -262,7 +262,7 @@ class _NotificationDeliveryPageState
                   ),
                   subtitle: Text(l10n.notificationsDistributorBatteryHint),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => BackgroundSyncService.instance.openAppSettings(
+                  onTap: () => BackgroundRestrictions.instance.openAppSettings(
                     distributor,
                   ),
                 );
@@ -351,7 +351,7 @@ class _NotificationDeliveryPageState
             ? const Icon(Icons.check_circle_outline)
             : const Icon(Icons.chevron_right),
         onTap: () =>
-            BackgroundSyncService.instance.requestIgnoreBatteryOptimizations(),
+            BackgroundRestrictions.instance.requestIgnoreBatteryOptimizations(),
       ),
     ];
   }
@@ -388,7 +388,7 @@ class _NotificationDeliveryPageState
                   subtitle: Text(l10n.notificationsAutostartHint),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () =>
-                      BackgroundSyncService.instance.openAutostartSettings(),
+                      BackgroundRestrictions.instance.openAutostartSettings(),
                 ),
             ],
           ),

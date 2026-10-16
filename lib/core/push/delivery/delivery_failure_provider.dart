@@ -10,12 +10,11 @@ import '../../settings/app_preferences_provider.dart';
 import '../apns/apns_delivery_provider.dart';
 import '../fcm/fcm_delivery_provider.dart';
 import '../unified_push/unified_push_delivery_provider.dart'
-    show UnifiedPushStatus;
+    show UnifiedPushStatus, unifiedPushDeliveryProvider;
 import '../voip/voip_registration.dart';
 import 'delivery_auto_fallback.dart';
 import 'delivery_failure.dart';
 import 'notification_delivery_mode.dart';
-import 'notification_delivery_provider.dart';
 
 final unifiedPushDistributorInstalledProvider =
     FutureProvider.autoDispose<bool>((ref) async {

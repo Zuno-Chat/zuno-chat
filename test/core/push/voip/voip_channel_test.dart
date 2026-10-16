@@ -1,7 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/voip/launch_channel.dart';
 import 'package:zuno/core/push/voip/voip_channel.dart';
 
 import '../../../helpers/platform_capabilities.dart';
@@ -165,22 +164,5 @@ void main() {
   test('without the plugin every call is a quiet no-op', () async {
     expect(await const VoipChannel().status(), isNull);
     expect(await const VoipChannel().takeEvents(), isEmpty);
-    expect(await const LaunchChannel().takeWakeReason(), isNull);
-  });
-
-  group('the launch channel', () {
-    setUp(() => answer(launchChannel));
-
-    test('reports why the app was woken, once', () async {
-      replies['takeWakeReason'] = 'ring';
-
-      expect(await const LaunchChannel().takeWakeReason(), WakeReason.ring);
-    });
-
-    test('an unknown reason is no reason', () async {
-      replies['takeWakeReason'] = 'party';
-
-      expect(await const LaunchChannel().takeWakeReason(), isNull);
-    });
   });
 }

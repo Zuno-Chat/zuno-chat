@@ -1,7 +1,6 @@
-import '../unified_push/matrix_unified_push_gateway.dart'
-    show matrixPushGatewayPath;
+const matrixPushGatewayPath = '/_matrix/push/v1/notify';
 
-Uri? fcmGatewayUri(Uri? homeserver) {
+Uri? homeserverPushGatewayUri(Uri? homeserver) {
   if (homeserver == null) return null;
   return Uri(
     scheme: 'https',

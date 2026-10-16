@@ -10,11 +10,11 @@ import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.da
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
-import 'package:zuno/core/push/delivery/notification_delivery_provider.dart';
 import 'package:zuno/core/push/delivery/pusher_failure.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_pusher.dart';
+import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 import 'package:zuno/core/push/unified_push/unified_push_pusher.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/push_target_status_page.dart';

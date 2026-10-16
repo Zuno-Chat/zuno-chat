@@ -5,10 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../errors/caught_errors.dart';
 import '../matrix/matrix_client_provider.dart';
+import '../platform/background_restrictions.dart';
 import '../platform/platform_capabilities.dart';
-import '../push/background_sync/background_sync_service.dart';
 import '../push/delivery/notification_delivery_mode.dart';
-import '../push/delivery/notification_delivery_provider.dart';
+import '../push/unified_push/unified_push_delivery_provider.dart';
 import '../security/security_prompt.dart';
 import '../security/security_prompt_provider.dart';
 import '../security/security_providers.dart';
@@ -66,7 +66,7 @@ Future<bool> needsBatteryExemptionFor(
   if (!deliveryDependsOnBatteryExemption(mode)) return false;
   final zunoExempt =
       zunoIgnoresBatteryOptimizations ??
-      BackgroundSyncService.instance.isIgnoringBatteryOptimizations;
+      BackgroundRestrictions.instance.isIgnoringBatteryOptimizations;
   final distributorRestricted =
       distributorBatteryRestricted ?? _distributorBatteryRestricted;
   try {
@@ -124,7 +124,8 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
       ref.watch(notificationDeliveryModeProvider),
       capabilities: capabilities,
     ),
-    needsAutostart: await BackgroundSyncService.instance.hasAutostartSettings(),
+    needsAutostart: await BackgroundRestrictions.instance
+        .hasAutostartSettings(),
     recoveryExists: security.recoveryExists,
     thisDeviceHasIdentityKeys: security.thisDeviceHasIdentityKeys,
     hasConversations: client.rooms.any(

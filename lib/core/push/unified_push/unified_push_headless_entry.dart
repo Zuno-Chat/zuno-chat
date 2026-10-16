@@ -4,7 +4,6 @@ import 'package:matrix/matrix.dart' show Client;
 
 import '../../errors/crash_reporting.dart';
 import '../../matrix/client_lease.dart';
-import '../delivery/notification_delivery_provider.dart';
 import '../handling/headless_decline_hold.dart';
 import '../handling/headless_push_runner.dart';
 import '../handling/incoming_push_handler.dart';

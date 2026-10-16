@@ -8,8 +8,8 @@ import 'package:zuno/core/push/apns/apns_delivery_provider.dart';
 import 'package:zuno/core/push/delivery/delivery_failure.dart';
 import 'package:zuno/core/push/delivery/delivery_failure_provider.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
-import 'package:zuno/core/push/delivery/notification_delivery_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
+import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 import 'package:zuno/core/push/voip/voip_registration.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 

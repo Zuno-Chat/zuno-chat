@@ -4,13 +4,13 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../async/serial_lock.dart';
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
 import '../../notifications/settings/notification_sound_settings.dart';
 import '../../platform/platform_capabilities.dart';
 import '../notifications/call_notification_service.dart';
 import '../notifications/ringing_call_store.dart';
-import '../serial_lock.dart';
 import 'system_ring.dart';
 
 const _callStyleChannel = MethodChannel('zuno/call_style');

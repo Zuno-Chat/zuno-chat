@@ -11,7 +11,7 @@ import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/sign_out.dart';
 import '../../../core/matrix/uia_cancel.dart';
-import '../../../core/push/delivery/notification_delivery_provider.dart';
+import '../../../core/push/delivery/notification_delivery.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/circle_icon.dart';
 import 'uia_password_prompt.dart';

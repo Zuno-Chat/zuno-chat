@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
 
+import '../../async/serial_lock.dart';
 import '../../errors/backoff.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
@@ -15,7 +16,6 @@ import '../models/call_engine_status.dart';
 import '../models/call_kind.dart';
 import '../models/call_quality.dart';
 import '../models/voip_participant_id.dart';
-import '../serial_lock.dart';
 import 'call_quality_policy.dart';
 import 'cloudflare_api_client.dart';
 import 'local_media.dart';

@@ -1,4 +1,3 @@
-import '../pushers/pusher_format.dart';
 import '../pushers/pusher_info.dart';
 
 enum ApnsPusherCheck { matches, missing, outdated, unknown }

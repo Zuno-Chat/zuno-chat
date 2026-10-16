@@ -13,17 +13,15 @@ import '../delivery/notification_delivery_provider.dart';
 import '../delivery/pusher_failure.dart';
 import '../delivery/registration_retry.dart';
 import '../handling/headless_push_runner.dart';
+import '../pushers/push_gateway.dart';
 import '../pushers/pusher_reconciliation.dart';
 import '../pushers/pusher_removal.dart';
 import 'fcm_bridge.dart';
-import 'fcm_gateway.dart';
 import 'fcm_pusher.dart';
 import 'fcm_registration_store.dart';
 
 export '../delivery/registration_retry.dart'
     show defaultRegistrationRetryDelay, registrationRecheckInterval;
-
-const fcmPendingTokenKey = 'push.fcm.pendingToken';
 
 enum FcmStatus {
   idle,
@@ -205,7 +203,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
       return false;
     }
     if (!await notificationsAllowed()) return false;
-    final gatewayUrl = fcmGatewayUri(client.homeserver);
+    final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
     if (gatewayUrl == null) return false;
     debugPrint('zuno/push: FCM token changed, moving the pusher to it');
     await _postPusher(client, token: wanted, gatewayUrl: gatewayUrl);
@@ -251,7 +249,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     }
 
     status.value = FcmStatus.postingPusher;
-    final gatewayUrl = fcmGatewayUri(client.homeserver);
+    final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
     if (gatewayUrl == null) {
       lastPusherError = const PusherServerMissing();
       status.value = FcmStatus.pusherFailed;
@@ -350,7 +348,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     _tokenRefreshSub = refreshes.listen((token) async {
       if (token == _token) return;
       if (!await notificationsAllowed()) return;
-      final gatewayUrl = fcmGatewayUri(client.homeserver);
+      final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
       if (gatewayUrl == null) return;
       await _postPusher(client, token: token, gatewayUrl: gatewayUrl);
     });

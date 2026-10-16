@@ -16,14 +16,14 @@ import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
 import '../../matrix/session_display_name.dart';
 import '../../notifications/settings/notification_permission.dart';
-import '../background_sync/background_sync_service.dart';
+import '../../platform/background_restrictions.dart';
 import '../delivery/notification_delivery_provider.dart';
 import '../delivery/pusher_failure.dart';
 import '../delivery/registration_retry.dart';
-import '../fcm/fcm_gateway.dart';
 import '../handling/headless_push_runner.dart';
 import '../handling/incoming_push_handler.dart';
 import '../handling/push_wake_lock.dart';
+import '../pushers/push_gateway.dart';
 import '../pushers/pusher_reconciliation.dart';
 import '../pushers/pusher_removal.dart';
 import 'matrix_unified_push_gateway.dart';
@@ -66,7 +66,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
   final removed = ValueNotifier<bool>(false);
 
   Future<bool> Function(String package) distributorIgnoresBatteryOptimizations =
-      BackgroundSyncService.instance.isPackageIgnoringBatteryOptimizations;
+      BackgroundRestrictions.instance.isPackageIgnoringBatteryOptimizations;
 
   Future<bool> Function() notificationsAllowed = mayRegisterForNotifications;
 
@@ -235,7 +235,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
       keys: stored.pushkey.isEmpty || auth == null
           ? null
           : PublicKeySet(stored.pushkey, auth),
-      homeserverGateway: fcmGatewayUri(client.homeserver),
+      homeserverGateway: homeserverPushGatewayUri(client.homeserver),
       knownGatewayUrl: stored.gatewayUrl,
     );
     await _postPendingPusher(client);
@@ -396,7 +396,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
         final pusher = await _buildPusher(
           endpointUrl: endpointUrl,
           keys: unifiedPushViaHomeserverGateway ? endpoint.pubKeySet : null,
-          homeserverGateway: fcmGatewayUri(client.homeserver),
+          homeserverGateway: homeserverPushGatewayUri(client.homeserver),
         );
         _gatewayUrl = pusher.data.url;
         _pendingPusher = pusher;
@@ -487,3 +487,5 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     }
   }
 }
+
+final unifiedPushDeliveryProvider = UnifiedPushDeliveryProvider();

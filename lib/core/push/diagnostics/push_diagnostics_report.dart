@@ -1,9 +1,5 @@
 import 'package:flutter/foundation.dart' show immutable, listEquals;
 
-import '../../../features/settings/presentation/fcm_status_display.dart'
-    show fcmStatusLabel;
-import '../../../features/settings/presentation/unified_push_status_display.dart'
-    show unifiedPushStatusLabel;
 import '../../brand.dart';
 import '../../calls/notifications/call_notification_service.dart'
     show alertingMessageChannelIds, ringChannelIds;
@@ -15,10 +11,12 @@ import '../apns/apns_pusher.dart';
 import '../delivery/notification_delivery_mode.dart';
 import '../fcm/fcm_bridge.dart' show FcmAvailability;
 import '../fcm/fcm_delivery_provider.dart' show FcmStatus;
-import '../pushers/pusher_format.dart';
+import '../fcm/fcm_status_display.dart' show fcmStatusLabel;
 import '../pushers/pusher_info.dart';
 import '../unified_push/unified_push_delivery_provider.dart'
     show UnifiedPushStatus;
+import '../unified_push/unified_push_status_display.dart'
+    show unifiedPushStatusLabel;
 import '../voip/voip_registration.dart';
 import 'push_delivery_log.dart';
 import 'push_diagnostics_data.dart';

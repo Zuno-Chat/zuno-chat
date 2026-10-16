@@ -11,7 +11,6 @@ import 'package:zuno/core/push/apns/apns_delivery_provider.dart';
 import 'package:zuno/core/push/delivery/delivery_failure.dart';
 import 'package:zuno/core/push/delivery/delivery_failure_provider.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
-import 'package:zuno/core/push/delivery/notification_delivery_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 import 'package:zuno/core/push/voip/voip_registration.dart';
@@ -163,12 +162,14 @@ void main() {
     tearDown(() => unifiedPushDeliveryProvider.savedDistributor = null);
 
     testWidgets('opens that app', (tester) async {
-      final backgroundSync = recordMethodChannel('zuno/background_sync');
+      final distributorSettings = recordMethodChannel(
+        'zuno/background_restrictions',
+      );
       unifiedPushDeliveryProvider.savedDistributor = 'io.heckel.ntfy';
 
       await act(tester, DeliveryFailureAction.openDistributorSettings);
 
-      expect(backgroundSync.calls.map((c) => [c.method, c.arguments]), [
+      expect(distributorSettings.calls.map((c) => [c.method, c.arguments]), [
         [
           'openAppSettings',
           {'package': 'io.heckel.ntfy'},
@@ -177,11 +178,13 @@ void main() {
     });
 
     testWidgets('with none saved has nothing to open', (tester) async {
-      final backgroundSync = recordMethodChannel('zuno/background_sync');
+      final distributorSettings = recordMethodChannel(
+        'zuno/background_restrictions',
+      );
 
       await act(tester, DeliveryFailureAction.openDistributorSettings);
 
-      expect(backgroundSync.calls, isEmpty);
+      expect(distributorSettings.calls, isEmpty);
     });
   });
 

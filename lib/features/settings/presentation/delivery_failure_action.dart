@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/platform/background_restrictions.dart';
 import '../../../core/push/apns/apns_delivery_provider.dart';
-import '../../../core/push/background_sync/background_sync_service.dart';
 import '../../../core/push/delivery/delivery_auto_fallback.dart';
 import '../../../core/push/delivery/delivery_failure.dart';
 import '../../../core/push/delivery/delivery_failure_provider.dart';
 import '../../../core/push/delivery/notification_delivery_mode.dart';
-import '../../../core/push/delivery/notification_delivery_provider.dart';
 import '../../../core/push/fcm/fcm_delivery_provider.dart';
+import '../../../core/push/unified_push/unified_push_delivery_provider.dart';
 import '../../../core/push/voip/voip_registration.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import 'notification_delivery_page.dart';
@@ -30,7 +30,7 @@ Future<void> runDeliveryFailureAction(
     case DeliveryFailureAction.openDistributorSettings:
       final distributor = unifiedPushDeliveryProvider.savedDistributor;
       if (distributor != null) {
-        await BackgroundSyncService.instance.openAppSettings(distributor);
+        await BackgroundRestrictions.instance.openAppSettings(distributor);
       }
     case DeliveryFailureAction.switchToUnifiedPush:
       await ref

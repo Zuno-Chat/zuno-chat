@@ -1,7 +1,6 @@
-import '../../../core/l10n/l10n.dart';
-import '../../../core/push/unified_push/unified_push_delivery_provider.dart'
-    show UnifiedPushStatus;
-import '../../../core/push/unified_push/unified_push_distributor_names.dart';
+import '../../l10n/l10n.dart';
+import 'unified_push_delivery_provider.dart' show UnifiedPushStatus;
+import 'unified_push_distributor_names.dart';
 
 enum UnifiedPushStatusAction { none, register, retry }
 

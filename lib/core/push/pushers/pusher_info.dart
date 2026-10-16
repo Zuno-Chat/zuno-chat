@@ -1,6 +1,7 @@
 import '../apns/apns_pusher.dart';
 import '../fcm/fcm_pusher.dart';
 import '../unified_push/unified_push_pusher.dart';
+import 'pusher_format.dart';
 
 class PusherInfo {
   final String appId;
@@ -78,3 +79,10 @@ PusherGroups groupPushers(List<PusherInfo> pushers, String? currentPushkey) {
   }
   return PusherGroups(currentSession: currentSession, others: others);
 }
+
+typedef PusherFit = ({bool gateway, bool format});
+
+PusherFit pusherFit(PusherInfo pusher, {required Uri? gatewayUrl}) => (
+  gateway: gatewayUrl == null || Uri.tryParse(pusher.url ?? '') == gatewayUrl,
+  format: pusher.format == pusherFormat,
+);

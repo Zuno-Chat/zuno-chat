@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/async/serial_lock.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/ringback_tone_player.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
-import 'package:zuno/core/calls/serial_lock.dart';
 import 'package:zuno/core/l10n/app_locale.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';

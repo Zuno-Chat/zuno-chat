@@ -14,10 +14,9 @@ import '../../matrix/session_display_name.dart';
 import '../../notifications/settings/notification_permission.dart';
 import '../handling/headless_decline_hold.dart';
 import '../handling/headless_push_runner.dart';
+import '../pushers/push_gateway.dart';
 import '../pushers/pusher_removal.dart';
 import 'fcm_bridge.dart';
-import 'fcm_delivery_provider.dart' show fcmPendingTokenKey;
-import 'fcm_gateway.dart';
 import 'fcm_push_notification.dart';
 import 'fcm_pusher.dart';
 import 'fcm_registration_store.dart';
@@ -177,7 +176,7 @@ Future<bool> _moveFcmPusher(
   required String from,
   required String to,
 }) async {
-  final gatewayUrl = fcmGatewayUri(client.homeserver);
+  final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
   if (gatewayUrl == null) return false;
   await client.postPusher(
     buildFcmPusher(

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuno/core/calls/serial_lock.dart';
+import 'package:zuno/core/async/serial_lock.dart';
 
 void main() {
   test('an idle lock runs the next action in the caller\'s own zone, so a '

@@ -51,12 +51,12 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late FakePermissions permissions;
-  late RecordedMethodCalls backgroundSync;
+  late RecordedMethodCalls backgroundRestrictions;
 
   setUp(() {
     permissions = installFakePermissions();
-    backgroundSync = recordMethodChannel(
-      'zuno/background_sync',
+    backgroundRestrictions = recordMethodChannel(
+      'zuno/background_restrictions',
       reply: (call) => switch (call.method) {
         'isIgnoringBatteryOptimizations' => false,
         'hasAutostartSettings' => false,
@@ -224,7 +224,7 @@ void main() {
     test("that leaves recovery and this device's keys alone neither "
         'recomputes the steps nor checks the platform again', () async {
       await settle();
-      final checks = [...permissions.calls, ...backgroundSync.methods];
+      final checks = [...permissions.calls, ...backgroundRestrictions.methods];
       expect(checks, isNotEmpty);
 
       for (var i = 1; i <= 3; i++) {
@@ -243,7 +243,7 @@ void main() {
       expect(computed, [
         [OnboardingStep.batteryExemption],
       ]);
-      expect([...permissions.calls, ...backgroundSync.methods], checks);
+      expect([...permissions.calls, ...backgroundRestrictions.methods], checks);
     });
 
     test('that locks this device recomputes the steps', () async {

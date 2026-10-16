@@ -12,7 +12,7 @@ import '../../platform/platform_capabilities.dart';
 import '../delivery/notification_delivery_provider.dart';
 import '../delivery/pusher_failure.dart';
 import '../delivery/registration_retry.dart';
-import '../fcm/fcm_gateway.dart';
+import '../pushers/push_gateway.dart';
 import '../pushers/pusher_reconciliation.dart';
 import '../pushers/pusher_removal.dart';
 import 'apns_pusher.dart';
@@ -173,7 +173,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
       await fetchPushers(client),
       appId: registration.appId,
       pushkey: registration.pushkey,
-      gatewayUrl: fcmGatewayUri(client.homeserver),
+      gatewayUrl: homeserverPushGatewayUri(client.homeserver),
     );
     switch (check) {
       case ApnsPusherCheck.matches || ApnsPusherCheck.unknown:
@@ -260,7 +260,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
         if (status.value != ApnsStatus.ready || registration == null) return;
         final sound = await _alertSound();
         if ((sound: sound) == _postedSound) continue;
-        final gatewayUrl = fcmGatewayUri(client.homeserver);
+        final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
         if (gatewayUrl == null) return;
         try {
           await _send(
@@ -287,7 +287,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     required String pushkey,
     required String? sound,
   }) async {
-    final gatewayUrl = fcmGatewayUri(client.homeserver);
+    final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
     if (gatewayUrl == null) {
       lastPusherError = const PusherServerMissing();
       status.value = ApnsStatus.pusherFailed;

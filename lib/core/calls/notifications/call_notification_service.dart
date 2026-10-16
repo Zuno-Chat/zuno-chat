@@ -10,6 +10,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:matrix/matrix.dart' show Client;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../async/serial_lock.dart';
 import '../../brand.dart';
 import '../../errors/caught_errors.dart';
 import '../../errors/device_log.dart';
@@ -29,7 +30,6 @@ import '../../platform/platform_capabilities.dart';
 import '../../push/handling/push_timing.dart';
 import '../../push/nse/opaque_thread_ids.dart';
 import '../platform/native_ring.dart';
-import '../serial_lock.dart';
 import 'call_decline_action.dart';
 import 'live_isolate_route.dart';
 

@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../calls/serial_lock.dart';
+import '../../async/serial_lock.dart';
 import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../platform/platform_capabilities.dart';

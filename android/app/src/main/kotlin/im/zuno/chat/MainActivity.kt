@@ -9,7 +9,6 @@ import android.app.RemoteAction
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -24,7 +23,6 @@ import android.os.Handler
 import android.os.LocaleList
 import android.os.Looper
 import android.os.PersistableBundle
-import android.os.PowerManager
 import android.provider.Settings
 import android.util.Rational
 import android.view.WindowManager
@@ -565,72 +563,12 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
 
-                "isIgnoringBatteryOptimizations" -> {
-                    val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-                    result.success(powerManager.isIgnoringBatteryOptimizations(packageName))
-                }
-
-                "requestIgnoreBatteryOptimizations" -> {
-                    startActivity(
-                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = Uri.parse("package:$packageName")
-                        },
-                    )
-                    result.success(null)
-                }
-
-                "isPackageIgnoringBatteryOptimizations" -> {
-                    val target = call.argument<String>("package")
-                    val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-                    result.success(
-                        target != null && powerManager.isIgnoringBatteryOptimizations(target),
-                    )
-                }
-
-                "openAppSettings" -> {
-                    val target = call.argument<String>("package")
-                    if (target == null) {
-                        result.error("bad_args", "package is required", null)
-                        return@setMethodCallHandler
-                    }
-                    startActivity(
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.parse("package:$target")
-                        },
-                    )
-                    result.success(null)
-                }
-
-                "hasAutostartSettings" -> {
-                    result.success(autostartComponents().isNotEmpty())
-                }
-
-                "openAutostartSettings" -> {
-                    result.success(openAutostartSettings())
-                }
-
-                "isBackgroundDataRestricted" -> {
-                    val connectivityManager =
-                        getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                    result.success(
-                        connectivityManager.restrictBackgroundStatus ==
-                            ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED,
-                    )
-                }
-
-                "openBackgroundDataSettings" -> {
-                    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        Intent(Settings.ACTION_IGNORE_BACKGROUND_DATA_RESTRICTIONS_SETTINGS)
-                    } else {
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                    }
-                    startActivity(intent.apply { data = Uri.parse("package:$packageName") })
-                    result.success(null)
-                }
-
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BackgroundRestrictions.CHANNEL)
+            .setMethodCallHandler(BackgroundRestrictions.handler(this))
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APP_DATA_CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -924,30 +862,6 @@ class MainActivity : FlutterActivity() {
             .build()
 
         return ShortcutManagerCompat.requestPinShortcut(this, shortcut, null)
-    }
-
-    private fun autostartComponents(): List<Pair<String, String>> =
-        AutostartDecision.availableFor(Build.MANUFACTURER) { (pkg, cls) ->
-            packageManager.resolveActivity(
-                Intent().setComponent(ComponentName(pkg, cls)),
-                0,
-            ) != null
-        }
-
-    private fun openAutostartSettings(): Boolean {
-        for ((pkg, cls) in autostartComponents()) {
-            try {
-                startActivity(Intent().setComponent(ComponentName(pkg, cls)))
-                return true
-            } catch (_: Exception) {
-            }
-        }
-        startActivity(
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:$packageName")
-            },
-        )
-        return false
     }
 
     companion object {

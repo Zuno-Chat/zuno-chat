@@ -7,6 +7,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../async/serial_lock.dart';
 import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
 import '../errors/global_error_handler.dart';
@@ -30,7 +31,6 @@ import 'notifications/call_notification_service.dart';
 import 'platform/call_audio_output.dart';
 import 'platform/ongoing_call_presenter.dart';
 import 'platform/ringback_tone_player.dart';
-import 'serial_lock.dart';
 
 const _videoDrainDelay = Duration(milliseconds: 500);
 const _callConfirmPromptDelay = Duration(seconds: 30);

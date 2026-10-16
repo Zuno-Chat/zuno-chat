@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../calls/serial_lock.dart';
+import '../../async/serial_lock.dart';
 import '../zuno_push/zuno_push_api.dart';
 import 'nse_app_channel.dart';
 

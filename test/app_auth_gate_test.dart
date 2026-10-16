@@ -38,7 +38,6 @@ import 'package:zuno/core/notifications/settings/notification_permission.dart';
 import 'package:zuno/core/notifications/settings/notifications_allowed_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
-import 'package:zuno/core/push/delivery/notification_delivery_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 import 'package:zuno/core/security/device_safety.dart';

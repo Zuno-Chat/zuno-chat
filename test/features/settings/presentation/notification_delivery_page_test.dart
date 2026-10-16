@@ -8,7 +8,6 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
-import 'package:zuno/core/push/delivery/notification_delivery_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_availability_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
@@ -100,11 +99,11 @@ void main() {
   group('autostart', () {
     late List<String> calls;
 
-    void mockBackgroundSync({required bool hasAutostart}) {
+    void mockRestrictions({required bool hasAutostart}) {
       calls = [];
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      const channel = MethodChannel('zuno/background_sync');
+      const channel = MethodChannel('zuno/background_restrictions');
       messenger.setMockMethodCallHandler(channel, (call) async {
         calls.add(call.method);
         return switch (call.method) {
@@ -120,7 +119,7 @@ void main() {
     testWidgets('gets a row on devices that stop closed apps from starting', (
       tester,
     ) async {
-      mockBackgroundSync(hasAutostart: true);
+      mockRestrictions(hasAutostart: true);
       await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
       await tester.tap(find.text('Autostart'));
@@ -130,7 +129,7 @@ void main() {
     });
 
     testWidgets('has no row elsewhere', (tester) async {
-      mockBackgroundSync(hasAutostart: false);
+      mockRestrictions(hasAutostart: false);
       await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
       expect(find.text('Autostart'), findsNothing);
@@ -251,13 +250,13 @@ void main() {
 
   group('with the push providers watched', () {
     late List<String> registrations;
-    late List<MethodCall> syncCalls;
+    late List<MethodCall> restrictionCalls;
     late bool ignoringBattery;
     late bool dataRestricted;
 
     setUp(() {
       registrations = [];
-      syncCalls = [];
+      restrictionCalls = [];
       ignoringBattery = false;
       dataRestricted = false;
       final up = unifiedPushDeliveryProvider.notificationsAllowed;
@@ -272,9 +271,9 @@ void main() {
       fcmDeliveryProvider.notificationsAllowed = recording('fcm');
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      const channel = MethodChannel('zuno/background_sync');
+      const channel = MethodChannel('zuno/background_restrictions');
       messenger.setMockMethodCallHandler(channel, (call) async {
-        syncCalls.add(call);
+        restrictionCalls.add(call);
         return switch (call.method) {
           'isIgnoringBatteryOptimizations' => ignoringBattery,
           'isBackgroundDataRestricted' => dataRestricted,
@@ -296,7 +295,9 @@ void main() {
       });
     });
 
-    List<String> syncMethods() => [for (final c in syncCalls) c.method];
+    List<String> restrictionMethods() => [
+      for (final c in restrictionCalls) c.method,
+    ];
 
     Finder statusRow() => find.widgetWithText(ListTile, 'Status');
 
@@ -477,7 +478,10 @@ void main() {
         await tester.tap(find.text('Unrestricted battery usage'));
         await tester.pump();
 
-        expect(syncMethods(), contains('requestIgnoreBatteryOptimizations'));
+        expect(
+          restrictionMethods(),
+          contains('requestIgnoreBatteryOptimizations'),
+        );
       });
 
       testWidgets('restricted background data says so and opens its '
@@ -490,7 +494,7 @@ void main() {
         await tester.tap(find.text('Background data'));
         await tester.pump();
 
-        expect(syncMethods(), contains('openBackgroundDataSettings'));
+        expect(restrictionMethods(), contains('openBackgroundDataSettings'));
       });
 
       testWidgets('a battery-restricted distributor opens its own app '
@@ -508,7 +512,7 @@ void main() {
         await tester.tap(find.text('ntfy battery'));
         await tester.pump();
 
-        final open = syncCalls.singleWhere(
+        final open = restrictionCalls.singleWhere(
           (c) => c.method == 'openAppSettings',
         );
         expect(open.arguments, {'package': 'io.heckel.ntfy'});

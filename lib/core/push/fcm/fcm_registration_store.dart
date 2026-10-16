@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _tokenKey = 'push.fcm.token';
+const fcmPendingTokenKey = 'push.fcm.pendingToken';
 
 Future<void> saveFcmRegistration(
   SharedPreferences prefs, {

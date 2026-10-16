@@ -18,9 +18,9 @@ import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
-import 'package:zuno/core/push/delivery/notification_delivery_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_availability_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart';
+import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/step_hero.dart';
 import 'package:zuno/core/ui/step_layout.dart';
@@ -484,7 +484,7 @@ void main() {
     void stubBatteryExemption({required bool granted}) {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-            const MethodChannel('zuno/background_sync'),
+            const MethodChannel('zuno/background_restrictions'),
             (call) async => switch (call.method) {
               'isIgnoringBatteryOptimizations' ||
               'isPackageIgnoringBatteryOptimizations' => granted,
@@ -494,14 +494,14 @@ void main() {
       addTearDown(
         () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(
-              const MethodChannel('zuno/background_sync'),
+              const MethodChannel('zuno/background_restrictions'),
               null,
             ),
       );
     }
 
     void stubBatteryCheck(Future<bool> Function() answer) {
-      const channel = MethodChannel('zuno/background_sync');
+      const channel = MethodChannel('zuno/background_restrictions');
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
       messenger.setMockMethodCallHandler(channel, (call) async {
@@ -1183,7 +1183,7 @@ void main() {
     setUp(() {
       exempt = false;
       recordChannel(
-        'zuno/background_sync',
+        'zuno/background_restrictions',
         (call) => switch (call.method) {
           'isIgnoringBatteryOptimizations' => exempt,
           'isPackageIgnoringBatteryOptimizations' => true,
@@ -1259,7 +1259,7 @@ void main() {
   testWidgets('the autostart step opens the setting and moves on', (
     tester,
   ) async {
-    recordChannel('zuno/background_sync');
+    recordChannel('zuno/background_restrictions');
     await pumpFlow(tester, [
       OnboardingStep.autostart,
       OnboardingStep.setUpRecovery,

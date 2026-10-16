@@ -5,8 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
-import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart'
-    show fcmPendingTokenKey;
 import 'package:zuno/core/push/fcm/fcm_headless_entry.dart';
 import 'package:zuno/core/push/fcm/fcm_pusher.dart';
 import 'package:zuno/core/push/fcm/fcm_registration_store.dart';
