@@ -1,6 +1,6 @@
 import 'package:matrix/matrix.dart';
 
-import '../zuno_push_api.dart';
+import '../zuno_push/zuno_push_api.dart';
 
 sealed class VoipServerReply {
   const VoipServerReply();

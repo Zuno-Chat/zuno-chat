@@ -12,7 +12,7 @@ import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
-import 'package:zuno/core/notifications/notification_sound_settings.dart';
+import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_call_style_channel.dart';

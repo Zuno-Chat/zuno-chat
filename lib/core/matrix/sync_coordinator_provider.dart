@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../calls/active_call_provider.dart';
 import '../calls/platform/system_ring.dart';
 import '../location/live_location_sharing.dart';
-import '../notifications/notification_delivery_mode.dart';
+import '../push/delivery/notification_delivery_mode.dart';
 import '../settings/app_preferences_provider.dart';
 import 'connectivity_provider.dart';
 import 'matrix_client_provider.dart';

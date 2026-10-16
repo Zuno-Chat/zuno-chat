@@ -5,12 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
-import 'package:zuno/core/notifications/message_notification_content.dart';
-import 'package:zuno/core/notifications/notification_preview.dart';
-import 'package:zuno/core/notifications/notification_sound_player.dart';
-import 'package:zuno/core/notifications/notification_sound_settings.dart';
+import 'package:zuno/core/notifications/messages/message_notification_content.dart';
+import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
+import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/read_model/opaque_thread_ids.dart';
+import 'package:zuno/core/push/nse/opaque_thread_ids.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/platform_capabilities.dart';

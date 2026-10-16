@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
 
 import '../../helpers/platform_capabilities.dart';
 

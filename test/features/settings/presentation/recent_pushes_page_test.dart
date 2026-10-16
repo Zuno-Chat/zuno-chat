@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/push_diagnostics_report.dart';
-import 'package:zuno/core/push/push_diagnostics_source.dart';
-import 'package:zuno/core/push/recent_pushes.dart';
+import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
+import 'package:zuno/core/push/diagnostics/push_diagnostics_report.dart';
+import 'package:zuno/core/push/diagnostics/push_diagnostics_source.dart';
+import 'package:zuno/core/push/diagnostics/recent_pushes.dart';
 import 'package:zuno/features/settings/presentation/recent_pushes_page.dart';
 
 import '../../../helpers/fixed_delivery_mode.dart';

@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/live_isolate_route.dart';
-import 'package:zuno/core/notifications/message_notification_action.dart';
+import 'package:zuno/core/notifications/actions/message_notification_action.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
 

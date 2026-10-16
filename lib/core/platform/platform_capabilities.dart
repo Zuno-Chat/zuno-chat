@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../location/maps_link.dart';
-import '../notifications/notification_delivery_mode.dart';
+import '../push/delivery/notification_delivery_mode.dart';
 import 'app_platform.dart';
 
 enum AppLanguageSetting { inApp, systemSettings }

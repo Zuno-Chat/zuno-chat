@@ -6,11 +6,11 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/notifications/fcm_availability_provider.dart';
-import 'package:zuno/core/notifications/notification_delivery_mode.dart';
-import 'package:zuno/core/notifications/notify_me.dart';
+import 'package:zuno/core/notifications/settings/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/fcm_bridge.dart';
+import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
+import 'package:zuno/core/push/fcm/fcm_availability_provider.dart';
+import 'package:zuno/core/push/fcm/fcm_bridge.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_calls_channel.dart';

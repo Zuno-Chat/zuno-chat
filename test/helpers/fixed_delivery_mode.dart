@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/misc.dart';
-import 'package:zuno/core/notifications/notification_delivery_mode.dart';
+import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 class FixedDeliveryModeNotifier extends NotificationDeliveryModeNotifier {

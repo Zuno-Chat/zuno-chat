@@ -1,6 +1,6 @@
 import '../../../core/l10n/l10n.dart';
-import '../../../core/notifications/delivery_failure.dart';
-import '../../../core/notifications/fcm_delivery_provider.dart';
+import '../../../core/push/delivery/delivery_failure.dart';
+import '../../../core/push/fcm/fcm_delivery_provider.dart';
 
 enum PushStatusAction { none, register, retry, fix }
 

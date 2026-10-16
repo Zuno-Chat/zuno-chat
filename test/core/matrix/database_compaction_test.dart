@@ -4,7 +4,7 @@ import 'package:sqflite_sqlcipher/sqflite.dart' show Database;
 
 import 'package:zuno/core/matrix/database_compaction.dart';
 import 'package:zuno/core/matrix/ephemeral_to_device.dart';
-import 'package:zuno/core/push/read_model/session_exporter.dart';
+import 'package:zuno/core/push/nse/session_exporter.dart';
 
 typedef _Statement = (String method, String sql);
 

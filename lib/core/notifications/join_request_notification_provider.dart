@@ -11,8 +11,8 @@ import '../matrix/join_requests.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../matrix/matrix_ids.dart';
 import '../matrix/room_title.dart';
-import 'message_notification_content.dart';
-import 'message_notification_poster.dart';
+import 'messages/message_notification_content.dart';
+import 'messages/message_notification_poster.dart';
 
 const _nameLimit = 40;
 

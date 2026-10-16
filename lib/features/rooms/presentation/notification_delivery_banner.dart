@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/notifications/delivery_auto_fallback.dart';
-import '../../../core/notifications/delivery_failure.dart';
-import '../../../core/notifications/delivery_failure_provider.dart';
+import '../../../core/push/delivery/delivery_auto_fallback.dart';
+import '../../../core/push/delivery/delivery_failure.dart';
+import '../../../core/push/delivery/delivery_failure_provider.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../settings/presentation/delivery_failure_action.dart';
 

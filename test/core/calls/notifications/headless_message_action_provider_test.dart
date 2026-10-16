@@ -10,7 +10,7 @@ import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/headless_message_action_provider.dart';
 import 'package:zuno/core/calls/notifications/live_isolate_route.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/notifications/message_notification_action.dart';
+import 'package:zuno/core/notifications/actions/message_notification_action.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';

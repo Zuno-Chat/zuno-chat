@@ -5,11 +5,12 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/notifications/notification_delivery_mode.dart';
 import '../../../core/platform/platform_capabilities.dart';
-import '../../../core/push/push_diagnostics_data.dart' show ServerReach;
-import '../../../core/push/push_diagnostics_report.dart';
-import '../../../core/push/push_diagnostics_source.dart';
+import '../../../core/push/delivery/notification_delivery_mode.dart';
+import '../../../core/push/diagnostics/push_diagnostics_data.dart'
+    show ServerReach;
+import '../../../core/push/diagnostics/push_diagnostics_report.dart';
+import '../../../core/push/diagnostics/push_diagnostics_source.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';

@@ -5,10 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../errors/caught_errors.dart';
 import '../matrix/matrix_client_provider.dart';
-import '../notifications/background_sync_service.dart';
-import '../notifications/notification_delivery_mode.dart';
-import '../notifications/notification_delivery_provider.dart';
 import '../platform/platform_capabilities.dart';
+import '../push/background_sync/background_sync_service.dart';
+import '../push/delivery/notification_delivery_mode.dart';
+import '../push/delivery/notification_delivery_provider.dart';
 import '../security/security_prompt.dart';
 import '../security/security_prompt_provider.dart';
 import '../security/security_providers.dart';

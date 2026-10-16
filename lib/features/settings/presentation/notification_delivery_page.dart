@@ -5,15 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/notifications/background_sync_service.dart';
-import '../../../core/notifications/fcm_availability_provider.dart';
-import '../../../core/notifications/fcm_delivery_provider.dart';
-import '../../../core/notifications/notification_delivery_mode.dart';
-import '../../../core/notifications/notification_delivery_provider.dart';
-import '../../../core/notifications/unified_push_delivery_provider.dart'
-    show UnifiedPushStatus;
 import '../../../core/platform/platform_capabilities.dart';
-import '../../../core/push/unified_push_distributor_names.dart';
+import '../../../core/push/background_sync/background_sync_service.dart';
+import '../../../core/push/delivery/notification_delivery_mode.dart';
+import '../../../core/push/delivery/notification_delivery_provider.dart';
+import '../../../core/push/fcm/fcm_availability_provider.dart';
+import '../../../core/push/fcm/fcm_delivery_provider.dart';
+import '../../../core/push/unified_push/unified_push_delivery_provider.dart'
+    show UnifiedPushStatus;
+import '../../../core/push/unified_push/unified_push_distributor_names.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';

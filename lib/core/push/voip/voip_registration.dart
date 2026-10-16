@@ -11,7 +11,7 @@ import '../../calls/serial_lock.dart';
 import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../platform/platform_capabilities.dart';
-import '../registration_retry.dart';
+import '../delivery/registration_retry.dart';
 import 'voip_channel.dart';
 import 'voip_server.dart';
 

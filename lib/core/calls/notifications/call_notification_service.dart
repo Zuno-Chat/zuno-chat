@@ -16,24 +16,24 @@ import '../../errors/device_log.dart';
 import '../../l10n/l10n.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../network/app_http_overrides.dart';
-import '../../notifications/message_notification_action.dart';
-import '../../notifications/message_notification_content.dart';
-import '../../notifications/notification_avatar_cache.dart';
-import '../../notifications/notification_ids.dart';
-import '../../notifications/notification_preview.dart';
-import '../../notifications/notification_sound_player.dart';
-import '../../notifications/notification_sound_settings.dart';
-import '../../notifications/notification_thread_store.dart';
-import '../../notifications/notified_events_store.dart';
+import '../../notifications/actions/message_notification_action.dart';
+import '../../notifications/messages/message_notification_content.dart';
+import '../../notifications/messages/notification_avatar_cache.dart';
+import '../../notifications/messages/notification_ids.dart';
+import '../../notifications/messages/notification_sound_player.dart';
+import '../../notifications/messages/notification_thread_store.dart';
+import '../../notifications/messages/notified_events_store.dart';
+import '../../notifications/settings/notification_preview.dart';
+import '../../notifications/settings/notification_sound_settings.dart';
 import '../../platform/platform_capabilities.dart';
-import '../../push/push_timing.dart';
-import '../../push/read_model/opaque_thread_ids.dart';
+import '../../push/handling/push_timing.dart';
+import '../../push/nse/opaque_thread_ids.dart';
 import '../platform/native_ring.dart';
 import '../serial_lock.dart';
 import 'call_decline_action.dart';
 import 'live_isolate_route.dart';
 
-export '../../notifications/notification_ids.dart'
+export '../../notifications/messages/notification_ids.dart'
     show messageNotificationIdFor;
 export 'live_isolate_route.dart'
     show answersPing, handOffToLiveIsolate, liveRouteAcceptWithin;

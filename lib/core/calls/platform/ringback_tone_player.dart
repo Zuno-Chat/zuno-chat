@@ -4,7 +4,7 @@ import 'package:flutter/services.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../errors/caught_errors.dart';
-import '../../notifications/notification_sound_settings.dart';
+import '../../notifications/settings/notification_sound_settings.dart';
 import '../../platform/platform_capabilities.dart';
 
 const _callsChannel = MethodChannel('zuno/calls');

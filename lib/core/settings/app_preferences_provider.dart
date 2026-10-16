@@ -7,12 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../errors/crash_reporting.dart';
 import '../matrix/matrix_client_provider.dart';
-import '../notifications/fcm_availability_provider.dart';
-import '../notifications/notification_delivery_mode.dart';
-import '../notifications/notification_preview.dart';
-import '../notifications/notification_sound_settings.dart';
-import '../notifications/notify_me.dart';
+import '../notifications/settings/notification_preview.dart';
+import '../notifications/settings/notification_sound_settings.dart';
+import '../notifications/settings/notify_me.dart';
 import '../platform/platform_capabilities.dart';
+import '../push/delivery/notification_delivery_mode.dart';
+import '../push/fcm/fcm_availability_provider.dart';
 import '../security/screen_security_service.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {

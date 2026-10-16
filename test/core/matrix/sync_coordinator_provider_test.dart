@@ -15,8 +15,8 @@ import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/sync_coordinator.dart';
 import 'package:zuno/core/matrix/sync_coordinator_provider.dart';
 import 'package:zuno/core/matrix/sync_request_canceller.dart';
-import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
 
 import '../../helpers/app_lifecycle.dart';
 import '../../helpers/fake_call_session.dart';

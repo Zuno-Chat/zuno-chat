@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/location/maps_link.dart';
-import 'package:zuno/core/notifications/background_sync_service.dart';
-import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/background_sync/background_sync_service.dart';
+import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
 import 'package:zuno/core/shortcuts/home_screen_shortcut.dart';
 
 class _Capability {

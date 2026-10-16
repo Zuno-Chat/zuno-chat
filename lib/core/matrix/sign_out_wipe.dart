@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../errors/best_effort.dart';
 import '../platform/platform_capabilities.dart';
-import '../push/read_model/session_exporter.dart';
+import '../push/nse/session_exporter.dart';
 import '../settings/app_preferences_provider.dart';
 import 'attachment_cache.dart';
 import 'database_compaction.dart';

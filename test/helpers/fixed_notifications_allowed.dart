@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/misc.dart';
-import 'package:zuno/core/notifications/notification_permission_provider.dart';
+import 'package:zuno/core/notifications/settings/notifications_allowed_provider.dart';
 
 class FixedNotificationsAllowedNotifier extends NotificationsAllowedNotifier {
   FixedNotificationsAllowedNotifier(this._initial);

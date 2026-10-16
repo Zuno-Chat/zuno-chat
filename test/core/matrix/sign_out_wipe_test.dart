@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/sign_out_wipe.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/read_model/session_exporter.dart';
+import 'package:zuno/core/push/nse/session_exporter.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/platform_capabilities.dart';

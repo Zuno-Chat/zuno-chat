@@ -8,7 +8,7 @@ import '../calls/matrixrtc/call_session.dart';
 import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
 import '../location/live_location_sharing.dart';
-import '../notifications/notification_delivery_provider.dart';
+import '../push/delivery/notification_delivery_provider.dart';
 import 'connectivity_provider.dart';
 import 'matrix_client_provider.dart';
 

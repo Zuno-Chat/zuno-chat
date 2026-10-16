@@ -11,7 +11,7 @@ import '../matrix/room_title.dart';
 import '../matrix/room_user_display.dart';
 import '../navigation/global_navigator.dart';
 import '../platform/platform_capabilities.dart';
-import '../push/read_model/read_model_publisher.dart';
+import '../push/nse/read_model_publisher.dart';
 import '../push/voip/launch_channel.dart';
 import '../push/voip/voip_registration.dart';
 import 'call_liveness.dart';

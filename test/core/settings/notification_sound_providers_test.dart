@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zuno/core/notifications/notification_sound_settings.dart';
+import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/preferences_container.dart';

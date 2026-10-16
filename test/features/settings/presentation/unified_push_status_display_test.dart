@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/notifications/unified_push_delivery_provider.dart'
+import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart'
     show UnifiedPushStatus;
 import 'package:zuno/features/settings/presentation/unified_push_status_display.dart';
 

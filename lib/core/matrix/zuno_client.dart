@@ -1,7 +1,7 @@
 import 'package:matrix/matrix.dart';
 
-import '../push/send_keep_awake.dart';
 import 'client_lease.dart';
+import 'send_keep_awake.dart';
 import 'sync_coordinator.dart';
 
 class ZunoClient extends Client {

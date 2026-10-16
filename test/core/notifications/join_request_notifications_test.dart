@@ -4,9 +4,9 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/notifications/invite_notification_provider.dart';
 import 'package:zuno/core/notifications/join_request_notification_provider.dart';
-import 'package:zuno/core/notifications/message_notification_provider.dart';
+import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
+import 'package:zuno/core/notifications/room_invite_notification_provider.dart';
 
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';

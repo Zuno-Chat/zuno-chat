@@ -1,7 +1,7 @@
 import 'package:zuno/core/location/maps_link.dart';
-import 'package:zuno/core/notifications/notification_delivery_mode.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
 
 final androidCapabilities = capabilitiesFor(AppPlatform.android);
 

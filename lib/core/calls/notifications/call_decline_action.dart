@@ -3,7 +3,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
-import '../../notifications/message_notification_action.dart';
+import '../../notifications/actions/message_notification_action.dart';
 import '../../platform/platform_capabilities.dart';
 import '../matrixrtc/call_decline.dart';
 import '../matrixrtc/resolved_call_ids_store.dart';

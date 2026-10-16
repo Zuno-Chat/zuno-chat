@@ -1,7 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../l10n/l10n.dart';
-import 'message_notification_content.dart';
+import 'messages/message_notification_content.dart';
 
 MessageNotificationContent? verificationRequestNotificationFor(
   Client client,

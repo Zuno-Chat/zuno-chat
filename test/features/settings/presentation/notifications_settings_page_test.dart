@@ -9,17 +9,17 @@ import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.da
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/notifications/apns_delivery_provider.dart';
-import 'package:zuno/core/notifications/delivery_failure.dart';
-import 'package:zuno/core/notifications/delivery_failure_provider.dart';
-import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
-import 'package:zuno/core/notifications/notification_delivery_mode.dart';
-import 'package:zuno/core/notifications/notification_preview.dart';
-import 'package:zuno/core/notifications/notify_me.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
+import 'package:zuno/core/notifications/settings/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/push_diagnostics_report.dart';
-import 'package:zuno/core/push/push_diagnostics_source.dart';
-import 'package:zuno/core/push/recent_pushes.dart';
+import 'package:zuno/core/push/apns/apns_delivery_provider.dart';
+import 'package:zuno/core/push/delivery/delivery_failure.dart';
+import 'package:zuno/core/push/delivery/delivery_failure_provider.dart';
+import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
+import 'package:zuno/core/push/diagnostics/push_diagnostics_report.dart';
+import 'package:zuno/core/push/diagnostics/push_diagnostics_source.dart';
+import 'package:zuno/core/push/diagnostics/recent_pushes.dart';
+import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/card_group.dart';
 import 'package:zuno/features/settings/presentation/notification_delivery_page.dart';

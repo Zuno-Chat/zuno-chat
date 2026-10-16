@@ -6,13 +6,13 @@ import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.da
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/notifications/fcm_availability_provider.dart';
-import 'package:zuno/core/notifications/fcm_delivery_provider.dart';
-import 'package:zuno/core/notifications/notification_delivery_mode.dart';
-import 'package:zuno/core/notifications/notification_delivery_provider.dart';
-import 'package:zuno/core/notifications/unified_push_delivery_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/fcm_bridge.dart';
+import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
+import 'package:zuno/core/push/delivery/notification_delivery_provider.dart';
+import 'package:zuno/core/push/fcm/fcm_availability_provider.dart';
+import 'package:zuno/core/push/fcm/fcm_bridge.dart';
+import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
+import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/notification_delivery_page.dart';
 import 'package:zuno/features/settings/presentation/push_target_status_page.dart';

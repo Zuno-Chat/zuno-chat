@@ -12,7 +12,7 @@ import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_invite.dart';
-import '../../../core/notifications/invite_notification_provider.dart';
+import '../../../core/notifications/room_invite_notification_provider.dart';
 import '../../blocking/presentation/block_person.dart';
 import '../../communities/presentation/community_page.dart';
 import '../../reports/presentation/report_sheet.dart';

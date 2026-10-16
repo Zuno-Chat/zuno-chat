@@ -1,5 +1,5 @@
 import 'package:matrix/encryption/utils/stored_inbound_group_session.dart';
-import 'package:zuno/core/push/read_model/session_exporter.dart';
+import 'package:zuno/core/push/nse/session_exporter.dart';
 
 import 'fake_matrix.dart';
 

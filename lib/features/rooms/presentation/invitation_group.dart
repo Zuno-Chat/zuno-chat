@@ -9,7 +9,7 @@ import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_invite.dart';
-import '../../../core/notifications/invite_notification_provider.dart';
+import '../../../core/notifications/room_invite_notification_provider.dart';
 import '../../../core/ui/row_memo.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'room_invite_page.dart';

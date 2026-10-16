@@ -26,7 +26,7 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/read_model/read_model_publisher.dart';
+import 'package:zuno/core/push/nse/read_model_publisher.dart';
 import 'package:zuno/core/push/voip/launch_channel.dart';
 import 'package:zuno/core/push/voip/voip_registration.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';

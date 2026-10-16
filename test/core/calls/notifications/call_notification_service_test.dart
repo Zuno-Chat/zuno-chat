@@ -6,10 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
-import 'package:zuno/core/notifications/message_notification_content.dart';
-import 'package:zuno/core/notifications/notification_sound_player.dart';
-import 'package:zuno/core/notifications/notification_sound_settings.dart';
-import 'package:zuno/core/notifications/notified_events_store.dart';
+import 'package:zuno/core/notifications/messages/message_notification_content.dart';
+import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
+import 'package:zuno/core/notifications/messages/notified_events_store.dart';
+import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 
 import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
