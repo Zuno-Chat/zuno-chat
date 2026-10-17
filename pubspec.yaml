@@ -55,7 +55,7 @@ dependencies:
   vodozemac: ^0.8.0
   path: ^1.9.1
   path_provider: ^2.1.6
-  image_picker: ^1.2.3
+  image_picker: ^1.2.4
   # Already a transitive dep of image_picker (XFile's own package) —
   # listed directly because looks_like_video.dart imports it by name.
   cross_file: ^0.3.5
@@ -66,14 +66,14 @@ dependencies:
   # Already a transitive dep of image_picker (the platform-interface base
   # class) — listed directly for the same reason as image_picker_android
   # above, ImagePickerPlatform.instance specifically.
-  image_picker_platform_interface: ^2.11.1
+  image_picker_platform_interface: ^2.11.2
   file_picker: ^13.1.0
   flutter_html: ^3.0.0
-  url_launcher: ^6.3.2
-  record: ^7.1.1
+  url_launcher: ^6.3.3
+  record: ^7.1.2
   clock: ^1.1.2
   audioplayers: ^6.8.1
-  shared_preferences: ^2.5.5
+  shared_preferences: ^2.5.6
   package_info_plus: ^10.2.2
   http: ^1.6.0
   share_plus: ^13.3.1
@@ -88,7 +88,7 @@ dependencies:
   flutter_local_notifications: ^22.3.1
   wakelock_plus: ^1.4.0
   light_compressor: ^2.2.0
-  video_player: ^2.14.0
+  video_player: ^2.14.1
   image: ^4.10.1
   flutter_svg: ^2.3.0
   unifiedpush_android: ^3.5.0
