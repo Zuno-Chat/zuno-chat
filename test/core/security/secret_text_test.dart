@@ -9,7 +9,7 @@ import 'package:zuno/core/security/secret_text.dart';
 import 'package:zuno/core/security/sensitive_clipboard.dart';
 import 'package:zuno/core/security/zuno_text_field.dart';
 
-import '../../helpers/fake_calls_channel.dart';
+import '../../helpers/fake_privacy_channel.dart';
 import '../../helpers/native_method_calls.dart';
 import '../../helpers/screen_security.dart';
 

@@ -85,4 +85,5 @@ jobs:
           xcrun simctl bootstatus "$udid" -b
           xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner \
             -only-testing:RunnerTests -destination "id=$udid" -parallel-testing-enabled NO \
-            -collect-test-diagnostics never test
+            -collect-test-diagnostics never -derivedDataPath "$RUNNER_TEMP/DerivedData" test
+      - run: dart tool/ci/forbidden_apis.dart "$RUNNER_TEMP"/DerivedData/Build/Products/*-iphonesimulator/Runner.app

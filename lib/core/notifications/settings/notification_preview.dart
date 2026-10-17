@@ -2,7 +2,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
-import '../../platform/platform_capabilities.dart';
 
 enum NotificationPreview {
   full('full'),
@@ -24,6 +23,9 @@ enum NotificationPreview {
     nameOnly => l10n.notificationsPreviewNameOnlyDescription,
     nothing => l10n.notificationsPreviewNothingDescription,
   };
+
+  String callName(String name, AppLocalizations l10n) =>
+      this == nothing ? l10n.callsGenericRingName : name;
 }
 
 const notificationPreviewKey = 'settings.notification_preview';
@@ -40,12 +42,7 @@ NotificationPreview notificationPreviewFromPreferences(
   );
 }
 
-Future<NotificationPreview> currentNotificationPreview({
-  PlatformCapabilities? capabilities,
-}) async {
-  if (!(capabilities ?? ambientCapabilities).nseNotifications) {
-    return NotificationPreview.full;
-  }
+Future<NotificationPreview> currentNotificationPreview() async {
   try {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
@@ -20,6 +21,8 @@ import '../../helpers/fake_call_session.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() => SharedPreferences.setMockInitialValues({}));
 
   FakeCallSession voiceCall() =>
       FakeCallSession(room: buildCallRoom(), kind: CallKind.voice);

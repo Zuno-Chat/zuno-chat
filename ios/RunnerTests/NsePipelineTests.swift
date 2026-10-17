@@ -163,7 +163,9 @@ final class NsePipelineTests: XCTestCase {
   }
 
   func testOnlyAMessageAtNameAndMessageCarriesTheActions() async {
-    for (level, category) in [("full", "message"), ("name", nil), ("none", nil)]
+    for (level, category) in [
+      ("full", "message"), ("name", "message_plain"), ("none", "message_plain"),
+    ]
       as [(String, String?)]
     {
       let harness = harness(meta: NseTestData.meta(["level": level]))

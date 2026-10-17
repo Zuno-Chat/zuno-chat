@@ -13,6 +13,8 @@ class HostState(context: Context) {
         Context.POWER_SERVICE,
     ) as PowerManager
     var preventScreenshots = false
+    var hideOverlays = false
+    var accessibilitySensitive = false
     var showOverLockscreen = false
     var frameworkHandlesBack = false
     var pipEligible = false

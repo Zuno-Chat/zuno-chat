@@ -13,6 +13,7 @@ import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
 import 'package:zuno/core/notifications/local_notifications.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
@@ -159,6 +160,32 @@ void main() {
           reason: '$settings',
         );
       }
+    });
+
+    test('at Nothing rings as a Zuno call, with no name or picture of the '
+        'caller', () async {
+      SharedPreferences.setMockInitialValues({
+        notificationPreviewKey: NotificationPreview.nothing.name,
+      });
+
+      await ring(presenter);
+
+      final args = callStyle.lastShow.arguments as Map;
+      expect(args['callerName'], 'Zuno call');
+      expect(args['avatarBytes'], isNull);
+      expect(args['callerId'], '@bob:example.org');
+    });
+
+    test('at Name only names the caller and shows their picture', () async {
+      SharedPreferences.setMockInitialValues({
+        notificationPreviewKey: NotificationPreview.nameOnly.name,
+      });
+
+      await ring(presenter);
+
+      final args = callStyle.lastShow.arguments as Map;
+      expect(args['callerName'], 'Bob');
+      expect(args['avatarBytes'], Uint8List.fromList([1, 2, 3]));
     });
 
     test('asks for no buzz on a platform without vibration patterns', () async {

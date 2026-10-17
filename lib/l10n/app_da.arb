@@ -1402,6 +1402,7 @@
   "settingsSecurityHowThisWorks": "Sådan fungerer det",
   "settingsSecurityHowThisWorksSubtitle": "Gendannelse, enheder og bekræftelse af personer",
   "settingsSecurityIncognitoKeyboard": "Inkognitotastatur",
+  "settingsSecurityIncognitoKeyboardAppleOnlySubtitle": "Kun tastaturet fra Apple virker i Zuno, så tastaturer fra andre apps aldrig ser, hvad du skriver",
   "settingsSecurityIncognitoKeyboardSubtitle": "Beder tastaturet om ikke at lære af det, du skriver",
   "settingsSecurityOnThisDevice": "På denne enhed",
   "settingsSecurityPreventScreenshots": "Forhindr skærmbilleder",

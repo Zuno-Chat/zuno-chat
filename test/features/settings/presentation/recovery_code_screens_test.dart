@@ -13,8 +13,8 @@ import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/features/settings/presentation/recovery_code_screens.dart';
 
 import '../../../helpers/fake_attachments.dart';
-import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_files_channel.dart';
+import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -359,7 +359,7 @@ void main() {
 
       setUp(() {
         plainCopies = [];
-        native = installFakeCallsChannel();
+        native = installFakePrivacyChannel();
         final messenger =
             TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
         messenger.setMockMethodCallHandler(SystemChannels.platform, (

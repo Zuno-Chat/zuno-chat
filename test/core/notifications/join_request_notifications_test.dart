@@ -7,6 +7,7 @@ import 'package:zuno/core/notifications/join_request_notification_provider.dart'
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
 import 'package:zuno/core/notifications/messages/notification_ids.dart';
 import 'package:zuno/core/notifications/room_invite_notification_provider.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
 
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
@@ -142,6 +143,39 @@ void main() {
       expect(shown.title, contains('Beginners'));
       expect(shown.body, 'Maya asks to join');
     });
+
+    test('at Nothing a request names neither the room nor who asks', () async {
+      final c = await containerWithPreferences(
+        {notificationPreviewKey: NotificationPreview.nothing.name},
+        overrides: [matrixClientProvider.overrideWithValue(client)],
+      );
+      c.read(joinRequestNotificationProvider);
+
+      client.onTimelineEvent.add(knock());
+      await pumpEventQueue();
+
+      final shown = notifications.shown.single;
+      expect(shown.title, 'Zuno');
+      expect(shown.body, 'New message');
+      expect(shown.android['largeIcon'], isNull);
+      expect(shown.android['shortcutId'], isNull);
+    });
+
+    test(
+      'at Name only a request keeps its line, which holds no message',
+      () async {
+        final c = await containerWithPreferences(
+          {notificationPreviewKey: NotificationPreview.nameOnly.name},
+          overrides: [matrixClientProvider.overrideWithValue(client)],
+        );
+        c.read(joinRequestNotificationProvider);
+
+        client.onTimelineEvent.add(knock());
+        await pumpEventQueue();
+
+        expect(notifications.shown.single.body, 'Ines asks to join');
+      },
+    );
 
     group('on screen', () {
       final maya = joinRequestThread('!beginners:x', '@maya:x');

@@ -6,12 +6,18 @@ import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
 import '../matrix/matrix_client_provider.dart';
+import '../notifications/settings/notification_preview.dart';
 import '../platform/platform_capabilities.dart';
+import '../settings/app_preferences_provider.dart';
 
 const _channel = MethodChannel('zuno/conversations');
 
 final conversationShortcutsProvider = Provider<void>((ref) {
   if (!ref.watch(platformCapabilitiesProvider).notificationAvatars) return;
+  if (ref.watch(notificationPreviewProvider) == NotificationPreview.nothing) {
+    unawaited(_retainConversationShortcuts(const []));
+    return;
+  }
   final client = ref.watch(matrixClientProvider);
   var reconciled = false;
   final sub = client.onSync.stream.listen((update) {

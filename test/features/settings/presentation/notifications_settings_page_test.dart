@@ -727,20 +727,41 @@ void main() {
       );
     });
 
-    testWidgets('Android and an iOS build without the extension show none of '
-        'it', (tester) async {
-      await _pumpPage(tester, NotificationDeliveryMode.fcm);
-      expect(find.text('Notification content'), findsNothing);
+    testWidgets('Android offers the same three levels, Name and message '
+        'first', (tester) async {
+      final container = await _pumpPage(
+        tester,
+        NotificationDeliveryMode.fcm,
+        capabilities: androidCapabilities,
+      );
 
+      expect(find.text('Notification content'), findsOneWidget);
+      final chosen = tester.widget<RadioGroup<NotificationPreview>>(
+        find.byType(RadioGroup<NotificationPreview>),
+      );
+      expect(chosen.groupValue, NotificationPreview.full);
+      expect(find.textContaining('message text stays in Zuno'), findsOneWidget);
+
+      await tester.tap(find.text('Name only'));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(notificationPreviewProvider),
+        NotificationPreview.nameOnly,
+      );
+    });
+
+    testWidgets('the iOS retention suggestion never shows on Android, '
+        'whatever the version reads', (tester) async {
       await _pumpPage(
         tester,
-        NotificationDeliveryMode.apns,
-        capabilities: capabilitiesLike(
-          iosCapabilities,
-          nseNotifications: false,
-        ),
+        NotificationDeliveryMode.fcm,
+        capabilities: androidCapabilities,
+        osVersion: '18.7.7',
       );
-      expect(find.text('Notification content'), findsNothing);
+
+      expect(find.text('Notification content'), findsOneWidget);
+      expect(find.text('Use Name only'), findsNothing);
     });
 
     testWidgets('an iOS version that keeps deleted notifications suggests '

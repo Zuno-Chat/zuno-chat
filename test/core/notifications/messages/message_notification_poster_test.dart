@@ -12,6 +12,7 @@ import 'package:zuno/core/notifications/messages/message_notification_poster.dar
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
 import 'package:zuno/core/notifications/messages/notification_avatar_cache.dart';
 import 'package:zuno/core/notifications/messages/notification_ids.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/push/handling/push_timing.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
@@ -86,6 +87,7 @@ void main() {
       final done = postMessageNotification(
         content(avatar: avatarUrl),
         client: client,
+        preview: NotificationPreview.full,
         fetchAvatar: (_, _) {
           fetches++;
           return fetched.future;
@@ -121,6 +123,7 @@ void main() {
     await postMessageNotification(
       content(avatar: avatarUrl),
       client: client,
+      preview: NotificationPreview.full,
       appAvatars: appAvatars,
       capabilities: capabilitiesLike(
         androidCapabilities,
@@ -143,6 +146,7 @@ void main() {
     await postMessageNotification(
       content(avatar: avatarUrl),
       client: client,
+      preview: NotificationPreview.full,
       fetchAvatar: (_, _) async {
         fetches++;
         return null;
@@ -169,6 +173,7 @@ void main() {
       await postMessageNotification(
         content(avatar: avatarUrl),
         client: client,
+        preview: NotificationPreview.full,
         appAvatars: appAvatars,
         fetchAvatar: (_, _) async {
           fetches++;
@@ -187,6 +192,7 @@ void main() {
       await postMessageNotification(
         content(avatar: avatarUrl),
         client: client,
+        preview: NotificationPreview.full,
         appAvatars: appAvatars,
       );
 
@@ -200,6 +206,7 @@ void main() {
       await postMessageNotification(
         content(avatar: avatarUrl),
         client: client,
+        preview: NotificationPreview.full,
         appAvatars: appAvatars,
         fetchAvatar: (_, _) async {
           fetches++;
@@ -222,6 +229,7 @@ void main() {
       await postMessageNotification(
         content(avatar: avatarUrl),
         client: client,
+        preview: NotificationPreview.full,
         appAvatars: appAvatars,
       );
 
@@ -233,6 +241,7 @@ void main() {
     await postMessageNotification(
       content(avatar: avatarUrl, photo: true),
       client: client,
+      preview: NotificationPreview.full,
       placeholder: true,
       fetchAvatar: (_, _) async {
         fetches++;
@@ -253,6 +262,7 @@ void main() {
     await postMessageNotification(
       content(avatar: avatarUrl),
       client: client,
+      preview: NotificationPreview.full,
       fetchAvatar: (_, _) async => null,
     );
 
@@ -267,6 +277,7 @@ void main() {
       await postMessageNotification(
         content(avatar: avatarUrl),
         client: client,
+        preview: NotificationPreview.full,
         fetchAvatar: (_, _) => fetched.future,
         onRefining: refinements.add,
       );
@@ -288,6 +299,7 @@ void main() {
       await postMessageNotification(
         content(avatar: avatarUrl),
         client: client,
+        preview: NotificationPreview.full,
         fetchAvatar: (_, _) async => throw StateError('offline'),
         onRefining: refinements.add,
       );
@@ -302,11 +314,13 @@ void main() {
       await postMessageNotification(
         content(),
         client: client,
+        preview: NotificationPreview.full,
         onRefining: refinements.add,
       );
       await postMessageNotification(
         content(avatar: avatarUrl),
         client: client,
+        preview: NotificationPreview.full,
         placeholder: true,
         onRefining: refinements.add,
       );
@@ -319,6 +333,7 @@ void main() {
     await postMessageNotification(
       content(),
       client: client,
+      preview: NotificationPreview.full,
       fetchAvatar: (_, _) async {
         fetches++;
         return bytes;
@@ -332,7 +347,12 @@ void main() {
   test('the first post records where its time went', () async {
     final timing = PushTiming('test', elapsedMs: () => 0);
 
-    await postMessageNotification(content(), client: client, timing: timing);
+    await postMessageNotification(
+      content(),
+      client: client,
+      preview: NotificationPreview.full,
+      timing: timing,
+    );
 
     expect(
       timing.report(),
@@ -363,6 +383,7 @@ void main() {
         final done = postMessageNotification(
           content(photo: true),
           client: client,
+          preview: NotificationPreview.full,
           fetchImage: () => fetched.future,
           publishImage: (image) async {
             published.add(image.mimeType);
@@ -391,6 +412,7 @@ void main() {
       await postMessageNotification(
         content(),
         client: client,
+        preview: NotificationPreview.full,
         fetchImage: () async {
           fetches++;
           return thumb;
@@ -408,6 +430,7 @@ void main() {
         await postMessageNotification(
           content(photo: true),
           client: client,
+          preview: NotificationPreview.full,
           fetchImage: () async => thumb,
           publishImage: (_) async => null,
         );
@@ -422,6 +445,7 @@ void main() {
       await postMessageNotification(
         content(photo: true),
         client: client,
+        preview: NotificationPreview.full,
         fetchImage: () async {
           fetches++;
           return thumb;
@@ -439,6 +463,79 @@ void main() {
       expect(fetches, 0);
       expect(published, 0);
       expect(roomPosts(), hasLength(1));
+    });
+  });
+
+  group('at the preview level', () {
+    final thumb = NotificationImage(
+      bytes: Uint8List.fromList([1, 2]),
+      mimeType: 'image/jpeg',
+    );
+    var published = 0;
+    var level = NotificationPreview.full;
+
+    setUp(() {
+      published = 0;
+      level = NotificationPreview.full;
+    });
+
+    void choose(NotificationPreview chosen) => level = chosen;
+
+    Future<void> postPhoto({DiskAttachmentCache? appAvatars}) =>
+        postMessageNotification(
+          content(avatar: avatarUrl, photo: true),
+          client: client,
+          preview: level,
+          appAvatars: appAvatars,
+          fetchAvatar: (_, _) async {
+            fetches++;
+            return bytes;
+          },
+          fetchImage: () async {
+            fetches++;
+            return thumb;
+          },
+          publishImage: (_) async {
+            published++;
+            return 'content://zuno/thumb';
+          },
+        );
+
+    test('Name and message refines with the avatar and the photo', () async {
+      choose(NotificationPreview.full);
+
+      await postPhoto();
+
+      expect(fetches, 2);
+      expect(published, 1);
+    });
+
+    test('Name only refines with the avatar but never downloads or hands '
+        'over the photo', () async {
+      choose(NotificationPreview.nameOnly);
+      showing();
+
+      await postPhoto();
+
+      expect(fetches, 1);
+      expect(published, 0);
+      expect(roomPosts().last.android['largeIcon'], bytes);
+    });
+
+    test('Nothing fetches no avatar, shows not even the one the app keeps, '
+        'and downloads nothing', () async {
+      choose(NotificationPreview.nothing);
+      final appDir = await Directory.systemTemp.createTemp('app_avatars');
+      addTearDown(() => appDir.delete(recursive: true));
+      final appAvatars = DiskAttachmentCache.forTest(appDir);
+      await appAvatars.put('avatar:$avatarUrl:small', bytes, expires: false);
+
+      await postPhoto(appAvatars: appAvatars);
+
+      expect(fetches, 0);
+      expect(published, 0);
+      expect(roomPosts(), hasLength(1));
+      expect(roomPosts().single.android['largeIcon'], isNull);
     });
   });
 }

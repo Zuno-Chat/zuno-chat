@@ -28,6 +28,7 @@ import 'core/push/fcm/fcm_headless_entry.dart';
 import 'core/push/fcm/fcm_startup.dart';
 import 'core/push/unified_push/unified_push_headless_entry.dart';
 import 'core/security/screen_security_service.dart';
+import 'core/security/third_party_keyboards.dart';
 import 'core/settings/app_preferences_provider.dart';
 import 'core/share/inbound_share.dart';
 import 'core/shortcuts/home_screen_shortcut.dart';
@@ -97,8 +98,13 @@ Future<void> _runApp(List<String> args) async {
     nativeNotificationActionRunner.attach(client);
   }
   unawaited(
-    ScreenSecurityService.instance.followPreference(
-      readPreventScreenshots(preferences),
+    ScreenSecurityService.instance.start(
+      preventScreenshots: readPreventScreenshots(preferences),
+    ),
+  );
+  unawaited(
+    ThirdPartyKeyboards.instance.followIncognito(
+      readIncognitoKeyboard(preferences),
     ),
   );
 

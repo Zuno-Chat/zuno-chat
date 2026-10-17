@@ -5,8 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
-
-const _channel = MethodChannel('zuno/calls');
+import 'privacy_channel.dart';
 
 class ScreenSecurityService {
   @visibleForTesting
@@ -20,32 +19,74 @@ class ScreenSecurityService {
       _injectedCapabilities ?? ambientCapabilities;
 
   bool _preferred = true;
-  int _protectedScreens = 0;
+  late final _secretScreens = _Holds(() {
+    unawaited(_applyScreenshots());
+    unawaited(_applyOverlays());
+  });
+  late final _signInScreens = _Holds(() => unawaited(_applyAccessibility()));
+
+  Future<void> start({required bool preventScreenshots}) async {
+    _preferred = preventScreenshots;
+    await Future.wait([_applyScreenshots(), _applyAccessibility()]);
+  }
 
   Future<void> followPreference(bool preventScreenshots) {
     _preferred = preventScreenshots;
-    return _apply();
+    return _applyScreenshots();
   }
 
-  VoidCallback protect() {
-    if (_protectedScreens++ == 0) unawaited(_apply());
+  VoidCallback protect() => _secretScreens.take();
+
+  VoidCallback allowAccessibilityServices() => _signInScreens.take();
+
+  Future<void> _applyScreenshots() => _send(
+    'setPreventScreenshots',
+    enabled: _preferred || _secretScreens.any,
+    supported: _capabilities.screenSecurity,
+  );
+
+  Future<void> _applyOverlays() => _send(
+    'setHideOverlays',
+    enabled: _secretScreens.any,
+    supported: _capabilities.overlayHiding,
+  );
+
+  Future<void> _applyAccessibility() => _send(
+    'setAccessibilitySensitive',
+    enabled: !_signInScreens.any,
+    supported: _capabilities.accessibilitySensitivity,
+  );
+
+  Future<void> _send(
+    String method, {
+    required bool enabled,
+    required bool supported,
+  }) async {
+    if (!supported) return;
+    try {
+      await privacyChannel.invokeMethod(method, {'enabled': enabled});
+    } on MissingPluginException catch (e, s) {
+      reportCaught('screen security $method', e, s);
+    }
+  }
+}
+
+class _Holds {
+  _Holds(this._changed);
+
+  final VoidCallback _changed;
+  int _count = 0;
+
+  bool get any => _count > 0;
+
+  VoidCallback take() {
+    if (_count++ == 0) _changed();
     var released = false;
     return () {
       if (released) return;
       released = true;
-      if (--_protectedScreens == 0) unawaited(_apply());
+      if (--_count == 0) _changed();
     };
-  }
-
-  Future<void> _apply() async {
-    if (!_capabilities.screenSecurity) return;
-    try {
-      await _channel.invokeMethod('setPreventScreenshots', {
-        'enabled': _preferred || _protectedScreens > 0,
-      });
-    } on MissingPluginException catch (e, s) {
-      reportCaught('set screenshot prevention', e, s);
-    }
   }
 }
 
@@ -61,6 +102,23 @@ mixin ScreenProtected<T extends StatefulWidget> on State<T> {
   @override
   void dispose() {
     _releaseScreen();
+    super.dispose();
+  }
+}
+
+mixin AccessibilityServicesAllowed<T extends StatefulWidget> on State<T> {
+  late final VoidCallback _releaseAccessibility;
+
+  @override
+  void initState() {
+    super.initState();
+    _releaseAccessibility = ScreenSecurityService.instance
+        .allowAccessibilityServices();
+  }
+
+  @override
+  void dispose() {
+    _releaseAccessibility();
     super.dispose();
   }
 }

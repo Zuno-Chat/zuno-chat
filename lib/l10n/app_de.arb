@@ -1402,6 +1402,7 @@
   "settingsSecurityHowThisWorks": "So funktioniert es",
   "settingsSecurityHowThisWorksSubtitle": "Wiederherstellung, Geräte und Personen bestätigen",
   "settingsSecurityIncognitoKeyboard": "Inkognito-Tastatur",
+  "settingsSecurityIncognitoKeyboardAppleOnlySubtitle": "In Zuno funktioniert nur die Tastatur von Apple, damit Tastaturen anderer Apps nie sehen, was du schreibst",
   "settingsSecurityIncognitoKeyboardSubtitle": "Bittet die Tastatur, nicht aus deinen Eingaben zu lernen",
   "settingsSecurityOnThisDevice": "Auf diesem Gerät",
   "settingsSecurityPreventScreenshots": "Screenshots verhindern",

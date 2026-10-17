@@ -412,6 +412,9 @@ declining it.
 - **Only a ring's own launch shows Zuno over a locked keyguard.** Every
   other lock-screen decision belongs to the ring page and the call
   controller, so no other launch can show chats over the lock screen.
+- **The ring and the ongoing-call notification follow the preview level**
+  (`notifications.md`): at Nothing both name the call "Zuno call" and the
+  ring shows no picture, the same rule as the CallKit name.
 - **A launch that claims a ring must carry that ring's token**, minted per
   ring and dropped when it stops, or Zuno opens plainly, so a stale
   notification or another app's intent can neither answer a call nor show

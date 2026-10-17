@@ -14,6 +14,7 @@ import '../platform/platform_capabilities.dart';
 import '../push/delivery/notification_delivery_mode.dart';
 import '../push/fcm/fcm_availability_provider.dart';
 import '../security/screen_security_service.dart';
+import '../security/third_party_keyboards.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError(
@@ -67,17 +68,19 @@ final incognitoKeyboardProvider =
 
 class IncognitoKeyboardNotifier extends Notifier<bool> {
   @override
-  bool build() =>
-      ref.watch(sharedPreferencesProvider).getBool(_incognitoKeyboardKey) ??
-      true;
+  bool build() => readIncognitoKeyboard(ref.watch(sharedPreferencesProvider));
 
   Future<void> set(bool value) async {
     state = value;
+    unawaited(ThirdPartyKeyboards.instance.followIncognito(value));
     await ref
         .read(sharedPreferencesProvider)
         .setBool(_incognitoKeyboardKey, value);
   }
 }
+
+bool readIncognitoKeyboard(SharedPreferences prefs) =>
+    prefs.getBool(_incognitoKeyboardKey) ?? true;
 
 final sendTypingIndicatorProvider =
     NotifierProvider<SendTypingIndicatorNotifier, bool>(

@@ -16,6 +16,9 @@ PlatformCapabilities capabilitiesLike(
   bool? screenSecurity,
   bool? screenshotBlocking,
   bool? sensitiveClipboard,
+  bool? thirdPartyKeyboardBlocking,
+  bool? overlayHiding,
+  bool? accessibilitySensitivity,
   bool? lockScreenCallUi,
   bool? nativeCallAudio,
   bool? callForegroundService,
@@ -75,6 +78,11 @@ PlatformCapabilities capabilitiesLike(
   networkAvailabilityEvents:
       networkAvailabilityEvents ?? base.networkAvailabilityEvents,
   keyboardLearningOptOut: base.keyboardLearningOptOut,
+  thirdPartyKeyboardBlocking:
+      thirdPartyKeyboardBlocking ?? base.thirdPartyKeyboardBlocking,
+  overlayHiding: overlayHiding ?? base.overlayHiding,
+  accessibilitySensitivity:
+      accessibilitySensitivity ?? base.accessibilitySensitivity,
   apnsRegistration: apnsRegistration ?? base.apnsRegistration,
   nativeIncomingRingUi: nativeIncomingRingUi ?? base.nativeIncomingRingUi,
   callKit: callKit ?? base.callKit,
@@ -96,6 +104,7 @@ PlatformCapabilities capabilitiesLike(
   nseNotifications: nseNotifications ?? base.nseNotifications,
   nativeNotificationActions:
       nativeNotificationActions ?? base.nativeNotificationActions,
+  notificationRetentionCheck: base.notificationRetentionCheck,
   videoRendererNeedsDetach: base.videoRendererNeedsDetach,
   cameraStopsInBackground: base.cameraStopsInBackground,
   externalPaymentLinks: externalPaymentLinks ?? base.externalPaymentLinks,

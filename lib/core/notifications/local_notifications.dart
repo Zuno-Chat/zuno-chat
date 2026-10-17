@@ -40,14 +40,17 @@ const securityAlertPayloadType = 'newDevice';
 
 const _markReadCategoryId = 'message';
 const _replyOnlyCategoryId = 'reply';
+const _plainMessageCategoryId = 'message_plain';
 
 String? darwinMessageCategory({
-  required bool includeMessageActions,
+  required bool isMessage,
+  required bool offersActions,
   required String? eventId,
-}) => switch ((includeMessageActions, eventId)) {
-  (false, _) => null,
-  (true, null) => _replyOnlyCategoryId,
-  (true, _) => _markReadCategoryId,
+}) => switch ((isMessage, offersActions, eventId)) {
+  (false, _, _) => null,
+  (true, false, _) => _plainMessageCategoryId,
+  (true, true, null) => _replyOnlyCategoryId,
+  (true, true, _) => _markReadCategoryId,
 };
 
 Map<String, Object?>? decodeNotificationPayload(String? payload) {
@@ -280,6 +283,7 @@ class LocalNotifications {
         ],
       ),
       DarwinNotificationCategory(_replyOnlyCategoryId, actions: [replyAction]),
+      const DarwinNotificationCategory(_plainMessageCategoryId),
     ];
   }
 

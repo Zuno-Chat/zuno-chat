@@ -13,6 +13,7 @@ import 'package:zuno/core/notifications/messages/notification_ids.dart';
 import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
@@ -26,8 +27,10 @@ void main() {
   late RecordedMethodCalls conversations;
   late Directory avatarDir;
   var fakeNow = DateTime(2031, 6);
+  var preview = NotificationPreview.full;
 
   setUp(() async {
+    preview = NotificationPreview.full;
     fakeNow = fakeNow.add(const Duration(days: 1));
     NotificationSoundPlayer.instance.now = () => fakeNow;
     SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
@@ -79,6 +82,7 @@ void main() {
       unreadCount: unreadCount,
       quiet: quiet,
     ),
+    preview: preview,
     senderAvatar: senderAvatar,
     placeholder: placeholder,
     refine: refine,
@@ -179,6 +183,7 @@ void main() {
         senderName: 'Ines',
         timestamp: noon,
       ),
+      preview: preview,
     );
 
     final knock = notifications.shown.last;
@@ -247,7 +252,11 @@ void main() {
     showing();
     await post(eventId: r'$2', text: 'New message', placeholder: true);
 
-    await MessageNotifications.instance.retractPlaceholder(roomId, r'$2');
+    await MessageNotifications.instance.retractPlaceholder(
+      roomId,
+      r'$2',
+      preview: preview,
+    );
 
     expect(conversations.named('pushConversationShortcut'), hasLength(1));
   });
@@ -410,7 +419,11 @@ void main() {
     await post(eventId: r'$1', text: 'New message', placeholder: true);
     showing();
 
-    await MessageNotifications.instance.retractPlaceholder(roomId, r'$1');
+    await MessageNotifications.instance.retractPlaceholder(
+      roomId,
+      r'$1',
+      preview: preview,
+    );
 
     expect(notifications.cancelled, contains(roomNotificationId));
     final prefs = await SharedPreferences.getInstance();
@@ -422,7 +435,11 @@ void main() {
     showing();
     await post(eventId: r'$2', text: 'New message', placeholder: true);
 
-    await MessageNotifications.instance.retractPlaceholder(roomId, r'$2');
+    await MessageNotifications.instance.retractPlaceholder(
+      roomId,
+      r'$2',
+      preview: preview,
+    );
 
     expect(messagesOf(lastRoomPost()).map((m) => m['text']), ['hi']);
     expect(lastRoomPost()['onlyAlertOnce'], isTrue);
@@ -625,5 +642,130 @@ void main() {
 
       expect(lastRoomPost()['onlyAlertOnce'], isFalse);
     });
+  });
+
+  group('at the preview level', () {
+    final avatar = Uint8List.fromList([5, 5]);
+
+    void choose(NotificationPreview level) => preview = level;
+
+    Future<void> postWithActions({
+      String eventId = r'$1',
+      String text = 'New message',
+      bool isGroupChat = true,
+    }) => MessageNotifications.instance.showMessage(
+      MessageNotificationContent(
+        roomId: roomId,
+        title: 'Team',
+        body: 'Alice: $text',
+        text: text,
+        eventId: eventId,
+        isDirectChat: !isGroupChat,
+        senderId: '@a:x',
+        senderName: 'Alice',
+        senderAvatarUrl: Uri.parse('mxc://x/alice'),
+        timestamp: noon,
+      ),
+      preview: preview,
+      isMessage: true,
+      senderAvatar: avatar,
+    );
+
+    test('Name and message offers Reply and Mark as read', () async {
+      choose(NotificationPreview.full);
+
+      await postWithActions(text: 'hi');
+
+      final actions = (lastRoomPost()['actions'] as List).cast<Map>();
+      expect(actions.map((a) => a['id']), ['mark_read', 'reply']);
+    });
+
+    test('Name only keeps names and pictures of people, with no actions and '
+        'no photos', () async {
+      choose(NotificationPreview.nameOnly);
+      await postWithActions(isGroupChat: false);
+      showing();
+
+      await post(
+        eventId: r'$1',
+        title: 'Team',
+        text: 'New message',
+        refine: true,
+        imageUri: 'content://zuno/1',
+        imageMimeType: 'image/jpeg',
+      );
+
+      final android = lastRoomPost();
+      expect(notifications.shown.last.title, 'Team');
+      expect(android['actions'], isNull);
+      expect(android['largeIcon'], avatar);
+      expect(android['shortcutId'], roomId);
+      final line = messagesOf(android).single;
+      expect(line['text'], 'New message');
+      expect((line['person'] as Map)['name'], 'Alice');
+      expect(line['dataUri'], isNull);
+      expect(conversations.named('pushConversationShortcut'), hasLength(1));
+    });
+
+    test('Nothing posts "Zuno" and "New message" with no names, pictures, '
+        'actions or conversation', () async {
+      choose(NotificationPreview.nothing);
+
+      await postWithActions(isGroupChat: false, text: 'secret plans');
+
+      final shown = notifications.shown.last;
+      expect(shown.title, 'Zuno');
+      expect(shown.body, 'New message');
+      expect(jsonDecode(shown.payload)['roomId'], roomId);
+      final android = shown.android;
+      expect(android['style'], AndroidNotificationStyle.defaultStyle.index);
+      expect(jsonEncode(android['styleInformation']), isNot(contains('Alice')));
+      expect(android['largeIcon'], isNull);
+      expect(android['shortcutId'], isNull);
+      expect(android['actions'], isNull);
+      expect(conversations.named('pushConversationShortcut'), isEmpty);
+    });
+
+    test(
+      'Nothing takes the earlier lines of a showing thread off it too',
+      () async {
+        await post(eventId: r'$1', text: 'from before');
+        showing();
+        choose(NotificationPreview.nothing);
+
+        await post(eventId: r'$2', text: 'secret plans');
+
+        final shown = notifications.shown.last;
+        expect(shown.title, 'Zuno');
+        expect(shown.body, 'New message');
+        expect(
+          jsonEncode(shown.android),
+          allOf(isNot(contains('from before')), isNot(contains('secret'))),
+        );
+      },
+    );
+
+    test(
+      'taking a placeholder back at Nothing re-posts the generic line',
+      () async {
+        choose(NotificationPreview.nothing);
+        await post(eventId: r'$1', text: 'hello');
+        showing();
+        await post(eventId: r'$2', text: 'New message', placeholder: true);
+
+        await MessageNotifications.instance.retractPlaceholder(
+          roomId,
+          r'$2',
+          preview: preview,
+        );
+
+        final shown = notifications.shown.last;
+        expect(notifications.shown, hasLength(3));
+        expect(shown.title, 'Zuno');
+        expect(shown.body, 'New message');
+        expect(shown.android['shortcutId'], isNull);
+        expect(shown.android['actions'], isNull);
+      },
+    );
   });
 }

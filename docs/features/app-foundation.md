@@ -129,8 +129,8 @@ Each flag is one of these kinds:
 | Awaiting an iOS handler | `deviceSafetyChecks` |
 | Off on iOS by design (`../decisions/ios-push-and-ring.md`) | `notificationImages`, `notificationAvatars` |
 | Android concept, iOS `false` for good | `batteryExemption`, `foregroundSyncService`, `fullScreenIntent`, `homeScreenShortcuts` |
-| Android-only behavior | `atomicDatabaseBatches`, `instantPushNotices`, `nativeFileShare`, `nativeLogFloor` |
-| iOS-only behavior | `apnsRegistration`, `voipRing`, `nseNotifications`, `signOutWipeKeepsProcess`, `nativeSensitiveFileExport`, `audioPlayerNeedsFile` |
+| Android-only behavior | `atomicDatabaseBatches`, `instantPushNotices`, `nativeFileShare`, `nativeLogFloor`, `overlayHiding`, `accessibilitySensitivity` |
+| iOS-only behavior | `apnsRegistration`, `voipRing`, `nseNotifications`, `signOutWipeKeepsProcess`, `nativeSensitiveFileExport`, `audioPlayerNeedsFile`, `thirdPartyKeyboardBlocking`, `notificationRetentionCheck` |
 | Call seam selectors | `nativeIncomingRingUi`, `callForegroundService` and `nativeCallAudio` on Android, `callKit` on iOS. The factories check `callKit` first, so the Android three never flip. |
 | Apple limitation | `recorderWritesOgg` (Apple cannot write Ogg), `screenshotBlocking` (no app can block a screenshot) |
 | Per-platform value | `mapsApp` (a `geo:` intent on Android, Apple Maps on iOS), `deliveryModes` |
@@ -139,7 +139,8 @@ The `zuno/*` channels, each behind its flag:
 
 | Area | Both platforms | Android | iOS |
 |---|---|---|---|
-| Calls (`calls.md`) | `zuno/calls`: call presentation, call audio and its routes, ringback, screen security and the sensitive clipboard | `zuno/call_style` | `zuno/voip` |
+| Calls (`calls.md`) | `zuno/calls`: call presentation, call audio and its routes, ringback | `zuno/call_style` | `zuno/voip` |
+| Privacy (`settings.md`) | `zuno/privacy`: screen security, the sensitive clipboard and, on iOS, the third-party keyboard policy | | |
 | Push and notifications (`notifications.md`) | `zuno/push_wakelock`, `zuno/push_diag` | `zuno/fcm`, `zuno/background_sync`, `zuno/conversations`, `zuno/vibration` | `zuno/apns`, `zuno/nse`, `zuno/notification_actions` |
 | Media and uploads | `zuno/image`, `zuno/video`, `zuno/upload_service` | | |
 | Live location (`location-sharing.md`) | `zuno/live_location`, with its fix stream `zuno/live_location/fixes` | | |

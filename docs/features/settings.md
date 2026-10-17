@@ -8,7 +8,7 @@ are documented with that feature.
 | Category | Holds | Behavior documented in |
 |---|---|---|
 | Account (the profile card) | Picture, display name, username, language, change password | here; language in `app-foundation.md`, password in `authentication.md` |
-| Notifications | Enable, notify-for, sounds, content (iOS), Delivery (Android), Diagnostics hub | `notifications.md` |
+| Notifications | Enable, notify-for, sounds, content, Delivery (Android), Diagnostics hub | `notifications.md` |
 | Chats & calls | Theme, typing indicator, prevent accidental calls | here; accidental calls in `calls.md` |
 | Data & storage | Reduce media size, less data for calls, clear cache, clear media cache | here; `chats-messaging.md`, `calls.md` |
 | Security | Status, recovery, devices, blocked people, on-device protections, Advanced | `security-verification.md`; blocked people in `rooms-membership.md`; on-device protections here |
@@ -77,17 +77,28 @@ too but is not offered for now (`security-verification.md`).
 
 | Row | Android | iOS |
 |---|---|---|
-| Incognito keyboard | Turns off the keyboard's personalized learning in every field, which `ZunoTextField` reads from the app root; secret fields never allow it | Hidden: iOS cannot ask a keyboard not to learn |
+| Incognito keyboard | Turns off the keyboard's personalized learning in every field, which `ZunoTextField` reads from the app root; secret fields never allow it | iOS cannot ask a keyboard not to learn, so it blocks third-party keyboards instead and only Apple's keyboard works in Zuno |
 | Prevent screenshots | `FLAG_SECURE`: blocks screenshots and recording, blanks Zuno in Recents | Shown as Hide screen content |
 
+On iOS, Dart tells native code the Incognito keyboard choice at startup and
+on every change, and native code blocks third-party keyboards until told
+otherwise, so a keyboard shown before Dart starts is still Apple's.
+
 No iOS app can block a screenshot. Hide screen content instead covers Zuno
-with the launch screen while the app is inactive and while the screen is
-recorded, mirrored or shared.
+with the launch screen while the app is inactive and while the scene's
+capture state says it is recorded, mirrored or shared (picture-in-picture
+in `calls.md`).
 
 A screen showing a secret (the recovery code, a sign-in code, a revealed
 password) turns that protection on while it shows, whatever the setting
-says. One ref-counted owner combines the setting with every such screen, so
-closing one never turns protection off under another or under the setting.
+says, and on Android 12+ also hides other apps' overlay windows, so none can
+draw over the secret. One ref-counted owner combines the setting with every
+such screen, so closing one never turns protection off under another or
+under the setting.
+
+On Android 14+ Zuno's window is always marked accessibility-data-sensitive,
+so only accessibility services that declare themselves assistive tools can
+read it; sign-in and registration lift the mark (`authentication.md`).
 
 ## Planned, not built
 
@@ -97,8 +108,9 @@ controls are server-wide and a client-only setting would enforce nothing.
 
 ## Gotchas
 
-- **`readPreventScreenshots` is the one default** for both the provider and
-  the cold-start call in `main.dart`, so change it there only.
+- **`readPreventScreenshots` and `readIncognitoKeyboard` are the one
+  defaults** for both their providers and the cold-start calls in
+  `main.dart`, so change them there only.
 - **About reads the library versions from `pubspec.lock`, bundled as an
   asset**, so an upgrade needs no edit, and dropping that asset leaves both
   rows reading Unknown.

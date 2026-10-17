@@ -42,7 +42,7 @@ Background sync has no push at all: a foreground service keeps `/sync` running.
 - **Pushers.** Every pusher uses format `event_id_only`, so no message content passes through Google or Apple and every push costs a fetch. FCM and APNs pushers point at the homeserver's own host, which must route to Sygnal (see the `zuno_push` contract). A UnifiedPush pusher points at the distributor server's own Matrix gateway when it advertises one over https, else at the public one, since Dart refuses http (`app-foundation.md`).
 - **A failure becomes one `DeliveryFailure`**: a reason and one action, rendered in the screen's language, shown on the home banner and, on iOS, as a problem row on the Notifications page. While notifications are off, only the iOS calls failure still shows, since a VoIP ring needs no notification permission.
 - **Auto-fallback.** When FCM cannot work (no Play services, or a build without Firebase config), the user never chose a mode and no FCM registration exists, the mode moves to UnifiedPush if a distributor is installed, else to background sync. A one-time notice says so.
-- **Settings → Notifications** holds the permission, sounds, Notify me, Diagnostics and, on iOS, Notification content (the preview level). Delivery gets its own page only on Android, where there is a mode choice.
+- **Settings → Notifications** holds the permission, sounds, Notify me, Notification content (the preview level) and Diagnostics. Delivery gets its own page only on Android, where there is a mode choice.
 
 ### Push handling and posting (Dart)
 
@@ -60,11 +60,28 @@ Background sync has no push at all: a foreground service keeps `/sync` running.
 - **An event not yet decrypted posts a "New message" placeholder from sync.** The real line replaces it when the key arrives soon after, and a decrypted event that needs no notification withdraws it.
 - **An invitation to a room the user asked to join is never announced**, since it answers their own request, on every path: sync, Android push and the iOS extension, which reads those rooms from the read model.
 
+### Preview levels
+
+One level (`NotificationPreview`, default Name and message) applies on both platforms, with one rule per surface.
+
+| Level | Message line | Reply, Mark as read | Call name |
+|---|---|---|---|
+| Name and message | Name and text | Yes | Caller or room |
+| Name only | Name and "New message" | No | Caller or room |
+| Nothing | "Zuno", "New message" | No | "Zuno call" |
+
+- **The level governs every surface that can keep text**, because the OS keeps what a notification showed: the app's own posts, the iOS extension, the Android instant notice, the ring and the Android ongoing call (`calls.md`), and the Android live-location notice, which counts chats instead of naming them at Nothing (`location-sharing.md`).
+- **Below Name and message, Android shows no photo thumbnails.**
+- **At Nothing, Android drops every avatar, the conversation style and the conversation shortcut, and removes the shortcuts it already made**, since the Conversations section and the launcher would still show names.
+- **At Nothing a message still posts on its direct or group channel**, so per-channel sounds keep working.
+- **With iOS Show Previews off, a message says "New message" instead of "Notification"**, because every message notification carries a category (with actions only at Name and message) whose hidden-preview placeholder says so; invitations, calls and system lines keep the system default.
+- **On an iOS version that can keep a deleted notification's text, the page suggests Name only.**
+
 ### Android presentation
 
 - **One notification per room.** Its id is an FNV-1a hash of the room id, because Dart's `String.hashCode` is not Java's and native code must hit the same id.
 - **Each join request gets its own notification**, apart from the room's conversation, and it clears once the request is answered.
-- **Each room is a `MessagingStyle` conversation**: a thread of its latest lines plus a long-lived conversation shortcut, which puts it in Android's Conversations section.
+- **Each room is a `MessagingStyle` conversation** above preview Nothing: a thread of its latest lines plus a long-lived conversation shortcut, which puts it in Android's Conversations section.
 - **Stored threads are capped**, and a full store drops threads whose notification no longer shows first, so a showing conversation keeps its lines.
 - **Shortcuts of rooms the user is no longer in are removed**, after the first sync and whenever a sync reports a room left.
 - **Security alerts** (a new sign-in, a recovery code replaced on another device) post on the `security` channel, "Security alerts", which chat mute cannot silence. They post only while Zuno runs, since the app's own sync raises them, and a tap opens Your devices.
@@ -96,7 +113,7 @@ FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart rea
 | A headless engine is idle | It retires only once it answers that it is quiet, because an engine destroyed mid-write loses that write |
 
 - **One classifier for every Android push** (`PushKind`, in `zuno_notifications`): test, message or badge. FCM and UnifiedPush both switch on it, so a rule for one kind of push lives in one place.
-- **The instant notice** is a "New message" line posted natively before any Dart runs, under the room's notification id and its cached name. It posts only while the app is not in front, nothing shows for the room, and Notify me is not mentions-only. Dart later replaces it in place or retracts it.
+- **The instant notice** is a "New message" line posted natively before any Dart runs, under the room's notification id and its cached name, or under "Zuno" with no conversation at preview Nothing. It posts only while the app is not in front, nothing shows for the room, and Notify me is not mentions-only. Dart later replaces it in place or retracts it.
 - **Tokens.** FCM auto-init stays off until `getToken`, so a device on another mode never talks to Firebase. The deprecated token APIs stay, because their replacement needs Firebase's newer installation-ID registration, judged too new for the push path.
 
 ### Android: UnifiedPush, background sync and push engines
@@ -161,15 +178,8 @@ The target is `ios/NotificationService/`, with its logic in `ios/NotifyShared/` 
 
 Files are sealed under the notify Keychain item and named by HMAC tokens, and thread ids, `userInfo` and the CallKit handle carry only tokens. Dart never sees the key.
 
-### iOS: preview levels, taps and actions
+### iOS: taps and actions
 
-| Level (`NotificationPreview`) | Line | Actions | CallKit name |
-|---|---|---|---|
-| Name and message (default) | Name and text | Reply, Mark as read | Caller or room |
-| Name only | Name and "New message" | None | Caller or room |
-| Nothing | "Zuno", "New message" | None | "Zuno call" |
-
-- **The level governs every surface that can keep text**: the extension, the app's own posts and CallKit, because the OS keeps what a notification showed.
 - **Runner is the `UNUserNotificationCenter` delegate** and completes every response exactly once. FLN completes its own notifications synchronously, so a response still open after FLN is a pushed alert or extension line, and a tap on one opens its room.
 - **Reply and Mark as read run in the app's own Dart.** Native code queues the action under a background task, `EngineHost` starts the app headless if needed, and the app's client runs it. A Reply that fails leaves a "not sent" line in its thread.
 - **Wake locks are background tasks on iOS.** Sends hold one until the SDK returns, so a message sent just before leaving Zuno finishes its key share and the recipients' extensions can decrypt it.
@@ -244,7 +254,8 @@ Both platforms show the permission, this device's registration and the module's 
 - **FCM and UnifiedPush share one push wake lock with a hold per push**: each hold needs its own release, matched by its push, and a release that matches no hold never lets go, because a redelivered event or a release replayed to a new engine would otherwise cut the lock mid-push.
 - **A plugin a push engine calls must be in `PushEnginePlugins`**, or its `MissingPluginException` is silently swallowed.
 - **FLN stores the background action handler by function name and file** (`local_notifications.dart`), so renaming or moving it leaves Reply, Mark as read and Decline dead on every notification posted before the update, until the app or a push next starts.
-- **Sound settings and the room-name cache are raw SharedPreferences keys**, because headless engines have no provider scope and native code reads the cache.
+- **Sound settings, Notify me, the preview level and the room-name cache are raw SharedPreferences keys**, because headless engines have no provider scope and the instant notice reads them natively.
+- **A long-lived push engine's SharedPreferences cache goes stale**, so each push re-reads Notify me and the preview level from storage, and all of its posts share that one read.
 - **Each maker's autostart package must be listed in the manifest's `<queries>`**, or Android 11+ hides it and the Autostart row never appears.
 - **Background sync must not be `dataSync` on Android 14+**, because Android 15 caps that type at 6 h a day and crashes the app past it.
 - **FLN on iOS must never prompt and gets no categories**, because its prompt would stall cold start and its categories would replace the set native code registers.

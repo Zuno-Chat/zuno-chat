@@ -1402,6 +1402,7 @@
   "settingsSecurityHowThisWorks": "Zo werkt het",
   "settingsSecurityHowThisWorksSubtitle": "Herstel, apparaten en personen bevestigen",
   "settingsSecurityIncognitoKeyboard": "Incognitotoetsenbord",
+  "settingsSecurityIncognitoKeyboardAppleOnlySubtitle": "Alleen het toetsenbord van Apple werkt in Zuno, zodat toetsenborden van andere apps nooit zien wat je typt",
   "settingsSecurityIncognitoKeyboardSubtitle": "Vraagt het toetsenbord niet te leren van wat je typt",
   "settingsSecurityOnThisDevice": "Op dit apparaat",
   "settingsSecurityPreventScreenshots": "Screenshots voorkomen",

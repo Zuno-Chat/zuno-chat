@@ -1402,6 +1402,7 @@
   "settingsSecurityHowThisWorks": "Πώς λειτουργεί",
   "settingsSecurityHowThisWorksSubtitle": "Ανάκτηση, συσκευές και επιβεβαίωση ατόμων",
   "settingsSecurityIncognitoKeyboard": "Ανώνυμο πληκτρολόγιο",
+  "settingsSecurityIncognitoKeyboardAppleOnlySubtitle": "Στο Zuno λειτουργεί μόνο το πληκτρολόγιο της Apple, ώστε τα πληκτρολόγια άλλων εφαρμογών να μη βλέπουν ποτέ όσα πληκτρολογείτε",
   "settingsSecurityIncognitoKeyboardSubtitle": "Ζητά από το πληκτρολόγιο να μη μαθαίνει από όσα πληκτρολογείτε",
   "settingsSecurityOnThisDevice": "Σε αυτή τη συσκευή",
   "settingsSecurityPreventScreenshots": "Αποτροπή στιγμιοτύπων οθόνης",

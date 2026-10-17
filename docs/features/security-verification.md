@@ -105,8 +105,9 @@ flowchart TD
   is the likeliest real-world failure of the design. Validation only hints
   and never blocks submission.
 - **The code is guarded wherever it shows or is typed.**
-  - Screenshots are blocked while it is on screen, whatever the Prevent
-    screenshots setting says (`settings.md`).
+  - Screenshots are blocked, and on Android other apps' overlays hidden,
+    while it is on screen, whatever the Prevent screenshots setting says
+    (`settings.md`).
   - It shows as text that cannot be selected, so copying goes only through
     the Copy button and the clipboard that clears itself.
   - Its fields offer only cut, copy, paste and select all, copying through

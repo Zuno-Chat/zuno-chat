@@ -8,8 +8,21 @@ final class NotificationCategoriesTests: XCTestCase {
     try XCTUnwrap(NotificationCategories.all.first { $0.identifier == identifier })
   }
 
-  func testThereAreExactlyTheMessageAndReplyOnlyCategories() {
-    XCTAssertEqual(Set(NotificationCategories.all.map(\.identifier)), ["message", "reply"])
+  func testThereAreExactlyTheMessageReplyOnlyAndPlainMessageCategories() {
+    XCTAssertEqual(
+      Set(NotificationCategories.all.map(\.identifier)), ["message", "reply", "message_plain"])
+  }
+
+  func testThePlainMessageCategoryOffersNoActions() throws {
+    XCTAssertEqual(try category("message_plain").actions.count, 0)
+  }
+
+  func testHiddenPreviewsShowNewMessageAndNeverTheTitle() {
+    for category in NotificationCategories.all {
+      XCTAssertEqual(category.hiddenPreviewsBodyPlaceholder, "New message", category.identifier)
+      XCTAssertFalse(category.options.contains(.hiddenPreviewsShowTitle), category.identifier)
+      XCTAssertFalse(category.options.contains(.hiddenPreviewsShowSubtitle), category.identifier)
+    }
   }
 
   func testTheMessageCategoryOffersReplyThenMarkAsRead() throws {
@@ -46,9 +59,15 @@ final class NotificationCategoriesTests: XCTestCase {
 
   func testActionsAttachOnlyToMessagesAtNameAndMessage() {
     XCTAssertEqual(NotificationCategories.identifier(forKind: "msg", level: "full"), "message")
+    for level in ["name", "none", ""] {
+      XCTAssertEqual(
+        NotificationCategories.identifier(forKind: "msg", level: level), "message_plain", level)
+    }
+  }
+
+  func testOnlyMessagesGetACategory() {
     let without: [(String, String)] = [
-      ("msg", "name"), ("msg", "none"), ("msg", ""), ("inv", "full"), ("call", "full"),
-      ("sys", "full"), ("", "full"),
+      ("inv", "full"), ("call", "full"), ("sys", "full"), ("summary", "full"), ("", "full"),
     ]
     for (kind, level) in without {
       XCTAssertNil(

@@ -26,6 +26,14 @@ import UserNotifications
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  override func application(
+    _ application: UIApplication,
+    shouldAllowExtensionPointIdentifier extensionPointIdentifier: UIApplication
+      .ExtensionPointIdentifier
+  ) -> Bool {
+    KeyboardPolicy.allows(extensionPointIdentifier)
+  }
+
   override func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     willPresent notification: UNNotification,

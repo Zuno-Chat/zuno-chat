@@ -13,6 +13,7 @@ import '../../../core/matrix/registration_support.dart';
 import '../../../core/matrix/server_name.dart';
 import '../../../core/matrix/session_display_name.dart';
 import '../../../core/matrix/username_field.dart';
+import '../../../core/security/screen_security_service.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/keyboard.dart';
 import 'auth_scaffold.dart';
@@ -31,7 +32,10 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage>
-    with RetryWait<LoginPage>, PasswordReveal<LoginPage> {
+    with
+        RetryWait<LoginPage>,
+        PasswordReveal<LoginPage>,
+        AccessibilityServicesAllowed<LoginPage> {
   final _username = TextEditingController();
   final _password = TextEditingController();
   bool _loading = false;

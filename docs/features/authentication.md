@@ -213,6 +213,10 @@ What the push teardown does is in `notifications.md`.
 - **The security phrase fields opt out of autofill**, because a manager
   would offer the account password there, and the homeserver sees that
   password at login.
+- **Sign-in and registration lift Android 14+'s accessibility-data-sensitive
+  mark while they show** (`settings.md`), so a password manager working as
+  an accessibility service can fill them; managers on the autofill
+  framework work on every screen regardless.
 
 ### Account deletion
 

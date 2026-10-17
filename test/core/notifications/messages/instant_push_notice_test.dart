@@ -6,6 +6,7 @@ import 'package:zuno/core/notifications/messages/notification_ids.dart';
 import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
@@ -47,6 +48,7 @@ void main() {
           senderName: 'Alice',
           timestamp: DateTime.utc(2031),
         ),
+        preview: NotificationPreview.full,
         refine: refine,
       );
 
@@ -122,6 +124,7 @@ void main() {
         senderName: 'Alice',
         timestamp: DateTime.utc(2031),
       ),
+      preview: NotificationPreview.full,
     );
 
     expect(conversations.takenNotices, isEmpty);

@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
-
-import '../../../helpers/platform_capabilities.dart';
 
 void main() {
   test('Name and message is the default and a bad value reads as it', () async {
@@ -34,19 +34,36 @@ void main() {
     expect(prefs.getString(notificationPreviewKey), 'nothing');
   });
 
-  test('without the extension every platform reads Name and message', () async {
+  test('every platform reads the stored level', () async {
     SharedPreferences.setMockInitialValues({notificationPreviewKey: 'nothing'});
 
-    expect(
-      await currentNotificationPreview(capabilities: androidCapabilities),
-      NotificationPreview.full,
+    expect(await currentNotificationPreview(), NotificationPreview.nothing);
+  });
+
+  test('the stored level is read again, so a level chosen after this engine '
+      'cached its preferences applies', () async {
+    SharedPreferences.setMockInitialValues({});
+    await SharedPreferences.getInstance();
+    await SharedPreferencesStorePlatform.instance.setValue(
+      'String',
+      'flutter.$notificationPreviewKey',
+      NotificationPreview.nothing.name,
     );
-    expect(
-      await currentNotificationPreview(
-        capabilities: capabilitiesLike(iosCapabilities, nseNotifications: true),
-      ),
-      NotificationPreview.nothing,
-    );
+
+    expect(await currentNotificationPreview(), NotificationPreview.nothing);
+  });
+
+  test('a level nobody chose reads as Name and message', () async {
+    SharedPreferences.setMockInitialValues({});
+
+    expect(await currentNotificationPreview(), NotificationPreview.full);
+  });
+
+  test('only Nothing hides who is calling', () {
+    final l10n = englishLocalizations;
+    expect(NotificationPreview.full.callName('Alice', l10n), 'Alice');
+    expect(NotificationPreview.nameOnly.callName('Alice', l10n), 'Alice');
+    expect(NotificationPreview.nothing.callName('Alice', l10n), 'Zuno call');
   });
 
   test('only systems without the retention fix are flagged', () {

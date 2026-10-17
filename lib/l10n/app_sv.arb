@@ -1402,6 +1402,7 @@
   "settingsSecurityHowThisWorks": "Så fungerar det",
   "settingsSecurityHowThisWorksSubtitle": "Återställning, enheter och bekräftelse av personer",
   "settingsSecurityIncognitoKeyboard": "Inkognitotangentbord",
+  "settingsSecurityIncognitoKeyboardAppleOnlySubtitle": "Bara tangentbordet från Apple fungerar i Zuno, så att tangentbord från andra appar aldrig ser vad du skriver",
   "settingsSecurityIncognitoKeyboardSubtitle": "Ber tangentbordet att inte lära sig av det du skriver",
   "settingsSecurityOnThisDevice": "På den här enheten",
   "settingsSecurityPreventScreenshots": "Förhindra skärmbilder",

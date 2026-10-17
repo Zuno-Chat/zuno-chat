@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/security/sensitive_clipboard.dart';
 
 import '../../helpers/app_lifecycle.dart';
-import '../../helpers/fake_calls_channel.dart';
+import '../../helpers/fake_privacy_channel.dart';
 import '../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -23,7 +23,7 @@ void main() {
     clipboardWrites = [];
     nativeError = null;
     clearReplies = [];
-    native = installFakeCallsChannel(
+    native = installFakePrivacyChannel(
       reply: (call) {
         final error = nativeError;
         if (error != null) throw error;
@@ -136,7 +136,7 @@ void main() {
   });
 
   test('no native side at all still copies the code', () async {
-    removeCallsChannel();
+    removePrivacyChannel();
 
     await SensitiveClipboard.instance.copy('recovery code');
 

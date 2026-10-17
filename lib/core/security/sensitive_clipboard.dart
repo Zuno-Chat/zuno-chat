@@ -6,8 +6,7 @@ import 'package:flutter/widgets.dart' show AppLifecycleListener;
 
 import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
-
-const _channel = MethodChannel('zuno/calls');
+import 'privacy_channel.dart';
 
 const sensitiveClipboardLifetime = Duration(seconds: 90);
 
@@ -31,7 +30,7 @@ class SensitiveClipboard {
       return;
     }
     try {
-      await _channel.invokeMethod('copySensitive', {'text': text});
+      await privacyChannel.invokeMethod('copySensitive', {'text': text});
     } on MissingPluginException catch (e, s) {
       reportCaught('copy sensitive text', e, s);
       await Clipboard.setData(ClipboardData(text: text));
@@ -47,7 +46,7 @@ class SensitiveClipboard {
 
   Future<void> _clearIfMatches(String text) async {
     try {
-      final unreadable = await _channel.invokeMethod<bool>(
+      final unreadable = await privacyChannel.invokeMethod<bool>(
         'clearClipboardIfMatches',
         {'text': text},
       );

@@ -12,6 +12,7 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/auth/presentation/auth_scaffold.dart';
 import 'package:zuno/features/auth/presentation/homeserver_page.dart';
 import 'package:zuno/features/auth/presentation/linked_sign_in_page.dart';
@@ -19,9 +20,10 @@ import 'package:zuno/features/auth/presentation/login_page.dart';
 import 'package:zuno/features/auth/presentation/register_page.dart';
 import 'package:zuno/features/auth/presentation/registration_code_page.dart';
 
-import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/fixed_homeserver.dart';
+import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/preferences_container.dart';
 import '../../../helpers/screen_security.dart';
 
@@ -474,6 +476,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(native.screenshotBlocking, [true, false]);
+  });
+
+  testWidgets('lets accessibility services in while it shows, so password '
+      'managers can fill it', (tester) async {
+    ambientCapabilities = androidCapabilities;
+    final native = installFakePrivacyChannel();
+    await pumpLoginPage(tester, pushed: true);
+    expect(native.accessibilitySensitivity, [false]);
+
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pumpAndSettle();
+
+    expect(native.accessibilitySensitivity, [false, true]);
   });
 
   group('the keyboard', () {

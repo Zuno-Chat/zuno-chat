@@ -76,12 +76,15 @@ class SecurityPrivacySettingsPage extends ConsumerWidget {
           CardGroup(
             title: l10n.settingsSecurityOnThisDevice,
             children: [
-              if (capabilities.keyboardLearningOptOut)
+              if (capabilities.keyboardLearningOptOut ||
+                  capabilities.thirdPartyKeyboardBlocking)
                 SwitchListTile(
                   secondary: const Icon(Icons.keyboard_alt_outlined),
                   title: Text(l10n.settingsSecurityIncognitoKeyboard),
                   subtitle: Text(
-                    l10n.settingsSecurityIncognitoKeyboardSubtitle,
+                    capabilities.keyboardLearningOptOut
+                        ? l10n.settingsSecurityIncognitoKeyboardSubtitle
+                        : l10n.settingsSecurityIncognitoKeyboardAppleOnlySubtitle,
                   ),
                   value: incognitoKeyboard,
                   onChanged: (value) =>

@@ -6,13 +6,14 @@ import 'live_location_capture.dart';
 
 LiveLocationNotice liveLocationNotice(
   AppLocalizations l10n,
-  List<({Room room, DateTime endsAt})> shares,
-) {
+  List<({Room room, DateTime endsAt})> shares, {
+  bool namesChats = true,
+}) {
   final endsAt = shares
       .map((entry) => entry.endsAt)
       .reduce((a, b) => a.isAfter(b) ? a : b);
   final title = l10n.locationNoticeTitle;
-  if (shares case [final only]) {
+  if (shares case [final only] when namesChats) {
     final name = roomTitle(only.room, l10n);
     return LiveLocationNotice(
       title: title,
@@ -33,5 +34,6 @@ LiveLocationNotice liveLocationNotice(
       _ => l10n.locationNoticeChatsAndRooms(chats, rooms),
     },
     endsAt: endsAt,
+    roomId: shares.singleOrNull?.room.id,
   );
 }

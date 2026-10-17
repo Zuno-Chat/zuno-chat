@@ -95,7 +95,8 @@ class MessageNotifications {
 
   Future<void> showMessage(
     MessageNotificationContent content, {
-    bool includeMessageActions = false,
+    required NotificationPreview preview,
+    bool isMessage = false,
     Uint8List? senderAvatar,
     bool placeholder = false,
     bool refine = false,
@@ -109,7 +110,8 @@ class MessageNotifications {
       content.thread,
       () => _showMessageInRoom(
         content,
-        includeMessageActions: includeMessageActions,
+        preview: preview,
+        isMessage: isMessage,
         senderAvatar: senderAvatar,
         placeholder: placeholder,
         refine: refine,
@@ -122,7 +124,8 @@ class MessageNotifications {
 
   Future<void> _showMessageInRoom(
     MessageNotificationContent content, {
-    required bool includeMessageActions,
+    required NotificationPreview preview,
+    required bool isMessage,
     required Uint8List? senderAvatar,
     required bool placeholder,
     required bool refine,
@@ -226,10 +229,11 @@ class MessageNotifications {
     final newest = identical(latest, line);
     await _postThread(
       thread,
+      preview: preview,
       alert: plan.alert,
       body: newest ? content.body : _summaryOf(thread, latest),
       eventId: newest ? eventId : latest.eventId,
-      includeMessageActions: includeMessageActions,
+      isMessage: isMessage,
       unreadCount: content.unreadCount,
       freshAvatar: senderAvatar == null
           ? null
@@ -283,40 +287,44 @@ class MessageNotifications {
   String _summaryOf(NotificationThread thread, NotificationLine line) =>
       thread.isGroupChat ? '${line.senderName}: ${line.text}' : line.text;
 
-  Future<void> retractPlaceholder(String roomId, String eventId) =>
-      _rooms.run(roomId, () async {
-        final thread = await _withStore(
-          (prefs) => readNotificationThread(prefs, roomId),
-        );
-        if (thread == null) return;
-        final kept = thread.lines
-            .where((l) => !(l.placeholder && l.eventId == eventId))
-            .toList();
-        if (kept.length == thread.lines.length) return;
-        if (kept.isEmpty) {
-          await _cancelThread(roomId);
-          return;
-        }
-        final remaining = NotificationThread(
-          roomId: roomId,
-          title: thread.title,
-          isGroupChat: thread.isGroupChat,
-          lines: kept,
-        );
-        final last = kept.last;
-        await _postThread(
-          remaining,
-          alert: MessageAlert.silentUpdate,
-          body: _summaryOf(remaining, last),
-          eventId: last.eventId,
-          includeMessageActions: true,
-          unreadCount: null,
-          freshAvatar: null,
-          shortcut: false,
-          timing: null,
-        );
-        await _withStore((prefs) => writeNotificationThread(prefs, remaining));
-      });
+  Future<void> retractPlaceholder(
+    String roomId,
+    String eventId, {
+    required NotificationPreview preview,
+  }) => _rooms.run(roomId, () async {
+    final thread = await _withStore(
+      (prefs) => readNotificationThread(prefs, roomId),
+    );
+    if (thread == null) return;
+    final kept = thread.lines
+        .where((l) => !(l.placeholder && l.eventId == eventId))
+        .toList();
+    if (kept.length == thread.lines.length) return;
+    if (kept.isEmpty) {
+      await _cancelThread(roomId);
+      return;
+    }
+    final remaining = NotificationThread(
+      roomId: roomId,
+      title: thread.title,
+      isGroupChat: thread.isGroupChat,
+      lines: kept,
+    );
+    final last = kept.last;
+    await _postThread(
+      remaining,
+      preview: preview,
+      alert: MessageAlert.silentUpdate,
+      body: _summaryOf(remaining, last),
+      eventId: last.eventId,
+      isMessage: true,
+      unreadCount: null,
+      freshAvatar: null,
+      shortcut: false,
+      timing: null,
+    );
+    await _withStore((prefs) => writeNotificationThread(prefs, remaining));
+  });
 
   Future<T?> _withStore<T>(
     FutureOr<T> Function(SharedPreferences prefs) step,
@@ -349,10 +357,11 @@ class MessageNotifications {
 
   Future<void> _postThread(
     NotificationThread thread, {
+    required NotificationPreview preview,
     required MessageAlert alert,
     required String body,
     required String? eventId,
-    required bool includeMessageActions,
+    required bool isMessage,
     required int? unreadCount,
     required ({String senderId, Uint8List bytes})? freshAvatar,
     required bool shortcut,
@@ -375,25 +384,30 @@ class MessageNotifications {
         l10n.notificationsChannelChatMessages,
       ),
     };
-    final avatars = await _avatarsFor(thread, fresh: freshAvatar);
+    final hidden = preview == NotificationPreview.nothing;
+    final fullPreview = preview == NotificationPreview.full;
+    final offersActions = isMessage && fullPreview;
+    final avatars = hidden
+        ? const <String, Uint8List>{}
+        : await _avatarsFor(thread, fresh: freshAvatar);
     timing?.mark('avatars');
     final latestLine = thread.lines.isEmpty ? null : thread.lines.last;
     final largeIcon = thread.isGroupChat || latestLine == null
         ? null
         : avatars[latestLine.senderId];
-    if (shortcut) {
+    if (shortcut && !hidden) {
       await _pushConversationShortcut(thread, avatar: largeIcon);
       timing?.mark('shortcut');
     }
     final actions = <AndroidNotificationAction>[
-      if (includeMessageActions && eventId != null)
+      if (offersActions && eventId != null)
         AndroidNotificationAction(
           'mark_read',
           l10n.commonMarkAsRead,
           showsUserInterface: false,
           cancelNotification: true,
         ),
-      if (includeMessageActions)
+      if (offersActions)
         AndroidNotificationAction(
           'reply',
           l10n.commonReply,
@@ -408,17 +422,10 @@ class MessageNotifications {
     final when = latestLine?.timestamp.millisecondsSinceEpoch;
     final interrupts = !quiet && alert != MessageAlert.silentUpdate;
     final playsTone = interrupts && alert == MessageAlert.tone;
-    final preview = _capabilities.nseNotifications
-        ? await currentNotificationPreview(capabilities: _capabilities)
-        : null;
-    final hidden = preview == NotificationPreview.nothing;
-    final messageActionsAllowed =
-        !_capabilities.nativeNotificationActions ||
-        (preview ?? NotificationPreview.full) == NotificationPreview.full;
-    final threadIdentifier = switch (preview) {
-      null => roomId,
-      NotificationPreview.nothing => previewThread,
-      _ => await _threadIds.tokenFor(roomId) ?? previewThread,
+    final threadIdentifier = switch ((hidden, _capabilities.nseNotifications)) {
+      (true, _) => previewThread,
+      (false, true) => await _threadIds.tokenFor(roomId) ?? previewThread,
+      (false, false) => roomId,
     };
     await _plugin.show(
       id: messageNotificationIdFor(thread.key),
@@ -433,32 +440,18 @@ class MessageNotifications {
           priority: quiet ? Priority.low : Priority.high,
           onlyAlertOnce: alert == MessageAlert.silentUpdate,
           silent: alert == MessageAlert.silent,
-          styleInformation: MessagingStyleInformation(
-            Person(name: l10n.commonYou, key: 'me'),
-            conversationTitle: thread.isGroupChat ? thread.title : null,
-            groupConversation: thread.isGroupChat,
-            messages: [
-              for (final line in thread.lines)
-                Message(
-                  line.text,
-                  line.timestamp,
-                  Person(
-                    name: line.senderName,
-                    key: line.senderId,
-                    icon: switch (avatars[line.senderId]) {
-                      final bytes? => ByteArrayAndroidIcon(bytes),
-                      null => null,
-                    },
-                  ),
-                  dataMimeType: line.imageMimeType,
-                  dataUri: line.imageUri,
+          styleInformation: hidden
+              ? null
+              : _messagingStyle(
+                  thread,
+                  avatars,
+                  withImages: fullPreview,
+                  l10n: l10n,
                 ),
-            ],
-          ),
           largeIcon: largeIcon == null
               ? null
               : ByteArrayAndroidBitmap(largeIcon),
-          shortcutId: roomId,
+          shortcutId: hidden ? null : roomId,
           number: unreadCount,
           when: when,
           showWhen: when != null,
@@ -467,8 +460,8 @@ class MessageNotifications {
         iOS: DarwinNotificationDetails(
           threadIdentifier: threadIdentifier,
           categoryIdentifier: darwinMessageCategory(
-            includeMessageActions:
-                includeMessageActions && messageActionsAllowed,
+            isMessage: isMessage,
+            offersActions: offersActions,
             eventId: eventId,
           ),
           presentAlert: interrupts,
@@ -489,6 +482,34 @@ class MessageNotifications {
     );
     timing?.mark('show');
   }
+
+  MessagingStyleInformation _messagingStyle(
+    NotificationThread thread,
+    Map<String, Uint8List> avatars, {
+    required bool withImages,
+    required AppLocalizations l10n,
+  }) => MessagingStyleInformation(
+    Person(name: l10n.commonYou, key: 'me'),
+    conversationTitle: thread.isGroupChat ? thread.title : null,
+    groupConversation: thread.isGroupChat,
+    messages: [
+      for (final line in thread.lines)
+        Message(
+          line.text,
+          line.timestamp,
+          Person(
+            name: line.senderName,
+            key: line.senderId,
+            icon: switch (avatars[line.senderId]) {
+              final bytes? => ByteArrayAndroidIcon(bytes),
+              null => null,
+            },
+          ),
+          dataMimeType: withImages ? line.imageMimeType : null,
+          dataUri: withImages ? line.imageUri : null,
+        ),
+    ],
+  );
 
   Future<Map<String, Uint8List>> _avatarsFor(
     NotificationThread thread, {

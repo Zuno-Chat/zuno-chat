@@ -286,7 +286,7 @@
   "callsFailureOnAnotherDevice": "You are in this call on another device. Hang up there to join here.",
   "callsGenericRingName": "Zuno call",
   "@callsGenericRingName": {
-    "description": "iPhone call screen: caller name when the real name is unknown",
+    "description": "Call screen and call notifications: caller or chat name when it is unknown or the notification content setting hides it",
     "x-native": [
       "ios"
     ]
@@ -4635,6 +4635,10 @@
   "settingsSecurityIncognitoKeyboard": "Incognito keyboard",
   "@settingsSecurityIncognitoKeyboard": {
     "description": "Switch: ask the keyboard not to learn what you type"
+  },
+  "settingsSecurityIncognitoKeyboardAppleOnlySubtitle": "Only Apple's keyboard works in Zuno, so keyboards from other apps never see what you type",
+  "@settingsSecurityIncognitoKeyboardAppleOnlySubtitle": {
+    "description": "Subtitle of the Incognito keyboard switch on iPhone, where turning it on blocks keyboards from other apps"
   },
   "settingsSecurityIncognitoKeyboardSubtitle": "Asks the keyboard not to learn from what you type",
   "settingsSecurityOnThisDevice": "On this device",

@@ -230,7 +230,7 @@ void main() {
       );
 
       await MessageNotifications(capabilities: withExtension)
-          .showMessage(content);
+          .showMessage(content, preview: NotificationPreview.full);
       expect(conversations.named('pushConversationShortcut'), isEmpty);
 
       await MessageNotifications(
@@ -245,6 +245,7 @@ void main() {
           body: 'hey',
           eventId: r'$10',
         ),
+        preview: NotificationPreview.full,
       );
       expect(conversations.named('pushConversationShortcut'), hasLength(1));
     });
@@ -268,6 +269,7 @@ void main() {
           body: 'hi',
           eventId: r'$11',
         ),
+        preview: NotificationPreview.full,
       );
 
       expect(

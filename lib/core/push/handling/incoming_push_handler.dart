@@ -16,6 +16,7 @@ import '../../notifications/messages/message_notification_poster.dart';
 import '../../notifications/messages/message_notification_provider.dart';
 import '../../notifications/messages/message_notifications.dart';
 import '../../notifications/room_invite_notification_provider.dart';
+import '../../notifications/settings/notification_preview.dart';
 import '../../notifications/settings/notify_me.dart';
 import '../../notifications/verification_request_notification.dart';
 import '../../platform/platform_capabilities.dart';
@@ -81,10 +82,12 @@ Future<IncomingPushOutcome> _handle(
   if (kDebugMode) {
     debugPrint('zuno/push: resolving event ${notification.eventId}');
   }
+  final preview = currentNotificationPreview();
   final placeholder = _Placeholder(
     client,
     notification,
     quiet: notifyMe == NotifyMe.mentionsOnly,
+    preview: preview,
   );
   final catchUp = client is ZunoClient
       ? client.syncCoordinator?.catchUp()
@@ -173,7 +176,8 @@ Future<IncomingPushOutcome> _handle(
       await postMessageNotification(
         invite,
         client: client,
-        includeMessageActions: false,
+        preview: await preview,
+        isMessage: false,
         onRefining: onRefining,
       );
     } catch (_) {
@@ -189,7 +193,8 @@ Future<IncomingPushOutcome> _handle(
     await postMessageNotification(
       verification,
       client: client,
-      includeMessageActions: false,
+      preview: await preview,
+      isMessage: false,
       onRefining: onRefining,
     );
     await placeholder.retract();
@@ -210,6 +215,7 @@ Future<IncomingPushOutcome> _handle(
     pushRuleAction: client.pushruleEvaluator.match(event),
     notifyMe: notifyMe,
     currentlyOpenRoomId: currentlyOpenRoomId,
+    preview: await preview,
   );
   final content = decision.content;
   if (content == null) {
@@ -223,6 +229,7 @@ Future<IncomingPushOutcome> _handle(
   await postMessageNotification(
     content,
     client: client,
+    preview: await preview,
     fetchImage: () => fetchMessageNotificationImage(resolved),
     onPosted: () => timing?.mark('post'),
     onRefining: onRefining,
@@ -233,11 +240,17 @@ Future<IncomingPushOutcome> _handle(
 }
 
 class _Placeholder {
-  _Placeholder(this.client, this.notification, {required this.quiet});
+  _Placeholder(
+    this.client,
+    this.notification, {
+    required this.quiet,
+    required this.preview,
+  });
 
   final Client client;
   final PushNotification notification;
   final bool quiet;
+  final Future<NotificationPreview> preview;
   bool _posted = false;
   Future<void>? _mark;
 
@@ -285,7 +298,12 @@ class _Placeholder {
     if (content == null) return false;
     _posted = true;
     debugPrint('zuno/push: showing a placeholder while the fetch continues');
-    await postMessageNotification(content, client: client, placeholder: true);
+    await postMessageNotification(
+      content,
+      client: client,
+      preview: await preview,
+      placeholder: true,
+    );
     return true;
   }
 
@@ -305,7 +323,11 @@ class _Placeholder {
     if (roomId == null || eventId == null) return;
     await settleNotice(roomId, eventId);
     if (!_posted) return;
-    await MessageNotifications.instance.retractPlaceholder(roomId, eventId);
+    await MessageNotifications.instance.retractPlaceholder(
+      roomId,
+      eventId,
+      preview: await preview,
+    );
   }
 }
 

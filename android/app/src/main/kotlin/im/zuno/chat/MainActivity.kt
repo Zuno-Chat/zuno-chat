@@ -25,6 +25,7 @@ import android.os.Looper
 import android.os.PersistableBundle
 import android.provider.Settings
 import android.util.Rational
+import android.view.View
 import android.view.WindowManager
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
@@ -403,59 +404,78 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
 
-                "setPreventScreenshots" -> {
-                    host.preventScreenshots = call.argument<Boolean>("enabled") == true
-                    applyPreventScreenshots()
-                    result.success(null)
-                }
-
-                "copySensitive" -> {
-                    val text = call.argument<String>("text")
-                    if (text == null) {
-                        result.error("bad_args", "text is required", null)
-                        return@setMethodCallHandler
-                    }
-                    val clipboard =
-                        getSystemService(CLIPBOARD_SERVICE) as? ClipboardManager
-                    if (clipboard == null) {
-                        result.error("unavailable", "no clipboard service", null)
-                        return@setMethodCallHandler
-                    }
-                    val clip = ClipData.newPlainText("", text)
-                    clip.description.extras = PersistableBundle().apply {
-                        putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
-                    }
-                    clipboard.setPrimaryClip(clip)
-                    result.success(null)
-                }
-
-                "clearClipboardIfMatches" -> {
-                    val focused = hasWindowFocus()
-                    if (!SensitiveClipboardDecision.canRead(Build.VERSION.SDK_INT, focused)) {
-                        result.success(true)
-                        return@setMethodCallHandler
-                    }
-                    val text = call.argument<String>("text")
-                    val clipboard =
-                        getSystemService(CLIPBOARD_SERVICE) as? ClipboardManager
-                    val current = clipboard?.primaryClip
-                        ?.takeIf { it.itemCount > 0 }
-                        ?.getItemAt(0)
-                        ?.coerceToText(this)
-                        ?.toString()
-                    if (clipboard != null && SensitiveClipboardDecision.clears(text, current)) {
-                        val empty = ClipData.newPlainText("", "")
-                        empty.description.extras = PersistableBundle().apply {
-                            putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
-                        }
-                        clipboard.setPrimaryClip(empty)
-                    }
-                    result.success(false)
-                }
-
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PRIVACY_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "setPreventScreenshots" -> {
+                        host.preventScreenshots = call.argument<Boolean>("enabled") == true
+                        applyScreenSecurity()
+                        result.success(null)
+                    }
+
+                    "setHideOverlays" -> {
+                        host.hideOverlays = call.argument<Boolean>("enabled") == true
+                        applyScreenSecurity()
+                        result.success(null)
+                    }
+
+                    "setAccessibilitySensitive" -> {
+                        host.accessibilitySensitive = call.argument<Boolean>("enabled") == true
+                        applyScreenSecurity()
+                        result.success(null)
+                    }
+
+                    "copySensitive" -> {
+                        val text = call.argument<String>("text")
+                        if (text == null) {
+                            result.error("bad_args", "text is required", null)
+                            return@setMethodCallHandler
+                        }
+                        val clipboard =
+                            getSystemService(CLIPBOARD_SERVICE) as? ClipboardManager
+                        if (clipboard == null) {
+                            result.error("unavailable", "no clipboard service", null)
+                            return@setMethodCallHandler
+                        }
+                        val clip = ClipData.newPlainText("", text)
+                        clip.description.extras = PersistableBundle().apply {
+                            putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+                        }
+                        clipboard.setPrimaryClip(clip)
+                        result.success(null)
+                    }
+
+                    "clearClipboardIfMatches" -> {
+                        val focused = hasWindowFocus()
+                        if (!SensitiveClipboardDecision.canRead(Build.VERSION.SDK_INT, focused)) {
+                            result.success(true)
+                            return@setMethodCallHandler
+                        }
+                        val text = call.argument<String>("text")
+                        val clipboard =
+                            getSystemService(CLIPBOARD_SERVICE) as? ClipboardManager
+                        val current = clipboard?.primaryClip
+                            ?.takeIf { it.itemCount > 0 }
+                            ?.getItemAt(0)
+                            ?.coerceToText(this)
+                            ?.toString()
+                        if (clipboard != null && SensitiveClipboardDecision.clears(text, current)) {
+                            val empty = ClipData.newPlainText("", "")
+                            empty.description.extras = PersistableBundle().apply {
+                                putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+                            }
+                            clipboard.setPrimaryClip(empty)
+                        }
+                        result.success(false)
+                    }
+
+                    else -> result.notImplemented()
+                }
+            }
 
         val videoChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, VIDEO_CHANNEL)
         videoChannel.setMethodCallHandler { call, result ->
@@ -623,7 +643,7 @@ class MainActivity : FlutterActivity() {
         }
 
         if (kept != null) {
-            applyPreventScreenshots()
+            applyScreenSecurity()
             if (host.showOverLockscreen) setShowOverLockscreen(true)
             applyPictureInPictureParams()
             intent?.let {
@@ -634,11 +654,23 @@ class MainActivity : FlutterActivity() {
         claimBack()
     }
 
-    private fun applyPreventScreenshots() {
+    private fun applyScreenSecurity() {
         if (host.preventScreenshots) {
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            window.setHideOverlayWindows(host.hideOverlays)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            window.decorView.setAccessibilityDataSensitive(
+                if (host.accessibilitySensitive) {
+                    View.ACCESSIBILITY_DATA_SENSITIVE_YES
+                } else {
+                    View.ACCESSIBILITY_DATA_SENSITIVE_NO
+                },
+            )
         }
     }
 
@@ -872,6 +904,7 @@ class MainActivity : FlutterActivity() {
         private val sharedCacheWork: ExecutorService = Executors.newSingleThreadExecutor()
         private const val NETWORK_CHANNEL = "zuno/network"
         private const val CALLS_CHANNEL = "zuno/calls"
+        private const val PRIVACY_CHANNEL = "zuno/privacy"
         private const val BACKGROUND_SYNC_CHANNEL = "zuno/background_sync"
         private const val UPLOAD_CHANNEL = "zuno/upload_service"
         private const val IMAGE_CHANNEL = "zuno/image"

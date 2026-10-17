@@ -1402,6 +1402,7 @@
   "settingsSecurityHowThisWorks": "Jak to działa",
   "settingsSecurityHowThisWorksSubtitle": "Odzyskiwanie, urządzenia i potwierdzanie osób",
   "settingsSecurityIncognitoKeyboard": "Klawiatura incognito",
+  "settingsSecurityIncognitoKeyboardAppleOnlySubtitle": "W Zuno działa tylko klawiatura Apple, więc klawiatury innych aplikacji nigdy nie widzą, co wpisujesz",
   "settingsSecurityIncognitoKeyboardSubtitle": "Prosi klawiaturę, aby nie uczyła się z tego, co wpisujesz",
   "settingsSecurityOnThisDevice": "Na tym urządzeniu",
   "settingsSecurityPreventScreenshots": "Blokuj zrzuty ekranu",

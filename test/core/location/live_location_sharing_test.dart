@@ -13,6 +13,7 @@ import 'package:zuno/core/location/live_location_policy.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_recipients.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
 
 import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_device_keys.dart';
@@ -26,6 +27,7 @@ void main() {
   late DateTime now;
   late bool offline;
   late List<DeviceKeys> recipients;
+  late NotificationPreview preview;
   late LiveLocationSharing sharing;
 
   GeoUri northBy(double meters) => GeoUri(
@@ -62,6 +64,7 @@ void main() {
     client: client,
     capture: capture,
     isOffline: () => offline,
+    previewLevel: () => preview,
     recipients: (_) async => recipients,
     now: () => now,
   );
@@ -72,6 +75,7 @@ void main() {
     room = addRoom('!family:x');
     capture = FakeLiveLocationCapture();
     offline = false;
+    preview = NotificationPreview.full;
     setSelfSignedTestDevices(client, '@alex:x', ['PHONE']);
     setSelfSignedTestDevices(client, '@bea:x', ['TABLET']);
     setSelfSignedTestDevices(client, '@eve:x', ['LAPTOP']);
@@ -1073,6 +1077,52 @@ void main() {
   });
 
   group('notice', () {
+    test('at Nothing counts the chat instead of naming it', () async {
+      preview = NotificationPreview.nothing;
+
+      await startSharing();
+
+      expect(capture.notice?.text, 'In 1 room');
+      expect(capture.notice?.roomId, '!family:x');
+    });
+
+    test('choosing Nothing while sharing takes the name off, and going back '
+        'puts it on again', () async {
+      await startSharing();
+      expect(capture.notice?.text, 'In Family');
+
+      preview = NotificationPreview.nothing;
+      await sharing.refreshNotice();
+      expect(capture.notice?.text, 'In 1 room');
+
+      preview = NotificationPreview.nameOnly;
+      await sharing.refreshNotice();
+      expect(capture.notice?.text, 'In Family');
+    });
+
+    test('a refresh with nothing shared starts nothing', () async {
+      preview = NotificationPreview.nothing;
+
+      await sharing.refreshNotice();
+
+      expect(capture.running, isFalse);
+      expect(capture.notice, isNull);
+    });
+
+    test('without chat names, a single chat is counted like several', () {
+      final alex = addRoom('!alex:x')
+        ..direct = true
+        ..title = 'Alex';
+      final ends = now.add(const Duration(hours: 1));
+
+      expect(
+        liveLocationNotice(englishLocalizations, [
+          (room: alex, endsAt: ends),
+        ], namesChats: false).text,
+        'In 1 chat',
+      );
+    });
+
     test('names the chat, the room, or counts them', () {
       final alex = addRoom('!alex:x')
         ..direct = true

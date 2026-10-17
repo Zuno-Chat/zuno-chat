@@ -4,6 +4,7 @@ import im.zuno.chat.zuno_notifications.CachedRoom
 import im.zuno.chat.zuno_notifications.NoticeAlert
 import im.zuno.chat.zuno_notifications.NoticeConversation
 import im.zuno.chat.zuno_notifications.NoticeCopy
+import im.zuno.chat.zuno_notifications.NoticePresentation
 import im.zuno.chat.zuno_notifications.NoticeText
 import im.zuno.chat.zuno_notifications.PushNoticeDecision
 import org.junit.Assert.assertEquals
@@ -142,6 +143,45 @@ class PushNoticeDecisionTest {
         assertEquals(
             NoticeAlert(silent = true, vibrate = false),
             PushNoticeDecision.alertFor(messageTone = false, messageVibration = false),
+        )
+    }
+
+    @Test
+    fun `at Nothing a notice names no room, holds no conversation and binds no shortcut`() {
+        assertEquals(
+            NoticePresentation(
+                NoticeCopy(NoticeText.Brand, NoticeText.NewMessage),
+                conversation = null,
+                shortcut = false,
+            ),
+            PushNoticeDecision.presentationFor(CachedRoom("Family", false), "nothing"),
+        )
+    }
+
+    @Test
+    fun `any other level, or none chosen, shows the cached room as a conversation`() {
+        for (preview in listOf("full", "nameOnly", null, "bogus")) {
+            assertEquals(
+                preview,
+                NoticePresentation(
+                    NoticeCopy(NoticeText.Room("Family"), NoticeText.NewMessage),
+                    NoticeConversation("Family", isGroup = true),
+                    shortcut = true,
+                ),
+                PushNoticeDecision.presentationFor(CachedRoom("Family", false), preview),
+            )
+        }
+    }
+
+    @Test
+    fun `an unknown room still binds its shortcut below Nothing`() {
+        assertEquals(
+            NoticePresentation(
+                NoticeCopy(NoticeText.NewMessage, NoticeText.TapToOpen),
+                conversation = null,
+                shortcut = true,
+            ),
+            PushNoticeDecision.presentationFor(null, "nameOnly"),
         )
     }
 }

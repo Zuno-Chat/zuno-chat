@@ -1402,6 +1402,7 @@
   "settingsSecurityHowThisWorks": "Cómo funciona",
   "settingsSecurityHowThisWorksSubtitle": "Recuperación, dispositivos y confirmación de personas",
   "settingsSecurityIncognitoKeyboard": "Teclado de incógnito",
+  "settingsSecurityIncognitoKeyboardAppleOnlySubtitle": "Solo funciona el teclado de Apple en Zuno, así los teclados de otras apps nunca ven lo que escribes",
   "settingsSecurityIncognitoKeyboardSubtitle": "Pide al teclado que no aprenda de lo que escribes",
   "settingsSecurityOnThisDevice": "En este dispositivo",
   "settingsSecurityPreventScreenshots": "Impedir capturas de pantalla",

@@ -11,10 +11,13 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/navigation/zuno_links.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/auth/presentation/register_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/fixed_homeserver.dart';
+import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/preferences_container.dart';
 import '../../../helpers/pump_until.dart';
 
@@ -383,6 +386,19 @@ void main() {
     await pumpRealAsync(tester, rounds: 3);
 
     expect(container.read(signInInFlightProvider), isFalse);
+  });
+
+  testWidgets('lets accessibility services in while it shows, so password '
+      'managers can save the new password', (tester) async {
+    ambientCapabilities = androidCapabilities;
+    final native = installFakePrivacyChannel();
+    await pumpRegisterPage(tester, pushed: true);
+    expect(native.accessibilitySensitivity, [false]);
+
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pumpAndSettle();
+
+    expect(native.accessibilitySensitivity, [false, true]);
   });
 
   testWidgets('back stays put while the account is being created', (

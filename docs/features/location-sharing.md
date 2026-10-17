@@ -195,6 +195,7 @@ so another client cannot claim a longer share.
 | Capture | Foreground service of type location; the fused provider, else the platform's; a wake lock per fix until Dart's sends finish | One `CLLocationManager` with background updates and the blue indicator; only real fixes, at most one per mode interval |
 | Permission | While in use; background location is never requested | When In Use; never Always |
 | Capture lost | Holds the CPU long enough for Dart to clear the share | Holds a background task until Dart clears the share |
+| Notification | The foreground service's notification names the one chat shared to, or counts chats when there are several or the preview level is Nothing (`notifications.md`) | None; the blue indicator shows instead |
 | Stop | The notification's Stop sharing, or in the app | In the app |
 | Engine | Kept after a swipe-away while a call or a share runs (`calls.md`) | The one app engine |
 

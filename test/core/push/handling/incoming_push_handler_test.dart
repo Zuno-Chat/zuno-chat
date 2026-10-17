@@ -25,6 +25,7 @@ import 'package:zuno/core/matrix/zuno_client.dart';
 import 'package:zuno/core/notifications/messages/notification_ids.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
 import 'package:zuno/core/notifications/room_invite_notification_provider.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notify_me.dart';
 import 'package:zuno/core/push/handling/incoming_push_handler.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -580,6 +581,77 @@ void main() {
         IncomingPushOutcome.message,
       );
       expect(notifications.single.android['channelId'], 'quiet_messages');
+    });
+  });
+
+  group('at the preview level', () {
+    void choose(NotificationPreview level) =>
+        SharedPreferences.setMockInitialValues({
+          notificationPreviewKey: level.name,
+        });
+
+    test('Name only names the sender but keeps the text off', () async {
+      choose(NotificationPreview.nameOnly);
+      client.resolved = message(body: 'are you around?');
+
+      expect(await handle(), IncomingPushOutcome.message);
+
+      expect(notifications.single.body, 'Bob: New message');
+      expect(notifications.single.android['actions'], isNull);
+    });
+
+    test('Name only still says a call was missed', () async {
+      choose(NotificationPreview.nameOnly);
+      client.resolved = callSummary(status: CallSummaryStatus.missed);
+
+      expect(await handle(), IncomingPushOutcome.message);
+
+      expect(notifications.single.body, contains('Missed'));
+    });
+
+    test('Name only leaves an invitation and a verification request as they '
+        'are, since they carry no message', () async {
+      choose(NotificationPreview.nameOnly);
+      client.resolved = invitation();
+      await handle();
+      expect(notifications.single.body, 'Invited you to chat');
+
+      notifications.clear();
+      client.resolved = buildTestEvent(
+        room,
+        eventId: r'$verify',
+        senderId: '@bob:example.org',
+        content: {
+          'msgtype': 'm.key.verification.request',
+          'body': 'Bob is requesting to verify your key',
+          'to': '@me:example.org',
+          'from_device': 'BOBDEVICE',
+          'methods': ['m.sas.v1'],
+        },
+      );
+      await handle(eventId: r'$verify');
+      expect(notifications.single.title, 'Bob');
+      expect(notifications.single.body, 'Wants to verify you');
+    });
+
+    test('Nothing shows only that something arrived, for a message, an '
+        'invitation and a push that cannot be fetched', () async {
+      for (final resolve in <void Function()>[
+        () => client.resolved = message(body: 'are you around?'),
+        () => client.resolved = invitation(),
+        () => client.throws = Exception('no network'),
+      ]) {
+        choose(NotificationPreview.nothing);
+        notifications.clear();
+        resolve();
+
+        await handle();
+
+        expect(notifications.single.title, 'Zuno');
+        expect(notifications.single.body, 'New message');
+        expect(notifications.single.android['largeIcon'], isNull);
+        expect(notifications.single.android['shortcutId'], isNull);
+      }
     });
   });
 

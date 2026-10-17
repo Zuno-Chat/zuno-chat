@@ -166,6 +166,24 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
+    'thirdPartyKeyboardBlocking',
+    read: (c) => c.thirdPartyKeyboardBlocking,
+    android: false,
+    ios: true,
+  ),
+  _Capability(
+    'overlayHiding',
+    read: (c) => c.overlayHiding,
+    android: true,
+    ios: false,
+  ),
+  _Capability(
+    'accessibilitySensitivity',
+    read: (c) => c.accessibilitySensitivity,
+    android: true,
+    ios: false,
+  ),
+  _Capability(
     'locationServicesSettings',
     read: (c) => c.locationServicesSettings,
     android: true,
@@ -266,6 +284,12 @@ final _capabilities = <_Capability>[
   _Capability(
     'nativeNotificationActions',
     read: (c) => c.nativeNotificationActions,
+    android: false,
+    ios: true,
+  ),
+  _Capability(
+    'notificationRetentionCheck',
+    read: (c) => c.notificationRetentionCheck,
     android: false,
     ios: true,
   ),

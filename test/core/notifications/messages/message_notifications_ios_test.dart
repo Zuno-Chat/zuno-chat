@@ -94,7 +94,11 @@ void main() {
       eventId: r'$1',
     );
 
-    await service.showMessage(message, includeMessageActions: true);
+    await service.showMessage(
+      message,
+      preview: NotificationPreview.full,
+      isMessage: true,
+    );
     await service.showMessage(
       const MessageNotificationContent(
         roomId: _roomId,
@@ -102,9 +106,14 @@ void main() {
         body: 'Tap to open',
         eventId: r'$2',
       ),
+      preview: NotificationPreview.full,
       placeholder: true,
     );
-    await service.retractPlaceholder(_roomId, r'$2');
+    await service.retractPlaceholder(
+      _roomId,
+      r'$2',
+      preview: NotificationPreview.full,
+    );
     await service.retractPushNotice(_roomId, r'$1');
 
     expect(await service.takePushNotice(_roomId, r'$1'), isFalse);
@@ -121,7 +130,8 @@ void main() {
           body: 'hi',
           eventId: r'$1',
         ),
-        includeMessageActions: true,
+        preview: NotificationPreview.full,
+        isMessage: true,
       );
 
       final ios = notifications.lastPlatformSpecifics;
@@ -151,7 +161,7 @@ void main() {
           'list', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
 
-        await service.showMessage(message);
+        await service.showMessage(message, preview: NotificationPreview.full);
 
         final ios = notifications.lastPlatformSpecifics;
         expect(ios['presentSound'], isTrue);
@@ -174,6 +184,7 @@ void main() {
             eventId: r'$1',
             quiet: true,
           ),
+          preview: NotificationPreview.full,
         );
 
         final ios = notifications.lastPlatformSpecifics;
@@ -188,7 +199,7 @@ void main() {
       test('a second message in the same room inside the tone interval '
           'updates the list without a banner or sound', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
-        await service.showMessage(message);
+        await service.showMessage(message, preview: NotificationPreview.full);
         notifications.active = [
           {
             'id': messageNotificationIdFor(_roomId),
@@ -203,6 +214,7 @@ void main() {
             body: 'and again',
             eventId: r'$2',
           ),
+          preview: NotificationPreview.full,
         );
 
         final ios = notifications.lastPlatformSpecifics;
@@ -216,7 +228,7 @@ void main() {
           'without sound', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: false});
 
-        await service.showMessage(message);
+        await service.showMessage(message, preview: NotificationPreview.full);
 
         final ios = notifications.lastPlatformSpecifics;
         expect(ios['presentSound'], isFalse);
@@ -228,7 +240,7 @@ void main() {
         'refining a message already on screen does not light it again',
         () async {
           SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
-          await service.showMessage(message);
+          await service.showMessage(message, preview: NotificationPreview.full);
           notifications.active = [
             {
               'id': messageNotificationIdFor(_roomId),
@@ -243,6 +255,7 @@ void main() {
               body: 'hi, with the photo',
               eventId: r'$1',
             ),
+            preview: NotificationPreview.full,
             refine: true,
           );
 
@@ -286,22 +299,47 @@ void main() {
     expect(categories, {
       'message': [('reply', 'text', true), ('mark_read', 'plain', true)],
       'reply': [('reply', 'text', true)],
+      'message_plain': <(Object?, Object?, bool)>[],
     });
   });
 
   test('the Darwin category follows the actions and whether there is an '
       'event to mark', () {
     expect(
-      darwinMessageCategory(includeMessageActions: false, eventId: r'$1'),
-      isNull,
-    );
-    expect(
-      darwinMessageCategory(includeMessageActions: true, eventId: null),
+      darwinMessageCategory(
+        isMessage: true,
+        offersActions: true,
+        eventId: null,
+      ),
       'reply',
     );
     expect(
-      darwinMessageCategory(includeMessageActions: true, eventId: r'$1'),
+      darwinMessageCategory(
+        isMessage: true,
+        offersActions: true,
+        eventId: r'$1',
+      ),
       'message',
+    );
+  });
+
+  test('a message without actions still gets the category that hides its '
+      'preview behind New message, and anything else gets none', () {
+    expect(
+      darwinMessageCategory(
+        isMessage: true,
+        offersActions: false,
+        eventId: r'$1',
+      ),
+      'message_plain',
+    );
+    expect(
+      darwinMessageCategory(
+        isMessage: false,
+        offersActions: false,
+        eventId: r'$1',
+      ),
+      isNull,
     );
   });
 
@@ -329,54 +367,59 @@ void main() {
 
     for (final (preview, category) in [
       (NotificationPreview.full, 'message'),
-      (NotificationPreview.nameOnly, null),
-      (NotificationPreview.nothing, null),
+      (NotificationPreview.nameOnly, 'message_plain'),
+      (NotificationPreview.nothing, 'message_plain'),
     ]) {
-      test('at ${preview.name}, a message offers '
-          '${category ?? 'no actions'}', () async {
-        SharedPreferences.setMockInitialValues({
-          notificationPreviewKey: preview.name,
-        });
+      test(
+        'at ${preview.name}, a message gets the $category category',
+        () async {
+          await _messageNotifications(native)
+              .showMessage(message, preview: preview, isMessage: true);
 
+          expect(
+            notifications.lastPlatformSpecifics['categoryIdentifier'],
+            category,
+          );
+        },
+      );
+    }
+
+    test('without native actions, the preview level still takes the '
+        'actions away', () async {
+      final beforeNative = capabilitiesLike(
+        iosCapabilities,
+        nseNotifications: true,
+        nativeNotificationActions: false,
+      );
+      await _messageNotifications(beforeNative).showMessage(
+        message,
+        preview: NotificationPreview.nothing,
+        isMessage: true,
+      );
+
+      expect(
+        notifications.lastPlatformSpecifics['categoryIdentifier'],
+        'message_plain',
+      );
+    });
+
+    for (final preview in NotificationPreview.values) {
+      test('at ${preview.name}, an invitation gets no category', () async {
         await _messageNotifications(native)
-            .showMessage(message, includeMessageActions: true);
+            .showMessage(message, preview: preview);
 
         expect(
           notifications.lastPlatformSpecifics['categoryIdentifier'],
-          category,
+          isNull,
         );
       });
     }
 
-    test(
-      'before native actions, the preview level takes no action away',
-      () async {
-        SharedPreferences.setMockInitialValues({
-          notificationPreviewKey: NotificationPreview.nothing.name,
-        });
-
-        final beforeNative = capabilitiesLike(
-          iosCapabilities,
-          nseNotifications: true,
-          nativeNotificationActions: false,
-        );
-        await _messageNotifications(beforeNative)
-            .showMessage(message, includeMessageActions: true);
-
-        expect(
-          notifications.lastPlatformSpecifics['categoryIdentifier'],
-          'message',
-        );
-      },
-    );
-
     test('taking back a placeholder re-posts the thread without actions at '
         'Name only', () async {
-      SharedPreferences.setMockInitialValues({
-        notificationPreviewKey: NotificationPreview.nameOnly.name,
-      });
+      const preview = NotificationPreview.nameOnly;
       final service = _messageNotifications(native);
-      await service.showMessage(message, includeMessageActions: true);
+      await service.showMessage(message, preview: preview, isMessage: true);
       notifications.active = [
         {
           'id': messageNotificationIdFor(_roomId),
@@ -390,14 +433,18 @@ void main() {
           body: 'Tap to open',
           eventId: r'$2',
         ),
+        preview: preview,
         placeholder: true,
-        includeMessageActions: true,
+        isMessage: true,
       );
 
-      await service.retractPlaceholder(_roomId, r'$2');
+      await service.retractPlaceholder(_roomId, r'$2', preview: preview);
 
       expect(notifications.shown, hasLength(3));
-      expect(notifications.lastPlatformSpecifics['categoryIdentifier'], isNull);
+      expect(
+        notifications.lastPlatformSpecifics['categoryIdentifier'],
+        'message_plain',
+      );
     });
   });
 }

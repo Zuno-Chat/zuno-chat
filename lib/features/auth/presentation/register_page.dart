@@ -16,6 +16,7 @@ import '../../../core/matrix/session_display_name.dart';
 import '../../../core/matrix/username_field.dart';
 import '../../../core/navigation/zuno_links.dart';
 import '../../../core/onboarding/onboarding_provider.dart';
+import '../../../core/security/screen_security_service.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/keyboard.dart';
 import 'auth_scaffold.dart';
@@ -40,7 +41,10 @@ class RegisterPage extends ConsumerStatefulWidget {
 }
 
 class _RegisterPageState extends ConsumerState<RegisterPage>
-    with RetryWait<RegisterPage>, PasswordReveal<RegisterPage> {
+    with
+        RetryWait<RegisterPage>,
+        PasswordReveal<RegisterPage>,
+        AccessibilityServicesAllowed<RegisterPage> {
   final _code = TextEditingController();
   final _username = TextEditingController();
   final _password = TextEditingController();
