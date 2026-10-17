@@ -14,6 +14,7 @@ import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
+import 'package:zuno/features/chat/presentation/message_contents/file_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
@@ -396,6 +397,40 @@ void main() {
       expect(find.widgetWithText(ListTile, 'Edit'), findsNothing);
       expect(find.widgetWithText(ListTile, 'Delete'), findsNothing);
       expect(find.widgetWithText(ListTile, 'Copy'), findsOneWidget);
+    });
+
+    testWidgets('an attachment still on its way offers Delete, which drops '
+        'it', (tester) async {
+      await openRoom(
+        tester,
+        () => [
+          buildTestEvent(
+            harness.room,
+            eventId: 'txn-1',
+            senderId: '@me:example.org',
+            originServerTs: DateTime(2026, 9, 20, 12, 5),
+            status: EventStatus.sending,
+            content: {
+              'msgtype': 'm.file',
+              'body': 'plan.pdf',
+              'filename': 'plan.pdf',
+              'info': {'size': 3, 'mimetype': 'application/pdf'},
+            },
+          ),
+        ],
+      );
+
+      await tester.longPress(find.byType(FileMessage));
+      await harness.settle(tester);
+      await tapAction(tester, 'Delete');
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await harness.settle(tester);
+
+      expect(find.byType(FileMessage), findsNothing);
+      expect(
+        harness.requests.where((path) => path.contains('/redact/')),
+        isEmpty,
+      );
     });
 
     testWidgets('a failed one offers no reactions, Reply or Edit', (

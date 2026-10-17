@@ -136,6 +136,7 @@ Norwegian Bokmål for `lib/l10n/app_nb.arb`, written for Norway. The rules all l
 | English | nb | Notes |
 |---|---|---|
 | notification, test notification | varsel · varselet · varsler · testvarsel | |
+| alert, security alerts | varsel · sikkerhetsvarsler | The same word as notification; call alerts → «anropsvarsler». |
 | push, push target, push key | push · push-mål · push-nøkkel | "push notifications" → «push-varsler». |
 | registration (push) | registrering · registrer | |
 | delivery, background sync | levering · bakgrunnssynkronisering | "Delivery method" → «Leveringsmetode». |

@@ -32,6 +32,9 @@ class PlatformCapabilities {
   final bool uploadForegroundService;
   final bool networkAvailabilityEvents;
   final bool keyboardLearningOptOut;
+  final bool thirdPartyKeyboardBlocking;
+  final bool overlayHiding;
+  final bool accessibilitySensitivity;
   final bool apnsRegistration;
   final bool nativeIncomingRingUi;
   final bool callKit;
@@ -51,6 +54,7 @@ class PlatformCapabilities {
   final bool voipRing;
   final bool nseNotifications;
   final bool nativeNotificationActions;
+  final bool notificationRetentionCheck;
   final bool videoRendererNeedsDetach;
   final bool cameraStopsInBackground;
   final bool externalPaymentLinks;
@@ -88,6 +92,9 @@ class PlatformCapabilities {
     required this.uploadForegroundService,
     required this.networkAvailabilityEvents,
     required this.keyboardLearningOptOut,
+    required this.thirdPartyKeyboardBlocking,
+    required this.overlayHiding,
+    required this.accessibilitySensitivity,
     required this.apnsRegistration,
     required this.nativeIncomingRingUi,
     required this.callKit,
@@ -107,6 +114,7 @@ class PlatformCapabilities {
     required this.voipRing,
     required this.nseNotifications,
     required this.nativeNotificationActions,
+    required this.notificationRetentionCheck,
     required this.videoRendererNeedsDetach,
     required this.cameraStopsInBackground,
     required this.externalPaymentLinks,
@@ -148,6 +156,9 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         uploadForegroundService: true,
         networkAvailabilityEvents: true,
         keyboardLearningOptOut: true,
+        thirdPartyKeyboardBlocking: false,
+        overlayHiding: true,
+        accessibilitySensitivity: true,
         apnsRegistration: false,
         nativeIncomingRingUi: true,
         callKit: false,
@@ -167,6 +178,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         voipRing: false,
         nseNotifications: false,
         nativeNotificationActions: false,
+        notificationRetentionCheck: false,
         videoRendererNeedsDetach: false,
         cameraStopsInBackground: false,
         externalPaymentLinks: true,
@@ -208,6 +220,9 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         uploadForegroundService: true,
         networkAvailabilityEvents: true,
         keyboardLearningOptOut: false,
+        thirdPartyKeyboardBlocking: true,
+        overlayHiding: false,
+        accessibilitySensitivity: false,
         apnsRegistration: true,
         nativeIncomingRingUi: false,
         callKit: true,
@@ -227,6 +242,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         voipRing: true,
         nseNotifications: true,
         nativeNotificationActions: true,
+        notificationRetentionCheck: true,
         videoRendererNeedsDetach: true,
         cameraStopsInBackground: true,
         externalPaymentLinks: false,

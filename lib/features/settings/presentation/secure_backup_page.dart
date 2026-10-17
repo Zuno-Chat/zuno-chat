@@ -9,6 +9,7 @@ import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/uia_cancel.dart';
+import '../../../core/security/alerts/security_alerts_provider.dart';
 import '../../../core/security/password_strength.dart';
 import '../../../core/security/prepared_uia_password.dart';
 import '../../../core/security/recovery_code.dart';
@@ -72,6 +73,7 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
   final _preparedUiaPassword = PreparedUiaPassword();
   bool _askingForPassword = false;
   bool _syncedAfterDone = false;
+  OwnIdentityResetHold? _identityResetHold;
 
   @override
   void initState() {
@@ -84,12 +86,22 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
 
   @override
   void dispose() {
+    _releaseIdentityResetHold();
     _uiaSub?.cancel();
     _recoveryKeyInputController.dispose();
     super.dispose();
   }
 
+  void _releaseIdentityResetHold() {
+    unawaited(_identityResetHold?.release());
+    _identityResetHold = null;
+  }
+
   void _onBootstrapUpdate(Bootstrap bootstrap) {
+    if (bootstrap.state == BootstrapState.done ||
+        bootstrap.state == BootstrapState.error) {
+      _releaseIdentityResetHold();
+    }
     if (bootstrap.state == BootstrapState.error) {
       final error = bootstrap.errorResult?.error ?? 'unknown';
       if (!isUiaCancel(error)) {
@@ -136,6 +148,9 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
       case BootstrapState.askWipeCrossSigning:
         b.wipeCrossSigning(_wipeExisting);
       case BootstrapState.askSetupCrossSigning:
+        final hold = ref.read(ownIdentityResetHoldProvider.notifier);
+        hold.hold();
+        _identityResetHold = hold;
         b.askSetupCrossSigning(
           setupMasterKey: true,
           setupSelfSigningKey: true,

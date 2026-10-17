@@ -29,11 +29,13 @@ class CallBadge extends StatelessWidget {
   final IconData? icon;
   final String label;
   final String? semanticLabel;
+  final int maxLines;
 
   const CallBadge({
     required this.label,
     this.icon,
     this.semanticLabel,
+    this.maxLines = 1,
     super.key,
   });
 
@@ -59,7 +61,7 @@ class CallBadge extends StatelessWidget {
                 Flexible(
                   child: Text(
                     label,
-                    maxLines: 1,
+                    maxLines: maxLines,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium!
                         .copyWith(color: Colors.white),

@@ -13,8 +13,8 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/settings/presentation/sign_in_another_device_page.dart';
 
-import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/preferences_container.dart';
 import '../../../helpers/pump_until.dart';
 import '../../../helpers/screen_security.dart';

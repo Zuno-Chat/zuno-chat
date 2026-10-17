@@ -15,10 +15,11 @@ The layer every screen sits on: one Matrix client per process, startup, navigati
 | `firstSyncProvider` | Done once a first sync has finished, or at once for a restored session. Onboarding and the chat list's empty state wait on it, because `client.login` can give up waiting for that sync. |
 | `connectionStatusProvider`, `isOfflineProvider` | Connectivity (below). |
 
-**The HTTP stack** has three deliberate quirks.
+**The HTTP stack** has four deliberate quirks.
 - **Dart refuses cleartext HTTP.** The process-wide `HttpOverrides` (`app_http_overrides.dart`) set the User-Agent and refuse any connection that is not https, because Android's network security config and iOS ATS govern only the platform's own network stacks, never `dart:io`. A refused connection throws its own exception, so callers can tell it from an unreachable server.
 - The `HttpClient` has a connect-only timeout, so a dead route fails fast while a slow upload or download is never cut off.
 - The SDK refreshes an expiring token only inside its sync loop, so `FreshTokenHttpClient` holds any request carrying the current token until one shared refresh has run. Without it, requests racing the first sync at cold start would go out with an expired token.
+- **The SDK's request timeout covers only the response body, never the wait for an answer**, so a connection that dies after its last byte waits forever. `UploadHttpClient` therefore aborts every upload, and every other request made inside a send (a `SendScope` zone value set by the room's sender), after 30 s without progress, which still falls inside the SDK's one-minute send window, so the SDK retries once on a fresh connection. Other requests keep their own layers' rules, since a scoped request reaches them as a plain `http.Request`.
 
 **Cold start** runs independent steps concurrently and joins them only where a real dependency exists:
 
@@ -91,6 +92,7 @@ Shared pieces:
 | `StepLayout`, `StepHero` | One-question screens, with the actions pinned at the bottom above the keyboard. |
 | `RowMemo` | Returns the identical widget for an equal record from the same SDK object, so a list row rebuilds only when its value-equal record changes, and never keeps a `Room` the SDK has replaced. |
 | `RouteSettled` | `onRouteSettled()` fires once the push slide has finished, for work that would otherwise land mid-slide. |
+| `AlertBanner` | Every in-screen warning banner: the security alerts and the delivery failure. An attention or notice tone, at most one action and an optional ✕. |
 | `TopBannerFrame` | App-wide top banners (the call bar, the offline notice). They stack and slide in and out, and the content keeps its own status-bar inset, moving only by what that inset cannot hide. The slide re-lays out the content each frame, as the keyboard does: the one exception to animating position only. |
 | `KeepClearArea`, `showSheet` | Bottom chrome the floating call window keeps clear of: the composer, the home bar, caption bars. Every bottom sheet opens through `showSheet`, which marks the whole sheet. |
 
@@ -128,8 +130,8 @@ Each flag is one of these kinds:
 | Awaiting an iOS handler | `deviceSafetyChecks` |
 | Off on iOS by design (`../decisions/ios-push-and-ring.md`) | `notificationImages`, `notificationAvatars` |
 | Android concept, iOS `false` for good | `batteryExemption`, `foregroundSyncService`, `fullScreenIntent`, `homeScreenShortcuts` |
-| Android-only behavior | `atomicDatabaseBatches`, `instantPushNotices`, `nativeFileShare`, `nativeLogFloor` |
-| iOS-only behavior | `apnsRegistration`, `voipRing`, `nseNotifications`, `signOutWipeKeepsProcess`, `nativeSensitiveFileExport`, `audioPlayerNeedsFile` |
+| Android-only behavior | `atomicDatabaseBatches`, `instantPushNotices`, `nativeFileShare`, `nativeLogFloor`, `overlayHiding`, `accessibilitySensitivity` |
+| iOS-only behavior | `apnsRegistration`, `voipRing`, `nseNotifications`, `signOutWipeKeepsProcess`, `nativeSensitiveFileExport`, `audioPlayerNeedsFile`, `thirdPartyKeyboardBlocking`, `notificationRetentionCheck` |
 | Call seam selectors | `nativeIncomingRingUi`, `callForegroundService` and `nativeCallAudio` on Android, `callKit` on iOS. The factories check `callKit` first, so the Android three never flip. |
 | Apple limitation | `recorderWritesOgg` (Apple cannot write Ogg), `screenshotBlocking` (no app can block a screenshot) |
 | Per-platform value | `mapsApp` (a `geo:` intent on Android, Apple Maps on iOS), `deliveryModes` |
@@ -138,7 +140,8 @@ The `zuno/*` channels, each behind its flag:
 
 | Area | Both platforms | Android | iOS |
 |---|---|---|---|
-| Calls (`calls.md`) | `zuno/calls`: call presentation, call audio and its routes, ringback, screen security and the sensitive clipboard | `zuno/call_style` | `zuno/voip` |
+| Calls (`calls.md`) | `zuno/calls`: call presentation, call audio and its routes, ringback | `zuno/call_style` | `zuno/voip` |
+| Privacy (`settings.md`) | `zuno/privacy`: screen security, the sensitive clipboard and, on iOS, the third-party keyboard policy | | |
 | Push and notifications (`notifications.md`) | `zuno/push_wakelock`, `zuno/push_diag` | `zuno/fcm`, `zuno/background_sync`, `zuno/conversations`, `zuno/vibration` | `zuno/apns`, `zuno/nse`, `zuno/notification_actions` |
 | Media and uploads | `zuno/image`, `zuno/video`, `zuno/upload_service` | | |
 | Live location (`location-sharing.md`) | `zuno/live_location`, with its fix stream `zuno/live_location/fixes` | | |

@@ -2,9 +2,11 @@
 
 The chat room: its timeline, how each message is rendered, the composer,
 attachments, voice messages, galleries, avatars and inbound share from
-other apps. There is no message model or service layer. `RoomPage` reads
-and changes the SDK's `Room`, `Timeline` and `Event` objects directly, and
-holds only state and logic; every widget it draws lives in its own file.
+other apps. There is no message model or service layer: the chat reads
+and changes the SDK's `Room`, `Timeline` and `Event` objects directly.
+`RoomPage` keeps the timeline and wires the rest together; sending,
+recording, typing, the menus and the message actions each have one owner
+in their own file, and every widget lives in its own file.
 
 ## Components
 
@@ -13,11 +15,15 @@ in `features/chat/presentation/`.
 
 | File | Role |
 |---|---|
-| `room_page.dart` | The live `Timeline`, read markers, pagination, sending and recording |
+| `room_page.dart` | The live `Timeline`, read markers, pagination and the reply or edit state |
+| `features/chat/data/room_sender.dart` | Every send in one room: progress, failed media, retries and temporary copies |
+| `voice_recorder.dart` | The mic gestures and the recording |
+| `message_actions.dart`, `attachment_menu.dart`, `room_menu.dart` | The message actions, the attach menu and the room menu |
+| `features/calls/presentation/room_calls.dart` | Starting or joining a call from a chat |
 | `message_list_view.dart` | The reversed list, its row memo and the upload and failed-send tiles |
 | `message_tile.dart`, `message_bubble.dart`, `message_contents/` | One row, its bubble and each kind of content |
 | `message_composer.dart` | The message box, recording row and reply or edit bar |
-| `features/chat/data/` | Pure helpers and shared types, including `MessageRowData` |
+| `features/chat/data/` | Sending, typing and unsent-message rules, and shared types such as `MessageRowData` |
 | `core/matrix/event_display.dart` | What an event is, for every surface |
 | `core/matrix/image_send_preparation.dart`, `video_send_preparation.dart` | App-side media preparation before `sendFileEvent` |
 | `core/matrix/attachment_cache.dart` | The only attachment cache, and the owner of every decrypted copy on disk |
@@ -38,7 +44,8 @@ in `features/chat/presentation/`.
 - **The page is quiet.** It rebuilds for timeline updates, coalesced
   room-state bursts and syncs that touch this room. Values that change
   often, such as recording time and upload progress, are `ValueNotifier`s
-  read by their own small widgets.
+  read by their own small widgets, and recording state redraws only the
+  composer.
 - **Opening.** The header and composer show at once. The timeline loads
   from the local database straight away but is applied only after the
   slide, so the slide never stutters.
@@ -145,6 +152,9 @@ guesses on its own.
 - **Voice recording.** Holding the mic records and releasing sends; a
   short press locks recording on, and sliding up cancels. The message is
   an audio file marked as voice (MSC3245) with a duration and waveform.
+- **A press that has to ask for the microphone only asks**, and the next
+  press records, because the system prompt takes the touch away
+  mid-gesture.
 
 ## Unsent messages
 
@@ -161,7 +171,8 @@ client can resolve.
   pass resends them oldest first. It scans the timeline for unsent own
   events rather than tracking transaction IDs, because the SDK can also
   give up silently on a long 429 with no exception. Failed media sends
-  are tracked by the page as their own tiles.
+  are their own tiles, kept by the room's sender, so they wait in the
+  chat for a retry after you leave it.
 - **A failed edit** shows as not sent on its message and resends as an
   edit. An edit a newer one replaced, or whose message was deleted, never
   resends.
@@ -171,12 +182,17 @@ client can resolve.
 | Delete on | Does |
 |---|---|
 | A failed message | Discards it on this device only, since the server never had it |
-| A single message still on its way | Not offered, because the SDK cannot stop a send in flight |
+| An attachment still on its way | Stops its upload, so nothing reaches the server |
+| Text still on its way | Not offered, because a message post in flight cannot be stopped |
 | A gallery | Always offered; while its batch still sends, the rest of the batch stops |
 | One item of a batch that shows on its own | Deletes that item; the rest of the batch still goes |
 
-- **A deleted item still on its way is deleted once it lands**, a resend
+- **A deleted item past its upload is deleted once it lands**, a resend
   after a restart included.
+- **A stopped send keeps running inside the SDK**, which has no cancel:
+  it retries for up to its one-minute window and can publish the row
+  again, so the room's sender removes it each time until the SDK gives
+  up.
 - **Deleted sends are remembered per account across restarts**, so a
   leftover unsent item is dropped when its chat opens and never resent.
   The record is pruned against the chat's unsent items and cleared by the
@@ -224,19 +240,26 @@ named the Android way.
   the attach button spins; iOS's document picker shows its own download
   progress and sends no signal.
 - **Progress.** One bar per attachment, filled first by compression and
-  then by upload. The SDK reports no upload progress, so
-  `UploadProgressHttpClient` slices the request body itself.
+  then by upload. The SDK reports no upload progress and `sendFileEvent`
+  takes no callback, so `UploadHttpClient` slices the request body itself
+  and reports to the send it runs in through its `SendScope`. A full bar
+  means the body is handed to the socket, not that the server has it.
+- **A stuck send fails instead of hanging.** An upload, media-limits
+  fetch or message post with no progress for 30 s is aborted
+  (`app-foundation.md`), then shows as a retry tile or as not sent.
 - **The pending tile.** A synthetic tile, matched later by `txid`,
   stands in until the real row exists. Both draw the preview from memory
   until the upload finishes, because the SDK has no thumbnail for a
   pending event.
 - **Temporary copies.** Inbound share and both pickers leave a copy of
-  each file in the app's temporary storage. The page owns them all and
-  deletes each once it is sent or dropped, or sent files pile up, but
-  keeps it while a failed photo or video can still be retried.
-- **A batch outlives the chat screen.** A send reads its settings and
-  the snackbar host when it starts, never the page afterwards, so leaving
-  mid-batch still sends every item and still shows any error.
+  each file in the app's temporary storage. The room's sender owns them
+  all and deletes each once it is sent or dropped, or sent files pile up,
+  but keeps it while a failed photo or video can still be retried, until
+  sign-out.
+- **Sending outlives the chat screen.** Each room has one sender, living
+  until sign-out, so leaving mid-batch still sends every item and shows
+  any error, and progress and failed items are still there when the chat
+  opens again. A failure while the chat is closed also says so.
 
 ### Attachment cache
 
@@ -450,4 +473,6 @@ flowchart TD
 
 ## Testing
 
-`RoomPage` runs on `room_page_harness.dart` (never `pumpAndSettle`).
+`RoomPage` runs on `room_page_harness.dart` (never `pumpAndSettle`). The
+harness settles the sign-in state before opening the page, as the app
+does, because the room's sender resets when it changes.

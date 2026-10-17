@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/format/human_units.dart';
@@ -7,21 +6,14 @@ import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'send_icon.dart';
+import 'voice_recorder.dart';
 
 class MessageComposer extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
   final VoidCallback onAttach;
   final bool attaching;
-  final bool isRecording;
-  final ValueListenable<Duration> recordingDuration;
-  final bool recordingWillCancel;
-  final bool tapToggleRecording;
-  final void Function(PointerDownEvent) onMicPointerDown;
-  final void Function(PointerMoveEvent) onMicPointerMove;
-  final void Function(PointerUpEvent) onMicPointerUp;
-  final void Function(PointerCancelEvent) onMicPointerCancel;
-  final VoidCallback onCancelRecording;
+  final VoiceRecorder recorder;
 
   const MessageComposer({
     super.key,
@@ -29,19 +21,17 @@ class MessageComposer extends StatelessWidget {
     required this.onSend,
     required this.onAttach,
     required this.attaching,
-    required this.isRecording,
-    required this.recordingDuration,
-    required this.recordingWillCancel,
-    required this.tapToggleRecording,
-    required this.onMicPointerDown,
-    required this.onMicPointerMove,
-    required this.onMicPointerUp,
-    required this.onMicPointerCancel,
-    required this.onCancelRecording,
+    required this.recorder,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      ListenableBuilder(listenable: recorder, builder: _build);
+
+  Widget _build(BuildContext context, Widget? _) {
+    final isRecording = recorder.isRecording;
+    final willCancel = recorder.willCancel;
+    final handsFree = recorder.handsFree;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final cancelColor = colors.error;
@@ -79,16 +69,16 @@ class MessageComposer extends StatelessWidget {
                             const SizedBox(width: 8),
                             Expanded(
                               child: ValueListenableBuilder<Duration>(
-                                valueListenable: recordingDuration,
+                                valueListenable: recorder.elapsed,
                                 builder: (context, duration, _) =>
                                     Text(formatDuration(duration)),
                               ),
                             ),
-                            if (tapToggleRecording)
+                            if (handsFree)
                               IconButton(
                                 icon: const Icon(Icons.delete_outline),
                                 tooltip: l10n.chatCancelRecording,
-                                onPressed: onCancelRecording,
+                                onPressed: recorder.cancel,
                               )
                             else
                               Row(
@@ -97,15 +87,15 @@ class MessageComposer extends StatelessWidget {
                                   AnimatedDefaultTextStyle(
                                     duration: ZunoDurations.fast,
                                     style: theme.textTheme.bodyMedium!.copyWith(
-                                      color: recordingWillCancel
+                                      color: willCancel
                                           ? cancelColor
                                           : hintColor,
-                                      fontWeight: recordingWillCancel
+                                      fontWeight: willCancel
                                           ? FontWeight.w700
                                           : FontWeight.w400,
                                     ),
                                     child: Text(
-                                      recordingWillCancel
+                                      willCancel
                                           ? l10n.chatReleaseToCancel
                                           : l10n.chatSlideToCancel,
                                     ),
@@ -113,9 +103,7 @@ class MessageComposer extends StatelessWidget {
                                   const SizedBox(width: 4),
                                   Icon(
                                     Icons.keyboard_arrow_up_outlined,
-                                    color: recordingWillCancel
-                                        ? cancelColor
-                                        : hintColor,
+                                    color: willCancel ? cancelColor : hintColor,
                                   ),
                                 ],
                               ),
@@ -173,11 +161,11 @@ class MessageComposer extends StatelessWidget {
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: controller,
             builder: (context, value, _) {
-              final aboutToCancel = isRecording && recordingWillCancel;
+              final aboutToCancel = isRecording && willCancel;
               final Widget micIcon;
               if (!isRecording) {
                 micIcon = const Icon(Icons.mic_none_outlined);
-              } else if (tapToggleRecording) {
+              } else if (handsFree) {
                 micIcon = const SendIcon();
               } else {
                 micIcon = const Icon(Icons.mic);
@@ -201,10 +189,10 @@ class MessageComposer extends StatelessWidget {
                       )
                     : Listener(
                         key: const ValueKey('mic'),
-                        onPointerDown: onMicPointerDown,
-                        onPointerMove: onMicPointerMove,
-                        onPointerUp: onMicPointerUp,
-                        onPointerCancel: onMicPointerCancel,
+                        onPointerDown: recorder.pointerDown,
+                        onPointerMove: recorder.pointerMove,
+                        onPointerUp: recorder.pointerUp,
+                        onPointerCancel: recorder.pointerCancel,
                         behavior: HitTestBehavior.opaque,
                         child: _RoundIconButton(
                           icon: micIcon,

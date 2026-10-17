@@ -131,6 +131,7 @@ Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `transla
 | English | it | Notes |
 |---|---|---|
 | notification, test notification | la notifica · la notifica di prova | |
+| alert | l’avviso | "Security alerts" → «Avvisi di sicurezza». As iOS «Avvisi critici»; never «allerta». |
 | mute / unmute (a chat's notifications) | Disattiva notifiche / Riattiva notifiche | |
 | push, push target, push key | il push · la destinazione push · la chiave push | "push notifications" → «notifiche push». |
 | registration (push) | la registrazione / registrare (registrato) | |

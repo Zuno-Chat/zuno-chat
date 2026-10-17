@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:clock/clock.dart';
@@ -16,6 +17,7 @@ import 'package:zuno/core/notifications/messages/message_notification_provider.d
 import 'package:zuno/core/notifications/messages/notification_avatar_cache.dart';
 import 'package:zuno/core/notifications/messages/notification_ids.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/nse/opaque_thread_ids.dart';
@@ -99,6 +101,29 @@ void main() {
     await deliver(textEvent(body: 'are you around?'));
 
     expect(notifications.shown.single.body, contains('are you around?'));
+  });
+
+  test('Name only keeps the text of a message off its line', () async {
+    await container
+        .read(notificationPreviewProvider.notifier)
+        .set(NotificationPreview.nameOnly);
+
+    await deliver(textEvent(body: 'secret plans'));
+
+    final shown = notifications.shown.single;
+    expect(shown.body, 'Alice: New message');
+    expect(jsonEncode(shown.android), isNot(contains('secret plans')));
+  });
+
+  test('Nothing posts the generic line', () async {
+    await container
+        .read(notificationPreviewProvider.notifier)
+        .set(NotificationPreview.nothing);
+
+    await deliver(textEvent(body: 'secret plans'));
+
+    expect(notifications.shown.single.title, 'Zuno');
+    expect(notifications.shown.single.body, 'New message');
   });
 
   test('a message read elsewhere in the same sync is taken down after it '

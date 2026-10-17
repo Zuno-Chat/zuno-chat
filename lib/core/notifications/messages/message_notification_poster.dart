@@ -8,6 +8,7 @@ import '../../matrix/mxc_avatar_image.dart' show AvatarBucket, avatarCacheKey;
 import '../../platform/platform_capabilities.dart';
 import '../../push/handling/push_timing.dart';
 import '../notification_avatar.dart';
+import '../settings/notification_preview.dart';
 import 'message_notification_content.dart';
 import 'message_notification_image.dart';
 import 'message_notifications.dart';
@@ -22,8 +23,9 @@ typedef AvatarFetcher = Future<Uint8List?> Function(Client client, Uri url);
 Future<void> postMessageNotification(
   MessageNotificationContent content, {
   required Client client,
+  required NotificationPreview preview,
   bool placeholder = false,
-  bool includeMessageActions = true,
+  bool isMessage = true,
   AvatarFetcher? fetchAvatar,
   DiskAttachmentCache? appAvatars,
   Future<NotificationImage?> Function()? fetchImage,
@@ -51,7 +53,8 @@ Future<void> postMessageNotification(
     String? imageMimeType,
   }) => MessageNotifications.instance.showMessage(
     content,
-    includeMessageActions: includeMessageActions,
+    preview: preview,
+    isMessage: isMessage,
     senderAvatar: avatar,
     placeholder: placeholder,
     refine: refine,
@@ -64,9 +67,16 @@ Future<void> postMessageNotification(
   onPosted?.call();
   if (placeholder) return;
 
-  final needsAvatar = avatarUrl != null && !kept && fromApp == null;
+  final needsAvatar =
+      avatarUrl != null &&
+      !kept &&
+      fromApp == null &&
+      preview != NotificationPreview.nothing;
   final needsImage =
-      content.isPhoto && fetchImage != null && platform.notificationImages;
+      content.isPhoto &&
+      fetchImage != null &&
+      platform.notificationImages &&
+      preview == NotificationPreview.full;
   if (!needsAvatar && !needsImage) return;
 
   Future<void> refine() async {

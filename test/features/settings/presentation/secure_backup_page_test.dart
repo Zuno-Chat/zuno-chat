@@ -5,10 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/security/alerts/security_alerts_provider.dart';
 import 'package:zuno/core/security/security_providers.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/step_layout.dart';
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 
@@ -168,12 +171,15 @@ void main() {
     tester.view.padding = const FakeViewPadding(top: 24, bottom: 48);
     tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
     addTearDown(tester.view.reset);
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(
             client = buildTestClient(userId: '@me:example.org'),
           ),
+          sharedPreferencesProvider.overrideWithValue(prefs),
           recoveryWordlistProvider.overrideWith((ref) async => wordlist),
         ],
         child: MaterialApp(
@@ -247,6 +253,22 @@ void main() {
       'wipeOnlineKeyBackup(true)',
       'askSetupOnlineKeyBackup(true)',
     ]);
+  });
+
+  testWidgets('holds the replaced-code alarm while this device makes its new '
+      'identity, and lets go once it is done', (tester) async {
+    final bootstrap = await pump(tester, BootstrapState.loading);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SecureBackupPage)),
+    );
+
+    bootstrap.state = BootstrapState.askSetupCrossSigning;
+    await tester.pump();
+    expect(container.read(ownIdentityResetHoldProvider), isTrue);
+
+    bootstrap.state = BootstrapState.done;
+    await tester.pump();
+    expect(container.read(ownIdentityResetHoldProvider), isFalse);
   });
 
   group('an account that already has recovery', () {

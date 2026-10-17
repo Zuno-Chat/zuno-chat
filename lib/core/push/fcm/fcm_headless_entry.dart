@@ -35,9 +35,9 @@ HeadlessPushRunner? _backgroundRunner;
 HeadlessPushRunner fcmBackgroundRunner() =>
     _backgroundRunner ??= buildFcmBackgroundRunner(
       clientBuilder: () async {
-        final result = await createPushClient();
+        final client = await createPushClient();
         debugPrint('zuno/push: FCM headless client ready');
-        return result.client;
+        return client;
       },
     );
 

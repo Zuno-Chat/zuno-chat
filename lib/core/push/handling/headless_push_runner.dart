@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../calls/notifications/call_notification_service.dart';
 import '../../errors/best_effort.dart';
@@ -246,11 +245,10 @@ class HeadlessPushRunner {
           return IncomingPushOutcome.ignored;
         }
         timing.mark('client');
-        final prefs = await SharedPreferences.getInstance();
         final handledAs = await handleIncomingPushNotification(
           client,
           notification,
-          notifyMe: notifyMeFromPreferences(prefs),
+          notifyMe: await currentNotifyMe(),
           currentlyOpenRoomId: currentlyOpenRoomId(),
           timing: timing,
           onRefining: _keepRefining,

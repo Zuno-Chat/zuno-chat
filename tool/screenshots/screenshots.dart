@@ -24,7 +24,6 @@ import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/matrix/upload_progress_http_client.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -172,15 +171,11 @@ class _ShotClient extends Client {
 
 class _World {
   final db = _ShotDatabase();
-  final httpClient = UploadProgressHttpClient(
-    MockClient(
-      (request) async => http.Response(
-        request.url.path.endsWith('/versions')
-            ? '{"versions":["v1.11"]}'
-            : '{}',
-        200,
-        headers: {'content-type': 'application/json'},
-      ),
+  final httpClient = MockClient(
+    (request) async => http.Response(
+      request.url.path.endsWith('/versions') ? '{"versions":["v1.11"]}' : '{}',
+      200,
+      headers: {'content-type': 'application/json'},
     ),
   );
   late final Client client;
@@ -691,7 +686,6 @@ Future<void> _pump(
   final container = ProviderContainer(
     overrides: [
       matrixClientProvider.overrideWithValue(w.client),
-      uploadProgressHttpClientProvider.overrideWithValue(w.httpClient),
       sharedPreferencesProvider.overrideWithValue(prefs),
       platformCapabilitiesProvider.overrideWithValue(
         capabilitiesFor(device.app),

@@ -7,6 +7,7 @@ import '../../async/serial_lock.dart';
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
 import '../../notifications/local_notifications.dart';
+import '../../notifications/settings/notification_preview.dart';
 import '../../notifications/settings/notification_sound_settings.dart';
 import '../../platform/platform_capabilities.dart';
 import '../notifications/call_notification_service.dart';
@@ -190,6 +191,7 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
     Uint8List? avatarBytes,
   }) async {
     final sound = loadNotificationSoundSettings();
+    final level = currentNotificationPreview();
     await _notifications.initialize(claimLiveRoutes: false);
     debugPrint(
       'zuno/push: posting ring for $callId '
@@ -197,16 +199,19 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
       '${await _notifications.fullScreenIntentAllowedOrNull()})',
     );
     final settings = await sound;
+    final preview = await level;
     final l10n = deviceLocalizations();
     await _invoke('showIncomingCallStyle', {
       'channelId': isGroupCall ? groupRingChannelId : ringChannelId,
       'title': isVideo ? l10n.callsIncomingVideo : l10n.callsIncomingVoice,
-      'callerName': callerName,
+      'callerName': preview.callName(callerName, l10n),
       'callerId': callerId,
       'isVideo': isVideo,
       'roomId': roomId,
       'callId': callId,
-      'avatarBytes': avatarBytes,
+      'avatarBytes': preview == NotificationPreview.nothing
+          ? null
+          : avatarBytes,
       'ringtone': settings.ringtone,
       'ringtoneAsset': _ringtoneAsset,
       'vibrate':

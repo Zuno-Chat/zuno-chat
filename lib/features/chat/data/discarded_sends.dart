@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/media_gallery_group.dart';
@@ -47,6 +48,34 @@ class DiscardedSends {
       discarded.removeWhere((id) => !unsent.contains(id) && !isSending(id));
       return discarded.length != before;
     });
+  }
+
+  Future<void> settle(Room room, Iterable<Event> events) async {
+    final kept = <Event>[];
+    for (final event in [...events]) {
+      final (:txid, :galleryId) = sendIdentity(event);
+      final dropped =
+          !event.status.isSent &&
+          event.senderId == room.client.userID &&
+          contains(room, [txid, galleryId]) &&
+          await runBestEffort(
+            () => discardUnsent(event),
+            label: 'discard a deleted send',
+          );
+      if (!dropped) kept.add(event);
+    }
+    await prune(room, kept);
+  }
+
+  Future<void> discardUnsent(Event event) async {
+    final txid = sendIdentity(event).txid;
+    if (isSending(txid)) {
+      await add(event.room, txid);
+      if (event.status.isError) await event.cancelSend();
+    } else {
+      await event.cancelSend();
+      await remove(event.room, txid);
+    }
   }
 
   bool isSending(String id) => _sending.containsKey(id);

@@ -1,7 +1,9 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../async/serial_lock.dart';
 import '../../l10n/l10n.dart';
+import '../../notifications/settings/notification_preview.dart';
 import '../../platform/platform_capabilities.dart';
 
 const _callsChannel = MethodChannel('zuno/calls');
@@ -25,17 +27,24 @@ final ongoingCallPresenterProvider = Provider<OngoingCallPresenter>(
 class AndroidOngoingCallPresenter implements OngoingCallPresenter {
   const AndroidOngoingCallPresenter();
 
+  static final _inOrder = SerialLock();
+
   @override
   Future<void> start({required String title, required bool withCamera}) {
-    return _invoke('startCallForegroundService', {
-      'title': title,
-      'text': deviceLocalizations().callsOngoingTapToReturn,
-      'withCamera': withCamera,
+    final preview = currentNotificationPreview();
+    return _inOrder.run(() async {
+      final l10n = deviceLocalizations();
+      await _invoke('startCallForegroundService', {
+        'title': (await preview).callName(title, l10n),
+        'text': l10n.callsOngoingTapToReturn,
+        'withCamera': withCamera,
+      });
     });
   }
 
   @override
-  Future<void> stop() => _invoke('stopCallForegroundService');
+  Future<void> stop() =>
+      _inOrder.run(() => _invoke<void>('stopCallForegroundService'));
 
   Future<T?> _invoke<T>(
     String method, [

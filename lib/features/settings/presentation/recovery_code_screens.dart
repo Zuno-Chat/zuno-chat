@@ -432,7 +432,6 @@ class _RecoveryCodeEntryFieldState
           child: SecretTextField(
             autofillHints: const [AutofillHints.password],
             controller: widget.controller,
-            autofocus: true,
             minLines: 2,
             maxLines: 4,
             keyboardType: TextInputType.visiblePassword,

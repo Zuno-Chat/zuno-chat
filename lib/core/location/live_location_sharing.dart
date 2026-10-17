@@ -11,6 +11,8 @@ import '../matrix/connectivity_provider.dart';
 import '../matrix/ephemeral_to_device.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../matrix/olm_sender.dart';
+import '../notifications/settings/notification_preview.dart';
+import '../settings/app_preferences_provider.dart';
 import 'live_location_availability.dart';
 import 'live_location_capture.dart';
 import 'live_location_notice.dart';
@@ -101,11 +103,14 @@ class _ActiveShare {
 
 String _deviceKey(DeviceKeys device) => '${device.userId}|${device.deviceId}';
 
+NotificationPreview _fullPreview() => NotificationPreview.full;
+
 class LiveLocationSharing {
   LiveLocationSharing({
     required Client client,
     required LiveLocationCapture capture,
     required this._isOffline,
+    this._previewLevel = _fullPreview,
     this._recipients = liveLocationRecipients,
     this._now = DateTime.now,
   }) : _client = client,
@@ -123,6 +128,7 @@ class LiveLocationSharing {
   final Client _client;
   final LiveLocationCapture _capture;
   final bool Function() _isOffline;
+  final NotificationPreview Function() _previewLevel;
   final Future<List<DeviceKeys>> Function(Room room) _recipients;
   final DateTime Function() _now;
   final _subscriptions = <StreamSubscription<Object?>>[];
@@ -325,6 +331,10 @@ class LiveLocationSharing {
       if (_clearing == 0) await _stopCapture();
       return;
     }
+    await refreshNotice();
+  }
+
+  Future<void> refreshNotice() async {
     final notice = _notice();
     if (_mode != null && notice != null) await _capture.updateNotice(notice);
   }
@@ -347,7 +357,11 @@ class LiveLocationSharing {
     ];
     return entries.isEmpty
         ? null
-        : liveLocationNotice(deviceLocalizations(), entries);
+        : liveLocationNotice(
+            deviceLocalizations(),
+            entries,
+            namesChats: _previewLevel() != NotificationPreview.nothing,
+          );
   }
 
   void _setLatest(LivePosition position, int seq) {
@@ -785,10 +799,15 @@ final liveLocationSharingProvider = Provider<LiveLocationSharing>((ref) {
     client: client,
     capture: ref.watch(liveLocationCaptureProvider),
     isOffline: () => ref.read(isOfflineProvider).value ?? false,
+    previewLevel: () => ref.read(notificationPreviewProvider),
   );
   ref.listen(isOfflineProvider, (previous, next) {
     if (becameOnline(previous, next)) sharing.onConnectivityRestored();
   });
+  ref.listen(
+    notificationPreviewProvider,
+    (_, _) => unawaited(sharing.refreshNotice()),
+  );
   ref.onDispose(sharing.dispose);
   return sharing;
 });

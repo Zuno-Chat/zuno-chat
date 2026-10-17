@@ -290,6 +290,7 @@ class MessageNotificationNotifier extends Notifier<void> {
     await MessageNotifications.instance.retractPlaceholder(
       decrypted.room.id,
       eventId,
+      preview: ref.read(notificationPreviewProvider),
     );
   }
 
@@ -315,15 +316,14 @@ class MessageNotificationNotifier extends Notifier<void> {
       final presentsInFrontOnly = ref
           .read(platformCapabilitiesProvider)
           .nseNotifications;
+      final preview = ref.read(notificationPreviewProvider);
       final decision = messageNotificationFor(
         client,
         event,
         pushRuleAction: client.pushruleEvaluator.match(event),
         notifyMe: ref.read(notifyMeProvider),
         currentlyOpenRoomId: ref.read(currentlyOpenRoomIdProvider),
-        preview: presentsInFrontOnly
-            ? ref.read(notificationPreviewProvider)
-            : NotificationPreview.full,
+        preview: preview,
       );
       final content = decision.content;
       final lifecycle = WidgetsBinding.instance.lifecycleState;
@@ -352,6 +352,7 @@ class MessageNotificationNotifier extends Notifier<void> {
       await postMessageNotification(
         content,
         client: client,
+        preview: preview,
         placeholder: decision.placeholder,
         fetchImage: () => fetchMessageNotificationImage(event),
         onPosted: settle,

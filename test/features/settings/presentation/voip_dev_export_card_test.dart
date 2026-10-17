@@ -8,7 +8,7 @@ import 'package:zuno/core/push/voip/voip_channel.dart';
 import 'package:zuno/core/security/sensitive_clipboard.dart';
 import 'package:zuno/features/settings/presentation/voip_dev_export_card.dart';
 
-import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -58,7 +58,7 @@ void main() {
   });
 
   testWidgets('copying hands the test tool all three values', (tester) async {
-    final native = installFakeCallsChannel();
+    final native = installFakePrivacyChannel();
     await pumpCard(tester);
 
     await tester.tap(find.text('Copy test values'));

@@ -122,7 +122,8 @@ class _NotificationsSettingsPageState
 
   bool _previewHintDue(NotificationPreview preview) {
     final prefs = ref.read(sharedPreferencesProvider);
-    return preview == NotificationPreview.full &&
+    return ref.read(platformCapabilitiesProvider).notificationRetentionCheck &&
+        preview == NotificationPreview.full &&
         prefs.getBool(notificationPreviewHintKey) != true &&
         notificationRetentionUnpatched(
           widget.osVersion ?? Platform.operatingSystemVersion,
@@ -283,61 +284,59 @@ class _NotificationsSettingsPageState
               ),
             ],
           ),
-          if (capabilities.nseNotifications) ...[
-            CardGroup(
-              title: l10n.notificationsContent,
-              children: [
-                RadioGroup<NotificationPreview>(
-                  groupValue: preview,
-                  onChanged: (level) => _setPreview(level!),
-                  child: Column(
+          CardGroup(
+            title: l10n.notificationsContent,
+            children: [
+              RadioGroup<NotificationPreview>(
+                groupValue: preview,
+                onChanged: (level) => _setPreview(level!),
+                child: Column(
+                  children: [
+                    for (final level in NotificationPreview.values)
+                      RadioListTile<NotificationPreview>(
+                        title: Text(level.label(l10n)),
+                        subtitle: Text(level.description(l10n)),
+                        value: level,
+                      ),
+                  ],
+                ),
+              ),
+              if (_previewHintDue(preview))
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: Text(l10n.notificationsRetentionTitle),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final level in NotificationPreview.values)
-                        RadioListTile<NotificationPreview>(
-                          title: Text(level.label(l10n)),
-                          subtitle: Text(level.description(l10n)),
-                          value: level,
-                        ),
+                      Text(l10n.notificationsRetentionHint),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: () =>
+                                _setPreview(NotificationPreview.nameOnly),
+                            child: Text(l10n.notificationsUseNameOnly),
+                          ),
+                          TextButton(
+                            onPressed: _finishPreviewHint,
+                            child: Text(l10n.notificationsKeepAsIs),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-                if (_previewHintDue(preview))
-                  ListTile(
-                    leading: const Icon(Icons.info_outline),
-                    title: Text(l10n.notificationsRetentionTitle),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(l10n.notificationsRetentionHint),
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            TextButton(
-                              onPressed: () =>
-                                  _setPreview(NotificationPreview.nameOnly),
-                              child: Text(l10n.notificationsUseNameOnly),
-                            ),
-                            TextButton(
-                              onPressed: _finishPreviewHint,
-                              child: Text(l10n.notificationsKeepAsIs),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(28, 6, 28, 8),
-              child: Text(
-                l10n.notificationsContentFootnote,
-                style: theme.textTheme.bodySmall!.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 6, 28, 8),
+            child: Text(
+              l10n.notificationsContentFootnote,
+              style: theme.textTheme.bodySmall!.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          ],
+          ),
           CardGroup(
             title: capabilities.vibrationPatterns
                 ? l10n.notificationsSoundsAndVibration

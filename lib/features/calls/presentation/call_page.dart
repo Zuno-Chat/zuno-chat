@@ -11,6 +11,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/navigation/chat_route.dart';
 import '../../../core/navigation/launch_route.dart';
+import '../../../core/security/alerts/security_alerts_provider.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/ui/corner_snap.dart';
 import '../../../core/ui/zuno_theme.dart';
@@ -188,6 +189,24 @@ class _CallPageState extends ConsumerState<CallPage> {
     return wanted ? userId : null;
   }
 
+  String? _unvouchedDeviceWarning(BuildContext context) {
+    final people = {
+      for (final remote in call.remotes)
+        if (ref.watch(
+          unvouchedCallDeviceProvider((
+            userId: remote.id.userId,
+            deviceId: remote.id.deviceId,
+          )),
+        ))
+          remote.id.userId,
+    };
+    if (people.isEmpty) return null;
+    return context.l10n.callsUnapprovedDevice(
+      people.length,
+      withoutServer(people.first),
+    );
+  }
+
   Future<void> _explainConfirming(BuildContext context, String userId) async {
     final confirm = await showWhyConfirmSheet(
       context,
@@ -228,6 +247,7 @@ class _CallPageState extends ConsumerState<CallPage> {
       onConfirmPerson: confirmUserId == null
           ? null
           : () => _explainConfirming(context, confirmUserId),
+      unvouchedDeviceWarning: _unvouchedDeviceWarning(context),
     );
   }
 }

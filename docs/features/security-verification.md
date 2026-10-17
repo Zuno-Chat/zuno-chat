@@ -22,8 +22,8 @@ Three rules govern every surface:
 
 ## Architecture
 
-Logic lives in `lib/core/security/`, screens in `features/settings/` and
-`features/verification/`.
+Logic lives in `lib/core/security/`, screens in `features/settings/`,
+`features/verification/` and `features/security_alerts/`.
 
 | Area | Main pieces |
 |---|---|
@@ -31,19 +31,21 @@ Logic lives in `lib/core/security/`, screens in `features/settings/` and
 | Recovery | `recovery_code.dart` (generation, normalization), `recovery_code_file.dart` (the saved file), `secure_backup_page.dart` |
 | Devices | `verification_page.dart`, `approve_this_device_page.dart`, `active_sessions_page.dart` |
 | People | `user_trust.dart`, `confirmed_identity_store.dart`, `confirm_person.dart` |
-| Device watch | `known_devices_store.dart` and the new-device banners |
+| Alerts | `alerts/` (the alert model, its stores and the one watcher), shown by `security_alert_banners.dart` |
 | Messages | `undecryptable_reason.dart`, `recovery_code_leak.dart` |
 
-Calls check call-key senders against the same device keys (`calls.md`), and
-onboarding asks for approval and recovery from the raw facts rather than the
-status (`onboarding.md`).
+Calls check call-key senders against the same device keys and flag
+unapproved devices in the call (`calls.md`), and onboarding asks for
+approval and recovery from the raw facts rather than the status
+(`onboarding.md`).
 
 ### Status
 
 The pure function `accountSecurityStatus` turns five facts, read on every
 sync, into one status. Settings → Security shows it as one card with at most
-one button. Each account-wide fact has a this-device twin, and those pairs
-are what separate a missing recovery from a locked device.
+one button, and the chat list repeats it as a banner (Security alerts). Each
+account-wide fact has a this-device twin, and those pairs are what separate
+a missing recovery from a locked device.
 
 | Fact | SDK source |
 |---|---|
@@ -103,8 +105,9 @@ flowchart TD
   is the likeliest real-world failure of the design. Validation only hints
   and never blocks submission.
 - **The code is guarded wherever it shows or is typed.**
-  - Screenshots are blocked while it is on screen, whatever the Prevent
-    screenshots setting says (`settings.md`).
+  - Screenshots are blocked, and on Android other apps' overlays hidden,
+    while it is on screen, whatever the Prevent screenshots setting says
+    (`settings.md`).
   - It shows as text that cannot be selected, so copying goes only through
     the Copy button and the clipboard that clears itself.
   - Its fields offer only cut, copy, paste and select all, copying through
@@ -163,7 +166,7 @@ it, their devices' signatures and the key we stored:
 
 | State | Meaning | Shown as |
 |---|---|---|
-| `noIdentity` | They never set up recovery | Nothing to confirm; the new-device banner can fire |
+| `noIdentity` | They never set up recovery | Nothing to confirm; a new device of theirs raises an alert |
 | `unconfirmed` | Not confirmed by us | A confirm row in room info, a note in an empty one-to-one chat, the call pill |
 | `confirmed` | Confirmed, every device signed | A muted check in the chat header |
 | `confirmedWithPendingDevice` | Confirmed, but one of their devices is not approved by them | The check plus a passive line in room info |
@@ -173,18 +176,45 @@ The call pill (`calls.md`) shows only when both ends can finish a
 confirmation: this device has recovery and the identity keys, and the other
 person calls from a device they approved.
 
-### Device watch
+### Security alerts
 
-`KnownDevicesStore` remembers device IDs per user and backs two warnings: a
-new sign-in on the user's own account (a banner and a notification,
-`notifications.md`), and a new device for a contact without a master key (a
-banner in the chat). The default key policy sends that contact's new devices
-room keys, so it is the one case where a device can read along unnoticed.
+Every security warning is one alert type, checked by one watcher after each
+finished sync and shown in one banner look (`app-foundation.md`). Event
+alerts are recorded per account, survive restarts and close themselves once
+resolved; state alerts are computed from current state, so there is nothing
+to store.
 
-The first check for a user seeds the store silently. Only contacts sharing a
-non-public room are watched, because strangers' devices are noise. The
-warning fires on a device appearing rather than as a standing state, because
-"has no identity" is true of most contacts and would become wallpaper.
+| Alert | Kind | Raised when | Closes when | Shown | Notifies (`notifications.md`) |
+|---|---|---|---|---|---|
+| Recovery code replaced | Event | The account's identity key differs from the one this app last saw, and this device is not signed by the new one | This device is approved under the new identity | Chat list | Yes |
+| New sign-in | Event | An own device appears that this app has not seen | The device is signed out or approved | Chat list, with the server's last-seen time and IP | Yes, without the time and IP |
+| New device of a `noIdentity` contact | Event | A contact without an identity adds a device | Every flagged device is gone, or they set up recovery | Their non-public chats | No |
+| Identity changed | State | A confirmed contact's master key differs from the one we confirmed | They are confirmed again | Their chats, with Confirm and no ✕ | No |
+| Account status | State | `deviceLocked`, `deviceWaiting` or `recoveryStale` | The status changes | Chat list | No |
+
+- **The first look only records.** The first check of a user's devices, or
+  of the account's identity key, seeds the store silently, so a fresh
+  install never reports what was already there.
+- **A contact's new device is the one case where a device can read along
+  unnoticed**, because the default key policy sends room keys to new devices
+  of a contact without an identity.
+- **It fires on a device appearing, not as a standing state**, because "has
+  no identity" is true of most contacts and would become wallpaper. Only
+  contacts sharing a non-public room are watched, because strangers' devices
+  are noise.
+- **✕ removes a recorded alert; on an account-status banner it hides that
+  status for the session**, until the status changes, as the delivery banner
+  does. Closing a new sign-in also hides `deviceWaiting` for the session.
+- **One banner per cause**: `deviceLocked` hides while a recovery-replaced
+  alert is open and `deviceWaiting` while a new sign-in is, since the alert
+  already explains them. `noRecovery` is never a banner; the recovery prompt
+  asks instead (Decisions).
+- **People are named by username, never display name**, because a display
+  name can be spoofed.
+- **The call screen names anyone in the call on a device their own account
+  never approved** (`calls.md`). For a contact without an identity, only
+  devices flagged as new since we met them count, and a device whose keys
+  are not loaded yet never does.
 
 ### Confirmed people only
 
@@ -283,8 +313,9 @@ the commonest words of ordinary prose break any run.
 |---|---|
 | Confirmed person | A muted check, once per screen, as a receipt; absence means nothing |
 | Empty room | One line that clears itself, promising privacy only once the person is confirmed |
-| Room list | Nothing, because the same words about nobody read as marketing |
+| Room list | Only alerts about this account that need acting on, never reassurance, because the same words about nobody read as marketing |
 | Message from a confirmed person's unapproved device | Long-press sheet only, since a per-message mark becomes wallpaper |
+| Call with someone on a device their account never approved | A badge naming them |
 
 - **Three visual states, no shields** (shields mean nothing outside Matrix):
   nothing, a muted check, and attention (`security_emphasis.dart`). Attention
@@ -335,9 +366,14 @@ the commonest words of ordinary prose break any run.
   trust**, so it is false for every device of a contact we have not
   confirmed, and whether a contact approved a device is read as
   `hasValidSignatureChain(verifiedByTheirMasterKey: true)`.
-- **Device checks run only on finished syncs and only add**, because the SDK
-  empties and refills a device list across awaits, and saving a half-filled
-  list would later report the missing devices as new sign-ins.
+- **Alert checks run only on finished syncs, known devices are only ever
+  added, and an alert closes only against a fully loaded device list**,
+  because the SDK empties and refills a device list across awaits, and a
+  half-filled list would report devices as new or as gone.
+- **The SDK publishes a new identity before it signs this device with it**,
+  so the recovery screen holds the recovery-replaced check while this device
+  creates an identity and adopts the new key when `Bootstrap` ends, or every
+  replaced code would alert on the device that replaced it.
 - **A trust write (`setVerified`, `setBlocked`) saves the person's whole
   device list and throws once `client.userDeviceKeys` no longer holds it**,
   and that map changes across each write's await, so a loop of trust writes

@@ -13,8 +13,9 @@ import 'package:zuno/core/push/fcm/fcm_availability_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
-import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/fake_privacy_channel.dart';
+import '../../helpers/native_method_calls.dart';
 import '../../helpers/platform_capabilities.dart';
 import '../../helpers/preferences_container.dart';
 
@@ -545,7 +546,7 @@ void main() {
   group('settings.prevent_screenshots', () {
     late List<MethodCall> calls;
 
-    setUp(() => calls = installFakeCallsChannel().calls);
+    setUp(() => calls = installFakePrivacyChannel().calls);
 
     test('defaults to true when unset', () async {
       final container = await containerWithPreferences({});
@@ -591,6 +592,43 @@ void main() {
       });
       final prefs = await SharedPreferences.getInstance();
       expect(readPreventScreenshots(prefs), isFalse);
+    });
+  });
+
+  group('settings.incognito_keyboard where other keyboards can be blocked', () {
+    late RecordedMethodCalls native;
+
+    setUp(() {
+      native = installFakePrivacyChannel();
+      ambientCapabilities = iosCapabilities;
+    });
+
+    test(
+      'set() blocks other keyboards while on and allows them while off',
+      () async {
+        final container = await containerWithPreferences({});
+        await container.read(incognitoKeyboardProvider.notifier).set(false);
+        await container.read(incognitoKeyboardProvider.notifier).set(true);
+        await pumpEventQueue();
+
+        expect(native.thirdPartyKeyboards, [true, false]);
+      },
+    );
+  });
+
+  group('readIncognitoKeyboard', () {
+    test('defaults to true when unset', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      expect(readIncognitoKeyboard(prefs), isTrue);
+    });
+
+    test('reads a previously-stored false value', () async {
+      SharedPreferences.setMockInitialValues({
+        'settings.incognito_keyboard': false,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      expect(readIncognitoKeyboard(prefs), isFalse);
     });
   });
 

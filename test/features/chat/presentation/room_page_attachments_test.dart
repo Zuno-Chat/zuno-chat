@@ -19,6 +19,7 @@ import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
+import 'package:zuno/core/matrix/upload_http_client.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/data/discarded_sends.dart';
@@ -78,9 +79,11 @@ void main() {
   late bool uploadsFail;
   late int? uploadLimit;
   late bool locationFails;
+  late bool sendsGiveUpAtOnce;
   late Future<void> Function(String method) beforeVideoTool;
 
   setUp(() {
+    sendsGiveUpAtOnce = false;
     beforeVideoTool = (_) async {};
     picker = installFakeImagePicker();
     files = installFakeFilePicker();
@@ -178,6 +181,7 @@ void main() {
       capabilities: capabilitiesLike(iosCapabilities, nativeImageResize: false),
       overrides: overrides,
       encrypting: encrypting,
+      sendsGiveUpAtOnce: sendsGiveUpAtOnce,
       preferences: preferences,
     );
     harness.db.events = [harness.message(r'$m1')];
@@ -414,20 +418,16 @@ void main() {
       expect(galleryOf(harness.sent.single)!['index'], 0);
     });
 
-    testWidgets('a photo that fails after leaving the chat still says so', (
-      tester,
-    ) async {
+    testWidgets('a photo that fails after leaving the chat says so, and waits '
+        'in the chat to go again', (tester) async {
       final upload = Completer<void>();
+      uploadsFail = true;
       picker.answer = [photo('IMG_1.jpg')];
-      await openRoom(tester);
+      await openRoom(tester, reopenable: true);
       final respond = harness.respond!;
       harness.respond = (request) async {
-        if (!request.url.path.contains('/upload')) return respond(request);
-        await upload.future;
-        return http.Response(
-          jsonEncode({'errcode': 'M_UNKNOWN', 'error': 'boom'}),
-          500,
-        );
+        if (request.url.path.contains('/upload')) await upload.future;
+        return respond(request);
       };
 
       await choose(tester, 'Take photo');
@@ -437,18 +437,27 @@ void main() {
         until: () =>
             harness.httpRequests.any((r) => r.url.path.contains('/upload')),
       );
-      await tester.pumpWidget(
-        await harness.app(home: const Scaffold(body: SizedBox())),
-      );
+      await tester.pageBack();
+      await harness.settle(tester);
       upload.complete();
       await pumpUntil(
         tester,
         () => shows('Not sent. Try again.'),
         reason: 'the failure to be reported',
       );
-
       expect(find.byType(RoomPage), findsNothing);
-      expect(find.text('Not sent. Try again.'), findsOneWidget);
+
+      uploadsFail = false;
+      await tester.tap(find.text('open'));
+      await harness.settle(tester);
+      await tester.tap(find.byType(GalleryFailedThumbnail));
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty,
+        reason: 'the photo to go again',
+      );
+
+      expect(harness.sent.single['msgtype'], 'm.image');
     });
 
     group('when you leave the chat mid-way', () {
@@ -632,6 +641,38 @@ void main() {
         expect(harness.sent.single['msgtype'], 'm.image');
       });
 
+      testWidgets('a failed photo keeps its copy after leaving the chat, and '
+          'goes again from the chat opened again', (tester) async {
+        uploadsFail = true;
+        final picked = photo('IMG_1.jpg');
+        picker.answer = [picked];
+        await openRoom(tester, reopenable: true);
+
+        await choose(tester, 'Take photo');
+        await sendFromComposer(
+          tester,
+          awaiting: 'the photo to fail',
+          until: () => failedTiles() == 1,
+        );
+        await tester.pageBack();
+        await harness.settle(tester);
+        expect(pickerCopyLeft(picked), isTrue);
+
+        await tester.tap(find.text('open'));
+        await harness.settle(tester);
+        expect(failedTiles(), 1);
+
+        uploadsFail = false;
+        await tester.tap(find.byType(GalleryFailedThumbnail));
+        await pumpUntil(
+          tester,
+          () => harness.sent.isNotEmpty && !pickerCopyLeft(picked),
+          reason: 'the photo to go again and its copy to be removed',
+        );
+
+        expect(harness.sent.single['msgtype'], 'm.image');
+      });
+
       testWidgets('a recorded video leaves no copy behind', (tester) async {
         final recorded = pickerCopy('rec.mp4', [0, 0, 0, 24]);
         picker.answer = [XFile(recorded.path, mimeType: 'video/mp4')];
@@ -717,16 +758,24 @@ void main() {
   });
 
   group('deleting while still sending', () {
+    setUp(() => sendsGiveUpAtOnce = true);
+
     late Completer<void> heldUpload;
     late List<String> redacted;
     late int uploads;
-    late int? uploadsWhenLastPosted;
     late bool laterUploadsFail;
     late int posted;
     late bool held;
+    late bool postHeld;
+    late Completer<void> heldConfig;
+    late bool configHeld;
     late List<Event> placeholders;
 
-    void holdUpload({required int afterPosts}) {
+    void holdUpload({
+      required int afterPosts,
+      bool holdPost = false,
+      bool holdConfig = false,
+    }) {
       placeholders = [];
       final sub = harness.client.onTimelineEvent.stream
           .where((e) => e.status.isSending)
@@ -741,13 +790,19 @@ void main() {
       heldUpload = Completer<void>();
       redacted = [];
       uploads = 0;
-      uploadsWhenLastPosted = null;
       laterUploadsFail = false;
       posted = 0;
       held = false;
+      postHeld = false;
+      heldConfig = Completer<void>();
+      configHeld = false;
       final respond = harness.respond!;
       harness.respond = (request) async {
         final path = request.url.path;
+        if (holdConfig && !configHeld && path.endsWith('/media/config')) {
+          configHeld = true;
+          await heldConfig.future;
+        }
         if (path.endsWith('/upload')) {
           uploads++;
           if (posted == afterPosts && !held) {
@@ -762,8 +817,11 @@ void main() {
           }
         }
         if (path.contains('/send/m.room.message/')) {
+          if (holdPost && !postHeld) {
+            postHeld = true;
+            await Completer<void>().future;
+          }
           harness.sent.add(jsonDecode(request.body) as Map<String, Object?>);
-          uploadsWhenLastPosted = uploads;
           return http.Response(
             jsonEncode({'event_id': '\$item${++posted}'}),
             200,
@@ -869,24 +927,21 @@ void main() {
       Future<void> deleteGallery(WidgetTester tester, String action) =>
           confirmDelete(tester, find.byType(GalleryMessage), action);
 
-      testWidgets('deletes what arrived and the photo on its way once it '
-          'lands, and sends nothing more', (tester) async {
+      testWidgets('deletes what arrived, stops the photo on its way, and '
+          'sends nothing more', (tester) async {
         await sendGalleryHoldingSecond(tester);
 
         await deleteGallery(tester, 'Delete all (2)');
         expect(redacted, [r'$item1']);
 
         heldUpload.complete();
-        await pumpUntil(
-          tester,
-          () => redacted.length == 2,
-          reason: 'the late photo to be deleted',
-        );
         await drain(tester);
 
-        expect(redacted, [r'$item1', r'$item2']);
-        expect(harness.sent, hasLength(2));
-        expect(uploads, uploadsWhenLastPosted);
+        expect(redacted, [r'$item1']);
+        expect(harness.sent, hasLength(1));
+        expect(uploads, 2);
+        expect(find.byType(NotSentRow), findsNothing);
+        expect(failedTiles(), 0);
       });
 
       testWidgets('Cancel lets every photo go', (tester) async {
@@ -942,19 +997,15 @@ void main() {
         await harness.settle(tester);
         await deleteGallery(tester, 'Delete all (2)');
         heldUpload.complete();
-        await pumpUntil(
-          tester,
-          () => redacted.length == 2,
-          reason: 'the late photo to be deleted',
-        );
         await drain(tester);
 
-        expect(redacted, [r'$item1', r'$item2']);
-        expect(harness.sent, hasLength(2));
+        expect(redacted, [r'$item1']);
+        expect(harness.sent, hasLength(1));
       });
 
-      testWidgets('a photo going again after a restart is deleted once it '
-          'lands', (tester) async {
+      testWidgets('a photo going again after a restart is stopped', (
+        tester,
+      ) async {
         final status = StreamController<ConnectionStatus>.broadcast();
         addTearDown(status.close);
         Event galleryPhoto(String id, int index, EventStatus sendStatus) =>
@@ -1005,13 +1056,11 @@ void main() {
 
         await deleteGallery(tester, 'Delete all (2)');
         heldUpload.complete();
-        await pumpUntil(
-          tester,
-          () => redacted.length == 2,
-          reason: 'the photo sent again to be deleted',
-        );
+        await drain(tester);
 
-        expect(redacted, [r'$p1', r'$item1']);
+        expect(redacted, [r'$p1']);
+        expect(harness.sent, isEmpty);
+        expect(find.byType(NotSentRow), findsNothing);
       });
 
       testWidgets('stays deleted after a restart: the photo left on its way '
@@ -1039,6 +1088,97 @@ void main() {
           everyElement(isNot(startsWith('chat.'))),
         );
       });
+    });
+
+    testWidgets('a photo deleted while it uploads stops there, and nothing '
+        'reaches the chat', (tester) async {
+      picker.answer = [photo('a.jpg')];
+      await openRoom(tester);
+      holdUpload(afterPosts: 0);
+      await choose(tester, 'Take photo');
+      await sendFromComposer(
+        tester,
+        awaiting: 'the photo to start uploading',
+        until: () => held,
+      );
+      await harness.settle(tester);
+
+      await confirmDelete(tester, find.byType(ImageMessage), 'Delete');
+      expect(find.byType(ImageMessage), findsNothing);
+      heldUpload.complete();
+      await drain(tester);
+
+      expect(harness.sent, isEmpty);
+      expect(redacted, isEmpty);
+      expect(uploads, 1);
+      expect(failedTiles(), 0);
+      expect(find.byType(ImageMessage), findsNothing);
+      expect(find.byType(NotSentRow), findsNothing);
+      expect(
+        (await discardRecord()).contains(harness.room, [
+          placeholders.first.eventId,
+        ]),
+        isFalse,
+      );
+    });
+
+    testWidgets('a photo deleted while its send still runs stays gone when '
+        'the send shows it again', (tester) async {
+      picker.answer = [photo('a.jpg')];
+      await openRoom(tester);
+      holdUpload(afterPosts: 99, holdConfig: true);
+      await choose(tester, 'Take photo');
+      await sendFromComposer(
+        tester,
+        awaiting: 'the photo to wait for the media limits',
+        until: () => configHeld,
+      );
+      await harness.settle(tester);
+
+      await confirmDelete(tester, find.byType(ImageMessage), 'Delete');
+      harness.client.onTimelineEvent.add(placeholders.single);
+      await harness.settle(tester);
+
+      expect(find.byType(ImageMessage), findsNothing);
+      expect(find.byType(NotSentRow), findsNothing);
+
+      heldConfig.complete();
+      await drain(tester);
+
+      expect(find.byType(ImageMessage), findsNothing);
+      expect(find.byType(NotSentRow), findsNothing);
+      expect(uploads, 0);
+      expect(harness.sent, isEmpty);
+    });
+
+    testWidgets('a photo of a batch deleted while it uploads, shown on its '
+        'own, stops alone: the rest still goes', (tester) async {
+      picker.answer = [photo('a.jpg'), photo('b.jpg'), photo('c.jpg')];
+      await openRoom(tester);
+      holdUpload(afterPosts: 0);
+      await choose(tester, 'Choose from gallery');
+      await sendFromComposer(
+        tester,
+        tooltip: 'Send all',
+        awaiting: 'the first photo to start uploading',
+        until: () => held,
+      );
+      await harness.settle(tester);
+
+      await confirmDelete(tester, find.byType(ImageMessage), 'Delete');
+      await pumpUntil(
+        tester,
+        () => harness.sent.length == 2,
+        reason: 'the rest of the batch to be sent',
+      );
+      heldUpload.complete();
+      await drain(tester);
+
+      expect(
+        [for (final sent in harness.sent) galleryOf(sent)!['index']],
+        [1, 2],
+      );
+      expect(redacted, isEmpty);
     });
 
     testWidgets('deleting the one photo shown of a batch still being '
@@ -1091,33 +1231,42 @@ void main() {
       return onItsWay;
     }
 
-    testWidgets('a file shown as not sent while it still uploads is deleted '
-        'once it lands', (tester) async {
+    testWidgets('a file shown as not sent while it still uploads is stopped '
+        'there', (tester) async {
       final onItsWay = await sendFileShownAsNotSent(tester);
       expect(find.byType(NotSentRow), findsOneWidget);
 
       await confirmDelete(tester, find.byType(FileMessage), 'Delete');
-      expect(redacted, isEmpty);
       heldUpload.complete();
-      await pumpUntil(
-        tester,
-        () => redacted.isNotEmpty,
-        reason: 'the late file to be deleted',
-      );
+      await drain(tester);
 
-      expect(redacted, [r'$item1']);
+      expect(redacted, isEmpty);
+      expect(harness.sent, isEmpty);
+      expect(find.byType(FileMessage), findsNothing);
       expect(
         (await discardRecord()).contains(harness.room, [onItsWay.eventId]),
         isFalse,
       );
     });
 
-    testWidgets('a file deleted while it uploads stays deleted after a '
-        'restart, and is never sent again', (tester) async {
+    testWidgets('a file deleted while its message is being posted stays '
+        'deleted after a restart, and is never sent again', (tester) async {
       final status = StreamController<ConnectionStatus>.broadcast();
       addTearDown(status.close);
-      final onItsWay = await sendFileShownAsNotSent(tester);
+      files.picked = [
+        FakePickedFile('a.pdf', Uint8List.fromList([1])),
+      ];
+      await openRoom(tester);
+      holdUpload(afterPosts: 99, holdPost: true);
+      await choose(tester, 'Choose file');
+      await pumpUntil(
+        tester,
+        () => postHeld,
+        reason: 'the file message to be posted',
+      );
+      final onItsWay = placeholders.first;
       await confirmDelete(tester, find.byType(FileMessage), 'Delete');
+      expect(find.byType(FileMessage), findsNothing);
       final stored = await storedPreferences();
 
       await restartOffline(
@@ -1135,6 +1284,7 @@ void main() {
         (await discardRecord()).contains(harness.room, [onItsWay.eventId]),
         isFalse,
       );
+      await tester.pump(sendStallLimit);
     });
 
     testWidgets('a record that matches nothing unsent is cleared when the '
@@ -1158,6 +1308,71 @@ void main() {
         (await storedPreferences()).keys,
         everyElement(isNot(startsWith('chat.'))),
       );
+    });
+  });
+
+  group('a send that stops moving', () {
+    setUp(() => sendsGiveUpAtOnce = true);
+
+    late bool asked;
+
+    Future<void> sendPhotoStuckAt(
+      WidgetTester tester,
+      bool Function(String path) stuck,
+    ) async {
+      picker.answer = [photo('a.jpg')];
+      await openRoom(tester);
+      asked = false;
+      final respond = harness.respond!;
+      harness.respond = (request) {
+        if (asked || !stuck(request.url.path)) return respond(request);
+        asked = true;
+        return Completer<http.Response?>().future;
+      };
+      await choose(tester, 'Take photo');
+      await sendFromComposer(
+        tester,
+        awaiting: 'the request that never gets an answer',
+        until: () => asked,
+      );
+      await tester.pump(sendStallLimit);
+      await harness.settle(tester);
+    }
+
+    testWidgets('a photo whose upload never gets an answer fails once '
+        'nothing has moved for the stall limit, and goes again when tapped', (
+      tester,
+    ) async {
+      await sendPhotoStuckAt(tester, (path) => path.endsWith('/upload'));
+
+      expect(failedTiles(), 1);
+      expect(harness.sent, isEmpty);
+      await tester.tap(find.byType(GalleryFailedThumbnail));
+      await pumpUntil(
+        tester,
+        () => harness.sent.isNotEmpty,
+        reason: 'the photo to go again',
+      );
+      expect(harness.sent.single['msgtype'], 'm.image');
+    });
+
+    testWidgets('a photo stuck fetching the media limits fails the same '
+        'way', (tester) async {
+      await sendPhotoStuckAt(tester, (path) => path.endsWith('/media/config'));
+
+      expect(failedTiles(), 1);
+      expect(harness.sent, isEmpty);
+    });
+
+    testWidgets('a photo whose message post never gets an answer shows as '
+        'not sent', (tester) async {
+      await sendPhotoStuckAt(
+        tester,
+        (path) => path.contains('/send/m.room.message/'),
+      );
+
+      expect(find.byType(NotSentRow), findsOneWidget);
+      expect(failedTiles(), 0);
     });
   });
 

@@ -92,6 +92,7 @@ final class EngineHost {
       ("ZunoImageResizerPlugin", ImageResizerPlugin.self),
       ("ZunoAppDataPlugin", AppDataPlugin.self),
       ("ZunoCallsChannelPlugin", CallsChannelPlugin.self),
+      ("ZunoPrivacyPlugin", PrivacyPlugin.self),
       ("ZunoFileExportPlugin", FileExportPlugin.self),
       ("ZunoUploadServicePlugin", UploadServicePlugin.self),
       ("ZunoRoomLaunchPlugin", RoomLaunchPlugin.self),

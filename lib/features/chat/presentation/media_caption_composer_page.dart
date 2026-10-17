@@ -5,11 +5,14 @@ import 'package:video_player/video_player.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
+import '../data/composed_media.dart';
 import 'caption_bar.dart';
 import 'image_caption_composer_page.dart' show ComposedImage;
 import 'preview_decode_width.dart';
 import 'video_caption_composer_page.dart'
-    show ComposedVideo, ComposerVideoPreview, composeVideo;
+    show ComposerVideoPreview, composeVideo;
+
+export '../data/composed_media.dart';
 
 sealed class PickedMedia {
   final String name;
@@ -24,20 +27,6 @@ class PickedImage extends PickedMedia {
 class PickedVideo extends PickedMedia {
   final String path;
   const PickedVideo({required super.name, required this.path});
-}
-
-sealed class ComposedMedia {
-  const ComposedMedia();
-}
-
-class ComposedImageResult extends ComposedMedia {
-  final ComposedImage image;
-  const ComposedImageResult(this.image);
-}
-
-class ComposedVideoResult extends ComposedMedia {
-  final ComposedVideo video;
-  const ComposedVideoResult(this.video);
 }
 
 class MediaCaptionComposerPage extends StatefulWidget {

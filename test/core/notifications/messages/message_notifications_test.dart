@@ -9,6 +9,7 @@ import 'package:zuno/core/notifications/messages/message_notification_content.da
 import 'package:zuno/core/notifications/messages/message_notifications.dart';
 import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
@@ -72,6 +73,7 @@ void main() {
           title: 'Alice',
           body: 'hi',
         ),
+        preview: NotificationPreview.full,
       );
 
       final specifics = notifications.lastPlatformSpecifics;
@@ -93,6 +95,7 @@ void main() {
           title: 'Alice',
           body: 'hi',
         ),
+        preview: NotificationPreview.full,
       );
 
       final specifics = notifications.lastPlatformSpecifics;
@@ -114,6 +117,7 @@ void main() {
             body: 'hi',
             isDirectChat: false,
           ),
+          preview: NotificationPreview.full,
         );
 
         final specifics = notifications.lastPlatformSpecifics;
@@ -136,6 +140,7 @@ void main() {
           title: 'Alice',
           body: 'hi',
         ),
+        preview: NotificationPreview.full,
       );
       await MessageNotifications.instance.showMessage(
         const MessageNotificationContent(
@@ -143,6 +148,7 @@ void main() {
           title: 'Alice',
           body: 'are you there?',
         ),
+        preview: NotificationPreview.full,
       );
 
       expect(notifications.shown, hasLength(2));
@@ -180,6 +186,7 @@ void main() {
           title: 'Alice',
           body: 'hi',
         ),
+        preview: NotificationPreview.full,
       );
 
       expect(notifications.methods, containsAllInOrder(['show', 'vibrate']));
@@ -208,6 +215,7 @@ void main() {
             body: 'hi',
             eventId: eventId,
           ),
+          preview: NotificationPreview.full,
         );
 
     test('skips an event it already notified, so a sync catch-up cannot '
@@ -282,6 +290,7 @@ void main() {
           body: 'hi',
           eventId: r'$1',
         ),
+        preview: NotificationPreview.full,
       );
 
       expect(actionsOf(notifications.lastPlatformSpecifics), isEmpty);
@@ -295,7 +304,8 @@ void main() {
           body: 'hi',
           eventId: r'$1',
         ),
-        includeMessageActions: true,
+        preview: NotificationPreview.full,
+        isMessage: true,
       );
 
       final actions = actionsOf(notifications.lastPlatformSpecifics);
@@ -315,7 +325,8 @@ void main() {
           title: 'New message',
           body: 'Tap to open',
         ),
-        includeMessageActions: true,
+        preview: NotificationPreview.full,
+        isMessage: true,
       );
 
       final actions = actionsOf(notifications.lastPlatformSpecifics);
@@ -331,7 +342,8 @@ void main() {
             body: 'hi',
             eventId: eventId,
           ),
-          includeMessageActions: true,
+          preview: NotificationPreview.full,
+          isMessage: true,
         );
 
         expect(jsonDecode(notifications.shown.last.payload), {

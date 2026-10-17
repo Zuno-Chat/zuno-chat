@@ -13,6 +13,7 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/navigation/chat_route.dart';
 import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/security/alerts/security_alerts_provider.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_layer.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
@@ -31,6 +32,7 @@ class CallPageHarness extends CallChannelMocks {
     this.tester, {
     PlatformCapabilities? capabilities,
     List<Override> overrides = const [],
+    Set<String> unvouchedPeople = const {},
     this.topBanner,
     this.home = const Scaffold(body: Text('Chat')),
   }) {
@@ -41,6 +43,9 @@ class CallPageHarness extends CallChannelMocks {
       overrides: [
         if (capabilities != null)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
+        unvouchedCallDeviceProvider.overrideWith(
+          (ref, device) => unvouchedPeople.contains(device.userId),
+        ),
         ...overrides,
       ],
     );

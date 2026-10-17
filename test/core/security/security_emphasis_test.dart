@@ -12,27 +12,6 @@ void main() {
     },
   );
 
-  testWidgets('the stripe paints undiluted error colour', (tester) async {
-    final scheme = ColorScheme.fromSeed(seedColor: Colors.deepPurple);
-    await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        theme: ThemeData(colorScheme: scheme),
-        home: const Scaffold(
-          body: SizedBox(height: 40, child: AttentionStripe()),
-        ),
-      ),
-    );
-
-    final container = tester.widget<Container>(find.byType(Container));
-    expect(container.color, scheme.error);
-    expect(
-      tester.getSize(find.byType(AttentionStripe)).width,
-      attentionStripeWidth,
-    );
-  });
-
   Future<BuildContext> contextWith(WidgetTester tester, ThemeData theme) async {
     late BuildContext captured;
     await tester.pumpWidget(

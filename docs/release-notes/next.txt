@@ -10,4 +10,4 @@ New
 • Double-tap a message to react with a heart.
 • Use Zuno in more languages.
 
-Fixed 133 bugs.
+Fixed 143 bugs.

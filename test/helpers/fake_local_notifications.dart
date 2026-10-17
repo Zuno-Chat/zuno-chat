@@ -82,9 +82,9 @@ NotificationResponse messageTapResponse(String roomId) => NotificationResponse(
   payload: jsonEncode({'type': messagePayloadType, 'roomId': roomId}),
 );
 
-NotificationResponse newDeviceTapResponse() => NotificationResponse(
+NotificationResponse securityAlertTapResponse() => NotificationResponse(
   notificationResponseType: NotificationResponseType.selectedNotification,
-  payload: jsonEncode({'type': newDevicePayloadType}),
+  payload: jsonEncode({'type': securityAlertPayloadType}),
 );
 
 RecordedNotifications installFakeLocalNotifications({

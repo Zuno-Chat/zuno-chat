@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/matrix/upload_http_client.dart';
+import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 
 import 'room_page_harness.dart';
@@ -46,5 +51,25 @@ void main() {
       'user_ids': ['@bob:example.org'],
     });
     expect(sent.single.containsKey('formatted_body'), isFalse);
+  });
+
+  testWidgets('a message whose post never gets an answer shows as not sent '
+      'once nothing has moved for the stall limit', (tester) async {
+    final harness =
+        RoomPageHarness(db: SendingFakeDatabaseApi(), sendsGiveUpAtOnce: true)
+          ..respond = (request) => request.url.path.contains('/send/')
+              ? Completer<http.Response?>().future
+              : null;
+    await harness.pumpRoomPage(tester);
+    await tester.enterText(find.byType(TextField), 'anyone there?');
+    await tester.pump();
+    await tester.tap(find.byType(SendIcon));
+    await harness.settle(tester);
+    expect(find.byType(NotSentRow), findsNothing);
+
+    await tester.pump(sendStallLimit);
+    await harness.settle(tester);
+
+    expect(find.byType(NotSentRow), findsOneWidget);
   });
 }

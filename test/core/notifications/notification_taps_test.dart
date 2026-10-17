@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/notifications/local_notifications.dart';
 import 'package:zuno/core/notifications/messages/message_notifications.dart';
-import 'package:zuno/core/security/new_device_notifications.dart';
+import 'package:zuno/core/security/alerts/security_alert_notifications.dart';
 
 import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/fake_local_notifications.dart';
@@ -91,9 +91,11 @@ void main() {
       expect(rooms, ['!chat:example.org']);
     });
 
-    test('a new sign-in opens the device list', () async {
+    test('a security alert opens the device list', () async {
       var opened = 0;
-      final sub = NewDeviceNotifications.instance.onTap.listen((_) => opened++);
+      final sub = SecurityAlertNotifications.instance.onTap.listen(
+        (_) => opened++,
+      );
       addTearDown(sub.cancel);
 
       await tap(payload: jsonEncode({'type': 'newDevice', 'deviceId': 'ABC'}));
@@ -106,7 +108,7 @@ void main() {
       final subs = [
         service.onAction.listen(events.add),
         MessageNotifications.instance.onMessageTap.listen(events.add),
-        NewDeviceNotifications.instance.onTap.listen(events.add),
+        SecurityAlertNotifications.instance.onTap.listen(events.add),
       ];
       addTearDown(() {
         for (final sub in subs) {
@@ -174,10 +176,10 @@ void main() {
     });
   });
 
-  test('a new sign-in is posted on the sign-ins channel and opens the device '
-      'list when tapped', () async {
-    await NewDeviceNotifications.instance.show(
-      deviceId: 'ABC',
+  test('a security alert is posted on the security channel and opens the '
+      'device list when tapped', () async {
+    await SecurityAlertNotifications.instance.show(
+      alertKey: 'newSignIn:ABC',
       title: 'New sign-in',
       body: 'Pixel 8a signed in',
     );
@@ -186,7 +188,7 @@ void main() {
     expect(shown.title, 'New sign-in');
     expect(shown.body, 'Pixel 8a signed in');
     expect(shown.android['channelId'], 'security');
-    expect(jsonDecode(shown.payload), {'type': 'newDevice', 'deviceId': 'ABC'});
+    expect(jsonDecode(shown.payload), {'type': 'newDevice'});
   });
 
   group('the notification that launched the app', () {

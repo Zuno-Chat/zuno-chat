@@ -28,6 +28,7 @@ import 'core/push/fcm/fcm_headless_entry.dart';
 import 'core/push/fcm/fcm_startup.dart';
 import 'core/push/unified_push/unified_push_headless_entry.dart';
 import 'core/security/screen_security_service.dart';
+import 'core/security/third_party_keyboards.dart';
 import 'core/settings/app_preferences_provider.dart';
 import 'core/share/inbound_share.dart';
 import 'core/shortcuts/home_screen_shortcut.dart';
@@ -83,7 +84,7 @@ Future<void> _runApp(List<String> args) async {
   );
 
   await notificationsFuture;
-  final (:client, :uploadProgressHttpClient) = await clientFuture;
+  final client = await clientFuture;
   await repairLeftRoomsOnce(client, preferences);
   unawaited(
     runBestEffort(
@@ -97,8 +98,13 @@ Future<void> _runApp(List<String> args) async {
     nativeNotificationActionRunner.attach(client);
   }
   unawaited(
-    ScreenSecurityService.instance.followPreference(
-      readPreventScreenshots(preferences),
+    ScreenSecurityService.instance.start(
+      preventScreenshots: readPreventScreenshots(preferences),
+    ),
+  );
+  unawaited(
+    ThirdPartyKeyboards.instance.followIncognito(
+      readIncognitoKeyboard(preferences),
     ),
   );
 
@@ -111,9 +117,6 @@ Future<void> _runApp(List<String> args) async {
     ProviderScope(
       overrides: [
         matrixClientProvider.overrideWithValue(client),
-        uploadProgressHttpClientProvider.overrideWithValue(
-          uploadProgressHttpClient,
-        ),
         sharedPreferencesProvider.overrideWithValue(preferences),
       ],
       child: ZunoApp(pendingRing: pendingRing),
@@ -137,8 +140,8 @@ Future<StartupChoice> _askAfterFailedStart(Object _) async {
 
 Future<void> _runHeadlessPushHandler() => runUnifiedPushHeadless(
   clientBuilder: () async {
-    final result = await createPushClient();
+    final client = await createPushClient();
     debugPrint('zuno/push: headless client ready');
-    return result.client;
+    return client;
   },
 );

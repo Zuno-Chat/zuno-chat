@@ -12,6 +12,7 @@ import '../../../core/calls/models/call_status.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_title.dart';
+import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/corner_snap.dart';
 import 'call_controls.dart';
 import 'call_stage.dart';
@@ -52,6 +53,7 @@ class CallView extends StatefulWidget {
   final VoidCallback onMinimize;
   final String? confirmName;
   final VoidCallback? onConfirmPerson;
+  final String? unvouchedDeviceWarning;
   final SnapCorner selfCorner;
   final ValueChanged<SnapCorner> onSelfCornerChanged;
 
@@ -77,6 +79,7 @@ class CallView extends StatefulWidget {
     required this.onSelfCornerChanged,
     this.confirmName,
     this.onConfirmPerson,
+    this.unvouchedDeviceWarning,
   });
 
   List<CallViewParticipant> get present => connecting ? const [] : remote;
@@ -219,6 +222,13 @@ class _CallViewState extends State<CallView> {
                 mainAxisSize: MainAxisSize.min,
                 spacing: _gap,
                 children: [
+                  if (widget.unvouchedDeviceWarning case final warning?)
+                    CallBadge(
+                      key: const ValueKey('unvouchedDevice'),
+                      icon: attentionIcon,
+                      label: warning,
+                      maxLines: 2,
+                    ),
                   if (pill)
                     ConnectionQualityPill(
                       key: const ValueKey('quality'),

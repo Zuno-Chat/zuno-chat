@@ -47,7 +47,7 @@ upload is a job in `release.yml`.
 |---|---|---|
 | `cut-release` | Cron on the 1st, or by hand | Computes the version, commits `chore: release X.Y.Z` (pubspec bump, notes moved) to `master`, pushes `rc/X.Y.Z` and dispatches `release` |
 | `start-hotfix` | By hand, with master commit SHAs and notes | Branches `rc/X.Y.Z` from the highest tag as the next patch, cherry-picks with `-x`, commits the bump and notes on the rc branch, dispatches `release` |
-| `release` | Dispatch, on `rc/*` only | Guards → analyze and the Dart, Kotlin and Swift suites → both builds → tag `vX.Y.Z` → website APK → iOS upload → Android upload |
+| `release` | Dispatch, on `rc/*` only | Guards → analyze and the Dart, Kotlin and Swift suites → both builds and their scans → tag `vX.Y.Z` → website APK → iOS upload → Android upload |
 
 - **The release branch name is the version.**
 - **The tag spends the version before any channel holds its binary**: it
@@ -57,6 +57,13 @@ upload is a job in `release.yml`.
   highest tag, if the pubspec disagrees, if the notes are invalid, or if a
   fix shipped in another tagged release (by its cherry-pick source) is
   missing from HEAD, so a release never drops a fix users already have.
+- **Built artifacts are scanned for on-device content-scanning APIs**
+  (`tool/ci/forbidden_apis.dart`): the release AAB, APK and IPA before the
+  tag, and the simulator app in every checks run (pull requests, `master`
+  and the release gate). Google SafetyCore, Android's ContentSafetyManager
+  or Apple's SensitiveContentAnalysis (framework or entitlement) fails the
+  run, because Zuno must never ship one and a dependency can bring one in
+  unseen.
 - **Uploads run most reversible first**: the website (its manifest can be
   pointed back), then iOS (a submission can be withdrawn), then Play (a
   production commit can only be halted).

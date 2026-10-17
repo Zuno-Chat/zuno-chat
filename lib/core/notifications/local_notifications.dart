@@ -36,18 +36,21 @@ const messageChannelIds = {
 };
 
 const messagePayloadType = 'message';
-const newDevicePayloadType = 'newDevice';
+const securityAlertPayloadType = 'newDevice';
 
 const _markReadCategoryId = 'message';
 const _replyOnlyCategoryId = 'reply';
+const _plainMessageCategoryId = 'message_plain';
 
 String? darwinMessageCategory({
-  required bool includeMessageActions,
+  required bool isMessage,
+  required bool offersActions,
   required String? eventId,
-}) => switch ((includeMessageActions, eventId)) {
-  (false, _) => null,
-  (true, null) => _replyOnlyCategoryId,
-  (true, _) => _markReadCategoryId,
+}) => switch ((isMessage, offersActions, eventId)) {
+  (false, _, _) => null,
+  (true, false, _) => _plainMessageCategoryId,
+  (true, true, null) => _replyOnlyCategoryId,
+  (true, true, _) => _markReadCategoryId,
 };
 
 Map<String, Object?>? decodeNotificationPayload(String? payload) {
@@ -130,7 +133,7 @@ void _handleBackgroundResponse(NotificationResponse response) {
 
 Future<Client> _oneShotClient() async {
   await installAppHttpOverrides();
-  return (await createMatrixClient(backgroundSync: false)).client;
+  return createMatrixClient(backgroundSync: false);
 }
 
 class LocalNotifications {
@@ -280,6 +283,7 @@ class LocalNotifications {
         ],
       ),
       DarwinNotificationCategory(_replyOnlyCategoryId, actions: [replyAction]),
+      const DarwinNotificationCategory(_plainMessageCategoryId),
     ];
   }
 
@@ -340,8 +344,8 @@ class LocalNotifications {
     ),
     AndroidNotificationChannel(
       securityChannelId,
-      l10n.notificationsChannelNewSignIns,
-      description: l10n.notificationsChannelNewSignInsDescription,
+      l10n.notificationsChannelSecurity,
+      description: l10n.notificationsChannelSecurityDescription,
       importance: Importance.max,
       groupId: _accountGroupId,
     ),

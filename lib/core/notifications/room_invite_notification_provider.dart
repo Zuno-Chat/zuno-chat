@@ -12,6 +12,7 @@ import '../matrix/join_requests.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../platform/platform_capabilities.dart';
 import '../push/nse/nse_app_channel.dart';
+import '../settings/app_preferences_provider.dart';
 import 'messages/message_notification_poster.dart';
 import 'messages/message_notification_provider.dart';
 import 'messages/message_notifications.dart';
@@ -120,7 +121,8 @@ class RoomInviteNotificationNotifier extends Notifier<void> {
       await postMessageNotification(
         content,
         client: client,
-        includeMessageActions: false,
+        preview: ref.read(notificationPreviewProvider),
+        isMessage: false,
       );
       if (presentsInFrontOnly) {
         unawaited(

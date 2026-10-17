@@ -13,7 +13,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/matrix/upload_progress_http_client.dart';
+import 'package:zuno/core/matrix/upload_http_client.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
@@ -47,13 +47,38 @@ class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi
   ) async {}
 }
 
+class _AbortHonoringClient extends http.BaseClient {
+  _AbortHonoringClient(this._inner);
+
+  final http.Client _inner;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    final response = _inner.send(request);
+    if (request case http.Abortable(:final abortTrigger?)) {
+      return Future.any([
+        response,
+        abortTrigger.then<http.StreamedResponse>(
+          (_) => throw http.RequestAbortedException(request.url),
+        ),
+      ]);
+    }
+    return response;
+  }
+}
+
 class _HarnessClient extends Client {
   _HarnessClient(
     super.clientName, {
     required super.database,
     required super.httpClient,
     required this.encrypting,
-  });
+    required bool sendsGiveUpAtOnce,
+  }) : super(
+         sendTimelineEventTimeout: sendsGiveUpAtOnce
+             ? Duration.zero
+             : const Duration(minutes: 1),
+       );
 
   final bool encrypting;
 
@@ -70,46 +95,50 @@ class RoomPageHarness {
   final PlatformCapabilities? capabilities;
   final List<Override> overrides;
   final bool encrypting;
+  final bool sendsGiveUpAtOnce;
   final Map<String, Object> preferences;
   late final Client client;
   late final Room room;
-  late final UploadProgressHttpClient httpClient;
 
   RoomPageHarness({
     StoredEventsFakeDatabaseApi? db,
     this.capabilities,
     this.overrides = const [],
     this.encrypting = false,
+    this.sendsGiveUpAtOnce = false,
     this.preferences = const {},
   }) : db = db ?? StoredEventsFakeDatabaseApi() {
     installRoomOpeningChannels();
 
-    httpClient = UploadProgressHttpClient(
-      MockClient((request) async {
-        requests.add(request.url.path);
-        httpRequests.add(request);
-        final custom = await respond?.call(request);
-        if (custom != null) return custom;
-        if (request.url.path.endsWith('/versions')) {
-          return http.Response(
-            jsonEncode({
-              'versions': ['v1.11'],
-            }),
-            200,
-          );
-        }
-        if (request.url.path.contains('/send/m.room.message/')) {
-          sent.add(jsonDecode(request.body) as Map<String, Object?>);
-          return http.Response('{"event_id":"\$sent"}', 200);
-        }
-        return http.Response('{}', 200);
-      }),
+    final httpClient = UploadHttpClient(
+      _AbortHonoringClient(
+        MockClient((request) async {
+          requests.add(request.url.path);
+          httpRequests.add(request);
+          final custom = await respond?.call(request);
+          if (custom != null) return custom;
+          if (request.url.path.endsWith('/versions')) {
+            return http.Response(
+              jsonEncode({
+                'versions': ['v1.11'],
+              }),
+              200,
+            );
+          }
+          if (request.url.path.contains('/send/m.room.message/')) {
+            sent.add(jsonDecode(request.body) as Map<String, Object?>);
+            return http.Response('{"event_id":"\$sent"}', 200);
+          }
+          return http.Response('{}', 200);
+        }),
+      ),
     );
     client = _HarnessClient(
       'test',
       database: this.db,
       httpClient: httpClient,
       encrypting: encrypting,
+      sendsGiveUpAtOnce: sendsGiveUpAtOnce,
     );
     client.setUserId('@me:example.org');
     client.baseUri = Uri.parse('https://example.org');
@@ -163,12 +192,14 @@ class RoomPageHarness {
       preferences,
       overrides: [
         matrixClientProvider.overrideWithValue(client),
-        uploadProgressHttpClientProvider.overrideWithValue(httpClient),
         if (capabilities case final capabilities?)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
         ...overrides,
       ],
     );
+    final login = container.listen(isLoggedInProvider.future, (_, _) {});
+    await login.read();
+    login.close();
     return UncontrolledProviderScope(
       container: container,
       child: MaterialApp(

@@ -10,6 +10,7 @@ import '../matrix/join_requests.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../matrix/matrix_ids.dart';
 import '../matrix/room_title.dart';
+import '../settings/app_preferences_provider.dart';
 import 'messages/message_notification_content.dart';
 import 'messages/message_notification_poster.dart';
 import 'messages/message_notifications.dart';
@@ -94,7 +95,8 @@ class JoinRequestNotificationNotifier extends Notifier<void> {
       () => postMessageNotification(
         content,
         client: client,
-        includeMessageActions: false,
+        preview: ref.read(notificationPreviewProvider),
+        isMessage: false,
       ),
       label: 'join request notification',
     );

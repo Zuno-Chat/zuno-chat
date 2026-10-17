@@ -6,11 +6,18 @@ sealed interface NoticeText {
     data class Room(val name: String) : NoticeText
     data object NewMessage : NoticeText
     data object TapToOpen : NoticeText
+    data object Brand : NoticeText
 }
 
 data class NoticeCopy(val title: NoticeText, val text: NoticeText)
 
 data class NoticeConversation(val title: String, val isGroup: Boolean)
+
+data class NoticePresentation(
+    val copy: NoticeCopy,
+    val conversation: NoticeConversation?,
+    val shortcut: Boolean,
+)
 
 data class NoticeAlert(val silent: Boolean, val vibrate: Boolean)
 
@@ -18,6 +25,7 @@ object PushNoticeDecision {
     const val DIRECT_CHANNEL = "direct_messages"
     const val GROUP_CHANNEL = "group_messages"
     const val MENTIONS_ONLY = "mentionsOnly"
+    const val PREVIEW_NOTHING = "nothing"
 
     fun shouldPost(
         roomId: String?,
@@ -57,6 +65,17 @@ object PushNoticeDecision {
 
     fun alertFor(messageTone: Boolean, messageVibration: Boolean): NoticeAlert =
         NoticeAlert(silent = !messageTone, vibrate = messageVibration)
+
+    fun presentationFor(room: CachedRoom?, preview: String?): NoticePresentation =
+        if (preview == PREVIEW_NOTHING) {
+            NoticePresentation(
+                NoticeCopy(NoticeText.Brand, NoticeText.NewMessage),
+                conversation = null,
+                shortcut = false,
+            )
+        } else {
+            NoticePresentation(copyFor(room), conversationFor(room), shortcut = true)
+        }
 
     fun conversationFor(room: CachedRoom?): NoticeConversation? {
         if (room == null) return null

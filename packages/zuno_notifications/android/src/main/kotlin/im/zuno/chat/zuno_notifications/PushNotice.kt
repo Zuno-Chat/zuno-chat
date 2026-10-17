@@ -22,6 +22,7 @@ object PushNotice {
     const val TONE_KEY = "flutter.settings.message_tone_enabled"
     const val VIBRATION_KEY = "flutter.settings.message_vibration_enabled"
     const val NOTIFY_ME_KEY = "flutter.settings.notify_me"
+    const val PREVIEW_KEY = "flutter.settings.notification_preview"
     const val BRAND_NAME = "Zuno"
     private const val TAG = "PushNotice"
     private const val SMALL_ICON = "ic_stat_zuno_mark"
@@ -69,9 +70,12 @@ object PushNotice {
                 Log.d(TAG, "No $channel channel yet, no instant notice")
                 return false
             }
-            val copy = PushNoticeDecision.copyFor(cached)
-            val title = noticeText(context, copy.title)
-            val text = noticeText(context, copy.text)
+            val presentation = PushNoticeDecision.presentationFor(
+                cached,
+                prefs.getString(PREVIEW_KEY, null),
+            )
+            val title = noticeText(context, presentation.copy.title)
+            val text = noticeText(context, presentation.copy.text)
             val alert = alertFor(prefs)
             val tap = PendingIntent.getActivity(
                 context,
@@ -88,8 +92,8 @@ object PushNotice {
                 .setSilent(alert.silent)
                 .setAutoCancel(true)
                 .setContentIntent(tap)
-                .setShortcutId(roomId)
-            PushNoticeDecision.conversationFor(cached)?.let { conversation ->
+            if (presentation.shortcut) builder.setShortcutId(roomId)
+            presentation.conversation?.let { conversation ->
                 if (!ConversationShortcut.exists(context, roomId)) {
                     ConversationShortcut.push(
                         context,
@@ -192,6 +196,7 @@ object PushNotice {
         is NoticeText.Room -> text.name
         NoticeText.NewMessage -> context.getString(R.string.notificationsNewMessage)
         NoticeText.TapToOpen -> context.getString(R.string.notificationsTapToOpen)
+        NoticeText.Brand -> BRAND_NAME
     }
 
     private fun alertFor(prefs: SharedPreferences): NoticeAlert = PushNoticeDecision.alertFor(

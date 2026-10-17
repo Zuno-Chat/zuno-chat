@@ -20,9 +20,9 @@ import 'package:zuno/features/settings/presentation/why_security_page.dart';
 import 'package:zuno/features/verification/presentation/approve_this_device_page.dart';
 
 import '../../../helpers/card_layout.dart';
-import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
@@ -51,7 +51,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late RecordedMethodCalls native;
 
-  setUp(() => native = installFakeCallsChannel());
+  setUp(() => native = installFakePrivacyChannel());
 
   Finder switchTile(String title) =>
       find.widgetWithText(SwitchListTile, title, skipOffstage: false);
@@ -177,12 +177,63 @@ void main() {
     expect(switchTile('Confirmed people only'), findsNothing);
   });
 
-  testWidgets('iOS keeps the On this device group for the screen, without '
-      'the keyboard it cannot ask not to learn', (tester) async {
-    await pumpPage(tester, capabilities: iosCapabilities);
+  group('on iOS, Incognito keyboard', () {
+    testWidgets('says it allows only Apple\'s keyboard, on by default', (
+      tester,
+    ) async {
+      await pumpPage(tester, capabilities: iosCapabilities);
 
-    expect(switchTile('Incognito keyboard'), findsNothing);
-    expect(find.text('On this device', skipOffstage: false), findsOneWidget);
+      expect(
+        tester.widget<SwitchListTile>(switchTile('Incognito keyboard')).value,
+        isTrue,
+      );
+      expect(
+        find.text(
+          "Only Apple's keyboard works in Zuno, so keyboards from other apps "
+          'never see what you type',
+          skipOffstage: false,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Asks the keyboard not to learn from what you type',
+          skipOffstage: false,
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('turning it off allows other keyboards, and on blocks them', (
+      tester,
+    ) async {
+      ambientCapabilities = iosCapabilities;
+      await pumpPage(tester, capabilities: iosCapabilities);
+
+      await tester.tap(switchTile('Incognito keyboard'));
+      await tester.pump();
+      await tester.tap(switchTile('Incognito keyboard'));
+      await tester.pump();
+
+      expect(native.thirdPartyKeyboards, [true, false]);
+    });
+  });
+
+  testWidgets('on Android, Incognito keyboard asks the keyboard not to learn '
+      'and never touches other keyboards', (tester) async {
+    await pumpPage(tester);
+
+    expect(
+      find.text(
+        'Asks the keyboard not to learn from what you type',
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(switchTile('Incognito keyboard'));
+    await tester.pump();
+
+    expect(native.thirdPartyKeyboards, isEmpty);
   });
 
   testWidgets('Prevent screenshots shows the setting, on by default, and '

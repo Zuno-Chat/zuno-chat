@@ -129,6 +129,7 @@ Brazilian Portuguese for `lib/l10n/app_pt.arb`, the base Portuguese file, writte
 | English | pt-BR | Notes |
 |---|---|---|
 | notification, test notification | a notificação · a notificação de teste | |
+| alert | o alerta | "Security alerts" → «Alertas de segurança». |
 | push, push target, push key | o push · o destino de push · a chave de push | "push notifications" → «notificações push». |
 | registration (push) | o registro / registrar | Never «cadastro». |
 | delivery, background sync | a entrega · a sincronização em segundo plano | |

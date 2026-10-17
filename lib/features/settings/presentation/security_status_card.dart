@@ -5,6 +5,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/security/security_providers.dart';
+import '../../../core/ui/alert_banner.dart';
 import '../../../core/ui/zuno_theme.dart';
 
 class SecurityStatusCard extends ConsumerWidget {

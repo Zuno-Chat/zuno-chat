@@ -41,7 +41,7 @@ import 'core/push/delivery/notification_delivery.dart';
 import 'core/push/delivery/notification_delivery_mode.dart';
 import 'core/push/nse/nse_services.dart';
 import 'core/push/nse/opaque_thread_ids.dart';
-import 'core/security/new_device_notifications.dart';
+import 'core/security/alerts/security_alert_notifications.dart';
 import 'core/security/zuno_text_field.dart';
 import 'core/settings/app_preferences_provider.dart';
 import 'core/share/inbound_share.dart';
@@ -163,7 +163,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
   StreamSubscription<String>? _shortcutSub;
   StreamSubscription<InboundShare>? _shareSub;
   StreamSubscription<String>? _messageTapSub;
-  StreamSubscription<void>? _newDeviceTapSub;
+  StreamSubscription<void>? _securityAlertTapSub;
   StreamSubscription<LiveCaptureFailure>? _liveCaptureLostSub;
   LiveLocationSharing? _liveLocation;
   bool _checkedLaunchShare = false;
@@ -201,7 +201,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     _messageTapSub = MessageNotifications.instance.onMessageTap.listen(
       _openRoomById,
     );
-    _newDeviceTapSub = NewDeviceNotifications.instance.onTap.listen(
+    _securityAlertTapSub = SecurityAlertNotifications.instance.onTap.listen(
       (_) => _openActiveSessions(),
     );
     ref.listenManual(notificationDeliveryModeProvider, (_, mode) {
@@ -264,7 +264,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     _shortcutSub?.cancel();
     _shareSub?.cancel();
     _messageTapSub?.cancel();
-    _newDeviceTapSub?.cancel();
+    _securityAlertTapSub?.cancel();
     _liveCaptureLostSub?.cancel();
     super.dispose();
   }
