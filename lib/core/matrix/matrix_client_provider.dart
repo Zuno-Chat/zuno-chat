@@ -34,18 +34,9 @@ import 'send_keep_awake.dart';
 import 'session_refresh.dart';
 import 'sync_coordinator.dart';
 import 'sync_request_canceller.dart';
-import 'upload_progress_http_client.dart';
+import 'upload_http_client.dart';
 import 'vodozemac_init.dart';
 import 'zuno_client.dart';
-
-final uploadProgressHttpClientProvider = Provider<UploadProgressHttpClient>((
-  ref,
-) {
-  throw UnimplementedError(
-    'uploadProgressHttpClientProvider must be overridden in ProviderScope '
-    'after createMatrixClient() has run — see main.dart.',
-  );
-});
 
 final matrixClientProvider = Provider<Client>((ref) {
   throw UnimplementedError(
@@ -97,12 +88,7 @@ final incomingKeyVerificationProvider = StreamProvider<KeyVerification>((ref) {
 const _connectTimeout = Duration(seconds: 10);
 const _databaseFileName = 'zuno.db';
 
-typedef StartedMatrixClient = ({
-  Client client,
-  UploadProgressHttpClient uploadProgressHttpClient,
-});
-
-Future<StartedMatrixClient> createMatrixClient({
+Future<Client> createMatrixClient({
   bool backgroundSync = true,
   Future<void> Function(Duration delay)? pause,
 }) async {
@@ -115,10 +101,10 @@ Future<StartedMatrixClient> createMatrixClient({
   );
 }
 
-Future<StartedMatrixClient> createPushClient() =>
+Future<Client> createPushClient() =>
     _startBackgroundClient(waitForStoreLoad: false);
 
-Future<StartedMatrixClient> startOverWithFreshStore() async {
+Future<Client> startOverWithFreshStore() async {
   await _holdAppLease();
   final path = await _databasePath();
   await _discardStore(path);
@@ -133,9 +119,7 @@ Future<ClientLease> _holdAppLease() =>
 @visibleForTesting
 void forgetAppLeaseForTest() => _appLease = null;
 
-Future<StartedMatrixClient> _startBackgroundClient({
-  bool waitForStoreLoad = true,
-}) async {
+Future<Client> _startBackgroundClient({bool waitForStoreLoad = true}) async {
   final lease = await ClientLeases.instance.acquire(ClientLeaseKind.background);
   try {
     return await _startClient(
@@ -155,7 +139,7 @@ Future<String> _databasePath() async {
   return p.join(support.path, _databaseFileName);
 }
 
-Future<StartedMatrixClient> _startClient(
+Future<Client> _startClient(
   String path, {
   required bool backgroundSync,
   ClientLease? lease,
@@ -171,7 +155,7 @@ Future<StartedMatrixClient> _startClient(
       IOClient(HttpClient()..connectionTimeout = _connectTimeout),
     ),
   );
-  final uploadProgressHttpClient = UploadProgressHttpClient(
+  final httpClient = UploadHttpClient(
     FreshTokenHttpClient(
       syncRequests,
       accessToken: () => client?.accessToken,
@@ -193,7 +177,7 @@ Future<StartedMatrixClient> _startClient(
 
     final started = client = ZunoClient(
       'Zuno',
-      httpClient: uploadProgressHttpClient,
+      httpClient: httpClient,
       shareKeysWith: shareKeysWithFor(
         confirmedPeopleOnlyOffered &&
             readEncryptToVerifiedSessionsOnly(preferences),
@@ -241,13 +225,10 @@ Future<StartedMatrixClient> _startClient(
 
     started.syncErrorTimeoutSec = 1;
 
-    return (
-      client: started,
-      uploadProgressHttpClient: uploadProgressHttpClient,
-    );
+    return started;
   } catch (_) {
     vodInitFuture.ignore();
-    await _abandon(client, uploadProgressHttpClient);
+    await _abandon(client, httpClient);
     rethrow;
   }
 }
@@ -257,13 +238,13 @@ bool exportsInboundSessions({
   PlatformCapabilities? capabilities,
 }) => appClient && (capabilities ?? ambientCapabilities).nseNotifications;
 
-Future<void> _abandon(Client? client, UploadProgressHttpClient http) async {
+Future<void> _abandon(Client? client, UploadHttpClient httpClient) async {
   try {
     await client?.dispose(closeDatabase: false);
   } catch (error, stack) {
     reportCaught('dispose a client that failed to start', error, stack);
   }
-  http.close();
+  httpClient.close();
 }
 
 Future<void> _discardStore(String path) async {

@@ -12,6 +12,7 @@ import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
 import 'package:zuno/core/matrix/database_key.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/upload_http_client.dart';
 import 'package:zuno/core/matrix/vodozemac_init.dart';
 import 'package:zuno/core/matrix/zuno_client.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -320,12 +321,9 @@ void main() {
         backgroundSync: backgroundSync,
         pause: noPause,
       );
-      addTearDown(created.client.dispose);
-      expect(
-        (created.client.httpClient as dynamic).inner,
-        same(created.uploadProgressHttpClient),
-      );
-      return created.client;
+      addTearDown(created.dispose);
+      expect((created.httpClient as dynamic).inner, isA<UploadHttpClient>());
+      return created;
     }
 
     Iterable<String> leaseMethods() => leaseCalls.map((c) => c.method);
@@ -373,7 +371,7 @@ void main() {
       test('the app keeps its lease for good: a later start asks for nothing '
           'more, and letting a client go gives nothing back', () async {
         final first = await createMatrixClient(pause: noPause);
-        await first.client.dispose();
+        await first.dispose();
 
         await create();
 
@@ -384,7 +382,7 @@ void main() {
         'starting over takes the app lease before it deletes anything',
         () async {
           final started = await startOverWithFreshStore();
-          addTearDown(started.client.dispose);
+          addTearDown(started.dispose);
 
           expect((leaseCalls.single.arguments as Map)['kind'], 'app');
           expect(openedWhenLeased, [0]);
@@ -402,7 +400,7 @@ void main() {
         });
         expect(openedWhenLeased, [0]);
 
-        await started.client.dispose(closeDatabase: false);
+        await started.dispose(closeDatabase: false);
         expect(leaseMethods(), ['acquire', 'release']);
         expect(leaseCalls.last.arguments, {'token': 'background-lease-1'});
       });
@@ -510,7 +508,7 @@ void main() {
 
     test('opens it with the same key on the next start', () async {
       final previousRun = await createMatrixClient();
-      await previousRun.client.dispose();
+      await previousRun.dispose();
 
       await create();
 
@@ -647,12 +645,12 @@ void main() {
       final oldKey = secrets.values.single;
 
       final started = await startOverWithFreshStore();
-      addTearDown(started.client.dispose);
+      addTearDown(started.dispose);
 
       expect(deletedDatabases, ['${support.path}/zuno.db']);
       expect(secrets.values.single, isNot(oldKey));
       expect(opened.last['password'], secrets.values.single);
-      expect(started.client.onLoginStateChanged.value, LoginState.loggedOut);
+      expect(started.onLoginStateChanged.value, LoginState.loggedOut);
     });
 
     test('starting over keeps the database when its key cannot even be '
@@ -723,7 +721,7 @@ void main() {
           backgroundSync: false,
           pause: noPause,
         );
-        addTearDown(started.client.dispose);
+        addTearDown(started.dispose);
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
         expect(

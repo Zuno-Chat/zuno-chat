@@ -36,9 +36,6 @@ Future<void> showMessageActions(
   if (event.redacted) return;
   final isOwn = event.senderId == room.client.userID;
   final sent = event.status.isSent;
-  final canDelete =
-      (isOwn || room.canRedact) &&
-      (sent || isNotSent(event) || gallery != null);
   final displayEvent = event.getDisplayEvent(timeline);
   final canPost = canPostInRoom(room);
   final canEdit =
@@ -59,6 +56,12 @@ Future<void> showMessageActions(
   };
   final isTextMessage =
       !isAttachment && attachmentKind != AttachmentKind.liveLocation;
+  final canDelete =
+      (isOwn || room.canRedact) &&
+      (sent ||
+          isNotSent(event) ||
+          gallery != null ||
+          (isOwn && isAttachment && event.status.isSending));
   final l10n = context.l10n;
   final labels = DateLabels.of(context);
 
@@ -220,8 +223,8 @@ Future<void> _deleteMessages(
   final messenger = ScaffoldMessenger.of(context);
   final l10n = context.l10n;
   final sharing = ref.read(liveLocationSharingProvider);
-  final discarded = ref.read(discardedSendsProvider);
-  if (gallery) await ref.read(roomSenderProvider(room)).dropGalleries(events);
+  final sender = ref.read(roomSenderProvider(room));
+  if (gallery) await sender.dropGalleries(events);
   var failed = false;
   for (final event in events.map((event) => _current(event, timeline))) {
     try {
@@ -229,7 +232,7 @@ Future<void> _deleteMessages(
       if (event.status.isSent) {
         await room.redactEvent(event.eventId);
       } else {
-        await discarded.discardUnsent(event);
+        await sender.discardUnsent(event);
       }
     } catch (e, s) {
       reportCaught('delete message', e, s);

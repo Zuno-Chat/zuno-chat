@@ -15,12 +15,12 @@ import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/currently_open_room_provider.dart';
 import '../../../core/matrix/image_send_preparation.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/media_gallery_group.dart';
 import '../../../core/matrix/media_processing_exception.dart';
 import '../../../core/matrix/send_failure.dart';
 import '../../../core/matrix/send_progress.dart';
 import '../../../core/matrix/upload_foreground_service.dart';
+import '../../../core/matrix/upload_http_client.dart';
 import '../../../core/matrix/video_send_preparation.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import 'composed_image.dart';
@@ -35,8 +35,6 @@ final roomSenderProvider = Provider.family<RoomSender, Room>((ref, room) {
   final sender = RoomSender(
     room: room,
     discarded: ref.watch(discardedSendsProvider),
-    uploadProgress: () =>
-        container.read(uploadProgressHttpClientProvider).onUploadProgress,
     reduceMediaSize: () => container.read(reduceMediaSizeProvider),
     chatOpen: () => container.read(currentlyOpenRoomIdProvider) == room.id,
     say: _snack,
@@ -53,7 +51,6 @@ class RoomSender extends ChangeNotifier {
   RoomSender({
     required this.room,
     required this._discarded,
-    required this._uploadProgress,
     required this._reduceMediaSize,
     required this._chatOpen,
     required this._say,
@@ -61,7 +58,6 @@ class RoomSender extends ChangeNotifier {
 
   final Room room;
   final DiscardedSends _discarded;
-  final Stream<double> Function() _uploadProgress;
   final bool Function() _reduceMediaSize;
   final bool Function() _chatOpen;
   final void Function(String message) _say;
@@ -70,6 +66,7 @@ class RoomSender extends ChangeNotifier {
   final List<FailedMediaSend> _failed = [];
   final _copies = <String>{};
   final _copyUses = <String, int>{};
+  final _sends = <String, SendScope>{};
   bool _disposed = false;
 
   ValueListenable<PendingAttachmentSend?> get pending => _pending;
@@ -84,12 +81,14 @@ class RoomSender extends ChangeNotifier {
     Event? replyingTo,
   }) async {
     await runBestEffort(
-      () => room.sendTextEvent(
-        text,
-        editEventId: editing?.eventId,
-        inReplyTo: replyingTo,
-        parseMarkdown: false,
-        parseCommands: false,
+      () => SendScope().run(
+        () => room.sendTextEvent(
+          text,
+          editEventId: editing?.eventId,
+          inReplyTo: replyingTo,
+          parseMarkdown: false,
+          parseCommands: false,
+        ),
       ),
       label: 'send a text message',
     );
@@ -154,9 +153,10 @@ class RoomSender extends ChangeNotifier {
       txid,
       () => _withSendProgress(
         PendingAttachmentSend(eventId: txid, kind: SendMediaKind.file),
-        (_) => _sendFileEvent(
+        (progress) => _sendFileEvent(
           MatrixFile.fromMimeType(bytes: bytes, name: name, mimeType: mimeType),
           txid: txid,
+          onUploadProgress: progress.upload,
         ),
       ),
       onFailed: () => _say(_l10n.chatNotSentTryAgain),
@@ -201,6 +201,15 @@ class RoomSender extends ChangeNotifier {
           await _sendVideo(video, gallery: failed.gallery);
       }
     });
+  }
+
+  Future<void> discardUnsent(Event event) async {
+    await _discarded.discardUnsent(event);
+    final send = _sends[sendIdentity(event).txid];
+    if (send == null) return;
+    send.stop();
+    if (!event.status.isSending) return;
+    await runBestEffort(event.cancelSend, label: 'remove a stopped send');
   }
 
   Future<void> resend(Event event) async {
@@ -274,6 +283,7 @@ class RoomSender extends ChangeNotifier {
                 gallery: gallery,
               ),
               galleryId: gallery?.id,
+              onUploadProgress: progress.upload,
             );
           },
         );
@@ -317,6 +327,7 @@ class RoomSender extends ChangeNotifier {
               gallery: gallery,
             ),
             galleryId: gallery?.id,
+            onUploadProgress: progress.upload,
           );
         },
       ),
@@ -365,20 +376,17 @@ class RoomSender extends ChangeNotifier {
           publish(current.withStage(stage, fraction));
 
       publish(pending);
-      final sub = _uploadProgress().listen(
-        (fraction) => advance(SendStage.uploading, fraction),
-      );
       try {
         await send(
           _SendProgressSink(
             compression: (fraction) => advance(SendStage.compressing, fraction),
+            upload: (fraction) => advance(SendStage.uploading, fraction),
             preview: (bytes, {width, height}) => publish(
               current.withPreview(bytes, width: width, height: height),
             ),
           ),
         );
       } finally {
-        await sub.cancel();
         if (!_disposed) _pending.value = null;
       }
     });
@@ -403,11 +411,13 @@ class RoomSender extends ChangeNotifier {
     MatrixImageFile? thumbnail,
     Map<String, dynamic>? extraContent,
     String? galleryId,
+    void Function(double fraction)? onUploadProgress,
   }) async {
     if (_isDiscarded(txid, galleryId)) return;
     await _sendThenDropIfDiscarded(
       txid: txid,
       galleryId: galleryId,
+      onUploadProgress: onUploadProgress,
       send: () => room.sendFileEvent(
         file,
         txid: txid,
@@ -421,8 +431,51 @@ class RoomSender extends ChangeNotifier {
     required String txid,
     required String? galleryId,
     required Future<String?> Function() send,
-  }) => _discarded.whileSending([txid, galleryId], () async {
-    final eventId = await send();
+    void Function(double fraction)? onUploadProgress,
+  }) async {
+    final scope = _sends[txid] = SendScope(onProgress: onUploadProgress);
+    final sending = _discarded.whileSending([
+      txid,
+      galleryId,
+    ], () => _sendUnlessDiscarded(txid, galleryId, () => scope.run(send)));
+    try {
+      await Future.any([sending, scope.stopped]);
+    } finally {
+      _sends.remove(txid);
+    }
+    if (scope.isStopped) _keepRemoved(txid, until: sending);
+  }
+
+  void _keepRemoved(String txid, {required Future<void> until}) {
+    final shownAgain = room.client.onTimelineEvent.stream
+        .where(
+          (event) =>
+              event.room.id == room.id &&
+              !event.status.isSent &&
+              event.matchesEventOrTransactionId(txid),
+        )
+        .listen(
+          (event) => unawaited(
+            runBestEffort(
+              event.cancelSend,
+              label: 'remove a stopped send shown again',
+            ),
+          ),
+        );
+    until.whenComplete(shownAgain.cancel).ignore();
+  }
+
+  Future<void> _sendUnlessDiscarded(
+    String txid,
+    String? galleryId,
+    Future<String?> Function() send,
+  ) async {
+    String? eventId;
+    try {
+      eventId = await send();
+    } catch (_) {
+      if (!_isDiscarded(txid, galleryId)) rethrow;
+    }
     if (!_isDiscarded(txid, galleryId)) return;
     try {
       if (eventId == null) {
@@ -440,7 +493,7 @@ class RoomSender extends ChangeNotifier {
     } finally {
       await _discarded.remove(room, txid);
     }
-  });
+  }
 
   Map<String, dynamic>? _attachmentExtraContent({
     required String? caption,
@@ -499,7 +552,12 @@ class RoomSender extends ChangeNotifier {
 
 class _SendProgressSink {
   final void Function(double fraction) compression;
+  final void Function(double fraction) upload;
   final void Function(Uint8List bytes, {int? width, int? height}) preview;
 
-  const _SendProgressSink({required this.compression, required this.preview});
+  const _SendProgressSink({
+    required this.compression,
+    required this.upload,
+    required this.preview,
+  });
 }

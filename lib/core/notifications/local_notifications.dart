@@ -133,7 +133,7 @@ void _handleBackgroundResponse(NotificationResponse response) {
 
 Future<Client> _oneShotClient() async {
   await installAppHttpOverrides();
-  return (await createMatrixClient(backgroundSync: false)).client;
+  return createMatrixClient(backgroundSync: false);
 }
 
 class LocalNotifications {

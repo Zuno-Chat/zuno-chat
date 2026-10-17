@@ -84,7 +84,7 @@ Future<void> _runApp(List<String> args) async {
   );
 
   await notificationsFuture;
-  final (:client, :uploadProgressHttpClient) = await clientFuture;
+  final client = await clientFuture;
   await repairLeftRoomsOnce(client, preferences);
   unawaited(
     runBestEffort(
@@ -117,9 +117,6 @@ Future<void> _runApp(List<String> args) async {
     ProviderScope(
       overrides: [
         matrixClientProvider.overrideWithValue(client),
-        uploadProgressHttpClientProvider.overrideWithValue(
-          uploadProgressHttpClient,
-        ),
         sharedPreferencesProvider.overrideWithValue(preferences),
       ],
       child: ZunoApp(pendingRing: pendingRing),
@@ -143,8 +140,8 @@ Future<StartupChoice> _askAfterFailedStart(Object _) async {
 
 Future<void> _runHeadlessPushHandler() => runUnifiedPushHeadless(
   clientBuilder: () async {
-    final result = await createPushClient();
+    final client = await createPushClient();
     debugPrint('zuno/push: headless client ready');
-    return result.client;
+    return client;
   },
 );

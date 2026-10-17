@@ -182,12 +182,17 @@ client can resolve.
 | Delete on | Does |
 |---|---|
 | A failed message | Discards it on this device only, since the server never had it |
-| A single message still on its way | Not offered, because the SDK cannot stop a send in flight |
+| An attachment still on its way | Stops its upload, so nothing reaches the server |
+| Text still on its way | Not offered, because a message post in flight cannot be stopped |
 | A gallery | Always offered; while its batch still sends, the rest of the batch stops |
 | One item of a batch that shows on its own | Deletes that item; the rest of the batch still goes |
 
-- **A deleted item still on its way is deleted once it lands**, a resend
+- **A deleted item past its upload is deleted once it lands**, a resend
   after a restart included.
+- **A stopped send keeps running inside the SDK**, which has no cancel:
+  it retries for up to its one-minute window and can publish the row
+  again, so the room's sender removes it each time until the SDK gives
+  up.
 - **Deleted sends are remembered per account across restarts**, so a
   leftover unsent item is dropped when its chat opens and never resent.
   The record is pruned against the chat's unsent items and cleared by the
@@ -235,8 +240,13 @@ named the Android way.
   the attach button spins; iOS's document picker shows its own download
   progress and sends no signal.
 - **Progress.** One bar per attachment, filled first by compression and
-  then by upload. The SDK reports no upload progress, so
-  `UploadProgressHttpClient` slices the request body itself.
+  then by upload. The SDK reports no upload progress and `sendFileEvent`
+  takes no callback, so `UploadHttpClient` slices the request body itself
+  and reports to the send it runs in through its `SendScope`. A full bar
+  means the body is handed to the socket, not that the server has it.
+- **A stuck send fails instead of hanging.** An upload, media-limits
+  fetch or message post with no progress for 30 s is aborted
+  (`app-foundation.md`), then shows as a retry tile or as not sent.
 - **The pending tile.** A synthetic tile, matched later by `txid`,
   stands in until the real row exists. Both draw the preview from memory
   until the upload finishes, because the SDK has no thumbnail for a
