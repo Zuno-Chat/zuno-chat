@@ -385,7 +385,7 @@ void main() {
   testWidgets('on Communities, the menu offers community and public '
       'communities only', (tester) async {
     await pumpRoomList(tester);
-    await tester.tap(find.text('Communities'));
+    await tester.tap(find.bySemanticsLabel('Communities'));
     await tester.pumpAndSettle();
     await openNewChatMenu(tester);
 
@@ -404,7 +404,7 @@ void main() {
   testWidgets('Find public communities asks the server for communities '
       'only', (tester) async {
     await pumpRoomList(tester);
-    await tester.tap(find.text('Communities'));
+    await tester.tap(find.bySemanticsLabel('Communities'));
     await tester.pumpAndSettle();
     await openNewChatMenu(tester);
     await tester.tap(find.text('Find public communities'));

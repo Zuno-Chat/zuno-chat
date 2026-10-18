@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
+import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/rooms/presentation/home_bottom_bar.dart';
 
@@ -25,16 +26,26 @@ void main() {
     ),
   );
 
-  BoxDecoration pillOf(WidgetTester tester, String label) =>
-      tester
-              .widget<AnimatedContainer>(
-                find.ancestor(
-                  of: find.text(label),
-                  matching: find.byType(AnimatedContainer),
-                ),
-              )
-              .decoration!
-          as BoxDecoration;
+  Finder tabOf(IconData icon) =>
+      find.ancestor(of: find.byIcon(icon), matching: find.byType(InkWell));
+
+  double widthOf(WidgetTester tester, IconData icon) =>
+      tester.getSize(tabOf(icon)).width;
+
+  Color pillOf(WidgetTester tester, IconData icon) =>
+      (tester
+                  .widget<Container>(
+                    find
+                        .ancestor(
+                          of: find.byIcon(icon),
+                          matching: find.byType(Container),
+                        )
+                        .first,
+                  )
+                  .decoration!
+              as BoxDecoration)
+          .color ??
+      Colors.transparent;
 
   Future<void> pump(WidgetTester tester, Widget child) => tester.pumpWidget(
     MaterialApp(
@@ -49,25 +60,56 @@ void main() {
       .widgetList<Badge>(find.byType(Badge))
       .where((badge) => badge.isLabelVisible);
 
-  testWidgets('both tabs are named and the selected one is filled, bold and '
-      'on a lighter pill', (tester) async {
+  testWidgets('only the selected tab is expanded, named and on a lighter '
+      'pill; the other shows just its icon', (tester) async {
     await pump(tester, bar(selected: HomeTab.communities));
     final colors = zunoLightTheme.colorScheme;
 
-    expect(find.text('Chats'), findsOneWidget);
     expect(find.text('Communities'), findsOneWidget);
-    expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+    expect(find.text('Chats'), findsNothing);
     expect(find.byIcon(Icons.workspaces), findsOneWidget);
+    expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
     expect(
-      tester.widget<Text>(find.text('Communities')).style?.fontWeight,
-      FontWeight.w700,
+      widthOf(tester, Icons.workspaces),
+      greaterThan(widthOf(tester, Icons.chat_bubble_outline) * 2),
     );
+    expect(pillOf(tester, Icons.workspaces), colors.surfaceContainerLowest);
+    expect(pillOf(tester, Icons.chat_bubble_outline).a, 0);
+  });
+
+  testWidgets('switching tabs moves the expansion across', (tester) async {
+    await pump(tester, bar());
+    final expanded = widthOf(tester, Icons.chat_bubble);
+    final collapsed = widthOf(tester, Icons.workspaces_outlined);
+
+    await pump(tester, bar(selected: HomeTab.communities));
+    await tester.pump(ZunoDurations.standard ~/ 2);
     expect(
-      tester.widget<Text>(find.text('Chats')).style?.fontWeight,
-      FontWeight.w500,
+      widthOf(tester, Icons.chat_bubble_outline),
+      allOf(greaterThan(collapsed), lessThan(expanded)),
     );
-    expect(pillOf(tester, 'Communities').color, colors.surfaceContainerLowest);
-    expect(pillOf(tester, 'Chats').color, isNull);
+
+    await tester.pump(ZunoDurations.standard);
+    expect(widthOf(tester, Icons.chat_bubble_outline), collapsed);
+    expect(widthOf(tester, Icons.workspaces), expanded);
+    expect(find.text('Chats'), findsNothing);
+    expect(find.text('Communities'), findsOneWidget);
+  });
+
+  testWidgets('with animations off, switching tabs is instant', (tester) async {
+    Widget still(HomeTab selected) => Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: bar(selected: selected),
+      ),
+    );
+    await pump(tester, still(HomeTab.chats));
+    final expanded = widthOf(tester, Icons.chat_bubble);
+
+    await pump(tester, still(HomeTab.communities));
+
+    expect(widthOf(tester, Icons.workspaces), expanded);
+    expect(find.text('Chats'), findsNothing);
   });
 
   testWidgets('the round button starts something new for the tab', (
@@ -88,7 +130,7 @@ void main() {
     final chosen = <HomeTab>[];
     await pump(tester, bar(onSelect: chosen.add));
 
-    await tester.tap(find.text('Communities'));
+    await tester.tap(find.byIcon(Icons.workspaces_outlined));
     await tester.tap(find.text('Chats'));
 
     expect(chosen, [HomeTab.communities, HomeTab.chats]);
@@ -114,13 +156,13 @@ void main() {
     expect(visibleDots(tester), hasLength(2));
   });
 
-  testWidgets('screen readers hear which tab is selected and which has '
-      'something unread', (tester) async {
+  testWidgets('screen readers hear each tab by name, which is selected and '
+      'which has something unread', (tester) async {
     final handle = tester.ensureSemantics();
     await pump(tester, bar(communitiesUnread: true));
 
     expect(
-      tester.getSemantics(find.text('Chats')),
+      tester.getSemantics(find.byIcon(Icons.chat_bubble)),
       matchesSemantics(
         label: 'Chats',
         isButton: true,
@@ -132,7 +174,7 @@ void main() {
       ),
     );
     expect(
-      tester.getSemantics(find.text('Communities')),
+      tester.getSemantics(find.byIcon(Icons.workspaces_outlined)),
       matchesSemantics(
         label: 'Communities',
         value: 'Unread',
@@ -147,11 +189,14 @@ void main() {
   });
 
   testWidgets('survives the layout matrix', (tester) async {
-    await expectSurvivesLayoutMatrix(
-      tester,
-      () => bar(chatsUnread: true, communitiesUnread: true),
-      theme: zunoLightTheme,
-    );
+    for (final selected in HomeTab.values) {
+      await expectSurvivesLayoutMatrix(
+        tester,
+        () =>
+            bar(selected: selected, chatsUnread: true, communitiesUnread: true),
+        theme: zunoLightTheme,
+      );
+    }
   });
 
   testWidgets('the floating call window keeps clear of it', (tester) async {

@@ -356,7 +356,7 @@ void main() {
     });
 
     Future<void> openCommunities(WidgetTester tester) async {
-      await tester.tap(find.text('Communities'));
+      await tester.tap(find.bySemanticsLabel('Communities'));
       await tester.pumpAndSettle();
     }
 
@@ -460,7 +460,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('No chats yet'), findsNothing);
 
-    await tester.tap(find.text('Communities'));
+    await tester.tap(find.bySemanticsLabel('Communities'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../core/l10n/l10n.dart';
@@ -5,8 +7,13 @@ import '../../../core/ui/keep_clear.dart';
 import '../../../core/ui/zuno_motion.dart';
 
 enum HomeTab {
-  chats,
-  communities;
+  chats(Icons.chat_bubble_outline, Icons.chat_bubble),
+  communities(Icons.workspaces_outlined, Icons.workspaces);
+
+  const HomeTab(this.icon, this.selectedIcon);
+
+  final IconData icon;
+  final IconData selectedIcon;
 
   String label(AppLocalizations l10n) => switch (this) {
     HomeTab.chats => l10n.roomsChats,
@@ -51,25 +58,35 @@ class HomeBottomBar extends StatelessWidget {
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(6),
-                      child: Row(
-                        children: [
-                          _Tab(
-                            label: HomeTab.chats.label(l10n),
-                            icon: Icons.chat_bubble_outline,
-                            selectedIcon: Icons.chat_bubble,
-                            selected: selected == HomeTab.chats,
-                            unread: chatsUnread,
-                            onTap: () => onSelect(HomeTab.chats),
-                          ),
-                          _Tab(
-                            label: HomeTab.communities.label(l10n),
-                            icon: Icons.workspaces_outlined,
-                            selectedIcon: Icons.workspaces,
-                            selected: selected == HomeTab.communities,
-                            unread: communitiesUnread,
-                            onTap: () => onSelect(HomeTab.communities),
-                          ),
-                        ],
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(end: selected.index.toDouble()),
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : ZunoDurations.standard,
+                        curve: Curves.fastOutSlowIn,
+                        builder: (context, position, _) => LayoutBuilder(
+                          builder: (context, constraints) {
+                            final spare = math.max(
+                              0.0,
+                              constraints.maxWidth -
+                                  HomeTab.values.length * _collapsedTabWidth,
+                            );
+                            return Row(
+                              children: [
+                                for (final tab in HomeTab.values)
+                                  _tab(
+                                    tab,
+                                    l10n,
+                                    spare,
+                                    (1 - (position - tab.index).abs()).clamp(
+                                      0.0,
+                                      1.0,
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
@@ -88,81 +105,114 @@ class HomeBottomBar extends StatelessWidget {
       ),
     );
   }
+
+  Widget _tab(
+    HomeTab tab,
+    AppLocalizations l10n,
+    double spare,
+    double expansion,
+  ) {
+    final isSelected = tab == selected;
+    return _Tab(
+      label: tab.label(l10n),
+      icon: isSelected ? tab.selectedIcon : tab.icon,
+      selected: isSelected,
+      unread: switch (tab) {
+        HomeTab.chats => chatsUnread,
+        HomeTab.communities => communitiesUnread,
+      },
+      width: _collapsedTabWidth + expansion * spare,
+      expansion: expansion,
+      onTap: () => onSelect(tab),
+    );
+  }
 }
+
+const _collapsedTabWidth = 56.0;
 
 class _Tab extends StatelessWidget {
   final String label;
   final IconData icon;
-  final IconData selectedIcon;
   final bool selected;
   final bool unread;
+  final double width;
+  final double expansion;
   final VoidCallback onTap;
 
   const _Tab({
     required this.label,
     required this.icon,
-    required this.selectedIcon,
     required this.selected,
     required this.unread,
+    required this.width,
+    required this.expansion,
     required this.onTap,
   });
+
+  static const _labelReveal = Interval(0.5, 1);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final color = selected ? colors.onSurface : colors.onSurfaceVariant;
-    return Expanded(
-      child: MergeSemantics(
-        child: Semantics(
-          button: true,
-          selected: selected,
-          value: unread ? context.l10n.roomsUnread : null,
-          child: AnimatedContainer(
-            duration: ZunoDurations.fast,
-            constraints: const BoxConstraints(minHeight: 44),
-            decoration: BoxDecoration(
-              color: selected ? colors.surfaceContainerLowest : null,
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: Material(
-              type: MaterialType.transparency,
-              child: InkWell(
-                onTap: onTap,
-                customBorder: const StadiumBorder(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Badge(
-                        isLabelVisible: unread,
-                        smallSize: 8,
-                        child: Icon(
-                          selected ? selectedIcon : icon,
-                          size: 22,
-                          color: color,
-                        ),
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: label,
+        value: unread ? context.l10n.roomsUnread : null,
+        child: Container(
+          width: width,
+          constraints: const BoxConstraints(minHeight: 44),
+          decoration: BoxDecoration(
+            color: colors.surfaceContainerLowest.withValues(alpha: expansion),
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const StadiumBorder(),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Badge(
+                      isLabelVisible: unread,
+                      smallSize: 8,
+                      child: Icon(
+                        icon,
+                        size: 22,
+                        color: selected
+                            ? colors.onSurface
+                            : colors.onSurfaceVariant,
                       ),
-                      const SizedBox(width: 8),
+                    ),
+                    if (expansion > 0)
                       Flexible(
-                        child: Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: color,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
+                        child: Opacity(
+                          opacity: _labelReveal.transform(expansion),
+                          child: Padding(
+                            padding: const EdgeInsetsDirectional.only(start: 8),
+                            child: ExcludeSemantics(
+                              child: Text(
+                                label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: colors.onSurface,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
             ),
