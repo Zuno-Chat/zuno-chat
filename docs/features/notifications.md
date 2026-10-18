@@ -250,6 +250,7 @@ Both platforms show the permission, this device's registration and the module's 
 - **The instant notice never creates a channel**, so a missing channel means no notice.
 - **Message vibration is done by hand with notification usage**, because message channels have vibration off and Android 12+ drops background vibrations of other usages.
 - **A call or invitation push first gets the instant notice**, since `event_id_only` carries no event type, and Dart then replaces or retracts it.
+- **On Android, a room's first pushed message shows an unread count of 2**, because the system counts every changed repost unless the previous post was alert-once, so the notice's replacement counts and the next message does not; an exact count would need a silent repost that drops a live heads-up, so it is left as is.
 - **The FCM ack must not wait on a ring hold**, because the service handles one message at a time and the hang-up push would queue behind the hold.
 - **FCM and UnifiedPush share one push wake lock with a hold per push**: each hold needs its own release, matched by its push, and a release that matches no hold never lets go, because a redelivered event or a release replayed to a new engine would otherwise cut the lock mid-push.
 - **A plugin a push engine calls must be in `PushEnginePlugins`**, or its `MissingPluginException` is silently swallowed.
