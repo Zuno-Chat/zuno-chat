@@ -1040,6 +1040,7 @@
   "roomInfoFiles": "Αρχεία",
   "roomInfoGroupIdentityChanged": "{count, plural, one{{name}: άλλαξαν τα στοιχεία ασφαλείας} other{Άλλαξαν τα στοιχεία ασφαλείας {count} ατόμων}}",
   "roomInfoHistoryAnyone": "Όλοι",
+  "roomInfoHistoryFromNow": "Οι αλλαγές ισχύουν για τα μηνύματα που στέλνονται από εδώ και πέρα.",
   "roomInfoHistoryInvited": "Μέλη, από τη στιγμή που προσκλήθηκαν",
   "roomInfoHistoryJoined": "Μέλη, από τη στιγμή που μπήκαν",
   "roomInfoHistorySettingNotSaved": "Η ρύθμιση ιστορικού δεν αποθηκεύτηκε. Δοκιμάστε ξανά.",

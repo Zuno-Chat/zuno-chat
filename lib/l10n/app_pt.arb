@@ -1041,6 +1041,7 @@
   "roomInfoFiles": "Arquivos",
   "roomInfoGroupIdentityChanged": "{count, plural, one{Os dados de segurança de {name} mudaram} other{Os dados de segurança de {count} pessoas mudaram}}",
   "roomInfoHistoryAnyone": "Qualquer pessoa",
+  "roomInfoHistoryFromNow": "As mudanças valem para as mensagens enviadas a partir de agora.",
   "roomInfoHistoryInvited": "Membros, desde que receberam o convite",
   "roomInfoHistoryJoined": "Membros, desde que entraram",
   "roomInfoHistorySettingNotSaved": "Configuração do histórico não salva. Tente novamente.",

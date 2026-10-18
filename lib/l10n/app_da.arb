@@ -1040,6 +1040,7 @@
   "roomInfoFiles": "Filer",
   "roomInfoGroupIdentityChanged": "{count, plural, one{{name} har nye sikkerhedsoplysninger} other{{count} personer har nye sikkerhedsoplysninger}}",
   "roomInfoHistoryAnyone": "Alle",
+  "roomInfoHistoryFromNow": "Ændringer gælder for beskeder, der sendes fra nu af.",
   "roomInfoHistoryInvited": "Medlemmer, fra de blev inviteret",
   "roomInfoHistoryJoined": "Medlemmer, fra de begyndte at deltage",
   "roomInfoHistorySettingNotSaved": "Historikindstillingen blev ikke gemt. Prøv igen.",

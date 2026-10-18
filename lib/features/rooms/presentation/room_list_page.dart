@@ -181,7 +181,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     await _createAndOpen(
       context,
       client,
-      () => client.startDirectChat(userId, enableEncryption: true),
+      () => startEncryptedDirectChat(client, userId),
       failed: context.l10n.roomsCouldNotStartChat,
     );
   }

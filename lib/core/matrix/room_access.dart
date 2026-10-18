@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 import '../l10n/l10n.dart';
 import 'communities.dart';
 import 'optimistic_room_state.dart';
+import 'room_history.dart';
 import 'room_permission.dart';
 import 'room_roles.dart';
 
@@ -54,12 +55,20 @@ Future<String> createGroupRoom(
           : CreateRoomPreset.privateChat,
       visibility: public ? Visibility.public : null,
       powerLevelContentOverride: defaultGroupPowerLevels(public: public),
+      initialState: [newRoomHistoryState()],
     );
   } on MatrixException catch (e) {
     if (isListingRefusal(e)) throw RoomListingRefused();
     rethrow;
   }
 }
+
+Future<String> startEncryptedDirectChat(Client client, String userId) =>
+    client.startDirectChat(
+      userId,
+      enableEncryption: true,
+      initialState: [newRoomHistoryState()],
+    );
 
 Future<void> setRoomAccess(Room room, RoomAccess access) async {
   switch (access) {

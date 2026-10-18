@@ -1040,6 +1040,7 @@
   "roomInfoFiles": "Pliki",
   "roomInfoGroupIdentityChanged": "{count, plural, one{{name} ma nowe dane bezpieczeństwa} few{{count} osoby mają nowe dane bezpieczeństwa} many{{count} osób ma nowe dane bezpieczeństwa} other{{count} osób ma nowe dane bezpieczeństwa}}",
   "roomInfoHistoryAnyone": "Każdy",
+  "roomInfoHistoryFromNow": "Zmiany obejmują wiadomości wysyłane od teraz.",
   "roomInfoHistoryInvited": "Członkowie, od momentu zaproszenia",
   "roomInfoHistoryJoined": "Członkowie, od momentu dołączenia",
   "roomInfoHistorySettingNotSaved": "Nie zapisano ustawienia historii. Spróbuj ponownie.",

@@ -12,6 +12,7 @@ import '../../../core/matrix/optimistic_room_state.dart';
 import '../../../core/matrix/picker_access.dart';
 import '../../../core/matrix/room_access.dart';
 import '../../../core/matrix/room_avatar.dart';
+import '../../../core/matrix/room_history.dart';
 import '../../../core/matrix/room_name_check.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/security/zuno_text_field.dart';
@@ -30,9 +31,6 @@ String _historyVisibilityLabel(
   HistoryVisibility.invited => l10n.roomInfoHistoryInvited,
   HistoryVisibility.joined => l10n.roomInfoHistoryJoined,
 };
-
-HistoryVisibility _historyVisibilityOf(Room room) =>
-    room.historyVisibility ?? HistoryVisibility.shared;
 
 const roomNameMaxLength = 50;
 const roomTopicMaxLength = 250;
@@ -210,13 +208,22 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
   Future<void> _changeHistoryVisibility() async {
     final room = widget.room;
     final l10n = context.l10n;
-    final current = _historyVisibilityOf(room);
+    final current = historyVisibilityOf(room);
     final chosen = await showSheet<HistoryVisibility>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
           children: [
-            for (final visibility in HistoryVisibility.values)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                l10n.roomInfoHistoryFromNow,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            for (final visibility in historyChoices(room))
               ListTile(
                 leading: visibility == current
                     ? const Icon(Icons.check_outlined)
@@ -518,7 +525,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                   leading: const Icon(Icons.history_outlined),
                   title: Text(l10n.roomInfoWhoCanReadHistory),
                   subtitle: Text(
-                    _historyVisibilityLabel(l10n, _historyVisibilityOf(room)),
+                    _historyVisibilityLabel(l10n, historyVisibilityOf(room)),
                   ),
                   trailing: trailingFor(
                     _savingHistoryVisibility,

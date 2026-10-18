@@ -4003,6 +4003,10 @@
   "@roomInfoHistoryAnyone": {
     "description": "Room history visibility option: anyone can read the history"
   },
+  "roomInfoHistoryFromNow": "Changes apply to messages sent from now on.",
+  "@roomInfoHistoryFromNow": {
+    "description": "Note above the history choices: a change never reaches messages already sent"
+  },
   "roomInfoHistoryInvited": "Members, from when they were invited",
   "roomInfoHistoryJoined": "Members, from when they joined",
   "roomInfoHistorySettingNotSaved": "History setting not saved. Try again.",

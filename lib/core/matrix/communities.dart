@@ -5,6 +5,7 @@ import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
 import 'optimistic_room_state.dart';
 import 'room_access.dart';
+import 'room_history.dart';
 import 'room_permission.dart';
 import 'room_title.dart';
 
@@ -191,6 +192,7 @@ Future<String> createCommunityRoom(
     powerLevelContentOverride: defaultGroupPowerLevels(),
     waitForSync: false,
     initialState: [
+      newRoomHistoryState(),
       StateEvent(
         type: EventTypes.RoomJoinRules,
         content: switch (access) {

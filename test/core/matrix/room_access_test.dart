@@ -286,6 +286,12 @@ void main() {
     Map<String, Object?> createBody() =>
         jsonDecode(requests.single.body) as Map<String, Object?>;
 
+    Object? historyOf(Map<String, Object?> body) => [
+      for (final state in body['initial_state'] as List)
+        if ((state as Map)['type'] == EventTypes.HistoryVisibility)
+          state['content'],
+    ].single;
+
     Object? callsLevel(Map<String, Object?> body) =>
         ((body['power_level_content_override'] as Map)['events']
             as Map)['m.call.member'];
@@ -325,6 +331,7 @@ void main() {
       );
       expect(body['power_level_content_override'], defaultGroupPowerLevels());
       expect(callsLevel(body), RoomRole.member.powerLevel);
+      expect(historyOf(body), {'history_visibility': 'invited'});
     });
 
     test(
@@ -348,8 +355,28 @@ void main() {
           defaultGroupPowerLevels(public: true),
         );
         expect(callsLevel(body), RoomRole.moderator.powerLevel);
+        expect(historyOf(body), {'history_visibility': 'invited'});
       },
     );
+
+    test('a direct chat is encrypted and readable from the invite', () async {
+      client.rooms.add(
+        buildTestRoom(client, id: '!new:example.org')
+          ..membership = Membership.join,
+      );
+
+      final roomId = await startEncryptedDirectChat(client, '@bob:example.org');
+
+      expect(roomId, '!new:example.org');
+      final create = jsonDecode(requests.first.body) as Map<String, Object?>;
+      expect(create['is_direct'], isTrue);
+      expect(create['invite'], ['@bob:example.org']);
+      expect(
+        (create['initial_state'] as List).map((s) => (s as Map)['type']),
+        contains(EventTypes.Encryption),
+      );
+      expect(historyOf(create), {'history_visibility': 'invited'});
+    });
 
     test('a server that refuses to list rooms creates nothing and says '
         'so', () async {

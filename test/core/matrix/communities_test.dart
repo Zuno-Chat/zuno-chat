@@ -626,6 +626,12 @@ void main() {
           state as Map<String, Object?>,
       ];
       expect(
+        initial.singleWhere(
+          (s) => s['type'] == EventTypes.HistoryVisibility,
+        )['content'],
+        {'history_visibility': 'invited'},
+      );
+      expect(
         initial.map((s) => s['type']),
         containsAll([
           EventTypes.Encryption,

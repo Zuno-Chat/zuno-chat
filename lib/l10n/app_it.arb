@@ -1040,6 +1040,7 @@
   "roomInfoFiles": "File",
   "roomInfoGroupIdentityChanged": "{count, plural, one{I dati di sicurezza di {name} sono cambiati} other{I dati di sicurezza di {count} persone sono cambiati}}",
   "roomInfoHistoryAnyone": "Chiunque",
+  "roomInfoHistoryFromNow": "Le modifiche valgono per i messaggi inviati da ora in poi.",
   "roomInfoHistoryInvited": "Membri, dal momento dell’invito",
   "roomInfoHistoryJoined": "Membri, dal momento in cui entrano",
   "roomInfoHistorySettingNotSaved": "Impostazione della cronologia non salvata. Riprova.",

@@ -388,10 +388,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     try {
-      final roomId = await client.startDirectChat(
-        user.id,
-        enableEncryption: true,
-      );
+      final roomId = await startEncryptedDirectChat(client, user.id);
       final room = client.getRoomById(roomId);
       if (room != null && mounted) {
         Navigator.of(context)

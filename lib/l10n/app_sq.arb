@@ -1040,6 +1040,7 @@
   "roomInfoFiles": "Skedarët",
   "roomInfoGroupIdentityChanged": "{count, plural, one{{name} ka të dhëna të reja sigurie} other{{count} persona kanë të dhëna të reja sigurie}}",
   "roomInfoHistoryAnyone": "Kushdo",
+  "roomInfoHistoryFromNow": "Ndryshimet vlejnë për mesazhet e dërguara nga tani e tutje.",
   "roomInfoHistoryInvited": "Anëtarët, nga momenti i ftesës",
   "roomInfoHistoryJoined": "Anëtarët, nga momenti i bashkimit",
   "roomInfoHistorySettingNotSaved": "Cilësimi i historikut nuk u ruajt. Provo sërish.",

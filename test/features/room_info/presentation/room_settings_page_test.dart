@@ -768,6 +768,57 @@ void main() {
       );
     });
 
+    testWidgets('an encrypted room offers only history its members can '
+        'read', (tester) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.Encryption, {
+        'algorithm': 'm.megolm.v1.aes-sha2',
+      });
+      setRoomState(EventTypes.HistoryVisibility, {
+        'history_visibility': 'joined',
+      });
+      await pumpPage(tester);
+
+      await openSheet(tester);
+
+      expect(find.text('Members, from when they were invited'), findsOneWidget);
+      expect(ticked('Members, from when they joined'), findsOneWidget);
+      expect(find.text('Anyone'), findsNothing);
+      expect(
+        find.text('Members, including history before they joined'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('an encrypted room still shows a current choice it no longer '
+        'offers', (tester) async {
+      setOwnLevel(100);
+      setRoomState(EventTypes.Encryption, {
+        'algorithm': 'm.megolm.v1.aes-sha2',
+      });
+      await pumpPage(tester);
+
+      await openSheet(tester);
+
+      expect(
+        ticked('Members, including history before they joined'),
+        findsOneWidget,
+      );
+      expect(find.text('Anyone'), findsNothing);
+    });
+
+    testWidgets('the choices say a change applies from now on', (tester) async {
+      setOwnLevel(100);
+      await pumpPage(tester);
+
+      await openSheet(tester);
+
+      expect(
+        find.text('Changes apply to messages sent from now on.'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('a refused change says so', (tester) async {
       setOwnLevel(100);
       respond = (r) =>

@@ -1040,6 +1040,7 @@
   "roomInfoFiles": "Bestanden",
   "roomInfoGroupIdentityChanged": "{count, plural, one{Beveiligingsgegevens van {name} gewijzigd} other{Beveiligingsgegevens van {count} personen gewijzigd}}",
   "roomInfoHistoryAnyone": "Iedereen",
+  "roomInfoHistoryFromNow": "Wijzigingen gelden voor berichten die vanaf nu worden verstuurd.",
   "roomInfoHistoryInvited": "Leden, vanaf hun uitnodiging",
   "roomInfoHistoryJoined": "Leden, vanaf hun lidmaatschap",
   "roomInfoHistorySettingNotSaved": "Geschiedenisinstelling niet opgeslagen. Probeer het opnieuw.",

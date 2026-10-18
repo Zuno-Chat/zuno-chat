@@ -89,6 +89,8 @@ files.
   | Member | Invite, send messages, start or join calls, share live location |
 
   A public room differs only in calls and live location, which need a moderator. The table applies at creation only: making an existing room public leaves the permissions an admin may have set.
+- **History visibility is never retroactive.** Each event stays readable under the setting it was sent with, so every room Zuno creates, direct chats included, starts at "from when they were invited" in its initial state, and the setting says a change applies from now on.
+- **Encrypted rooms offer only history from the invite or the join.** The SDK shares message keys with joined and invited members only and never hands older keys to a newcomer, so "including history before they joined" and "Anyone" would show only locked messages; a room already set to one keeps it listed until changed.
 - **Edits are optimistic.** Settings, access, role and member changes write local state once the server accepts them, because the SDK setters return only an event ID and a page would otherwise stay stale.
 
 **Roles and permissions**

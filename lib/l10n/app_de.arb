@@ -1040,6 +1040,7 @@
   "roomInfoFiles": "Dateien",
   "roomInfoGroupIdentityChanged": "{count, plural, one{Die Sicherheitsdaten von {name} haben sich geändert} other{Die Sicherheitsdaten von {count} Personen haben sich geändert}}",
   "roomInfoHistoryAnyone": "Alle",
+  "roomInfoHistoryFromNow": "Änderungen gelten für Nachrichten, die ab jetzt gesendet werden.",
   "roomInfoHistoryInvited": "Mitglieder, ab ihrer Einladung",
   "roomInfoHistoryJoined": "Mitglieder, ab ihrem Beitritt",
   "roomInfoHistorySettingNotSaved": "Verlaufseinstellung nicht gespeichert. Versuche es erneut.",
