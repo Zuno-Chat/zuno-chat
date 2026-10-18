@@ -42,7 +42,7 @@ class CallUnreadCorrectionNotifier extends Notifier<Map<String, int>> {
     final hidesFromTimeline =
         event.type == EventTypes.Message &&
         event.relationshipType != RelationshipTypes.edit &&
-        !isDisplayableTimelineEvent(event, showHiddenMessages: false);
+        !isTimelineMessage(event);
     final isAnsweredSummary =
         isCallSummaryMessage(event.messageType) &&
         CallSummary.fromEvent(event)?.status == CallSummaryStatus.ended;

@@ -16,6 +16,7 @@ import 'package:zuno/features/chat/presentation/message_contents/pending_attachm
 import 'package:zuno/features/chat/presentation/message_list_view.dart';
 import 'package:zuno/features/chat/presentation/message_tile.dart';
 import 'package:zuno/features/chat/presentation/reply_target_cache.dart';
+import 'package:zuno/features/chat/presentation/room_update_tile.dart';
 import 'package:zuno/features/chat/presentation/swipe_to_reply.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -240,6 +241,79 @@ void main() {
 
     expect(find.byType(EmptyRoomNotice), findsOneWidget);
     expect(find.text('No earlier messages'), findsNothing);
+    expect(find.text('Bob created the room'), findsOneWidget);
+  });
+
+  Event joined(String id, String userId) => buildTestEvent(
+    room,
+    eventId: id,
+    senderId: userId,
+    type: EventTypes.RoomMember,
+    stateKey: userId,
+    originServerTs: noon,
+    status: EventStatus.synced,
+    content: {'membership': 'join'},
+  );
+
+  testWidgets('room updates in a row show as one row between messages', (
+    tester,
+  ) async {
+    room.setState(
+      User(
+        '@sam:example.org',
+        membership: 'join',
+        displayName: 'Sam',
+        room: room,
+      ),
+    );
+    final timeline = await timelineOf(tester, [
+      text(r'$m2'),
+      joined(r'$j2', '@sam:example.org'),
+      joined(r'$j1', bob),
+      text(r'$m1'),
+    ]);
+    await pumpList(tester, () => timeline);
+
+    expect(find.byType(RoomUpdateTile), findsOneWidget);
+    expect(find.text('Bob and Sam joined'), findsOneWidget);
+    final row = tester.getTopLeft(find.byType(RoomUpdateTile)).dy;
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey(r'$m1'))).dy,
+      lessThan(row),
+    );
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey(r'$m2'))).dy,
+      greaterThan(row),
+    );
+  });
+
+  testWidgets('your room update leaves the read tick on your last message', (
+    tester,
+  ) async {
+    final timeline = await timelineOf(tester, [
+      buildTestEvent(
+        room,
+        eventId: r'$rename',
+        senderId: me,
+        type: EventTypes.RoomName,
+        stateKey: '',
+        originServerTs: noon,
+        status: EventStatus.synced,
+        content: {'name': 'Trip'},
+      ),
+      buildTestEvent(
+        room,
+        eventId: r'$own',
+        senderId: me,
+        originServerTs: noon,
+        status: EventStatus.synced,
+        content: {'msgtype': 'm.text', 'body': 'hi'},
+      ),
+    ]);
+    await pumpList(tester, () => timeline);
+
+    expect(find.text('You changed the room name to "Trip"'), findsOneWidget);
+    expect(tile(tester, r'$own').data.showReadTick, isTrue);
   });
 
   testWidgets('a chat whose only message failed to send is not called '

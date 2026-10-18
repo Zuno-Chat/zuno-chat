@@ -106,7 +106,8 @@ Brazilian Portuguese for `lib/l10n/app_pt.arb`, the base Portuguese file, writte
 | profile, profile photo | o perfil · a foto do perfil | |
 | email address | o endereço de e-mail | |
 | invite | Convidar · o convite | The "Invited" badge → «Convite enviado». |
-| join (a room or community) | Entrar / entrar | "{target} joined" → «{target} entrou». |
+| withdraw (an invitation) | cancelar o convite | "{sender} withdrew your invitation" → «{sender} cancelou seu convite». |
+| join (a room or community) | Entrar / entrar | "{people} joined" → «{people} entrou». |
 | request, ask to join | o pedido · Pedir para entrar | "Let in" → «Aceitar». "Withdraw" → «Cancelar pedido». |
 | leave | Sair / sair (saiu) | |
 | remove (a person or item) | Remover / remover | The kick action. |
@@ -185,6 +186,7 @@ Brazilian Portuguese for `lib/l10n/app_pt.arb`, the base Portuguese file, writte
 | Signed in (devices heading) / signed out | Dispositivos conectados / desconectado | |
 | Sign out of "{name}"? | Sair de “{name}”? | Follows «Sair de todos os outros dispositivos». |
 | Room / Community defaults | Padrões da sala / da comunidade | |
+| Make {people} an admin / You are now an admin (room updates) | {sender} deu a função “Administrador” para {people} / Agora você tem a função “Administrador” | Every role the same way, with its exact label. |
 | character(s), link, check mark | o caractere (os caracteres) · o link · a marca de seleção | |
 
 ### 1.12 UI actions
@@ -247,7 +249,7 @@ Statement and first-person buttons: «Combinam», «Não combinam», «Sim, conc
 
 ### 2.4 Names
 - No article before a name: never «o {name}» or «da {name}».
-- Subject names go first, bare: «{name} saiu», «{target} entrou».
+- Subject names go first, bare: «{name} saiu», «{people} entrou».
 - Short labels: «Com {name}», «Respondendo a {name}», «Chamada perdida de {name}».
 - Verbs avoid agreement: «Bloquear {name}?», «{name} confirmou», «Você confirmou {name}». Where a noun is needed, «a pessoa».
 - "they" → «a pessoa» or drop the subject: "once they join" → «quando a pessoa entrar».

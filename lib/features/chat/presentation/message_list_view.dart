@@ -6,6 +6,7 @@ import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/media_gallery_group.dart';
+import '../../../core/matrix/room_updates.dart';
 import '../../../core/ui/row_memo.dart';
 import '../data/message_row_data.dart';
 import '../data/pending_attachment_send.dart';
@@ -14,6 +15,7 @@ import 'empty_room_notice.dart';
 import 'message_contents/pending_attachment_tile.dart';
 import 'message_tile.dart';
 import 'reply_target_cache.dart';
+import 'room_update_tile.dart';
 
 class MessageListView extends StatefulWidget {
   final Room room;
@@ -82,7 +84,8 @@ class _MessageListViewState extends State<MessageListView> {
           if (failed.gallery != null) failed.gallery!.id,
       },
     );
-    final messages = grouping.messages;
+    final updates = groupRoomUpdates(grouping.messages);
+    final messages = updates.messages;
     final orphaned = widget.failedSends.where((failed) {
       final id = failed.gallery?.id;
       if (id == null) return false;
@@ -95,7 +98,7 @@ class _MessageListViewState extends State<MessageListView> {
     final loadingMore = timeline.isRequestingHistory;
     final exhausted = !loadingMore && !timeline.canRequestHistory;
     final lastOwnId = messages
-        .where((e) => e.senderId == ownUserId)
+        .where((e) => e.senderId == ownUserId && isTimelineMessage(e))
         .firstOrNull
         ?.eventId;
     final index = {for (final e in timeline.events) e.eventId: e};
@@ -161,19 +164,39 @@ class _MessageListViewState extends State<MessageListView> {
           return _EndRow(
             room: widget.room,
             exhausted: exhausted,
-            empty: messages.isEmpty && orphaned.isEmpty && singles.isEmpty,
+            empty:
+                !messages.any(isTimelineMessage) &&
+                orphaned.isEmpty &&
+                singles.isEmpty,
             pendingSend: widget.pendingSend,
           );
         }
 
         final message = messages[i];
+        final older = i + 1 < messages.length ? messages[i + 1] : null;
+        final burst = updates.bursts[message.eventId];
+        if (burst != null) {
+          final dayLabel = dayLabelFor(
+            message,
+            older,
+            labels: labels,
+            now: now,
+          );
+          return Column(
+            key: ValueKey('$_rowKeyPrefix${message.eventId}'),
+            children: [
+              if (dayLabel != null) DateDivider(label: dayLabel),
+              RoomUpdateTile(lines: describeRoomUpdates(context.l10n, burst)),
+            ],
+          );
+        }
         final gallery = grouping.galleries[message.eventId];
         final failures = failuresFor(gallery);
         final record = messageRowDataFor(
           event: message,
           timeline: timeline,
           index: index,
-          older: i + 1 < messages.length ? messages[i + 1] : null,
+          older: older,
           newer: i > 0 ? messages[i - 1] : null,
           isLastOwn: message.eventId == lastOwnId,
           gallery: gallery,

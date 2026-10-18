@@ -108,7 +108,8 @@ European Portuguese for `lib/l10n/app_pt_PT.arb`, written for Portugal. The rule
 | profile, profile photo | o perfil · a fotografia de perfil | |
 | email address | o endereço de email | |
 | invite | Convidar · o convite | The "Invited" badge → «Convite enviado». |
-| join (a room or community) | Entrar / entrar | "{target} joined" → «{target} entrou». |
+| withdraw (an invitation) | cancelar o convite | "{sender} withdrew your invitation" → «{sender} cancelou o seu convite». |
+| join (a room or community) | Entrar / entrar | "{people} joined" → «{people} entrou». |
 | request, ask to join | o pedido · Pedir para entrar | "Let in" → «Aceitar». "Withdraw" → «Cancelar pedido». |
 | leave | Sair / sair (saiu) | |
 | remove (a person or item) | Remover / remover | The kick action. |
@@ -186,6 +187,9 @@ European Portuguese for `lib/l10n/app_pt_PT.arb`, written for Portugal. The rule
 | Invited you to {room} / wants to verify you | Enviou-lhe um convite para «{room}» / Pede uma verificação | Recast so no participle or pronoun agrees with the reader. |
 | Only you and {name} | Ninguém além de si e de {name} | |
 | link | o link | Never «ligação», which is connection. |
+| Make {people} an admin / You are now an admin (room updates) | {sender} deu a função «Administrador» a {people} / Agora tem a função «Administrador» | Every role the same way, with its exact label. |
+| {sender} banned / removed you (room updates) | {sender} aplicou-lhe um banimento / {sender} removeu a sua conta da sala | «-o/-a» would agree with the reader; «lhe» does not. |
+| You joined / left (room updates) | Entrou na sala / Saiu da sala | Naming the room keeps a bare verb with the dropped pronoun from reading as someone else. |
 | character(s), check mark | o carácter (os caracteres) · o visto | |
 
 ### 1.12 UI actions
@@ -251,7 +255,7 @@ Statement and first-person buttons: «Coincidem», «Não coincidem», «Sim, co
 
 ### 2.4 Names
 - No article before a name: never «o {name}» or «da {name}».
-- Subject names go first, bare: «{name} saiu», «{target} entrou».
+- Subject names go first, bare: «{name} saiu», «{people} entrou».
 - Short labels: «Com {name}», «A responder a {name}», «Chamada perdida de {name}».
 - Verbs avoid agreement: «Bloquear {name}?», «{name} confirmou», «Confirmou {name}». Where a noun is needed, «a pessoa».
 - "they" → «a pessoa» or drop the subject: "once they join" → «quando a pessoa entrar».

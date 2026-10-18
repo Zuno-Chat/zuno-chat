@@ -167,6 +167,7 @@ Event buildTestEvent(
   Map<String, Object?> content = const {},
   DateTime? originServerTs,
   String? stateKey,
+  Map<String, Object?>? prevContent,
   EventStatus? status,
 }) {
   final event = Event(
@@ -177,6 +178,7 @@ Event buildTestEvent(
     content: content,
     room: room,
     stateKey: stateKey,
+    unsigned: prevContent == null ? null : {'prev_content': prevContent},
   );
   if (status != null) event.status = status;
   return event;

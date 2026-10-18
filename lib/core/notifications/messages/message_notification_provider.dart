@@ -110,7 +110,7 @@ MessageNotificationDecision messageNotificationFor(
       MessageNotificationRefusal.ownMessage,
     );
   }
-  if (!isDisplayableTimelineEvent(event, showHiddenMessages: false)) {
+  if (!isTimelineMessage(event)) {
     return const MessageNotificationDecision.refuse(
       MessageNotificationRefusal.notDisplayable,
     );

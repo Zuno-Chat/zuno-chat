@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/format/date_labels.dart';
+import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/reactions.dart';
 import '../../../core/matrix/read_receipts.dart';
 import '../../../core/matrix/undecryptable_event.dart';
@@ -125,15 +126,27 @@ class MessageRowData {
 }
 
 bool _startsRun(Event event, Event? older) {
-  if (isHiddenTimelineEvent(event)) return false;
+  if (!isTimelineMessage(event)) return false;
   if (older == null) return true;
-  if (isHiddenTimelineEvent(older) || older.senderId != event.senderId) {
+  if (!isTimelineMessage(older) || older.senderId != event.senderId) {
     return true;
   }
   if (calendarDaysBetween(older.originServerTs, event.originServerTs) != 0) {
     return true;
   }
   return event.originServerTs.difference(older.originServerTs).abs() > runGap;
+}
+
+String? dayLabelFor(
+  Event event,
+  Event? older, {
+  required DateLabels labels,
+  required DateTime now,
+}) {
+  final startsDay =
+      older == null ||
+      calendarDaysBetween(older.originServerTs, event.originServerTs) != 0;
+  return startsDay ? labels.day(event.originServerTs, now: now) : null;
 }
 
 MessageRowData messageRowDataFor({
@@ -153,9 +166,6 @@ MessageRowData messageRowDataFor({
   final sender = event.senderFromMemoryOrFallback;
   final isOwn = event.senderId == event.room.client.userID;
   final showReadTick = isOwn && isLastOwn && displayEvent.status.isSent;
-  final startsDay =
-      older == null ||
-      calendarDaysBetween(older.originServerTs, event.originServerTs) != 0;
   final replyToId = event.inReplyToEventId();
   final replyTarget = replyToId == null ? null : index[replyToId];
   final replyDisplay = replyTarget?.getDisplayEvent(timeline);
@@ -170,16 +180,14 @@ MessageRowData messageRowDataFor({
     displayEventId: displayEvent.eventId,
     edited: displayEvent.eventId != event.eventId,
     timeLabel: labels.clock(event.originServerTs),
-    dayLabel: startsDay ? labels.day(event.originServerTs, now: now) : null,
+    dayLabel: dayLabelFor(event, older, labels: labels, now: now),
     isOwn: isOwn,
     isDirect: event.room.isDirectChat,
     senderName: sender.calcDisplayname(),
     senderAvatar: sender.avatarUrl,
     startsRun: _startsRun(event, older),
     endsRun:
-        newer == null ||
-        isHiddenTimelineEvent(newer) ||
-        _startsRun(newer, event),
+        newer == null || !isTimelineMessage(newer) || _startsRun(newer, event),
     replyToId: replyToId,
     replyDisplayEventId: replyDisplay?.eventId,
     replyRedacted: replyTarget?.redacted ?? false,

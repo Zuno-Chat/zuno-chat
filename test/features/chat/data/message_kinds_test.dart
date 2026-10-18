@@ -201,24 +201,4 @@ void main() {
       expect(previewSnippet(englishLocalizations, event, timeline), 'now');
     },
   );
-
-  test('state events and edits are hidden from the timeline', () {
-    expect(
-      isHiddenTimelineEvent(
-        message({'name': 'R'}, type: EventTypes.RoomName, stateKey: ''),
-      ),
-      isTrue,
-    );
-    expect(
-      isHiddenTimelineEvent(
-        message({
-          'msgtype': 'm.text',
-          'body': '* fixed',
-          'm.relates_to': {'rel_type': 'm.replace', 'event_id': r'$o'},
-        }),
-      ),
-      isTrue,
-    );
-    expect(isHiddenTimelineEvent(message({'msgtype': 'm.text'})), isFalse);
-  });
 }

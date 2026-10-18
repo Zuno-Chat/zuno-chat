@@ -114,10 +114,11 @@ Albanian for `lib/l10n/app_sq.arb`, written in standard Albanian for Albania and
 | profile, profile photo | profil · foto e profilit | |
 | email address | adresa e email-it | |
 | invite | Fto · ftesë | The "Invited" badge → «U ftua». |
-| join (a room or community) | Bashkohu · bashkim | "{target} joined" → «{target} u bashkua». |
+| withdraw (an invitation) | Tërhiq ftesën · tërheqje e ftesës | Timeline: «{sender} tërhoqi ftesën: {people}», «{sender} ta tërhoqi ftesën». |
+| join (a room or community) | Bashkohu · bashkim | "{people} joined" → «{people} u bashkua». |
 | request, ask to join | kërkesë · Kërko të bashkohesh | "Let in" → «Lejo hyrjen». "Withdraw" → «Tërhiq kërkesën». The short "Ask" button → «Bëj kërkesë», since «Kërko» is Search; "Requested" → «Kërkesa u dërgua». |
-| leave | Largohu · largim | "{target} left" → «{target} u largua». |
-| ban | Dëbo / Hiq dëbimin · dëbim | "Banned" heading → «Persona të dëbuar». Never «blloko». |
+| leave | Largohu · largim | "{people} left" → «{people} u largua». |
+| ban | Dëbo / Hiq dëbimin · dëbim | "Banned" heading → «Persona të dëbuar». Never «blloko». Timeline: «{sender} dëboi: {people}», «{sender} hoqi dëbimin: {people}», «{sender} ta hoqi dëbimin». |
 | report | Raporto · raportim | Reasons: «Ngacmim», «Përmbajtje e paligjshme», «Spam», «Arsye tjetër». |
 | public / private | publik / privat | Agree with the noun described; a label serving both rooms and communities is «Qasje publike» / «Qasje private» / «Qasje me kërkesë» / «Qasje për komunitetin». "Make public" → «Cakto qasje publike». |
 | topic, description, address, ID | temë · përshkrim · adresë · ID | Room alias → «adresa e dhomës». |
@@ -129,6 +130,7 @@ Albanian for `lib/l10n/app_sq.arb`, written in standard Albanian for Albania and
 |---|---|---|
 | admin, moderator, owner | Administrator · Moderator · Pronar | Role badges only, never about a named person in a sentence: «{name} ka rolin “Administrator”». |
 | role, member, read-only, view only | rol · Anëtar · Vetëm lexim · Vetëm shikim | |
+| made (someone) an admin, You are now an admin | caktoi rolin “Administrator”: {people} · Tani ke rolin “Administrator” | A role change assigns the role by its quoted label, the same for every role. |
 | defaults, default role | parazgjedhjet · roli i paracaktuar | "Room defaults" → «Parazgjedhjet e dhomës». |
 | permission (room or OS), access | leje · qasje | "Roles & permissions" → «Rolet dhe lejet». Permission names are verbal nouns: "Remove people" → «Heqja e personave», "Change name" → «Ndryshimi i emrit». |
 
@@ -186,6 +188,7 @@ Albanian for `lib/l10n/app_sq.arb`, written in standard Albanian for Albania and
 | Let them ask (setting) | Lejo kërkesat | |
 | Joined (label on a public room or community) | U bashkove | |
 | N other(s) | {count} person tjetër · {count} persona të tjerë | one · other. |
+| Name lists: {first} and {second} / {first}, {second} and {third} | {first} dhe {second} / {first}, {second} dhe {third} | A list takes a plural verb («{people} u bashkuan»), a single name (`one`) a singular. |
 | asleep (device) / suspended (app) | në gjumë / i pezulluar | They agree with «pajisje» and «aplikacion». |
 | Call rang / ringing | Ra zilja / Po bie zilja | |
 | Hidden message | mesazh i fshehur | Never «i fshehtë». |
@@ -263,7 +266,7 @@ Statement and first-person buttons: «Përputhen», «Nuk përputhen», «Po, mb
 Albanian marks gender in adjectives and participles that take the article «i/e» («i konfirmuar/e konfirmuar», «i sigurt/e sigurt») and in nouns for people («anëtar/anëtare», «përdorues/përdoruese»). A name also changes its ending outside the nominative («me Anën», «pajisjet e Anës»). Verb tenses never mark gender, and neither does the participle in a compound tense («është konfirmuar», «je identifikuar»).
 
 1. A name stays in the nominative: as the subject («{name} po shkruan…»), after «nga», which takes the nominative («Thirrje e humbur nga {name}»), or after a colon («Bisedë: {name}», «Po i përgjigjesh: {name}»). Never after another preposition, as an object or as a possessive.
-2. Timeline events take the past tense: «{sender} ndryshoi emrin e dhomës në “{name}”», «{target} u bashkua», «{target} u largua». A second name goes after a colon: «{sender} ftoi: {target}», «{sender} hoqi nga dhoma: {target}».
+2. Timeline events take the past tense: «{sender} ndryshoi emrin e dhomës në “{name}”», «{people} u bashkua», «{people} u largua». A second name goes after a colon: «{sender} ftoi: {people}», «{sender} hoqi nga dhoma: {people}».
 3. A state takes a compound tense or a phrase whose words agree with a thing: «{name} është konfirmuar», «{name} e ka mikrofonin të heshtur», «{name} ka të dhëna të reja sigurie». Never «{name} është i/e…».
 4. The reader takes any tense («Nuk je më në këtë dhomë», «Je identifikuar», «U largove»), never an «i/e» adjective or participle: "Are you sure?" is recast as a question about the action («Do ta fshish?»), never «Je i sigurt?».
 5. A noun for a person in a sentence is «person», never «anëtar», «administrator» or «përdorues» about someone named or the reader.
@@ -304,7 +307,7 @@ Albanian writes the recovery-word position as a plain number after «fjala», so
 | `settingsAccountPasswordChanged` | Password changed | Fjalëkalimi u ndryshua |
 | `blockingTitle` | Block {name}? | Të bllokohet {name}? |
 | `matrixStateNameChanged` | `{sender} changed the room name to \"{name}\"` | `{sender} ndryshoi emrin e dhomës në “{name}”` |
-| `matrixStateInvited` | {sender} invited {target} | {sender} ftoi: {target} |
+| `matrixStateInvited` | {sender} invited {people} | {sender} ftoi: {people} |
 | `roomInfoIsConfirmed` | {name} is confirmed | {name} është konfirmuar |
 | `chatDeleteTitle` | `{count, plural, one{Delete message?} other{Delete {count} items?}}` | `{count, plural, one{Të fshihet mesazhi?} other{Të fshihen {count} elemente?}}` |
 | `matrixInvitePeopleInvited` | `{count, plural, other{{count} people invited}}` | `{count, plural, one{U ftua {count} person} other{U ftuan {count} persona}}` |

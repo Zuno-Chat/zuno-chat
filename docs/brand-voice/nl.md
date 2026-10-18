@@ -114,10 +114,11 @@ Dutch for `lib/l10n/app_nl.arb`, written for the Netherlands and Flanders alike.
 | profile, profile photo | profiel · profielfoto | |
 | email address | e-mailadres | |
 | invite | Uitnodigen · uitnodiging | The "Invited" badge → «Uitgenodigd». |
-| join (a room or community) | Lid worden | "{target} joined" → «{target} is lid geworden». |
+| withdraw (an invitation) | uitnodiging intrekken | "{sender} withdrew your invitation" → «{sender} heeft je uitnodiging ingetrokken». |
+| join (a room or community) | Lid worden | "{people} joined" → «{people} is lid geworden», several «zijn lid geworden». "Joined and left" → «is lid geworden en weer vertrokken». |
 | request, ask to join | verzoek · Vragen om lid te worden | Short "Ask" button → «Vragen». "Requested" → «Aangevraagd». "Let in" → «Toelaten». "Withdraw" → «Intrekken». |
-| leave | Verlaten | "{target} left" → «{target} is vertrokken». |
-| ban | Verbannen / Verbanning opheffen · verbanning | "Banned" heading → «Verbannen». Never «blokkeren». |
+| leave | Verlaten | "{people} left" → «{people} is vertrokken». |
+| ban | Verbannen / Verbanning opheffen · verbanning | "Banned" heading → «Verbannen». "{sender} unbanned {people}" → «{sender} heeft de verbanning van {people} opgeheven». Never «blokkeren». |
 | report | Rapporteren · rapport | «melding» is a notification. Reasons: «Intimidatie», «Illegale inhoud», «Spam», «Andere reden». |
 | public / private | openbaar / privé | A label serving both rooms and communities is «Openbare toegang» / «Privétoegang» / «Toegang op verzoek» / «Toegang voor de community». "Make public" → «Openbaar maken». |
 | topic, description, address, ID | onderwerp · beschrijving · adres · ID | Room alias → «kameradres». |
@@ -130,6 +131,7 @@ Dutch for `lib/l10n/app_nl.arb`, written for the Netherlands and Flanders alike.
 |---|---|---|
 | admin, moderator, owner | Beheerder · Moderator · Eigenaar | |
 | role, member, read-only, view only | rol · Lid · Alleen lezen · Alleen bekijken | |
+| give a role ("made {people} an admin", "you are now an admin") | {people} de rol ‘…’ geven · Je hebt nu de rol ‘…’ | With the role's label; never «{people} beheerder maken», as «beheerder» has a feminine form. |
 | permission (room), permission (OS), access | recht · toestemming · toegang | "Roles & permissions" → «Rollen en rechten». Permission names are infinitive phrases: "Remove people" → «Personen verwijderen», "Change name" → «Naam wijzigen». |
 
 ### 1.8 Notifications and push
@@ -300,7 +302,7 @@ Dutch writes an ordinal as the number and «e». `securityOrdinal`: `{n, select,
 | `settingsAccountPasswordChanged` | Password changed | Wachtwoord gewijzigd |
 | `blockingTitle` | Block {name}? | {name} blokkeren? |
 | `matrixStateNameChanged` | `{sender} changed the room name to \"{name}\"` | `{sender} heeft de kamernaam gewijzigd in ‘{name}’` |
-| `matrixStateInvited` | {sender} invited {target} | {sender} heeft {target} uitgenodigd |
+| `matrixStateJoined` | `{count, plural, other{{people} joined}}` | `{count, plural, one{{people} is lid geworden} other{{people} zijn lid geworden}}` |
 | `roomInfoIsConfirmed` | {name} is confirmed | {name} is bevestigd |
 | `chatDeleteTitle` | `{count, plural, one{Delete message?} other{Delete {count} items?}}` | `{count, plural, one{Bericht verwijderen?} other{{count} items verwijderen?}}` |
 | `matrixInvitePeopleInvited` | `{count, plural, other{{count} people invited}}` | `{count, plural, one{{count} persoon uitgenodigd} other{{count} personen uitgenodigd}}` |

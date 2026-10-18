@@ -108,11 +108,12 @@ German for `lib/l10n/app_de.arb`, written for Germany and served to every German
 | profile, profile photo | das Profil · das Profilbild | |
 | email address | die E-Mail-Adresse | |
 | invite | Einladen · die Einladung | The "Invited" badge → «Eingeladen». |
-| join (a room or community) | Beitreten / beitreten | "{target} joined" → «{target} ist beigetreten». |
+| withdraw (an invitation) | die Einladung zurückziehen | "{sender} withdrew your invitation" → «{sender} hat deine Einladung zurückgezogen». |
+| join (a room or community) | Beitreten / beitreten | "{people} joined" → «{people} ist beigetreten», several «sind beigetreten». "Joined and left" → «ist beigetreten und wieder ausgetreten». |
 | request, ask to join | die Anfrage · Beitritt anfragen | "Let in" → «Annehmen». "Withdraw" → «Anfrage zurückziehen». |
-| leave | Verlassen / verlassen | "{target} left" → «{target} ist ausgetreten». |
+| leave | Verlassen / verlassen | "{people} left" → «{people} ist ausgetreten». |
 | remove (a person) | Entfernen / entfernen | The kick action. |
-| ban | Sperren / Sperre aufheben | "Banned" heading → «Gesperrte Personen». |
+| ban | Sperren / Sperre aufheben | "Banned" heading → «Gesperrte Personen». "{sender} unbanned {people}" → «{sender} hat die Sperre für {people} aufgehoben». |
 | report | Melden · die Meldung | Reasons: «Belästigung», «Illegale Inhalte», «Spam», «Anderer Grund». |
 | public / private | öffentlich / privat | As labels: «Öffentlich», «Privat». |
 | topic, description, address, ID | das Thema · die Beschreibung · die Adresse · die ID | Room alias → «die Raumadresse». |
@@ -125,6 +126,7 @@ German for `lib/l10n/app_de.arb`, written for Germany and served to every German
 | admin, moderator, owner | Admin · Moderator · Eigentümer | Role badges, generic masculine. |
 | role, member, read-only, view only | die Rolle · Mitglied · Nur lesen · Nur ansehen | |
 | permission (room or OS), access | die Berechtigung · der Zugriff | "Roles & permissions" → «Rollen und Berechtigungen». |
+| give a role ("made {people} an admin", "you are now an admin") | die Rolle „…“ an {people} vergeben · Du hast jetzt die Rolle „…“ | With the role's label. Never «zum Admin machen» about a named person; «an» keeps a name list out of the dative. |
 
 ### 1.8 Notifications and push
 

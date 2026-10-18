@@ -7,6 +7,7 @@ import '../security/verification_signaling.dart';
 import 'attachment_message_type.dart';
 import 'image_caption.dart';
 import 'reply_fallback.dart';
+import 'room_updates.dart';
 import 'state_event_description.dart';
 import 'undecryptable_event.dart';
 import 'voice_message.dart';
@@ -34,29 +35,34 @@ class MessageSummary {
   const MessageSummary({required this.kind, required this.text, this.call});
 }
 
+bool isTimelineMessage(Event event) =>
+    event.relationshipType != RelationshipTypes.edit &&
+    _isRealMessage(event) &&
+    !isVerificationSignalingMessage(event.messageType) &&
+    !isCallSignalingMessage(event.messageType);
+
 bool isDisplayableTimelineEvent(
   Event event, {
   required bool showHiddenMessages,
 }) {
+  if (isTimelineMessage(event) || isRoomUpdate(event)) return true;
+  if (!showHiddenMessages) return false;
   if (event.relationshipType == RelationshipTypes.edit) return false;
-
-  final isRealMessage =
-      event.type == EventTypes.Message ||
-      event.type == EventTypes.Sticker ||
-      isUndecryptableEvent(event);
-  if (isRealMessage) {
-    if (isVerificationSignalingMessage(event.messageType)) return false;
-    return showHiddenMessages || !isCallSignalingMessage(event.messageType);
+  if (_isRealMessage(event)) {
+    return !isVerificationSignalingMessage(event.messageType);
   }
-  return showHiddenMessages && event.stateKey != null;
+  return event.stateKey != null;
 }
+
+bool _isRealMessage(Event event) =>
+    event.type == EventTypes.Message ||
+    event.type == EventTypes.Sticker ||
+    isUndecryptableEvent(event);
 
 bool canCarryReadMarker(Event event) => event.status.isSent;
 
-bool isPreviewableLastEvent(Event event) => isDisplayableTimelineEvent(
-  _applyEdit(event) ?? event,
-  showHiddenMessages: false,
-);
+bool isPreviewableLastEvent(Event event) =>
+    isTimelineMessage(_applyEdit(event) ?? event);
 
 MessageKind messageKindOf(Event event) => _classify(event).kind;
 

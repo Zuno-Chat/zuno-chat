@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/room_updates.dart';
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notify_me.dart';
@@ -98,6 +99,38 @@ void main() {
 
     expect(decision.content, isNull);
     expect(decision.refusal, MessageNotificationRefusal.notDisplayable);
+  });
+
+  test('does not notify for a room update shown in the chat', () {
+    for (final update in [
+      buildTestEvent(
+        room,
+        eventId: r'$join',
+        senderId: '@a:x',
+        type: EventTypes.RoomMember,
+        stateKey: '@a:x',
+        content: {'membership': 'join'},
+      ),
+      buildTestEvent(
+        room,
+        eventId: r'$name',
+        senderId: '@a:x',
+        type: EventTypes.RoomName,
+        stateKey: '',
+        content: {'name': 'Trip'},
+      ),
+    ]) {
+      expect(isRoomUpdate(update), isTrue, reason: update.type);
+
+      final decision = decide(update);
+
+      expect(decision.content, isNull, reason: update.type);
+      expect(
+        decision.refusal,
+        MessageNotificationRefusal.notDisplayable,
+        reason: update.type,
+      );
+    }
   });
 
   group('an event that has not decrypted yet', () {

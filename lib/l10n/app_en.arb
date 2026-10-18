@@ -2112,6 +2112,49 @@
   "@matrixOfficial": {
     "description": "Badge on an official Zuno room"
   },
+  "matrixPeopleMany": "{first}, {second} and {count, plural, one{{count} other} other{{count} others}}",
+  "@matrixPeopleMany": {
+    "description": "Name list inside a chat event sentence: two names and how many more people",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "matrixPeopleThree": "{first}, {second} and {third}",
+  "@matrixPeopleThree": {
+    "description": "Name list inside a chat event sentence: three names",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      },
+      "third": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixPeopleTwo": "{first} and {second}",
+  "@matrixPeopleTwo": {
+    "description": "Name list inside a chat event sentence: two names",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
   "matrixPermissionAddRooms": "Add rooms",
   "@matrixPermissionAddRooms": {
     "description": "Permission name: who can add rooms to a community"
@@ -2432,13 +2475,55 @@
       }
     }
   },
-  "matrixStateBanned": "{sender} banned {target}",
+  "matrixStateAvatarChangedByYou": "You changed the room photo",
+  "@matrixStateAvatarChangedByYou": {
+    "description": "Chat event: the reader changed the room photo"
+  },
+  "matrixStateAvatarRemoved": "{sender} removed the room photo",
+  "@matrixStateAvatarRemoved": {
+    "description": "Chat event: someone removed the room photo",
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateAvatarRemovedByYou": "You removed the room photo",
+  "@matrixStateAvatarRemovedByYou": {
+    "description": "Chat event: the reader removed the room photo"
+  },
+  "matrixStateBanned": "{count, plural, other{{sender} banned {people}}}",
   "@matrixStateBanned": {
+    "description": "Chat event: someone banned people from the room; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
     "placeholders": {
       "sender": {
         "type": "String"
       },
-      "target": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateBannedByYou": "{count, plural, other{You banned {people}}}",
+  "@matrixStateBannedByYou": {
+    "description": "Chat event: the reader banned people from the room; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateBannedYou": "{sender} banned you",
+  "@matrixStateBannedYou": {
+    "description": "Chat event: someone banned the reader from the room",
+    "placeholders": {
+      "sender": {
         "type": "String"
       }
     }
@@ -2450,6 +2535,26 @@
         "type": "String"
       }
     }
+  },
+  "matrixStateCreatedByYou": "You created the room",
+  "@matrixStateCreatedByYou": {
+    "description": "Chat event: the reader created the room"
+  },
+  "matrixStateDeclined": "{count, plural, other{{people} declined the invitation}}",
+  "@matrixStateDeclined": {
+    "description": "Chat event: people turned down their invitation to the room; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateDeclinedYou": "You declined the invitation",
+  "@matrixStateDeclinedYou": {
+    "description": "Chat event: the reader turned down their invitation to the room"
   },
   "matrixStateEncryptionOn": "{sender} turned on encryption",
   "@matrixStateEncryptionOn": {
@@ -2475,13 +2580,74 @@
       }
     }
   },
-  "matrixStateInvited": "{sender} invited {target}",
-  "@matrixStateInvited": {
+  "matrixStateInviteWithdrawn": "{count, plural, other{{sender} withdrew the invitation for {people}}}",
+  "@matrixStateInviteWithdrawn": {
+    "description": "Chat event: someone took back the invitation of people who had not joined yet; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
     "placeholders": {
       "sender": {
         "type": "String"
       },
-      "target": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateInviteWithdrawnByYou": "{count, plural, other{You withdrew the invitation for {people}}}",
+  "@matrixStateInviteWithdrawnByYou": {
+    "description": "Chat event: the reader took back the invitation of people who had not joined yet; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateInviteWithdrawnYou": "{sender} withdrew your invitation",
+  "@matrixStateInviteWithdrawnYou": {
+    "description": "Chat event: someone took back the reader's invitation",
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateInvited": "{count, plural, other{{sender} invited {people}}}",
+  "@matrixStateInvited": {
+    "description": "Chat event: someone invited people to the room; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateInvitedByYou": "{count, plural, other{You invited {people}}}",
+  "@matrixStateInvitedByYou": {
+    "description": "Chat event: the reader invited people to the room; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateInvitedYou": "{sender} invited you",
+  "@matrixStateInvitedYou": {
+    "description": "Chat event: someone invited the reader to the room",
+    "placeholders": {
+      "sender": {
         "type": "String"
       }
     }
@@ -2494,42 +2660,193 @@
       }
     }
   },
-  "matrixStateJoined": "{target} joined",
+  "matrixStateJoined": "{count, plural, other{{people} joined}}",
   "@matrixStateJoined": {
-    "description": "Chat event: a person joined; target is their name",
+    "description": "Chat event: people joined the room; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
     "placeholders": {
-      "target": {
+      "people": {
         "type": "String"
+      },
+      "count": {
+        "type": "int"
       }
     }
   },
-  "matrixStateKnocked": "{target} requested to join",
+  "matrixStateJoinedAndLeft": "{count, plural, other{{people} joined and left}}",
+  "@matrixStateJoinedAndLeft": {
+    "description": "Chat event: people joined the room and left again soon after; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateJoinedAndLeftYou": "You joined and left",
+  "@matrixStateJoinedAndLeftYou": {
+    "description": "Chat event: the reader joined the room and left again soon after"
+  },
+  "matrixStateJoinedYou": "You joined",
+  "@matrixStateJoinedYou": {
+    "description": "Chat event: the reader joined the room"
+  },
+  "matrixStateKnocked": "{count, plural, other{{people} asked to join}}",
   "@matrixStateKnocked": {
+    "description": "Chat event: people asked to join the room; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
     "placeholders": {
-      "target": {
+      "people": {
         "type": "String"
+      },
+      "count": {
+        "type": "int"
       }
     }
   },
-  "matrixStateLeft": "{target} left",
+  "matrixStateKnockedYou": "You asked to join",
+  "@matrixStateKnockedYou": {
+    "description": "Chat event: the reader asked to join the room"
+  },
+  "matrixStateLeft": "{count, plural, other{{people} left}}",
   "@matrixStateLeft": {
-    "description": "Chat event: a person left; target is their name",
+    "description": "Chat event: people left the room; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
     "placeholders": {
-      "target": {
+      "people": {
         "type": "String"
+      },
+      "count": {
+        "type": "int"
       }
     }
   },
-  "matrixStateMembershipUpdated": "{sender} updated {target}'s membership",
-  "@matrixStateMembershipUpdated": {
+  "matrixStateLeftYou": "You left",
+  "@matrixStateLeftYou": {
+    "description": "Chat event: the reader left the room"
+  },
+  "matrixStateMadeAdmin": "{count, plural, one{{sender} made {people} an admin} other{{sender} made {people} admins}}",
+  "@matrixStateMadeAdmin": {
+    "description": "Chat event: someone gave people the Admin role; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
     "placeholders": {
       "sender": {
         "type": "String"
       },
-      "target": {
+      "people": {
         "type": "String"
+      },
+      "count": {
+        "type": "int"
       }
     }
+  },
+  "matrixStateMadeAdminByYou": "{count, plural, one{You made {people} an admin} other{You made {people} admins}}",
+  "@matrixStateMadeAdminByYou": {
+    "description": "Chat event: the reader gave people the Admin role; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateMadeAdminYou": "You are now an admin",
+  "@matrixStateMadeAdminYou": {
+    "description": "Chat event: the reader now has the Admin role"
+  },
+  "matrixStateMadeMember": "{count, plural, one{{sender} made {people} a member} other{{sender} made {people} members}}",
+  "@matrixStateMadeMember": {
+    "description": "Chat event: someone gave people the Member role, the role everyone starts with; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateMadeMemberByYou": "{count, plural, one{You made {people} a member} other{You made {people} members}}",
+  "@matrixStateMadeMemberByYou": {
+    "description": "Chat event: the reader gave people the Member role, the role everyone starts with; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateMadeMemberYou": "You are now a member",
+  "@matrixStateMadeMemberYou": {
+    "description": "Chat event: the reader now has the Member role, the role everyone starts with"
+  },
+  "matrixStateMadeModerator": "{count, plural, one{{sender} made {people} a moderator} other{{sender} made {people} moderators}}",
+  "@matrixStateMadeModerator": {
+    "description": "Chat event: someone gave people the Moderator role; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateMadeModeratorByYou": "{count, plural, one{You made {people} a moderator} other{You made {people} moderators}}",
+  "@matrixStateMadeModeratorByYou": {
+    "description": "Chat event: the reader gave people the Moderator role; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateMadeModeratorYou": "You are now a moderator",
+  "@matrixStateMadeModeratorYou": {
+    "description": "Chat event: the reader now has the Moderator role"
+  },
+  "matrixStateMadeReadOnly": "{count, plural, other{{sender} made {people} read-only}}",
+  "@matrixStateMadeReadOnly": {
+    "description": "Chat event: someone gave people the Read-only role; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateMadeReadOnlyByYou": "{count, plural, other{You made {people} read-only}}",
+  "@matrixStateMadeReadOnlyByYou": {
+    "description": "Chat event: the reader gave people the Read-only role; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateMadeReadOnlyYou": "You are now read-only",
+  "@matrixStateMadeReadOnlyYou": {
+    "description": "Chat event: the reader now has the Read-only role"
   },
   "matrixStateNameChanged": "{sender} changed the room name to \"{name}\"",
   "@matrixStateNameChanged": {
@@ -2537,6 +2854,15 @@
       "sender": {
         "type": "String"
       },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateNameChangedByYou": "You changed the room name to \"{name}\"",
+  "@matrixStateNameChangedByYou": {
+    "description": "Chat event: the reader renamed the room",
+    "placeholders": {
       "name": {
         "type": "String"
       }
@@ -2550,6 +2876,10 @@
       }
     }
   },
+  "matrixStateNameRemovedByYou": "You removed the room name",
+  "@matrixStateNameRemovedByYou": {
+    "description": "Chat event: the reader removed the room name"
+  },
   "matrixStatePermissionsChanged": "{sender} changed the room permissions",
   "@matrixStatePermissionsChanged": {
     "placeholders": {
@@ -2558,30 +2888,97 @@
       }
     }
   },
-  "matrixStateRemoved": "{sender} removed {target}",
+  "matrixStateRemoved": "{count, plural, other{{sender} removed {people}}}",
   "@matrixStateRemoved": {
+    "description": "Chat event: someone removed people from the room; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
     "placeholders": {
       "sender": {
         "type": "String"
       },
-      "target": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateRemovedByYou": "{count, plural, other{You removed {people}}}",
+  "@matrixStateRemovedByYou": {
+    "description": "Chat event: the reader removed people from the room; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateRemovedYou": "{sender} removed you",
+  "@matrixStateRemovedYou": {
+    "description": "Chat event: someone removed the reader from the room",
+    "placeholders": {
+      "sender": {
         "type": "String"
       }
     }
   },
-  "matrixStateTopicChanged": "{sender} changed the topic to \"{topic}\"",
+  "matrixStateTopicChanged": "{sender} changed the room topic",
   "@matrixStateTopicChanged": {
+    "description": "Chat event: someone changed the room topic; the topic itself is not shown",
     "placeholders": {
       "sender": {
         "type": "String"
-      },
-      "topic": {
-        "type": "String"
       }
     }
+  },
+  "matrixStateTopicChangedByYou": "You changed the room topic",
+  "@matrixStateTopicChangedByYou": {
+    "description": "Chat event: the reader changed the room topic; the topic itself is not shown"
   },
   "matrixStateTopicRemoved": "{sender} removed the room topic",
   "@matrixStateTopicRemoved": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "matrixStateTopicRemovedByYou": "You removed the room topic",
+  "@matrixStateTopicRemovedByYou": {
+    "description": "Chat event: the reader removed the room topic"
+  },
+  "matrixStateUnbanned": "{count, plural, other{{sender} unbanned {people}}}",
+  "@matrixStateUnbanned": {
+    "description": "Chat event: someone lifted the ban on people; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      },
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateUnbannedByYou": "{count, plural, other{You unbanned {people}}}",
+  "@matrixStateUnbannedByYou": {
+    "description": "Chat event: the reader lifted the ban on people; people is a name list built from matrixPeopleTwo, matrixPeopleThree or matrixPeopleMany; count is how many people it names",
+    "placeholders": {
+      "people": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "matrixStateUnbannedYou": "{sender} unbanned you",
+  "@matrixStateUnbannedYou": {
+    "description": "Chat event: someone lifted the reader's ban",
     "placeholders": {
       "sender": {
         "type": "String"

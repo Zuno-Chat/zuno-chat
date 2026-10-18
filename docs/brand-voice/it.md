@@ -108,9 +108,10 @@ Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `transla
 | profile, profile photo | il profilo · la foto del profilo | |
 | email address | l’indirizzo email | |
 | invite | Invita · l’invito | The "Invited" badge → «Invito inviato». |
-| join (a room or community) | Entra / entrare | "{target} joined" → «Nuovo membro: {target}» (§2.4). |
+| withdraw (an invitation) | ritirare l’invito | "{sender} withdrew your invitation" → «{sender} ha ritirato il tuo invito». |
+| join (a room or community) | Entra / entrare | "{people} joined" → «Nuovo membro: {people}» (§2.4). |
 | request, ask to join | la richiesta · Chiedi di entrare | "Let in" → «Accetta». "Withdraw" → «Ritira richiesta». |
-| leave | Esci / lasciare | "{target} left" → «{target} ha lasciato». |
+| leave | Esci / lasciare | "{people} left" → «{people} ha lasciato». |
 | remove (a person) | Rimuovi / rimuovere | The kick action. |
 | ban | Banna / revoca il ban | "Banned" heading → «Persone bannate». |
 | report | Segnala · la segnalazione | Reasons: «Molestie», «Contenuti illegali», «Spam», «Altro motivo». |
@@ -191,6 +192,9 @@ Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `transla
 | Chat / Room / Community info | Informazioni sulla chat / sulla stanza / sulla comunità | |
 | Room / Community defaults | Impostazioni predefinite della stanza / della comunità | |
 | "You and {name} are…" | Recast so the verb is not plural «voi»: «Posizione in tempo reale condivisa da te e {name}». | |
+| Make {people} an admin / You are now an admin (room updates) | {sender} ha assegnato il ruolo «Amministratore» a {people} / Ora hai il ruolo «Amministratore» | Every role the same way, with its exact label: «nominare amministratore» would agree with the person. |
+| You joined / joined and left (room updates) | Ora fai parte della stanza / {people} ha lasciato poco dopo l’ingresso | «Sei entrato/a» and «è entrato/a» would agree with the person. |
+| {sender} invited / removed / banned you (room updates) | {sender} ti ha inviato un invito / {sender} ha rimosso il tuo account dalla stanza / Hai ricevuto un ban da {sender} | Past tense, as in every room update, with no participle agreeing with «ti». |
 | character(s), link, check mark | il carattere · i caratteri · il link · il segno di spunta | |
 
 ### 1.12 UI actions
@@ -254,8 +258,8 @@ Statement and first-person buttons: «Corrispondono», «Non corrispondono», «
 - Weekday and month names are lowercase.
 
 ### 2.4 Names
-- Subject names take verbs with «avere», whose participle never agrees: «{target} ha lasciato», «{sender} ha invitato {target}», «{target} ha chiesto di entrare».
-- Never a participle with «essere» or an adjective that agrees with a person, the reader included: no «è entrato/a», «connesso/a», «invitato/a», «benvenuto/a». Recast with a noun or an «avere» verb: «Nuovo membro: {target}», «Accesso effettuato», «Hai bloccato {name}».
+- Subject names take verbs with «avere», whose participle never agrees: «{people} ha lasciato», «{sender} ha invitato {people}», «{people} ha chiesto di entrare».
+- Never a participle with «essere» or an adjective that agrees with a person, the reader included: no «è entrato/a», «connesso/a», «invitato/a», «benvenuto/a». Recast with a noun or an «avere» verb: «Nuovo membro: {people}», «Accesso effettuato», «Hai bloccato {name}».
 - "With {name}" → «Con {name}».
 - "they" → «questa persona» or drop the subject: "once they join" → «quando questa persona entra».
 

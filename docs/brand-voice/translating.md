@@ -59,7 +59,7 @@ A guide's glossary gives the words; these rules say how they are used.
 
 ### Names and gender
 
-`{name}`, `{sender}`, `{target}`, `{first}`, `{second}` and `{people}` are display names of unknown gender, and the reader's gender is unknown too.
+`{name}`, `{sender}`, `{first}`, `{second}`, `{third}` and `{people}` are display names of unknown gender, and the reader's gender is unknown too.
 
 1. Never put an article before a name, and never decline it.
 2. A subject name goes first, bare.
@@ -90,7 +90,7 @@ The moments in `README.md` apply in every language.
 - A string made only of placeholders and symbols stays byte-identical, unless the language's guide changes its spacing or units: `{count}`, `{name} · {time}`, `{label}: {count}`, `{size} MB`, `CarPlay`, `UnifiedPush`.
 - **Plurals** keep their structure and selector name. Use only `one` and `other`, except in Polish, which adds `few` and `many` (its guide says how); every plural keeps `other`; nested plurals keep their nesting. Never add `zero`, `two` or `=n`, and never use `#`: write the number as `{count}` (or the selector's own name), never as a word.
   - Where a language puts 0 in `one` (Brazilian Portuguese and French), the `one` text must read right for both 0 and 1.
-  - Add a `one` case (in Polish, `one`, `few` and `many`) where the English has only `other` but the language needs a singular: `matrixInvitePeopleInvited`, `matrixInviteWaitingForPeople`, `matrixSignupPasswordTooLong`, `securityPasswordTooShort`, `securityPasswordEmptyAdvice`, `settingsRecoveryCodeHint`, `settingsRecoveryRevealTitle`, `settingsRecoveryTooManyWords`, `roomInfoConfirmedCount`, and the `matrixRoomExitCommunityRooms*` family (both `count` and the nested `orphaned`).
+  - Add a `one` case (in Polish, `one`, `few` and `many`) where the English has only `other` but the language needs a singular: `matrixInvitePeopleInvited`, `matrixInviteWaitingForPeople`, `matrixSignupPasswordTooLong`, `securityPasswordTooShort`, `securityPasswordEmptyAdvice`, `settingsRecoveryCodeHint`, `settingsRecoveryRevealTitle`, `settingsRecoveryTooManyWords`, `roomInfoConfirmedCount`, the `matrixRoomExitCommunityRooms*` family (both `count` and the nested `orphaned`), and every `matrixState*` room update that takes `{people}`, whose `count` is how many people `{people}` names.
   - No `one` is needed where the text is the same for every number: `ageHours`, `ageMinutes`, `pushDelayHours`, `pushDelayMinutes`, `pushDelaySeconds`, `chatDeleteAllCount`, `chatSaveAll`, `chatShareAll`, `roomInfoMembersCount`, `notificationsMoreChatsAndRooms`.
 - **Selects** (`notificationsFailureAutoSelected`, `pushSummaryPriority`, `pushSummaryStandbyBucket`, `securityOrdinal`) keep every case key; translate only the text and never drop `other`. `securityOrdinal` and `settingsRecoveryWordLabel` follow the guide's ordinal rule.
 - **JSON:** apostrophes are literal (ICU escaping is off). Escape `"` as `\"`. Put `\n` only where the English has it. A translation file holds only `"key": "value"` pairs, in the English key order.

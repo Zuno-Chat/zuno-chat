@@ -108,9 +108,10 @@ French for `lib/l10n/app_fr.arb`, written for France and served to every French-
 | profile, profile photo | le profil · la photo de profil | |
 | email address | l’adresse e-mail | |
 | invite | Inviter · l’invitation | The "Invited" badge → «Invitation envoyée». |
-| join (a room or community) | Rejoindre / rejoindre | "{target} joined" → «{target} a rejoint». |
+| withdraw (an invitation) | annuler l’invitation | "{sender} withdrew your invitation" → «{sender} a annulé votre invitation». |
+| join (a room or community) | Rejoindre / rejoindre | "{people} joined" → «{people} a rejoint». |
 | request, ask to join | la demande · Demander à rejoindre | "Let in" → «Accepter». "Withdraw" → «Annuler la demande». |
-| leave | Quitter / quitter | "{target} left" → «{target} a quitté». |
+| leave | Quitter / quitter | "{people} left" → «{people} a quitté». |
 | remove (a person) | Retirer / retirer | The kick action. |
 | ban | Bannir / lever le bannissement | "Banned" heading → «Personnes bannies». |
 | report | Signaler · le signalement | Reasons: «Harcèlement», «Contenu illégal», «Spam», «Autre motif». |
@@ -184,6 +185,9 @@ French for `lib/l10n/app_fr.arb`, written for France and served to every French-
 | Secure backup (screen) | «Récupération» | |
 | Welcome to Zuno | Bienvenue dans Zuno | |
 | {name} is confirmed | Vous avez confirmé {name} | |
+| Make {people} an admin / You are now an admin (room updates) | {sender} a donné le rôle « Administrateur » à {people} / Vous avez désormais le rôle « Administrateur » | Every role the same way, with its exact label: «nommer administrateur» would agree with the person. |
+| {sender} invited / removed / banned you (room updates) | {sender} vous a envoyé une invitation / vous a fait quitter le salon / a prononcé votre bannissement | «vous a invité», «vous a retiré» and «vous a banni» agree with the reader; «fait» before an infinitive never agrees. |
+| joined and left (room update) | a rejoint puis quitté | |
 | character(s), link, check mark | le caractère · le lien · la coche | |
 
 ### 1.12 UI actions

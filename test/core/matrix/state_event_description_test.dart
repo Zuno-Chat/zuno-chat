@@ -20,6 +20,7 @@ void main() {
     String senderId = '@alice:example.org',
     String stateKey = '',
     Map<String, Object?> content = const {},
+    Map<String, Object?>? prevContent,
   }) => buildTestEvent(
     room,
     eventId: r'$1',
@@ -27,28 +28,37 @@ void main() {
     type: type,
     stateKey: stateKey,
     content: content,
+    prevContent: prevContent,
   );
 
   String? describe(Event event) =>
       describeStateEvent(englishLocalizations, event);
 
-  for (final (name, senderId, membership, description) in [
-    ('member join', '@bob:example.org', 'join', 'Bob joined'),
-    ('member self-leave', '@bob:example.org', 'leave', 'Bob left'),
+  for (final (name, senderId, was, membership, description) in [
+    ('member join', '@bob:example.org', null, 'join', 'Bob joined'),
+    ('member self-leave', '@bob:example.org', 'join', 'leave', 'Bob left'),
     (
       'member removed by someone else (a kick)',
       '@alice:example.org',
+      'join',
       'leave',
       'Alice removed Bob',
     ),
-    ('member invite', '@alice:example.org', 'invite', 'Alice invited Bob'),
-    ('member ban', '@alice:example.org', 'ban', 'Alice banned Bob'),
-    ('member knock', '@bob:example.org', 'knock', 'Bob requested to join'),
     (
-      'an unknown membership change still names both sides',
+      'member invite',
       '@alice:example.org',
-      'im.custom',
-      "Alice updated Bob's membership",
+      null,
+      'invite',
+      'Alice invited Bob',
+    ),
+    ('member ban', '@alice:example.org', 'join', 'ban', 'Alice banned Bob'),
+    ('member knock', '@bob:example.org', null, 'knock', 'Bob asked to join'),
+    (
+      'a membership change with nothing to say falls back to null',
+      '@alice:example.org',
+      'join',
+      'join',
+      null,
     ),
   ]) {
     test(name, () {
@@ -57,11 +67,39 @@ void main() {
         senderId: senderId,
         stateKey: '@bob:example.org',
         content: {'membership': membership},
+        prevContent: was == null ? null : {'membership': was},
       );
 
       expect(describe(event), description);
     });
   }
+
+  test('a role change names the new role', () {
+    final event = stateEvent(
+      EventTypes.RoomPowerLevels,
+      content: {
+        'users': {'@bob:example.org': 100},
+      },
+      prevContent: {'users': <String, Object?>{}},
+    );
+
+    expect(describe(event), 'Alice made Bob an admin');
+  });
+
+  test('a deleted state event falls back to null', () {
+    final event = stateEvent(EventTypes.RoomName, content: {'name': 'X'});
+    event.unsigned = {
+      'redacted_because': {
+        'event_id': r'$r',
+        'type': EventTypes.Redaction,
+        'sender': '@alice:example.org',
+        'origin_server_ts': 0,
+        'content': <String, Object?>{},
+      },
+    };
+
+    expect(describe(event), isNull);
+  });
 
   for (final (name, type, content, description) in [
     (
@@ -80,7 +118,7 @@ void main() {
       'room topic changed',
       EventTypes.RoomTopic,
       {'topic': 'New topic'},
-      'Alice changed the topic to "New topic"',
+      'Alice changed the room topic',
     ),
     (
       'room topic removed (missing)',
@@ -95,7 +133,6 @@ void main() {
   }
 
   for (final (type, description) in [
-    (EventTypes.RoomAvatar, 'Alice changed the room photo'),
     (EventTypes.RoomCreate, 'Alice created the room'),
     (EventTypes.RoomPowerLevels, 'Alice changed the room permissions'),
     (EventTypes.RoomJoinRules, 'Alice changed who can join the room'),
@@ -112,6 +149,19 @@ void main() {
       expect(describe(stateEvent(type)), description);
     });
   }
+
+  test('room photo changed and removed', () {
+    expect(
+      describe(
+        stateEvent(EventTypes.RoomAvatar, content: {'url': 'mxc://x/a'}),
+      ),
+      'Alice changed the room photo',
+    );
+    expect(
+      describe(stateEvent(EventTypes.RoomAvatar)),
+      'Alice removed the room photo',
+    );
+  });
 
   test(
     'an unrecognized state event type falls back to null (caller labels it)',

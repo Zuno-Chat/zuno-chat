@@ -113,10 +113,11 @@ Norwegian Bokmål for `lib/l10n/app_nb.arb`, written for Norway. The rules all l
 | profile, profile photo | profil · profilbilde | |
 | email address | e-postadresse | |
 | invite | Inviter · invitasjon | The "Invited" badge → «Invitert». |
-| join (a room or community) | Bli med | "{target} joined" → «{target} ble med». |
+| withdraw (an invitation) | trekke tilbake invitasjonen | "{sender} withdrew your invitation" → «{sender} trakk tilbake invitasjonen din». |
+| join (a room or community) | Bli med | "{people} joined" → «{people} ble med». "Joined and left" → «ble med og gikk igjen». |
 | request, ask to join | forespørsel · Be om å bli med | Short "Ask" button → «Spør». "Requested" → «Forespurt». "Let in" → «Slipp inn». "Withdraw" → «Trekk tilbake». |
-| leave | Forlat | "{target} left" → «{target} gikk». |
-| ban | Utesteng / Opphev utestengelse · utestengelse | "Banned" heading → «Utestengte». Never «blokker». |
+| leave | Forlat | "{people} left" → «{people} gikk». |
+| ban | Utesteng / Opphev utestengelse · utestengelse | "Banned" heading → «Utestengte». "{sender} unbanned {people}" → «{sender} opphevet utestengelsen av {people}». Never «blokker». |
 | report | Rapporter · rapport | Reasons: «Trakassering», «Ulovlig innhold», «Spam», «Annen årsak». |
 | public / private | offentlig / privat | Agree with the noun («et offentlig rom», «et privat fellesskap»); a label serving both is «Offentlig tilgang» / «Privat tilgang» / «Tilgang etter forespørsel» / «Tilgang for fellesskapet». "Make public" → «Gjør offentlig». |
 | topic, description, address, ID | emne · beskrivelse · adresse · ID | Room alias → «romadresse». |
@@ -129,6 +130,7 @@ Norwegian Bokmål for `lib/l10n/app_nb.arb`, written for Norway. The rules all l
 |---|---|---|
 | admin, moderator, owner | Administrator · Moderator · Eier | |
 | role, member, read-only, view only | rolle · Medlem · Bare lesing · Bare visning | |
+| give a role ("made {people} an admin", "you are now an admin") | gi {people} rollen «…» · Du har nå rollen «…» | With the role's label, the same for every role, since «Bare lesing» is no person noun. |
 | permission (room or OS), access | tillatelse · tilgang | "Roles & permissions" → «Roller og tillatelser». Permission names are infinitives: "Remove people" → «Fjerne personer», "Change name" → «Endre navn». |
 
 ### 1.8 Notifications and push
@@ -298,7 +300,7 @@ Norwegian writes an ordinal as the number and a full stop. `securityOrdinal`: `{
 | `settingsAccountPasswordChanged` | Password changed | Passord endret |
 | `blockingTitle` | Block {name}? | Blokkere {name}? |
 | `matrixStateNameChanged` | `{sender} changed the room name to \"{name}\"` | `{sender} endret navnet på rommet til «{name}»` |
-| `matrixStateInvited` | {sender} invited {target} | {sender} inviterte {target} |
+| `matrixStateInvited` | `{count, plural, other{{sender} invited {people}}}` | `{count, plural, other{{sender} inviterte {people}}}` |
 | `roomInfoIsConfirmed` | {name} is confirmed | {name} er bekreftet |
 | `chatDeleteTitle` | `{count, plural, one{Delete message?} other{Delete {count} items?}}` | `{count, plural, one{Slette meldingen?} other{Slette {count} elementer?}}` |
 | `matrixInvitePeopleInvited` | `{count, plural, other{{count} people invited}}` | `{count, plural, one{{count} person invitert} other{{count} personer invitert}}` |

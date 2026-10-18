@@ -25,6 +25,7 @@ in `features/chat/presentation/`.
 | `message_composer.dart` | The message box, recording row and reply or edit bar |
 | `features/chat/data/` | Sending, typing and unsent-message rules, and shared types such as `MessageRowData` |
 | `core/matrix/event_display.dart` | What an event is, for every surface |
+| `core/matrix/room_updates.dart` | Which room updates show, how they group and their wording |
 | `core/matrix/image_send_preparation.dart`, `video_send_preparation.dart` | App-side media preparation before `sendFileEvent` |
 | `core/matrix/attachment_cache.dart` | The only attachment cache, and the owner of every decrypted copy on disk |
 | `core/matrix/attachment_actions.dart` | Share and save, over `core/share/outbound_share.dart` and `core/files/file_export.dart` |
@@ -79,15 +80,16 @@ guesses on its own.
 
 | Function | Answers |
 |---|---|
-| `isDisplayableTimelineEvent` | Is it drawn in the timeline? |
+| `isDisplayableTimelineEvent` | Is it drawn in the timeline? Messages and room updates are |
+| `isTimelineMessage` | Is it a message? Previews, notifications, unread counts and sender runs count only these |
 | `summarize` | Its `MessageKind` and one line of text, for previews, quotes and notifications |
 | `isPreviewableLastEvent` | Can the chat list show it as the last message? |
 | `canCarryReadMarker` | Can a read receipt point at it? |
 
 - **Visibility.** An edit is folded into its original by the `Timeline`
   and never drawn alone, and in-room verification is never drawn. Call
-  signaling and state events show only with the show-hidden-messages
-  toggle.
+  signaling and state events that are not room updates show only with
+  the show-hidden-messages toggle.
 - **`MessageKind` switches have no `default`**, so a new kind fails to
   compile wherever it is not handled yet.
 - **A new message shape is classified here only**, plus its iOS
@@ -99,6 +101,46 @@ guesses on its own.
   msgtype too. Their tile draws the live share while it runs and reads like
   a deleted message once it ended; they offer no copy, and deleting your
   own stops its share first (`location-sharing.md`).
+
+## Room updates
+
+Membership changes, the room's creation, name, topic and photo, and role
+changes are drawn for everyone as centered pills. `isRoomUpdate` is the
+one rule for what counts.
+
+| Shown | Never shown |
+|---|---|
+| Joined, left, invited, declined, withdrawn invitations, removed, banned, unbanned, asked to join | A member changing their own name or photo |
+| Room created; name, topic and photo set or removed | History visibility, guest access, address, join rules, encryption, upgrades |
+| A member's role changing | Permission changes that change no one's role |
+
+- **One-to-one chats show only someone leaving, being removed or being
+  banned**, so a chat starts clean and still says when messages stop
+  reaching the other person.
+- **Bursts.** Updates in a row, with no message between them and on one
+  day, are one row. It holds one sentence per kind of change and actor,
+  with the people merged ("Alex invited Sam, Lee and Mia", then a count
+  past three names). A burst is keyed by its oldest event, so a live
+  update grows the row in place.
+- **Merging rules.** Only the final name, topic and photo of a burst
+  show, each person's final role shows, joining then leaving reads as one
+  change, and the creator's own first join is hidden behind "created the
+  room".
+- **The reader is "you"**, as actor ("You invited Sam"), as target
+  ("Alex removed you") and for their own role ("You are now an admin").
+- **The kind of membership change needs `prev_content`.** The SDK's
+  `roomMemberChangeType` reads it to tell a join from a profile change or
+  a kick from a withdrawn invitation; without it a leave stays hidden.
+- **Role changes are a diff** of each user's role in the previous and new
+  power levels, so the room's first power levels, which have no previous
+  version, never show.
+- **A topic change does not repeat the topic**, since topics are long; a
+  pill stops at three lines.
+- **Wording is translator-safe.** Each kind is a whole sentence; names
+  come from fixed two-, three- and many-name patterns, and a count drives
+  verb agreement in every language.
+- **The empty-room notice stays** above the updates until the first
+  message.
 
 ## Rendering
 

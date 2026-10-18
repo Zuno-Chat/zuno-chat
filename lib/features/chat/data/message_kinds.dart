@@ -52,7 +52,4 @@ String displayBody(Event event, Timeline timeline) =>
 String previewSnippet(AppLocalizations l10n, Event event, Timeline timeline) =>
     summarize(l10n, event.getDisplayEvent(timeline)).text;
 
-bool isHiddenTimelineEvent(Event e) =>
-    !isDisplayableTimelineEvent(e, showHiddenMessages: false);
-
 const runGap = Duration(minutes: 5);

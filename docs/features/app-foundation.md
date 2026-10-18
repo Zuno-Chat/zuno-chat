@@ -90,6 +90,7 @@ Shared pieces:
 |---|---|
 | `CardListView`, `CardGroup`, `CircleIcon` | The grouped-card look of Settings, room info and the pages under them. |
 | `StepLayout`, `StepHero` | One-question screens, with the actions pinned at the bottom above the keyboard. |
+| `TimelinePill` | The pill of the timeline's date labels and room updates. |
 | `RowMemo` | Returns the identical widget for an equal record from the same SDK object, so a list row rebuilds only when its value-equal record changes, and never keeps a `Room` the SDK has replaced. |
 | `RouteSettled` | `onRouteSettled()` fires once the push slide has finished, for work that would otherwise land mid-slide. |
 | `AlertBanner` | Every in-screen warning banner: the security alerts and the delivery failure. An attention or notice tone, at most one action and an optional ✕. |

@@ -345,7 +345,7 @@ final _cases = <_Case>[
     kind: MessageKind.hiddenSignaling,
   ),
   _Case(
-    'room state change',
+    'room update',
     build: (room) => buildTestEvent(
       room,
       eventId: r'$e',
@@ -354,9 +354,41 @@ final _cases = <_Case>[
       stateKey: '',
       content: {'name': 'Book club'},
     ),
+    visible: true,
+    visibleWhenShowingHidden: true,
+    previewable: false,
+    kind: MessageKind.nonMessage,
+    text: 'Ada changed the room name to "Book club"',
+  ),
+  _Case(
+    'a member changing their own name',
+    build: (room) => buildTestEvent(
+      room,
+      eventId: r'$e',
+      senderId: '@a:x',
+      type: EventTypes.RoomMember,
+      stateKey: '@a:x',
+      content: {'membership': 'join', 'displayname': 'Ada L'},
+      prevContent: {'membership': 'join', 'displayname': 'Ada'},
+    ),
     visible: false,
     visibleWhenShowingHidden: true,
     kind: MessageKind.nonMessage,
+  ),
+  _Case(
+    'technical room state',
+    build: (room) => buildTestEvent(
+      room,
+      eventId: r'$e',
+      senderId: '@a:x',
+      type: EventTypes.HistoryVisibility,
+      stateKey: '',
+      content: {'history_visibility': 'shared'},
+    ),
+    visible: false,
+    visibleWhenShowingHidden: true,
+    kind: MessageKind.nonMessage,
+    text: 'Ada changed who can read the room history',
   ),
   _Case(
     'reaction',
@@ -462,6 +494,39 @@ void main() {
         }
       });
     }
+  });
+
+  test('room updates and edits are not messages', () {
+    Event event(String type, Map<String, Object?> content, {String? key}) =>
+        buildTestEvent(
+          room,
+          eventId: r'$e',
+          senderId: '@a:x',
+          type: type,
+          stateKey: key,
+          content: content,
+        );
+
+    expect(
+      isTimelineMessage(event(EventTypes.RoomName, {'name': 'R'}, key: '')),
+      isFalse,
+    );
+    expect(
+      isTimelineMessage(
+        event(EventTypes.Message, {
+          'msgtype': 'm.text',
+          'body': '* fixed',
+          'm.relates_to': {'rel_type': 'm.replace', 'event_id': r'$o'},
+        }),
+      ),
+      isFalse,
+    );
+    expect(
+      isTimelineMessage(
+        event(EventTypes.Message, {'msgtype': 'm.text', 'body': 'hi'}),
+      ),
+      isTrue,
+    );
   });
 
   test('no summary ever leaks the SDK\'s raw fallback text', () {

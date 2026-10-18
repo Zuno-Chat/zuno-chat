@@ -113,11 +113,12 @@ The Greek column gives the article, which shows the gender, and the plural where
 | profile, profile photo / picture, avatar | το προφίλ · η φωτογραφία προφίλ | A room or community photo → «φωτογραφία αίθουσας / κοινότητας». |
 | email address | η διεύθυνση email | The email itself is «το email». |
 | invite, invitation | Πρόσκληση / προσκαλώ | The "Invited" badge → «Προσκλήθηκε». |
-| join (a room or community) | Συμμετοχή / μπαίνω (μπει, μπήκε) | Buttons and nouns: «Συμμετοχή». In sentences: "{target} joined" → «{target} μπήκε», "once they join" → «μόλις μπει». |
+| join (a room or community) | Συμμετοχή / μπαίνω (μπει, μπήκε) | Buttons and nouns: «Συμμετοχή». In sentences: "{people} joined" → «{people} μπήκε», "once they join" → «μόλις μπει». |
 | request, ask to join | το αίτημα · Αίτημα συμμετοχής | "Asks to join" → «Ζητά να μπει». "Let in" → «Αποδοχή». "Withdraw" → «Ανάκληση». |
 | leave | Αποχώρηση / αποχωρώ (αποχώρησε) | |
 | remove (a person, photo or item) | Αφαίρεση / αφαιρώ (αφαιρέθηκε) | The kick action. Never «διώχνω». |
-| ban | Αποβολή / αποβάλλω (αποβλήθηκε) | "Unban" → «Άρση αποβολής». "Banned" heading → «Αποβολές». Never «αποκλεισμός», which is block. |
+| ban | Αποβολή / αποβάλλω (αποβλήθηκε) | "Unban" → «Άρση αποβολής», in the timeline «ήρε την αποβολή» (ήρατε). "Banned" heading → «Αποβολές». Never «αποκλεισμός», which is block. |
+| withdraw (an invitation) | Ανάκληση πρόσκλησης / ανακαλώ (ανακάλεσε) | «{sender} ανακάλεσε την πρόσκληση για τον χρήστη {people}». |
 | report | Αναφορά / αναφέρω | Reasons: «Παρενόχληση», «Παράνομο περιεχόμενο», «Ανεπιθύμητο περιεχόμενο» (Spam), «Κάτι άλλο». |
 | public / private | Δημόσια / Ιδιωτική | Feminine, so it agrees with both αίθουσα and κοινότητα. |
 | topic, description | το θέμα · η περιγραφή | |
@@ -131,6 +132,7 @@ The Greek column gives the article, which shows the gender, and the plural where
 | admin, moderator | ο διαχειριστής · ο συντονιστής | Role names, generic masculine. |
 | owner | ο/η κάτοχος | A common-gender noun. The badge is «Κάτοχος». |
 | role, member (role), read-only | ο ρόλος · Μέλος · Μόνο ανάγνωση | "Change role" → «Αλλαγή ρόλου». |
+| made (someone) an admin, You are now an admin | έδωσε τον ρόλο «Διαχειριστής» στον χρήστη {people} · Έχετε πλέον τον ρόλο «Διαχειριστής» | A role change gives the role by its quoted label, the same for every role, so no role noun agrees with a person. |
 | permission (inside a room) | το δικαίωμα · τα δικαιώματα | "Roles & permissions" → «Ρόλοι και δικαιώματα». |
 | permission, access (granted by the OS) | η άδεια · η πρόσβαση | What Android and iOS grant: «Επιτρέψτε την πρόσβαση στην κάμερα». Never δικαίωμα. |
 
@@ -188,6 +190,7 @@ The Greek column gives the article, which shows the gender, and the plural where
 | Let them ask (setting) | Ενεργοποίηση αιτημάτων | |
 | Joined (label) | Συμμετέχετε | |
 | N other(s) | {count} ακόμα άτομο/άτομα | |
+| Name lists: {first} and {second} / {first}, {second} and {third} | {first} και {second} / {first}, {second} και {third} | A list is only ever a subject or an accusative (never a genitive, which «άτομα» cannot follow): «{people} μπήκαν», «στους χρήστες {people}», «για τους χρήστες {people}». |
 | asleep (app or device) / suspended | σε αδράνεια / σε αναστολή | |
 | Call rang / ringing | Η κλήση χτύπησε / χτυπάει | |
 | Hidden message | κρυμμένο μήνυμα | Never «κρυφό». |
@@ -267,8 +270,8 @@ Statement and first-person buttons: «Ταιριάζουν», «Δεν ταιρ�
 
 ### 2.4 Names
 - No article before a name (ο, η, τον, την, του, της), and never slashes such as «ο/η» or «-ος/-η».
-- Subjects: «{name} πληκτρολογεί…», «{target} αποχώρησε», «{name} αποκλείστηκε». Short labels: «Με {name}», «Απάντηση σε {name}», «Αναπάντητη κλήση από {name}», «Προβλήθηκε από {people}».
-- Anywhere else, put the generic «χρήστης» in the needed case before the name: «Να αποκλειστεί ο χρήστης {name};», «{sender} αφαίρεσε τον χρήστη {target}». Or recast: a passive, or a relative clause with the name as subject («ο κωδικός που σας δείχνει {name}»).
+- Subjects: «{name} πληκτρολογεί…», «{people} αποχώρησε», «{name} αποκλείστηκε». Short labels: «Με {name}», «Απάντηση σε {name}», «Αναπάντητη κλήση από {name}», «Προβλήθηκε από {people}».
+- Anywhere else, put the generic «χρήστης» in the needed case before the name: «Να αποκλειστεί ο χρήστης {name};», «{sender} αφαίρεσε τον χρήστη {people}». Or recast: a passive, or a relative clause with the name as subject («ο κωδικός που σας δείχνει {name}»).
 - Verb, not participle: «{name} έχει επιβεβαιωθεί», not «{name} είναι επιβεβαιωμένος».
 - Singular "they" usually disappears, since Greek drops subjects: "once they join" → «μόλις μπει». For "them" as an object, use «κάνω» + noun: «Θα μπορείτε να κάνετε επιβεβαίωση μόλις μπει.» «τους» is for real plurals only.
 - Where English uses "it" or "them" for a thing, the pronoun follows that noun's gender: «πρόσβαση» → «την», «κωδικός» → «τον», «μήνυμα» → «το».

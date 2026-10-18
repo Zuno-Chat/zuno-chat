@@ -113,10 +113,11 @@ Swedish for `lib/l10n/app_sv.arb`, written for Sweden. The rules all languages s
 | profile, profile photo | profil · profilbild | |
 | email address | e-postadress | |
 | invite | Bjud in · inbjudan | The "Invited" badge → «Inbjuden». |
-| join (a room or community) | Gå med | "{target} joined" → «{target} gick med». |
+| withdraw (an invitation) | dra tillbaka inbjudan | "{sender} withdrew your invitation" → «{sender} drog tillbaka din inbjudan». |
+| join (a room or community) | Gå med | "{people} joined" → «{people} gick med». "Joined and left" → «gick med och lämnade igen». |
 | request, ask to join | förfrågan · Be om att gå med | Short "Ask" button → «Fråga». "Requested" → «Förfrågan skickad». "Let in" → «Släpp in». "Withdraw" → «Dra tillbaka». |
-| leave | Lämna | "{target} left" → «{target} lämnade». |
-| ban | Bannlys / Häv bannlysning · bannlysning | "Banned" heading → «Bannlysta». Never «blockera». |
+| leave | Lämna | "{people} left" → «{people} lämnade». |
+| ban | Bannlys / Häv bannlysning · bannlysning | "Banned" heading → «Bannlysta». "{sender} unbanned {people}" → «{sender} hävde bannlysningen av {people}». Never «blockera». |
 | report | Rapportera · rapport | Reasons: «Trakasserier», «Olagligt innehåll», «Skräppost», «Annat skäl». |
 | public / private | offentlig / privat | Agree with the noun («ett offentligt rum», «en privat gemenskap»); a label serving both is «Offentlig åtkomst» / «Privat åtkomst» / «Åtkomst via förfrågan» / «Åtkomst för gemenskapen». "Make public" → «Gör offentlig». |
 | topic, description, address, ID | ämne · beskrivning · adress · ID | Room alias → «rumsadress». |
@@ -129,6 +130,7 @@ Swedish for `lib/l10n/app_sv.arb`, written for Sweden. The rules all languages s
 |---|---|---|
 | admin, moderator, owner | Administratör · Moderator · Ägare | |
 | role, member, read-only, view only | roll · Medlem · Endast läsning · Endast visning | |
+| give a role ("made {people} an admin", "you are now an admin") | ge {people} rollen ”…” · Du har nu rollen ”…” | With the role's label, the same for every role, since «Endast läsning» is no person noun. |
 | permission (room or OS), access | behörighet · åtkomst | "Roles & permissions" → «Roller och behörigheter». Permission names are infinitives: "Remove people" → «Ta bort personer», "Change name" → «Ändra namn». |
 
 ### 1.8 Notifications and push
@@ -298,7 +300,7 @@ Swedish writes an ordinal as the number, a colon and «a» or «e». The recover
 | `settingsAccountPasswordChanged` | Password changed | Lösenordet ändrat |
 | `blockingTitle` | Block {name}? | Blockera {name}? |
 | `matrixStateNameChanged` | `{sender} changed the room name to \"{name}\"` | `{sender} ändrade rummets namn till ”{name}”` |
-| `matrixStateInvited` | {sender} invited {target} | {sender} bjöd in {target} |
+| `matrixStateInvited` | `{count, plural, other{{sender} invited {people}}}` | `{count, plural, other{{sender} bjöd in {people}}}` |
 | `roomInfoIsConfirmed` | {name} is confirmed | {name} är bekräftad |
 | `chatDeleteTitle` | `{count, plural, one{Delete message?} other{Delete {count} items?}}` | `{count, plural, one{Radera meddelandet?} other{Radera {count} objekt?}}` |
 | `matrixInvitePeopleInvited` | `{count, plural, other{{count} people invited}}` | `{count, plural, one{{count} person inbjuden} other{{count} personer inbjudna}}` |

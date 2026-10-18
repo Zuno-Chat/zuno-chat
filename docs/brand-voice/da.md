@@ -113,10 +113,11 @@ Danish for `lib/l10n/app_da.arb`, written for Denmark. The rules all languages s
 | profile, profile photo | profil · profilbillede | |
 | email address | mailadresse | |
 | invite | Inviter · invitation | The "Invited" badge → «Inviteret». |
-| join (a room or community) | Deltag · deltage | "{target} joined" → «{target} deltager nu». |
+| withdraw (an invitation) | trække invitationen tilbage | "{sender} withdrew your invitation" → «{sender} trak din invitation tilbage». |
+| join (a room or community) | Deltag · deltage | "{people} joined" → «{people} deltager nu». "Joined and left" → «deltog og gik igen». |
 | request, ask to join | anmodning · Anmod om at deltage | Short "Ask" button → «Anmod». "Requested" → «Anmodet». "Let in" → «Giv adgang». "Withdraw" → «Træk tilbage». |
-| leave | Forlad · forlade | "{target} left" → «{target} er gået». |
-| ban | Udeluk / Ophæv udelukkelse · udelukkelse | "Banned" heading → «Udelukkede». Never «bloker». |
+| leave | Forlad · forlade | "{people} left" → «{people} er gået». |
+| ban | Udeluk / Ophæv udelukkelse · udelukkelse | "Banned" heading → «Udelukkede». "{sender} unbanned {people}" → «{sender} ophævede udelukkelsen af {people}». Never «bloker». |
 | report | Rapporter · rapport | Reasons: «Chikane», «Ulovligt indhold», «Spam», «Anden årsag». |
 | public / private | offentlig / privat | Agree with the noun («et offentligt rum», «et privat fællesskab»); a label serving both is «Offentlig adgang» / «Privat adgang» / «Adgang efter anmodning» / «Adgang for fællesskabet». "Make public" → «Gør offentlig». |
 | topic, description, address, ID | emne · beskrivelse · adresse · ID | Room alias → «rumadresse». |
@@ -129,6 +130,7 @@ Danish for `lib/l10n/app_da.arb`, written for Denmark. The rules all languages s
 |---|---|---|
 | admin, moderator, owner | Administrator · Moderator · Ejer | |
 | role, member, read-only, view only | rolle · Medlem · Kun læsning · Kun visning | |
+| give a role ("made {people} an admin", "you are now an admin") | give {people} rollen “…” · Du har nu rollen “…” | With the role's label, the same for every role, since «Kun læsning» is no person noun. |
 | permission (room or OS), access | tilladelse · adgang | "Roles & permissions" → «Roller og tilladelser». Permission names are infinitives: "Remove people" → «Fjerne personer», "Change name" → «Ændre navn». |
 
 ### 1.8 Notifications and push
@@ -299,7 +301,7 @@ Danish writes an ordinal as the number and a full stop. `securityOrdinal`: `{n, 
 | `settingsAccountPasswordChanged` | Password changed | Adgangskode ændret |
 | `blockingTitle` | Block {name}? | Bloker {name}? |
 | `matrixStateNameChanged` | `{sender} changed the room name to \"{name}\"` | `{sender} ændrede rummets navn til “{name}”` |
-| `matrixStateInvited` | {sender} invited {target} | {sender} inviterede {target} |
+| `matrixStateInvited` | `{count, plural, other{{sender} invited {people}}}` | `{count, plural, other{{sender} inviterede {people}}}` |
 | `roomInfoIsConfirmed` | {name} is confirmed | {name} er bekræftet |
 | `chatDeleteTitle` | `{count, plural, one{Delete message?} other{Delete {count} items?}}` | `{count, plural, one{Slet beskeden?} other{Slet {count} elementer?}}` |
 | `matrixInvitePeopleInvited` | `{count, plural, other{{count} people invited}}` | `{count, plural, one{{count} person inviteret} other{{count} personer inviteret}}` |

@@ -109,10 +109,11 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | profile, profile photo | profil · zdjęcie profilowe | |
 | email address | adres e-mail | |
 | invite | Zaproś · zaproszenie | The "Invited" badge → «Zaproszono». |
-| join (a room or community) | Dołącz · dołączyć | "{target} joined" → «{target} dołącza». |
+| withdraw (an invitation) | Wycofaj zaproszenie · wycofanie zaproszenia | Timeline: «{sender} wycofuje zaproszenie: {people}», «{sender} wycofuje Twoje zaproszenie». |
+| join (a room or community) | Dołącz · dołączyć | "{people} joined" → «{people} dołącza». |
 | request, ask to join | prośba · Poproś o dołączenie | "Let in" → «Wpuść». "Withdraw" → «Wycofaj prośbę». |
-| leave | Opuść · opuścić | "{target} left" → «{target} wychodzi». |
-| ban | Zbanuj / Odbanuj · zbanowanie | "Banned" heading → «Zbanowane osoby». Never «zablokuj». |
+| leave | Opuść · opuścić | "{people} left" → «{people} wychodzi». |
+| ban | Zbanuj / Odbanuj · zbanowanie | "Banned" heading → «Zbanowane osoby». Never «zablokuj». Timeline: «{sender} banuje: {people}», «{sender} odbanowuje: {people}». |
 | report | Zgłoś · zgłoszenie | Reasons: «Nękanie», «Nielegalne treści», «Spam», «Inny powód». |
 | public / private | publiczny / prywatny | Agree with the noun described; a label serving both rooms and communities is «Dostęp publiczny» / «Dostęp prywatny». "Make public" → «Ustaw dostęp publiczny». |
 | topic, description, address, ID | temat · opis · adres · ID | Room alias → «adres pokoju». |
@@ -124,6 +125,7 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 |---|---|---|
 | admin, moderator, owner | Administrator · Moderator · Właściciel | Role badges only, never about a named person in a sentence. |
 | role, member, read-only, view only | rola · Członek · Tylko odczyt · Tylko podgląd | |
+| made (someone) an admin, You are now an admin | nadaje rolę „Administrator”: {people} · Masz teraz rolę „Administrator” | A role change gives the role by its quoted label, the same for every role. |
 | permission (room or OS), access | uprawnienie · dostęp | "Roles & permissions" → «Role i uprawnienia». Permission names are verbal nouns: "Remove people" → «Wyrzucanie osób», "Change name" → «Zmiana nazwy». |
 
 ### 1.8 Notifications and push
@@ -178,6 +180,7 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | Let them ask (setting) | Zezwalaj na prośby | |
 | Joined (label on a public room or community) | Dołączono | |
 | N other(s) | {count} inna osoba · {count} inne osoby · {count} innych osób | one · few · many. |
+| Name lists: {first} and {second} / {first}, {second} and {third} | {first} i {second} / {first}, {second} i {third} | A list takes a plural verb («{people} dołączają»), a single name (`one`) a singular. |
 | asleep (device) / suspended (app) | uśpione / wstrzymana | They agree with «urządzenie» and «aplikacja». |
 | Call rang / ringing | Dzwoniono / Dzwoni | |
 | Hidden message | ukryta wiadomość | Never «tajna». |
@@ -253,7 +256,7 @@ Statement and first-person buttons: «Pasują», «Nie pasują», «Tak, zakońc
 Polish marks gender in the past tense («wysłał/wysłała») and in predicate adjectives and participles («jest potwierdzony/potwierdzona»), and a name changes form after a preposition or as an object («z Anną»). None of these is safe for a name or for the reader.
 
 1. A name stays in the nominative: as the subject («{name} pisze…») or after a colon («Nieodebrane połączenie: {name}», «Odpowiadasz: {name}», «Zablokować: {name}?»). Never after a preposition, as an object or as a possessive.
-2. What a named person does takes the present tense, and every timeline event does: «{sender} zmienia nazwę pokoju na „{name}”», «{target} dołącza», «{target} wychodzi». A second name goes after a colon: «{sender} zaprasza: {target}», «{sender} wyrzuca z pokoju: {target}».
+2. What a named person does takes the present tense, and every timeline event does: «{sender} zmienia nazwę pokoju na „{name}”», «{people} dołącza», «{people} wychodzi». A second name goes after a colon: «{sender} zaprasza: {people}», «{sender} wyrzuca z pokoju: {people}».
 3. A state takes «ma» or «jest» with words that agree with a thing: «{name} ma potwierdzoną tożsamość», «{name} ma wyciszony mikrofon», «{name} ma nowe dane bezpieczeństwa».
 4. The reader takes the present («Nie jesteś już w tym pokoju»), «masz» («Masz nowe urządzenie») or the impersonal «-no/-to» form («Zalogowano», «Usunięto Cię z pokoju»). Never «wysłałeś», «jesteś zalogowany» or similar.
 5. Once the name has appeared, refer back with «ta osoba», «tej osoby» or «tę osobę»: "Scan {name}'s code" → «Zeskanuj kod: {name}», and later «kod tej osoby».
@@ -294,7 +297,7 @@ Polish marks gender in the past tense («wysłał/wysłała») and in predicate 
 | `settingsAccountPasswordChanged` | Password changed | Zmieniono hasło |
 | `blockingTitle` | Block {name}? | Zablokować: {name}? |
 | `matrixStateNameChanged` | `{sender} changed the room name to \"{name}\"` | `{sender} zmienia nazwę pokoju na „{name}”` |
-| `matrixStateInvited` | {sender} invited {target} | {sender} zaprasza: {target} |
+| `matrixStateInvited` | {sender} invited {people} | {sender} zaprasza: {people} |
 | `roomInfoIsConfirmed` | {name} is confirmed | {name} ma potwierdzoną tożsamość |
 | `chatDeleteTitle` | `{count, plural, one{Delete message?} other{Delete {count} items?}}` | `{count, plural, one{Usunąć wiadomość?} few{Usunąć {count} elementy?} many{Usunąć {count} elementów?} other{Usunąć {count} elementów?}}` |
 | `matrixInvitePeopleInvited` | `{count, plural, other{{count} people invited}}` | `{count, plural, one{Zaproszono {count} osobę} few{Zaproszono {count} osoby} many{Zaproszono {count} osób} other{Zaproszono {count} osób}}` |

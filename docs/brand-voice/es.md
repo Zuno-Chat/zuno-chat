@@ -108,9 +108,10 @@ Spanish for `lib/l10n/app_es.arb`, written for Spain and served to every Spanish
 | profile, profile photo | el perfil · la foto de perfil | |
 | email address | la dirección de correo electrónico | Short form «correo». |
 | invite | Invitar · la invitación | The "Invited" badge → «Invitación enviada». |
-| join (a room or community) | Unirse / unirse | "{target} joined" → «{target} se ha unido». |
+| withdraw (an invitation) | retirar la invitación | "{sender} withdrew your invitation" → «{sender} ha retirado tu invitación». |
+| join (a room or community) | Unirse / unirse | "{people} joined" → «{people} se ha unido». |
 | request, ask to join | la solicitud · Solicitar unirse | "Let in" → «Aceptar». "Withdraw" → «Retirar solicitud». |
-| leave | Salir / salir | "{target} left" → «{target} ha salido». |
+| leave | Salir / salir | "{people} left" → «{people} ha salido». |
 | remove (a person) | Expulsar / expulsar | The kick action. |
 | ban | Vetar / quitar el veto | "Banned" heading → «Personas vetadas». |
 | report | Denunciar · la denuncia | Reasons: «Acoso», «Contenido ilegal», «Spam», «Otro motivo». |
@@ -189,6 +190,7 @@ Spanish for `lib/l10n/app_es.arb`, written for Spain and served to every Spanish
 | Make someone else an admin | da a otra persona el rol de administrador | «nombra administrador a…» would agree with the person. |
 | Room / Community defaults | Valores predeterminados de la sala / de la comunidad | |
 | "You and {name} are…" | Recast so the verb is not plural «vosotros»: «Ubicación en tiempo real compartida por ti y {name}». | |
+| Make {people} an admin / You are now an admin (room updates) | {sender} ha dado el rol «Administrador» a {people} / Ahora tienes el rol «Administrador» | Every role the same way, with its exact label. |
 | character(s), link, check mark | el carácter · los caracteres · el enlace · la marca de verificación | |
 
 ### 1.12 UI actions
@@ -252,8 +254,8 @@ Statement and first-person buttons: «Coinciden», «No coinciden», «Sí, term
 - Weekday and month names are lowercase.
 
 ### 2.4 Names
-- A person as direct object always takes the personal «a»: «¿Bloquear a {name}?», «Has confirmado a {name}», «{sender} ha invitado a {target}», «{sender} ha expulsado a {target}».
-- Compound tenses with «haber» never agree, so prefer them: «{name} ha salido», «{target} se ha unido».
+- A person as direct object always takes the personal «a»: «¿Bloquear a {name}?», «Has confirmado a {name}», «{sender} ha invitado a {people}», «{sender} ha expulsado a {people}».
+- Compound tenses with «haber» never agree, so prefer them: «{name} ha salido», «{people} se ha unido».
 - No agreement with a person: never «conectado/a», «bloqueado/a» or «invitado/a» about a person. Verbs and nouns avoid it: «Sesión iniciada», «Has bloqueado a {name}».
 - "they" → «esta persona» or drop the subject: "once they join" → «cuando esta persona se una». No «x» or «-e» endings.
 
