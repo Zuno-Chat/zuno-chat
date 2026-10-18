@@ -300,7 +300,7 @@
   },
   "callsIncomingCall": "Incoming call",
   "@callsIncomingCall": {
-    "description": "Android call notification: caller name when the real name is unknown",
+    "description": "Android call notification: caller or group name when the real name is unknown",
     "x-native": [
       "zuno_notifications"
     ]

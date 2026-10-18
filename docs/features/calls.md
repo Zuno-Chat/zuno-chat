@@ -391,6 +391,13 @@ sides pick the same call with no coordination. The loser hangs up its own
 call and answers the other; the winner ignores the other's invite without
 declining it.
 
+**Ring names.** One rule names a ring on every surface (the Android ring,
+CallKit and the ring screen): a one-to-one call by the caller, a group call
+by the group's name and photo with the caller under it. The caller's line
+appears only when their member is already on the device, so a ring never
+waits on the server for it; CallKit has a single name, so it shows the
+group alone.
+
 | Rule | Why |
 |---|---|
 | The ringing-call store is written before a ring is presented | Written after, a decline in the gap misses the cancel and the ring sounds on |
@@ -414,7 +421,12 @@ declining it.
   controller, so no other launch can show chats over the lock screen.
 - **The ring and the ongoing-call notification follow the preview level**
   (`notifications.md`): at Nothing both name the call "Zuno call" and the
-  ring shows no picture, the same rule as the CallKit name.
+  ring shows no picture and no caller line, the same rule as the CallKit
+  name.
+- **`CallStyle` shows the person's name as its title and the notification
+  text as its second line**, so the name goes only on the person and the
+  text carries the caller or the call kind; the Answer button marks a video
+  call.
 - **A launch that claims a ring must carry that ring's token**, minted per
   ring and dropped when it stops, or Zuno opens plainly, so a stale
   notification or another app's intent can neither answer a call nor show

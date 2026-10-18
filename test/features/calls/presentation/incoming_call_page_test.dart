@@ -90,6 +90,7 @@ void main() {
   late _RecordingNavigatorObserver observer;
   late RecordedMethodCalls callsLog;
   late List<String> sentEvents;
+  late List<String> requests;
   Completer<void>? sendGate;
   http.Response? sendReply;
 
@@ -104,11 +105,13 @@ void main() {
 
     db = _PartialProfilesDatabaseApi();
     sentEvents = [];
+    requests = [];
     client = buildTestClient(
       userId: '@me:example.org',
       deviceId: 'DEVICE',
       database: db,
       httpClient: MockClient((request) async {
+        requests.add('${request.method} ${request.url.path}');
         if (request.method == 'PUT' && request.url.path.contains('/send/')) {
           sentEvents.add(request.url.path);
           await sendGate?.future;
@@ -605,19 +608,37 @@ void main() {
     );
   });
 
-  group('caller display', () {
-    testWidgets('shows the instant fallback name on first build', (
-      tester,
-    ) async {
+  group('who is calling', () {
+    void markDirect() => client.accountData['m.direct'] = BasicEvent(
+      type: 'm.direct',
+      content: {
+        '@bob:example.org': [room.id],
+      },
+    );
+
+    void nameRoom() => room.setState(
+      buildTestEvent(
+        room,
+        eventId: r'$name',
+        senderId: '@bob:example.org',
+        type: EventTypes.RoomName,
+        stateKey: '',
+        content: {'name': 'Weekend hike'},
+      ),
+    );
+
+    testWidgets('a one-to-one call shows the caller\'s instant fallback name '
+        'on first build', (tester) async {
+      markDirect();
       await pumpShell(tester);
       pushIncomingCall(call());
       await tester.pump();
       expect(find.text('Bob', skipOffstage: false), findsOneWidget);
     });
 
-    testWidgets('updates to the resolved display name once it lands', (
-      tester,
-    ) async {
+    testWidgets('a one-to-one call updates to the caller\'s resolved display '
+        'name once it lands', (tester) async {
+      markDirect();
       db.partialRoomProfiles['@bob:example.org'] = User(
         '@bob:example.org',
         displayName: 'Bob Resolved',
@@ -635,6 +656,7 @@ void main() {
       'an unresolvable caller renders the fallback indefinitely, without '
       'crashing',
       (tester) async {
+        markDirect();
         await pumpShell(tester);
         pushIncomingCall(call());
         await tester.pumpAndSettle();
@@ -643,6 +665,35 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
+
+    testWidgets('a group call shows the group\'s name, with the caller this '
+        'device knows under it', (tester) async {
+      nameRoom();
+      db.partialRoomProfiles['@bob:example.org'] = User(
+        '@bob:example.org',
+        displayName: 'Bob Resolved',
+        room: room,
+      );
+      await pumpShell(tester);
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Weekend hike'), findsOneWidget);
+      expect(find.text('Bob Resolved'), findsOneWidget);
+      expect(find.text('Incoming voice call'), findsOneWidget);
+    });
+
+    testWidgets('a group call from a caller this device does not know names '
+        'no caller and asks the server nothing', (tester) async {
+      nameRoom();
+      await pumpShell(tester);
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Weekend hike'), findsOneWidget);
+      expect(find.text('Bob'), findsNothing);
+      expect(requests, isEmpty);
+    });
   });
 
   group('video vs. voice', () {

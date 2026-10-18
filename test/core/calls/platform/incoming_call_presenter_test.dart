@@ -36,9 +36,10 @@ void main() {
 
   tearDown(pumpEventQueue);
 
-  Future<RingOutcome> ring(IncomingCallPresenter presenter) =>
+  Future<RingOutcome> ring(IncomingCallPresenter presenter, {String? caller}) =>
       presenter.showIncoming(
-        callerName: 'Bob',
+        name: 'Bob',
+        caller: caller,
         callerId: '@bob:example.org',
         isVideo: true,
         roomId: '!room:example.org',
@@ -97,8 +98,8 @@ void main() {
 
       expect((callStyle.lastShow.arguments as Map).cast<String, Object?>(), {
         'channelId': 'calls_ringing_group',
-        'title': 'Incoming video call',
-        'callerName': 'Bob',
+        'text': 'Incoming video call',
+        'name': 'Bob',
         'callerId': '@bob:example.org',
         'isVideo': true,
         'roomId': '!room:example.org',
@@ -119,7 +120,7 @@ void main() {
         bool isGroupCall = false,
       }) async {
         await presenter.showIncoming(
-          callerName: 'Bob',
+          name: 'Bob',
           callerId: '@bob:example.org',
           isVideo: false,
           roomId: '!room:example.org',
@@ -162,16 +163,25 @@ void main() {
       }
     });
 
+    test('names the caller it is given on the second line', () async {
+      await ring(presenter, caller: 'Carol');
+
+      final args = callStyle.lastShow.arguments as Map;
+      expect(args['name'], 'Bob');
+      expect(args['text'], 'Carol');
+    });
+
     test('at Nothing rings as a Zuno call, with no name or picture of the '
         'caller', () async {
       SharedPreferences.setMockInitialValues({
         notificationPreviewKey: NotificationPreview.nothing.name,
       });
 
-      await ring(presenter);
+      await ring(presenter, caller: 'Carol');
 
       final args = callStyle.lastShow.arguments as Map;
-      expect(args['callerName'], 'Zuno call');
+      expect(args['name'], 'Zuno call');
+      expect(args['text'], 'Incoming video call');
       expect(args['avatarBytes'], isNull);
       expect(args['callerId'], '@bob:example.org');
     });
@@ -181,10 +191,11 @@ void main() {
         notificationPreviewKey: NotificationPreview.nameOnly.name,
       });
 
-      await ring(presenter);
+      await ring(presenter, caller: 'Carol');
 
       final args = callStyle.lastShow.arguments as Map;
-      expect(args['callerName'], 'Bob');
+      expect(args['name'], 'Bob');
+      expect(args['text'], 'Carol');
       expect(args['avatarBytes'], Uint8List.fromList([1, 2, 3]));
     });
 
@@ -345,18 +356,17 @@ void main() {
       expect(SystemRing.instance.ringing.value, isNull);
     });
 
-    test('rings a group call under the caller\'s name, as before, and never '
-        'asks CallKit', () async {
+    test('rings a group call under the name it is given, and never asks '
+        'CallKit', () async {
       final native = installFakeCallsChannel();
 
       final outcome = await presenter.showIncoming(
-        callerName: 'Bob',
+        name: 'Weekend hike',
         callerId: '@bob:example.org',
         isVideo: false,
         roomId: '!room:example.org',
         callId: 'call1',
         isGroupCall: true,
-        roomName: 'Weekend hike',
       );
       expect(SystemRing.instance.ringing.value, isNull);
       await presenter.cancelIncoming(
@@ -368,8 +378,8 @@ void main() {
       expect(outcome, RingOutcome.shown);
       expect((callStyle.lastShow.arguments as Map).cast<String, Object?>(), {
         'channelId': 'calls_ringing_group',
-        'title': 'Incoming voice call',
-        'callerName': 'Bob',
+        'text': 'Incoming voice call',
+        'name': 'Weekend hike',
         'callerId': '@bob:example.org',
         'isVideo': false,
         'roomId': '!room:example.org',
@@ -441,7 +451,7 @@ void main() {
       await ring(presenter);
 
       await presenter.showIncoming(
-        callerName: 'Carol',
+        name: 'Carol',
         callerId: '@carol:example.org',
         isVideo: false,
         roomId: '!room:example.org',
@@ -637,15 +647,15 @@ void main() {
       String callId = 'call1',
       bool isVideo = false,
       bool isGroupCall = false,
-      String? roomName = 'Weekend hike',
+      String? caller,
     }) => presenter.showIncoming(
-      callerName: 'Bob',
+      name: 'Bob',
+      caller: caller,
       callerId: '@bob:example.org',
       isVideo: isVideo,
       roomId: roomId,
       callId: callId,
       isGroupCall: isGroupCall,
-      roomName: roomName,
       avatarBytes: Uint8List.fromList([1, 2, 3]),
     );
 
@@ -670,31 +680,14 @@ void main() {
       'reason': reason,
     };
 
-    test(
-      'reports a one-to-one call to CallKit under the caller\'s name',
-      () async {
-        expect(await ringFor(), RingOutcome.shown);
-
-        expect(sent(), [
-          ['reportIncomingCall', reported(name: 'Bob')],
-        ]);
-      },
-    );
-
-    test('reports a group call under the room\'s name', () async {
-      await ringFor(isGroupCall: true, isVideo: true);
-
-      expect(sent(), [
-        ['reportIncomingCall', reported(name: 'Weekend hike', isVideo: true)],
-      ]);
-    });
-
-    test('reports a group call without a room name under the caller\'s '
-        'name', () async {
-      await ringFor(isGroupCall: true, roomName: null);
+    test('reports the ring to CallKit under the name it is given alone, for '
+        'a group call too', () async {
+      expect(await ringFor(), RingOutcome.shown);
+      await ringFor(isGroupCall: true, isVideo: true, caller: 'Carol');
 
       expect(sent(), [
         ['reportIncomingCall', reported(name: 'Bob')],
+        ['reportIncomingCall', reported(name: 'Bob', isVideo: true)],
       ]);
     });
 
@@ -906,7 +899,8 @@ class _FakeRememberingPresenter extends RememberingIncomingCallPresenter {
 
   @override
   Future<void> presentIncoming({
-    required String callerName,
+    required String name,
+    String? caller,
     required String callerId,
     required bool isVideo,
     required String roomId,

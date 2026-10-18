@@ -1,14 +1,13 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../l10n/l10n.dart';
-import '../../matrix/room_title.dart';
-import '../../matrix/room_user_display.dart';
 import '../../notifications/notification_avatar.dart';
 import '../../platform/platform_capabilities.dart';
 import '../matrixrtc/incoming_call.dart';
 import '../matrixrtc/resolved_call_ids_store.dart';
 import '../models/call_kind.dart';
 import '../platform/incoming_call_presenter.dart';
+import '../ring_identity.dart';
 import 'call_notification_service.dart' show RingingCallInfo;
 
 Future<RingOutcome> postRingNotification(
@@ -17,25 +16,20 @@ Future<RingOutcome> postRingNotification(
   IncomingCallPresenter? presenter,
   Future<RingingCallInfo?>? ringingNow,
 }) async {
-  final caller = await resolveRoomUser(
-    call.room,
-    call.callerId,
-    allowNetwork: allowNetwork,
-  );
+  await loadRingIdentity(call, allowNetwork: allowNetwork);
+  final identity = ringIdentity(call, deviceLocalizations());
   final avatarBytes = allowNetwork
-      ? await fetchNotificationAvatarBytes(call.room.client, caller.avatarUrl)
+      ? await fetchNotificationAvatarBytes(call.room.client, identity.avatarUrl)
       : null;
   final ring = presenter ?? incomingCallPresenterFor(ambientCapabilities);
   final outcome = await ring.showIncoming(
-    callerName: caller.calcDisplayname(),
+    name: identity.name,
+    caller: identity.caller,
     callerId: call.callerId,
     isVideo: call.kind == CallKind.video,
     roomId: call.room.id,
     callId: call.callId,
     isGroupCall: !call.room.isDirectChat,
-    roomName: call.room.isDirectChat
-        ? null
-        : roomTitle(call.room, deviceLocalizations()),
     avatarBytes: avatarBytes,
     ringingNow: ringingNow,
   );

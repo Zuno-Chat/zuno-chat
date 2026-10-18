@@ -25,13 +25,13 @@ enum RingEnd { remoteEnded, answeredElsewhere, declinedElsewhere, unanswered }
 
 abstract interface class IncomingCallPresenter {
   Future<RingOutcome> showIncoming({
-    required String callerName,
+    required String name,
+    String? caller,
     required String callerId,
     required bool isVideo,
     required String roomId,
     required String callId,
     bool isGroupCall = false,
-    String? roomName,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
   });
@@ -70,7 +70,8 @@ abstract class RememberingIncomingCallPresenter
   static void forgetForTest() => _presented = null;
 
   Future<void> presentIncoming({
-    required String callerName,
+    required String name,
+    String? caller,
     required String callerId,
     required bool isVideo,
     required String roomId,
@@ -83,13 +84,13 @@ abstract class RememberingIncomingCallPresenter
 
   @override
   Future<RingOutcome> showIncoming({
-    required String callerName,
+    required String name,
+    String? caller,
     required String callerId,
     required bool isVideo,
     required String roomId,
     required String callId,
     bool isGroupCall = false,
-    String? roomName,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
   }) => _turns.run(() async {
@@ -109,7 +110,8 @@ abstract class RememberingIncomingCallPresenter
       reportCaught('remember the ringing call', e, s);
     }
     await presentIncoming(
-      callerName: callerName,
+      name: name,
+      caller: caller,
       callerId: callerId,
       isVideo: isVideo,
       roomId: roomId,
@@ -182,7 +184,8 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
 
   @override
   Future<void> presentIncoming({
-    required String callerName,
+    required String name,
+    String? caller,
     required String callerId,
     required bool isVideo,
     required String roomId,
@@ -201,17 +204,17 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
     final settings = await sound;
     final preview = await level;
     final l10n = deviceLocalizations();
+    final hidden = preview == NotificationPreview.nothing;
+    final kind = isVideo ? l10n.callsIncomingVideo : l10n.callsIncomingVoice;
     await _invoke('showIncomingCallStyle', {
       'channelId': isGroupCall ? groupRingChannelId : ringChannelId,
-      'title': isVideo ? l10n.callsIncomingVideo : l10n.callsIncomingVoice,
-      'callerName': preview.callName(callerName, l10n),
+      'name': preview.callName(name, l10n),
+      'text': hidden ? kind : caller ?? kind,
       'callerId': callerId,
       'isVideo': isVideo,
       'roomId': roomId,
       'callId': callId,
-      'avatarBytes': preview == NotificationPreview.nothing
-          ? null
-          : avatarBytes,
+      'avatarBytes': hidden ? null : avatarBytes,
       'ringtone': settings.ringtone,
       'ringtoneAsset': _ringtoneAsset,
       'vibrate':
@@ -265,13 +268,13 @@ class NoopIncomingCallPresenter implements IncomingCallPresenter {
 
   @override
   Future<RingOutcome> showIncoming({
-    required String callerName,
+    required String name,
+    String? caller,
     required String callerId,
     required bool isVideo,
     required String roomId,
     required String callId,
     bool isGroupCall = false,
-    String? roomName,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
   }) async => RingOutcome.unavailable;
@@ -292,13 +295,13 @@ class CallKitIncomingCallPresenter implements IncomingCallPresenter {
 
   @override
   Future<RingOutcome> showIncoming({
-    required String callerName,
+    required String name,
+    String? caller,
     required String callerId,
     required bool isVideo,
     required String roomId,
     required String callId,
     bool isGroupCall = false,
-    String? roomName,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
   }) async {
@@ -307,7 +310,7 @@ class CallKitIncomingCallPresenter implements IncomingCallPresenter {
       'roomId': roomId,
       'callId': callId,
       'callerId': callerId,
-      'name': isGroupCall ? roomName ?? callerName : callerName,
+      'name': name,
       'isVideo': isVideo,
     });
     if (outcome != RingOutcome.shown) SystemRing.instance.clear(callId);

@@ -7,8 +7,6 @@ import 'package:matrix/matrix.dart';
 import '../../features/calls/presentation/incoming_call_page.dart';
 import '../l10n/l10n.dart';
 import '../matrix/matrix_client_provider.dart';
-import '../matrix/room_title.dart';
-import '../matrix/room_user_display.dart';
 import '../navigation/global_navigator.dart';
 import '../platform/platform_capabilities.dart';
 import '../push/nse/read_model_publisher.dart';
@@ -31,6 +29,7 @@ import 'platform/native_ring.dart';
 import 'platform/push_ring_bridge.dart';
 import 'platform/system_call.dart';
 import 'platform/system_ring.dart';
+import 'ring_identity.dart';
 
 const genericBindWindow = Duration(seconds: 20);
 const freshCallWindow = Duration(seconds: 45);
@@ -89,11 +88,8 @@ FreshCall? newestFreshCall(
 }
 
 Future<String> ringName(IncomingCall call) async {
-  if (!call.room.isDirectChat) {
-    return roomTitle(call.room, deviceLocalizations());
-  }
-  final caller = await resolveRoomUser(call.room, call.callerId);
-  return caller.calcDisplayname();
+  await loadRingIdentity(call);
+  return ringIdentity(call, deviceLocalizations()).name;
 }
 
 final ringCoordinatorProvider = NotifierProvider<RingCoordinator, void>(

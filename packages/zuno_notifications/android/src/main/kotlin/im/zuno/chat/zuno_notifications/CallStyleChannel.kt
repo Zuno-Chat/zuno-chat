@@ -108,9 +108,9 @@ class CallStyleChannel :
 
     private fun show(context: Context, args: Map<String, Any?>) {
         val channelId = args["channelId"] as? String ?: return
-        val title = args["title"] as? String ?: ""
-        val callerName = (args["callerName"] as? String)?.takeUnless { it.isBlank() }
+        val name = (args["name"] as? String)?.takeUnless { it.isBlank() }
             ?: context.getString(R.string.callsIncomingCall)
+        val text = args["text"] as? String
         val callerId = args["callerId"] as? String ?: ""
         val isVideo = args["isVideo"] == true
         val roomId = args["roomId"] as? String ?: return
@@ -124,14 +124,14 @@ class CallStyleChannel :
             put("isVideo", isVideo)
         }.toString()
 
-        val personBuilder = Person.Builder().setName(callerName)
+        val personBuilder = Person.Builder().setName(name)
         if (avatarBytes != null) {
             val bitmap = BitmapFactory.decodeByteArray(avatarBytes, 0, avatarBytes.size)
             if (bitmap != null) {
                 personBuilder.setIcon(IconCompat.createWithBitmap(bitmap))
             }
         }
-        val caller = personBuilder.build()
+        val person = personBuilder.build()
 
         val token = UUID.randomUUID().toString()
 
@@ -175,8 +175,8 @@ class CallStyleChannel :
         )
 
         val notification: Notification = NotificationCompat.Builder(context, channelId)
-            .setContentTitle(title)
-            .setContentText(callerName)
+            .setContentTitle(name)
+            .setContentText(text)
             .setSmallIcon(smallIconResId(context))
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
@@ -187,10 +187,10 @@ class CallStyleChannel :
             .setDeleteIntent(IncomingRing.dismissIntent(context, callId))
             .setStyle(
                 NotificationCompat.CallStyle.forIncomingCall(
-                    caller,
+                    person,
                     declinePendingIntent,
                     answerPendingIntent,
-                ),
+                ).setIsVideo(isVideo),
             )
             .build()
 

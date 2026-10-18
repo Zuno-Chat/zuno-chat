@@ -17,10 +17,10 @@ import '../../../core/calls/notifications/pending_call_notification_action_provi
 import '../../../core/calls/notifications/ringing_call_provider.dart';
 import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/calls/platform/system_ring.dart';
+import '../../../core/calls/ring_identity.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
-import '../../../core/matrix/room_user_display.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/ui/close_own_route.dart';
 import '../../../core/ui/zuno_colors.dart';
@@ -43,7 +43,6 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   late final IncomingCallPresenter _incomingCallPresenter;
   late final bool _ownsRing;
   bool _resolved = false;
-  User? _caller;
   bool _handedOffToCall = false;
 
   @override
@@ -52,10 +51,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     _incomingCallPresenter = ref.read(incomingCallPresenterProvider);
     _ownsRing = !ref.read(platformCapabilitiesProvider).callKit;
     RingingCall.instance.set(widget.call.callId);
-    _caller = widget.call.room.unsafeGetUserFromMemoryOrFallback(
-      widget.call.callerId,
-    );
-    unawaited(_resolveCaller());
+    unawaited(_loadIdentity());
     ref.listenManual(resolvedCallIdsProvider, (previous, next) {
       if (_resolved || !next.contains(widget.call.callId)) return;
       _resolved = true;
@@ -107,14 +103,9 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     }
   }
 
-  Future<void> _resolveCaller() async {
-    final caller = await resolveRoomUser(
-      widget.call.room,
-      widget.call.callerId,
-      allowNetwork: true,
-    );
-    if (!mounted) return;
-    setState(() => _caller = caller);
+  Future<void> _loadIdentity() async {
+    await loadRingIdentity(widget.call, allowNetwork: true);
+    if (mounted) setState(() {});
   }
 
   void _releaseRing() {
@@ -188,10 +179,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   @override
   Widget build(BuildContext context) {
     final call = widget.call;
-    final caller =
-        _caller ?? call.room.unsafeGetUserFromMemoryOrFallback(call.callerId);
-
-    final name = caller.calcDisplayname();
+    final identity = ringIdentity(call, context.l10n);
     return PopScope(
       canPop: false,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -210,13 +198,21 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
                         child: CallPortrait(
                           avatarBuilder: (radius) => MxcAvatar(
                             client: call.room.client,
-                            avatarUrl: caller.avatarUrl,
-                            fallbackText: name,
-                            toneSeed: caller.id,
+                            avatarUrl: identity.avatarUrl,
+                            fallbackText: identity.name,
+                            toneSeed: identity.toneSeed,
                             radius: radius,
                           ),
-                          name: name,
+                          name: identity.name,
                           details: [
+                            if (identity.caller case final caller?)
+                              Text(
+                                caller,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.titleMedium,
+                              ),
                             Text(
                               call.kind == CallKind.video
                                   ? l10n.callsIncomingVideo

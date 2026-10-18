@@ -1562,13 +1562,13 @@ class _GatedPresenter implements IncomingCallPresenter {
 
   @override
   Future<RingOutcome> showIncoming({
-    required String callerName,
+    required String name,
+    String? caller,
     required String callerId,
     required bool isVideo,
     required String roomId,
     required String callId,
     bool isGroupCall = false,
-    String? roomName,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
   }) async {

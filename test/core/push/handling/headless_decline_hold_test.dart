@@ -47,7 +47,7 @@ void main() {
 
   Future<void> ringFor(String callId) async {
     await const AndroidIncomingCallPresenter().showIncoming(
-      callerName: 'Bob',
+      name: 'Bob',
       callerId: '@bob:example.org',
       isVideo: false,
       roomId: '!room:example.org',
@@ -359,13 +359,13 @@ class _ScriptedPresenter implements IncomingCallPresenter {
 
   @override
   Future<RingOutcome> showIncoming({
-    required String callerName,
+    required String name,
+    String? caller,
     required String callerId,
     required bool isVideo,
     required String roomId,
     required String callId,
     bool isGroupCall = false,
-    String? roomName,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
   }) async {
