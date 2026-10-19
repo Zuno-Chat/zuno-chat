@@ -197,4 +197,30 @@ void main() {
     expect(await blurhashInBackground(_jpeg(64, 48)), isNotNull);
     expect(await blurhashInBackground(Uint8List.fromList([1, 2, 3])), isNull);
   });
+
+  group('blurhash decoding', () {
+    (int, int)? sizeOf(Uint8List bytes) {
+      final decoded = decodeForBlurhash(bytes);
+      return decoded == null ? null : (decoded.width, decoded.height);
+    }
+
+    test('a large JPEG is decoded at an eighth of its size', () {
+      expect(sizeOf(_jpeg(1080, 810)), (135, 102));
+      expect(sizeOf(_jpeg(600, 800)), (75, 100));
+    });
+
+    test('a JPEG is never decoded below the blurhash sample size', () {
+      expect(sizeOf(_jpeg(200, 100)), (50, 25));
+      expect(sizeOf(_jpeg(40, 30)), (40, 30));
+      expect(sizeOf(_jpeg(16, 12)), (16, 12));
+    });
+
+    test('a PNG is decoded at full size', () {
+      expect(sizeOf(_png(900, 900)), (900, 900));
+    });
+
+    test('garbage decodes to nothing', () {
+      expect(sizeOf(Uint8List.fromList([1, 2, 3])), isNull);
+    });
+  });
 }

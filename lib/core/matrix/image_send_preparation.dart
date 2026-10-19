@@ -2,7 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:blurhash_dart/blurhash_dart.dart';
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, visibleForTesting;
 import 'package:image/image.dart' as img;
 import 'package:matrix/matrix.dart';
 
@@ -74,6 +74,7 @@ Future<PreparedImage> prepareImageForSend(
 }
 
 const _blurhashSampleSize = 32;
+const _jpegDecodeScales = [8, 4, 2];
 
 Future<String?> blurhashInBackground(Uint8List bytes) async {
   try {
@@ -84,8 +85,22 @@ Future<String?> blurhashInBackground(Uint8List bytes) async {
   }
 }
 
+@visibleForTesting
+img.Image? decodeForBlurhash(Uint8List bytes) {
+  final decoder = img.findDecoderForData(bytes);
+  if (decoder is! img.JpegDecoder) return decoder?.decode(bytes);
+  final info = decoder.startDecode(bytes);
+  if (info == null) return null;
+  final longEdge = max(info.width, info.height);
+  final scale = _jpegDecodeScales.firstWhere(
+    (scale) => (longEdge / scale).ceil() >= _blurhashSampleSize,
+    orElse: () => 1,
+  );
+  return img.JpegDecoder(scale: scale).decode(bytes);
+}
+
 String? blurhashOf(Uint8List bytes) {
-  final decoded = img.decodeImage(bytes);
+  final decoded = decodeForBlurhash(bytes);
   if (decoded == null) return null;
   final landscape = decoded.width >= decoded.height;
   final small = img.copyResize(
