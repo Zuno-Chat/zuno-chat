@@ -611,7 +611,7 @@ void main() {
 
       session.end(
         reason: CallEndReason.failed,
-        failure: CallFailure.connectionLost,
+        failure: const CallConnectionLost(),
       );
       await harness.settle();
 
@@ -632,7 +632,7 @@ void main() {
 
       session.end(
         reason: CallEndReason.failed,
-        failure: CallFailure.connectionLost,
+        failure: const CallConnectionLost(),
       );
       await harness.settle();
 

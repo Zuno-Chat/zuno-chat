@@ -350,7 +350,7 @@ void main() {
       await sendFromNative('callFailed', _call);
       await pumpEventQueue();
 
-      expect(session.failure, CallFailure.didNotConnect);
+      expect(session.failure, const CallDidNotConnect());
       expect(session.endReason, CallEndReason.failed);
       expect(session.hangUpsByUser, [false]);
 

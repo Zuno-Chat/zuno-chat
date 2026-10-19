@@ -127,7 +127,7 @@ class _SystemCallBinding {
     if (callId != session.callId || session.phase == CallSessionPhase.ended) {
       return;
     }
-    session.failure = CallFailure.didNotConnect;
+    session.failure = const CallDidNotConnect();
     session.endReason = CallEndReason.failed;
     unawaited(session.hangUp());
   }

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:zuno/core/calls/cloudflare/calls_module.dart';
 import 'package:zuno/core/calls/cloudflare/cloudflare_api_client.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
@@ -509,6 +510,36 @@ void main() {
 
         expect(call.backend.streams, isNotEmpty);
         expect(call.backend.streams.every((s) => s.disposed), isTrue);
+      });
+    });
+
+    test('a call the module says is full fails the join with its limit, '
+        'asked once', () {
+      inCall((call) {
+        call.sfu
+          ..sessionStatus = 403
+          ..sessionRefusal = {
+            'errcode': 'IM.ZUNO.CALL_FULL',
+            'error': 'This call is full',
+            'max_participants': 8,
+          };
+
+        expect(
+          call.join,
+          throwsA(
+            isA<CallFullException>().having(
+              (e) => e.maxParticipants,
+              'maxParticipants',
+              8,
+            ),
+          ),
+        );
+        expect(call.engine.status, CallEngineStatus.failed);
+        expect(
+          call.sfu.requests.where((r) => r.path == '/sessions/new'),
+          hasLength(1),
+        );
+        expect(call.sfu.pushes, isEmpty);
       });
     });
 

@@ -23,12 +23,38 @@ Uri _moduleUri(Client client, List<String> segments) {
   );
 }
 
-final _errorCodePattern = RegExp(r'^[A-Za-z0-9_]{1,64}$');
+final _errorCodePattern = RegExp(r'^[A-Za-z0-9_.]{1,64}$');
 
 String? moduleErrorCode(Object? json) {
   if (json is! Map) return null;
   final code = json['errorCode'] ?? json['errcode'];
   return code is String && _errorCodePattern.hasMatch(code) ? code : null;
+}
+
+class CallFullException implements Exception {
+  const CallFullException(this.maxParticipants);
+
+  final int maxParticipants;
+
+  @override
+  String toString() => 'CallFullException: $maxParticipants people at most';
+}
+
+CallFullException? callFullOf(http.Response response) {
+  if (response.statusCode != 403) return null;
+  try {
+    return switch (jsonDecode(response.body)) {
+      {
+        'errcode': 'IM.ZUNO.CALL_FULL',
+        'max_participants': final int maxParticipants,
+      }
+          when maxParticipants >= 1 =>
+        CallFullException(maxParticipants),
+      _ => null,
+    };
+  } on FormatException {
+    return null;
+  }
 }
 
 String moduleFailure(http.Response response, String request) {

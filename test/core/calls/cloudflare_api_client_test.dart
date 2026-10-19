@@ -7,11 +7,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:zuno/core/calls/cloudflare/calls_module.dart';
 import 'package:zuno/core/calls/cloudflare/cloudflare_api_client.dart';
 
 import '../../helpers/caught_reports.dart';
 
 const _base = '/_synapse/client/zuno/calls/cloudflare';
+const _roomId = '!room:example.org';
+const _callId = 'call1';
 
 CloudflareApiClient _client(http.Client mock) => CloudflareApiClient(
   baseUri: () => Uri.parse('https://example.org$_base'),
@@ -20,14 +23,66 @@ CloudflareApiClient _client(http.Client mock) => CloudflareApiClient(
 );
 
 void main() {
-  test('createSession returns the sessionId from a 200 response', () async {
+  test('createSession opens a session for the room\'s call and returns its '
+      'sessionId', () async {
     final mock = MockClient((request) async {
       expect(request.url.path, '$_base/sessions/new');
+      expect(request.url.queryParameters, {
+        'room_id': _roomId,
+        'call_id': _callId,
+      });
       expect(request.headers['Authorization'], 'Bearer syt_token');
       return http.Response(jsonEncode({'sessionId': 'sess1'}), 200);
     });
-    final sessionId = await _client(mock).createSession();
+    final sessionId = await _client(mock)
+        .createSession(roomId: _roomId, callId: _callId);
     expect(sessionId, 'sess1');
+  });
+
+  test('createSession surfaces a full call with the module\'s limit and never '
+      'asks again', () async {
+    var asked = 0;
+    final mock = MockClient((request) async {
+      asked++;
+      return http.Response(
+        jsonEncode({
+          'errcode': 'IM.ZUNO.CALL_FULL',
+          'error': 'This call is full',
+          'max_participants': 8,
+        }),
+        403,
+      );
+    });
+
+    await expectLater(
+      _client(mock).createSession(roomId: _roomId, callId: _callId),
+      throwsA(
+        isA<CallFullException>().having(
+          (e) => e.maxParticipants,
+          'maxParticipants',
+          8,
+        ),
+      ),
+    );
+    expect(asked, 1);
+  });
+
+  test('createSession treats any other refusal as a module failure', () async {
+    final mock = MockClient(
+      (request) async =>
+          http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403),
+    );
+
+    await expectLater(
+      _client(mock).createSession(roomId: _roomId, callId: _callId),
+      throwsA(
+        isA<CloudflareCallsException>().having(
+          (e) => e.statusCode,
+          'statusCode',
+          403,
+        ),
+      ),
+    );
   });
 
   test(
@@ -37,7 +92,7 @@ void main() {
         (request) async => http.Response(jsonEncode({}), 200),
       );
       expect(
-        _client(mock).createSession(),
+        _client(mock).createSession(roomId: _roomId, callId: _callId),
         throwsA(isA<CloudflareCallsException>()),
       );
     },
@@ -235,7 +290,7 @@ void main() {
               200,
             ),
           ),
-        ).createSession(),
+        ).createSession(roomId: _roomId, callId: _callId),
         throwsA(
           isA<CloudflareCallsException>().having(
             (e) => e.message,
@@ -306,7 +361,9 @@ void main() {
         return http.Response(jsonEncode({'sessionId': 'sess1'}), 200);
       });
       String? sessionId;
-      _client(mock).createSession().then((id) => sessionId = id);
+      _client(mock)
+          .createSession(roomId: _roomId, callId: _callId)
+          .then((id) => sessionId = id);
 
       async.elapse(const Duration(seconds: 5));
 
@@ -366,7 +423,7 @@ void main() {
       Object? error;
       () async {
         try {
-          await _client(mock).createSession();
+          await _client(mock).createSession(roomId: _roomId, callId: _callId);
         } catch (e) {
           error = e;
         }
@@ -389,7 +446,7 @@ void main() {
       });
 
       await expectLater(
-        _client(mock).createSession(),
+        _client(mock).createSession(roomId: _roomId, callId: _callId),
         throwsA(
           isA<CloudflareCallsException>().having(
             (e) => e.statusCode,
@@ -416,7 +473,9 @@ void main() {
         return http.Response(jsonEncode({'sessionId': 'sess1'}), 200);
       });
       String? sessionId;
-      _client(mock).createSession().then((id) => sessionId = id);
+      _client(mock)
+          .createSession(roomId: _roomId, callId: _callId)
+          .then((id) => sessionId = id);
 
       async.elapse(const Duration(milliseconds: 399));
       expect(calls, 1);
@@ -439,7 +498,7 @@ void main() {
       Object? error;
       () async {
         try {
-          await _client(mock).createSession();
+          await _client(mock).createSession(roomId: _roomId, callId: _callId);
         } catch (e) {
           error = e;
         }
@@ -461,7 +520,7 @@ void main() {
       Object? error;
       () async {
         try {
-          await _client(mock).createSession();
+          await _client(mock).createSession(roomId: _roomId, callId: _callId);
         } catch (e) {
           error = e;
         }
@@ -484,7 +543,10 @@ void main() {
     _client(injected).close();
 
     expect(injected.closed, isFalse);
-    expect(await _client(injected).createSession(), 'sess1');
+    expect(
+      await _client(injected).createSession(roomId: _roomId, callId: _callId),
+      'sess1',
+    );
   });
 }
 

@@ -74,6 +74,13 @@ void main() {
         ),
         'HTTP 401 from TURN credentials: M_UNKNOWN_TOKEN',
       );
+      expect(
+        moduleFailure(
+          http.Response('{"errcode":"IM.ZUNO.CALL_FULL"}', 403),
+          'POST /sessions/new',
+        ),
+        'HTTP 403 from POST /sessions/new: IM.ZUNO.CALL_FULL',
+      );
     });
 
     for (final (reason, body) in [
@@ -86,6 +93,45 @@ void main() {
           moduleFailure(http.Response(body, 502), 'POST /sessions/new'),
           'HTTP 502 from POST /sessions/new',
         );
+      });
+    }
+  });
+
+  group('callFullOf', () {
+    for (final (reason, response) in [
+      (
+        'a full-call code on another status',
+        http.Response(
+          '{"errcode":"IM.ZUNO.CALL_FULL","max_participants":8}',
+          500,
+        ),
+      ),
+      (
+        'another refusal',
+        http.Response('{"errcode":"M_FORBIDDEN","max_participants":8}', 403),
+      ),
+      (
+        'a refusal without the limit',
+        http.Response('{"errcode":"IM.ZUNO.CALL_FULL"}', 403),
+      ),
+      (
+        'a limit below one person',
+        http.Response(
+          '{"errcode":"IM.ZUNO.CALL_FULL","max_participants":0}',
+          403,
+        ),
+      ),
+      (
+        'a limit that is not a number',
+        http.Response(
+          '{"errcode":"IM.ZUNO.CALL_FULL","max_participants":"8"}',
+          403,
+        ),
+      ),
+      ('a body that is not JSON', http.Response('Forbidden', 403)),
+    ]) {
+      test('is null for $reason', () {
+        expect(callFullOf(response), isNull);
       });
     }
   });

@@ -40,6 +40,7 @@ class FakeSfu {
   final pulledTracks = <Map<String, dynamic>>[];
   final missingTracks = <String>{};
   int? sessionStatus;
+  Map<String, Object?>? sessionRefusal;
   int? renegotiateStatus;
   int lostPullResponses = 0;
   int refusedPushes = 0;
@@ -87,7 +88,7 @@ class FakeSfu {
     if (path == '/sessions/new') {
       await sessionGate?.future;
       if (sessionStatus case final status?) {
-        return _json({'errorCode': 'refused'}, status);
+        return _json(sessionRefusal ?? {'errorCode': 'refused'}, status);
       }
       return _json({'sessionId': 's${++_sessions}'});
     }
@@ -208,6 +209,8 @@ class EngineHarness {
             'https://example.org/_synapse/client/zuno/calls/cloudflare',
           ),
       authorization: () async => 'Bearer test-token',
+      roomId: '!room:example.org',
+      callId: 'call1',
       kind: kind,
       lowDataMode: lowDataMode,
       iceServers: Future.value(iceServers),

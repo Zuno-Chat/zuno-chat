@@ -1,7 +1,8 @@
 # Calls
 
-Voice and video calls, one-to-one and group (6 people at most), always
-routed through Cloudflare's SFU behind the `zuno_calls` Synapse module.
+Voice and video calls, one-to-one and group, always routed through
+Cloudflare's SFU behind the `zuno_calls` Synapse module, which also caps how
+many people a call holds.
 There is no peer-to-peer mode, by design. Signaling is a custom layer
 loosely modeled on MatrixRTC (MSC3401), not a conformant implementation.
 Media is encrypted per frame with a random key for each call. Android rings
@@ -155,10 +156,10 @@ stateDiagram-v2
   memberships, posts the summary.
 - Any device holding the call key relays it to a newcomer, not only the
   caller.
-- The 6-person cap is enforced only on the client, since the module cannot
-  tell which call a session belongs to. When simultaneous joins overshoot,
-  each device ranks itself by join time and the extras hang up, with no
-  coordination needed.
+- The participant cap belongs to the module, never the app: every
+  `sessions/new` names its room and call, and the module refuses a full call
+  with a 403 `IM.ZUNO.CALL_FULL` carrying its `max_participants`, which the
+  app shows as is.
 
 ### Media
 

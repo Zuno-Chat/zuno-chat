@@ -41,6 +41,8 @@ void main() {
     final engine = CloudflareCallEngine(
       baseUri: () => _baseUri,
       authorization: () async => 'Bearer test-token',
+      roomId: '!room:example.org',
+      callId: 'call1',
       kind: CallKind.voice,
       httpClient: MockClient((request) async {
         if (request.url.path.endsWith('/sessions/new')) {
@@ -74,6 +76,8 @@ void main() {
           final engine = CloudflareCallEngine(
             baseUri: () => _baseUri,
             authorization: () async => 'Bearer test-token',
+            roomId: '!room:example.org',
+            callId: 'call1',
             kind: CallKind.voice,
             iceServers: servers.future,
             httpClient: MockClient((request) async {

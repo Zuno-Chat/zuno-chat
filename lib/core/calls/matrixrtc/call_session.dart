@@ -26,7 +26,6 @@ import '../models/call_failure.dart';
 import '../models/call_kind.dart';
 import '../models/voip_participant_id.dart';
 import '../notifications/call_notification_service.dart';
-import 'active_room_call.dart';
 import 'call_decline.dart';
 import 'call_encryption_key_event.dart';
 import 'call_member_state.dart';
@@ -193,6 +192,8 @@ class CallSession {
     return CloudflareCallEngine(
       baseUri: () => cloudflareCallsBaseUri(client),
       authorization: () => bearerAuthorization(client),
+      roomId: _roomId,
+      callId: callId,
       kind: kind,
       iceServers: resolveIceServers(client, httpClient: callsHttpClient),
       lowDataMode: lowDataMode,
@@ -373,13 +374,9 @@ class CallSession {
 
   Future<void> accept() async {
     if (answeredOnAnotherDevice(room, callId)) {
-      _refuse(CallFailure.onAnotherDevice);
+      failure = const CallOnAnotherDevice();
+      endReason = CallEndReason.failed;
       await _end('a call taken on another device');
-      return;
-    }
-    if (isCallFull(room, callId, excludeUserId: _myUserId)) {
-      _refuse(CallFailure.callFull);
-      await _end('a call that was full');
       return;
     }
     try {
@@ -390,11 +387,6 @@ class CallSession {
       await hangUp();
       rethrow;
     }
-  }
-
-  void _refuse(CallFailure reason) {
-    failure = reason;
-    endReason = CallEndReason.failed;
   }
 
   Future<void>? _permissionsFuture;
@@ -459,7 +451,7 @@ class CallSession {
       _statusSub = built.statusStream.listen((status) {
         if (status != CallEngineStatus.failed) return;
         if (_phase == CallSessionPhase.ended) return;
-        failure = CallFailure.connectionLost;
+        failure = const CallConnectionLost();
         endReason = CallEndReason.failed;
         unawaited(hangUp());
       });
@@ -496,12 +488,15 @@ class CallSession {
       error is MatrixException && error.error == MatrixError.M_FORBIDDEN;
 
   static bool _shownToUser(Object error) =>
-      _isForbidden(error) || error is MicrophoneUnavailable;
+      _isForbidden(error) ||
+      error is MicrophoneUnavailable ||
+      error is CallFullException;
 
   static CallFailure _failureOf(Object error) => switch (error) {
-    _ when _isForbidden(error) => CallFailure.noPermissionToStart,
-    MicrophoneUnavailable() => CallFailure.microphoneUnavailable,
-    _ => CallFailure.didNotConnect,
+    _ when _isForbidden(error) => const CallNoPermissionToStart(),
+    MicrophoneUnavailable() => const CallMicrophoneUnavailable(),
+    CallFullException(:final maxParticipants) => CallFull(maxParticipants),
+    _ => const CallDidNotConnect(),
   };
 
   AppLifecycleListener? _lifecycleListener;
@@ -638,7 +633,7 @@ class CallSession {
     } catch (e, s) {
       reportCaught('apply the call key', e, s);
       if (_phase == CallSessionPhase.ended) return;
-      failure = CallFailure.didNotConnect;
+      failure = const CallDidNotConnect();
       endReason = CallEndReason.failed;
       await hangUp();
     }
@@ -829,12 +824,6 @@ class CallSession {
         _aloneTimer?.cancel();
         eng.updateRemoteParticipant(id, membership.fociActive);
       }
-    }
-
-    if (_hangUp == null && isOverCallCapacity(room, callId, _myUserId)) {
-      _refuse(CallFailure.callFull);
-      unawaited(hangUp());
-      return;
     }
 
     for (final id in _knownRemote.difference(seenThisPass)) {

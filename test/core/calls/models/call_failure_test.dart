@@ -7,23 +7,30 @@ void main() {
   test('every failure reads as its English sentence', () {
     String of(CallFailure failure) => failure.message(englishLocalizations);
 
-    expect(of(CallFailure.connectionLost), 'Connection lost');
-    expect(of(CallFailure.didNotConnect), 'Call did not connect');
+    expect(of(const CallConnectionLost()), 'Connection lost');
+    expect(of(const CallDidNotConnect()), 'Call did not connect');
     expect(
-      of(CallFailure.microphoneUnavailable),
+      of(const CallMicrophoneUnavailable()),
       'Allow Zuno to use the microphone, then call back.',
     );
     expect(
-      of(CallFailure.noPermissionToStart),
+      of(const CallNoPermissionToStart()),
       'You do not have permission to start calls in this room',
     );
     expect(
-      of(CallFailure.callFull),
+      of(const CallFull(6)),
       'This call is full. Up to 6 people can join a call.',
     );
     expect(
-      of(CallFailure.onAnotherDevice),
+      of(const CallOnAnotherDevice()),
       'You are in this call on another device. Hang up there to join here.',
+    );
+  });
+
+  test('a full call names the limit the server set', () {
+    expect(
+      const CallFull(8).message(englishLocalizations),
+      'This call is full. Up to 8 people can join a call.',
     );
   });
 

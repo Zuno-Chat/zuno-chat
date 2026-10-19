@@ -41,6 +41,8 @@ typedef _SenderCryptor = ({RTCRtpSender sender, FrameCryptor cryptor});
 class CloudflareCallEngine implements CallEngine {
   final CloudflareApiClient _api;
   final WebRtcBackend _webRtc;
+  final String _roomId;
+  final String _callId;
   CallKind _kind;
 
   RTCPeerConnection? _pc;
@@ -89,6 +91,8 @@ class CloudflareCallEngine implements CallEngine {
   CloudflareCallEngine({
     required Uri Function() baseUri,
     required Future<String> Function() authorization,
+    required this._roomId,
+    required this._callId,
     required CallKind kind,
     Future<List<Map<String, Object?>>>? iceServers,
     this.lowDataMode = false,
@@ -542,7 +546,7 @@ class CloudflareCallEngine implements CallEngine {
   }
 
   Future<void> _openConnection() async {
-    final sessionFuture = _api.createSession();
+    final sessionFuture = _api.createSession(roomId: _roomId, callId: _callId);
     final pcFuture = _iceServers.then(
       (servers) => _webRtc.createPeerConnection({
         'iceServers': servers,

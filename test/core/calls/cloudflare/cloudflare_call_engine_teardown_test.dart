@@ -14,6 +14,8 @@ CloudflareCallEngine _buildEngine({CallKind kind = CallKind.voice}) =>
     CloudflareCallEngine(
       baseUri: () => _baseUri,
       authorization: () async => 'Bearer test-token',
+      roomId: '!room:example.org',
+      callId: 'call1',
       kind: kind,
     );
 

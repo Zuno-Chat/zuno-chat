@@ -12,6 +12,7 @@ import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zuno/core/calls/call_engine.dart';
+import 'package:zuno/core/calls/cloudflare/calls_module.dart';
 import 'package:zuno/core/calls/matrixrtc/call_encryption_key_event.dart';
 import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
@@ -231,7 +232,6 @@ void main() {
     String deviceId = 'DEVICE',
     String callId = 'call1',
     Map<String, Object?> fociActive = const {},
-    int createdAtMs = 0,
   }) => r.setState(
     callMemberEvent(
       r,
@@ -239,7 +239,6 @@ void main() {
       deviceId: deviceId,
       callId: callId,
       fociActive: fociActive,
-      createdAtMs: createdAtMs,
       expiresIn: const Duration(minutes: 5),
     ),
   );
@@ -373,7 +372,7 @@ void main() {
 
         expect(session.phase, CallSessionPhase.ended);
         expect(session.endReason, CallEndReason.failed);
-        expect(session.failure, CallFailure.didNotConnect);
+        expect(session.failure, const CallDidNotConnect());
       },
     );
 
@@ -411,7 +410,7 @@ void main() {
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failure, CallFailure.didNotConnect);
+      expect(session.failure, const CallDidNotConnect());
       expect(engine.leaveCalls, 1);
       expect(engine.disposeCalls, 1);
       expect(r.attempts, isEmpty);
@@ -434,7 +433,7 @@ void main() {
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failure, CallFailure.noPermissionToStart);
+      expect(session.failure, const CallNoPermissionToStart());
     });
 
     group('what an answer that fails reports', () {
@@ -471,7 +470,7 @@ void main() {
           throwsA(isA<MicrophoneUnavailable>()),
         );
 
-        expect(session.failure, CallFailure.microphoneUnavailable);
+        expect(session.failure, const CallMicrophoneUnavailable());
         expect(reported(logs), isEmpty);
       });
     });
@@ -490,7 +489,7 @@ void main() {
 
         expect(session.phase, CallSessionPhase.ended);
         expect(session.endReason, CallEndReason.failed);
-        expect(session.failure, CallFailure.connectionLost);
+        expect(session.failure, const CallConnectionLost());
         expect(r.sentEvents.last['call_id'], session.callId);
       },
     );
@@ -514,7 +513,7 @@ void main() {
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failure, CallFailure.connectionLost);
+      expect(session.failure, const CallConnectionLost());
 
       final callsBeforeSeed = engine.updateRemoteParticipantCalls;
       joinTheCall(raceRoom, _bob);
@@ -581,7 +580,7 @@ void main() {
         expect(failure, isNotNull);
         expect(session.phase, CallSessionPhase.ended);
         expect(session.endReason, CallEndReason.failed);
-        expect(session.failure, CallFailure.microphoneUnavailable);
+        expect(session.failure, const CallMicrophoneUnavailable());
         expect(permissions.calls, ['checkPermissionStatus']);
         expect(engine.joined, isFalse);
         expect(engine.startLocalMediaCalls, 0);
@@ -684,7 +683,7 @@ void main() {
 
         expect(failure, isException);
         expect(session.phase, CallSessionPhase.ended);
-        expect(session.failure, CallFailure.microphoneUnavailable);
+        expect(session.failure, const CallMicrophoneUnavailable());
         expect(permissions.calls, ['checkPermissionStatus']);
         expect(engine.joined, isFalse);
       });
@@ -705,7 +704,7 @@ void main() {
       ]);
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failure, CallFailure.microphoneUnavailable);
+      expect(session.failure, const CallMicrophoneUnavailable());
     });
 
     test('on Android, a microphone refused at the prompt fails the call with '
@@ -721,7 +720,7 @@ void main() {
       expect(permissions.calls, ['requestPermissions']);
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failure, CallFailure.microphoneUnavailable);
+      expect(session.failure, const CallMicrophoneUnavailable());
       expect(engine.startLocalMediaCalls, 0);
       expect(engine.joined, isFalse);
     });
@@ -1538,7 +1537,7 @@ void main() {
 
       expect(r.attempts, isEmpty);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failure, CallFailure.microphoneUnavailable);
+      expect(session.failure, const CallMicrophoneUnavailable());
       expect(engine.startLocalMediaCalls, 0);
     });
 
@@ -1560,7 +1559,7 @@ void main() {
 
       await untilPhase(session, CallSessionPhase.ended);
 
-      expect(session.failure, CallFailure.noPermissionToStart);
+      expect(session.failure, const CallNoPermissionToStart());
       expect(reported(logs), isEmpty);
     });
 
@@ -1574,7 +1573,7 @@ void main() {
 
       await untilPhase(session, CallSessionPhase.ended);
 
-      expect(session.failure, CallFailure.noPermissionToStart);
+      expect(session.failure, const CallNoPermissionToStart());
       expect(reported(logs), isEmpty);
     });
 
@@ -1584,7 +1583,7 @@ void main() {
 
       await untilPhase(session, CallSessionPhase.ended);
 
-      expect(session.failure, CallFailure.didNotConnect);
+      expect(session.failure, const CallDidNotConnect());
       expect(reported(logs), [
         'zuno/caught: start an outgoing call: Bad state: boom',
       ]);
@@ -1600,7 +1599,7 @@ void main() {
       await pumpEventQueue();
 
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failure, CallFailure.didNotConnect);
+      expect(session.failure, const CallDidNotConnect());
       expect(engine.leaveCalls, 1);
       expect(engine.disposeCalls, 1);
       expect(engine.joined, isFalse);
@@ -1628,7 +1627,7 @@ void main() {
       expect(summary?.status, CallSummaryStatus.missed);
       expect(summary?.callId, session.callId);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failure, CallFailure.didNotConnect);
+      expect(session.failure, const CallDidNotConnect());
       expect(engine.disposeCalls, 1);
     });
 
@@ -2346,10 +2345,24 @@ void main() {
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failure, CallFailure.onAnotherDevice);
+      expect(session.failure, const CallOnAnotherDevice());
       expect(engine.joined, isFalse);
       expect(memberPuts, isEmpty);
       expect(r.attempts, isEmpty);
+    });
+
+    test('an engine asked for after the refusal is released at once', () async {
+      final r = sendRoom();
+      joinTheCall(r, _me, deviceId: 'TABLET');
+      final engine = FakeCallEngine();
+      final session = incoming(inRoom: r, engine: engine);
+      await session.accept();
+
+      expect(session.engine, same(engine));
+      await pumpEventQueue();
+
+      expect(engine.leaveCalls, 1);
+      expect(engine.disposeCalls, 1);
     });
 
     test('a membership this device left behind does not count', () async {
@@ -2364,115 +2377,86 @@ void main() {
     });
   });
 
-  group('call capacity', () {
-    void fill(Room r, int count) {
-      for (var i = 1; i <= count; i++) {
-        joinTheCall(r, '@p$i:example.org', createdAtMs: i);
-      }
-    }
-
-    test('accepting a call that already has 6 people ends it as full '
-        'without building an engine', () async {
-      fill(room, 6);
-      var engineBuilds = 0;
-      final session = CallSession.forIncoming(
-        room: room,
-        callId: 'call1',
-        kind: CallKind.voice,
-        engineBuilder: () {
-          engineBuilds++;
-          return FakeCallEngine();
-        },
+  group('a call the module says is full', () {
+    test('ends as full with the module\'s own limit, reported nowhere, and '
+        'releases its engine', () async {
+      final logs = recordDebugPrints();
+      final engine = FakeCallEngine(
+        failJoin: true,
+        joinError: const CallFullException(8),
       );
-      addTearDown(session.dispose);
+      final session = incoming(engine: engine);
 
-      await session.accept();
+      await expectLater(session.accept(), throwsA(isA<CallFullException>()));
       await pumpEventQueue();
 
       expect(session.phase, CallSessionPhase.ended);
       expect(session.endReason, CallEndReason.failed);
-      expect(session.failure, CallFailure.callFull);
-      expect(engineBuilds, 0);
+      expect(
+        session.failure,
+        isA<CallFull>().having((f) => f.maxParticipants, 'limit', 8),
+      );
+      expect(engine.leaveCalls, 1);
+      expect(engine.disposeCalls, 1);
+      expect(reported(logs), isEmpty);
     });
 
-    test('a full call whose engine the call screen already built releases '
-        'it', () async {
-      fill(room, 6);
-      final engine = FakeCallEngine();
-      final session = incoming(engine: engine);
-      expect(session.engine, same(engine));
+    test('sends no decline, so its other phones are not stopped', () async {
+      final r = sendRoom();
+      final session = incoming(
+        inRoom: r,
+        engine: FakeCallEngine(
+          failJoin: true,
+          joinError: const CallFullException(8),
+        ),
+      );
+
+      await expectLater(session.accept(), throwsA(isA<CallFullException>()));
+      await pumpEventQueue();
+
+      expect(r.sentEvents, isEmpty);
+      expect(r.attempts, isEmpty);
+    });
+
+    test('a call with many people in it is still answered when the module '
+        'lets it through', () async {
+      for (var i = 1; i <= 10; i++) {
+        joinTheCall(room, '@p$i:example.org');
+      }
+      final session = incoming();
 
       await session.accept();
       await pumpEventQueue();
 
-      expect(session.phase, CallSessionPhase.ended);
-      expect(engine.leaveCalls, 1);
-      expect(engine.disposeCalls, 1);
+      expect(session.phase, CallSessionPhase.active);
+      expect(session.failure, isNull);
     });
+  });
 
-    test('an engine asked for after the call has ended is released at '
-        'once', () async {
-      fill(room, 6);
+  group('the published membership', () {
+    test('keeps one join time across republishes', () async {
+      final publishes = <String>[];
       final engine = FakeCallEngine();
-      final session = incoming(engine: engine);
+      final session = incoming(
+        inRoom: buildTestRoom(loggingMemberPuts(publishes)),
+        engine: engine,
+      );
       await session.accept();
-
-      expect(session.engine, same(engine));
       await pumpEventQueue();
 
-      expect(engine.leaveCalls, 1);
-      expect(engine.disposeCalls, 1);
+      engine.micMuted = true;
+      await session.refreshMembership();
+      await pumpEventQueue();
+
+      int joinedAt(String body) {
+        final memberships = (jsonDecode(body) as Map)['memberships'] as List;
+        return memberships.single['created_ts'] as int;
+      }
+
+      expect(publishes, hasLength(2));
+      expect(joinedAt(publishes.first), greaterThan(0));
+      expect(joinedAt(publishes.last), joinedAt(publishes.first));
     });
-
-    test(
-      'a joiner who turns out to be 7th leaves without posting a summary',
-      () async {
-        final r = sendRoom();
-        fill(r, 5);
-        final engine = FakeCallEngine();
-        final session = incoming(inRoom: r, engine: engine);
-        await session.accept();
-        await pumpEventQueue();
-        expect(session.phase, CallSessionPhase.active);
-
-        joinTheCall(r, '@p6:example.org', createdAtMs: 6);
-        joinTheCall(r, _me, createdAtMs: 7);
-        await sync();
-
-        expect(session.phase, CallSessionPhase.ended);
-        expect(session.endReason, CallEndReason.failed);
-        expect(session.failure, CallFailure.callFull);
-        expect(engine.leaveCalls, 1);
-        expect(r.sentEvents, isEmpty);
-      },
-    );
-
-    test(
-      'the published membership keeps one join time across republishes',
-      () async {
-        final publishes = <String>[];
-        final engine = FakeCallEngine();
-        final session = incoming(
-          inRoom: buildTestRoom(loggingMemberPuts(publishes)),
-          engine: engine,
-        );
-        await session.accept();
-        await pumpEventQueue();
-
-        engine.micMuted = true;
-        await session.refreshMembership();
-        await pumpEventQueue();
-
-        int joinedAt(String body) {
-          final memberships = (jsonDecode(body) as Map)['memberships'] as List;
-          return memberships.single['created_ts'] as int;
-        }
-
-        expect(publishes, hasLength(2));
-        expect(joinedAt(publishes.first), greaterThan(0));
-        expect(joinedAt(publishes.last), joinedAt(publishes.first));
-      },
-    );
   });
 
   group('a callee nobody joined', () {
@@ -2747,7 +2731,7 @@ void main() {
   });
 
   test('the engine is built against the Synapse module with the Matrix '
-      'token', () async {
+      'token, for this room\'s call', () async {
     const base = '/_synapse/client/zuno/calls/cloudflare';
     recordMethodChannel(
       'FlutterWebRTC.Method',
@@ -2796,6 +2780,13 @@ void main() {
     });
     expect(requests.map((r) => r.headers['Authorization']).toSet(), {
       'Bearer test-token',
+    });
+    final opened = requests.singleWhere(
+      (r) => r.url.path == '$base/sessions/new',
+    );
+    expect(opened.url.queryParameters, {
+      'room_id': room.id,
+      'call_id': 'call1',
     });
   });
 

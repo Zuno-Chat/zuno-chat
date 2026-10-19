@@ -143,7 +143,7 @@ class CloudflareApiClient {
   }) : httpClient = httpClient ?? http.Client(),
        _ownsHttpClient = httpClient == null;
 
-  Uri _uri(_Endpoint endpoint, String? sessionId) {
+  Uri _uri(_Endpoint endpoint, String? sessionId, Map<String, String>? query) {
     final base = baseUri();
     return base.replace(
       pathSegments: [
@@ -154,6 +154,7 @@ class CloudflareApiClient {
           else if (segment.isNotEmpty)
             segment,
       ],
+      queryParameters: query,
     );
   }
 
@@ -165,9 +166,10 @@ class CloudflareApiClient {
   Future<Map<String, dynamic>> _send(
     _Endpoint endpoint, {
     String? sessionId,
+    Map<String, String>? query,
     Map<String, Object?>? body,
   }) => retryWithBackoff(
-    () => _sendOnce(endpoint, _uri(endpoint, sessionId), body),
+    () => _sendOnce(endpoint, _uri(endpoint, sessionId, query), body),
     label: '$endpoint',
     maxAttempts: _maxAttempts,
     baseDelay: _baseDelay,
@@ -185,6 +187,7 @@ class CloudflareApiClient {
     Map<String, Object?>? body,
   ) async {
     final response = await _request(endpoint.method, uri, body);
+    if (callFullOf(response) case final full?) throw full;
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw CloudflareCallsException(
         moduleFailure(response, '$endpoint'),
@@ -213,8 +216,14 @@ class CloudflareApiClient {
     return pending.timeout(_requestDeadline);
   }
 
-  Future<String> createSession() async {
-    final json = await _send(_newSession);
+  Future<String> createSession({
+    required String roomId,
+    required String callId,
+  }) async {
+    final json = await _send(
+      _newSession,
+      query: {'room_id': roomId, 'call_id': callId},
+    );
     final sessionId = json['sessionId'] as String?;
     if (sessionId == null) {
       final code = moduleErrorCode(json);

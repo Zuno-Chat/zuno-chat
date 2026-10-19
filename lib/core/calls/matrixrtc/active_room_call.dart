@@ -44,35 +44,3 @@ ActiveRoomCall? findActiveRoomCall(Room room, {required String excludeUserId}) {
     participantUserIds: participantsByCallId[bestCallId]!.toList(),
   );
 }
-
-const maxCallParticipants = 6;
-
-List<String> _participantsInJoinOrder(Room room, String callId) {
-  final joinedAt = <String, int>{};
-  final states = room.states[callMemberEventType] ?? const {};
-  for (final entry in states.entries) {
-    for (final membership in parseRtcMemberships(entry.value.content)) {
-      if (membership.callId != callId) continue;
-      final earliest = joinedAt[entry.key];
-      if (earliest == null || membership.createdAtMs < earliest) {
-        joinedAt[entry.key] = membership.createdAtMs;
-      }
-    }
-  }
-  return joinedAt.keys.toList()..sort((a, b) {
-    final byTime = joinedAt[a]!.compareTo(joinedAt[b]!);
-    return byTime != 0 ? byTime : a.compareTo(b);
-  });
-}
-
-bool isCallFull(Room room, String callId, {required String excludeUserId}) {
-  final others = _participantsInJoinOrder(
-    room,
-    callId,
-  ).where((id) => id != excludeUserId);
-  return others.length >= maxCallParticipants;
-}
-
-bool isOverCallCapacity(Room room, String callId, String userId) =>
-    _participantsInJoinOrder(room, callId).indexOf(userId) >=
-    maxCallParticipants;
