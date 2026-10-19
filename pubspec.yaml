@@ -85,11 +85,11 @@ dependencies:
   # during an active call.
   flutter_webrtc: ^1.6.0+hotfix.1
   permission_handler: ^13.0.2
-  flutter_local_notifications: ^22.3.1
+  flutter_local_notifications: ^22.3.2
   wakelock_plus: ^1.4.0
   light_compressor: ^2.2.0
   video_player: ^2.14.1
-  image: ^4.10.1
+  image: ^4.12.0
   flutter_svg: ^2.3.0
   unifiedpush_android: ^3.5.0
   unifiedpush_platform_interface: ^4.0.0
@@ -114,7 +114,7 @@ dependencies:
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
   geolocator: ^14.1.1
-  sentry_flutter: ^10.0.0
+  sentry_flutter: ^10.1.0
 dev_dependencies:
   # Deterministic time for the poll/timeout loops on the call paths
   # (await_room.dart) — a real 10s wait is not a test.
