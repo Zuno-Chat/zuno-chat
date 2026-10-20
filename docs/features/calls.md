@@ -213,6 +213,8 @@ tier.
 - **A remote's `lowBandwidth` caps us at degraded.** We publish it whenever
   our own tier is not good, so one side's struggling downlink stops the
   other from sending more than it can absorb. Audio is never scaled.
+- **The poor-connection notice says video is reduced only while this
+  device sends its camera**, since the tiers cap nothing else.
 - **Low-data calls are on by default, by design** (Settings → Data &
   storage): 360p capture and a 500 kbps cap, so soft video is expected, not
   a bug. The setting is read once per call, since switching mid-call would

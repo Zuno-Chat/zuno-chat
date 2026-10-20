@@ -11,4 +11,4 @@ New
 • Use Zuno in more languages.
 • See who is calling in a group.
 
-Fixed 147 bugs.
+Fixed 148 bugs.

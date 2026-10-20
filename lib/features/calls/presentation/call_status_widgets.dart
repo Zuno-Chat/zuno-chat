@@ -7,19 +7,28 @@ import '../../../core/l10n/l10n.dart';
 
 class ConnectionQualityPill extends StatelessWidget {
   final CallQuality quality;
+  final bool sendingVideo;
 
-  const ConnectionQualityPill({required this.quality, super.key});
+  const ConnectionQualityPill({
+    required this.quality,
+    required this.sendingVideo,
+    super.key,
+  });
 
-  static String? labelFor(AppLocalizations l10n, CallQuality quality) =>
-      switch (quality) {
-        CallQuality.good => null,
-        CallQuality.degraded => l10n.callsConnectionWeak,
-        CallQuality.poor => l10n.callsConnectionPoor,
-      };
+  static String? labelFor(
+    AppLocalizations l10n,
+    CallQuality quality, {
+    required bool sendingVideo,
+  }) => switch (quality) {
+    CallQuality.good => null,
+    CallQuality.degraded => l10n.callsConnectionWeak,
+    CallQuality.poor when sendingVideo => l10n.callsConnectionPoorVideoReduced,
+    CallQuality.poor => l10n.callsConnectionPoor,
+  };
 
   @override
   Widget build(BuildContext context) {
-    final label = labelFor(context.l10n, quality);
+    final label = labelFor(context.l10n, quality, sendingVideo: sendingVideo);
     if (label == null) return const SizedBox.shrink();
     return CallBadge(icon: Icons.network_check, label: label);
   }

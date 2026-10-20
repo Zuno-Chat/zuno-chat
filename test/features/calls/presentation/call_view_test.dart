@@ -728,8 +728,30 @@ void main() {
       );
 
       await pump(tester, connecting: true, quality: CallQuality.poor);
-      expect(find.text('Poor connection, video reduced'), findsNothing);
+      expect(find.byType(ConnectionQualityPill), findsNothing);
     });
+
+    for (final (call, kind, camera, label) in [
+      ('a voice call', CallKind.voice, false, 'Poor connection'),
+      (
+        'a video call with the camera on',
+        CallKind.video,
+        true,
+        'Poor connection, video reduced',
+      ),
+    ]) {
+      testWidgets('a poor connection in $call says "$label"', (tester) async {
+        await pump(
+          tester,
+          kind: kind,
+          localCamera: camera,
+          remote: [person('Ann')],
+          quality: CallQuality.poor,
+        );
+
+        expect(find.text(label), findsOneWidget);
+      });
+    }
   });
 
   group('offering to confirm the other person', () {

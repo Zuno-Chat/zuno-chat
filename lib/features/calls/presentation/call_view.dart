@@ -132,10 +132,15 @@ class _CallViewState extends State<CallView> {
     final self = widget.kind == CallKind.video && !group && !widget.connecting
         ? widget.local
         : null;
+    final local = widget.local;
+    final sendingVideo = local?.participant.videoEnabled ?? false;
     final shownQuality = widget.connecting ? CallQuality.good : widget.quality;
-    final pill =
-        !widget.reconnecting &&
-        ConnectionQualityPill.labelFor(context.l10n, shownQuality) != null;
+    final qualityLabel = ConnectionQualityPill.labelFor(
+      context.l10n,
+      shownQuality,
+      sendingVideo: sendingVideo,
+    );
+    final pill = !widget.reconnecting && qualityLabel != null;
     final confirmName = widget.confirmName;
     final onConfirmPerson = widget.onConfirmPerson;
     final confirm =
@@ -145,7 +150,6 @@ class _CallViewState extends State<CallView> {
         !widget.reconnecting &&
         !pill;
     final padding = MediaQuery.paddingOf(context);
-    final local = widget.local;
 
     final Widget stage;
     if (fullVideo) {
@@ -233,6 +237,7 @@ class _CallViewState extends State<CallView> {
                     ConnectionQualityPill(
                       key: const ValueKey('quality'),
                       quality: shownQuality,
+                      sendingVideo: sendingVideo,
                     ),
                   if (confirm)
                     Padding(
@@ -250,7 +255,7 @@ class _CallViewState extends State<CallView> {
                     child: CallControls(
                       kind: widget.kind,
                       micMuted: local?.participant.audioMuted ?? false,
-                      cameraOn: local?.participant.videoEnabled ?? false,
+                      cameraOn: sendingVideo,
                       audioRoute: widget.audioRoute,
                       enabled: local != null,
                       overVideo: fullVideo,

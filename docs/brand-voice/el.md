@@ -75,7 +75,7 @@ The Greek column gives the article, which shows the gender, and the plural where
 | speaker | το ηχείο | The phone dialer's word. "Turn speaker on" → «Ενεργοποίηση ηχείου». |
 | mute / unmute | Σίγαση / Κατάργηση σίγασης | Covers the microphone and room notifications alike. "Muted" → «Σε σίγαση». |
 | camera, microphone | η κάμερα · το μικρόφωνο | "Switch camera" → «Εναλλαγή κάμερας». |
-| connection, connecting, reconnecting | η σύνδεση · Σύνδεση… · Επανασύνδεση… | "Weak connection" → «Αδύναμη σύνδεση». "Poor connection, video reduced" → «Κακή σύνδεση, μειωμένη ποιότητα βίντεο». |
+| connection, connecting, reconnecting | η σύνδεση · Σύνδεση… · Επανασύνδεση… | "Weak connection" → «Αδύναμη σύνδεση». "Poor connection" → «Κακή σύνδεση». "Poor connection, video reduced" → «Κακή σύνδεση, μειωμένη ποιότητα βίντεο». |
 | picture-in-picture, minimize | εικόνα σε εικόνα · Ελαχιστοποίηση | Both are OS labels. |
 
 ### 1.5 Security and encryption

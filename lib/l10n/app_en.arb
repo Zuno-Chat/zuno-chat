@@ -243,7 +243,14 @@
   "@callsConnecting": {
     "description": "Call status while the call connects"
   },
-  "callsConnectionPoor": "Poor connection, video reduced",
+  "callsConnectionPoor": "Poor connection",
+  "@callsConnectionPoor": {
+    "description": "Call badge: the network connection is poor, and you are not sending video"
+  },
+  "callsConnectionPoorVideoReduced": "Poor connection, video reduced",
+  "@callsConnectionPoorVideoReduced": {
+    "description": "Call badge: the network connection is poor, so the video you send is reduced"
+  },
   "callsConnectionWeak": "Weak connection",
   "@callsConnectionWeak": {
     "description": "Call badge: the network connection is weak"
