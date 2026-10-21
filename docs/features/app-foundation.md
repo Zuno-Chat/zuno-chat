@@ -63,7 +63,7 @@ flowchart TD
 
 **The call sits above the Navigator.** `CallLayer`, in `MaterialApp.builder`, shows a minimized call and Android picture-in-picture over every route. `showCallScreen` owns the call screen's route: it opens it once, and closes it when the call ends. `_AuthGate`'s outside entries (a notification, shortcut or share) replace the call screen instead of covering it (`calls.md`).
 
-**Every launch reaches the one running activity on Android.** Each intent Zuno builds to open the app (notifications, shortcuts, the ring, inbound share) carries `NEW_TASK | CLEAR_TOP | SINGLE_TOP` from one builder, so a tap reaches the running `MainActivity` even with a picker on top of it. A second `MainActivity` that still starts (from the launcher or a plugin's notification) never runs Dart: it hands a real target to the running one, once, and closes.
+**Every launch reaches the one running activity on Android.** Each intent Zuno builds to open the app (notifications, shortcuts, the ring, inbound share) carries `NEW_TASK | CLEAR_TOP | SINGLE_TOP` from one builder, so a tap reaches the running `MainActivity` even with a picker on top of it. A second `MainActivity` that still starts (from the launcher or a plugin's notification) never runs Dart: it hands a real target to the running one, once, and closes, taking with it any task it started.
 
 **Signing out pops to root from one place.** `_AuthGate` swaps only the root route's content, so a pushed screen (Settings, where Sign out lives) would otherwise stay up. The pop runs from `onLoginStateChanged`, which also covers a remote sign-out, and only on a real logged-in to logged-out transition.
 
@@ -396,6 +396,7 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 
 **Android activity**
 - **An intent that opens the app without `CLEAR_TOP` starts a second `MainActivity` and engine** whenever another activity sits on Zuno's task, so every one comes from the shared launch-intent builder.
+- **`MainActivity` keeps the app's task affinity and `ShareActivity` has an empty one**, because Recents merges Zuno's tasks into one card only by affinity or an identical intent, and a share trampoline with the app's affinity could start Zuno inside a task hidden from Recents.
 
 **Capability flags and assets**
 - **`canUseFullScreenIntent()` answers `true` wherever `fullScreenIntent` is off**, which onboarding relies on to skip the Android page, so an iOS row must not read it.

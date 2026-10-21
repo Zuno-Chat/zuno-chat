@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -261,12 +262,15 @@ class DiskAttachmentCache {
       await entity.delete(recursive: entity is Directory);
       return true;
     } on PathNotFoundException {
-      return false;
+      return true;
     } catch (e, s) {
       reportCaught(label, e, s);
       return false;
     }
   }
+
+  @visibleForTesting
+  Future<void>? get sweepInFlight => _sweepInFlight;
 
   Future<void> sweep() => _sweepInFlight ??= _sweep().whenComplete(() {
     _sweepInFlight = null;

@@ -620,8 +620,9 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   never undo the next call's start.
 - Hang-up stops local media before the membership clear, so a stalled
   request never keeps the microphone or camera live. An engine failure on
-  a connection teardown has already closed, such as a cut-off track close,
-  is expected and is not reported.
+  a connection teardown has already closed, such as a cut-off track close
+  or codec change, is expected: it is not reported, and a call left while
+  it joins ends without failing.
 - On Android, native code takes flutter_webrtc's plugin from the engine
   that asked, never `sharedSingleton`, which points at the last engine
   created, such as a notification action's.

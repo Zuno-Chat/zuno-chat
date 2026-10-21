@@ -165,6 +165,21 @@ void main() {
   });
 
   group('in the background', () {
+    test('a call that ends while the placeholder is being swapped in fails '
+        'nothing', () {
+      inCall((call) {
+        call.join();
+        final gate = Completer<void>();
+        call.videoSlot.sender.replaceGate = gate;
+        final backgrounding = call.engine.setAppInBackground(true);
+        call.flush();
+
+        call.leave();
+        gate.complete();
+        call.wait(backgrounding);
+      });
+    });
+
     test('where the camera stops in the background, the placeholder covers '
         'it and the camera comes back with the app', () {
       inCall((call) {

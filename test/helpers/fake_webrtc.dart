@@ -82,6 +82,7 @@ class FakeSender extends RTCRtpSender {
   @override
   MediaStreamTrack? track;
   final FakePeerConnection? owner;
+  bool get closed => owner?.disposed ?? false;
   final placements = <({MediaStreamTrack? track, bool enabled})>[];
   @override
   RTCRtpParameters parameters = RTCRtpParameters(
@@ -98,8 +99,12 @@ class FakeSender extends RTCRtpSender {
     return true;
   }
 
+  Completer<void>? replaceGate;
+
   @override
   Future<void> replaceTrack(MediaStreamTrack? track) async {
+    await replaceGate?.future;
+    if (closed) throw StateError('peerConnection is null');
     this.track = track;
     replacedTracks.add(track);
     placements.add((track: track, enabled: track?.enabled ?? false));
@@ -140,19 +145,27 @@ class FakeTransceiver extends RTCRtpTransceiver {
   List<RTCRtpCodecCapability>? codecPreferences;
 
   @override
-  Future<void> setCodecPreferences(List<RTCRtpCodecCapability> codecs) async =>
-      codecPreferences = codecs;
+  Future<void> setCodecPreferences(List<RTCRtpCodecCapability> codecs) async {
+    if (sender.closed) throw StateError('peerConnection is null');
+    codecPreferences = codecs;
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class FakePeerConnection extends RTCPeerConnection {
-  FakePeerConnection(this.configuration, {this.name = 'pc', this.journal});
+  FakePeerConnection(
+    this.configuration, {
+    this.name = 'pc',
+    this.journal,
+    this.transceiverGate,
+  });
 
   final Map<String, dynamic> configuration;
   final String name;
   final List<String>? journal;
+  final Completer<void>? transceiverGate;
   final rtpTransceivers = <FakeTransceiver>[];
   final remoteDescriptions = <RTCSessionDescription>[];
   final pendingRemoteMids = <String, String>{};
@@ -242,6 +255,8 @@ class FakePeerConnection extends RTCPeerConnection {
     RTCRtpMediaType? kind,
     RTCRtpTransceiverInit? init,
   }) async {
+    await transceiverGate?.future;
+    if (disposed) throw StateError('peerConnection is null');
     final mid = '${rtpTransceivers.length}';
     final transceiver = FakeTransceiver(
       mid: mid,
@@ -369,7 +384,7 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
     required KeyProvider keyProvider,
   }) async {
     await senderGate?.future;
-    if (sender is FakeSender && (sender.owner?.disposed ?? false)) {
+    if (sender is FakeSender && sender.closed) {
       throw StateError('peerConnection not found');
     }
     return _cryptor(participantId, sender: sender);
@@ -403,6 +418,7 @@ class FakeWebRtcBackend implements WebRtcBackend {
   final adoptErrors = <String, Object>{};
   Completer<void>? adoptGate;
   Completer<void>? captureGate;
+  Completer<void>? transceiverGate;
   int cameraSwitches = 0;
   var _tracks = 0;
 
@@ -416,6 +432,7 @@ class FakeWebRtcBackend implements WebRtcBackend {
       configuration,
       name: 'pc${peerConnections.length + 1}',
       journal: journal,
+      transceiverGate: transceiverGate,
     );
     peerConnections.add(pc);
     return pc;
@@ -485,14 +502,18 @@ class FakeWebRtcBackend implements WebRtcBackend {
     releasedPlaceholders.add(placeholder);
   }
 
+  Completer<void>? senderCapabilitiesGate;
+
   @override
-  Future<RTCRtpCapabilities> getRtpSenderCapabilities(String kind) async =>
-      RTCRtpCapabilities(
-        codecs: [
-          for (final mime in ['video/AV1', 'video/H264', 'video/VP8'])
-            RTCRtpCodecCapability(clockRate: 90000, mimeType: mime),
-        ],
-      );
+  Future<RTCRtpCapabilities> getRtpSenderCapabilities(String kind) async {
+    await senderCapabilitiesGate?.future;
+    return RTCRtpCapabilities(
+      codecs: [
+        for (final mime in ['video/AV1', 'video/H264', 'video/VP8'])
+          RTCRtpCodecCapability(clockRate: 90000, mimeType: mime),
+      ],
+    );
+  }
 
   @override
   FrameCryptorFactory get frameCryptorFactory => cryptors;

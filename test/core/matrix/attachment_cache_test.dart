@@ -41,12 +41,6 @@ void main() {
       ? dir.listSync(recursive: true).whereType<File>().toList()
       : [];
 
-  Future<void> until(bool Function() done) async {
-    for (var i = 0; i < 100 && !done(); i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    }
-  }
-
   Future<void> untilStored(
     DiskAttachmentCache cache,
     String key, {
@@ -281,7 +275,7 @@ void main() {
       final newer = sparseFile('newer', megabytes: 150, modified: hourAgo);
 
       final fresh = await disk.put('fresh', bytes);
-      await until(() => !old.existsSync());
+      await disk.sweepInFlight;
 
       expect(old.existsSync(), isFalse);
       expect(newer.existsSync(), isTrue);
@@ -314,6 +308,7 @@ void main() {
         () async => bytes,
         disk: seeding,
       );
+      await seeding.sweepInFlight;
       grow(copy, megabytes: 300);
       final oldest = sparseFile(
         'oldest',
@@ -340,6 +335,7 @@ void main() {
       () async {
         final seeding = DiskAttachmentCache.forTest(dir);
         final avatar = await seeding.put('avatar', bytes, expires: false);
+        await seeding.sweepInFlight;
         avatar!.setLastModifiedSync(twoHoursAgo);
         final cached = sparseFile('cached', megabytes: 100, modified: hourAgo);
         final huge = sparseFile('huge', megabytes: 300);
@@ -355,11 +351,12 @@ void main() {
     test('avatars count against it, the oldest going first', () async {
       final seeding = DiskAttachmentCache.forTest(dir);
       final avatar = await seeding.put('avatar', bytes, expires: false);
+      await seeding.sweepInFlight;
       grow(avatar!, megabytes: 150, modified: twoHoursAgo);
       final newer = sparseFile('newer', megabytes: 150, modified: hourAgo);
 
       await disk.put('fresh', bytes);
-      await until(() => !avatar.existsSync());
+      await disk.sweepInFlight;
 
       expect(avatar.existsSync(), isFalse);
       expect(newer.existsSync(), isTrue);
@@ -370,6 +367,7 @@ void main() {
       () async {
         final seeding = DiskAttachmentCache.forTest(dir);
         final avatar = await seeding.put('avatar', bytes, expires: false);
+        await seeding.sweepInFlight;
         grow(avatar!, megabytes: 300, modified: hourAgo);
         final cached = sparseFile(
           'cached',
@@ -378,18 +376,36 @@ void main() {
         );
 
         await disk.put('fresh', bytes);
-        await until(() => !avatar.existsSync());
+        await disk.sweepInFlight;
 
         expect(avatar.existsSync(), isFalse);
         expect(cached.existsSync(), isTrue);
       },
     );
 
+    test('an entry removed elsewhere mid-sweep still frees its room', () async {
+      sparseFile('old', megabytes: 150, modified: twoHoursAgo);
+      final newer = sparseFile('newer', megabytes: 150, modified: hourAgo);
+      final racing = DiskAttachmentCache.forTest(
+        _Listing(
+          dir,
+          (entry) => p.basename(entry.path) == 'old'
+              ? _RemovedOnceMeasured(entry as File)
+              : entry,
+        ),
+      );
+
+      final reports = await reportsDuring(racing.sweep);
+
+      expect(newer.existsSync(), isTrue);
+      expect(reports, isEmpty);
+    });
+
     test('leaves a cache under 256 MiB alone', () async {
       final big = sparseFile('big', megabytes: 200);
 
       await disk.put('fresh', bytes);
-      await until(() => !big.existsSync());
+      await disk.sweepInFlight;
 
       expect(big.existsSync(), isTrue);
     });
@@ -404,6 +420,7 @@ void main() {
           () async => bytes,
           disk: seeding,
         );
+        await seeding.sweepInFlight;
         grow(copy, megabytes: 300, modified: hourAgo);
         final cached = sparseFile(
           'cached',
@@ -412,7 +429,7 @@ void main() {
         );
 
         await disk.put('fresh', bytes);
-        await until(() => !copy.existsSync() || !cached.existsSync());
+        await disk.sweepInFlight;
 
         expect(copy.existsSync(), isTrue);
         expect(cached.existsSync(), isTrue);
@@ -428,7 +445,7 @@ void main() {
 
       final second = sparseFile('second', megabytes: 150, modified: hourAgo);
       await disk.put('b', bytes);
-      await until(() => !second.existsSync());
+      expect(disk.sweepInFlight, isNull);
 
       expect(second.existsSync(), isTrue);
     });
@@ -668,7 +685,7 @@ void main() {
         sparseFile('bigger', megabytes: 150);
 
         await disk.file('anything');
-        await until(() => !stale.existsSync() || !big.existsSync());
+        expect(disk.sweepInFlight, isNull);
 
         expect(stale.existsSync(), isTrue);
         expect(big.existsSync(), isTrue);
@@ -820,6 +837,29 @@ class _Listing implements Directory {
         .list(recursive: recursive, followLinks: followLinks)
         .map(_entry);
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _RemovedOnceMeasured implements File {
+  _RemovedOnceMeasured(this._real);
+
+  final File _real;
+
+  @override
+  String get path => _real.path;
+
+  @override
+  Future<FileStat> stat() async {
+    final measured = await _real.stat();
+    _real.deleteSync();
+    return measured;
+  }
+
+  @override
+  Future<FileSystemEntity> delete({bool recursive = false}) =>
+      _real.delete(recursive: recursive);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

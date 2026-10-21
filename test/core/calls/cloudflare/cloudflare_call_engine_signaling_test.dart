@@ -263,6 +263,23 @@ void main() {
         capabilities: iosCapabilities,
       );
     });
+
+    test('a call that ends while its codec order is being set reports '
+        'nothing', () {
+      inCall((call) {
+        final gate = Completer<void>();
+        call.backend.senderCapabilitiesGate = gate;
+        final joining = call.engine.join();
+        call.flush();
+        expect(call.pc.rtpTransceivers, hasLength(2));
+
+        call.leave();
+        gate.complete();
+        call.wait(joining);
+
+        expect(caught(), isEmpty);
+      }, kind: CallKind.video);
+    });
   });
 
   group('microphone mute mode', () {
@@ -476,6 +493,21 @@ void main() {
   });
 
   group('joining fails', () {
+    test('not when the call is left while its media is being attached', () {
+      inCall((call) {
+        final gate = Completer<void>();
+        call.backend.transceiverGate = gate;
+        final joining = call.engine.join();
+        call.flush();
+
+        call.leave();
+        gate.complete();
+        call.wait(joining);
+
+        expect(call.statuses.last, CallEngineStatus.disconnected);
+      });
+    });
+
     test('an engine whose server address cannot be worked out still builds '
         'and opens local media, and fails only when it joins', () {
       fakeAsync((async) {

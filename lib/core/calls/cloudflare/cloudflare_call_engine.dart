@@ -167,7 +167,8 @@ class CloudflareCallEngine implements CallEngine {
       for (final remote in _remote.values.toList()) {
         for (final entry in remote.recvTransceivers.entries.toList()) {
           final label = '${remote.id}-${entry.key}';
-          await runBestEffort(
+          await _bestEffortOn(
+            pc,
             () => _wrapReceiver(label, entry.value.receiver, pc),
             label: 'wrap receiver after key',
           );
@@ -294,10 +295,25 @@ class CloudflareCallEngine implements CallEngine {
     }
   }
 
-  Future<void> _preferVideoCodecs(RTCRtpTransceiver transceiver) async {
+  Future<void> _bestEffortOn(
+    RTCPeerConnection pc,
+    Future<void> Function() request, {
+    required String label,
+  }) async {
+    try {
+      await request();
+    } catch (e, s) {
+      if (_isLiveConnection(pc)) reportCaught(label, e, s);
+    }
+  }
+
+  Future<void> _preferVideoCodecs(
+    RTCPeerConnection pc,
+    RTCRtpTransceiver transceiver,
+  ) async {
     final order = _capabilities.videoCodecOrder;
     if (order == null) return;
-    await runBestEffort(() async {
+    await _bestEffortOn(pc, () async {
       final supported = await _webRtc.getRtpSenderCapabilities('video');
       await transceiver.setCodecPreferences(
         orderVideoCodecs(supported.codecs ?? const [], preferred: order),
@@ -318,25 +334,18 @@ class CloudflareCallEngine implements CallEngine {
       return;
     }
     try {
-      final FrameCryptor cryptor;
-      try {
-        cryptor = await _webRtc.frameCryptorFactory
-            .createFrameCryptorForRtpReceiver(
-              participantId: label,
-              receiver: receiver,
-              algorithm: Algorithm.kAesGcm,
-              keyProvider: keyProvider,
-            );
-      } catch (_) {
-        if (_isLiveConnection(pc)) rethrow;
-        return;
-      }
+      final cryptor = await _webRtc.frameCryptorFactory
+          .createFrameCryptorForRtpReceiver(
+            participantId: label,
+            receiver: receiver,
+            algorithm: Algorithm.kAesGcm,
+            keyProvider: keyProvider,
+          );
       try {
         await cryptor.setEnabled(true);
       } catch (_) {
         await _disposeCryptors([cryptor], 'that failed to start');
-        if (_isLiveConnection(pc)) rethrow;
-        return;
+        rethrow;
       }
       if (!_isLiveConnection(pc)) {
         await _disposeCryptors([cryptor], 'for a closed connection');
@@ -424,12 +433,11 @@ class CloudflareCallEngine implements CallEngine {
     final sessionId = _sessionId;
     if (pc == null || sessionId == null || mids.isEmpty) return;
     if (!_isLiveConnection(pc)) return;
-    try {
-      await _api.closeTracks(sessionId: sessionId, mids: mids);
-    } catch (e, s) {
-      if (!_isLiveConnection(pc)) return;
-      reportCaught('closing tracks', e, s);
-    }
+    await _bestEffortOn(
+      pc,
+      () => _api.closeTracks(sessionId: sessionId, mids: mids),
+      label: 'closing tracks',
+    );
   }
 
   static const _iceIdleCutoff = Duration(milliseconds: 500);
@@ -540,6 +548,7 @@ class CloudflareCallEngine implements CallEngine {
         (_) => unawaited(_pollStats()),
       );
     } catch (_) {
+      if (_left) return;
       _setStatus(CallEngineStatus.failed);
       rethrow;
     }
@@ -622,7 +631,7 @@ class CloudflareCallEngine implements CallEngine {
         : await pc.addTransceiver(track: videoTrack, init: sendOnly);
     if (!_isLiveConnection(pc)) return;
     _localVideoTransceiver = videoTransceiver;
-    await _preferVideoCodecs(videoTransceiver);
+    await _preferVideoCodecs(pc, videoTransceiver);
     if (!_isLiveConnection(pc)) return;
     if (_keyProvider case final keyProvider?) {
       await _wrapSender(_videoSender, videoTransceiver.sender, pc, keyProvider);
@@ -846,7 +855,7 @@ class CloudflareCallEngine implements CallEngine {
   Future<void> _pollStats() async {
     final pc = _pc;
     if (pc == null || _left) return;
-    try {
+    await _bestEffortOn(pc, () async {
       final reports = await pc.getStats();
       final counters = StatsCounters.fromReports(reports);
       if (!_isLiveConnection(pc)) return;
@@ -859,9 +868,7 @@ class CloudflareCallEngine implements CallEngine {
       await _reapplyVideoEncoding();
       _notifyParticipants();
       _notifyLocalStateChanged();
-    } catch (e, s) {
-      if (_isLiveConnection(pc)) reportCaught('poll call stats', e, s);
-    }
+    }, label: 'poll call stats');
   }
 
   static const _firstMediaPollStart = Duration(milliseconds: 250);
@@ -877,13 +884,11 @@ class CloudflareCallEngine implements CallEngine {
       _firstMediaTimer = Timer(delay, () async {
         if (!_isLiveConnection(pc)) return;
         waited += delay;
-        try {
+        await _bestEffortOn(pc, () async {
           final reports = await pc.getStats();
           if (!_isLiveConnection(pc)) return;
           _noteSendingTracks(reports);
-        } catch (e, s) {
-          if (_isLiveConnection(pc)) reportCaught('poll first media', e, s);
-        }
+        }, label: 'poll first media');
         final silent = [
           for (final name in _publishedTrackNames)
             if (!_sendingTrackNames.contains(name) && _expectsMedia(name)) name,
@@ -925,11 +930,13 @@ class CloudflareCallEngine implements CallEngine {
   }
 
   Future<void> _reapplyVideoEncoding() async {
+    final pc = _pc;
     final sender = _localVideoTransceiver?.sender;
-    if (sender == null || !_sendingCamera) return;
+    if (pc == null || sender == null || !_sendingCamera) return;
     final limits = videoEncodingFor(_combinedQuality, lowDataMode: lowDataMode);
     final params = applyVideoEncodingLimits(sender.parameters, limits);
-    await runBestEffort(
+    await _bestEffortOn(
+      pc,
       () => sender.setParameters(params),
       label: 'apply video encoding limits',
     );
@@ -1086,10 +1093,16 @@ class CloudflareCallEngine implements CallEngine {
     if (transceiver == null) return _applyCameraStateBeforePublishing();
     final pc = _pc;
     if (pc == null || !_isLiveConnection(pc)) return;
-    final sender = transceiver.sender;
-    if (!_media.cameraEnabled) return _cameraOff(pc, sender);
-    if (_inBackground) return _pauseCamera(pc, sender);
-    return _cameraOn(pc, sender);
+    final apply = !_media.cameraEnabled
+        ? _cameraOff
+        : _inBackground
+        ? _pauseCamera
+        : _cameraOn;
+    try {
+      await apply(pc, transceiver.sender);
+    } catch (_) {
+      if (_isLiveConnection(pc)) rethrow;
+    }
   }
 
   Future<void> _applyCameraStateBeforePublishing() async {
@@ -1332,8 +1345,9 @@ class CloudflareCallEngine implements CallEngine {
       remote.pulledTrackNames.add(name);
       _midOwners[mid] = (participant: remote.id, trackName: name);
       unawaited(
-        runBestEffort(
-          () => _adoptExistingTrack(remote, name, mid),
+        _bestEffortOn(
+          pc,
+          () => _adoptExistingTrack(remote, name, mid, pc),
           label: 'adopt an already-arrived track',
         ),
       );
@@ -1381,7 +1395,8 @@ class CloudflareCallEngine implements CallEngine {
       if (owner == null || owner.participant != remote.id) continue;
       remote.recvTransceivers[owner.trackName] = transceiver;
       final label = '${remote.id}-${owner.trackName}';
-      await runBestEffort(
+      await _bestEffortOn(
+        pc,
         () => _wrapReceiver(label, transceiver.receiver, pc),
         label: 'wrap receiver',
       );
@@ -1392,14 +1407,13 @@ class CloudflareCallEngine implements CallEngine {
     _RemoteParticipant remote,
     String trackName,
     String mid,
+    RTCPeerConnection pc,
   ) async {
     bool stillWanted() =>
         remote.pulledTrackNames.contains(trackName) &&
         remote.streamFor(trackName) == null;
 
     if (remote.streamFor(trackName) != null) return;
-    final pc = _pc;
-    if (pc == null) return;
     for (final transceiver in await pc.getTransceivers()) {
       if (!_isLiveConnection(pc)) return;
       if (transceiver.mid != mid) continue;
@@ -1414,8 +1428,7 @@ class CloudflareCallEngine implements CallEngine {
         await stream.addTrack(track);
       } catch (_) {
         await _disposeAdoptedStream(stream);
-        if (_isLiveConnection(pc)) rethrow;
-        return;
+        rethrow;
       }
       if (!_isLiveConnection(pc) ||
           !stillWanted() ||
