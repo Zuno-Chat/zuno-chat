@@ -91,7 +91,7 @@ class MainActivity : FlutterActivity() {
 
     private fun handOverTo(running: MainActivity) {
         val launch = intent
-        finish()
+        if (isTaskRoot) finishAndRemoveTask() else finish()
         val decision = LaunchIntentDecision.onDuplicate(
             launch.action,
             launch.flags,
