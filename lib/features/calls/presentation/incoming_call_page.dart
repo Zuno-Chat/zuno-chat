@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/active_call_provider.dart';
+import '../../../core/calls/call_waiting_provider.dart';
 import '../../../core/calls/matrixrtc/call_decline.dart';
 import '../../../core/calls/matrixrtc/call_summary_message.dart';
 import '../../../core/calls/matrixrtc/incoming_call.dart';
@@ -18,13 +19,16 @@ import '../../../core/calls/notifications/ringing_call_provider.dart';
 import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/calls/platform/system_ring.dart';
 import '../../../core/calls/ring_identity.dart';
+import '../../../core/calls/show_over_lockscreen.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
+import '../../../core/matrix/room_title.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/ui/close_own_route.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../../../core/ui/zuno_theme.dart';
+import 'call_bar.dart';
 import 'call_page.dart';
 import 'call_stage.dart';
 
@@ -43,7 +47,6 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   late final IncomingCallPresenter _incomingCallPresenter;
   late final bool _ownsRing;
   bool _resolved = false;
-  bool _handedOffToCall = false;
 
   @override
   void initState() {
@@ -62,7 +65,6 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     if (answeredHere ||
         ref.read(resolvedCallIdsProvider).contains(widget.call.callId)) {
       _resolved = true;
-      _handedOffToCall = answeredHere;
       WidgetsBinding.instance.addPostFrameCallback((_) => _dismiss());
       return;
     }
@@ -76,7 +78,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
       });
       return;
     }
-    unawaited(CallNotificationService.instance.setShowOverLockscreen(true));
+    ShowOverLockscreen.instance.claim(this);
     if (_ownsRing) {
       SystemRing.instance.set(
         roomId: widget.call.room.id,
@@ -92,6 +94,19 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     _callEndedSub = widget.call.room.client.onTimelineEvent.stream.listen(
       _handleCallEnded,
     );
+    ref.listenManual<String?>(
+      callWaitingProvider,
+      (_, _) => _ringAloudUnlessWaiting(),
+      fireImmediately: true,
+    );
+  }
+
+  void _ringAloudUnlessWaiting() {
+    final callId = widget.call.callId;
+    if (_resolved) return;
+    if (waitingRing(ref.read(activeCallProvider), callId) != null) return;
+    if (SystemRing.instance.ringing.value?.callId != callId) return;
+    unawaited(_incomingCallPresenter.ringAloud(callId));
   }
 
   void _runAction(CallNotificationAction action) {
@@ -124,9 +139,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
       ),
     );
     RingingCall.instance.clear(widget.call.callId);
-    if (!_handedOffToCall) {
-      unawaited(CallNotificationService.instance.setShowOverLockscreen(false));
-    }
+    ShowOverLockscreen.instance.release(this);
     super.dispose();
   }
 
@@ -148,7 +161,6 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     if (_resolved) return;
     _resolved = true;
     final session = ref.read(activeCallProvider.notifier).answer(widget.call);
-    _handedOffToCall = true;
     if (session == null) {
       _dismiss();
       return;
@@ -157,6 +169,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     if (!mounted) return;
     final call = ref.read(activeCallControllerProvider);
     if (call != null) {
+      ShowOverLockscreen.instance.claim(call);
       showCallScreen(Navigator.of(context), call, replace: true);
     }
     session.accept().ignore();
@@ -180,6 +193,8 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   Widget build(BuildContext context) {
     final call = widget.call;
     final identity = ringIdentity(call, context.l10n);
+    final waiting = ref.watch(callWaitingProvider) == call.callId;
+    final onTheLine = waiting ? ref.watch(activeCallControllerProvider) : null;
     return PopScope(
       canPop: false,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -194,6 +209,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
                 body: SafeArea(
                   child: Column(
                     children: [
+                      if (onTheLine != null) _CallOnTheLine(call: onTheLine),
                       Expanded(
                         child: CallPortrait(
                           avatarBuilder: (radius) => MxcAvatar(
@@ -230,19 +246,25 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _RingActionButton(
-                              icon: Icons.call_end,
-                              color: callEndColor,
-                              label: l10n.callsDecline,
-                              onPressed: _decline,
+                            Flexible(
+                              child: _RingActionButton(
+                                icon: Icons.call_end,
+                                color: callEndColor,
+                                label: l10n.callsDecline,
+                                onPressed: _decline,
+                              ),
                             ),
-                            _RingActionButton(
-                              icon: call.kind == CallKind.video
-                                  ? Icons.videocam
-                                  : Icons.call,
-                              color: callAcceptColor,
-                              label: l10n.callsAccept,
-                              onPressed: _accept,
+                            Flexible(
+                              child: _RingActionButton(
+                                icon: call.kind == CallKind.video
+                                    ? Icons.videocam
+                                    : Icons.call,
+                                color: callAcceptColor,
+                                label: waiting
+                                    ? l10n.callsEndAndAnswer
+                                    : l10n.callsAccept,
+                                onPressed: _accept,
+                              ),
                             ),
                           ],
                         ),
@@ -290,9 +312,39 @@ class _RingActionButton extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         ExcludeSemantics(
-          child: Text(label, style: Theme.of(context).textTheme.labelLarge),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
         ),
       ],
+    );
+  }
+}
+
+class _CallOnTheLine extends StatelessWidget {
+  final ActiveCallController call;
+
+  const _CallOnTheLine({required this.call});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      child: ListenableBuilder(
+        listenable: call,
+        builder: (context, _) => CallTitleStatus(
+          call: call,
+          title: l10n.callsOnCallWith(roomTitle(call.session.room, l10n)),
+          style: theme.textTheme.bodyMedium!.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          alignment: MainAxisAlignment.center,
+        ),
+      ),
     );
   }
 }

@@ -9,6 +9,7 @@ import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
@@ -209,9 +210,8 @@ void main() {
       await tester.pump(const Duration(seconds: 6));
     });
 
-    testWidgets('while already on a call leaves that call alone', (
-      tester,
-    ) async {
+    testWidgets('while already on a call ends that call and opens the '
+        'answered one', (tester) async {
       final container = await pumpApp(tester);
       final existing = CallSession.forIncoming(
         room: room,
@@ -220,12 +220,21 @@ void main() {
       );
       addTearDown(existing.dispose);
       container.read(activeCallProvider.notifier).set(existing);
+      final answered = <CallSession?>[];
+      container.listen(activeCallProvider, (_, next) => answered.add(next));
 
       await router(container).handle(response(CallNotificationAction.accept));
       await tester.pump();
 
-      expect(container.read(activeCallProvider), same(existing));
-      expect(find.byType(CallPage), findsNothing);
+      expect(existing.ending, isTrue);
+      final session = answered.first!;
+      expect(session.callId, 'call1');
+      final opened = (pushed.routes.last as MaterialPageRoute<Object?>).builder(
+        tester.element(find.text('room list')),
+      );
+      expect((opened as CallPage).call.session, same(session));
+
+      await tester.pump(endMessagesWait);
     });
 
     testWidgets('for a call already over releases the lock screen and opens '

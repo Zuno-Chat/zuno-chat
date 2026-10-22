@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_decline.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
@@ -26,6 +27,8 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
+import '../../../helpers/fake_call_session.dart';
+import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -581,7 +584,8 @@ void main() {
 
     testWidgets(
       'hands off instead of double-accepting when activeCallProvider is '
-      'set after this page already built',
+      'set after this page already built, and leaves the lock screen while '
+      'that call has no screen open',
       (tester) async {
         final container = await pumpShell(tester);
         pushIncomingCall(call());
@@ -602,10 +606,138 @@ void main() {
         expect(find.text('room list'), findsOneWidget);
         expect(container.read(activeCallProvider), same(existing));
         expect(RingingCall.instance.callId, isNull);
-        expect(lockscreenShows(), contains(true));
-        expect(lockscreenShows(), isNot(contains(false)));
+        expect(lockscreenShows(), [true, false]);
       },
     );
+  });
+
+  group('while on another call', () {
+    late RecordedMethodCalls callStyle;
+
+    setUp(() => callStyle = installFakeCallStyleChannel());
+
+    Future<(ProviderContainer, FakeCallSession)> ringOverACall(
+      WidgetTester tester, {
+      bool screenOpen = false,
+    }) async {
+      final container = await pumpShell(tester);
+      final onTheLine = FakeCallSession(
+        room: room,
+        kind: CallKind.voice,
+        callId: 'held',
+      );
+      container.read(activeCallProvider.notifier).set(onTheLine);
+      await tester.pump();
+      container.read(activeCallControllerProvider)!.screenOpen = screenOpen;
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+      return (container, onTheLine);
+    }
+
+    List<Object?> rungAloud() =>
+        callStyle.callIdsOf('ringIncomingCallStyleAloud');
+
+    testWidgets('names the call on the line and offers End & answer in place '
+        'of Accept', (tester) async {
+      await ringOverACall(tester);
+
+      expect(find.textContaining('On a call with'), findsOneWidget);
+      expect(find.text('End & answer'), findsOneWidget);
+      expect(find.text('Accept'), findsNothing);
+      expect(find.text('Decline'), findsOneWidget);
+    });
+
+    testWidgets('End & answer ends the call on the line as the user and '
+        'answers this one, never ringing it aloud', (tester) async {
+      final (container, onTheLine) = await ringOverACall(tester);
+
+      await tester.tap(find.byIcon(Icons.call));
+      await tester.pump();
+
+      final answered = container.read(activeCallProvider);
+      addTearDown(() => answered?.dispose());
+      expect(answered?.callId, 'call1');
+      expect(onTheLine.hangUpsByUser, [true]);
+      expect(observer.events, contains('replace'));
+      expect(rungAloud(), isEmpty);
+    });
+
+    testWidgets('Decline leaves the call on the line alone', (tester) async {
+      final (container, onTheLine) = await ringOverACall(tester);
+
+      await tapAndRunAsync(tester, find.byIcon(Icons.call_end));
+      await tester.pumpAndSettle();
+
+      expect(onTheLine.hangUps, 0);
+      expect(container.read(activeCallProvider), same(onTheLine));
+      expect(sentEvents, hasLength(1));
+      expect(find.byType(IncomingCallPage), findsNothing);
+    });
+
+    testWidgets('Decline gives an open call screen back its place over the '
+        'lock screen', (tester) async {
+      await ringOverACall(tester, screenOpen: true);
+
+      await tapAndRunAsync(tester, find.byIcon(Icons.call_end));
+      await tester.pumpAndSettle();
+
+      expect(lockscreenShows().last, isTrue);
+    });
+
+    testWidgets('Decline takes a minimized call back off the lock screen', (
+      tester,
+    ) async {
+      await ringOverACall(tester);
+
+      await tapAndRunAsync(tester, find.byIcon(Icons.call_end));
+      await tester.pumpAndSettle();
+
+      expect(lockscreenShows().last, isFalse);
+    });
+
+    testWidgets('stays over the lock screen when the call on the line ends '
+        'under it', (tester) async {
+      final (_, onTheLine) = await ringOverACall(tester);
+
+      onTheLine.end();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IncomingCallPage), findsOneWidget);
+      expect(lockscreenShows().last, isTrue);
+    });
+
+    testWidgets('rings aloud at once when the call on the line ended before '
+        'the ring screen showed', (tester) async {
+      final container = await pumpShell(tester);
+      final onTheLine = FakeCallSession(
+        room: room,
+        kind: CallKind.voice,
+        callId: 'held',
+      );
+      container.read(activeCallProvider.notifier).set(onTheLine);
+      SystemRing.instance.set(roomId: room.id, callId: 'call1');
+      await tester.pump();
+
+      onTheLine.end();
+      pushIncomingCall(call());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Accept'), findsOneWidget);
+      expect(rungAloud(), ['call1']);
+    });
+
+    testWidgets('turns into a normal ring, aloud, once the call on the line '
+        'ends', (tester) async {
+      final (_, onTheLine) = await ringOverACall(tester);
+
+      onTheLine.end();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Accept'), findsOneWidget);
+      expect(find.text('End & answer'), findsNothing);
+      expect(find.textContaining('On a call with'), findsNothing);
+      expect(rungAloud(), ['call1']);
+    });
   });
 
   group('who is calling', () {

@@ -49,6 +49,10 @@ class RecordedMethodCalls {
     for (final call in named(method)) call.arguments,
   ];
 
+  List<Object?> callIdsOf(String method) => [
+    for (final args in argsOf(method)) (args! as Map)['callId'],
+  ];
+
   int count(String method) => named(method).length;
 
   void clear() => calls.clear();

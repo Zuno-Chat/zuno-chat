@@ -315,12 +315,22 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "startRingbackTone" -> {
-                    host.callAudio.setRingbackWanted(true)
+                    host.callAudio.setToneWanted(CallTone.Ringback, true)
                     result.success(null)
                 }
 
                 "stopRingbackTone" -> {
-                    host.callAudio.setRingbackWanted(false)
+                    host.callAudio.setToneWanted(CallTone.Ringback, false)
+                    result.success(null)
+                }
+
+                "startWaitingTone" -> {
+                    host.callAudio.setToneWanted(CallTone.Waiting, true)
+                    result.success(null)
+                }
+
+                "stopWaitingTone" -> {
+                    host.callAudio.setToneWanted(CallTone.Waiting, false)
                     result.success(null)
                 }
 

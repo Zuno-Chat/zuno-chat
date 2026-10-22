@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
@@ -139,17 +141,100 @@ void main() {
       expect(RingingCall.instance.callId, isNull);
     });
 
-    test('while another call is on settles nothing', () {
+    test('while on another call hangs that one up as the user, then takes '
+        'the line with the answered call', () {
       final live = fakeCall();
+      answering.read(activeCallProvider.notifier).start(() => live);
+
+      final answered = answering
+          .read(activeCallProvider.notifier)
+          .answer(ringing('c1'));
+
+      expect(answered?.callId, 'c1');
+      expect(live.hangUpsByUser, [true]);
+      expect(live.disposed, isTrue);
+      expect(answering.read(activeCallProvider), same(answered));
+      expect(answering.read(resolvedCallIdsProvider), {'c1'});
+      expect(RingingCall.instance.callId, isNull);
+      expect(isCallActiveInProcess(), isTrue);
+    });
+
+    test('over another call hands the line straight over, never leaving it '
+        'empty', () {
+      final live = fakeCall();
+      answering.read(activeCallProvider.notifier).start(() => live);
+      final held = <CallSession?>[];
+      answering.listen(activeCallProvider, (_, next) => held.add(next));
+
+      final answered = answering
+          .read(activeCallProvider.notifier)
+          .answer(ringing('c1'));
+
+      expect(held, [same(answered)]);
+    });
+
+    test('the call already on the line is left alone and nothing more is '
+        'answered', () {
+      final live = FakeCallSession(
+        room: room,
+        kind: CallKind.voice,
+        callId: 'c1',
+      );
       answering.read(activeCallProvider.notifier).start(() => live);
 
       expect(
         answering.read(activeCallProvider.notifier).answer(ringing('c1')),
         isNull,
       );
+      expect(live.hangUps, 0);
       expect(answering.read(activeCallProvider), same(live));
-      expect(answering.read(resolvedCallIdsProvider), isEmpty);
-      expect(RingingCall.instance.callId, 'c1');
+    });
+
+    test('over a call that already ended starts as usual, hanging nothing '
+        'up', () {
+      final ended = fakeCall()..end();
+      answering.read(activeCallProvider.notifier).start(() => ended);
+
+      final answered = answering
+          .read(activeCallProvider.notifier)
+          .answer(ringing('c1'));
+
+      expect(ended.hangUps, 0);
+      expect(answering.read(activeCallProvider), same(answered));
+    });
+
+    test('over another call opens its media only once that call\'s engine '
+        'let go', () {
+      final releasing = Completer<void>();
+      final live = fakeCall()..engineReleased = releasing.future;
+      answering.read(activeCallProvider.notifier).start(() => live);
+
+      final answered = answering
+          .read(activeCallProvider.notifier)
+          .answer(ringing('c1'));
+      addTearDown(() => answered?.dispose());
+
+      expect(answered?.previousCallReleased, same(releasing.future));
+    });
+
+    test('with no call on the line opens its media at once', () {
+      final answered = answering
+          .read(activeCallProvider.notifier)
+          .answer(ringing('c1'));
+      addTearDown(() => answered?.dispose());
+
+      expect(answered?.previousCallReleased, isNull);
+    });
+
+    test('over a call already hanging up keeps how that hang-up was asked '
+        'for', () {
+      final live = fakeCall();
+      answering.read(activeCallProvider.notifier).start(() => live);
+      unawaited(live.hangUp(summarized: true));
+
+      answering.read(activeCallProvider.notifier).answer(ringing('c1'));
+
+      expect(live.hangUpsSummarized, [true]);
     });
   });
 

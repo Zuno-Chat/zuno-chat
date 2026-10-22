@@ -123,6 +123,35 @@ class IncomingRingDecisionsTest {
     }
 
     @Test
+    fun `a waiting ring holds its ringtone back until it rings aloud, and buzzes at once`() {
+        val plan = RingPlan.from(
+            mapOf(
+                "ringtone" to true,
+                "ringtoneAsset" to "a.wav",
+                "vibrate" to true,
+                "vibrationPattern" to listOf(0, 800),
+                "waitingText" to "Answering ends your current call",
+            ),
+        )
+
+        assertNull(plan.toneNow)
+        assertEquals("a.wav", plan.ringtoneAsset)
+        assertArrayEquals(longArrayOf(0, 800), plan.vibrationPattern)
+        assertTrue(plan.waiting)
+        assertEquals("Answering ends your current call", plan.waitingText)
+    }
+
+    @Test
+    fun `a normal ring plays its ringtone at once`() {
+        val plan = RingPlan.from(
+            mapOf("ringtone" to true, "ringtoneAsset" to "a.wav"),
+        )
+
+        assertEquals("a.wav", plan.toneNow)
+        assertFalse(plan.waiting)
+    }
+
+    @Test
     fun `the Ringtone and Vibrate for calls settings each switch off their own half`() {
         val noTone = RingPlan.from(
             mapOf(

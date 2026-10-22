@@ -64,8 +64,8 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
 
     @Suppress("DEPRECATION")
     private var previousScoState = AudioManager.SCO_AUDIO_STATE_DISCONNECTED
-    private var ringbackWanted = false
-    private var ringback: ToneGenerator? = null
+    private val wantedTones = mutableSetOf<CallTone>()
+    private var playing: PlayingTone? = null
     private var reportedRoute: CallAudioRoute? = null
     private var reportedHeadsets = emptySet<CallAudioRoute>()
 
@@ -94,20 +94,20 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
         applyRoute()
         rememberState()
         audioManager.registerAudioDeviceCallback(devicesChanged, main)
-        updateRingback()
+        updateTone()
     }
 
     fun setRoute(route: CallAudioRoute) {
         this.route = route
         if (!active) return
         applyRoute()
-        updateRingback(routeChanged = true)
+        updateTone(routeChanged = true)
     }
 
     fun stop() {
         if (!active) return
         active = false
-        updateRingback()
+        updateTone()
         audioManager.unregisterAudioDeviceCallback(devicesChanged)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             stopFollowingCommunicationDevice()
@@ -122,14 +122,14 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
         holdsFocus = false
     }
 
-    fun setRingbackWanted(wanted: Boolean) {
-        ringbackWanted = wanted
-        updateRingback()
+    fun setToneWanted(tone: CallTone, wanted: Boolean) {
+        if (wanted) wantedTones.add(tone) else wantedTones.remove(tone)
+        updateTone()
     }
 
     fun release() {
-        ringbackWanted = false
-        updateRingback()
+        wantedTones.clear()
+        updateTone()
         stop()
     }
 
@@ -257,39 +257,49 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
         return CallAudioRouting.state(current, headsets)
     }
 
-    private fun updateRingback(routeChanged: Boolean = false) {
-        when (CallAudioDecision.ringback(ringbackWanted, active, ringback != null, routeChanged)) {
-            RingbackAction.Start -> ringback = startTone()
+    private fun updateTone(routeChanged: Boolean = false) {
+        val wanted = CallAudioDecision.wantedTone(wantedTones)
+        when (CallAudioDecision.tone(wanted, active, playing?.tone, routeChanged)) {
+            ToneAction.Start -> wanted?.let(::startTone)
 
-            RingbackAction.Restart -> {
+            ToneAction.Restart -> {
                 stopTone()
-                ringback = startTone()
+                wanted?.let(::startTone)
             }
 
-            RingbackAction.Stop -> stopTone()
+            ToneAction.Stop -> stopTone()
 
-            RingbackAction.None -> Unit
+            ToneAction.None -> Unit
         }
     }
 
-    private fun startTone(): ToneGenerator? = try {
-        ToneGenerator(AudioManager.STREAM_VOICE_CALL, RINGBACK_VOLUME).also {
-            it.startTone(ToneGenerator.TONE_SUP_RINGTONE)
+    private fun startTone(wanted: CallTone) {
+        playing = try {
+            val generator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, TONE_VOLUME)
+            generator.startTone(toneType(wanted))
+            PlayingTone(wanted, generator)
+        } catch (error: RuntimeException) {
+            CaughtErrors.record(context, "call tone", error)
+            null
         }
-    } catch (error: RuntimeException) {
-        CaughtErrors.record(context, "call ringback tone", error)
-        null
     }
 
     private fun stopTone() {
-        ringback?.let {
+        playing?.generator?.let {
             it.stopTone()
             it.release()
         }
-        ringback = null
+        playing = null
     }
 
+    private fun toneType(tone: CallTone): Int = when (tone) {
+        CallTone.Ringback -> ToneGenerator.TONE_SUP_RINGTONE
+        CallTone.Waiting -> ToneGenerator.TONE_SUP_CALL_WAITING
+    }
+
+    private class PlayingTone(val tone: CallTone, val generator: ToneGenerator)
+
     private companion object {
-        const val RINGBACK_VOLUME = 80
+        const val TONE_VOLUME = 80
     }
 }

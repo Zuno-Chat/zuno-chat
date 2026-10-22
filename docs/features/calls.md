@@ -30,7 +30,7 @@ flowchart LR
 | `CallEngine` → `CloudflareCallEngine` | `lib/core/calls/cloudflare/` | Media: one peer connection and one Cloudflare session per call, with every participant's tracks muxed onto it |
 | `LocalMedia` | same | Our microphone and camera: opened at call start, muted, switched and closed; the engine publishes what it holds |
 | `calls_module.dart` | same | Speaks Cloudflare's own API to the module, which adds the app id and credentials server-side. Only signaling goes through it; media flows straight between the device and the SFU |
-| `ActiveCallController` | `lib/core/calls/` | The device side of the active call for its whole life: renderers, audio route, ringback, foreground service, wake lock, lock-screen display, ear sensor, picture-in-picture and teardown. It starts when `activeCallProvider` gets a session, with no frame |
+| `ActiveCallController` | `lib/core/calls/` | The device side of the active call for its whole life: renderers, audio route, call tones, foreground service, wake lock, lock-screen display, ear sensor, picture-in-picture and teardown. It starts when `activeCallProvider` gets a session, with no frame |
 | `CallPage` → `CallView`, `CallLayer` | `lib/features/calls/presentation/` | `CallPage` is the call screen and only draws. `CallLayer` sits above the Navigator and shows a minimized call and Android picture-in-picture. `CallView` only lays out plain values |
 | Ring routing | `IncomingCallGate`, `lib/core/calls/notifications/`; iOS `RingCoordinator` | Deciding whether an invite rings, then presenting, cancelling, answering and declining rings |
 
@@ -43,7 +43,7 @@ plays for a call goes through one of six interfaces, each built by a
 |---|---|---|
 | `IncomingCallPresenter` | `CallStyle` notification with a native ring | CallKit |
 | `OngoingCallPresenter` | `CallForegroundService` | No-op: CallKit shows the call |
-| `RingbackTonePlayer` | A tone in native `CallAudio` | A native synthesized tone |
+| `CallTonePlayer` | Ringback and the call-waiting tone in native `CallAudio` | Ringback as a native synthesized tone; CallKit plays its own waiting tone |
 | `SystemCall` | No-op | The CallKit call |
 | `CallAudioOutput` | Native `CallAudio` owns focus, mode and route | Native routes in CallKit's session |
 | `PushRingBridge` | No-op | Binds pushed rings to their calls |
@@ -93,8 +93,9 @@ stateDiagram-v2
 - **It also ends, without writing anything, once its room is left** (from
   any device, watched from the start) **or this device is signed out**,
   because neither a left room nor a revoked token takes writes.
-- **One call at a time.** Starting or answering is refused while a call
-  that has not ended is held, and the call's own room reopens it instead.
+- **One call at a time.** Starting a call is refused while another is
+  live, and the call's own room reopens it instead. Answering while on a
+  call ends that call first (call waiting, below).
 - **"Prevent accidental calls"** (on by default, Settings → Chats & calls)
   asks for confirmation before a call starts.
 
@@ -370,7 +371,7 @@ session to CallKit.
 | Route | `setCommunicationDevice` on Android 12+; speakerphone plus paired Bluetooth SCO on 8–11, where the effective route comes from SCO state broadcasts |
 | Microphone mute | A stale system-wide mute is cleared for the call and restored after it |
 | Headsets | Device and route changes are reported to Dart |
-| Ringback | Plays only while wanted and while call audio is active |
+| Call tones | Ringback and the waiting tone play only while wanted and while call audio is active; the waiting tone wins, so the two never play at once |
 
 ### Ringing
 
@@ -385,7 +386,8 @@ checking in order:
 | Answered on another of my devices | Never rings; marked resolved, and a ring already up ends as answered elsewhere |
 | Crossing my own unanswered call in the same room | The lower call id wins (below) |
 | Already ringing in CallKit from a push | Rings, never turned away as busy, since native code already chose to ring it, even while the previous call is still ending |
-| While on a call or while another call rings | Declined, with a "Missed call" notice |
+| While another call rings | Declined, with a "Missed call" notice |
+| While on a call | Rings as a waiting call (below) |
 | Anything else | Rings |
 
 **Crossed calls.** When two people call each other in one room before
@@ -393,6 +395,41 @@ either answers, the lower call id wins, the matrix SDK's own rule, so both
 sides pick the same call with no coordination. The loser hangs up its own
 call and answers the other; the winner ignores the other's invite without
 declining it.
+
+**Call waiting.** A call that arrives during a call rings, and answering
+it ends the call on the line. There is no hold, by design: holding means
+two live engines and an "on hold" state other clients would have to
+understand.
+
+- **A ring is waiting while a live call other than the ringing one is
+  held**, one rule in `callWaitingProvider`. The provider hears ring
+  changes a microtask late, because the ring screen sets the ring while
+  it builds, where no provider may change; code that needs the answer at
+  once calls the same rule (`waitingRing`).
+- **Android:** the ring screen names the call on the line and offers End &
+  answer; a call-waiting beep plays on the call's audio route, and the
+  phone vibrates as the ring settings say, but never plays the ringtone.
+  The heads-up keeps `CallStyle`, whose Answer label Android sets, so its
+  second line says answering ends your current call.
+- **iOS:** CallKit shows its own End & Accept and plays its own tone,
+  because Zuno reports no hold support. Swift needs nothing for this.
+- **Answering is one handoff** (`ActiveCallNotifier.answer`): the call on
+  the line hangs up as the user and the new session takes the device in
+  the same step. The device is never released between the two, so audio
+  mode, Bluetooth headset audio and the lock-screen display carry over,
+  and the old call's membership clear and end notice still go out.
+- **The answered call opens its microphone and camera only once the
+  replaced call's engine has let go of them**, waiting at most a few
+  seconds, because two engines must never hold the camera at once.
+- **The answered call continues the live audio route**: the speaker or a
+  still-connected headset, and the earpiece only for a voice call.
+- **If the call on the line ends first, the waiting ring rings aloud.**
+  The ring screen checks on every waiting change and when it opens, the
+  request is queued behind the ring's own post, and native upgrades only
+  a ring it holds as waiting, so a late or repeated request is harmless.
+- **The push paths are unchanged**: a call keeps the app engine syncing,
+  so the gate rings a waiting call from sync while push engines and iOS
+  `RingDecision` still skip it.
 
 **Ring names.** One rule names a ring on every surface (the Android ring,
 CallKit and the ring screen): a one-to-one call by the caller, a group call
@@ -419,9 +456,12 @@ group alone.
   it through the full-screen intent, which needs full-screen-intent access
   (onboarding asks); without it, a locked phone shows only a heads-up
   notification.
-- **Only a ring's own launch shows Zuno over a locked keyguard.** Every
-  other lock-screen decision belongs to the ring page and the call
-  controller, so no other launch can show chats over the lock screen.
+- **Only a ring's own launch shows Zuno over a locked keyguard.** After
+  that, Zuno stays over the lock screen only while something claims it in
+  `ShowOverLockscreen`: a mounted ring screen, or a call whose screen is
+  open. Native hears only the first claim and the last release, so no
+  owner can undo another, and no other launch can show chats over the
+  lock screen.
 - **The ring and the ongoing-call notification follow the preview level**
   (`notifications.md`): at Nothing both name the call "Zuno call" and the
   ring shows no picture and no caller line, the same rule as the CallKit
@@ -442,7 +482,7 @@ group alone.
   handing the tap to Dart, so a slow engine start never keeps it ringing.
 - **A push engine never rings a second call while the app is on one**,
   because isolates cannot see the active call, so they read a process-wide
-  marker; the app's own gate turns the invite away from sync.
+  marker; the app's own gate rings it from sync as a waiting call.
 - **Ringback is a tone on the voice-call stream inside native call audio**,
   so it follows the chosen route. It stops when the other side's
   membership appears, not when our own join finishes. Neither the ring nor
@@ -518,7 +558,7 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | A call's UUID is UUIDv5 over room and call id | Sync, push, the extension and Dart all name the same call |
 | CallKit is the only ring UI; `IncomingCallPage` shows only when CallKit is unavailable | No double ring UI, and a ring filtered by Focus stays silent |
 | The system call follows `activeCallProvider`, not `CallPage` | Nothing renders while locked, so a lock-screen answer may never build the page |
-| A system call dropped from `activeCallProvider` ends with its session's own reason once the session has ended, and as failed only while it is live | The call controller may clear the active call before the system call hears of the end, and the lock screen shows a failed end as "Call Failed" |
+| A system call dropped from `activeCallProvider` ends with its session's own reason once the session is hanging up or has ended, and as failed only otherwise | The call controller may clear the active call before the system call hears of the end, answering a waiting call drops the one it hangs up, and the lock screen shows a failed end as "Call Failed" |
 | The audio engine starts only from CallKit's `didActivate`, with flutter_webrtc's own session management off | Audio must start in the session CallKit activates |
 | Mute goes through the input mixer and mirrors CallKit's mute | A track mute would outlive the call, and CallKit's mute holds the uplink system-wide |
 | A native backstop ends a ring before CallKit's own timeout | CallKit's own end looks like a decline |

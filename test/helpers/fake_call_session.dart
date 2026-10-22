@@ -19,6 +19,7 @@ class FakeCallSession implements CallSession {
     this.role = CallSessionRole.callee,
     this._phase = CallSessionPhase.connecting,
     this.journal,
+    this.callId = 'call-1',
   }) : engine = FakeCallEngine(kind: kind);
 
   final List<String>? journal;
@@ -32,7 +33,7 @@ class FakeCallSession implements CallSession {
   @override
   final FakeCallEngine engine;
   @override
-  String get callId => 'call-1';
+  final String callId;
 
   CallSessionPhase _phase;
   final _phases = StreamController<CallSessionPhase>.broadcast();
@@ -54,6 +55,9 @@ class FakeCallSession implements CallSession {
 
   @override
   Future<void> hangUpFinished = Future<void>.value();
+
+  @override
+  Future<void> engineReleased = Future<void>.value();
 
   bool microphoneGranted = true;
   bool disposed = false;
@@ -80,6 +84,9 @@ class FakeCallSession implements CallSession {
 
   @override
   bool get endedByUser => hangUpsByUser.firstOrNull ?? false;
+
+  @override
+  bool get ending => hangUps > 0 || _phase == CallSessionPhase.ended;
 
   @override
   void dispose() => disposed = true;

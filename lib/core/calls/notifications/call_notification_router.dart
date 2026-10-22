@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/calls/presentation/call_page.dart';
 import '../../../features/calls/presentation/incoming_call_page.dart';
-import '../../errors/caught_errors.dart';
 import '../../errors/global_error_handler.dart';
 import '../../l10n/display_text.dart';
 import '../../l10n/l10n.dart';
@@ -24,6 +23,7 @@ import '../models/call_kind.dart';
 import '../platform/incoming_call_presenter.dart';
 import '../platform/system_call.dart';
 import '../platform/system_ring.dart';
+import '../show_over_lockscreen.dart';
 import '../system_call_sync.dart';
 import 'await_room.dart';
 import 'call_notification_service.dart';
@@ -33,11 +33,8 @@ import 'ringing_call_provider.dart';
 final callNotificationRouterProvider =
     NotifierProvider<CallNotificationRouter, void>(CallNotificationRouter.new);
 
-const _endingCallWait = Duration(seconds: 5);
-
 class CallNotificationRouter extends Notifier<void> {
   bool _checkedLaunchAction = false;
-  final _endingCallIds = <String>{};
 
   @override
   void build() {
@@ -94,29 +91,7 @@ class CallNotificationRouter extends Notifier<void> {
       return;
     }
     _log('hanging up ${session.callId} from the ongoing-call notification');
-    if (callId == null) {
-      await session.hangUp();
-      return;
-    }
-    _endingCallIds.add(callId);
-    try {
-      await session.hangUp();
-    } finally {
-      _endingCallIds.remove(callId);
-    }
-  }
-
-  Future<void> _untilEnded(CallSession session) async {
-    if (session.phase == CallSessionPhase.ended) return;
-    try {
-      await session.phaseStream
-          .firstWhere((phase) => phase == CallSessionPhase.ended)
-          .timeout(_endingCallWait);
-    } on TimeoutException {
-      return;
-    } catch (e, s) {
-      reportCaught('wait for the call to end', e, s);
-    }
+    await session.hangUp();
   }
 
   Future<void> handleRingEnded(RingingCallInfo call) async {
@@ -229,25 +204,9 @@ class CallNotificationRouter extends Notifier<void> {
       return;
     }
 
-    final active = ref.read(activeCallProvider);
-    if (active != null && active.callId == call.callId) {
-      _log('already on ${call.callId}; nothing more to accept');
-      return;
-    }
-    if (active != null && _endingCallIds.contains(active.callId)) {
-      await _untilEnded(active);
-    }
+    if (_answeredHere(call.callId)) return;
     final over = await _isOver(call.callId);
-    final current = ref.read(activeCallProvider);
-    if (current != null && current.callId == call.callId) {
-      _log('already on ${call.callId}; nothing more to accept');
-      return;
-    }
-    if (current != null) {
-      _log('already on a call; ignoring accept for ${call.callId}');
-      _releaseSystemCall(call, SystemCallEnd.failed);
-      return;
-    }
+    if (_answeredHere(call.callId)) return;
     if (over) {
       _releaseSystemCall(call, SystemCallEnd.remoteEnded);
       await releaseLockscreenIfIdle();
@@ -269,11 +228,7 @@ class CallNotificationRouter extends Notifier<void> {
             kind: call.isVideo ? CallKind.video : CallKind.voice,
           ),
         );
-    if (session == null) {
-      _log('already on a call; ignoring accept for ${call.callId}');
-      _releaseSystemCall(call, SystemCallEnd.failed);
-      return;
-    }
+    if (session == null) return;
     if (navigator == null) {
       unawaited(_openCallPageWhenShown(session, instant: instant));
     } else {
@@ -314,6 +269,12 @@ class CallNotificationRouter extends Notifier<void> {
     showCallScreen(navigator, call);
   }
 
+  bool _answeredHere(String callId) {
+    if (ref.read(activeCallProvider)?.callId != callId) return false;
+    _log('already on $callId; nothing more to accept');
+    return true;
+  }
+
   Future<bool> _isOver(String callId) async =>
       ref.read(resolvedCallIdsProvider).contains(callId) ||
       await isCallResolved(callId);
@@ -326,7 +287,7 @@ class CallNotificationRouter extends Notifier<void> {
     if (await ref.read(incomingCallPresenterProvider).activeRing() != null) {
       return;
     }
-    await CallNotificationService.instance.setShowOverLockscreen(false);
+    await ShowOverLockscreen.instance.releaseUnclaimed();
   }
 
   void _reportFailure(@displayText String message) {

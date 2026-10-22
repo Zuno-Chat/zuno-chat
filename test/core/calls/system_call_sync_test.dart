@@ -533,6 +533,26 @@ void main() {
       ]);
     });
 
+    test('a call handed over while it hangs up closes its system call as the '
+        'hang-up it is, ended by the user', () async {
+      final container = syncing(iosCapabilities);
+      final first = await start(container);
+      first.remoteJoins();
+      await pumpEventQueue();
+      native.clear();
+
+      unawaited(first.hangUp(byUser: true));
+      first.endReason = CallEndReason.hungUp;
+      await start(
+        container,
+        newSession(room: _roomNamed(_otherRoomId, 'Book club')),
+      );
+
+      expect(native.argsOf('endSystemCall'), [
+        {..._call, 'reason': 'remoteEnded', 'byUser': true},
+      ]);
+    });
+
     for (final (order, pumpsBetween) in [('before', true), ('after', false)]) {
       test('a call that ends $order another call takes over leaves the new '
           'call active, its system call open', () async {

@@ -22,6 +22,30 @@ void main() {
     });
   });
 
+  group('startingRoute continuing a live route', () {
+    CallAudioRoute continuing(
+      CallAudioRoute live,
+      CallKind kind,
+      Set<CallAudioRoute> headsets,
+    ) => startingRoute(kind, headsets, continuing: live);
+
+    test('keeps the speaker or the headset still connected', () {
+      expect(continuing(speaker, CallKind.voice, {}), speaker);
+      expect(continuing(bluetooth, CallKind.video, {bluetooth}), bluetooth);
+    });
+
+    test('a voice call keeps the ear, a video call leaves it for the '
+        'speaker', () {
+      expect(continuing(earpiece, CallKind.voice, {}), earpiece);
+      expect(continuing(earpiece, CallKind.video, {}), speaker);
+    });
+
+    test('a headset gone since starts where a new call would', () {
+      expect(continuing(wired, CallKind.voice, {}), earpiece);
+      expect(continuing(wired, CallKind.voice, {bluetooth}), bluetooth);
+    });
+  });
+
   group('toggledRoute', () {
     test('anything but the speaker goes to the speaker', () {
       expect(toggledRoute(earpiece, {}), speaker);

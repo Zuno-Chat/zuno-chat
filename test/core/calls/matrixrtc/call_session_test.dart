@@ -186,6 +186,7 @@ void main() {
     Uint8List? key,
     Duration? keyRelayDelay,
     ValueListenable<bool>? pictureInPictureCamera,
+    Future<void>? previousCallReleased,
   }) {
     final built = engine ?? FakeCallEngine();
     final session = CallSession.forIncoming(
@@ -197,6 +198,7 @@ void main() {
       keyRelayBaseDelay: keyRelayDelay,
       keyRelayMaxDelay: keyRelayDelay,
       pictureInPictureCamera: pictureInPictureCamera,
+      previousCallReleased: previousCallReleased,
     );
     addTearDown(session.dispose);
     return session;
@@ -2529,6 +2531,76 @@ void main() {
       await pumpEventQueue();
 
       expect(session.phase, CallSessionPhase.active);
+    });
+  });
+
+  group('a call answered over another', () {
+    test('opens its microphone and camera only once the call it replaced has '
+        'let go of them', () async {
+      final released = Completer<void>();
+      final engine = FakeCallEngine();
+      final session = incoming(
+        engine: engine,
+        previousCallReleased: released.future,
+      );
+
+      unawaited(session.accept());
+      await pumpEventQueue();
+      expect(engine.startLocalMediaCalls, 0);
+
+      released.complete();
+      await pumpEventQueue();
+      expect(engine.startLocalMediaCalls, 1);
+    });
+
+    test('stops waiting on a call that never lets go', () {
+      fakeAsync((async) {
+        final engine = FakeCallEngine();
+        final session = incoming(
+          engine: engine,
+          previousCallReleased: Completer<void>().future,
+        );
+
+        unawaited(session.accept());
+        async.elapse(previousCallReleaseWait - const Duration(seconds: 1));
+        expect(engine.startLocalMediaCalls, 0);
+
+        async.elapse(const Duration(seconds: 1));
+        expect(engine.startLocalMediaCalls, 1);
+      });
+    });
+
+    test('hung up while it waits never opens them', () async {
+      final released = Completer<void>();
+      final engine = FakeCallEngine();
+      final session = incoming(
+        engine: engine,
+        previousCallReleased: released.future,
+      );
+      unawaited(session.accept().catchError((Object _) {}));
+      await pumpEventQueue();
+
+      await session.hangUp();
+      released.complete();
+      await pumpEventQueue();
+
+      expect(engine.startLocalMediaCalls, 0);
+    });
+
+    test('a hang-up lets go of the device the next call waits on', () async {
+      final leaveGate = Completer<void>();
+      final session = incoming(engine: FakeCallEngine()..leaveGate = leaveGate);
+      await session.accept();
+      var released = false;
+
+      unawaited(session.hangUp());
+      unawaited(session.engineReleased.then((_) => released = true));
+      await pumpEventQueue();
+      expect(released, isFalse);
+
+      leaveGate.complete();
+      await pumpEventQueue();
+      expect(released, isTrue);
     });
   });
 

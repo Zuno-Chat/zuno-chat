@@ -41,6 +41,7 @@ enum CallEndReason { hungUp, declinedByThem, missed, failed }
 
 const _ringTimeout = Duration(seconds: 45);
 const emptyCallTimeout = Duration(seconds: 15);
+const previousCallReleaseWait = Duration(seconds: 3);
 const _membershipTtl = Duration(seconds: 120);
 const _membershipRefreshInterval = Duration(seconds: 50);
 const _membershipDebounce = Duration(seconds: 1);
@@ -134,6 +135,7 @@ class CallSession {
   final Duration ringTimeout;
   final http.Client? callsHttpClient;
   final ValueListenable<bool> _pictureInPictureCamera;
+  final Future<void>? _previousCallReleased;
 
   CallSession._({
     required Room room,
@@ -148,6 +150,7 @@ class CallSession {
     this.ringTimeout = _ringTimeout,
     this.callsHttpClient,
     ValueListenable<bool>? pictureInPictureCamera,
+    this._previousCallReleased,
   }) : client = room.client,
        _roomId = room.id,
        _room = room,
@@ -163,7 +166,12 @@ class CallSession {
     _phaseController.add(phase);
   }
 
-  bool get _ending => _hangUp != null || _phase == CallSessionPhase.ended;
+  bool get ending => _hangUp != null || _phase == CallSessionPhase.ended;
+
+  Future<void> get engineReleased => _engineTeardown ?? Future<void>.value();
+
+  @visibleForTesting
+  Future<void>? get previousCallReleased => _previousCallReleased;
 
   void _followSignInAndRoom() {
     _loginSub = client.onLoginStateChanged.stream.listen((state) {
@@ -267,7 +275,7 @@ class CallSession {
     final String? invite;
     try {
       await ensurePermissions();
-      if (_ending) return;
+      if (ending) return;
       _startLocalMedia().ignore();
       invite = await (_invite = _sendInvite());
     } catch (e, s) {
@@ -281,7 +289,7 @@ class CallSession {
       await _failBeforeRinging(unsent);
       return;
     }
-    if (_ending) return;
+    if (ending) return;
     try {
       await _connect();
       _hangUpIfStillAlone(after: ringTimeout);
@@ -311,7 +319,7 @@ class CallSession {
   }
 
   Future<void> _failBeforeRinging(Object error) async {
-    if (_ending) return;
+    if (ending) return;
     failure = _failureOf(error);
     endReason = CallEndReason.failed;
     await _end('a call that never rang');
@@ -323,12 +331,17 @@ class CallSession {
 
   Future<void> _openLocalMedia() async {
     await ensurePermissions();
-    if (_ending) return;
+    if (ending) return;
     final built = engine;
     if (_cameraRefused) await built.setCameraEnabled(false);
-    if (_ending) return;
+    if (ending) return;
     await _followAppLifecycle(built);
-    if (_ending) return;
+    if (ending) return;
+    await _previousCallReleased?.timeout(
+      previousCallReleaseWait,
+      onTimeout: () {},
+    );
+    if (ending) return;
     await built.startLocalMedia();
   }
 
@@ -343,6 +356,7 @@ class CallSession {
     @visibleForTesting Duration? keyRelayMaxDelay,
     @visibleForTesting http.Client? callsHttpClient,
     @visibleForTesting ValueListenable<bool>? pictureInPictureCamera,
+    Future<void>? previousCallReleased,
   }) {
     return CallSession._(
         room: room,
@@ -356,6 +370,7 @@ class CallSession {
         keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
         callsHttpClient: callsHttpClient,
         pictureInPictureCamera: pictureInPictureCamera,
+        previousCallReleased: previousCallReleased,
       )
       .._encryptionKey = initialEncryptionKeyForTesting
       .._followSignInAndRoom()
@@ -464,7 +479,7 @@ class CallSession {
       _membershipLive = true;
 
       await _publishOwnMembership();
-      if (_ending) return;
+      if (ending) return;
       _membershipRefreshTimer = Timer.periodic(
         _membershipRefreshInterval,
         (_) => _publishMembershipBestEffort(force: true),
@@ -546,7 +561,7 @@ class CallSession {
   }
 
   Future<bool> _abandonEngineIfEnded() async {
-    if (!_ending) return false;
+    if (!ending) return false;
     await _tearDownEngine('a hangup during connect');
     return true;
   }
@@ -565,7 +580,7 @@ class CallSession {
   }
 
   void _hangUpIfStillAlone({required Duration after}) {
-    if (_ending || _everHadRemote) return;
+    if (ending || _everHadRemote) return;
     _aloneTimer = Timer(after, () {
       if (!_everHadRemote) unawaited(hangUp());
     });
@@ -655,7 +670,7 @@ class CallSession {
 
   void _relayEncryptionKeyTo(VoipParticipantId id) {
     final key = _encryptionKey;
-    if (key == null || _ending) return;
+    if (key == null || ending) return;
     _stopKeyRelay(id);
     final relay = _keyRelays[id] = _KeyRelay();
     unawaited(_attemptKeyRelay(id, key, relay, attempt: 1));
@@ -667,7 +682,7 @@ class CallSession {
     _KeyRelay relay, {
     required int attempt,
   }) async {
-    bool current() => !_ending && identical(_keyRelays[id], relay);
+    bool current() => !ending && identical(_keyRelays[id], relay);
     if (!current()) return;
     try {
       await _sendEncryptionKeyOnce(id, key);
@@ -729,7 +744,7 @@ class CallSession {
   }
 
   Future<void> refreshMembership() async {
-    if (!_membershipLive || _ending) return;
+    if (!_membershipLive || ending) return;
     final pendingTrailing = _membershipDebounceTimer;
     if (pendingTrailing == null) {
       _publishMembershipBestEffort();
@@ -753,7 +768,7 @@ class CallSession {
   }
 
   Future<void> _publishOwnMembership({bool force = false}) async {
-    if (!_membershipLive || _ending) return;
+    if (!_membershipLive || ending) return;
     final foci = engine.localFociInfo;
     if (foci == null) return;
     final fingerprint = jsonEncode({'kind': kind.name, 'foci': foci});

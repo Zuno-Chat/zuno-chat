@@ -33,7 +33,6 @@ class CallBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.bodyMedium!
         .copyWith(color: onCallActionColor);
-    final since = call.talkingSince;
     final l10n = context.l10n;
     final label = callBarLabel(
       l10n,
@@ -72,37 +71,10 @@ class CallBar extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: style,
-                              ),
-                            ),
-                            if (label != null)
-                              Flexible(
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(' · ', style: style),
-                                      Text(label, style: style),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            else if (since != null)
-                              Flexible(
-                                child: CallTimerSuffix(
-                                  since: since,
-                                  style: style,
-                                ),
-                              ),
-                          ],
+                        child: CallTitleStatus(
+                          call: call,
+                          title: title,
+                          style: style,
                         ),
                       ),
                       if (muted) ...[
@@ -133,6 +105,61 @@ class CallBar extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class CallTitleStatus extends StatelessWidget {
+  final ActiveCallController call;
+  final String title;
+  final TextStyle style;
+  final MainAxisAlignment alignment;
+
+  const CallTitleStatus({
+    required this.call,
+    required this.title,
+    required this.style,
+    this.alignment = MainAxisAlignment.start,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = callBarLabel(
+      context.l10n,
+      call.status,
+      reconnecting: call.reconnecting,
+    );
+    final since = call.talkingSince;
+    return Row(
+      mainAxisAlignment: alignment,
+      children: [
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        ),
+        if (label != null)
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(' · ', style: style),
+                  Text(label, style: style),
+                ],
+              ),
+            ),
+          )
+        else if (since != null)
+          Flexible(
+            child: CallTimerSuffix(since: since, style: style),
+          ),
+      ],
     );
   }
 }

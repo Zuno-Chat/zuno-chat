@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/calls/active_call_provider.dart';
+import '../../../core/calls/call_waiting_provider.dart';
 import '../../../core/calls/end_call.dart';
 import '../../../core/calls/incoming_call_gate.dart';
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
@@ -484,6 +486,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       postRingNotification(
         call,
         presenter: ref.read(incomingCallPresenterProvider),
+        waiting: waitingRing(ref.read(activeCallProvider), call.callId) != null,
       ),
     );
     Navigator.of(context)

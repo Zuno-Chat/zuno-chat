@@ -102,6 +102,12 @@ class CallStyleChannel :
                 result.success(IncomingRing.dismiss(context, callId))
             }
 
+            "ringIncomingCallStyleAloud" -> {
+                val callId = (call.arguments as? Map<*, *>)?.get("callId") as? String
+                callId?.let { IncomingRing.ringAloud(context, it) }
+                result.success(null)
+            }
+
             else -> result.notImplemented()
         }
     }
@@ -174,34 +180,44 @@ class CallStyleChannel :
             pendingIntentFlags(),
         )
 
-        val notification: Notification = NotificationCompat.Builder(context, channelId)
-            .setContentTitle(name)
-            .setContentText(text)
-            .setSmallIcon(smallIconResId(context))
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setOngoing(true)
-            .setAutoCancel(false)
-            .setTimeoutAfter(RingDecisions.RING_TIMEOUT_MS)
-            .setContentIntent(contentPendingIntent)
-            .setFullScreenIntent(contentPendingIntent, true)
-            .setDeleteIntent(IncomingRing.dismissIntent(context, callId))
-            .setStyle(
-                NotificationCompat.CallStyle.forIncomingCall(
-                    person,
-                    declinePendingIntent,
-                    answerPendingIntent,
-                ).setIsVideo(isVideo),
-            )
-            .build()
+        val smallIcon = smallIconResId(context)
+        val dismissIntent = IncomingRing.dismissIntent(context, callId)
+        fun notification(line: String?, alertOnce: Boolean): Notification =
+            NotificationCompat.Builder(context, channelId)
+                .setContentTitle(name)
+                .setContentText(line)
+                .setSmallIcon(smallIcon)
+                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .setOngoing(true)
+                .setAutoCancel(false)
+                .setOnlyAlertOnce(alertOnce)
+                .setTimeoutAfter(RingDecisions.RING_TIMEOUT_MS)
+                .setContentIntent(contentPendingIntent)
+                .setFullScreenIntent(contentPendingIntent, true)
+                .setDeleteIntent(dismissIntent)
+                .setStyle(
+                    NotificationCompat.CallStyle.forIncomingCall(
+                        person,
+                        declinePendingIntent,
+                        answerPendingIntent,
+                    ).setIsVideo(isVideo),
+                )
+                .build()
 
         val ring = RingPlan.from(args)
+        fun tonePath(asset: String?) = asset?.let { assets.getAssetFilePathByName(it) }
         IncomingRing.present(
             context,
             callId,
             token,
-            notification,
-            ring.ringtoneAsset?.let { assets.getAssetFilePathByName(it) },
+            notification(ring.waitingText ?: text, alertOnce = false),
+            tonePath(ring.toneNow),
             ring.vibrationPattern,
+            if (ring.waiting) {
+                AloudRing(notification(text, alertOnce = true), tonePath(ring.ringtoneAsset))
+            } else {
+                null
+            },
         )
     }
 

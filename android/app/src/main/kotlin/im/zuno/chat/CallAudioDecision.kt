@@ -2,7 +2,12 @@ package im.zuno.chat
 
 import android.media.AudioManager
 
-enum class RingbackAction {
+enum class CallTone {
+    Ringback,
+    Waiting,
+}
+
+enum class ToneAction {
     Start,
     Restart,
     Stop,
@@ -16,16 +21,22 @@ enum class ScoAction {
 }
 
 object CallAudioDecision {
-    fun ringback(
-        wanted: Boolean,
+    fun wantedTone(wanted: Set<CallTone>): CallTone? = when {
+        CallTone.Waiting in wanted -> CallTone.Waiting
+        CallTone.Ringback in wanted -> CallTone.Ringback
+        else -> null
+    }
+
+    fun tone(
+        wanted: CallTone?,
         active: Boolean,
-        playing: Boolean,
+        playing: CallTone?,
         routeChanged: Boolean,
-    ): RingbackAction = when {
-        !wanted || !active -> if (playing) RingbackAction.Stop else RingbackAction.None
-        !playing -> RingbackAction.Start
-        routeChanged -> RingbackAction.Restart
-        else -> RingbackAction.None
+    ): ToneAction = when {
+        wanted == null || !active -> if (playing != null) ToneAction.Stop else ToneAction.None
+        playing == null -> ToneAction.Start
+        playing != wanted || routeChanged -> ToneAction.Restart
+        else -> ToneAction.None
     }
 
     fun reportsChange(

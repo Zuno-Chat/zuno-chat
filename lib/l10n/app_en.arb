@@ -270,6 +270,10 @@
     "description": "Call status while the call sets up encryption"
   },
   "callsEncryptingHint": "Still encrypting. If this continues, hang up and try again.",
+  "callsEndAndAnswer": "End & answer",
+  "@callsEndAndAnswer": {
+    "description": "Button on the ring screen while you are on another call: end that call and answer this one"
+  },
   "callsEndCall": "End call",
   "@callsEndCall": {
     "description": "Tooltip on the call control: hang up"
@@ -365,6 +369,15 @@
       }
     }
   },
+  "callsOnCallWith": "On a call with {name}",
+  "@callsOnCallWith": {
+    "description": "Top line of the ring screen while you are on another call; name is that call's chat or room",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "callsOngoingCall": "Ongoing call",
   "@callsOngoingCall": {
     "description": "Android notification title and category name while you are in a call",
@@ -378,6 +391,10 @@
     "description": "Call status while the call reconnects"
   },
   "callsReturnToCall": "Return to call",
+  "callsRingWaitingHint": "Answering ends your current call",
+  "@callsRingWaitingHint": {
+    "description": "Second line of the Android incoming-call notification while you are on another call"
+  },
   "callsScreenCaptureHidden": "Zuno is hidden while the screen is recorded or shared.",
   "@callsScreenCaptureHidden": {
     "x-native": [

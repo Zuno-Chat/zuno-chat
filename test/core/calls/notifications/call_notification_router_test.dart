@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:fake_async/fake_async.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -81,6 +80,18 @@ void main() {
     await CallNotificationService.instance.initialize(claimLiveRoutes: false);
   }
 
+  Future<void> showApp(WidgetTester tester) => tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: globalNavigatorKey,
+        home: const SizedBox(),
+      ),
+    ),
+  );
+
   CallSession startOngoingCall(String callId) {
     final gate = teardownGate;
     final session = CallSession.forIncoming(
@@ -112,10 +123,6 @@ void main() {
           isVideo: false,
         ),
       );
-
-  List<Object?> callIdsSent(RecordedMethodCalls toNative, String method) => [
-    for (final args in toNative.argsOf(method)) (args! as Map)['callId'],
-  ];
 
   void mockLaunchAction({required String action, required String callId}) {
     installFakeLocalNotifications().launchDetails = {
@@ -363,18 +370,6 @@ void main() {
       restartRouterOn(legacyIos, presenter: RecordingIncomingCallPresenter());
     });
 
-    Future<void> showApp(WidgetTester tester) => tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          navigatorKey: globalNavigatorKey,
-          home: const SizedBox(),
-        ),
-      ),
-    );
-
     testWidgets('ending the call in progress and answering the next starts the '
         'next', (tester) async {
       await showApp(tester);
@@ -386,55 +381,66 @@ void main() {
         await pumpEventQueue();
       });
 
-      expect(callIdsSent(toNative, 'startSystemCall'), ['call1', 'call2']);
+      expect(toNative.callIdsOf('startSystemCall'), ['call1', 'call2']);
     });
 
-    testWidgets('hanging up the answered call while the one before is still '
-        'ending starts nothing and marks the answered call over', (
-      tester,
-    ) async {
+    testWidgets('answering while the call before is still ending starts the '
+        'answered call at once, without waiting on that call', (tester) async {
       await showApp(tester);
 
       await tester.runAsync(() async {
         teardownGate = Completer<void>();
-        startOngoingCall('call1');
+        final ending = startOngoingCall('call1');
+        final answered = <String?>[];
+        container.listen(
+          activeCallProvider,
+          (_, next) => answered.add(next?.callId),
+        );
         await sendFromNative('hangUpCall', {'callId': 'call1'});
         await sendFromNative('answerCall', bobsCall(callId: 'call2'));
         await pumpEventQueue();
-        await sendFromNative('hangUpCall', {'callId': 'call2'});
-        await pumpEventQueue();
+
+        expect(toNative.callIdsOf('startSystemCall'), ['call1', 'call2']);
+        expect(answered.first, 'call2');
+        expect(ending.ending, isTrue);
         teardownGate!.complete();
         await pumpEventQueue();
       });
+    });
+  });
 
-      expect(callIdsSent(toNative, 'startSystemCall'), ['call1']);
-      expect(container.read(resolvedCallIdsProvider), contains('call2'));
+  group('an accept while on another call ends that one and answers', () {
+    setUp(() async {
+      silenceMethodChannels(const ['zuno/vibration']);
+      await startNotificationService();
+      installFakeCallsChannel();
     });
 
-    test('when the call before never finishes ending, gives up after five '
-        'seconds and ends the answered call as failed', () {
-      teardownGate = Completer<void>();
-      final ongoing = startOngoingCall('call1');
+    for (final (platform, capabilities) in [
+      ('iOS', iosCapabilities),
+      ('Android', androidCapabilities),
+    ]) {
+      testWidgets('on $platform', (tester) async {
+        restartRouterOn(capabilities);
+        await showApp(tester);
+        final ongoing = startOngoingCall('ongoing');
+        final answered = <String?>[];
+        container.listen(
+          activeCallProvider,
+          (_, next) => answered.add(next?.callId),
+        );
 
-      fakeAsync((time) {
-        unawaited(router().handleHangUp('call1'));
-        unawaited(router().handle(accept(callId: 'call2')));
-        time.elapse(const Duration(milliseconds: 4900));
-        expect(toNative.argsOf('endSystemCall'), isEmpty);
+        await tester.runAsync(() async {
+          await router().handle(accept());
+          await pumpEventQueue();
+        });
 
-        time.elapse(const Duration(milliseconds: 100));
-        expect(toNative.argsOf('endSystemCall'), [
-          {
-            'roomId': room.id,
-            'callId': 'call2',
-            'reason': 'failed',
-            'byUser': false,
-          },
-        ]);
+        expect(ongoing.ending, isTrue);
+        expect(ongoing.endedByUser, isTrue);
+        expect(answered.first, 'call1');
+        await tester.pump(const Duration(seconds: 6));
       });
-      expect(callIdsSent(toNative, 'startSystemCall'), ['call1']);
-      expect(container.read(activeCallProvider), same(ongoing));
-    });
+    }
   });
 
   group('an accept the app cannot take', () {
@@ -448,23 +454,6 @@ void main() {
 
     group('on iOS ends the CallKit call', () {
       setUp(() => restartRouterOn(iosCapabilities));
-
-      test('as failed while already on another call', () async {
-        final ongoing = startOngoingCall('ongoing');
-
-        await router().handle(accept());
-        await pumpEventQueue();
-
-        expect(toNative.argsOf('endSystemCall'), [
-          {
-            'roomId': room.id,
-            'callId': 'call1',
-            'reason': 'failed',
-            'byUser': false,
-          },
-        ]);
-        expect(container.read(activeCallProvider), same(ongoing));
-      });
 
       test(
         'as ended by the other side when the call is already over',
@@ -525,16 +514,6 @@ void main() {
     group('on Android asks the system to end nothing', () {
       setUp(() => restartRouterOn(androidCapabilities));
 
-      test('while already on another call', () async {
-        final ongoing = startOngoingCall('ongoing');
-
-        await router().handle(accept());
-        await pumpEventQueue();
-
-        expect(toNative.argsOf('endSystemCall'), isEmpty);
-        expect(container.read(activeCallProvider), same(ongoing));
-      });
-
       test('when the call is already over', () async {
         container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
 
@@ -591,7 +570,7 @@ void main() {
       await pumpEventQueue();
 
       expect(started, ['call1']);
-      expect(callIdsSent(toNative, 'startSystemCall'), ['call1']);
+      expect(toNative.callIdsOf('startSystemCall'), ['call1']);
       expect(permissions.calls, contains('requestPermissions'));
     });
 
@@ -643,7 +622,7 @@ void main() {
       startOngoingCall('call1');
       await pumpEventQueue();
 
-      expect(callIdsSent(toNative, 'startSystemCall'), ['call1']);
+      expect(toNative.callIdsOf('startSystemCall'), ['call1']);
     });
   });
 }

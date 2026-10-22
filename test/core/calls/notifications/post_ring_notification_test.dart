@@ -255,7 +255,7 @@ void main() {
   });
 }
 
-class _ScriptedPresenter implements IncomingCallPresenter {
+class _ScriptedPresenter extends NoopIncomingCallPresenter {
   _ScriptedPresenter({this.outcome = RingOutcome.shown, this.whileShowing});
 
   final RingOutcome outcome;
@@ -273,6 +273,7 @@ class _ScriptedPresenter implements IncomingCallPresenter {
     bool isGroupCall = false,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
+    bool waiting = false,
   }) async {
     await whileShowing?.call();
     return outcome;
@@ -284,7 +285,4 @@ class _ScriptedPresenter implements IncomingCallPresenter {
     String? callId,
     RingEnd end = RingEnd.remoteEnded,
   }) async => cancelled.add(callId);
-
-  @override
-  Future<RingingCallInfo?> activeRing() async => null;
 }

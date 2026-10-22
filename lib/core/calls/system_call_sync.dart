@@ -147,7 +147,7 @@ class _SystemCallBinding {
 
   void abandon() {
     if (_ended) return;
-    if (session.phase == CallSessionPhase.ended) {
+    if (session.ending) {
       _closeAsEnded();
     } else {
       _close(SystemCallEnd.failed);

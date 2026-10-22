@@ -18,6 +18,7 @@ import 'active_call_provider.dart';
 import 'call_audio_route.dart';
 import 'call_picture_in_picture.dart';
 import 'call_proximity.dart';
+import 'call_waiting_provider.dart';
 import 'cloudflare/webrtc_backend.dart';
 import 'matrixrtc/call_session.dart';
 import 'models/call_engine_participant.dart';
@@ -29,8 +30,10 @@ import 'models/call_surface.dart';
 import 'models/voip_participant_id.dart';
 import 'notifications/call_notification_service.dart';
 import 'platform/call_audio_output.dart';
+import 'platform/call_tone_player.dart';
 import 'platform/ongoing_call_presenter.dart';
-import 'platform/ringback_tone_player.dart';
+import 'platform/system_ring.dart';
+import 'show_over_lockscreen.dart';
 
 const _videoDrainDelay = Duration(milliseconds: 500);
 const _callConfirmPromptDelay = Duration(seconds: 30);
@@ -66,6 +69,10 @@ class ActiveCallControllers extends Notifier<ActiveCallController?> {
       _current?.leave();
       state = _current = session == null ? null : _start(session);
     });
+    ref.listen<String?>(
+      callWaitingProvider,
+      (_, waiting) => _current?.ringWaiting(waiting != null),
+    );
     ref.onDispose(() => _current?.close());
     final session = ref.read(activeCallProvider);
     return _current = session == null ? null : _start(session);
@@ -73,20 +80,24 @@ class ActiveCallControllers extends Notifier<ActiveCallController?> {
 
   ActiveCallController _start(CallSession session) {
     return ActiveCallController(
-      session: session,
-      ongoingCall: ref.read(ongoingCallPresenterProvider),
-      ringback: ref.read(ringbackTonePlayerProvider),
-      capabilities: ref.read(platformCapabilitiesProvider),
-      deviceEffects: _deviceEffects,
-      ownsDevice: () {
-        if (!ref.mounted) return false;
-        final current = ref.read(activeCallProvider);
-        return current == null || identical(current, session);
-      },
-      release: () {
-        if (ref.mounted) ref.read(activeCallProvider.notifier).clear(session);
-      },
-    )..start();
+        session: session,
+        ongoingCall: ref.read(ongoingCallPresenterProvider),
+        tones: ref.read(callTonePlayerProvider),
+        capabilities: ref.read(platformCapabilitiesProvider),
+        deviceEffects: _deviceEffects,
+        ownsDevice: () {
+          if (!ref.mounted) return false;
+          final current = ref.read(activeCallProvider);
+          return current == null || identical(current, session);
+        },
+        release: () {
+          if (ref.mounted) ref.read(activeCallProvider.notifier).clear(session);
+        },
+      )
+      ..start()
+      ..ringWaiting(
+        waitingRing(session, SystemRing.instance.ringing.value?.callId) != null,
+      );
   }
 }
 
@@ -94,7 +105,7 @@ class ActiveCallController extends ChangeNotifier {
   ActiveCallController({
     required this.session,
     required this._ongoingCall,
-    required this._ringback,
+    required this._tones,
     required PlatformCapabilities capabilities,
     required this._deviceEffects,
     required this._ownsDevice,
@@ -105,7 +116,7 @@ class ActiveCallController extends ChangeNotifier {
 
   final CallSession session;
   final OngoingCallPresenter _ongoingCall;
-  final RingbackTonePlayer _ringback;
+  final CallTonePlayer _tones;
   final CallAudioOutput _audioOutput;
   final bool _systemPicksStartingRoute;
   final bool _detachVideoBeforeRelease;
@@ -139,7 +150,6 @@ class ActiveCallController extends ChangeNotifier {
   bool _released = false;
   _PictureInPictureOffer? _sentPictureInPicture;
   bool? _sentProximityScreenOff;
-  bool? _sentShowOverLockscreen;
 
   List<CallEngineParticipant> get participants => _participants;
 
@@ -289,8 +299,10 @@ class ActiveCallController extends ChangeNotifier {
     _headsets = snapshot.headsets;
     if (_finished) return;
     if (!_routeChosen) {
-      final systemRoute = _systemPicksStartingRoute ? snapshot.route : null;
-      _audioRoute = systemRoute ?? startingRoute(session.kind, _headsets);
+      final live = snapshot.route;
+      _audioRoute = _systemPicksStartingRoute && live != null
+          ? live
+          : startingRoute(session.kind, _headsets, continuing: live);
       _routeChosen = true;
     }
     _notify();
@@ -515,26 +527,30 @@ class ActiveCallController extends ChangeNotifier {
   void _syncShowOverLockscreen() {
     if (!_started || _finished) return;
     if (!_screenOpen) {
-      _sendShowOverLockscreen(false);
+      ShowOverLockscreen.instance.release(this);
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_started && !_finished && _screenOpen) _sendShowOverLockscreen(true);
+      if (_started && !_finished && _screenOpen) {
+        ShowOverLockscreen.instance.claim(this);
+      }
     });
   }
 
-  void _sendShowOverLockscreen(bool show) {
-    if (show == _sentShowOverLockscreen) return;
-    _sentShowOverLockscreen = show;
-    unawaited(_deviceEffects.run(() => _setShowOverLockscreen(show)));
+  void ringWaiting(bool waiting) {
+    if (!_finished) _tone(CallTone.waiting, on: waiting);
   }
 
   void _syncRingback() {
     if (session.role != CallSessionRole.caller) return;
-    final waiting =
-        !session.everHadRemote && session.phase != CallSessionPhase.ended;
-    unawaited(waiting ? _ringback.start() : _ringback.stop());
+    _tone(
+      CallTone.ringback,
+      on: !session.everHadRemote && session.phase != CallSessionPhase.ended,
+    );
   }
+
+  void _tone(CallTone tone, {required bool on}) =>
+      unawaited(on ? _tones.start(tone) : _tones.stop(tone));
 
   void _onAudioDevicesChanged() {
     _headsetSync = _headsetSync.then((_) => _syncHeadsets());
@@ -579,11 +595,6 @@ class ActiveCallController extends ChangeNotifier {
   Future<void> _keepScreenOn() =>
       runBestEffort(WakelockPlus.enable, label: 'keep the screen on');
 
-  Future<void> _setShowOverLockscreen(bool show) => runBestEffort(
-    () => CallNotificationService.instance.setShowOverLockscreen(show),
-    label: 'show over the lock screen',
-  );
-
   Future<void> _toggleCameraOrThrow() async {
     if (session.kind == CallKind.voice) {
       await session.engine.switchToVideo();
@@ -618,7 +629,10 @@ class ActiveCallController extends ChangeNotifier {
     _talkedLongEnoughTimer?.cancel();
     _release();
     _notify();
-    unawaited(_ringback.stop());
+    for (final tone in CallTone.values) {
+      _tone(tone, on: false);
+    }
+    ShowOverLockscreen.instance.release(this);
     _audioOutput.unwatch();
     await _deviceEffects.run(_releaseDevice);
     _releaseMedia();
@@ -647,8 +661,7 @@ class ActiveCallController extends ChangeNotifier {
     ));
     _sendProximityScreenOff(false);
     await runBestEffort(_audioOutput.end, label: 'stop call audio');
-    _sentShowOverLockscreen = false;
-    await _setShowOverLockscreen(false);
+    await ShowOverLockscreen.instance.releaseUnclaimed();
     await runBestEffort(WakelockPlus.disable, label: 'let the screen sleep');
   }
 

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
+import 'package:zuno/core/calls/call_waiting_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
@@ -14,6 +15,8 @@ import 'package:zuno/core/calls/models/call_status.dart';
 import 'package:zuno/core/calls/models/call_surface.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/calls/platform/call_tone_player.dart';
+import 'package:zuno/core/calls/platform/system_ring.dart';
 
 import '../../helpers/call_channel_mocks.dart';
 import '../../helpers/fake_call_engine.dart';
@@ -60,8 +63,8 @@ void main() {
     expect(container.read(activeCallControllerProvider), isNull);
   });
 
-  test('a call replaced by another leaves the new call its notice and its '
-      'call audio, started on its own route', () async {
+  test('a call handed over to the next leaves it the notice and the call '
+      'audio, on the route the first call was using', () async {
     final mocks = CallChannelMocks();
     final container = containerWithControllers();
     final first = FakeCallSession(room: buildCallRoom(), kind: CallKind.video);
@@ -76,10 +79,91 @@ void main() {
     expect(mocks.count('stopCallAudio'), 0);
     expect(mocks.argsOf('startCallAudio'), [
       {'route': 'speaker'},
-      {'route': 'earpiece'},
+      {'route': 'speaker'},
     ]);
     expect(mocks.callAudioRunning, isTrue);
     expect(container.read(activeCallControllerProvider)?.session, same(second));
+  });
+
+  test('the call after one that ended starts on its own route', () async {
+    final mocks = CallChannelMocks();
+    final container = containerWithControllers();
+    final first = FakeCallSession(room: buildCallRoom(), kind: CallKind.video);
+    container.read(activeCallProvider.notifier).set(first);
+    await pumpEventQueue();
+    first.end();
+    await pumpEventQueue();
+
+    container.read(activeCallProvider.notifier).start(voiceCall);
+    await pumpEventQueue();
+
+    expect(mocks.argsOf('startCallAudio'), [
+      {'route': 'speaker'},
+      {'route': 'earpiece'},
+    ]);
+  });
+
+  group('the waiting tone', () {
+    Set<CallTone> tones() => NativeCallTonePlayer.callAudio.playing;
+
+    Future<FakeCallSession> onACall() async {
+      CallChannelMocks();
+      final container = containerWithControllers();
+      final call = voiceCall();
+      container.read(activeCallProvider.notifier).set(call);
+      await pumpEventQueue();
+      return call;
+    }
+
+    test('plays while another call rings, and stops with that ring', () async {
+      final call = await onACall();
+
+      SystemRing.instance.set(roomId: call.room.id, callId: 'waiting');
+      await pumpEventQueue();
+      expect(tones(), {CallTone.waiting});
+
+      SystemRing.instance.clear('waiting');
+      await pumpEventQueue();
+      expect(tones(), isEmpty);
+    });
+
+    test('stops once its call ends, while the ring goes on', () async {
+      final call = await onACall();
+      SystemRing.instance.set(roomId: call.room.id, callId: 'waiting');
+      await pumpEventQueue();
+
+      call.end();
+      await pumpEventQueue();
+
+      expect(tones(), isEmpty);
+      expect(SystemRing.instance.ringing.value?.callId, 'waiting');
+    });
+
+    test('plays for a ring already waiting when its call takes the line, '
+        'whichever listener hears first', () async {
+      CallChannelMocks();
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      container.read(callWaitingProvider);
+      container.read(activeCallControllerProvider);
+      final call = voiceCall();
+      SystemRing.instance.set(roomId: call.room.id, callId: 'waiting');
+      await pumpEventQueue();
+
+      container.read(activeCallProvider.notifier).set(call);
+      await pumpEventQueue();
+
+      expect(tones(), {CallTone.waiting});
+    });
+
+    test('never plays for the call on the line', () async {
+      final call = await onACall();
+
+      SystemRing.instance.set(roomId: call.room.id, callId: call.callId);
+      await pumpEventQueue();
+
+      expect(tones(), isEmpty);
+    });
   });
 
   test('a call that ends before it starts never undoes the next call\'s '

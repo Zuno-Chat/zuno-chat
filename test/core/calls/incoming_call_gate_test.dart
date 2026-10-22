@@ -202,18 +202,37 @@ void main() {
     ]);
   });
 
-  group('a second call while busy is declined and announced as missed', () {
+  testWidgets('a call while on a call rings as a waiting call, with '
+      'nothing declined', (tester) async {
+    final container = await pumpGate(tester);
+    final session = onACall(container);
+    final declined = declines.watch();
+
+    expect(await admit(tester, container, callFrom('call2')), isTrue);
+
+    expect(declined, isEmpty);
+    expect(container.read(resolvedCallIdsProvider), isEmpty);
+    expect(find.textContaining('Missed call'), findsNothing);
+    expect(container.read(activeCallProvider), same(session));
+    expect(session.hangUps, 0);
+  });
+
+  group('a further call while one already rings is declined and announced '
+      'as missed', () {
     testWidgets('while on a call', (tester) async {
       final container = await pumpGate(tester);
       final session = onACall(container);
+      SystemRing.instance.set(roomId: room.id, callId: 'waiting');
       final declined = declines.watch();
 
-      expect(await admit(tester, container, callFrom('call2')), isFalse);
+      expect(await admit(tester, container, callFrom('call3')), isFalse);
 
-      expect(declined, ['call2']);
-      expect(container.read(resolvedCallIdsProvider), contains('call2'));
+      expect(declined, ['call3']);
+      expect(container.read(resolvedCallIdsProvider), contains('call3'));
       expect(find.text('Missed call from Carol'), findsOneWidget);
       expect(container.read(activeCallProvider), same(session));
+      expect(SystemRing.instance.ringing.value?.callId, 'waiting');
+      SystemRing.instance.clear('waiting');
     });
 
     testWidgets('while another call rings', (tester) async {
@@ -261,7 +280,7 @@ void main() {
 
   group('two people calling each other at once', () {
     testWidgets('the call with the lower id wins: mine is hung up and theirs '
-        'answered, with nothing declined', (tester) async {
+        'takes the line straight over, with nothing declined', (tester) async {
       installFakePermissions(onRequest: permissionDenied);
       final container = await pumpGate(tester);
       final mine = onACall(container, role: CallSessionRole.caller);
@@ -274,11 +293,6 @@ void main() {
       expect(await admit(tester, container, callFrom('call-0')), isFalse);
       expect(mine.hangUpsByUser, [false]);
       expect(mine.hangUpsSummarized, [true]);
-      expect(started, isEmpty);
-
-      mine.end(reason: CallEndReason.missed);
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pump();
 
       final answered = started.single;
       addTearDown(answered.dispose);
@@ -339,7 +353,7 @@ void main() {
       expect(container.read(resolvedCallIdsProvider), isEmpty);
     });
 
-    testWidgets('once my call was answered, theirs is just a second call', (
+    testWidgets('once my call was answered, theirs is just a waiting call', (
       tester,
     ) async {
       final container = await pumpGate(tester);
@@ -347,13 +361,13 @@ void main() {
         ..everHadRemote = true;
       final declined = declines.watch();
 
-      expect(await admit(tester, container, callFrom('call-0')), isFalse);
+      expect(await admit(tester, container, callFrom('call-0')), isTrue);
 
-      expect(declined, ['call-0']);
+      expect(declined, isEmpty);
       expect(mine.hangUps, 0);
     });
 
-    testWidgets('my call in another room makes theirs just a second call', (
+    testWidgets('my call in another room makes theirs just a waiting call', (
       tester,
     ) async {
       final container = await pumpGate(tester);
@@ -364,9 +378,9 @@ void main() {
       );
       final declined = declines.watch();
 
-      expect(await admit(tester, container, callFrom('call-0')), isFalse);
+      expect(await admit(tester, container, callFrom('call-0')), isTrue);
 
-      expect(declined, ['call-0']);
+      expect(declined, isEmpty);
       expect(mine.hangUps, 0);
     });
   });

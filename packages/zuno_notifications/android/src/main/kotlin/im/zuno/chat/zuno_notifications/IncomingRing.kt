@@ -19,6 +19,8 @@ import java.io.FileInputStream
 import java.io.FileNotFoundException
 import org.json.JSONObject
 
+class AloudRing(val notification: Notification, val toneKey: String?)
+
 object IncomingRing {
     const val NOTIFICATION_ID = 4002
     const val ACTION_TIMED_OUT = "im.zuno.chat.zuno_notifications.RING_TIMED_OUT"
@@ -40,6 +42,7 @@ object IncomingRing {
     private var player: MediaPlayer? = null
     private var vibrator: Vibrator? = null
     private var timeout: Runnable? = null
+    private var aloud: AloudRing? = null
 
     @Synchronized
     fun present(
@@ -49,6 +52,7 @@ object IncomingRing {
         notification: Notification,
         toneKey: String?,
         vibrationPattern: LongArray?,
+        aloud: AloudRing? = null,
     ) {
         val app = context.applicationContext
         silence(app)
@@ -57,7 +61,18 @@ object IncomingRing {
         ringingCallId = callId
         player = toneKey?.let { startTone(app, it) }
         vibrator = vibrationPattern?.let { startVibration(app, it) }
+        this.aloud = aloud
         armTimeout(app, callId)
+    }
+
+    @Synchronized
+    fun ringAloud(context: Context, callId: String) {
+        val next = aloud ?: return
+        if (ringingCallId != callId) return
+        aloud = null
+        val app = context.applicationContext
+        NotificationManagerCompat.from(app).notify(NOTIFICATION_ID, next.notification)
+        player = next.toneKey?.let { startTone(app, it) }
     }
 
     @Synchronized
@@ -121,6 +136,7 @@ object IncomingRing {
 
     private fun silence(app: Context) {
         ringingCallId = null
+        aloud = null
         ringPreferences(app).edit().remove(TOKEN_KEY).apply()
         player?.release()
         player = null

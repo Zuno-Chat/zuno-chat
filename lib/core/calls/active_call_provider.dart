@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart' show Room;
@@ -40,22 +42,38 @@ class ActiveCallNotifier extends Notifier<CallSession?> {
     required Room room,
     required String callId,
     required CallKind kind,
-  }) => start(
-    () => CallSession.forIncoming(
-      room: room,
-      callId: callId,
-      kind: kind,
-      lowDataMode: ref.read(lowDataCallsProvider),
-    ),
-  );
+  }) => start(() => _joining(room: room, callId: callId, kind: kind));
 
   CallSession? answer(IncomingCall call) {
-    final session = join(room: call.room, callId: call.callId, kind: call.kind);
-    if (session == null) return null;
+    final live = state;
+    if (live != null && !live.ending) {
+      if (live.callId == call.callId) return null;
+      unawaited(live.hangUp(byUser: true));
+    }
+    final joining = _joining(
+      room: call.room,
+      callId: call.callId,
+      kind: call.kind,
+      previousCallReleased: live?.engineReleased,
+    );
+    _hold(joining);
     ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
     RingingCall.instance.clear(call.callId);
-    return session;
+    return joining;
   }
+
+  CallSession _joining({
+    required Room room,
+    required String callId,
+    required CallKind kind,
+    Future<void>? previousCallReleased,
+  }) => CallSession.forIncoming(
+    room: room,
+    callId: callId,
+    kind: kind,
+    lowDataMode: ref.read(lowDataCallsProvider),
+    previousCallReleased: previousCallReleased,
+  );
 
   @visibleForTesting
   void set(CallSession? session) => _hold(session);

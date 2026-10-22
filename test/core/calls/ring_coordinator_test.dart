@@ -258,7 +258,8 @@ void main() {
       expect(find.byType(IncomingCallPage), findsOneWidget);
     });
 
-    test('a call already in progress declines the new one', () async {
+    test('a call already in progress leaves the new one to ring in CallKit, '
+        'which offers End & Accept', () async {
       final container = await startCoordinator();
       final session = CallSession.forIncoming(
         room: room,
@@ -271,8 +272,8 @@ void main() {
 
       await deliver(invite('call2'));
 
-      expect(declined, ['call2']);
-      expect(native.argsOf('reportIncomingCall'), isEmpty);
+      expect(declined, isEmpty);
+      expect(native.callIdsOf('reportIncomingCall'), ['call2']);
     });
   });
 

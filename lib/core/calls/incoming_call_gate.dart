@@ -55,13 +55,11 @@ class IncomingCallGate extends Notifier<void> {
     }
     final active = ref.read(activeCallProvider);
     if (active != null && _crossesOwnInvite(active, call)) {
-      if (callId.compareTo(active.callId) < 0) {
-        unawaited(_answerInsteadOf(active, call));
-      }
+      if (callId.compareTo(active.callId) < 0) _answerInsteadOf(active, call);
       return false;
     }
     if (systemRinging()) return true;
-    if (active != null || _anotherRings(callId)) {
+    if (_anotherRings(callId)) {
       _turnAway(call);
       return false;
     }
@@ -81,17 +79,8 @@ class IncomingCallGate extends Notifier<void> {
     return ringing != null && ringing.callId != callId;
   }
 
-  Future<void> _answerInsteadOf(CallSession own, IncomingCall call) async {
-    final ended = own.phaseStream.firstWhere(
-      (phase) => phase == CallSessionPhase.ended,
-    );
+  void _answerInsteadOf(CallSession own, IncomingCall call) {
     unawaited(own.hangUp(summarized: true));
-    try {
-      await ended;
-    } on StateError {
-      return;
-    }
-    if (!ref.mounted) return;
     final session = ref.read(activeCallProvider.notifier).answer(call);
     if (session == null) return;
     final navigator = globalNavigatorKey.currentState;

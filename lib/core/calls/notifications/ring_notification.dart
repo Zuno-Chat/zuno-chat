@@ -15,6 +15,7 @@ Future<RingOutcome> postRingNotification(
   bool allowNetwork = false,
   IncomingCallPresenter? presenter,
   Future<RingingCallInfo?>? ringingNow,
+  bool waiting = false,
 }) async {
   await loadRingIdentity(call, allowNetwork: allowNetwork);
   final identity = ringIdentity(call, deviceLocalizations());
@@ -32,6 +33,7 @@ Future<RingOutcome> postRingNotification(
     isGroupCall: !call.room.isDirectChat,
     avatarBytes: avatarBytes,
     ringingNow: ringingNow,
+    waiting: waiting,
   );
   if (outcome != RingOutcome.shown) return outcome;
   if (!await isCallResolved(call.callId)) return outcome;

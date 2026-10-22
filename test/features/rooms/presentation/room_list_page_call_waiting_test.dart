@@ -32,8 +32,9 @@ import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/room_list_page_harness.dart';
 import '../../../helpers/sent_call_declines.dart';
 
-class _PendingRingPresenter implements IncomingCallPresenter {
+class _PendingRingPresenter extends NoopIncomingCallPresenter {
   final shownCallIds = <String>[];
+  final shownWaiting = <bool>[];
 
   @override
   Future<RingOutcome> showIncoming({
@@ -46,8 +47,10 @@ class _PendingRingPresenter implements IncomingCallPresenter {
     bool isGroupCall = false,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
+    bool waiting = false,
   }) {
     shownCallIds.add(callId);
+    shownWaiting.add(waiting);
     return Completer<RingOutcome>().future;
   }
 
@@ -57,9 +60,6 @@ class _PendingRingPresenter implements IncomingCallPresenter {
     String? callId,
     RingEnd end = RingEnd.remoteEnded,
   }) async {}
-
-  @override
-  Future<RingingCallInfo?> activeRing() async => null;
 }
 
 Map<String, Object?> _inviteContent({
@@ -181,9 +181,9 @@ void main() {
     ).toMessageContent(),
   );
 
-  testWidgets('a second incoming call while already on one is auto-declined, '
-      'never rings and is announced as missed', (tester) async {
-    final container = await pumpRoomList(tester);
+  testWidgets('a second incoming call while already on one rings as a '
+      'waiting call on its ring screen, and is never declined', (tester) async {
+    final (:container, :presenter) = await pumpWithPendingRings(tester);
     final session = onACall(container);
     final declined = declinedCallIds();
 
@@ -192,11 +192,21 @@ void main() {
       invite(callId: 'call2', senderId: '@carol:example.org'),
     );
 
-    expect(find.byType(IncomingCallPage), findsNothing);
-    expect(declined, ['call2']);
+    expect(ringScreenCallIds(tester), ['call2']);
+    expect(presenter.shownCallIds, ['call2']);
+    expect(presenter.shownWaiting, [true]);
+    expect(declined, isEmpty);
     expect(container.read(activeCallProvider), same(session));
-    expect(container.read(resolvedCallIdsProvider), contains('call2'));
-    expect(find.text('Missed call from Carol'), findsOneWidget);
+    expect(find.text('Missed call from Carol'), findsNothing);
+  });
+
+  testWidgets('a call with no other call on the line rings as a normal '
+      'ring', (tester) async {
+    final (container: _, :presenter) = await pumpWithPendingRings(tester);
+
+    await deliverAndSettle(tester, invite(callId: 'call1'));
+
+    expect(presenter.shownWaiting, [false]);
   });
 
   testWidgets('with VoIP rings on iOS the room list leaves an invite to the '

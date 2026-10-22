@@ -36,17 +36,21 @@ void main() {
 
   tearDown(pumpEventQueue);
 
-  Future<RingOutcome> ring(IncomingCallPresenter presenter, {String? caller}) =>
-      presenter.showIncoming(
-        name: 'Bob',
-        caller: caller,
-        callerId: '@bob:example.org',
-        isVideo: true,
-        roomId: '!room:example.org',
-        callId: 'call1',
-        isGroupCall: true,
-        avatarBytes: Uint8List.fromList([1, 2, 3]),
-      );
+  Future<RingOutcome> ring(
+    IncomingCallPresenter presenter, {
+    String? caller,
+    bool waiting = false,
+  }) => presenter.showIncoming(
+    name: 'Bob',
+    caller: caller,
+    callerId: '@bob:example.org',
+    isVideo: true,
+    roomId: '!room:example.org',
+    callId: 'call1',
+    isGroupCall: true,
+    avatarBytes: Uint8List.fromList([1, 2, 3]),
+    waiting: waiting,
+  );
 
   Future<RingingCallInfo?> remembered() async =>
       readRingingCall(await SharedPreferences.getInstance());
@@ -161,6 +165,50 @@ void main() {
           reason: '$settings',
         );
       }
+    });
+
+    test('a waiting ring leaves the ringtone setting for later, buzzes as '
+        'set, and says answering ends the current call', () async {
+      await ring(presenter, caller: 'Carol', waiting: true);
+
+      final args = callStyle.lastShow.arguments as Map;
+      expect(args['waitingText'], 'Answering ends your current call');
+      expect(args['text'], 'Carol');
+      expect(args['ringtone'], isTrue);
+      expect(args['vibrate'], isTrue);
+    });
+
+    test('a normal ring says nothing about waiting', () async {
+      await ring(presenter);
+
+      final args = callStyle.lastShow.arguments as Map;
+      expect(args.containsKey('waitingText'), isFalse);
+    });
+
+    test(
+      'ringing aloud asks the native ring to ring the call it names',
+      () async {
+        await presenter.ringAloud('call1');
+
+        expect(
+          callStyle.named('ringIncomingCallStyleAloud').map((c) => c.arguments),
+          [
+            {'callId': 'call1'},
+          ],
+        );
+      },
+    );
+
+    test('ringing aloud waits for a ring still being posted, so it is never '
+        'lost before the ring exists', () async {
+      final posting = ring(presenter, waiting: true);
+      final aloud = presenter.ringAloud('call1');
+      await Future.wait([posting, aloud]);
+
+      expect(callStyle.methods.where((m) => m != 'cancelIncomingCallStyle'), [
+        'showIncomingCallStyle',
+        'ringIncomingCallStyleAloud',
+      ]);
     });
 
     test('names the caller it is given on the second line', () async {
@@ -691,6 +739,23 @@ void main() {
       ]);
     });
 
+    test('reports a waiting ring as any other, and leaves ringing aloud to '
+        'CallKit', () async {
+      await presenter.showIncoming(
+        name: 'Bob',
+        callerId: '@bob:example.org',
+        isVideo: false,
+        roomId: roomId,
+        callId: 'call1',
+        waiting: true,
+      );
+      await presenter.ringAloud('call1');
+
+      expect(sent(), [
+        ['reportIncomingCall', reported(name: 'Bob')],
+      ]);
+    });
+
     test('turns CallKit\'s answer into the ring outcome', () async {
       const outcomes = {
         'shown': RingOutcome.shown,
@@ -907,11 +972,15 @@ class _FakeRememberingPresenter extends RememberingIncomingCallPresenter {
     required String callId,
     required bool isGroupCall,
     Uint8List? avatarBytes,
+    required bool waiting,
   }) async {
     await presenting;
     if (fails) throw StateError('no ring screen');
     presented++;
   }
+
+  @override
+  Future<void> ringAloud(String callId) async {}
 
   @override
   Future<void> forgetAndDismiss(String? callId) async {

@@ -1,6 +1,14 @@
 package im.zuno.chat.zuno_notifications
 
-class RingPlan(val ringtoneAsset: String?, val vibrationPattern: LongArray?) {
+class RingPlan(
+    val ringtoneAsset: String?,
+    val vibrationPattern: LongArray?,
+    val waitingText: String?,
+) {
+    val waiting: Boolean get() = waitingText != null
+
+    val toneNow: String? get() = if (waiting) null else ringtoneAsset
+
     companion object {
         fun from(args: Map<String, Any?>): RingPlan = RingPlan(
             ringtoneAsset = (args["ringtoneAsset"] as? String)
@@ -10,6 +18,7 @@ class RingPlan(val ringtoneAsset: String?, val vibrationPattern: LongArray?) {
             } else {
                 null
             },
+            waitingText = args["waitingText"] as? String,
         )
 
         private fun vibrationPattern(raw: Any?): LongArray? {

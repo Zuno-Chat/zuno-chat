@@ -350,7 +350,7 @@ const RingingCallInfo _bobRinging = (
   isVideo: false,
 );
 
-class _ScriptedPresenter implements IncomingCallPresenter {
+class _ScriptedPresenter extends NoopIncomingCallPresenter {
   _ScriptedPresenter({this.ringing});
 
   RingingCallInfo? ringing;
@@ -368,6 +368,7 @@ class _ScriptedPresenter implements IncomingCallPresenter {
     bool isGroupCall = false,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
+    bool waiting = false,
   }) async {
     ringing = (
       roomId: roomId,

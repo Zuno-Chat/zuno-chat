@@ -34,7 +34,10 @@ abstract interface class IncomingCallPresenter {
     bool isGroupCall = false,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
+    bool waiting = false,
   });
+
+  Future<void> ringAloud(String callId);
 
   Future<void> cancelIncoming({
     String? roomId,
@@ -78,6 +81,7 @@ abstract class RememberingIncomingCallPresenter
     required String callId,
     required bool isGroupCall,
     Uint8List? avatarBytes,
+    required bool waiting,
   });
 
   Future<void> forgetAndDismiss(String? callId);
@@ -93,6 +97,7 @@ abstract class RememberingIncomingCallPresenter
     bool isGroupCall = false,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
+    bool waiting = false,
   }) => _turns.run(() async {
     LocalNotifications.instance.reclaimLiveRoutes();
     if (await _alreadyRinging(callId, ringingNow)) {
@@ -118,6 +123,7 @@ abstract class RememberingIncomingCallPresenter
       callId: callId,
       isGroupCall: isGroupCall,
       avatarBytes: avatarBytes,
+      waiting: waiting,
     );
     _presented = (callId: callId, at: DateTime.now());
     return RingOutcome.shown;
@@ -192,6 +198,7 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
     required String callId,
     required bool isGroupCall,
     Uint8List? avatarBytes,
+    required bool waiting,
   }) async {
     final sound = loadNotificationSoundSettings();
     final level = currentNotificationPreview();
@@ -220,8 +227,15 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
       'vibrate':
           settings.callVibration && ambientCapabilities.vibrationPatterns,
       'vibrationPattern': callVibrationPattern,
+      if (waiting) 'waitingText': l10n.callsRingWaitingHint,
     });
   }
+
+  @override
+  Future<void> ringAloud(String callId) =>
+      RememberingIncomingCallPresenter._turns.run(
+        () => _invoke<void>('ringIncomingCallStyleAloud', {'callId': callId}),
+      );
 
   @override
   Future<void> forgetAndDismiss(String? callId) async {
@@ -277,7 +291,11 @@ class NoopIncomingCallPresenter implements IncomingCallPresenter {
     bool isGroupCall = false,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
+    bool waiting = false,
   }) async => RingOutcome.unavailable;
+
+  @override
+  Future<void> ringAloud(String callId) async {}
 
   @override
   Future<void> cancelIncoming({
@@ -304,6 +322,7 @@ class CallKitIncomingCallPresenter implements IncomingCallPresenter {
     bool isGroupCall = false,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
+    bool waiting = false,
   }) async {
     SystemRing.instance.set(roomId: roomId, callId: callId);
     final outcome = await _report({
@@ -316,6 +335,9 @@ class CallKitIncomingCallPresenter implements IncomingCallPresenter {
     if (outcome != RingOutcome.shown) SystemRing.instance.clear(callId);
     return outcome;
   }
+
+  @override
+  Future<void> ringAloud(String callId) async {}
 
   Future<RingOutcome> _report(Map<String, Object?> ring) async {
     try {

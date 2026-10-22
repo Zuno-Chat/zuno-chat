@@ -1554,7 +1554,7 @@ class _CountingAndroidPresenter extends AndroidIncomingCallPresenter {
   }
 }
 
-class _GatedPresenter implements IncomingCallPresenter {
+class _GatedPresenter extends NoopIncomingCallPresenter {
   _GatedPresenter(this.gate);
 
   final Future<void> gate;
@@ -1571,6 +1571,7 @@ class _GatedPresenter implements IncomingCallPresenter {
     bool isGroupCall = false,
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
+    bool waiting = false,
   }) async {
     await gate;
     log.add('show $callId');
@@ -1583,7 +1584,4 @@ class _GatedPresenter implements IncomingCallPresenter {
     String? callId,
     RingEnd end = RingEnd.remoteEnded,
   }) async => log.add('cancel $callId');
-
-  @override
-  Future<RingingCallInfo?> activeRing() async => null;
 }

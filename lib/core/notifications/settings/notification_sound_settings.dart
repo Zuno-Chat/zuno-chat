@@ -30,10 +30,12 @@ class NotificationSoundSettings {
   );
 }
 
-Future<NotificationSoundSettings> loadNotificationSoundSettings() async {
+Future<NotificationSoundSettings> loadNotificationSoundSettings({
+  bool fromOtherIsolates = true,
+}) async {
   try {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
+    if (fromOtherIsolates) await prefs.reload();
     return readNotificationSoundSettings(prefs);
   } catch (e, s) {
     reportCaught('notification sound settings read', e, s);

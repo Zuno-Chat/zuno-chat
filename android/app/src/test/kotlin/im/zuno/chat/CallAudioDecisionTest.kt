@@ -8,103 +8,126 @@ import org.junit.Test
 
 class CallAudioDecisionTest {
     @Test
-    fun `ringback starts once it is wanted and call audio runs`() {
+    fun `a tone starts once it is wanted and call audio runs`() {
         assertEquals(
-            RingbackAction.Start,
-            CallAudioDecision.ringback(
-                wanted = true,
+            ToneAction.Start,
+            CallAudioDecision.tone(
+                wanted = CallTone.Ringback,
                 active = true,
-                playing = false,
+                playing = null,
                 routeChanged = false,
             ),
         )
     }
 
     @Test
-    fun `ringback waits for call audio, so it never starts on the wrong speaker`() {
+    fun `a tone waits for call audio, so it never starts on the wrong speaker`() {
         assertEquals(
-            RingbackAction.None,
-            CallAudioDecision.ringback(
-                wanted = true,
+            ToneAction.None,
+            CallAudioDecision.tone(
+                wanted = CallTone.Waiting,
                 active = false,
-                playing = false,
+                playing = null,
                 routeChanged = false,
             ),
         )
     }
 
     @Test
-    fun `a playing ringback stops once it is no longer wanted or call audio ends`() {
+    fun `a playing tone stops once it is no longer wanted or call audio ends`() {
         assertEquals(
-            RingbackAction.Stop,
-            CallAudioDecision.ringback(
-                wanted = false,
+            ToneAction.Stop,
+            CallAudioDecision.tone(
+                wanted = null,
                 active = true,
-                playing = true,
+                playing = CallTone.Ringback,
                 routeChanged = false,
             ),
         )
         assertEquals(
-            RingbackAction.Stop,
-            CallAudioDecision.ringback(
-                wanted = true,
+            ToneAction.Stop,
+            CallAudioDecision.tone(
+                wanted = CallTone.Ringback,
                 active = false,
-                playing = true,
+                playing = CallTone.Ringback,
                 routeChanged = false,
             ),
         )
     }
 
     @Test
-    fun `a playing ringback is left alone while its route stays put`() {
+    fun `a playing tone is left alone while its route stays put`() {
         assertEquals(
-            RingbackAction.None,
-            CallAudioDecision.ringback(
-                wanted = true,
+            ToneAction.None,
+            CallAudioDecision.tone(
+                wanted = CallTone.Waiting,
                 active = true,
-                playing = true,
+                playing = CallTone.Waiting,
                 routeChanged = false,
             ),
         )
     }
 
     @Test
-    fun `a route change restarts a playing ringback on the new route`() {
+    fun `a route change restarts a playing tone on the new route`() {
         assertEquals(
-            RingbackAction.Restart,
-            CallAudioDecision.ringback(
-                wanted = true,
+            ToneAction.Restart,
+            CallAudioDecision.tone(
+                wanted = CallTone.Ringback,
                 active = true,
-                playing = true,
+                playing = CallTone.Ringback,
                 routeChanged = true,
             ),
         )
     }
 
     @Test
-    fun `a route change retries a wanted ringback that failed to start`() {
+    fun `a route change retries a wanted tone that failed to start`() {
         assertEquals(
-            RingbackAction.Start,
-            CallAudioDecision.ringback(
-                wanted = true,
+            ToneAction.Start,
+            CallAudioDecision.tone(
+                wanted = CallTone.Ringback,
                 active = true,
-                playing = false,
+                playing = null,
                 routeChanged = true,
             ),
         )
     }
 
     @Test
-    fun `a route change never starts a ringback nobody wants`() {
+    fun `a route change never starts a tone nobody wants`() {
         assertEquals(
-            RingbackAction.None,
-            CallAudioDecision.ringback(
-                wanted = false,
+            ToneAction.None,
+            CallAudioDecision.tone(
+                wanted = null,
                 active = true,
-                playing = false,
+                playing = null,
                 routeChanged = true,
             ),
         )
+    }
+
+    @Test
+    fun `a different tone wanted replaces the one playing`() {
+        assertEquals(
+            ToneAction.Restart,
+            CallAudioDecision.tone(
+                wanted = CallTone.Waiting,
+                active = true,
+                playing = CallTone.Ringback,
+                routeChanged = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `the waiting tone wins over ringback, so the two never play at once`() {
+        assertEquals(
+            CallTone.Waiting,
+            CallAudioDecision.wantedTone(setOf(CallTone.Ringback, CallTone.Waiting)),
+        )
+        assertEquals(CallTone.Ringback, CallAudioDecision.wantedTone(setOf(CallTone.Ringback)))
+        assertEquals(null, CallAudioDecision.wantedTone(emptySet()))
     }
 
     @Test

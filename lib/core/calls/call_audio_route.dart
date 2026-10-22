@@ -12,9 +12,30 @@ CallAudioRoute? _preferredHeadset(Set<CallAudioRoute> headsets) {
   return null;
 }
 
-CallAudioRoute startingRoute(CallKind kind, Set<CallAudioRoute> headsets) =>
-    _preferredHeadset(headsets) ??
-    (kind == CallKind.video ? CallAudioRoute.speaker : CallAudioRoute.earpiece);
+CallAudioRoute startingRoute(
+  CallKind kind,
+  Set<CallAudioRoute> headsets, {
+  CallAudioRoute? continuing,
+}) {
+  if (continuing != null && _keeps(continuing, kind, headsets)) {
+    return continuing;
+  }
+  return _preferredHeadset(headsets) ??
+      (kind == CallKind.video
+          ? CallAudioRoute.speaker
+          : CallAudioRoute.earpiece);
+}
+
+bool _keeps(
+  CallAudioRoute route,
+  CallKind kind,
+  Set<CallAudioRoute> headsets,
+) => switch (route) {
+  CallAudioRoute.speaker => true,
+  CallAudioRoute.earpiece => kind == CallKind.voice,
+  CallAudioRoute.wiredHeadset ||
+  CallAudioRoute.bluetooth => headsets.contains(route),
+};
 
 CallAudioRoute toggledRoute(
   CallAudioRoute route,
