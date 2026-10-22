@@ -60,4 +60,81 @@ void main() {
       'Bob',
     ]);
   });
+
+  group('read marker', () {
+    late StoredEventsFakeDatabaseApi database;
+    late Room stored;
+
+    Event withStatus(String eventId, EventStatus status) => buildTestEvent(
+      stored,
+      eventId: eventId,
+      senderId: '@bob:example.org',
+      status: status,
+    );
+
+    setUp(() {
+      database = StoredEventsFakeDatabaseApi();
+      stored = buildTestRoom(
+        buildTestClient(userId: '@me:example.org', database: database),
+      );
+    });
+
+    test("only a server-accepted event carries it, since a local echo's id "
+        'can still change', () {
+      for (final (status, carries) in [
+        (EventStatus.sending, false),
+        (EventStatus.error, false),
+        (EventStatus.sent, true),
+        (EventStatus.synced, true),
+      ]) {
+        expect(
+          canCarryReadMarker(withStatus(r'$e', status)),
+          carries,
+          reason: '$status',
+        );
+      }
+    });
+
+    test('an event the SDK made up locally never carries it, whatever its '
+        'status, since the server rejects an id it never issued', () {
+      expect(
+        canCarryReadMarker(
+          withStatus('test-1-1000_cancel_send', EventStatus.synced),
+        ),
+        isFalse,
+      );
+    });
+
+    test(
+      'the newest target is the last event when the server has it',
+      () async {
+        stored.lastEvent = withStatus(r'$last', EventStatus.synced);
+
+        expect(await newestReadMarkerEventId(stored), r'$last');
+      },
+    );
+
+    test('the newest target skips a made-up last event for the newest stored '
+        'server event', () async {
+      stored.lastEvent = withStatus(
+        'test-2-1000_cancel_send',
+        EventStatus.synced,
+      );
+      database.events = [
+        withStatus('test-2-1000', EventStatus.error),
+        withStatus('test-2-1000_cancel_send', EventStatus.synced),
+        withStatus(r'$newest', EventStatus.synced),
+        withStatus(r'$older', EventStatus.synced),
+      ];
+
+      expect(await newestReadMarkerEventId(stored), r'$newest');
+    });
+
+    test('there is no newest target when no event can carry it', () async {
+      stored.lastEvent = withStatus('test-3-1000', EventStatus.error);
+      database.events = [withStatus('test-3-1000', EventStatus.error)];
+
+      expect(await newestReadMarkerEventId(stored), isNull);
+    });
+  });
 }

@@ -16,7 +16,7 @@ import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/connectivity_provider.dart';
 import '../../../core/matrix/currently_open_room_provider.dart';
-import '../../../core/matrix/event_display.dart';
+import '../../../core/matrix/read_receipts.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_state_rebuild.dart';
@@ -315,7 +315,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     _lastMarkedReadEventId = eventId;
     unawaited(
       runBestEffort(
-        () => widget.room.setReadMarker(eventId, mRead: eventId),
+        () => markRoomRead(widget.room, eventId),
         label: 'setReadMarker',
       ).then((ok) {
         if (!ok && _lastMarkedReadEventId == eventId) {

@@ -1,6 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../../errors/caught_errors.dart';
+import '../../matrix/read_receipts.dart';
 import '../../push/nse/opaque_thread_ids.dart';
 
 typedef TimedEvent = ({String id, int ts});
@@ -15,14 +16,11 @@ TimedEvent? _newest(Iterable<TimedEvent> events, int boundMs) {
 }
 
 Future<String?> resolveMarkReadEvent({
-  required String? eventId,
-  required int? eventSeconds,
+  required int eventSeconds,
   required TimedEvent? lastEvent,
   required Future<List<TimedEvent>> Function() local,
   required Future<TimedEvent?> Function(int boundMs) remote,
 }) async {
-  if (eventId != null) return eventId;
-  if (eventSeconds == null) return lastEvent?.id;
   final notifiedSecond = eventSeconds * 1000;
   final bound = notifiedSecond + 999;
   List<TimedEvent> stored;
@@ -49,22 +47,16 @@ Future<String?> markReadEventIn(
   Room room, {
   String? eventId,
   int? eventSeconds,
-}) {
+}) async {
+  if (eventId != null) return eventId;
+  if (eventSeconds == null) return newestReadMarkerEventId(room);
+  TimedEvent timed(Event event) =>
+      (id: event.eventId, ts: event.originServerTs.millisecondsSinceEpoch);
   final last = room.lastEvent;
   return resolveMarkReadEvent(
-    eventId: eventId,
     eventSeconds: eventSeconds,
-    lastEvent: last == null || !last.eventId.startsWith(r'$')
-        ? null
-        : (id: last.eventId, ts: last.originServerTs.millisecondsSinceEpoch),
-    local: () async => [
-      for (final event in await room.client.database.getEventList(
-        room,
-        limit: 30,
-      ))
-        if (event.eventId.startsWith(r'$'))
-          (id: event.eventId, ts: event.originServerTs.millisecondsSinceEpoch),
-    ],
+    lastEvent: last == null || !canCarryReadMarker(last) ? null : timed(last),
+    local: () async => (await storedReadMarkerEvents(room)).map(timed).toList(),
     remote: (bound) async {
       final found = await room.client.getEventByTimestamp(
         room.id,

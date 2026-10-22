@@ -59,8 +59,6 @@ bool _isRealMessage(Event event) =>
     event.type == EventTypes.Sticker ||
     isUndecryptableEvent(event);
 
-bool canCarryReadMarker(Event event) => event.status.isSent;
-
 bool isPreviewableLastEvent(Event event) =>
     isTimelineMessage(_applyEdit(event) ?? event);
 

@@ -75,8 +75,8 @@ in `features/chat/presentation/`.
 
 `core/matrix/event_display.dart` is the single source of truth for what
 an event is. The chat list preview, notification body, reply quote,
-timeline filter, sender runs and read marker all call it, so no surface
-guesses on its own.
+timeline filter and sender runs all call it, so no surface guesses on its
+own.
 
 | Function | Answers |
 |---|---|
@@ -84,7 +84,6 @@ guesses on its own.
 | `isTimelineMessage` | Is it a message? Previews, notifications, unread counts and sender runs count only these |
 | `summarize` | Its `MessageKind` and one line of text, for previews, quotes and notifications |
 | `isPreviewableLastEvent` | Can the chat list show it as the last message? |
-| `canCarryReadMarker` | Can a read receipt point at it? |
 
 - **Visibility.** An edit is folded into its original by the `Timeline`
   and never drawn alone, and in-room verification is never drawn. Call
@@ -413,9 +412,14 @@ flowchart TD
 - **Drawn, previewed and counted are three questions** in an encrypted
   room, and a fix to one does not answer the others. The server counts
   unread from the encrypted envelope, so no filter over decrypted content
-  can match it. Hence any sent event can carry the read marker: receipts
-  are cumulative, so over-including is free, while under-including leaves
-  a badge that never clears.
+  can match it. Hence any event the server issued can carry the read
+  marker: receipts are cumulative, so over-including is free, while
+  under-including leaves a badge that never clears.
+- **A read marker goes only to an id with the `$` sigil**, whether the
+  chat, the chat list or a notification sets it (`read_receipts.dart`).
+  The SDK makes up synced events with local ids, such as the redaction
+  it adds when an unsent last message is cancelled, and the server
+  rejects the whole marker for one of those.
 - **Galleries are a content key on ordinary events**, so other clients
   see normal messages, and forward, redact and download work with no new
   code. One multi-item event and time-window grouping were rejected.

@@ -13,19 +13,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('resolveMarkReadEvent', () {
-    late int localCalls;
     late List<int> asked;
 
     setUp(() {
-      localCalls = 0;
       asked = [];
     });
 
     Future<List<TimedEvent>> Function() local(List<TimedEvent> events) =>
-        () async {
-          localCalls++;
-          return events;
-        };
+        () async => events;
 
     Future<TimedEvent?> Function(int) remote(TimedEvent? found) =>
         (bound) async {
@@ -33,42 +28,9 @@ void main() {
           return found;
         };
 
-    test('an event id from the notification is used as is', () async {
-      expect(
-        await resolveMarkReadEvent(
-          eventId: r'$e',
-          eventSeconds: 1790000000,
-          lastEvent: null,
-          local: local(const []),
-          remote: remote(null),
-        ),
-        r'$e',
-      );
-      expect(localCalls, 0);
-      expect(asked, isEmpty);
-    });
-
-    test(
-      'without an event time the room is read up to its last event',
-      () async {
-        expect(
-          await resolveMarkReadEvent(
-            eventId: null,
-            eventSeconds: null,
-            lastEvent: (id: r'$last', ts: 1),
-            local: local(const []),
-            remote: remote(null),
-          ),
-          r'$last',
-        );
-        expect(asked, isEmpty);
-      },
-    );
-
     test('a store that holds the notified second marks the newest event of '
         'that second, without asking the server', () async {
       final picked = await resolveMarkReadEvent(
-        eventId: null,
         eventSeconds: 1790000000,
         lastEvent: (id: r'$later', ts: 1790000005000),
         local: local([
@@ -84,7 +46,6 @@ void main() {
     test('a store that has not caught up asks the server for the event at the '
         'end of the notified second', () async {
       final picked = await resolveMarkReadEvent(
-        eventId: null,
         eventSeconds: 1790000000,
         lastEvent: (id: r'$old', ts: 1789990000000),
         local: local([(id: r'$older', ts: 1789980000000)]),
@@ -98,7 +59,6 @@ void main() {
       'a busy room whose stored events are all newer asks the server',
       () async {
         final picked = await resolveMarkReadEvent(
-          eventId: null,
           eventSeconds: 1790000000,
           lastEvent: (id: r'$newest', ts: 1790000090000),
           local: local([
@@ -115,7 +75,6 @@ void main() {
     test('a gap around the notified second asks the server instead of marking '
         'an older stored event', () async {
       final picked = await resolveMarkReadEvent(
-        eventId: null,
         eventSeconds: 1790000000,
         lastEvent: (id: r'$after', ts: 1790000300000),
         local: local([
@@ -131,7 +90,6 @@ void main() {
     test('if the server cannot be asked, the newest stored event before the '
         'notification is marked', () async {
       final picked = await resolveMarkReadEvent(
-        eventId: null,
         eventSeconds: 1790000000,
         lastEvent: (id: r'$old', ts: 1789990000000),
         local: local(const []),
@@ -142,7 +100,6 @@ void main() {
 
     test('a server answer past the notified second is not used', () async {
       final picked = await resolveMarkReadEvent(
-        eventId: null,
         eventSeconds: 1790000000,
         lastEvent: (id: r'$old', ts: 1789990000000),
         local: local(const []),
@@ -153,7 +110,6 @@ void main() {
 
     test('a store that cannot be read counts as empty', () async {
       final picked = await resolveMarkReadEvent(
-        eventId: null,
         eventSeconds: 1790000000,
         lastEvent: null,
         local: () async => throw Exception('locked'),
@@ -165,7 +121,6 @@ void main() {
     test('nothing known anywhere marks nothing', () async {
       expect(
         await resolveMarkReadEvent(
-          eventId: null,
           eventSeconds: 1790000000,
           lastEvent: null,
           local: local(const []),
@@ -211,17 +166,39 @@ void main() {
       },
     );
 
-    test('a message still being sent is never the one marked', () async {
-      final client = buildTestClient(userId: '@me:example.org');
-      final room = buildTestRoom(client);
-      room.lastEvent = buildTestEvent(
+    test('an event id from the notification is used as is', () async {
+      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+
+      expect(
+        await markReadEventIn(room, eventId: r'$e', eventSeconds: 1790000000),
+        r'$e',
+      );
+    });
+
+    test('without an event time, a message still being sent is skipped for '
+        'the newest stored server event', () async {
+      final database = StoredEventsFakeDatabaseApi();
+      final room = buildTestRoom(
+        buildTestClient(userId: '@me:example.org', database: database),
+      );
+      final sending = buildTestEvent(
         room,
         eventId: 'zuno-notification-1',
         senderId: '@me:example.org',
         status: EventStatus.sending,
       );
+      room.lastEvent = sending;
+      database.events = [
+        sending,
+        buildTestEvent(
+          room,
+          eventId: r'$newest',
+          senderId: '@bob:example.org',
+          status: EventStatus.synced,
+        ),
+      ];
 
-      expect(await markReadEventIn(room), isNull);
+      expect(await markReadEventIn(room), r'$newest');
     });
   });
 

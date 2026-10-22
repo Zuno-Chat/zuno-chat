@@ -29,6 +29,7 @@ import '../../../core/matrix/join_requests.dart';
 import '../../../core/matrix/join_room.dart';
 import '../../../core/matrix/local_username_dialog.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/read_receipts.dart';
 import '../../../core/matrix/room_access.dart';
 import '../../../core/matrix/room_exit.dart';
 import '../../../core/notifications/actions/headless_message_action_provider.dart';
@@ -454,11 +455,11 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
 
     switch (action) {
       case _RoomAction.markRead:
-        final lastEventId = room.lastEvent?.eventId;
-        await attempt(
-          () => room.setReadMarker(lastEventId, mRead: lastEventId),
-          failed: l10n.roomsNotMarkedAsRead,
-        );
+        await attempt(() async {
+          final eventId = await newestReadMarkerEventId(room);
+          if (eventId == null) return;
+          await markRoomRead(room, eventId);
+        }, failed: l10n.roomsNotMarkedAsRead);
       case _RoomAction.mute:
         await attempt(
           () => room.setPushRuleState(PushRuleState.dontNotify),

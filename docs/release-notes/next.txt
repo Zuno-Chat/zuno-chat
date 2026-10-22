@@ -12,4 +12,4 @@ New
 • See who is calling in a group.
 • Answer a call while on a call.
 
-Fixed 149 bugs.
+Fixed 150 bugs.

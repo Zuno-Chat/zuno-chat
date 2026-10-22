@@ -9,6 +9,7 @@ import 'package:matrix/matrix.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
 import '../../matrix/client_lease.dart';
+import '../../matrix/read_receipts.dart';
 import '../../platform/platform_capabilities.dart';
 
 enum MessageNotificationActionKind { reply, markRead }
@@ -79,13 +80,10 @@ Future<void> replyToRoom(
   final eventId = readEventId;
   if (eventId == null) return;
   await runBestEffort(
-    () => room.setReadMarker(eventId, mRead: eventId),
+    () => markRoomRead(room, eventId),
     label: 'notification reply read marker',
   );
 }
-
-Future<void> markRoomRead(Room room, String eventId) =>
-    room.setReadMarker(eventId, mRead: eventId);
 
 const headlessActionRetryDelays = [Duration(seconds: 2), Duration(seconds: 5)];
 

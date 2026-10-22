@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
+import '../../matrix/read_receipts.dart';
 import 'message_notification_action.dart';
 import 'native_notification_actions_channel.dart';
 import 'notification_action_target.dart';

@@ -480,12 +480,6 @@ void main() {
           reason: 'room-list previewability for "${testCase.name}"',
         );
 
-        expect(
-          canCarryReadMarker(event),
-          isTrue,
-          reason: 'read-marker eligibility for "${testCase.name}"',
-        );
-
         expect(messageKindOf(event), testCase.kind);
         final summary = summarize(englishLocalizations, event);
         expect(summary.kind, testCase.kind);
@@ -555,24 +549,5 @@ void main() {
     final summary = summarize(englishLocalizations, event);
     expect(summary.call?.status, CallSummaryStatus.missed);
     expect(summary.call?.kind, 'video');
-  });
-
-  test('only a server-accepted event carries the read marker, since a '
-      "local echo's id can still change", () {
-    for (final (status, carries) in [
-      (EventStatus.sending, false),
-      (EventStatus.error, false),
-      (EventStatus.sent, true),
-      (EventStatus.synced, true),
-    ]) {
-      final event = buildTestEvent(
-        room,
-        eventId: r'$e',
-        senderId: '@a:x',
-        content: {'msgtype': MessageTypes.Text, 'body': 'hi'},
-        status: status,
-      );
-      expect(canCarryReadMarker(event), carries, reason: '$status');
-    }
   });
 }
