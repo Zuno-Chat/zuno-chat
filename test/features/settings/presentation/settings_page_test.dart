@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/errors/crash_reporting.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -57,7 +58,7 @@ Client _client([Client? base]) {
 Future<void> _pumpSettingsPage(
   WidgetTester tester, {
   AccountSecurityStatus? status,
-  bool? showFeedback,
+  bool showFeedback = false,
   PlatformCapabilities? capabilities,
   Client? client,
 }) {
@@ -65,6 +66,7 @@ Future<void> _pumpSettingsPage(
     ProviderScope(
       overrides: [
         matrixClientProvider.overrideWithValue(client ?? _client()),
+        sentryConfiguredProvider.overrideWithValue(showFeedback),
         if (capabilities != null)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
         if (status != null)
@@ -75,9 +77,7 @@ Future<void> _pumpSettingsPage(
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: showFeedback == null
-            ? const SettingsPage()
-            : SettingsPage(showFeedback: showFeedback),
+        home: const SettingsPage(),
       ),
     ),
   );

@@ -37,6 +37,7 @@ import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/preferences_container.dart';
 import '../../../helpers/pusher_recording_client.dart';
+import '../../../helpers/switch_tiles.dart';
 
 void _useApplePush(PusherRecordingClient client) {
   ambientCapabilities = iosCapabilities;
@@ -72,6 +73,7 @@ Future<ProviderContainer> _pumpPage(
     overrides: [
       matrixClientProvider.overrideWithValue(client ?? buildTestClient()),
       fixedDeliveryMode(mode),
+      operatingSystemVersionProvider.overrideWithValue(osVersion),
       if (capabilities != null)
         platformCapabilitiesProvider.overrideWithValue(capabilities),
       ...overrides,
@@ -84,7 +86,7 @@ Future<ProviderContainer> _pumpPage(
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: NotificationsSettingsPage(osVersion: osVersion),
+        home: const NotificationsSettingsPage(),
       ),
     ),
   );
@@ -198,12 +200,7 @@ void main() {
   group('on Android, Enable notifications', () {
     String subtitle(WidgetTester tester) =>
         (tester
-                    .widget<SwitchListTile>(
-                      find.widgetWithText(
-                        SwitchListTile,
-                        'Enable notifications',
-                      ),
-                    )
+                    .widget<SwitchListTile>(switchTile('Enable notifications'))
                     .subtitle!
                 as Text)
             .data!;
@@ -442,9 +439,7 @@ void main() {
     ) async {
       await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
-      await tester.tap(
-        find.widgetWithText(SwitchListTile, 'Enable notifications'),
-      );
+      await tester.tap(switchTile('Enable notifications'));
       await tester.pump();
 
       expect(native.methods, contains('openNotificationSettings'));
@@ -498,19 +493,16 @@ void main() {
       backgroundSync = recordMethodChannel('zuno/background_sync');
     });
 
-    Finder toggle() =>
-        find.widgetWithText(SwitchListTile, 'Enable notifications');
-
     testWidgets('turning it on asks, and a yes brings the delivery rows and '
         'restarts background sync', (tester) async {
       await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
       expect(find.widgetWithText(ListTile, 'Delivery'), findsNothing);
 
-      await tester.tap(toggle());
+      await tester.tap(switchTile('Enable notifications'));
       await tester.pumpAndSettle();
 
       expect(permissions.calls, contains('requestPermissions'));
-      expect(tester.widget<SwitchListTile>(toggle()).value, isTrue);
+      expect(switchedOn(tester, 'Enable notifications'), isTrue);
       expect(find.widgetWithText(ListTile, 'Delivery'), findsOneWidget);
       expect(backgroundSync.methods, ['startBackgroundSyncService']);
     });
@@ -521,10 +513,10 @@ void main() {
       permissions.onRequest = permissionDenied;
       await _pumpPage(tester, NotificationDeliveryMode.backgroundService);
 
-      await tester.tap(toggle());
+      await tester.tap(switchTile('Enable notifications'));
       await tester.pumpAndSettle();
 
-      expect(tester.widget<SwitchListTile>(toggle()).value, isFalse);
+      expect(switchedOn(tester, 'Enable notifications'), isFalse);
       expect(find.textContaining('nothing is delivered'), findsOneWidget);
       expect(backgroundSync.methods, isEmpty);
     });
@@ -534,10 +526,10 @@ void main() {
     ) async {
       await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
-      await tester.tap(toggle());
+      await tester.tap(switchTile('Enable notifications'));
       await tester.pumpAndSettle();
 
-      expect(tester.widget<SwitchListTile>(toggle()).value, isTrue);
+      expect(switchedOn(tester, 'Enable notifications'), isTrue);
       expect(backgroundSync.methods, isEmpty);
     });
 
@@ -551,7 +543,7 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
 
-      expect(tester.widget<SwitchListTile>(toggle()).value, isTrue);
+      expect(switchedOn(tester, 'Enable notifications'), isTrue);
       expect(backgroundSync.methods, ['startBackgroundSyncService']);
     });
 
@@ -597,9 +589,6 @@ void main() {
   });
 
   group('preferences', () {
-    Finder switchTile(String title) =>
-        find.widgetWithText(SwitchListTile, title);
-
     testWidgets('Mentions only is kept', (tester) async {
       final container = await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
@@ -629,7 +618,7 @@ void main() {
         await tester.pump();
 
         expect(container.read(provider), !before);
-        expect(tester.widget<SwitchListTile>(switchTile(title)).value, !before);
+        expect(switchedOn(tester, title), !before);
       });
     }
   });
@@ -646,8 +635,6 @@ void main() {
         ((pusher.data.toJson()['default_payload'] as Map)['aps']
             as Map)['sound'];
 
-    Finder messageTone() => find.widgetWithText(SwitchListTile, 'Message tone');
-
     testWidgets('on iOS, turning it off re-posts the pusher without a sound', (
       tester,
     ) async {
@@ -659,7 +646,7 @@ void main() {
       );
       await apnsDeliveryProvider.start(client);
 
-      await tester.tap(messageTone());
+      await tester.tap(switchTile('Message tone'));
       await tester.pumpAndSettle();
 
       expect(client.posted.map(soundOf), ['message_tone.caf', null]);
@@ -677,7 +664,7 @@ void main() {
       );
       await apnsDeliveryProvider.start(client);
 
-      await tester.tap(messageTone());
+      await tester.tap(switchTile('Message tone'));
       await tester.pumpAndSettle();
 
       expect(container.read(messageToneEnabledProvider), isFalse);

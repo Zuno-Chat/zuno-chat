@@ -3513,8 +3513,6 @@
   "@onboardingChangePhoto": {
     "description": "Screen-reader label on your profile photo during setup: change it"
   },
-  "onboardingConfirmBody": "Every chat in Zuno is encrypted. To know the person on the other end is who they say, confirm them once: scan their code in person, or compare pictures on a call. Zuno shows you how when you start a chat.",
-  "onboardingConfirmTitle": "Make sure it is really them",
   "onboardingDeliveryBody": "This decides how Zuno hears about new messages and calls while it is closed. You can change it later in Settings.",
   "onboardingDeliveryTitle": "How should messages reach you?",
   "onboardingDistributorNote": "{name} delivers notifications to Zuno and is put to sleep too. Set its battery use to Unrestricted as well.",
@@ -3531,6 +3529,8 @@
   "@onboardingGetStarted": {
     "description": "Button on the welcome screen: begin setup"
   },
+  "onboardingImproveBody": "Zuno only finds out about a crash or an error on your device when reports are on. You can change this later in Settings.",
+  "onboardingImproveTitle": "Help improve Zuno",
   "onboardingNameLabel": "Name",
   "@onboardingNameLabel": {
     "description": "Field label during setup: your display name"
@@ -3552,6 +3552,8 @@
     }
   },
   "onboardingPhotoNotAdded": "Photo not added. You can add one later in Settings.",
+  "onboardingPrivacyBody": "Encryption protects messages on their way. These settings decide what this device keeps and shows. You can change them later in Settings.",
+  "onboardingPrivacyTitle": "Privacy on this device",
   "onboardingProfileBody": "This is the name and photo people see in chats. You can change both later.",
   "onboardingProfileTitle": "What should people call you?",
   "onboardingSkip": "Skip",

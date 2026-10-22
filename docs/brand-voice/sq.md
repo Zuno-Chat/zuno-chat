@@ -173,6 +173,7 @@ Albanian for `lib/l10n/app_sq.arb`, written in standard Albanian for Albania and
 | theme: Dark / Light / Follow system | E errët / E çelët / Si sistemi | |
 | Appearance / About / Advanced, version, build | Pamja / Rreth / Të avancuara · versioni · ndërtimi | |
 | feedback, crash reports | koment · raporte ndërprerjesh | "Send feedback" → «Dërgo koment». |
+| error | gabim | "Send crash and error reports" → «Dërgo raporte ndërprerjesh dhe gabimesh». A crash is «ndërprerje» (§1.8). |
 | donate, privacy, Privacy policy, Terms | Dhuro · privatësi · Politika e privatësisë · Kushtet e përdorimit | |
 | browser, underscore | shfletues · nënvizë | |
 | app, home screen, shortcut, launcher | aplikacion · ekrani bazë · shkurtore · launcher | A chat app is «aplikacion mesazhesh». |

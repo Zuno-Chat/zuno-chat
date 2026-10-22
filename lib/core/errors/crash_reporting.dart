@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart'
     show debugPrint, kReleaseMode, visibleForTesting;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,12 +11,17 @@ import 'crash_scrubber.dart';
 
 const sentryDsn = String.fromEnvironment('SENTRY_DSN');
 
+final sentryConfiguredProvider = Provider<bool>((ref) => sentryDsn.isNotEmpty);
+
 const crashReportingKey = 'settings.crash_reporting';
 
 const _installIdKey = 'crash_reporting.install_id';
 
 bool readCrashReporting(SharedPreferences prefs) =>
     prefs.getBool(crashReportingKey) ?? false;
+
+bool crashReportingChosen(SharedPreferences prefs) =>
+    prefs.containsKey(crashReportingKey);
 
 bool shouldReportCrashes({
   required bool optedIn,

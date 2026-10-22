@@ -27,6 +27,10 @@ import 'package:zuno/core/ui/step_layout.dart';
 import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/onboarding/presentation/onboarding_flow_page.dart';
+import 'package:zuno/features/settings/presentation/crash_reports_tile.dart';
+import 'package:zuno/features/settings/presentation/incognito_keyboard_tile.dart';
+import 'package:zuno/features/settings/presentation/notification_preview_options.dart';
+import 'package:zuno/features/settings/presentation/screen_protection_tile.dart';
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 import 'package:zuno/features/verification/presentation/approve_this_device_page.dart';
 
@@ -35,6 +39,7 @@ import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_permissions.dart';
 import '../../../helpers/fake_unified_push.dart';
+import '../../../helpers/layout_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/pump_until.dart';
 
@@ -50,6 +55,28 @@ void main() {
     channelCalls = [];
   });
 
+  ProviderContainer flowContainer({
+    PlatformCapabilities? capabilities,
+    Client? client,
+    AsyncValue<FcmAvailability> fcm = const AsyncData(
+      FcmAvailability.available,
+    ),
+  }) {
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        matrixClientProvider.overrideWithValue(
+          client ?? buildTestClient(userId: _userId),
+        ),
+        fcmAvailabilityProvider.overrideWithValue(fcm),
+        if (capabilities != null)
+          platformCapabilitiesProvider.overrideWithValue(capabilities),
+      ],
+    );
+    addTearDown(container.dispose);
+    return container;
+  }
+
   Future<OnboardingStore> pumpFlow(
     WidgetTester tester,
     List<OnboardingStep> steps, {
@@ -61,18 +88,12 @@ void main() {
     ),
     bool forwardExit = false,
   }) async {
-    final container = ProviderContainer(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        matrixClientProvider.overrideWithValue(
+    final container = flowContainer(
+      capabilities: capabilities,
+      client:
           client ?? buildTestClient(userId: _userId, httpClient: httpClient),
-        ),
-        fcmAvailabilityProvider.overrideWithValue(fcm),
-        if (capabilities != null)
-          platformCapabilitiesProvider.overrideWithValue(capabilities),
-      ],
+      fcm: fcm,
     );
-    addTearDown(container.dispose);
     Widget flow(BuildContext _) => OnboardingFlowPage(steps: steps);
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -129,32 +150,58 @@ void main() {
     expect(find.text('open'), findsOneWidget);
   });
 
-  testWidgets('the confirm-people card explains it and moves on', (
-    tester,
-  ) async {
+  testWidgets('the privacy page holds the on-device protections and the '
+      'notification preview, and Continue moves on', (tester) async {
     final store = await pumpFlow(tester, [
-      OnboardingStep.confirmPeople,
+      OnboardingStep.privacy,
       OnboardingStep.setUpRecovery,
     ]);
 
-    expect(find.text('Make sure it is really them'), findsOneWidget);
-    expect(find.textContaining('compare pictures on a call'), findsOneWidget);
-    expect(find.byIcon(Icons.how_to_reg_outlined), findsOneWidget);
+    expect(find.text('Privacy on this device'), findsOneWidget);
+    expect(find.byType(IncognitoKeyboardTile), findsOneWidget);
+    expect(find.byType(ScreenProtectionTile), findsOneWidget);
+    expect(find.byType(NotificationPreviewOptions), findsOneWidget);
 
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
 
     expect(find.text('Set up recovery'), findsOneWidget);
-    expect(store.shown(_userId), {OnboardingStep.confirmPeople});
+    expect(store.shown(_userId), {OnboardingStep.privacy});
+  });
+
+  testWidgets('the improve page holds the crash reports switch, and Continue '
+      'moves on without turning it on', (tester) async {
+    final store = await pumpFlow(tester, [OnboardingStep.improveZuno]);
+
+    expect(find.text('Help improve Zuno'), findsOneWidget);
+    expect(find.byType(CrashReportsTile), findsOneWidget);
+
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('open'), findsOneWidget);
+    expect(prefs.containsKey('settings.crash_reporting'), isFalse);
+    expect(store.shown(_userId), {OnboardingStep.improveZuno});
+  });
+
+  testWidgets('the privacy and improve pages fit every layout and '
+      'language', (tester) async {
+    for (final step in [OnboardingStep.privacy, OnboardingStep.improveZuno]) {
+      final container = flowContainer(capabilities: androidCapabilities);
+      await expectSurvivesLayoutMatrix(
+        tester,
+        () => UncontrolledProviderScope(
+          container: container,
+          child: OnboardingFlowPage(steps: [step]),
+        ),
+      );
+    }
   });
 
   testWidgets('a step with nothing to decline shows no Skip; its own button '
       'moves on', (tester) async {
     final semantics = tester.ensureSemantics();
-    await pumpFlow(tester, [
-      OnboardingStep.welcome,
-      OnboardingStep.confirmPeople,
-    ]);
+    await pumpFlow(tester, [OnboardingStep.welcome, OnboardingStep.privacy]);
 
     expect(skip(), findsNothing);
     expect(find.bySemanticsLabel('Skip'), findsNothing);
@@ -163,7 +210,7 @@ void main() {
     await tester.tap(find.text('Get started'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Make sure it is really them'), findsOneWidget);
+    expect(find.text('Privacy on this device'), findsOneWidget);
     expect(skip(), findsNothing);
 
     await tester.tap(find.text('Continue'));
@@ -222,7 +269,7 @@ void main() {
     final store = await pumpFlow(tester, [
       OnboardingStep.profile,
       OnboardingStep.setUpRecovery,
-      OnboardingStep.confirmPeople,
+      OnboardingStep.privacy,
     ], client: client);
 
     await tester.enterText(find.byType(TextField), 'Alex');
@@ -568,7 +615,7 @@ void main() {
       );
       final store = await pumpFlow(tester, [
         OnboardingStep.deliveryMethod,
-        OnboardingStep.confirmPeople,
+        OnboardingStep.privacy,
       ]);
 
       await tester.tap(find.text('UnifiedPush'));
@@ -582,7 +629,7 @@ void main() {
       }
       await tester.pumpAndSettle();
 
-      expect(find.text('Make sure it is really them'), findsOneWidget);
+      expect(find.text('Privacy on this device'), findsOneWidget);
       expect(store.shown(_userId), {OnboardingStep.deliveryMethod});
     });
 
@@ -594,7 +641,7 @@ void main() {
       );
       await pumpFlow(tester, [
         OnboardingStep.deliveryMethod,
-        OnboardingStep.confirmPeople,
+        OnboardingStep.privacy,
       ]);
 
       await tester.tap(find.text('UnifiedPush'));
@@ -628,7 +675,7 @@ void main() {
       stubBatteryCheck(() => Completer<bool>().future);
       await pumpFlow(tester, [
         OnboardingStep.deliveryMethod,
-        OnboardingStep.confirmPeople,
+        OnboardingStep.privacy,
       ]);
 
       await tester.tap(find.text('UnifiedPush'));
@@ -637,7 +684,7 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
       await tester.pumpAndSettle();
 
-      expect(find.text('Make sure it is really them'), findsOneWidget);
+      expect(find.text('Privacy on this device'), findsOneWidget);
     });
 
     testWidgets('lists only the methods this platform has', (tester) async {

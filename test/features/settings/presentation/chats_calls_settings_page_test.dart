@@ -8,11 +8,9 @@ import 'package:zuno/features/settings/presentation/chats_calls_settings_page.da
 
 import '../../../helpers/card_layout.dart';
 import '../../../helpers/preferences_container.dart';
+import '../../../helpers/switch_tiles.dart';
 
 void main() {
-  Finder switchTile(String title) =>
-      find.widgetWithText(SwitchListTile, title, skipOffstage: false);
-
   Future<ProviderContainer> pumpPage(
     WidgetTester tester, {
     Map<String, Object> prefs = const {},
@@ -59,12 +57,7 @@ void main() {
     await tester.pump();
 
     expect(container.read(confirmBeforeCallingProvider), isFalse);
-    expect(
-      tester
-          .widget<SwitchListTile>(switchTile('Prevent accidental calls'))
-          .value,
-      isFalse,
-    );
+    expect(switchedOn(tester, 'Prevent accidental calls'), isFalse);
   });
 
   testWidgets('a stored typing preference is read back as off', (tester) async {
@@ -72,11 +65,6 @@ void main() {
     await container.read(sendTypingIndicatorProvider.notifier).set(false);
     await tester.pump();
 
-    expect(
-      tester
-          .widget<SwitchListTile>(switchTile('Show when you are typing'))
-          .value,
-      isFalse,
-    );
+    expect(switchedOn(tester, 'Show when you are typing'), isFalse);
   });
 }

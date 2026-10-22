@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/errors/crash_reporting.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
@@ -72,6 +73,7 @@ void main() {
     AccountSecurityFacts facts = _settled,
     Stream<AccountSecurityFacts>? factsOverTime,
     bool synced = false,
+    bool sentryConfigured = false,
   }) => containerWithPreferences(
     prefs,
     overrides: [
@@ -80,6 +82,7 @@ void main() {
         (ref) => factsOverTime ?? Stream.value(facts),
       ),
       platformCapabilitiesProvider.overrideWithValue(capabilities),
+      sentryConfiguredProvider.overrideWithValue(sentryConfigured),
       if (synced) firstSyncProvider.overrideWith((ref) async {}),
     ],
   );
@@ -87,10 +90,11 @@ void main() {
   Future<List<OnboardingStep>> stepsOn(
     PlatformCapabilities capabilities, {
     Map<String, Object> prefs = const {
-      'onboarding.shown.$_userId': ['confirmPeople'],
+      'onboarding.shown.$_userId': ['privacy'],
     },
     AccountSecurityFacts facts = _settled,
     void Function(Client client)? addRooms,
+    bool sentryConfigured = false,
   }) async {
     final client = buildTestClient(userId: _userId);
     addRooms?.call(client);
@@ -100,6 +104,7 @@ void main() {
       prefs: prefs,
       facts: facts,
       synced: true,
+      sentryConfigured: sentryConfigured,
     );
     container.listen(onboardingStepsProvider, (_, _) {});
     return container.read(onboardingStepsProvider.future);
@@ -119,7 +124,7 @@ void main() {
 
       client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
 
-      expect(await steps, [OnboardingStep.confirmPeople]);
+      expect(await steps, [OnboardingStep.privacy]);
     });
 
     test('signing out and in again in one process onboards the next '
@@ -132,7 +137,7 @@ void main() {
         client,
         iosCapabilities,
         prefs: {
-          'onboarding.shown.@first:example.org': ['confirmPeople'],
+          'onboarding.shown.@first:example.org': ['privacy'],
         },
       );
       final firstRoomList = container.listen(
@@ -163,7 +168,7 @@ void main() {
       await pumpEventQueue();
 
       expect(seen, [
-        [OnboardingStep.confirmPeople],
+        [OnboardingStep.privacy],
       ]);
     });
 
@@ -183,7 +188,7 @@ void main() {
         OnboardingStep.notifications,
         OnboardingStep.deliveryMethod,
         OnboardingStep.approveDevice,
-        OnboardingStep.confirmPeople,
+        OnboardingStep.privacy,
       ]);
     });
   });
@@ -206,7 +211,7 @@ void main() {
         androidCapabilities,
         prefs: const {
           'settings.notification_delivery_mode': 'backgroundService',
-          'onboarding.shown.$_userId': ['deliveryMethod', 'confirmPeople'],
+          'onboarding.shown.$_userId': ['deliveryMethod', 'privacy'],
         },
         factsOverTime: syncs.stream,
         synced: true,
@@ -325,6 +330,34 @@ void main() {
     });
   });
 
+  group('crash reports', () {
+    test('a build that can send them asks while no choice is stored', () async {
+      expect(await stepsOn(iosCapabilities, sentryConfigured: true), [
+        OnboardingStep.improveZuno,
+      ]);
+    });
+
+    test(
+      'a choice made in Settings, on or off, is never asked again',
+      () async {
+        for (final chosen in [true, false]) {
+          expect(
+            await stepsOn(
+              iosCapabilities,
+              sentryConfigured: true,
+              prefs: {
+                'onboarding.shown.$_userId': const ['privacy'],
+                'settings.crash_reporting': chosen,
+              },
+            ),
+            isEmpty,
+            reason: '$chosen',
+          );
+        }
+      },
+    );
+  });
+
   test('Android asks how messages should arrive', () async {
     expect(await stepsOn(androidCapabilities), [OnboardingStep.deliveryMethod]);
   });
@@ -336,7 +369,7 @@ void main() {
   group('once the method is chosen', () {
     const unifiedPushChosen = <String, Object>{
       'settings.notification_delivery_mode': 'unifiedPush',
-      'onboarding.shown.$_userId': ['deliveryMethod', 'confirmPeople'],
+      'onboarding.shown.$_userId': ['deliveryMethod', 'privacy'],
     };
 
     test('Android asks for the battery exemption UnifiedPush needs', () async {

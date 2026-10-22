@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/settings/app_preferences_provider.dart';
@@ -11,6 +10,8 @@ import '../../../core/ui/card_list_view.dart';
 import '../../blocking/presentation/blocked_people_page.dart';
 import 'active_sessions_page.dart';
 import 'confirmed_people_only_tile.dart';
+import 'incognito_keyboard_tile.dart';
+import 'screen_protection_tile.dart';
 import 'secure_backup_page.dart';
 import 'security_status_action.dart';
 import 'security_status_card.dart';
@@ -23,9 +24,6 @@ class SecurityPrivacySettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final incognitoKeyboard = ref.watch(incognitoKeyboardProvider);
-    final preventScreenshots = ref.watch(preventScreenshotsProvider);
-    final capabilities = ref.watch(platformCapabilitiesProvider);
     final status = ref.watch(accountSecurityStatusProvider).value;
     final hasRecovery =
         status != null && status != AccountSecurityStatus.noRecovery;
@@ -76,37 +74,8 @@ class SecurityPrivacySettingsPage extends ConsumerWidget {
           CardGroup(
             title: l10n.settingsSecurityOnThisDevice,
             children: [
-              if (capabilities.keyboardLearningOptOut ||
-                  capabilities.thirdPartyKeyboardBlocking)
-                SwitchListTile(
-                  secondary: const Icon(Icons.keyboard_alt_outlined),
-                  title: Text(l10n.settingsSecurityIncognitoKeyboard),
-                  subtitle: Text(
-                    capabilities.keyboardLearningOptOut
-                        ? l10n.settingsSecurityIncognitoKeyboardSubtitle
-                        : l10n.settingsSecurityIncognitoKeyboardAppleOnlySubtitle,
-                  ),
-                  value: incognitoKeyboard,
-                  onChanged: (value) =>
-                      ref.read(incognitoKeyboardProvider.notifier).set(value),
-                ),
-              if (capabilities.screenSecurity)
-                SwitchListTile(
-                  secondary: const Icon(Icons.screenshot_outlined),
-                  title: Text(
-                    capabilities.screenshotBlocking
-                        ? l10n.settingsSecurityPreventScreenshots
-                        : l10n.settingsSecurityHideScreenContent,
-                  ),
-                  subtitle: Text(
-                    capabilities.screenshotBlocking
-                        ? l10n.settingsSecurityPreventScreenshotsSubtitle
-                        : l10n.settingsSecurityHideScreenContentSubtitle,
-                  ),
-                  value: preventScreenshots,
-                  onChanged: (value) =>
-                      ref.read(preventScreenshotsProvider.notifier).set(value),
-                ),
+              const IncognitoKeyboardTile(),
+              const ScreenProtectionTile(),
               if (confirmedPeopleOnlyOffered) const ConfirmedPeopleOnlyTile(),
             ],
           ),

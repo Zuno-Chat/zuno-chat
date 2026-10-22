@@ -494,7 +494,7 @@ void main() {
     ) async {
       final container = await pumpRoomList(
         tester,
-        onboarding: [OnboardingStep.confirmPeople],
+        onboarding: [OnboardingStep.privacy],
       );
 
       expect(find.byType(OnboardingFlowPage), findsOneWidget);
@@ -506,7 +506,7 @@ void main() {
         tester
             .widget<OnboardingFlowPage>(find.byType(OnboardingFlowPage))
             .steps,
-        [OnboardingStep.confirmPeople],
+        [OnboardingStep.privacy],
       );
       expect(container.read(onboardingStoreProvider).flow, OnboardingFlow.open);
 
@@ -527,7 +527,7 @@ void main() {
       final container = await pumpRoomList(
         tester,
         onboardingBuild: inTurn([
-          Future.value(const [OnboardingStep.confirmPeople]),
+          Future.value(const [OnboardingStep.privacy]),
           Future.value(const [OnboardingStep.batteryExemption]),
         ]),
       );
@@ -572,7 +572,7 @@ void main() {
       final container = await pumpRoomList(
         tester,
         onboardingBuild: inTurn([
-          Future.value(const [OnboardingStep.confirmPeople]),
+          Future.value(const [OnboardingStep.privacy]),
           nextList.future,
         ]),
       );
@@ -673,7 +673,7 @@ void main() {
       final container = await pumpRoomList(
         tester,
         prompt: SecurityPromptDecision.setUpRecovery,
-        onboarding: [OnboardingStep.confirmPeople],
+        onboarding: [OnboardingStep.privacy],
       );
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();

@@ -12,8 +12,10 @@ List<OnboardingStep> steps({
   bool thisDeviceHasIdentityKeys = true,
   bool hasConversations = true,
   bool recoveryPromptOnCooldown = false,
+  bool crashReportsAvailable = false,
+  bool crashReportingChosen = false,
   Set<OnboardingStep> alreadyShown = const {OnboardingStep.deliveryMethod},
-  bool confirmPeopleShown = true,
+  bool privacyShown = true,
 }) => onboardingSteps(
   justRegistered: justRegistered,
   notificationsAllowed: notificationsAllowed,
@@ -25,10 +27,9 @@ List<OnboardingStep> steps({
   thisDeviceHasIdentityKeys: thisDeviceHasIdentityKeys,
   hasConversations: hasConversations,
   recoveryPromptOnCooldown: recoveryPromptOnCooldown,
-  alreadyShown: {
-    ...alreadyShown,
-    if (confirmPeopleShown) OnboardingStep.confirmPeople,
-  },
+  crashReportsAvailable: crashReportsAvailable,
+  crashReportingChosen: crashReportingChosen,
+  alreadyShown: {...alreadyShown, if (privacyShown) OnboardingStep.privacy},
 );
 
 void main() {
@@ -45,6 +46,7 @@ void main() {
           needsBatteryExemption: true,
           needsAutostart: true,
           thisDeviceHasIdentityKeys: false,
+          crashReportsAvailable: true,
           alreadyShown: const {
             OnboardingStep.welcome,
             OnboardingStep.profile,
@@ -53,6 +55,7 @@ void main() {
             OnboardingStep.batteryExemption,
             OnboardingStep.autostart,
             OnboardingStep.approveDevice,
+            OnboardingStep.improveZuno,
           },
         ),
         isEmpty,
@@ -69,45 +72,28 @@ void main() {
     });
   });
 
-  group('learning to confirm people', () {
+  group('privacy on this device', () {
     test('an account that has never seen it is shown it once', () {
-      expect(steps(confirmPeopleShown: false), [OnboardingStep.confirmPeople]);
-    });
-
-    test('a new account sees it last, after the notifications', () {
-      expect(
-        steps(
-          justRegistered: true,
-          canAskNotifications: true,
-          recoveryExists: false,
-          hasConversations: false,
-          confirmPeopleShown: false,
-        ),
-        [
-          OnboardingStep.welcome,
-          OnboardingStep.profile,
-          OnboardingStep.notifications,
-          OnboardingStep.confirmPeople,
-        ],
-      );
+      expect(steps(privacyShown: false), [OnboardingStep.privacy]);
     });
 
     test('a device waiting for approval sees it after the approval', () {
-      expect(
-        steps(thisDeviceHasIdentityKeys: false, confirmPeopleShown: false),
-        [OnboardingStep.approveDevice, OnboardingStep.confirmPeople],
-      );
+      expect(steps(thisDeviceHasIdentityKeys: false, privacyShown: false), [
+        OnboardingStep.approveDevice,
+        OnboardingStep.privacy,
+      ]);
     });
 
-    test('comes after every other step', () {
+    test('comes after every other step but the ask for crash reports', () {
       expect(
         steps(
           justRegistered: true,
           canAskNotifications: true,
           needsAutostart: true,
           recoveryExists: false,
+          crashReportsAvailable: true,
           alreadyShown: const {},
-          confirmPeopleShown: false,
+          privacyShown: false,
         ),
         [
           OnboardingStep.welcome,
@@ -116,9 +102,38 @@ void main() {
           OnboardingStep.deliveryMethod,
           OnboardingStep.autostart,
           OnboardingStep.setUpRecovery,
-          OnboardingStep.confirmPeople,
+          OnboardingStep.privacy,
+          OnboardingStep.improveZuno,
         ],
       );
+    });
+  });
+
+  group('helping improve Zuno', () {
+    test('is asked once when this build can send reports and no choice is '
+        'stored', () {
+      expect(steps(crashReportsAvailable: true), [OnboardingStep.improveZuno]);
+      expect(
+        steps(
+          crashReportsAvailable: true,
+          alreadyShown: const {
+            OnboardingStep.deliveryMethod,
+            OnboardingStep.improveZuno,
+          },
+        ),
+        isEmpty,
+      );
+    });
+
+    test('is not asked once a choice is stored, on or off', () {
+      expect(
+        steps(crashReportsAvailable: true, crashReportingChosen: true),
+        isEmpty,
+      );
+    });
+
+    test('is not asked by a build that cannot send reports', () {
+      expect(steps(crashReportsAvailable: false), isEmpty);
     });
   });
 
@@ -342,8 +357,9 @@ void main() {
   group('Skip', () {
     test('is left off the steps that ask for nothing to decline', () {
       expect(offersSkip(OnboardingStep.welcome), isFalse);
-      expect(offersSkip(OnboardingStep.confirmPeople), isFalse);
       expect(offersSkip(OnboardingStep.deliveryMethod), isFalse);
+      expect(offersSkip(OnboardingStep.privacy), isFalse);
+      expect(offersSkip(OnboardingStep.improveZuno), isFalse);
     });
 
     test('stays on every step that asks for something', () {

@@ -176,6 +176,7 @@ The Greek column gives the article, which shows the gender, and the plural where
 | theme: Dark / Light / Follow system | Σκούρο / Ανοιχτό / Όπως το σύστημα | Neuter, agreeing with «θέμα». |
 | Appearance / About / Advanced, version | Εμφάνιση / Πληροφορίες / Σύνθετες ρυθμίσεις · η έκδοση | "(build {build})" stays as it is. |
 | feedback, crash reports | τα σχόλια · οι αναφορές κατάρρευσης | "Send feedback" → «Αποστολή σχολίων». |
+| crash, error | η κατάρρευση · το σφάλμα | "Send crash and error reports" → «Αποστολή αναφορών κατάρρευσης και σφαλμάτων». Never «λάθος», which is "wrong": «Λάθος κωδικός πρόσβασης». |
 | donate, privacy, Privacy policy, Terms | η δωρεά · το απόρρητο · Πολιτική απορρήτου · Όροι | |
 | app, home screen, shortcut, launcher | η εφαρμογή · η αρχική οθόνη · η συντόμευση · η εφαρμογή εκκίνησης | |
 | recent apps, app switcher | οι πρόσφατες εφαρμογές · η εναλλαγή εφαρμογών | |

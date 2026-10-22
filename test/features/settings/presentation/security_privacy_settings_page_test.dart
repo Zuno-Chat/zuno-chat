@@ -25,6 +25,7 @@ import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/switch_tiles.dart';
 
 class _NoDevicesClient extends EncryptedTestClient {
   _NoDevicesClient() : super(userId: '@me:example.org', testDeviceId: 'HERE');
@@ -52,9 +53,6 @@ void main() {
   late RecordedMethodCalls native;
 
   setUp(() => native = installFakePrivacyChannel());
-
-  Finder switchTile(String title) =>
-      find.widgetWithText(SwitchListTile, title, skipOffstage: false);
 
   Future<ProviderContainer> pumpPage(
     WidgetTester tester, {
@@ -183,10 +181,7 @@ void main() {
     ) async {
       await pumpPage(tester, capabilities: iosCapabilities);
 
-      expect(
-        tester.widget<SwitchListTile>(switchTile('Incognito keyboard')).value,
-        isTrue,
-      );
+      expect(switchedOn(tester, 'Incognito keyboard'), isTrue);
       expect(
         find.text(
           "Only Apple's keyboard works in Zuno, so keyboards from other apps "
@@ -241,8 +236,7 @@ void main() {
     tester,
   ) async {
     final container = await pumpPage(tester);
-    bool shown() =>
-        tester.widget<SwitchListTile>(switchTile('Prevent screenshots')).value;
+    bool shown() => switchedOn(tester, 'Prevent screenshots');
     expect(shown(), isTrue);
 
     await tester.tap(switchTile('Prevent screenshots'));

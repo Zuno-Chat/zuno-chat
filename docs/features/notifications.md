@@ -75,7 +75,7 @@ One level (`NotificationPreview`, default Name and message) applies on both plat
 - **At Nothing, Android drops every avatar, the conversation style and the conversation shortcut, and removes the shortcuts it already made**, since the Conversations section and the launcher would still show names.
 - **At Nothing a message still posts on its direct or group channel**, so per-channel sounds keep working.
 - **With iOS Show Previews off, a message says "New message" instead of "Notification"**, because every message notification carries a category (with actions only at Name and message) whose hidden-preview placeholder says so; invitations, calls and system lines keep the system default.
-- **On an iOS version that can keep a deleted notification's text, the page suggests Name only.**
+- **On an iOS version that can keep a deleted notification's text, the preview choice suggests Name only**, in Settings and onboarding's privacy page alike.
 
 ### Android presentation
 

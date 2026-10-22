@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -128,6 +130,9 @@ class PlatformCapabilities {
     required this.deliveryModes,
     required this.defaultDeliveryMode,
   });
+
+  bool get incognitoKeyboard =>
+      keyboardLearningOptOut || thirdPartyKeyboardBlocking;
 }
 
 PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
@@ -268,4 +273,8 @@ set ambientCapabilities(PlatformCapabilities capabilities) =>
 
 final platformCapabilitiesProvider = Provider<PlatformCapabilities>(
   (ref) => ambientCapabilities,
+);
+
+final operatingSystemVersionProvider = Provider<String>(
+  (ref) => Platform.operatingSystemVersion,
 );

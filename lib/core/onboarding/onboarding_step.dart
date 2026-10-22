@@ -7,7 +7,8 @@ enum OnboardingStep {
   autostart,
   approveDevice,
   setUpRecovery,
-  confirmPeople,
+  privacy,
+  improveZuno,
 }
 
 enum OnboardingFlow { undecided, open, done }
@@ -21,7 +22,8 @@ const _deliverySteps = {
 const _nothingToDecline = {
   OnboardingStep.welcome,
   OnboardingStep.deliveryMethod,
-  OnboardingStep.confirmPeople,
+  OnboardingStep.privacy,
+  OnboardingStep.improveZuno,
 };
 
 bool offersSkip(OnboardingStep step) => !_nothingToDecline.contains(step);
@@ -37,6 +39,8 @@ List<OnboardingStep> onboardingSteps({
   required bool thisDeviceHasIdentityKeys,
   required bool hasConversations,
   required bool recoveryPromptOnCooldown,
+  required bool crashReportsAvailable,
+  required bool crashReportingChosen,
   required Set<OnboardingStep> alreadyShown,
 }) {
   final steps = <OnboardingStep>[];
@@ -65,7 +69,10 @@ List<OnboardingStep> onboardingSteps({
   } else if (!thisDeviceHasIdentityKeys) {
     steps.add(OnboardingStep.approveDevice);
   }
-  steps.add(OnboardingStep.confirmPeople);
+  steps.add(OnboardingStep.privacy);
+  if (crashReportsAvailable && !crashReportingChosen) {
+    steps.add(OnboardingStep.improveZuno);
+  }
   return steps.where((step) => !alreadyShown.contains(step)).toList();
 }
 

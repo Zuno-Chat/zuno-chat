@@ -16,6 +16,7 @@ PlatformCapabilities capabilitiesLike(
   bool? screenSecurity,
   bool? screenshotBlocking,
   bool? sensitiveClipboard,
+  bool? keyboardLearningOptOut,
   bool? thirdPartyKeyboardBlocking,
   bool? overlayHiding,
   bool? accessibilitySensitivity,
@@ -77,7 +78,7 @@ PlatformCapabilities capabilitiesLike(
       uploadForegroundService ?? base.uploadForegroundService,
   networkAvailabilityEvents:
       networkAvailabilityEvents ?? base.networkAvailabilityEvents,
-  keyboardLearningOptOut: base.keyboardLearningOptOut,
+  keyboardLearningOptOut: keyboardLearningOptOut ?? base.keyboardLearningOptOut,
   thirdPartyKeyboardBlocking:
       thirdPartyKeyboardBlocking ?? base.thirdPartyKeyboardBlocking,
   overlayHiding: overlayHiding ?? base.overlayHiding,

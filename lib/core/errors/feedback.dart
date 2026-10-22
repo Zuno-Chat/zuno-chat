@@ -10,8 +10,6 @@ class FeedbackNotSent implements Exception {
   const FeedbackNotSent();
 }
 
-const feedbackAvailable = sentryDsn != '';
-
 Future<void> sendFeedback(
   String message, {
   String dsn = sentryDsn,

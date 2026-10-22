@@ -9,6 +9,8 @@ import 'package:zuno/core/push/background_sync/background_sync_service.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
 import 'package:zuno/core/shortcuts/home_screen_shortcut.dart';
 
+import '../../helpers/platform_capabilities.dart';
+
 class _Capability {
   final String name;
 
@@ -364,6 +366,12 @@ final _capabilities = <_Capability>[
     ios: [NotificationDeliveryMode.apns],
   ),
   _Capability(
+    'incognitoKeyboard',
+    read: (c) => c.incognitoKeyboard,
+    android: true,
+    ios: true,
+  ),
+  _Capability(
     'defaultDeliveryMode',
     read: (c) => c.defaultDeliveryMode,
     android: NotificationDeliveryMode.fcm,
@@ -389,6 +397,17 @@ void main() {
         );
       });
     }
+  });
+
+  test('a platform that can neither stop keyboard learning nor block '
+      'keyboards offers no incognito keyboard', () {
+    expect(
+      capabilitiesLike(
+        androidCapabilities,
+        keyboardLearningOptOut: false,
+      ).incognitoKeyboard,
+      isFalse,
+    );
   });
 
   test('each platform offers its own default delivery mode', () {

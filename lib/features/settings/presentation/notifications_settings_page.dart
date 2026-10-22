@@ -1,5 +1,4 @@
 import 'dart:async' show unawaited;
-import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +9,6 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/messages/message_notifications.dart';
 import '../../../core/notifications/settings/notification_permission.dart';
-import '../../../core/notifications/settings/notification_preview.dart';
 import '../../../core/notifications/settings/notifications_allowed_provider.dart';
 import '../../../core/notifications/settings/notify_me.dart';
 import '../../../core/platform/platform_capabilities.dart';
@@ -24,12 +22,11 @@ import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import 'delivery_failure_action.dart';
 import 'notification_delivery_page.dart';
+import 'notification_preview_options.dart';
 import 'push_diagnostics_page.dart';
 
 class NotificationsSettingsPage extends ConsumerStatefulWidget {
-  const NotificationsSettingsPage({super.key, this.osVersion});
-
-  final String? osVersion;
+  const NotificationsSettingsPage({super.key});
 
   @override
   ConsumerState<NotificationsSettingsPage> createState() =>
@@ -108,28 +105,6 @@ class _NotificationsSettingsPageState
     }
   }
 
-  Future<void> _setPreview(NotificationPreview level) async {
-    await ref.read(notificationPreviewProvider.notifier).set(level);
-    await _finishPreviewHint();
-  }
-
-  Future<void> _finishPreviewHint() async {
-    await ref
-        .read(sharedPreferencesProvider)
-        .setBool(notificationPreviewHintKey, true);
-    if (mounted) setState(() {});
-  }
-
-  bool _previewHintDue(NotificationPreview preview) {
-    final prefs = ref.read(sharedPreferencesProvider);
-    return ref.read(platformCapabilitiesProvider).notificationRetentionCheck &&
-        preview == NotificationPreview.full &&
-        prefs.getBool(notificationPreviewHintKey) != true &&
-        notificationRetentionUnpatched(
-          widget.osVersion ?? Platform.operatingSystemVersion,
-        );
-  }
-
   Future<void> _setMessageTone(bool on) async {
     final applePush = ref.read(platformCapabilitiesProvider).apnsRegistration;
     final client = applePush ? ref.read(matrixClientProvider) : null;
@@ -160,7 +135,6 @@ class _NotificationsSettingsPageState
     final canChooseDelivery = capabilities.deliveryModes.length > 1;
     final deliveryMode = ref.watch(notificationDeliveryModeProvider);
     final notifyMe = ref.watch(notifyMeProvider);
-    final preview = ref.watch(notificationPreviewProvider);
     final ringtone = ref.watch(ringtoneEnabledProvider);
     final callVibration = ref.watch(callVibrationEnabledProvider);
     final messageTone = ref.watch(messageToneEnabledProvider);
@@ -286,47 +260,7 @@ class _NotificationsSettingsPageState
           ),
           CardGroup(
             title: l10n.notificationsContent,
-            children: [
-              RadioGroup<NotificationPreview>(
-                groupValue: preview,
-                onChanged: (level) => _setPreview(level!),
-                child: Column(
-                  children: [
-                    for (final level in NotificationPreview.values)
-                      RadioListTile<NotificationPreview>(
-                        title: Text(level.label(l10n)),
-                        subtitle: Text(level.description(l10n)),
-                        value: level,
-                      ),
-                  ],
-                ),
-              ),
-              if (_previewHintDue(preview))
-                ListTile(
-                  leading: const Icon(Icons.info_outline),
-                  title: Text(l10n.notificationsRetentionTitle),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(l10n.notificationsRetentionHint),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          TextButton(
-                            onPressed: () =>
-                                _setPreview(NotificationPreview.nameOnly),
-                            child: Text(l10n.notificationsUseNameOnly),
-                          ),
-                          TextButton(
-                            onPressed: _finishPreviewHint,
-                            child: Text(l10n.notificationsKeepAsIs),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-            ],
+            children: [const NotificationPreviewOptions()],
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(28, 6, 28, 8),

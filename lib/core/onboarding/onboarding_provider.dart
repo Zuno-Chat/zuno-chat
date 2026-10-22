@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../errors/caught_errors.dart';
+import '../errors/crash_reporting.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../platform/background_restrictions.dart';
 import '../platform/platform_capabilities.dart';
@@ -134,6 +135,10 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
     recoveryPromptOnCooldown:
         lastPrompted != null &&
         DateTime.now().difference(lastPrompted) < securityPromptCooldown,
+    crashReportsAvailable: ref.watch(sentryConfiguredProvider),
+    crashReportingChosen: crashReportingChosen(
+      ref.watch(sharedPreferencesProvider),
+    ),
     alreadyShown: store.shown(userId),
   );
 });

@@ -30,10 +30,15 @@ import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_prompt_provider.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/settings/app_preferences_provider.dart';
+import '../../../core/ui/card_group.dart';
 import '../../../core/ui/keyboard.dart';
 import '../../../core/ui/step_hero.dart';
 import '../../../core/ui/step_layout.dart';
 import '../../../core/ui/zuno_motion.dart';
+import '../../settings/presentation/crash_reports_tile.dart';
+import '../../settings/presentation/incognito_keyboard_tile.dart';
+import '../../settings/presentation/notification_preview_options.dart';
+import '../../settings/presentation/screen_protection_tile.dart';
 import '../../settings/presentation/secure_backup_page.dart';
 import '../../verification/presentation/approve_this_device_page.dart';
 
@@ -241,7 +246,6 @@ class _StepPage extends StatelessWidget {
   Widget build(BuildContext context) => switch (step) {
     OnboardingStep.welcome => _WelcomeStep(onDone: onDone),
     OnboardingStep.profile => _ProfileStep(onDone: onDone),
-    OnboardingStep.confirmPeople => _ConfirmPeopleStep(onDone: onDone),
     OnboardingStep.notifications => _NotificationsStep(onDone: onDone),
     OnboardingStep.deliveryMethod => _DeliveryStep(onChosen: onDeliveryChosen),
     OnboardingStep.batteryExemption => _BatteryStep(onDone: onDone),
@@ -253,6 +257,31 @@ class _StepPage extends StatelessWidget {
     OnboardingStep.setUpRecovery => _SecurityStep(
       status: AccountSecurityStatus.noRecovery,
       onDone: onDone,
+    ),
+    OnboardingStep.privacy => _ContinueStep(
+      icon: Icons.phonelink_lock_outlined,
+      title: context.l10n.onboardingPrivacyTitle,
+      body: context.l10n.onboardingPrivacyBody,
+      onDone: onDone,
+      children: [
+        const IncognitoKeyboardTile(),
+        const ScreenProtectionTile(),
+        Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 4),
+          child: Text(
+            context.l10n.notificationsContent,
+            style: cardGroupTitleStyle(context),
+          ),
+        ),
+        const NotificationPreviewOptions(),
+      ],
+    ),
+    OnboardingStep.improveZuno => _ContinueStep(
+      icon: Icons.build_outlined,
+      title: context.l10n.onboardingImproveTitle,
+      body: context.l10n.onboardingImproveBody,
+      onDone: onDone,
+      children: const [CrashReportsTile()],
     ),
   };
 }
@@ -304,13 +333,16 @@ class _StepScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StepLayout(
-      hero: hero ?? StepHero(icon: icon),
-      title: title,
-      body: body,
-      padding: const EdgeInsets.only(bottom: 8),
-      actions: [action],
-      children: children,
+    return ListTileTheme.merge(
+      contentPadding: EdgeInsets.zero,
+      child: StepLayout(
+        hero: hero ?? StepHero(icon: icon),
+        title: title,
+        body: body,
+        padding: const EdgeInsets.only(bottom: 8),
+        actions: [action],
+        children: children,
+      ),
     );
   }
 }
@@ -333,28 +365,39 @@ class _WelcomeStep extends StatelessWidget {
       title: context.l10n.onboardingWelcomeTitle,
       body: context.l10n.onboardingWelcomeBody,
       action: FilledButton(
-        onPressed: () => onDone(),
+        onPressed: onDone,
         child: Text(context.l10n.onboardingGetStarted),
       ),
     );
   }
 }
 
-class _ConfirmPeopleStep extends StatelessWidget {
+class _ContinueStep extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String body;
+  final List<Widget> children;
   final Future<void> Function() onDone;
 
-  const _ConfirmPeopleStep({required this.onDone});
+  const _ContinueStep({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.children,
+    required this.onDone,
+  });
 
   @override
   Widget build(BuildContext context) {
     return _StepScaffold(
-      icon: Icons.how_to_reg_outlined,
-      title: context.l10n.onboardingConfirmTitle,
-      body: context.l10n.onboardingConfirmBody,
+      icon: icon,
+      title: title,
+      body: body,
       action: FilledButton(
-        onPressed: () => onDone(),
+        onPressed: onDone,
         child: Text(context.l10n.commonContinue),
       ),
+      children: children,
     );
   }
 }
@@ -439,7 +482,6 @@ class _DeliveryStepState extends ConsumerState<_DeliveryStep> {
                     enabled: enabled,
                     title: Text(mode.label(l10n)),
                     subtitle: Text(subtitle),
-                    contentPadding: EdgeInsets.zero,
                   ),
             ],
           ),

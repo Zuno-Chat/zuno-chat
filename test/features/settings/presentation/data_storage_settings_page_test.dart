@@ -17,6 +17,7 @@ import '../../../helpers/card_layout.dart';
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/preferences_container.dart';
+import '../../../helpers/switch_tiles.dart';
 
 class _CacheClient extends Client {
   _CacheClient() : super('test', database: FakeDatabaseApi()) {
@@ -40,9 +41,6 @@ void main() {
   late _CacheClient client;
 
   setUp(() => client = _CacheClient());
-
-  Finder switchTile(String title) =>
-      find.widgetWithText(SwitchListTile, title, skipOffstage: false);
 
   Future<ProviderContainer> pumpPage(
     WidgetTester tester, {
@@ -113,7 +111,7 @@ void main() {
       await tester.pump();
 
       expect(container.read(provider), isFalse);
-      expect(tester.widget<SwitchListTile>(switchTile(title)).value, isFalse);
+      expect(switchedOn(tester, title), isFalse);
       expect(container.read(sharedPreferencesProvider).getBool(key), isFalse);
     });
   }

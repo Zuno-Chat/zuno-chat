@@ -36,7 +36,8 @@ stopped and every step shows at most once per account on this device.
 | `autostart` | The maker has an autostart screen (Xiaomi, Oppo, Vivo, Huawei) | "Open settings"; Android cannot report the setting, so it is asked once | `notifications.md` |
 | `approveDevice` | Recovery exists and this device lacks identity keys | The approval page is gone | `security-verification.md` |
 | `setUpRecovery` | No recovery, at least one joined chat, prompt not on cooldown | The recovery page is gone | `security-verification.md` |
-| `confirmPeople` | Not yet shown on this device; always last | Continue | `security-verification.md` |
+| `privacy` | Not yet shown on this device; after every step but `improveZuno` | Continue | `settings.md`, `notifications.md` |
+| `improveZuno` | This build can send reports and no crash-report choice is stored on this device; always last | Continue | `crash-reporting.md` |
 
 The flow adjusts itself in two places:
 
@@ -64,10 +65,16 @@ The flow adjusts itself in two places:
   marked shown, not merely hidden, or turning notifications on later in
   Settings would bring them back at the next launch.
 - **No information-only pages.** A step whose action is done advances by
-  itself, except `welcome` and `confirmPeople`, because nobody looks for a
-  protection they do not know exists.
+  itself, except `welcome`; `privacy` shows protections that are already on,
+  because nobody looks for a protection they do not know exists.
+- **The privacy and crash-report pages reuse Settings' own rows**, so a
+  change on either page is the same change as in Settings.
+- **Crash reports are asked only while no choice is stored on this device**,
+  so a choice made in About, on or off, is never asked again, and the page
+  follows the DSN alone, not the release-only gate, so a test build shows it.
 - **Skip only where there is something to decline**, because an
-  unskippable ask is a toll gate people answer at random.
+  unskippable ask is a toll gate people answer at random. A page of
+  switches has none, since Continue with the switches untouched declines.
 - **No swiping and no system back**, because steps have side effects such
   as OS dialogs and settings screens.
 - **The recovery dialog defers to the flow.** The room list's recovery
@@ -93,4 +100,4 @@ The flow adjusts itself in two places:
   resume checks run only while it is on screen.
 - The delivery step saves through the Settings picker's path and continues
   with the mode actually saved.
-- A new step's predicate stays pure and goes before `confirmPeople`.
+- A new step's predicate stays pure and goes before `privacy`.

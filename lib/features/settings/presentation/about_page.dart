@@ -11,6 +11,7 @@ import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/settings/library_versions.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import 'crash_reports_tile.dart';
 
 class AboutPage extends ConsumerWidget {
   final UrlOpener openUrl;
@@ -23,7 +24,6 @@ class AboutPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final crashReporting = ref.watch(crashReportingProvider);
     final showHiddenMessages = ref.watch(showHiddenMessagesProvider);
     final paymentLinks = ref
         .watch(platformCapabilitiesProvider)
@@ -134,14 +134,7 @@ class AboutPage extends ConsumerWidget {
               CardGroup(
                 title: l10n.settingsAboutDiagnostics,
                 children: [
-                  SwitchListTile(
-                    secondary: const Icon(Icons.bug_report_outlined),
-                    title: Text(l10n.settingsAboutCrashReports),
-                    subtitle: Text(l10n.settingsAboutCrashReportsSubtitle),
-                    value: crashReporting,
-                    onChanged: (value) =>
-                        ref.read(crashReportingProvider.notifier).set(value),
-                  ),
+                  const CrashReportsTile(),
                   SwitchListTile(
                     secondary: const Icon(Icons.visibility_off_outlined),
                     title: Text(l10n.settingsAboutHiddenMessages),

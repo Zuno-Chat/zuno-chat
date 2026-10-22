@@ -166,6 +166,7 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | theme: Dark / Light / Follow system | Ciemny / Jasny / Jak w systemie | |
 | Appearance / About / Advanced, version, build | Wygląd / Informacje / Zaawansowane · wersja · kompilacja | |
 | feedback, crash reports | opinia · raporty o awariach | "Send feedback" → «Wyślij opinię». |
+| crash, error | awaria · błąd | "Send crash and error reports" → «Wysyłaj raporty o awariach i błędach». |
 | donate, privacy, Privacy policy, Terms | Wesprzyj · prywatność · Polityka prywatności · Warunki korzystania | |
 | app, home screen, shortcut, launcher | aplikacja · ekran główny · skrót · launcher | A chat app is «komunikator». |
 | recent apps, app switcher | ostatnie aplikacje · przełącznik aplikacji | |

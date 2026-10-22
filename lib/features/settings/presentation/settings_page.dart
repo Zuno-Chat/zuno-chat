@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/feedback.dart';
+import '../../../core/errors/crash_reporting.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
@@ -28,9 +28,7 @@ import 'secure_backup_page.dart';
 import 'security_privacy_settings_page.dart';
 
 class SettingsPage extends ConsumerWidget {
-  final bool showFeedback;
-
-  const SettingsPage({this.showFeedback = feedbackAvailable, super.key});
+  const SettingsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -88,7 +86,7 @@ class SettingsPage extends ConsumerWidget {
                     : l10n.settingsPageAboutTerms,
                 page: const AboutPage(),
               ),
-              if (showFeedback)
+              if (ref.watch(sentryConfiguredProvider))
                 ListTile(
                   leading: const CircleIcon(Icons.feedback_outlined),
                   title: Text(l10n.settingsPageSendFeedback),

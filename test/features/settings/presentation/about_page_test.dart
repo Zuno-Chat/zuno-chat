@@ -15,11 +15,9 @@ import 'package:zuno/features/settings/presentation/about_page.dart';
 import '../../../helpers/card_layout.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/preferences_container.dart';
+import '../../../helpers/switch_tiles.dart';
 
 void main() {
-  Finder switchTile(String title) =>
-      find.widgetWithText(SwitchListTile, title, skipOffstage: false);
-
   String? subtitleOf(WidgetTester tester, String title) =>
       (tester.widget<ListTile>(find.widgetWithText(ListTile, title)).subtitle!
               as Text)
@@ -171,9 +169,7 @@ void main() {
     tester,
   ) async {
     final container = await pumpAbout(tester);
-    bool shown() => tester
-        .widget<SwitchListTile>(switchTile('Send crash and error reports'))
-        .value;
+    bool shown() => switchedOn(tester, 'Send crash and error reports');
     expect(shown(), isFalse);
 
     await tester.tap(switchTile('Send crash and error reports'));
@@ -206,10 +202,7 @@ void main() {
   ) async {
     final container = await pumpAbout(tester);
 
-    expect(
-      tester.widget<SwitchListTile>(switchTile('Show hidden messages')).value,
-      isFalse,
-    );
+    expect(switchedOn(tester, 'Show hidden messages'), isFalse);
     await tester.tap(switchTile('Show hidden messages'));
     await tester.pump();
 

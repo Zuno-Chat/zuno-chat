@@ -72,8 +72,9 @@ Delete account (`authentication.md`).
 Rows that exist on one platform only are gated on
 `platformCapabilitiesProvider` (`app-foundation.md`), and a card with no
 applicable rows disappears. The on-device protections this doc owns sit on
-the "On this device" card in Security. Confirmed people only belongs there
-too but is not offered for now (`security-verification.md`).
+the "On this device" card in Security, and onboarding's privacy page shows
+the same rows (`onboarding.md`). Confirmed people only belongs there too but
+is not offered for now (`security-verification.md`).
 
 | Row | Android | iOS |
 |---|---|---|

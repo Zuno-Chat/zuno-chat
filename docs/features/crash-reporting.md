@@ -1,8 +1,9 @@
 # Crash Reporting
 
 Crashes and handled errors go to Sentry only when all three hold: the user
-opted in (Settings → About, off by default), the build is release, and a
-DSN was compiled in. With any one missing, Sentry is never initialized.
+opted in (Settings → About or once in onboarding, off by default), the build
+is release, and a DSN was compiled in. With any one missing, Sentry is never
+initialized.
 
 Feedback (Settings → Send feedback) shares the DSN and the scrubber but not
 the opt-in:
@@ -127,8 +128,8 @@ native journal, drained ─────────┘     │ network failure? 
 ## Decisions
 
 - **Opt-in, default off.** An E2EE client must not phone home before being
-  asked, and the accepted cost is that most crashes and errors are never
-  seen.
+  asked, so onboarding asks once with the switch off (`onboarding.md`), and
+  the accepted cost is that most crashes and errors are never seen.
 - **One toggle, "Send crash and error reports"**, because a toggle must name
   everything it sends.
 - **Native errors go through the Dart funnel, not native Sentry capture.**
