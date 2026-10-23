@@ -9,22 +9,31 @@ import '../../platform/platform_capabilities.dart';
 
 const _callsChannel = MethodChannel('zuno/calls');
 
-Future<void> _invokeCallChannel(String method) async {
+Future<void> _invokeCallChannel(String method, [Object? arguments]) async {
   try {
-    await _callsChannel.invokeMethod<void>(method);
+    await _callsChannel.invokeMethod<void>(method, arguments);
   } catch (e, s) {
     if (e is! MissingPluginException) reportCaught('call tone $method', e, s);
   }
 }
 
 enum CallTone {
-  ringback('startRingbackTone', 'stopRingbackTone'),
-  waiting('startWaitingTone', 'stopWaitingTone');
+  ringback(
+    'startRingbackTone',
+    'stopRingbackTone',
+    'assets/sounds/ringback.wav',
+  ),
+  waiting(
+    'startWaitingTone',
+    'stopWaitingTone',
+    'assets/sounds/call_waiting.wav',
+  );
 
-  const CallTone(this._start, this._stop);
+  const CallTone(this._start, this._stop, this.asset);
 
   final String _start;
   final String _stop;
+  final String asset;
 }
 
 abstract interface class CallTonePlayer {
@@ -62,7 +71,7 @@ class NativeCallTonePlayer implements CallTonePlayer {
       _playing.remove(tone);
       return;
     }
-    await _invokeCallChannel(tone._start);
+    await _invokeCallChannel(tone._start, {'asset': tone.asset});
   }
 
   @override

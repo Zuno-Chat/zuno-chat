@@ -22,6 +22,7 @@ import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_state_rebuild.dart';
 import '../../../core/matrix/room_timeline_reload.dart';
 import '../../../core/matrix/sync_coordinator_provider.dart';
+import '../../../core/matrix/voice_audio_session.dart';
 import '../../../core/matrix/voice_recording.dart';
 import '../../../core/navigation/chat_route.dart';
 import '../../../core/notifications/messages/message_notifications.dart';
@@ -116,6 +117,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     );
     _recorder = VoiceRecorder(
       setup: voiceRecordingSetup(ref.read(platformCapabilitiesProvider)),
+      audio: ref.read(voiceAudioSessionProvider),
       onRecorded: (clip) => _sender.sendVoice(
         clip.bytes,
         duration: clip.duration,

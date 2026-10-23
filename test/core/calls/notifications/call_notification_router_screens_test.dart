@@ -63,8 +63,6 @@ void main() {
     silenceMethodChannels(const [
       'zuno/vibration',
       'zuno/conversations',
-      'xyz.luan/audioplayers',
-      'xyz.luan/audioplayers.global',
       'FlutterWebRTC.Method',
       'FlutterWebRTC.Event',
     ]);

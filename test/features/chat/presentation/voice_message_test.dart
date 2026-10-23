@@ -1,12 +1,15 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:zuno/core/matrix/attachment_actions.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
+import 'package:zuno/core/matrix/voice_audio_session.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/chat/presentation/message_contents/voice_message.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
@@ -14,6 +17,7 @@ import 'package:zuno/features/chat/presentation/message_meta.dart';
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_audio_player.dart';
+import '../../../helpers/fake_audio_session.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/pump_until.dart';
@@ -23,16 +27,25 @@ const _meta = MessageMeta(time: '09:41', own: false);
 
 void main() {
   late AttachmentServer server;
+  late List<String> log;
   late FakeAudioPlatform audio;
+  late FakeAudioSessionPort port;
+  late VoiceAudioSession session;
+  late bool onCall;
 
-  setUp(() async {
+  setUp(() {
     server = installAttachmentServer();
-    audio = await installFakeAudioPlatform();
+    log = [];
+    audio = installFakeAudioPlatform(log);
+    onCall = false;
+    port = FakeAudioSessionPort(log);
+    session = fakeVoiceAudioSession(port, callHoldsAudio: () => onCall);
   });
 
   Event voice({
     int? durationMs = 42000,
     List<Object?>? waveform = const [100, 600, 1024, 300],
+    String? mimetype = 'audio/ogg',
   }) => buildTestEvent(
     server.room,
     eventId: r'$voice',
@@ -42,7 +55,7 @@ void main() {
       'msgtype': MessageTypes.Audio,
       'body': 'voice.ogg',
       'url': 'mxc://example.org/voice',
-      'info': {'mimetype': 'audio/ogg', 'duration': ?durationMs},
+      'info': {'mimetype': ?mimetype, 'duration': ?durationMs},
       'org.matrix.msc3245.voice': <String, Object?>{},
       'org.matrix.msc1767.audio': {'waveform': ?waveform},
     },
@@ -53,24 +66,32 @@ void main() {
   void alreadyOnPhone(Event event) =>
       AttachmentCache.instance.put(keyOf(event), server.served);
 
-  Future<void> settle(WidgetTester tester, {int rounds = 5}) async {
+  Future<void> settle(WidgetTester tester) async {
     await pumpRealAsync(
       tester,
-      rounds: rounds,
+      rounds: 20,
       step: const Duration(milliseconds: 20),
     );
   }
 
   Future<void> pumpVoice(WidgetTester tester, Event event) async {
     await tester.pumpWidget(
-      inZunoApp(
-        SizedBox(
-          width: 300,
-          child: VoiceMessage(event: event, own: false, meta: _meta),
+      ProviderScope(
+        overrides: [voiceAudioSessionProvider.overrideWithValue(session)],
+        child: inZunoApp(
+          SizedBox(
+            width: 300,
+            child: VoiceMessage(event: event, own: false, meta: _meta),
+          ),
         ),
       ),
     );
     await settle(tester);
+  }
+
+  Future<void> unmount(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    await pumpAudioPlayerDisposal(tester);
   }
 
   void voiceTest(String description, Future<void> Function(WidgetTester) body) {
@@ -78,14 +99,23 @@ void main() {
       try {
         await body(tester);
       } finally {
-        await tester.pumpWidget(const SizedBox());
-        await settle(tester, rounds: 20);
+        await unmount(tester);
       }
     });
   }
 
   Future<void> pressPlayPause(WidgetTester tester) async {
+    final next = find.byIcon(
+      find.byIcon(Icons.pause).evaluate().isEmpty
+          ? Icons.pause
+          : Icons.play_arrow,
+    );
     await tester.tap(find.byType(InkWell));
+    await pumpUntil(
+      tester,
+      () => next.evaluate().isNotEmpty,
+      reason: 'the play button to switch',
+    );
     await settle(tester);
   }
 
@@ -97,7 +127,12 @@ void main() {
   }
 
   Iterable<int> seeks() =>
-      audio.named('seek').map((c) => (c.arguments as Map)['position'] as int);
+      audio.named('seek').map((position) => (position! as Duration).inMilliseconds);
+
+  String loadedPath() =>
+      Uri.parse(audio.named('load').single! as String).toFilePath();
+
+  String cacheDirectory() => '${server.cacheDirectory.path}/attachment_cache';
 
   voiceTest('shows the length before it plays', (tester) async {
     await pumpVoice(tester, voice());
@@ -115,11 +150,8 @@ void main() {
 
     await pressPlayPause(tester);
 
-    expect(audio.methods, containsAllInOrder(['setSourceBytes', 'resume']));
-    expect(
-      (audio.named('setSourceBytes').single.arguments as Map)['mimeType'],
-      'audio/ogg',
-    );
+    expect(audio.methods, containsAllInOrder(['load', 'play']));
+    expect(p.isWithin(cacheDirectory(), loadedPath()), isTrue);
     expect(find.byIcon(Icons.pause), findsOneWidget);
     expect(server.downloads, isEmpty);
   });
@@ -129,7 +161,7 @@ void main() {
     await tester.tap(find.byType(InkWell));
     await pumpUntil(
       tester,
-      () => audio.named('resume').isNotEmpty,
+      () => audio.named('play').isNotEmpty,
       reason: 'the downloaded message to play',
     );
   }
@@ -153,8 +185,8 @@ void main() {
 
     expect(await keptOnDisk(tester, event), server.served);
     expect(server.downloads, hasLength(1));
-    expect(AttachmentCache.instance.get(keyOf(event)), server.served);
-    expect(audio.methods, contains('resume'));
+    expect(AttachmentCache.instance.get(keyOf(event)), isNull);
+    expect(audio.methods, contains('play'));
   });
 
   voiceTest('a played message is shared without downloading it again', (
@@ -171,9 +203,8 @@ void main() {
     expect(server.downloads, hasLength(1));
   });
 
-  voiceTest('where the player needs a file, it plays the cached copy', (
-    tester,
-  ) async {
+  voiceTest('where the player reads the type from the file name, it plays '
+      'the cached copy through a link named for it', (tester) async {
     ambientCapabilities = iosCapabilities;
     final event = voice();
     alreadyOnPhone(event);
@@ -182,22 +213,131 @@ void main() {
     await tester.tap(find.byType(InkWell));
     await pumpUntil(
       tester,
-      () => audio.named('resume').isNotEmpty,
+      () => audio.named('play').isNotEmpty,
       reason: 'the cached copy to play',
     );
 
-    final source = audio.named('setSourceUrl').single.arguments as Map;
-    expect(source['isLocal'], isTrue);
-    expect(source['mimeType'], 'audio/ogg');
-    expect(
-      p.isWithin(
-        '${server.cacheDirectory.path}/attachment_cache',
-        source['url'] as String,
-      ),
-      isTrue,
+    final path = loadedPath();
+    expect(p.extension(path), '.ogg');
+    expect(FileSystemEntity.isLinkSync(path), isTrue);
+    expect(p.isWithin(cacheDirectory(), Link(path).targetSync()), isTrue);
+  });
+
+  voiceTest('a message that names no type is linked under the type its first '
+      'bytes show', (tester) async {
+    ambientCapabilities = iosCapabilities;
+    server.served = Uint8List.fromList([0, 0, 0, 24, ...'ftypM4A '.codeUnits]);
+    final event = voice(mimetype: null);
+    await pumpVoice(tester, event);
+
+    await tester.tap(find.byType(InkWell));
+    await pumpUntil(
+      tester,
+      () => audio.named('play').isNotEmpty,
+      reason: 'the downloaded message to play',
     );
-    expect(audio.methods, isNot(contains('setSourceBytes')));
-    expect(server.temporaryDirectory.listSync(), isEmpty);
+
+    expect(p.extension(loadedPath()), '.m4a');
+  });
+
+  voiceTest('tapping play twice quickly loads it once and shows no error', (
+    tester,
+  ) async {
+    final event = voice();
+    alreadyOnPhone(event);
+    await pumpVoice(tester, event);
+
+    final reports = await reportsDuring(() async {
+      await tester.tap(find.byType(InkWell));
+      await tester.tap(find.byType(InkWell));
+      await pumpUntil(
+        tester,
+        () => audio.named('play').isNotEmpty,
+        reason: 'the message to play',
+      );
+      await settle(tester);
+    });
+
+    expect(audio.named('load'), hasLength(1));
+    expect(find.byType(SnackBar), findsNothing);
+    expect(reports, isEmpty);
+  });
+
+  voiceTest('takes the audio session before it plays and gives it back when '
+      'paused, so other audio pauses and then resumes', (tester) async {
+    final event = voice();
+    alreadyOnPhone(event);
+    await pumpVoice(tester, event);
+
+    await pressPlayPause(tester);
+    expect(
+      log,
+      containsAllInOrder(['configure playback', 'active', 'play']),
+    );
+
+    await pressPlayPause(tester);
+    expect(log, containsAllInOrder(['play', 'pause', 'inactive']));
+  });
+
+  voiceTest('gives the audio session back once the message finishes', (
+    tester,
+  ) async {
+    final event = voice();
+    alreadyOnPhone(event);
+    await pumpVoice(tester, event);
+    await pressPlayPause(tester);
+
+    audio.finishPlaying();
+    await settle(tester);
+
+    expect(log, containsAllInOrder(['play', 'inactive']));
+    expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+  });
+
+  voiceTest('an interruption or unplugged headphones pause it before the '
+      'session goes back', (tester) async {
+    final event = voice();
+    alreadyOnPhone(event);
+    await pumpVoice(tester, event);
+    await pressPlayPause(tester);
+
+    port.unplug();
+    await settle(tester);
+
+    expect(log, containsAllInOrder(['play', 'pause', 'inactive']));
+    expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+  });
+
+  voiceTest('gives the audio session back when scrolled away mid-play', (
+    tester,
+  ) async {
+    final event = voice();
+    alreadyOnPhone(event);
+    await pumpVoice(tester, event);
+    await pressPlayPause(tester);
+
+    await unmount(tester);
+    await pumpUntil(
+      tester,
+      () => log.contains('inactive'),
+      reason: 'the session to be given back',
+    );
+
+    expect(log, containsAllInOrder(['play', 'inactive']));
+  });
+
+  voiceTest('during a call it plays without touching the call\'s audio', (
+    tester,
+  ) async {
+    onCall = true;
+    final event = voice();
+    alreadyOnPhone(event);
+    await pumpVoice(tester, event);
+
+    await pressPlayPause(tester);
+    await pressPlayPause(tester);
+
+    expect(log, ['load', 'play', 'pause']);
   });
 
   voiceTest('scrolling away while it downloads does not start it', (
@@ -206,11 +346,11 @@ void main() {
     await pumpVoice(tester, voice());
 
     await tester.tap(find.byType(InkWell));
-    await tester.pumpWidget(const SizedBox());
-    await settle(tester, rounds: 20);
+    await unmount(tester);
+    await settle(tester);
 
     expect(server.downloads, hasLength(1));
-    expect(audio.methods, isNot(contains('setSourceBytes')));
+    expect(audio.methods, isNot(contains('load')));
   });
 
   voiceTest('a message that does not load says so and does not play', (
@@ -228,7 +368,7 @@ void main() {
     );
 
     expect(find.text('Voice message did not load. Try again.'), findsOneWidget);
-    expect(audio.methods, isNot(contains('setSourceBytes')));
+    expect(audio.methods, isNot(contains('load')));
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
   });
 
@@ -297,8 +437,8 @@ void main() {
     expect(audio.methods, contains('pause'));
     await pressPlayPause(tester);
 
-    expect(audio.named('setSourceBytes'), hasLength(1));
-    expect(audio.named('resume'), hasLength(2));
+    expect(audio.named('load'), hasLength(1));
+    expect(audio.named('play'), hasLength(2));
   });
 
   voiceTest('shows how far it has played', (tester) async {
@@ -306,7 +446,7 @@ void main() {
     alreadyOnPhone(event);
     await pumpVoice(tester, event);
 
-    audio.positionMs = 5000;
+    audio.position = const Duration(seconds: 5);
     await pressPlayPause(tester);
 
     expect(find.text('0:05'), findsOneWidget);
@@ -321,7 +461,7 @@ void main() {
     await pressPlayPause(tester);
     await pressPlayPause(tester);
 
-    audio.reportDuration(60000);
+    audio.reportDuration(const Duration(minutes: 1));
     await settle(tester);
     audio.finishPlaying();
     await settle(tester);
@@ -335,7 +475,7 @@ void main() {
     await pumpVoice(tester, event);
     await pressPlayPause(tester);
 
-    audio.positionMs = 42000;
+    audio.position = const Duration(seconds: 42);
     audio.finishPlaying();
     await settle(tester);
 
@@ -360,7 +500,7 @@ void main() {
 
     await tapWaveformAt(tester, 0.5);
 
-    expect(audio.methods, containsAllInOrder(['setSourceBytes', 'resume']));
+    expect(audio.methods, containsAllInOrder(['load', 'seek', 'play']));
     expect(seeks().single, closeTo(21000, 500));
   });
 
@@ -375,7 +515,7 @@ void main() {
 
     await tapWaveformAt(tester, 0.25);
 
-    expect(audio.named('resume'), hasLength(1));
+    expect(audio.named('play'), hasLength(1));
     expect(seeks().single, closeTo(10500, 500));
   });
 
@@ -391,9 +531,9 @@ void main() {
 
     await tapWaveformAt(tester, 0.5);
 
-    expect(audio.named('setSourceBytes'), hasLength(2));
-    expect(audio.named('resume'), hasLength(2));
-    expect(seeks().single, closeTo(21000, 500));
+    expect(audio.named('load'), hasLength(1));
+    expect(audio.named('play'), hasLength(2));
+    expect(seeks().last, closeTo(21000, 500));
   });
 
   voiceTest('a waveform tap does nothing while the length is unknown', (
@@ -405,7 +545,7 @@ void main() {
 
     await tapWaveformAt(tester, 0.5);
 
-    expect(audio.methods, isNot(contains('setSourceBytes')));
+    expect(audio.methods, isNot(contains('load')));
     expect(seeks(), isEmpty);
   });
 

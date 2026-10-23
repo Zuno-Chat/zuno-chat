@@ -35,9 +35,11 @@ import im.zuno.chat.zuno_notifications.AppLaunchIntent
 import im.zuno.chat.zuno_notifications.IncomingRing
 import im.zuno.chat.zuno_notifications.RingDecisions
 import im.zuno.chat.zuno_notifications.RoomLaunchIntent
+import io.flutter.FlutterInjector
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.lang.ref.WeakReference
@@ -315,22 +317,22 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "startRingbackTone" -> {
-                    host.callAudio.setToneWanted(CallTone.Ringback, true)
+                    host.callAudio.setToneWanted(CallTone.Ringback, toneAssetPath(call))
                     result.success(null)
                 }
 
                 "stopRingbackTone" -> {
-                    host.callAudio.setToneWanted(CallTone.Ringback, false)
+                    host.callAudio.setToneWanted(CallTone.Ringback, null)
                     result.success(null)
                 }
 
                 "startWaitingTone" -> {
-                    host.callAudio.setToneWanted(CallTone.Waiting, true)
+                    host.callAudio.setToneWanted(CallTone.Waiting, toneAssetPath(call))
                     result.success(null)
                 }
 
                 "stopWaitingTone" -> {
-                    host.callAudio.setToneWanted(CallTone.Waiting, false)
+                    host.callAudio.setToneWanted(CallTone.Waiting, null)
                     result.success(null)
                 }
 
@@ -663,6 +665,9 @@ class MainActivity : FlutterActivity() {
         }
         claimBack()
     }
+
+    private fun toneAssetPath(call: MethodCall): String? = call.argument<String>("asset")
+        ?.let(FlutterInjector.instance().flutterLoader()::getLookupKeyForAsset)
 
     private fun applyScreenSecurity() {
         if (host.preventScreenshots) {

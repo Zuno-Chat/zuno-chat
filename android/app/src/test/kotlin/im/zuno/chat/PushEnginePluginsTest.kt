@@ -8,7 +8,13 @@ class PushEnginePluginsTest {
     @Test
     fun `push engines never get plugins with process-wide side effects`() {
         val names = PushEnginePlugins.names
-        for (risky in listOf("flutter_webrtc", "geolocator", "unifiedpush", "audioplayers")) {
+        for (risky in listOf(
+            "flutter_webrtc",
+            "geolocator",
+            "unifiedpush",
+            "just_audio",
+            "audio_session",
+        )) {
             assertFalse(risky, names.contains(risky))
         }
     }

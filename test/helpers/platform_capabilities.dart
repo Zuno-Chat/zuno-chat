@@ -111,7 +111,7 @@ PlatformCapabilities capabilitiesLike(
   externalPaymentLinks: externalPaymentLinks ?? base.externalPaymentLinks,
   nativeSensitiveFileExport: base.nativeSensitiveFileExport,
   nativeFileShare: base.nativeFileShare,
-  audioPlayerNeedsFile: base.audioPlayerNeedsFile,
+  recorderNeedsAudioSession: base.recorderNeedsAudioSession,
   liveLocation: liveLocation ?? base.liveLocation,
   nativeLogFloor: base.nativeLogFloor,
   appLanguage: appLanguage ?? base.appLanguage,

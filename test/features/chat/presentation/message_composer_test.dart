@@ -9,12 +9,14 @@ import 'package:zuno/features/chat/presentation/message_composer.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 import 'package:zuno/features/chat/presentation/voice_recorder.dart';
 
+import '../../../helpers/fake_audio_session.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 class _ShownRecorder extends VoiceRecorder {
   _ShownRecorder({required this.recording, required this._elapsed})
     : super(
         setup: voiceRecordingSetup(androidCapabilities),
+        audio: fakeVoiceAudioSession(FakeAudioSessionPort()),
         onRecorded: (_) async {},
         onProblem: (_) {},
       );

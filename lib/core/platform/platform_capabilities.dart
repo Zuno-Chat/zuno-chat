@@ -62,7 +62,7 @@ class PlatformCapabilities {
   final bool externalPaymentLinks;
   final bool nativeSensitiveFileExport;
   final bool nativeFileShare;
-  final bool audioPlayerNeedsFile;
+  final bool recorderNeedsAudioSession;
   final bool liveLocation;
   final bool nativeLogFloor;
   final AppLanguageSetting appLanguage;
@@ -122,7 +122,7 @@ class PlatformCapabilities {
     required this.externalPaymentLinks,
     required this.nativeSensitiveFileExport,
     required this.nativeFileShare,
-    required this.audioPlayerNeedsFile,
+    required this.recorderNeedsAudioSession,
     required this.liveLocation,
     required this.nativeLogFloor,
     required this.appLanguage,
@@ -189,7 +189,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         externalPaymentLinks: true,
         nativeSensitiveFileExport: false,
         nativeFileShare: true,
-        audioPlayerNeedsFile: false,
+        recorderNeedsAudioSession: false,
         liveLocation: true,
         nativeLogFloor: true,
         appLanguage: AppLanguageSetting.inApp,
@@ -253,7 +253,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         externalPaymentLinks: false,
         nativeSensitiveFileExport: true,
         nativeFileShare: false,
-        audioPlayerNeedsFile: true,
+        recorderNeedsAudioSession: true,
         liveLocation: true,
         nativeLogFloor: false,
         appLanguage: AppLanguageSetting.systemSettings,

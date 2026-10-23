@@ -94,7 +94,7 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
       }
       result(nil)
     case "startRingbackTone":
-      calls.audio.ringback.setWanted(true)
+      calls.audio.ringback.start(asset: args?["asset"] as? String)
       result(nil)
     case "stopRingbackTone":
       calls.audio.ringback.setWanted(false)

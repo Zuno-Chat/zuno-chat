@@ -8,14 +8,14 @@ import org.junit.Test
 
 class CallAudioDecisionTest {
     @Test
-    fun `a tone starts once it is wanted and call audio runs`() {
+    fun `a tone starts once it is wanted, call audio runs and the call's route is in place`() {
         assertEquals(
             ToneAction.Start,
             CallAudioDecision.tone(
                 wanted = CallTone.Ringback,
                 active = true,
+                routeSettled = true,
                 playing = null,
-                routeChanged = false,
             ),
         )
     }
@@ -27,8 +27,21 @@ class CallAudioDecisionTest {
             CallAudioDecision.tone(
                 wanted = CallTone.Waiting,
                 active = false,
+                routeSettled = true,
                 playing = null,
-                routeChanged = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `a tone waits for the call's route to switch, so a speaker call never rings in the earpiece`() {
+        assertEquals(
+            ToneAction.None,
+            CallAudioDecision.tone(
+                wanted = CallTone.Ringback,
+                active = true,
+                routeSettled = false,
+                playing = null,
             ),
         )
     }
@@ -40,8 +53,8 @@ class CallAudioDecisionTest {
             CallAudioDecision.tone(
                 wanted = null,
                 active = true,
+                routeSettled = true,
                 playing = CallTone.Ringback,
-                routeChanged = false,
             ),
         )
         assertEquals(
@@ -49,60 +62,21 @@ class CallAudioDecisionTest {
             CallAudioDecision.tone(
                 wanted = CallTone.Ringback,
                 active = false,
+                routeSettled = true,
                 playing = CallTone.Ringback,
-                routeChanged = false,
             ),
         )
     }
 
     @Test
-    fun `a playing tone is left alone while its route stays put`() {
+    fun `a playing tone keeps playing through a route change, since it follows the call's route`() {
         assertEquals(
             ToneAction.None,
             CallAudioDecision.tone(
-                wanted = CallTone.Waiting,
-                active = true,
-                playing = CallTone.Waiting,
-                routeChanged = false,
-            ),
-        )
-    }
-
-    @Test
-    fun `a route change restarts a playing tone on the new route`() {
-        assertEquals(
-            ToneAction.Restart,
-            CallAudioDecision.tone(
                 wanted = CallTone.Ringback,
                 active = true,
+                routeSettled = false,
                 playing = CallTone.Ringback,
-                routeChanged = true,
-            ),
-        )
-    }
-
-    @Test
-    fun `a route change retries a wanted tone that failed to start`() {
-        assertEquals(
-            ToneAction.Start,
-            CallAudioDecision.tone(
-                wanted = CallTone.Ringback,
-                active = true,
-                playing = null,
-                routeChanged = true,
-            ),
-        )
-    }
-
-    @Test
-    fun `a route change never starts a tone nobody wants`() {
-        assertEquals(
-            ToneAction.None,
-            CallAudioDecision.tone(
-                wanted = null,
-                active = true,
-                playing = null,
-                routeChanged = true,
             ),
         )
     }
@@ -114,10 +88,36 @@ class CallAudioDecisionTest {
             CallAudioDecision.tone(
                 wanted = CallTone.Waiting,
                 active = true,
+                routeSettled = true,
                 playing = CallTone.Ringback,
-                routeChanged = false,
             ),
         )
+    }
+
+    @Test
+    fun `a different tone wanted mid route switch stops the old one and waits for the route`() {
+        assertEquals(
+            ToneAction.Stop,
+            CallAudioDecision.tone(
+                wanted = CallTone.Waiting,
+                active = true,
+                routeSettled = false,
+                playing = CallTone.Ringback,
+            ),
+        )
+    }
+
+    @Test
+    fun `the route is in place once the awaited device is active, or nothing is awaited`() {
+        assertTrue(CallAudioDecision.routeSettled(awaitedDevice = 2, activeDevice = 2))
+        assertTrue(CallAudioDecision.routeSettled(awaitedDevice = null, activeDevice = 1))
+        assertTrue(CallAudioDecision.routeSettled(awaitedDevice = null, activeDevice = null))
+    }
+
+    @Test
+    fun `the route is not in place while the platform still plays on another device`() {
+        assertFalse(CallAudioDecision.routeSettled(awaitedDevice = 2, activeDevice = 1))
+        assertFalse(CallAudioDecision.routeSettled(awaitedDevice = 2, activeDevice = null))
     }
 
     @Test

@@ -273,8 +273,7 @@ void main() {
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
       for (final name in const [
         'zuno/vibration',
-        'xyz.luan/audioplayers',
-        'xyz.luan/audioplayers.global',
+        'com.ryanheise.just_audio.methods',
       ]) {
         final channel = MethodChannel(name);
         messenger.setMockMethodCallHandler(channel, (call) async {

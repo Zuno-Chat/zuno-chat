@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/matrix/voice_audio_session.dart';
 import '../../../core/matrix/voice_recording.dart';
 import 'message_contents/voice_message.dart';
 
@@ -24,12 +25,14 @@ const _slideToCancelThreshold = 80.0;
 class VoiceRecorder extends ChangeNotifier {
   VoiceRecorder({
     required this._setup,
+    required this._audio,
     required this._onRecorded,
     required this._onProblem,
     this._createRecorder = AudioRecorder.new,
   });
 
   final VoiceRecordingSetup _setup;
+  final VoiceAudioSession _audio;
   final Future<void> Function(VoiceClip clip) _onRecorded;
   final void Function(VoiceRecordingProblem problem) _onProblem;
   final AudioRecorder Function() _createRecorder;
@@ -117,8 +120,7 @@ class VoiceRecorder extends ChangeNotifier {
   }
 
   Future<void> cancel() async {
-    await _stopSampling();
-    await _recorder?.stop();
+    await _stopRecorder();
     final path = _path;
     if (path != null) {
       final file = File(path);
@@ -128,9 +130,17 @@ class VoiceRecorder extends ChangeNotifier {
     _clear();
   }
 
+  Future<AudioRecorder> _readyRecorder() async {
+    final existing = _recorder;
+    if (existing != null) return existing;
+    final recorder = _recorder = _createRecorder();
+    await recorder.ios?.manageAudioSession(!_audio.ownsRecordingSession);
+    return recorder;
+  }
+
   Future<void> _start() async {
-    final recorder = _recorder ??= _createRecorder();
     try {
+      final recorder = await _readyRecorder();
       if (!await recorder.hasPermission(request: false)) {
         final allowed = await recorder.hasPermission();
         _giveUp(allowed ? null : VoiceRecordingProblem.microphoneDenied);
@@ -141,6 +151,7 @@ class VoiceRecorder extends ChangeNotifier {
         dir.path,
         'voice-${DateTime.now().millisecondsSinceEpoch}.${_setup.extension}',
       );
+      await _audio.beginRecording(this);
       await recorder.start(_setup.config, path: path);
       if (_disposed) return;
       _waveform.clear();
@@ -160,6 +171,7 @@ class VoiceRecorder extends ChangeNotifier {
           });
     } catch (e, s) {
       reportCaught('start recording', e, s);
+      await _audio.endRecording(this);
       _giveUp(VoiceRecordingProblem.didNotStart);
     }
   }
@@ -201,9 +213,15 @@ class VoiceRecorder extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _stopAndSend() async {
+  Future<String?> _stopRecorder() async {
     await _stopSampling();
     final path = await _recorder?.stop();
+    await _audio.endRecording(this);
+    return path;
+  }
+
+  Future<void> _stopAndSend() async {
+    final path = await _stopRecorder();
     final duration = _sinceStart;
     final waveform = resampleWaveform(_waveform);
     _startedAt = null;
@@ -230,6 +248,7 @@ class VoiceRecorder extends ChangeNotifier {
     _amplitudeSub?.cancel();
     _holdTimer?.cancel();
     _recorder?.dispose();
+    unawaited(_audio.endRecording(this));
     _elapsed.dispose();
     super.dispose();
   }

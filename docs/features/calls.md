@@ -43,7 +43,7 @@ plays for a call goes through one of six interfaces, each built by a
 |---|---|---|
 | `IncomingCallPresenter` | `CallStyle` notification with a native ring | CallKit |
 | `OngoingCallPresenter` | `CallForegroundService` | No-op: CallKit shows the call |
-| `CallTonePlayer` | Ringback and the call-waiting tone in native `CallAudio` | Ringback as a native synthesized tone; CallKit plays its own waiting tone |
+| `CallTonePlayer` | Ringback and the call-waiting tone, played as call audio by native `CallAudio` | Ringback in CallKit's session; CallKit plays its own waiting tone |
 | `SystemCall` | No-op | The CallKit call |
 | `CallAudioOutput` | Native `CallAudio` owns focus, mode and route | Native routes in CallKit's session |
 | `PushRingBridge` | No-op | Binds pushed rings to their calls |
@@ -371,7 +371,7 @@ session to CallKit.
 | Route | `setCommunicationDevice` on Android 12+; speakerphone plus paired Bluetooth SCO on 8–11, where the effective route comes from SCO state broadcasts |
 | Microphone mute | A stale system-wide mute is cleared for the call and restored after it |
 | Headsets | Device and route changes are reported to Dart |
-| Call tones | Ringback and the waiting tone play only while wanted and while call audio is active; the waiting tone wins, so the two never play at once |
+| Call tones | Played as call audio, only while wanted, while call audio is active and once the chosen device is active (or after a short wait for one that never comes up); the waiting tone wins, so the two never play at once |
 
 ### Ringing
 
@@ -483,8 +483,8 @@ group alone.
 - **A push engine never rings a second call while the app is on one**,
   because isolates cannot see the active call, so they read a process-wide
   marker; the app's own gate rings it from sync as a waiting call.
-- **Ringback is a tone on the voice-call stream inside native call audio**,
-  so it follows the chosen route. It stops when the other side's
+- **Ringback plays as call audio inside native call audio**, so it
+  follows the chosen route and the call volume. It stops when the other side's
   membership appears, not when our own join finishes. Neither the ring nor
   the tone takes audio focus of its own, since the call's audio focus
   would pause it.
@@ -579,10 +579,17 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | A call-lifetime controller outside the call screen, drawn by an app-level layer | A lock-screen answer may never build the screen, and the screen, the bar, the window and picture-in-picture share one set of renderers |
 | Microphone and camera open at call start, not at join | The controls act on them before the call connects |
 | Android call audio is native, not flutter_webrtc's AudioSwitch | AudioSwitch entered call mode only on microphone capture and stuck to the last chosen device, so ringback and the route waited on the microphone |
+| Call tones are generated sound files (`tool/generate_tones.py`) that Dart names and native plays, never `ToneGenerator` | One sound on both platforms, and Android plays a voice-call `ToneGenerator` as a dial tone on its own output, which a stereo-speaker phone sent to the earpiece during speaker calls |
 | A minimized call is a bar for voice and a window for video, and a tap only opens it | One tap target, never a second set of controls |
 
 ## Gotchas
 
+- iOS sets WebRTC's audio device module to minimum ducking, because its
+  voice processing otherwise turns down any other app audio, ringback
+  included.
+- Native iOS call audio restores the pre-call category only while the
+  session is still in its call configuration, so a voice message started
+  right after a call keeps its own.
 - Nothing over live video clips, blurs or uses `Opacity`, because
   everything there is drawn on every video frame with no raster cache.
 - `CallView` slots and `CallGrid` cells are keyed, and End call has no

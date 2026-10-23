@@ -46,7 +46,7 @@ String attachmentFileName(Event event) => safeAttachmentFileName(
   event.content.tryGet<String>('filename') ?? event.body,
 );
 
-String? _mimeTypeOf(Event event) {
+String? attachmentMimeType(Event event) {
   final mimeType = event.attachmentMimetype;
   return mimeType.isEmpty ? null : mimeType;
 }
@@ -54,7 +54,7 @@ String? _mimeTypeOf(Event event) {
 String _handedOverName(Event event) {
   final name = attachmentFileName(event);
   if (lookupMimeType(name) != null) return name;
-  final mimeType = _mimeTypeOf(event);
+  final mimeType = attachmentMimeType(event);
   if (mimeType == null || mimeType == 'application/octet-stream') return name;
   final extension = extensionFromMime(mimeType);
   return extension == null ? name : safeAttachmentFileName('$name.$extension');
@@ -107,7 +107,7 @@ Future<bool> saveAttachment(Event event) async {
         event,
         (path) => exportFileAt(
           path,
-          mimeType: _mimeTypeOf(event) ?? 'application/octet-stream',
+          mimeType: attachmentMimeType(event) ?? 'application/octet-stream',
         ),
       );
   }
@@ -162,7 +162,7 @@ Future<void> shareAttachments(
   if (onPreparing != null && !await _allCached(events)) onPreparing();
   final files = [
     for (final event in events)
-      XFile(await _handOver(event), mimeType: _mimeTypeOf(event)),
+      XFile(await _handOver(event), mimeType: attachmentMimeType(event)),
   ];
   await shareFiles(files, capabilities: capabilities);
 }

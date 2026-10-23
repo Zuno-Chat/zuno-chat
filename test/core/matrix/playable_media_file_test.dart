@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:zuno/core/matrix/playable_video_file.dart';
+import 'package:zuno/core/matrix/playable_media_file.dart';
 
 import '../../helpers/platform_capabilities.dart';
 
@@ -24,10 +24,12 @@ void main() {
     bool ios = true,
     String? mimetype = 'video/mp4',
     String? fileName,
-  }) => playableVideoFile(
+    String fallbackExtension = '.mp4',
+  }) => playableMediaFile(
     cached,
     mimetype: mimetype,
     fileName: fileName,
+    fallbackExtension: fallbackExtension,
     capabilities: ios ? iosCapabilities : androidCapabilities,
     linkDirectory: links,
   );
@@ -58,7 +60,23 @@ void main() {
     );
   });
 
-  test('an unknown type falls back to the file name, then to mp4', () async {
+  test('the extension follows the audio type of a voice message', () async {
+    expect(
+      p.extension((await playable(mimetype: 'audio/ogg')).path),
+      '.ogg',
+    );
+    expect(
+      p.extension((await playable(mimetype: 'audio/mp4')).path),
+      '.m4a',
+    );
+    expect(
+      p.extension((await playable(mimetype: 'audio/mpeg')).path),
+      '.mp3',
+    );
+  });
+
+  test('an unknown type falls back to the file name, then to the caller\'s '
+      'default', () async {
     expect(
       p.extension(
         (await playable(
@@ -69,12 +87,18 @@ void main() {
       '.m4v',
     );
     expect(
-      p.extension((await playable(mimetype: null, fileName: 'clip')).path),
-      '.mp4',
+      p.extension(
+        (await playable(
+          mimetype: null,
+          fileName: 'voice',
+          fallbackExtension: '.ogg',
+        )).path,
+      ),
+      '.ogg',
     );
   });
 
-  test('opening the same video again reuses its link', () async {
+  test('opening the same file again reuses its link', () async {
     await playable();
 
     final file = await playable();

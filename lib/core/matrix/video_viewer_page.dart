@@ -8,8 +8,9 @@ import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
 import '../platform/platform_capabilities.dart';
 import 'attachment_action_buttons.dart';
+import 'attachment_actions.dart';
 import 'attachment_cache.dart';
-import 'playable_video_file.dart';
+import 'playable_media_file.dart';
 
 class VideoViewerPage extends StatefulWidget {
   final Event event;
@@ -36,12 +37,11 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
         attachmentCacheKey(widget.event, thumbnail: false),
         () async => (await widget.event.downloadAndDecryptAttachment()).bytes,
       );
-      final file = await playableVideoFile(
+      final file = await playableMediaFile(
         cached,
-        mimetype: widget.event.attachmentMimetype,
-        fileName:
-            widget.event.content.tryGet<String>('filename') ??
-            widget.event.body,
+        mimetype: attachmentMimeType(widget.event),
+        fileName: attachmentFileName(widget.event),
+        fallbackExtension: '.mp4',
         capabilities: ambientCapabilities,
       );
       final controller = VideoPlayerController.file(file);

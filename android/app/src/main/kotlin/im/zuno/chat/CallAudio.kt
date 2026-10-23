@@ -8,8 +8,9 @@ import android.media.AudioAttributes
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
+import android.media.AudioFormat
 import android.media.AudioManager
-import android.media.ToneGenerator
+import android.media.AudioTrack
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -20,13 +21,12 @@ import java.util.concurrent.Executor
 class CallAudio(private val context: Context, private val report: (Map<String, Any?>) -> Unit) {
     private val audioManager = context.getSystemService(AudioManager::class.java)
     private val main = Handler(Looper.getMainLooper())
+    private val callAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
     private val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-        .setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build(),
-        )
+        .setAudioAttributes(callAttributes)
         .setAcceptsDelayedFocusGain(true)
         .setOnAudioFocusChangeListener({}, main)
         .build()
@@ -55,6 +55,11 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
     private var communicationDeviceChanged: Any? = null
     private var active = false
     private var route = CallAudioRoute.Earpiece
+    private var awaitedDevice: Int? = null
+    private val routeWaitOver = Runnable {
+        awaitedDevice = null
+        updateTone()
+    }
     private var holdsFocus = false
     private var savedMicrophoneMute = false
     private var scoRequested = false
@@ -64,7 +69,7 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
 
     @Suppress("DEPRECATION")
     private var previousScoState = AudioManager.SCO_AUDIO_STATE_DISCONNECTED
-    private val wantedTones = mutableSetOf<CallTone>()
+    private val wantedTones = mutableMapOf<CallTone, String>()
     private var playing: PlayingTone? = null
     private var reportedRoute: CallAudioRoute? = null
     private var reportedHeadsets = emptySet<CallAudioRoute>()
@@ -101,7 +106,7 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
         this.route = route
         if (!active) return
         applyRoute()
-        updateTone(routeChanged = true)
+        updateTone()
     }
 
     fun stop() {
@@ -112,6 +117,8 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             stopFollowingCommunicationDevice()
             audioManager.clearCommunicationDevice()
+            main.removeCallbacks(routeWaitOver)
+            awaitedDevice = null
         } else {
             context.unregisterReceiver(scoChanged)
             clearLegacyRouting()
@@ -122,8 +129,8 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
         holdsFocus = false
     }
 
-    fun setToneWanted(tone: CallTone, wanted: Boolean) {
-        if (wanted) wantedTones.add(tone) else wantedTones.remove(tone)
+    fun setToneWanted(tone: CallTone, assetPath: String?) {
+        if (assetPath != null) wantedTones[tone] = assetPath else wantedTones.remove(tone)
         updateTone()
     }
 
@@ -167,10 +174,15 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
         val devices = audioManager.availableCommunicationDevices
         val type = CallAudioRouting.deviceFor(route, devices.map { it.type })
         val device = devices.firstOrNull { it.type == type }
-        if (device == null || !audioManager.setCommunicationDevice(device)) {
-            audioManager.clearCommunicationDevice()
-        }
+        val applied = device != null && audioManager.setCommunicationDevice(device)
+        if (!applied) audioManager.clearCommunicationDevice()
+        main.removeCallbacks(routeWaitOver)
+        awaitedDevice = if (applied) type else null
+        if (!routeSettled()) main.postDelayed(routeWaitOver, ROUTE_WAIT_MS)
     }
+
+    private fun routeSettled(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+        CallAudioDecision.routeSettled(awaitedDevice, audioManager.communicationDevice?.type)
 
     @Suppress("DEPRECATION")
     private fun applyLegacyRouting() {
@@ -218,7 +230,10 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
 
     @RequiresApi(Build.VERSION_CODES.S)
     private fun followCommunicationDevice() {
-        val listener = AudioManager.OnCommunicationDeviceChangedListener { reportState() }
+        val listener = AudioManager.OnCommunicationDeviceChangedListener {
+            updateTone()
+            reportState()
+        }
         audioManager.addOnCommunicationDeviceChangedListener(Executor { main.post(it) }, listener)
         communicationDeviceChanged = listener
     }
@@ -257,9 +272,9 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
         return CallAudioRouting.state(current, headsets)
     }
 
-    private fun updateTone(routeChanged: Boolean = false) {
-        val wanted = CallAudioDecision.wantedTone(wantedTones)
-        when (CallAudioDecision.tone(wanted, active, playing?.tone, routeChanged)) {
+    private fun updateTone() {
+        val wanted = CallAudioDecision.wantedTone(wantedTones.keys)
+        when (CallAudioDecision.tone(wanted, active, routeSettled(), playing?.tone)) {
             ToneAction.Start -> wanted?.let(::startTone)
 
             ToneAction.Restart -> {
@@ -275,31 +290,49 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
 
     private fun startTone(wanted: CallTone) {
         playing = try {
-            val generator = ToneGenerator(AudioManager.STREAM_VOICE_CALL, TONE_VOLUME)
-            generator.startTone(toneType(wanted))
-            PlayingTone(wanted, generator)
-        } catch (error: RuntimeException) {
+            PlayingTone(wanted, playTone(wantedTones.getValue(wanted)))
+        } catch (error: Exception) {
             CaughtErrors.record(context, "call tone", error)
             null
         }
     }
 
-    private fun stopTone() {
-        playing?.generator?.let {
-            it.stopTone()
-            it.release()
+    private fun playTone(assetPath: String): AudioTrack {
+        val tone = context.assets.open(assetPath).use { CallToneWave.parse(it.readBytes()) }
+        val pcm = tone.samples
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(callAttributes)
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(tone.sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build(),
+            )
+            .setTransferMode(AudioTrack.MODE_STATIC)
+            .setBufferSizeInBytes(pcm.size * Short.SIZE_BYTES)
+            .build()
+        try {
+            check(track.write(pcm, 0, pcm.size) == pcm.size) { "call tone not written" }
+            check(track.setLoopPoints(0, pcm.size, -1) == AudioTrack.SUCCESS) {
+                "call tone not looped"
+            }
+            track.play()
+        } catch (error: RuntimeException) {
+            track.release()
+            throw error
         }
+        return track
+    }
+
+    private fun stopTone() {
+        playing?.track?.release()
         playing = null
     }
 
-    private fun toneType(tone: CallTone): Int = when (tone) {
-        CallTone.Ringback -> ToneGenerator.TONE_SUP_RINGTONE
-        CallTone.Waiting -> ToneGenerator.TONE_SUP_CALL_WAITING
-    }
-
-    private class PlayingTone(val tone: CallTone, val generator: ToneGenerator)
+    private class PlayingTone(val tone: CallTone, val track: AudioTrack)
 
     private companion object {
-        const val TONE_VOLUME = 80
+        const val ROUTE_WAIT_MS = 2_000L
     }
 }

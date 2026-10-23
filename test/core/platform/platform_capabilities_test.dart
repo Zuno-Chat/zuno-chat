@@ -326,8 +326,8 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
-    'audioPlayerNeedsFile',
-    read: (c) => c.audioPlayerNeedsFile,
+    'recorderNeedsAudioSession',
+    read: (c) => c.recorderNeedsAudioSession,
     android: false,
     ios: true,
   ),

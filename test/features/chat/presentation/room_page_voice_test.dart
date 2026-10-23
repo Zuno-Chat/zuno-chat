@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:zuno/core/matrix/voice_audio_session.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_audio_player.dart';
+import '../../../helpers/fake_audio_session.dart';
 import '../../../helpers/opus_caf.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/pump_until.dart';
@@ -25,11 +28,13 @@ void main() {
   late bool recordingUnreadable;
   late List<http.Request> uploads;
   Map<Object?, Object?>? startArgs;
+  Object? managesAudioSession;
   String? recordingPath;
   MockStreamHandlerEventSink? recorderState;
 
   setUp(() async {
-    await installFakeAudioPlatform();
+    installFakeAudioPlatform();
+    managesAudioSession = null;
     temp = Directory.systemTemp.createTempSync('zuno_voice_');
     recorderCalls = [];
     permitted = true;
@@ -86,7 +91,17 @@ void main() {
       platform ?? iosCapabilities,
       uploadForegroundService: false,
     );
-    harness = RoomPageHarness(db: SendingFakeDatabaseApi());
+    harness = RoomPageHarness(
+      db: SendingFakeDatabaseApi(),
+      overrides: [
+        voiceAudioSessionProvider.overrideWithValue(
+          fakeVoiceAudioSession(
+            FakeAudioSessionPort(recorderCalls),
+            ownsRecordingSession: ambientCapabilities.recorderNeedsAudioSession,
+          ),
+        ),
+      ],
+    );
     harness.respond = (request) {
       final path = request.url.path;
       if (path.contains('/upload')) {
@@ -133,6 +148,9 @@ void main() {
             recordingPath = args!['path'] as String;
             startArgs = args;
             recorderState?.success(1);
+            return null;
+          case 'ios.manageAudioSession':
+            managesAudioSession = args!['manageAudioSession'];
             return null;
           case 'isRecording':
             return recordingPath != null;
@@ -478,6 +496,80 @@ void main() {
       expect(voice['body'], 'Voice message.ogg');
       expect((voice['info']! as Map<String, Object?>)['mimetype'], 'audio/ogg');
       expect(leftoverRecordings(), isEmpty);
+    });
+
+    Future<void> asIos(Future<void> Function() body) async {
+      final opened = debugDefaultTargetPlatformOverride;
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      try {
+        await body();
+      } finally {
+        debugDefaultTargetPlatformOverride = opened;
+      }
+    }
+
+    testWidgets('where the recorder leaves its audio session behind, the app '
+        'sets the recording session and gives it back once sent', (
+      tester,
+    ) async {
+      await openRoom(tester, platform: iosCapabilities);
+
+      await asIos(
+        () => recordAndSend(
+          tester,
+          awaiting: 'the voice message to be sent and the session given back',
+          until: () =>
+              voiceMessages().isNotEmpty && recorderCalls.contains('inactive'),
+        ),
+      );
+
+      expect(managesAudioSession, isFalse);
+      expect(
+        recorderCalls,
+        containsAllInOrder([
+          'ios.manageAudioSession',
+          'configure recording',
+          'active',
+          'start',
+          'stop',
+          'inactive',
+        ]),
+      );
+    });
+
+    testWidgets('a recording that fails to start gives the session back', (
+      tester,
+    ) async {
+      startError = PlatformException(code: 'record');
+      await openRoom(tester, platform: iosCapabilities);
+
+      await asIos(() async {
+        await tapMic(tester);
+        await pumpUntil(
+          tester,
+          () => recorderCalls.contains('inactive'),
+          reason: 'the session to be given back',
+        );
+      });
+
+      expect(
+        recorderCalls,
+        containsAllInOrder(['configure recording', 'active', 'inactive']),
+      );
+    });
+
+    testWidgets('where the recorder holds its own audio focus, the app leaves '
+        'the session to it', (tester) async {
+      await openRoom(tester, platform: androidCapabilities);
+
+      await recordAndSend(
+        tester,
+        awaiting: 'the voice message to be sent',
+        until: () => voiceMessages().isNotEmpty,
+      );
+
+      expect(recorderCalls, isNot(contains('configure recording')));
+      expect(managesAudioSession, isNull);
     });
 
     testWidgets('a recording that cannot be repackaged is not sent, and says '

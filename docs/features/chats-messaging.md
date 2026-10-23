@@ -196,6 +196,13 @@ one rule for what counts.
 - **A press that has to ask for the microphone only asks**, and the next
   press records, because the system prompt takes the touch away
   mid-gesture.
+- **One owner sets the audio session for voice messages and iOS
+  recording** (`voice_audio_session.dart`). A playing message pauses other
+  audio and hands it back when it stops, so music resumes. An interruption
+  or unplugged headphones pause it before the session goes back. During a
+  call it plays where the call plays and leaves the session alone. iOS
+  recording goes through it because the recorder never gives its session
+  back; Android's recorder holds its own focus (`recorderNeedsAudioSession`).
 
 ## Unsent messages
 
@@ -270,7 +277,6 @@ prepared file, thumbnail and blurhash go to `sendFileEvent`.
 | Voice recording | Ogg Opus directly | CAF, repackaged to Ogg Opus |
 | Keeping a send alive | A dataSync foreground service with a progress notification | A short background task, with no progress surface |
 | Playing cached files | As they are | Needs a type: a `.<ext>` symlink or the MIME type |
-| Playing a voice message | From memory | From its cached file, because the player would otherwise write its own copy to temporary storage |
 
 Both native sides give the same replies on each channel, with codecs
 named the Android way.
@@ -311,8 +317,8 @@ sign-out reach them all.
 
 | Helper | Tiers | Used for |
 |---|---|---|
-| `fetchCachedAttachment` | Memory, then disk, then network | Images, thumbnails and voice messages |
-| `fetchCachedAttachmentFile` | Disk, returning the file itself, filled from a memory copy when there is one | Videos and files, so nothing large is held in memory or re-downloaded |
+| `fetchCachedAttachment` | Memory, then disk, then network | Images and thumbnails |
+| `fetchCachedAttachmentFile` | Disk, returning the file itself, filled from a memory copy when there is one | Videos, voice messages and files, so nothing large is held in memory or re-downloaded |
 | `fetchCachedAvatar` | A disk tier that never expires | Avatars |
 | `fetchAttachmentHandover` | A fresh copy of the disk file | Each share or save |
 
@@ -495,9 +501,15 @@ flowchart TD
 - **Android 12+ refuses foreground-service starts from the background**,
   so the upload service is acquired once per send while the app is
   visible, and honors Android 15's dataSync `onTimeout`.
-- **`AudioPlayer.play` always restarts at 0**, so a paused message
-  resumes with `resume()`, and every player stream needs an `onError`,
-  or a bad source's error escapes uncaught.
+- **just_audio reports a pause before the native player stops**, so the
+  session goes back only after an awaited pause, or iOS refuses to
+  deactivate it under running audio.
+- **just_audio's `play()` completes only when playback stops**, so it is
+  never awaited, and a second load interrupts the first, so taps share one
+  load.
+- **just_audio's `dispose` only finishes in widget tests when the fake
+  clock is pumped**, so tests unmount a voice message with pumps, not real
+  async.
 - **Share and Save hand over one folder per attachment**, because names
   repeat: every photo Zuno sends is `photo.jpg`.
 - **Cache expiry deletes are fire-and-forget**, because two readers can

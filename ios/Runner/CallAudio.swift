@@ -1,4 +1,5 @@
 @preconcurrency import AVFoundation
+import Flutter
 import Foundation
 @preconcurrency import WebRTC
 @preconcurrency import flutter_webrtc
@@ -132,6 +133,7 @@ final class CallAudioEngineGate: @unchecked Sendable {
       if self.factory !== box.value {
         self.factory = box.value
         module = box.value?.audioDeviceModule
+        module?.duckingLevel = .min
         applied = nil
       }
       apply()
@@ -164,7 +166,15 @@ final class CallRingback {
   private var player: AVAudioPlayer?
   private var wanted = false
   private var sessionActive = false
-  private lazy var tone = Self.ringbackTone()
+  private var tone: URL?
+
+  func start(asset: String?) {
+    tone = asset.flatMap(Self.bundledURL(forAsset:))
+    if tone == nil {
+      CaughtErrors.record("call ringback tone", CocoaError(.fileNoSuchFile))
+    }
+    setWanted(true)
+  }
 
   func setWanted(_ value: Bool) {
     wanted = value
@@ -183,14 +193,14 @@ final class CallRingback {
   }
 
   private func update() {
-    guard wanted, sessionActive else {
+    guard wanted, sessionActive, let tone else {
       player?.stop()
       player = nil
       return
     }
     if player == nil {
       player = CaughtErrors.attempt("call ringback player") {
-        try AVAudioPlayer(data: tone, fileTypeHint: AVFileType.wav.rawValue)
+        try AVAudioPlayer(contentsOf: tone)
       }
       player?.numberOfLoops = -1
     }
@@ -199,42 +209,9 @@ final class CallRingback {
     }
   }
 
-  nonisolated static func ringbackTone(sampleRate: Int = 16_000) -> Data {
-    let toneSamples = sampleRate
-    let totalSamples = sampleRate * 5
-    let fadeSamples = sampleRate / 50
-    var pcm = Data(capacity: totalSamples * 2)
-    for index in 0..<totalSamples {
-      var value = 0.0
-      if index < toneSamples {
-        let edge = Double(min(index, toneSamples - 1 - index))
-        let envelope = min(1, edge / Double(fadeSamples))
-        value = sin(2 * .pi * 425 * Double(index) / Double(sampleRate)) * 0.3 * envelope
-      }
-      appendLittleEndian(Int16(value * Double(Int16.max)), to: &pcm)
-    }
-    var wav = Data()
-    wav.append(contentsOf: Array("RIFF".utf8))
-    appendLittleEndian(UInt32(36 + pcm.count), to: &wav)
-    wav.append(contentsOf: Array("WAVEfmt ".utf8))
-    appendLittleEndian(UInt32(16), to: &wav)
-    appendLittleEndian(UInt16(1), to: &wav)
-    appendLittleEndian(UInt16(1), to: &wav)
-    appendLittleEndian(UInt32(sampleRate), to: &wav)
-    appendLittleEndian(UInt32(sampleRate * 2), to: &wav)
-    appendLittleEndian(UInt16(2), to: &wav)
-    appendLittleEndian(UInt16(16), to: &wav)
-    wav.append(contentsOf: Array("data".utf8))
-    appendLittleEndian(UInt32(pcm.count), to: &wav)
-    wav.append(pcm)
-    return wav
-  }
-
-  nonisolated private static func appendLittleEndian<T: FixedWidthInteger>(
-    _ value: T, to data: inout Data
-  ) {
-    var littleEndian = value.littleEndian
-    withUnsafeBytes(of: &littleEndian) { data.append(contentsOf: $0) }
+  nonisolated static func bundledURL(forAsset asset: String) -> URL? {
+    Bundle.main.path(forResource: FlutterDartProject.lookupKey(forAsset: asset), ofType: nil)
+      .map(URL.init(fileURLWithPath:))
   }
 }
 
@@ -466,13 +443,17 @@ final class CallAudio {
     }
   }
 
-  @discardableResult
-  private func configure() -> Bool {
+  private var sessionInCallConfiguration: Bool {
     let rtc = RTCAudioSession.sharedInstance()
-    let configured = CallAudioRouting.isCallConfiguration(
+    return CallAudioRouting.isCallConfiguration(
       category: AVAudioSession.Category(rawValue: rtc.category),
       mode: AVAudioSession.Mode(rawValue: rtc.mode), options: rtc.categoryOptions)
-    guard !configured else { return false }
+  }
+
+  @discardableResult
+  private func configure() -> Bool {
+    guard !sessionInCallConfiguration else { return false }
+    let rtc = RTCAudioSession.sharedInstance()
     rtc.lockForConfiguration()
     defer { rtc.unlockForConfiguration() }
     do {
@@ -487,6 +468,7 @@ final class CallAudio {
   private func restoreIfIdle() {
     guard !inCall, !isActive, let saved else { return }
     self.saved = nil
+    guard sessionInCallConfiguration else { return }
     let session = AVAudioSession.sharedInstance()
     CaughtErrors.attempt("call audio restore output") { try session.overrideOutputAudioPort(.none) }
     CaughtErrors.attempt("call audio restore input") { try session.setPreferredInput(nil) }

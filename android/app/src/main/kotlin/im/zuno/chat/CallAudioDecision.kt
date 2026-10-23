@@ -30,14 +30,18 @@ object CallAudioDecision {
     fun tone(
         wanted: CallTone?,
         active: Boolean,
+        routeSettled: Boolean,
         playing: CallTone?,
-        routeChanged: Boolean,
     ): ToneAction = when {
         wanted == null || !active -> if (playing != null) ToneAction.Stop else ToneAction.None
+        playing == wanted -> ToneAction.None
+        !routeSettled -> if (playing != null) ToneAction.Stop else ToneAction.None
         playing == null -> ToneAction.Start
-        playing != wanted || routeChanged -> ToneAction.Restart
-        else -> ToneAction.None
+        else -> ToneAction.Restart
     }
+
+    fun routeSettled(awaitedDevice: Int?, activeDevice: Int?): Boolean =
+        awaitedDevice == null || awaitedDevice == activeDevice
 
     fun reportsChange(
         route: CallAudioRoute,

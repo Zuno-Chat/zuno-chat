@@ -1,20 +1,26 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
+import '../../../../core/errors/best_effort.dart';
 import '../../../../core/errors/caught_errors.dart';
 import '../../../../core/format/human_units.dart';
 import '../../../../core/l10n/l10n.dart';
+import '../../../../core/matrix/attachment_actions.dart';
 import '../../../../core/matrix/attachment_cache.dart';
+import '../../../../core/matrix/playable_media_file.dart';
+import '../../../../core/matrix/voice_audio_session.dart';
 import '../../../../core/matrix/voice_message.dart';
 import '../../../../core/matrix/voice_recording.dart';
 import '../../../../core/platform/platform_capabilities.dart';
 import '../message_bubble.dart';
 
-class VoiceMessage extends StatefulWidget {
+class VoiceMessage extends ConsumerStatefulWidget {
   final Event event;
   final bool own;
   final Widget meta;
@@ -27,7 +33,7 @@ class VoiceMessage extends StatefulWidget {
   });
 
   @override
-  State<VoiceMessage> createState() => _VoiceMessageState();
+  ConsumerState<VoiceMessage> createState() => _VoiceMessageState();
 }
 
 const _waveformBars = 50;
@@ -38,43 +44,77 @@ List<int>? _drawnBars(Event event) {
   return resampleWaveform([for (final sample in samples) sample / 1024]);
 }
 
-class _VoiceMessageState extends State<VoiceMessage> {
-  final _player = AudioPlayer();
-  PlayerState _state = PlayerState.stopped;
+class _VoiceMessageState extends ConsumerState<VoiceMessage>
+    implements VoicePlayback {
+  final _player = AudioPlayer(
+    handleInterruptions: false,
+    handleAudioSessionActivation: false,
+  );
+  final _subscriptions = <StreamSubscription<Object?>>[];
+  late final VoiceAudioSession _audio;
+  bool _playing = false;
+  bool _inProgress = false;
+  bool _loaded = false;
+  bool _loading = false;
+  bool _starting = false;
+  Future<bool>? _loadingFile;
   Duration _position = Duration.zero;
   Duration? _duration;
   List<int>? _waveform;
-  bool _loading = false;
-  bool _starting = false;
-  StreamSubscription<PlayerState>? _stateSub;
-  StreamSubscription<Duration>? _positionSub;
-  StreamSubscription<Duration>? _durationSub;
-  StreamSubscription<void>? _completeSub;
 
   String get _cacheKey => attachmentCacheKey(widget.event, thumbnail: false);
 
   @override
   void initState() {
     super.initState();
+    _audio = ref.read(voiceAudioSessionProvider);
     _duration = voiceMessageDuration(widget.event);
     _waveform = _drawnBars(widget.event);
-    _stateSub = _player.onPlayerStateChanged.listen((state) {
-      if (mounted) setState(() => _state = state);
-    });
-    _positionSub = _player.onPositionChanged.listen((position) {
-      if (!mounted || _state == PlayerState.completed) return;
-      setState(() => _position = position);
-    });
-    _durationSub = _player.onDurationChanged.listen((duration) {
-      if (mounted) setState(() => _duration = duration);
-    }, onError: _playerFailed);
-    _completeSub = _player.onPlayerComplete.listen((_) {
-      if (mounted) setState(() => _position = Duration.zero);
-    }, onError: (Object _) {});
+    _subscriptions.addAll([
+      _player.playerStateStream.listen(_onPlayerState),
+      _player
+          .createPositionStream(
+            minPeriod: const Duration(milliseconds: 100),
+            maxPeriod: const Duration(milliseconds: 200),
+          )
+          .listen((position) {
+            if (mounted && _playing) setState(() => _position = position);
+          }),
+      _player.durationStream.listen((duration) {
+        if (mounted && duration != null) setState(() => _duration = duration);
+      }),
+      _player.errorStream.listen(_playerFailed),
+    ]);
   }
 
-  void _playerFailed(Object error, StackTrace stack) {
-    if (!_starting) reportCaught('voice message player', error, stack);
+  void _onPlayerState(PlayerState state) {
+    final finished = state.processingState == ProcessingState.completed;
+    if (finished || state.processingState == ProcessingState.idle) {
+      unawaited(_audio.endPlayback(this));
+    }
+    if (finished) {
+      _inProgress = false;
+      if (state.playing) unawaited(_rewind());
+    }
+    final playing = state.playing && !finished;
+    if (!mounted) return;
+    setState(() {
+      _playing = playing;
+      if (finished) _position = Duration.zero;
+    });
+  }
+
+  Future<void> _rewind() async {
+    await _player.pause();
+    await _player.seek(Duration.zero);
+  }
+
+  void _playerFailed(PlayerException error) {
+    _loaded = false;
+    _inProgress = false;
+    if (!_starting) {
+      reportCaught('voice message player', error, StackTrace.current);
+    }
   }
 
   @override
@@ -87,68 +127,90 @@ class _VoiceMessageState extends State<VoiceMessage> {
 
   @override
   void dispose() {
-    _stateSub?.cancel();
-    _positionSub?.cancel();
-    _durationSub?.cancel();
-    _completeSub?.cancel();
-    _player.dispose();
+    for (final subscription in _subscriptions) {
+      unawaited(subscription.cancel());
+    }
+    unawaited(_release());
     super.dispose();
   }
 
+  Future<void> _release() async {
+    await runBestEffort(_player.dispose, label: 'release voice message player');
+    await _audio.endPlayback(this);
+  }
+
   Future<void> _toggle() async {
-    switch (_state) {
-      case PlayerState.playing:
-        await _player.pause();
-      case PlayerState.paused:
-        await _player.resume();
-      default:
-        await _play();
+    if (_playing) {
+      await pause();
+    } else {
+      await _start();
     }
   }
 
-  Future<bool> _play() async {
-    if (_loading) return false;
-    var bytes = AttachmentCache.instance.get(_cacheKey);
-    if (bytes == null) {
-      setState(() => _loading = true);
-      try {
-        bytes = await fetchCachedAttachment(
-          _cacheKey,
-          () async => (await widget.event.downloadAndDecryptAttachment()).bytes,
-        );
-      } catch (e, s) {
-        reportCaught('load voice message', e, s);
-        _didNotLoad();
-        return false;
-      } finally {
-        if (mounted) setState(() => _loading = false);
-      }
+  @override
+  Future<void> pause() async {
+    await _player.pause();
+    if (!_player.playing) await _audio.endPlayback(this);
+  }
+
+  Future<void> _start({Duration? at}) async {
+    if (!_loaded && !await _load()) return;
+    if (at != null) await _seek(at);
+    if (!mounted) return;
+    await _audio.beginPlayback(this);
+    _inProgress = true;
+    unawaited(_player.play());
+  }
+
+  Future<bool> _load() =>
+      _loadingFile ??= _loadFile().whenComplete(() => _loadingFile = null);
+
+  Future<bool> _loadFile() async {
+    final downloads = !await isAttachmentCached(_cacheKey);
+    if (downloads && mounted) setState(() => _loading = true);
+    final File cached;
+    try {
+      cached = await fetchCachedAttachmentFile(
+        _cacheKey,
+        () async => (await widget.event.downloadAndDecryptAttachment()).bytes,
+      );
+    } catch (e, s) {
+      reportCaught('load voice message', e, s);
+      _didNotLoad();
+      return false;
+    } finally {
+      if (downloads && mounted) setState(() => _loading = false);
     }
     if (!mounted) return false;
     _starting = true;
     try {
-      await _player.play(await _sourceOf(bytes));
+      final file = await playableMediaFile(
+        cached,
+        mimetype:
+            attachmentMimeType(widget.event) ?? await _sniffedType(cached),
+        fileName: attachmentFileName(widget.event),
+        fallbackExtension: '.ogg',
+        capabilities: ambientCapabilities,
+      );
+      if (!mounted) return false;
+      await _player.setFilePath(file.path);
+      _loaded = true;
+      return mounted;
     } catch (e, s) {
+      if (!mounted) return false;
       reportCaught('play voice message', e, s);
       _didNotLoad();
       return false;
     } finally {
       _starting = false;
     }
-    return true;
   }
 
-  Future<Source> _sourceOf(Uint8List bytes) async {
-    final platform = ambientCapabilities;
-    final mimeType =
-        widget.event.infoMap.tryGet<String>('mimetype') ??
-        (platform.playerNeedsMediaType ? sniffAudioMimeType(bytes) : null);
-    if (!platform.audioPlayerNeedsFile) {
-      return BytesSource(bytes, mimeType: mimeType);
-    }
-    final file = await fetchCachedAttachmentFile(_cacheKey, () async => bytes);
-    return DeviceFileSource(file.path, mimeType: mimeType);
-  }
+  Future<String?> _sniffedType(File file) async => sniffAudioMimeType(
+    Uint8List.fromList(
+      await file.openRead(0, 12).expand((chunk) => chunk).toList(),
+    ),
+  );
 
   void _didNotLoad() {
     if (!mounted) return;
@@ -157,15 +219,22 @@ class _VoiceMessageState extends State<VoiceMessage> {
     );
   }
 
+  Future<void> _seek(Duration position) async {
+    await _player.seek(position);
+    if (mounted) setState(() => _position = position);
+  }
+
   Future<void> _seekTo(double ratio) async {
     final total = _duration ?? Duration.zero;
     if (total == Duration.zero) return;
-    final started =
-        _state == PlayerState.playing || _state == PlayerState.paused;
-    if (!started && !await _play()) return;
-    await _player.seek(
-      Duration(milliseconds: (ratio * total.inMilliseconds).round()),
+    final target = Duration(
+      milliseconds: (ratio * total.inMilliseconds).round(),
     );
+    if (_inProgress) {
+      await _seek(target);
+    } else {
+      await _start(at: target);
+    }
   }
 
   @override
@@ -174,7 +243,6 @@ class _VoiceMessageState extends State<VoiceMessage> {
     final progress = total.inMilliseconds == 0
         ? 0.0
         : (_position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
-    final isPlaying = _state == PlayerState.playing;
     final waveform = _waveform;
 
     final theme = Theme.of(context);
@@ -202,7 +270,7 @@ class _VoiceMessageState extends State<VoiceMessage> {
                 : InkWell(
                     onTap: _toggle,
                     child: Icon(
-                      isPlaying ? Icons.pause : Icons.play_arrow,
+                      _playing ? Icons.pause : Icons.play_arrow,
                       color: colors.onPrimaryContainer,
                     ),
                   ),
@@ -236,7 +304,7 @@ class _VoiceMessageState extends State<VoiceMessage> {
                 children: [
                   Text(
                     formatDuration(
-                      isPlaying || _position > Duration.zero
+                      _playing || _position > Duration.zero
                           ? _position
                           : total,
                     ),
