@@ -26,18 +26,18 @@ class _BrokenSessionStore extends FakeDatabaseApi {
   };
 
   @override
-  Future<void> updateClient(
-    String homeserverUrl,
-    String token,
+  Future<void> storeClient({
+    required String homeserverUrl,
+    required String token,
     DateTime? tokenExpiresAt,
     String? refreshToken,
-    String userId,
+    required String userId,
     String? deviceId,
     String? deviceName,
     String? prevBatch,
     String? olmAccount,
     String? oidcClientId,
-  ) async => throw StateError('disk I/O error');
+  }) async => throw StateError('disk I/O error');
 
   @override
   Future<void> clear() async => cleared = true;
@@ -57,18 +57,18 @@ class _SlowLoadingStore extends FakeDatabaseApi {
   };
 
   @override
-  Future<void> updateClient(
-    String homeserverUrl,
-    String token,
+  Future<void> storeClient({
+    required String homeserverUrl,
+    required String token,
     DateTime? tokenExpiresAt,
     String? refreshToken,
-    String userId,
+    required String userId,
     String? deviceId,
     String? deviceName,
     String? prevBatch,
     String? olmAccount,
     String? oidcClientId,
-  ) async {}
+  }) async {}
 
   @override
   Future<Map<String, DeviceKeysList>> getUserDeviceKeys(Client client) async =>
