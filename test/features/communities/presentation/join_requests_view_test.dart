@@ -3,16 +3,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/communities/presentation/join_requests_view.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/layout_matrix.dart';
-import '../../../helpers/pump_until.dart';
 
 const _me = '@me:example.org';
 
@@ -37,7 +35,7 @@ void main() {
     offline = false;
     client = buildTestClient(
       userId: _me,
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request);
         if (offline) {
           throw http.ClientException('Failed host lookup', request.url);
@@ -97,10 +95,6 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> network(WidgetTester tester) async {
-    await pumpRealAsync(tester, rounds: 3);
-  }
-
   Iterable<String> calls() => requests.map((r) => r.url.pathSegments.last);
 
   group('the card in the chat', () {
@@ -138,7 +132,7 @@ void main() {
       expect(find.text('Asks to join'), findsOneWidget);
 
       await tester.tap(find.text('Let in'));
-      await network(tester);
+      await tester.pump();
 
       expect(calls(), ['invite']);
       expect(jsonDecode(requests.single.body), {
@@ -153,7 +147,7 @@ void main() {
       await pump(tester, JoinRequestsBanner(room: room));
 
       await tester.tap(find.text('Decline'));
-      await network(tester);
+      await tester.pump();
 
       expect(calls(), ['kick']);
       expect(find.text('Maya'), findsNothing);
@@ -167,7 +161,7 @@ void main() {
       await pump(tester, JoinRequestsBanner(room: room));
 
       await tester.tap(find.text('Let in'));
-      await network(tester);
+      await tester.pump();
 
       expect(
         find.text(
@@ -210,11 +204,11 @@ void main() {
       expect(inSheet('Let in'), findsNWidgets(2));
 
       await tester.tap(inSheet('Let in').first);
-      await network(tester);
+      await tester.pump();
       expect(inSheet('Let in'), findsOneWidget);
 
       await tester.tap(inSheet('Decline'));
-      await network(tester);
+      await tester.pump();
       await tester.pumpAndSettle();
 
       client.onRoomState.add((
@@ -254,7 +248,7 @@ void main() {
       client = buildTestClient(
         userId: _me,
         database: database,
-        httpClient: MockClient(
+        httpClient: FakeHttpClient(
           (_) async => http.Response(
             jsonEncode({
               'chunk': [
@@ -298,7 +292,7 @@ void main() {
       joinRule('knock');
 
       await pump(tester, JoinRequestsBanner(room: room));
-      await network(tester);
+      await tester.pump();
 
       expect(database.memberReads, 1);
       expect(find.text('Maya'), findsOneWidget);
@@ -308,7 +302,7 @@ void main() {
       joinRule('invite');
 
       await pump(tester, JoinRequestsBanner(room: room));
-      await network(tester);
+      await tester.pump();
 
       expect(database.memberReads, 0);
     });
@@ -326,7 +320,7 @@ void main() {
       expect(find.text('@maya'), findsOneWidget);
 
       await tester.tap(find.text('Let in'));
-      await network(tester);
+      await tester.pump();
 
       expect(find.text('Asking to join'), findsNothing);
     });

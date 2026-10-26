@@ -4,11 +4,10 @@ import 'dart:convert';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/calls/matrixrtc/ice_servers.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
 Client _signedInClient() => buildTestClient(userId: '@alice:example.org')
@@ -24,7 +23,7 @@ void main() {
 
     final servers = await resolveIceServers(
       client,
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         expect(request.url.toString(), 'https://example.org$credentialsPath');
         expect(request.headers['Authorization'], 'Bearer syt_token');
         expect(request.body, isEmpty);
@@ -54,7 +53,7 @@ void main() {
 
     final servers = await resolveIceServers(
       client,
-      httpClient: MockClient((_) async => http.Response('nope', 502)),
+      httpClient: FakeHttpClient((_) async => http.Response('nope', 502)),
     );
 
     expect(servers, isEmpty);
@@ -67,7 +66,7 @@ void main() {
 
     final servers = await resolveIceServers(
       client,
-      httpClient: MockClient((_) async {
+      httpClient: FakeHttpClient((_) async {
         requests++;
         return http.Response(jsonEncode({'iceServers': []}), 200);
       }),
@@ -84,7 +83,7 @@ void main() {
 
       resolveIceServers(
         client,
-        httpClient: MockClient((_) => Completer<http.Response>().future),
+        httpClient: FakeHttpClient((_) => Completer<http.Response>().future),
       ).then((s) => servers = s);
 
       async.elapse(const Duration(seconds: 4));

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +22,7 @@ import 'package:zuno/features/chat/presentation/message_contents/pending_attachm
 
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/pump_until.dart';
 
 const _meta = Text('09:41');
 
@@ -151,15 +153,15 @@ void main() {
           ),
         ),
       );
-      for (var i = 0; i < 100; i++) {
-        final image = tester.widget<RawImage>(find.byType(RawImage)).image;
-        if (image != null) return (image.width, image.height);
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 10)),
-        );
-        await tester.pump();
-      }
-      fail('the image never decoded');
+      ui.Image? decoded() =>
+          tester.widget<RawImage>(find.byType(RawImage)).image;
+      await pumpUntil(
+        tester,
+        () => decoded() != null,
+        reason: 'the photo to decode',
+      );
+      final image = decoded()!;
+      return (image.width, image.height);
     }
 
     testWidgets('a wide photo is decoded tall enough to cover its box', (
@@ -206,12 +208,16 @@ void main() {
           ),
         ),
       );
-      for (var i = 0; i < 10; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 10)),
-        );
-        await tester.pump();
-      }
+      var failed = false;
+      tester
+          .widget<Image>(find.byType(Image))
+          .image
+          .resolve(ImageConfiguration.empty)
+          .addListener(
+            ImageStreamListener((_, _) {}, onError: (_, _) => failed = true),
+          );
+      await pumpUntil(tester, () => failed, reason: 'the decode to fail');
+      await tester.pump();
 
       expect(tester.takeException(), isNull);
     });
@@ -291,6 +297,7 @@ void main() {
 
     testWidgets('a photo of unknown size is kept short, spinning until '
         'it loads', (tester) async {
+      server.holdDownloads();
       await pumpIn(
         tester,
         ImageMessage(
@@ -316,6 +323,9 @@ void main() {
         200,
       );
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      server.releaseDownloads();
+      await tester.pump();
     });
 
     testWidgets('tapping it opens the photo full screen', (tester) async {
@@ -490,6 +500,7 @@ void main() {
 
     testWidgets('while sending without a preview or shape it waits for the '
         'thumbnail', (tester) async {
+      server.holdDownloads();
       final event = video();
       await pumpIn(
         tester,
@@ -503,6 +514,9 @@ void main() {
 
       expect(find.byType(AspectRatioPlaceholder), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      server.releaseDownloads();
+      await tester.pump();
     });
   });
 
@@ -638,7 +652,13 @@ void main() {
       );
 
       expect(find.text('Retry'), findsOneWidget);
-      expect(find.byType(Image), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(GalleryFailedThumbnail),
+          matching: find.byType(Image),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets('an item still sending shows its preview and progress, and '

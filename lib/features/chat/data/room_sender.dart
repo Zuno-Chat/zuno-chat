@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +9,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/global_error_handler.dart';
+import '../../../core/files/file_system.dart';
 import '../../../core/files/picked_file.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
@@ -261,7 +261,7 @@ class RoomSender extends ChangeNotifier {
     return _guardedSend(
       txid,
       () async {
-        final bytes = await File(image.path).readAsBytes();
+        final bytes = await fileSystem.file(image.path).readAsBytes();
         await _withSendProgress(
           PendingAttachmentSend(
             eventId: txid,

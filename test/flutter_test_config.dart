@@ -4,19 +4,26 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/async/background_work.dart';
 import 'package:zuno/core/async/serial_lock.dart';
 import 'package:zuno/core/calls/platform/call_tone_player.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
 import 'package:zuno/core/calls/show_over_lockscreen.dart';
+import 'package:zuno/core/files/file_system.dart';
 import 'package:zuno/core/l10n/app_locale.dart';
+import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+
+import 'helpers/inline_background_work.dart';
+import 'helpers/instant_file_system.dart';
 
 const _networkChannel = EventChannel('zuno/network');
 const _liveLocationChannel = MethodChannel('zuno/live_location');
 const _liveLocationFixes = EventChannel('zuno/live_location/fixes');
 const _privacyChannel = MethodChannel('zuno/privacy');
+const _deviceSafetyChannel = MethodChannel('zuno/device_safety');
 
 TestDefaultBinaryMessenger? _testMessenger() {
   if (BindingBase.debugBindingType() == null) return null;
@@ -30,6 +37,8 @@ void _resetAmbientCapabilities() =>
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   setUp(() {
     _resetAmbientCapabilities();
+    backgroundRunner = runInline;
+    fileSystem = const InstantFileSystem();
     final messenger = _testMessenger();
     messenger?.setMockStreamHandler(
       _networkChannel,
@@ -44,6 +53,10 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
       (_) async => null,
     );
     messenger?.setMockMethodCallHandler(_privacyChannel, (_) async => null);
+    messenger?.setMockMethodCallHandler(
+      _deviceSafetyChannel,
+      (_) async => null,
+    );
   });
 
   tearDown(_resetAmbientCapabilities);
@@ -53,6 +66,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   tearDown(RememberingIncomingCallPresenter.forgetForTest);
   tearDown(NativeCallTonePlayer.forgetForTest);
   tearDown(AppLocale.instance.forgetForTest);
+  tearDown(NotificationSoundPlayer.instance.forgetForTest);
 
   await testMain();
 }

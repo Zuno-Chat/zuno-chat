@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ffi';
 
-import 'package:flutter/foundation.dart' show compute, kReleaseMode;
+import 'package:flutter/foundation.dart' show kReleaseMode;
 
 import '../platform/platform_capabilities.dart';
 import 'caught_errors.dart';
@@ -29,22 +29,6 @@ R runWithDeviceLogFloor<R>(
     zoneSpecification: ZoneSpecification(print: (_, _, _, _) {}),
   );
 }
-
-Future<R> computeWithDeviceLogFloor<Q, R>(
-  FutureOr<R> Function(Q message) callback,
-  Q message, {
-  String? debugLabel,
-  bool release = kReleaseMode,
-  PlatformCapabilities? capabilities,
-}) => compute(
-  (Q message) => runWithDeviceLogFloor(
-    () => callback(message),
-    release: release,
-    capabilities: capabilities,
-  ),
-  message,
-  debugLabel: debugLabel,
-);
 
 void _raiseLiblogFloor() {
   final liblog = DynamicLibrary.open('liblog.so');

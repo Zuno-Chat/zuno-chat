@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,7 +64,7 @@ void main() {
   testWidgets('lists the newest ten with a time, flagging late ones', (
     tester,
   ) async {
-    final now = DateTime.now();
+    final now = clock.now();
     await _pump(
       tester,
       _Source([
@@ -100,7 +101,7 @@ void main() {
       tester,
       _Source([
         RecentPush(
-          at: DateTime.now().subtract(const Duration(days: 1)),
+          at: clock.now().subtract(const Duration(days: 1)),
           summary: 'Shown',
         ),
       ]),

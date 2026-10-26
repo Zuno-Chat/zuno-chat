@@ -2,11 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/reactions.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 class _ReactionsDatabase extends StoredEventsFakeDatabaseApi
@@ -27,7 +26,7 @@ void main() {
     final client = buildTestClient(
       userId: '@me:example.org',
       database: db,
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request);
         return http.Response(jsonEncode({'event_id': r'$new'}), 200);
       }),

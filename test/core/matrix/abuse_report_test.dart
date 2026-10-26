@@ -2,11 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/abuse_report.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -55,7 +54,7 @@ void main() {
     Client clientAnswering(int status, Map<String, Object?> body) {
       final client = buildTestClient(
         userId: '@me:example.org',
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           sent = request;
           return http.Response(jsonEncode(body), status);
         }),

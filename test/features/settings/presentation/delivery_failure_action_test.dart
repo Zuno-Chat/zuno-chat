@@ -67,7 +67,6 @@ void main() {
 
   Future<void> tapAct(WidgetTester tester) async {
     await tester.tap(find.text('Act'));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
   }
 

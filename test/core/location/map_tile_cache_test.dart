@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/location/map_tile_cache.dart';
 
+import '../../helpers/pump_until.dart';
+
 const _pathProvider = MethodChannel('plugins.flutter.io/path_provider');
 
 const _url = 'https://tiles.example.org/1/0/0.png';
@@ -13,18 +15,18 @@ const _url = 'https://tiles.example.org/1/0/0.png';
 final _tile = Uint8List.fromList(List.generate(64, (i) => i));
 
 CachedMapTileMetadata _freshForADay() => CachedMapTileMetadata(
-  staleAt: DateTime.timestamp().add(const Duration(days: 1)),
+  staleAt: deviceClockNow().toUtc().add(const Duration(days: 1)),
   lastModified: null,
   etag: null,
 );
 
 Future<CachedMapTile?> _readBack(MapCachingProvider cache, String url) async {
-  for (var i = 0; i < 100; i++) {
-    final cached = await cache.getTile(url);
-    if (cached != null) return cached;
-    await Future<void>.delayed(const Duration(milliseconds: 20));
-  }
-  return null;
+  CachedMapTile? cached;
+  await waitUntilInRealTime(
+    () async => (cached = await cache.getTile(url)) != null,
+    reason: 'the tile to be cached',
+  );
+  return cached;
 }
 
 void main() {

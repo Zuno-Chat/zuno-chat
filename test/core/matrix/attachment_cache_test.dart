@@ -2,13 +2,17 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
+import 'package:file/file.dart' as pf;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:zuno/core/files/file_system.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 
 import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_attachments.dart';
+import '../../helpers/instant_file_system.dart';
 
 void main() {
   late Directory dir;
@@ -41,15 +45,22 @@ void main() {
       ? dir.listSync(recursive: true).whereType<File>().toList()
       : [];
 
+  void listCacheThrough(pf.Directory Function(pf.Directory real) listing) =>
+      fileSystem = _ListedFileSystem(
+        (real) => real.path == dir.path ? listing(real) : real,
+      );
+
   Future<void> untilStored(
     DiskAttachmentCache cache,
     String key, {
     bool expires = true,
   }) async {
-    for (var i = 0; i < 100; i++) {
-      if (await cache.file(key, expires: expires) != null) return;
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    }
+    await pumpEventQueue();
+    expect(
+      await cache.file(key, expires: expires),
+      isNotNull,
+      reason: '$key to be stored',
+    );
   }
 
   test('a miss is null', () async {
@@ -65,10 +76,31 @@ void main() {
     expect(await disk.get('k'), bytes);
   });
 
+  group('stored by a clock two days back', () {
+    final twoDaysBack = Clock.fixed(
+      clock.now().subtract(const Duration(days: 2)),
+    );
+
+    test('an attachment has expired', () async {
+      await withClock(twoDaysBack, () => disk.put('k', bytes));
+
+      expect(await disk.file('k'), isNull);
+    });
+
+    test('an avatar is still served', () async {
+      await withClock(
+        twoDaysBack,
+        () => disk.put('avatar', bytes, expires: false),
+      );
+
+      expect(await disk.get('avatar', expires: false), bytes);
+    });
+  });
+
   test('two readers of a stale entry raise no delete error', () async {
     final stored = await disk.put('k', bytes);
     await stored!.setLastModified(
-      DateTime.now().subtract(const Duration(days: 2)),
+      clock.now().subtract(const Duration(days: 2)),
     );
     expect(await Future.wait([disk.file('k'), disk.file('k')]), [null, null]);
     await pumpEventQueue();
@@ -144,7 +176,7 @@ void main() {
     () async {
       final avatar = await disk.put('avatar:old', bytes, expires: false);
       final attachment = await disk.put('attachment:old', bytes);
-      final twoDaysAgo = DateTime.now().subtract(const Duration(days: 2));
+      final twoDaysAgo = clock.now().subtract(const Duration(days: 2));
       await avatar!.setLastModified(twoDaysAgo);
       await attachment!.setLastModified(twoDaysAgo);
 
@@ -170,12 +202,12 @@ void main() {
     'storing an entry again never changes a copy a reader has open',
     () async {
       final first = await disk.put('k', bytes);
-      final reader = await first!.open();
-      addTearDown(reader.close);
+      final reader = File(first!.path).openSync();
+      addTearDown(reader.closeSync);
 
       await disk.put('k', Uint8List.fromList([9]));
 
-      expect(await reader.read(bytes.length), bytes);
+      expect(reader.readSync(bytes.length), bytes);
       expect(await disk.get('k'), [9]);
     },
   );
@@ -267,8 +299,8 @@ void main() {
   });
 
   group('disk budget', () {
-    final hourAgo = DateTime.now().subtract(const Duration(hours: 1));
-    final twoHoursAgo = DateTime.now().subtract(const Duration(hours: 2));
+    final hourAgo = clock.now().subtract(const Duration(hours: 1));
+    final twoHoursAgo = clock.now().subtract(const Duration(hours: 2));
 
     test('trims the oldest files once the cache passes 256 MiB', () async {
       final old = sparseFile('old', megabytes: 150, modified: twoHoursAgo);
@@ -289,7 +321,7 @@ void main() {
         final stale = sparseFile(
           'stale',
           megabytes: 300,
-          modified: DateTime.now().subtract(const Duration(days: 2)),
+          modified: clock.now().subtract(const Duration(days: 2)),
         );
 
         await disk.sweep();
@@ -319,7 +351,7 @@ void main() {
       final latest = sparseFile(
         'latest',
         megabytes: 300,
-        modified: DateTime.now().subtract(const Duration(minutes: 1)),
+        modified: clock.now().subtract(const Duration(minutes: 1)),
       );
 
       await disk.sweep();
@@ -386,16 +418,16 @@ void main() {
     test('an entry removed elsewhere mid-sweep still frees its room', () async {
       sparseFile('old', megabytes: 150, modified: twoHoursAgo);
       final newer = sparseFile('newer', megabytes: 150, modified: hourAgo);
-      final racing = DiskAttachmentCache.forTest(
-        _Listing(
-          dir,
+      listCacheThrough(
+        (real) => _Listing(
+          real,
           (entry) => p.basename(entry.path) == 'old'
-              ? _RemovedOnceMeasured(entry as File)
+              ? _RemovedOnceMeasured(entry as pf.File)
               : entry,
         ),
       );
 
-      final reports = await reportsDuring(racing.sweep);
+      final reports = await reportsDuring(disk.sweep);
 
       expect(newer.existsSync(), isTrue);
       expect(reports, isEmpty);
@@ -623,7 +655,7 @@ void main() {
   });
 
   group('expiry sweep', () {
-    final twoDaysAgo = DateTime.now().subtract(const Duration(days: 2));
+    final twoDaysAgo = clock.now().subtract(const Duration(days: 2));
 
     test('a sweep clears out attachments unused for a day', () async {
       final seeding = DiskAttachmentCache.forTest(dir);
@@ -680,7 +712,7 @@ void main() {
         final big = sparseFile(
           'big',
           megabytes: 150,
-          modified: DateTime.now().subtract(const Duration(hours: 1)),
+          modified: clock.now().subtract(const Duration(hours: 1)),
         );
         sparseFile('bigger', megabytes: 150);
 
@@ -698,14 +730,14 @@ void main() {
         final stale = sparseFile('stale', megabytes: 1, modified: twoDaysAgo);
         final copy = File(p.join(dir.path, 'handover', 'saved', 'clip.mp4'))
           ..createSync(recursive: true);
-        final vanishing = DiskAttachmentCache.forTest(
-          _Listing(
-            dir,
+        listCacheThrough(
+          (real) => _Listing(
+            real,
             (entry) => p.basename(entry.path) == 'handover'
                 ? _Listing(
-                    entry as Directory,
+                    entry as pf.Directory,
                     (folder) => _Listing(
-                      folder as Directory,
+                      folder as pf.Directory,
                       (file) => file,
                       first: () => folder.deleteSync(recursive: true),
                     ),
@@ -714,7 +746,7 @@ void main() {
           ),
         );
 
-        final reports = await reportsDuring(vanishing.sweep);
+        final reports = await reportsDuring(disk.sweep);
 
         expect(stale.existsSync(), isFalse);
         expect(copy.existsSync(), isFalse);
@@ -814,11 +846,20 @@ void main() {
   });
 }
 
-class _Listing implements Directory {
+class _ListedFileSystem extends pf.ForwardingFileSystem {
+  _ListedFileSystem(this._listed) : super(const InstantFileSystem());
+
+  final pf.Directory Function(pf.Directory real) _listed;
+
+  @override
+  pf.Directory directory(dynamic path) => _listed(super.directory(path));
+}
+
+class _Listing implements pf.Directory {
   _Listing(this._real, this._entry, {this.first});
 
-  final Directory _real;
-  final FileSystemEntity Function(FileSystemEntity) _entry;
+  final pf.Directory _real;
+  final pf.FileSystemEntity Function(pf.FileSystemEntity) _entry;
   final void Function()? first;
 
   @override
@@ -828,7 +869,7 @@ class _Listing implements Directory {
   Future<bool> exists() => _real.exists();
 
   @override
-  Stream<FileSystemEntity> list({
+  Stream<pf.FileSystemEntity> list({
     bool recursive = false,
     bool followLinks = true,
   }) {
@@ -842,10 +883,10 @@ class _Listing implements Directory {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _RemovedOnceMeasured implements File {
+class _RemovedOnceMeasured implements pf.File {
   _RemovedOnceMeasured(this._real);
 
-  final File _real;
+  final pf.File _real;
 
   @override
   String get path => _real.path;
@@ -858,7 +899,7 @@ class _RemovedOnceMeasured implements File {
   }
 
   @override
-  Future<FileSystemEntity> delete({bool recursive = false}) =>
+  Future<pf.FileSystemEntity> delete({bool recursive = false}) =>
       _real.delete(recursive: recursive);
 
   @override

@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -128,7 +129,7 @@ void main() {
     void bothShare() {
       harness.shareFrom('@alex:x');
       harness.shareFrom('@bea:x', deviceId: 'TABLET');
-      final earlier = DateTime.now().subtract(const Duration(seconds: 30));
+      final earlier = clock.now().subtract(const Duration(seconds: 30));
       harness.positionFrom(
         '@alex:x',
         deviceId: 'PHONE',
@@ -251,7 +252,7 @@ void main() {
       harness.positionFrom(
         '@bea:x',
         deviceId: 'TABLET',
-        at: DateTime.now().subtract(const Duration(minutes: 4, seconds: 30)),
+        at: clock.now().subtract(const Duration(minutes: 4, seconds: 30)),
       );
       await tester.pump();
 

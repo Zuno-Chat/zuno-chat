@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/files/file_system.dart';
 import '../../../core/l10n/l10n.dart';
 import '../data/composed_media.dart';
 import 'caption_bar.dart';
@@ -74,7 +73,7 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
     if (identical(item, _shownVideo)) return;
     _releasePlayer();
     if (item is! PickedVideo) return;
-    final player = VideoPlayerController.file(File(item.path));
+    final player = VideoPlayerController.file(fileSystem.file(item.path));
     _shownVideo = item;
     _player = player;
     _playerReady = reportFailureOf(player.initialize(), label: 'preview video')
@@ -211,7 +210,7 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
       return InteractiveViewer(
         child: Center(
           child: Image.file(
-            File(item.path),
+            fileSystem.file(item.path),
             cacheWidth: previewDecodeWidth(context),
             errorBuilder: (_, _, _) =>
                 const Icon(Icons.broken_image_outlined, size: 64),

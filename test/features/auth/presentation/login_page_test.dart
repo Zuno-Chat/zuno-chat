@@ -5,9 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -20,6 +18,7 @@ import 'package:zuno/features/auth/presentation/login_page.dart';
 import 'package:zuno/features/auth/presentation/register_page.dart';
 import 'package:zuno/features/auth/presentation/registration_code_page.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/fixed_homeserver.dart';
@@ -89,7 +88,6 @@ void main() {
     await tester.enterText(field('Username'), username);
     await tester.enterText(field('Password'), password);
     await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
   }
 
@@ -181,7 +179,7 @@ void main() {
   ) async {
     Map<String, Object?>? loginBody;
     final client = buildTestClient(
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         loginBody = jsonDecode(request.body) as Map<String, Object?>;
         return http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403);
       }),
@@ -280,7 +278,7 @@ void main() {
   testWidgets('empty fields never reach the network', (tester) async {
     var requests = 0;
     final client = buildTestClient(
-      httpClient: MockClient((_) async {
+      httpClient: FakeHttpClient((_) async {
         requests++;
         return http.Response('{}', 500);
       }),
@@ -300,7 +298,7 @@ void main() {
     Future<List<http.Request>> pumpLimited(WidgetTester tester) async {
       final requests = <http.Request>[];
       final client = buildTestClient(
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           requests.add(request);
           return http.Response(
             jsonEncode({
@@ -339,7 +337,6 @@ void main() {
 
       await tester.showKeyboard(field('Password'));
       await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump();
 
       expect(requests, hasLength(1));
@@ -352,7 +349,7 @@ void main() {
     final answer = Completer<http.Response>();
     await pumpLoginPage(
       tester,
-      client: buildTestClient(httpClient: MockClient((_) => answer.future)),
+      client: buildTestClient(httpClient: FakeHttpClient((_) => answer.future)),
     );
     final container = ProviderScope.containerOf(
       tester.element(find.byType(LoginPage)),
@@ -366,7 +363,6 @@ void main() {
     expect(container.read(signInInFlightProvider), isTrue);
 
     answer.complete(http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
 
     expect(container.read(signInInFlightProvider), isFalse);
@@ -377,7 +373,7 @@ void main() {
   ) async {
     final answer = Completer<http.Response>();
     final client = buildTestClient(
-      httpClient: MockClient((_) => answer.future),
+      httpClient: FakeHttpClient((_) => answer.future),
     );
     await pumpLoginPage(tester, client: client, pushed: true);
 
@@ -389,7 +385,6 @@ void main() {
     await tester.pumpAndSettle();
 
     answer.complete(http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -500,7 +495,7 @@ void main() {
 
     testWidgets('closes when Sign in is tapped', (tester) async {
       final client = buildTestClient(
-        httpClient: MockClient((_) async => http.Response('{}', 500)),
+        httpClient: FakeHttpClient((_) async => http.Response('{}', 500)),
       );
       await pumpLoginPage(tester, client: client);
       await tester.showKeyboard(field('Username'));

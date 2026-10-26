@@ -135,7 +135,6 @@ class VideoCallHeader extends StatelessWidget {
   final CallStatus status;
   final DateTime? talkingSince;
   final DateTime? encryptingSince;
-  final DateTime Function() now;
   final bool remoteMuted;
   final bool remoteWeak;
 
@@ -145,7 +144,6 @@ class VideoCallHeader extends StatelessWidget {
     required this.status,
     this.talkingSince,
     this.encryptingSince,
-    this.now = DateTime.now,
     this.remoteMuted = false,
     this.remoteWeak = false,
   });
@@ -194,7 +192,7 @@ class VideoCallHeader extends StatelessWidget {
               ],
               if (talking && since != null)
                 Flexible(
-                  child: CallTimerSuffix(since: since, now: now, style: label),
+                  child: CallTimerSuffix(since: since, style: label),
                 ),
             ],
           ),
@@ -206,7 +204,6 @@ class VideoCallHeader extends StatelessWidget {
             child: CallStatusLine(
               status: status,
               encryptingSince: encryptingSince,
-              now: now,
               style: label,
               hintStyle: theme.textTheme.bodySmall!.copyWith(
                 color: Colors.white,

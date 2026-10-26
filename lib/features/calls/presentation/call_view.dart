@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:matrix/matrix.dart';
@@ -117,7 +118,7 @@ class _CallViewState extends State<CallView> {
 
   void _trackEncrypting() {
     if (widget.status == CallStatus.encrypting) {
-      _encryptingSince ??= DateTime.now();
+      _encryptingSince ??= clock.now();
     } else {
       _encryptingSince = null;
     }

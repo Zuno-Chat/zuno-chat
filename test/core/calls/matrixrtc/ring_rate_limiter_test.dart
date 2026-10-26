@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
 
@@ -5,9 +6,12 @@ void main() {
   group('RingRateLimiter', () {
     final start = DateTime(2026, 9, 4, 12);
 
+    bool allowAt(RingRateLimiter limiter, String senderId, DateTime at) =>
+        withClock(Clock.fixed(at), () => limiter.allow(senderId));
+
     void flood(RingRateLimiter limiter, String senderId) {
       for (var i = 0; i < limiter.burst; i++) {
-        limiter.allow(senderId, now: start);
+        allowAt(limiter, senderId, start);
       }
     }
 
@@ -16,9 +20,10 @@ void main() {
 
       for (final seconds in [0, 2, 4]) {
         expect(
-          limiter.allow(
+          allowAt(
+            limiter,
             '@bob:example.org',
-            now: start.add(Duration(seconds: seconds)),
+            start.add(Duration(seconds: seconds)),
           ),
           isTrue,
           reason: 'ring at ${seconds}s',
@@ -29,13 +34,14 @@ void main() {
     test('drops a flood past the burst allowance', () {
       final limiter = RingRateLimiter();
       for (var i = 0; i < limiter.burst; i++) {
-        expect(limiter.allow('@mallory:example.org', now: start), isTrue);
+        expect(allowAt(limiter, '@mallory:example.org', start), isTrue);
       }
-      expect(limiter.allow('@mallory:example.org', now: start), isFalse);
+      expect(allowAt(limiter, '@mallory:example.org', start), isFalse);
       expect(
-        limiter.allow(
+        allowAt(
+          limiter,
           '@mallory:example.org',
-          now: start.add(const Duration(seconds: 30)),
+          start.add(const Duration(seconds: 30)),
         ),
         isFalse,
       );
@@ -45,9 +51,10 @@ void main() {
       final limiter = RingRateLimiter();
       flood(limiter, '@mallory:example.org');
       expect(
-        limiter.allow(
+        allowAt(
+          limiter,
           '@mallory:example.org',
-          now: start.add(const Duration(minutes: 1, seconds: 1)),
+          start.add(const Duration(minutes: 1, seconds: 1)),
         ),
         isTrue,
       );
@@ -56,7 +63,7 @@ void main() {
     test('budgets each sender separately', () {
       final limiter = RingRateLimiter();
       flood(limiter, '@mallory:example.org');
-      expect(limiter.allow('@alice:example.org', now: start), isTrue);
+      expect(allowAt(limiter, '@alice:example.org', start), isTrue);
     });
 
     test('forgets the oldest sender once it tracks too many, so memory stays '
@@ -64,9 +71,9 @@ void main() {
       final limiter = RingRateLimiter();
       flood(limiter, '@mallory:example.org');
       for (var i = 0; i < 500; i++) {
-        limiter.allow('@user$i:example.org', now: start);
+        allowAt(limiter, '@user$i:example.org', start);
       }
-      expect(limiter.allow('@mallory:example.org', now: start), isTrue);
+      expect(allowAt(limiter, '@mallory:example.org', start), isTrue);
     });
   });
 }

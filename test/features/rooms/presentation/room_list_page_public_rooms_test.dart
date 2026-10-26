@@ -3,9 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/room_access.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
@@ -13,6 +11,7 @@ import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 
 import '../../../helpers/caught_reports.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/public_rooms_fixture.dart';
 import '../../../helpers/room_list_page_harness.dart';
@@ -38,7 +37,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: TimelineCapableFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request);
         if (offline) {
           throw http.ClientException(
@@ -97,7 +96,6 @@ void main() {
 
   Future<void> settle(WidgetTester tester) async {
     await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
   }
 
@@ -266,7 +264,6 @@ void main() {
     await tester.pump();
     client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
     await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump(const Duration(seconds: 1));
 
     expect(tester.widget<RoomPage>(find.byType(RoomPage)).room, garden);
@@ -283,7 +280,6 @@ void main() {
 
     await tester.tap(find.text('Chess club'));
     await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump(const Duration(seconds: 1));
 
     expect(joinRequests(), isEmpty);

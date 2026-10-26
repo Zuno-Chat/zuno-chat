@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import 'fake_http.dart';
 import 'fake_matrix.dart';
 
 class HeldSync {
@@ -62,7 +63,7 @@ class FakeSyncServer extends http.BaseClient {
 }
 
 http.StreamedResponse _json(Map<String, Object?> body) => http.StreamedResponse(
-  Stream.fromIterable([utf8.encode(jsonEncode(body))]),
+  fakeTimeBody(utf8.encode(jsonEncode(body))),
   200,
   headers: {'content-type': 'application/json'},
 );

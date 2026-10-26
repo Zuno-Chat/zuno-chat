@@ -4,6 +4,8 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
 
+import 'pump_until.dart';
+
 class FakeAudioPlatform extends JustAudioPlatform {
   FakeAudioPlatform([List<String>? log]) : log = log ?? [];
 
@@ -86,7 +88,7 @@ class _FakeAudioPlayer extends AudioPlayerPlatform {
     _events.add(
       PlaybackEventMessage(
         processingState: state,
-        updateTime: DateTime.now(),
+        updateTime: deviceClockNow(),
         updatePosition: position ?? _platform.position,
         bufferedPosition: Duration.zero,
         duration: duration,
@@ -180,8 +182,11 @@ FakeAudioPlatform installFakeAudioPlatform([List<String>? log]) {
   return fake;
 }
 
-Future<void> pumpAudioPlayerDisposal(WidgetTester tester) async {
-  for (var i = 0; i < 20; i++) {
-    await tester.pump();
-  }
+Future<void> pumpAudioPlayerDisposal(WidgetTester tester) {
+  final platform = JustAudioPlatform.instance as FakeAudioPlatform;
+  return pumpUntil(
+    tester,
+    () => platform._players.isEmpty,
+    reason: 'the audio players to be let go',
+  );
 }

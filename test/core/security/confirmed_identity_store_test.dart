@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/security/confirmed_identity_store.dart';
@@ -15,7 +16,7 @@ void main() {
   test('remembers the identity a person was confirmed with, and when, so '
       'Room info can say more than whether', () async {
     final store = await _store();
-    final before = DateTime.now().subtract(const Duration(seconds: 1));
+    final before = clock.now().subtract(const Duration(seconds: 1));
     await store.remember('@bob:example.org', 'KEY_A');
     expect(store.confirmedIdentityKey('@bob:example.org'), 'KEY_A');
     final at = store.confirmedAt('@bob:example.org');

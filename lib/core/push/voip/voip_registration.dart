@@ -1,7 +1,8 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart'
-    show ValueListenable, ValueNotifier, debugPrint, visibleForTesting;
+    show ValueListenable, ValueNotifier, debugPrint;
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -74,9 +75,6 @@ class VoipRegistration {
   final _serverOffsetMs = ValueNotifier<int?>(null);
   Timer? _tokenWait;
   int _tokenWaits = 0;
-
-  @visibleForTesting
-  DateTime Function() now = DateTime.now;
 
   set retryDelay(Duration Function(int attempt) delay) => _retry.delay = delay;
 
@@ -194,7 +192,7 @@ class VoipRegistration {
         await _channel.ackKey(status.kid);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(voipAckedKey, _ackOf(appId, token, status.kid));
-        _serverOffsetMs.value = serverTs - now().millisecondsSinceEpoch;
+        _serverOffsetMs.value = serverTs - clock.now().millisecondsSinceEpoch;
         _current.value = true;
         _recheck.markChecked();
         _retry.reset();
@@ -202,7 +200,7 @@ class VoipRegistration {
         _state.value = VoipRegistrationState.registered;
       case VoipServerAccepted(:final kid):
         debugPrint('zuno/voip: the server kept key $kid, not ${status.kid}');
-        _fail(client, VoipKeyNotKept(at: now()));
+        _fail(client, VoipKeyNotKept(at: clock.now()));
       case VoipServerUnreachable(:final retryAfter):
         _quietRetry(client, retryAfter);
       case final VoipServerRefused refused:
@@ -210,7 +208,7 @@ class VoipRegistration {
           'zuno/voip: the server refused this device '
           '(${refused.status} ${refused.errcode})',
         );
-        _fail(client, VoipRefusedByServer(at: now(), reply: refused));
+        _fail(client, VoipRefusedByServer(at: clock.now(), reply: refused));
     }
   }
 

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/active_call_controller.dart';
@@ -30,6 +29,7 @@ import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
@@ -63,24 +63,10 @@ class _RecordingNavigatorObserver extends NavigatorObserver {
       events.add('remove');
 }
 
-Future<void> tapAndRunAsync(WidgetTester tester, Finder icon) async {
-  final button = iconButtonFor(tester, icon);
-  await tester.runAsync(() async {
-    button.onPressed!.call();
-    await Future<void>.delayed(Duration.zero);
-  });
-}
-
 IconButton iconButtonFor(WidgetTester tester, Finder icon) =>
     tester.widget<IconButton>(
       find.ancestor(of: icon, matching: find.byType(IconButton)),
     );
-
-Future<void> settleRealAsync(WidgetTester tester) async {
-  await tester.pump();
-  await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-  await tester.pumpAndSettle();
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -113,7 +99,7 @@ void main() {
       userId: '@me:example.org',
       deviceId: 'DEVICE',
       database: db,
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add('${request.method} ${request.url.path}');
         if (request.method == 'PUT' && request.url.path.contains('/send/')) {
           sentEvents.add(request.url.path);
@@ -263,7 +249,7 @@ void main() {
         );
 
         pushIncomingCall(call());
-        await settleRealAsync(tester);
+        await tester.pumpAndSettle();
 
         expect(find.byType(IncomingCallPage), findsNothing);
         expect(find.text('room list'), findsOneWidget);
@@ -433,7 +419,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(RingingCall.instance.callId, 'call1');
 
-      await tapAndRunAsync(tester, find.byIcon(Icons.call_end));
+      await tester.tap(find.byIcon(Icons.call_end));
       await tester.pumpAndSettle();
 
       expect(find.byType(IncomingCallPage), findsNothing);
@@ -452,7 +438,6 @@ void main() {
       sendGate = Completer<void>();
 
       await tester.tap(find.byIcon(Icons.call_end));
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pumpAndSettle();
 
       expect(find.byType(IncomingCallPage), findsNothing);
@@ -460,7 +445,6 @@ void main() {
       expect(container.read(resolvedCallIdsProvider), contains('call1'));
       expect(sentEvents.single, endsWith('/${callDeclineTxid('call1')}'));
       sendGate!.complete();
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     });
 
     testWidgets('a decline the server refuses still closes the page', (
@@ -475,7 +459,6 @@ void main() {
       );
 
       await tester.tap(find.byIcon(Icons.call_end));
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pumpAndSettle();
 
       expect(find.byType(IncomingCallPage), findsNothing);
@@ -493,7 +476,6 @@ void main() {
       final button = iconButtonFor(tester, find.byIcon(Icons.call_end));
       button.onPressed!.call();
       button.onPressed!.call();
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pumpAndSettle();
 
       expect(sentEvents, hasLength(1));
@@ -665,7 +647,7 @@ void main() {
     testWidgets('Decline leaves the call on the line alone', (tester) async {
       final (container, onTheLine) = await ringOverACall(tester);
 
-      await tapAndRunAsync(tester, find.byIcon(Icons.call_end));
+      await tester.tap(find.byIcon(Icons.call_end));
       await tester.pumpAndSettle();
 
       expect(onTheLine.hangUps, 0);
@@ -678,7 +660,7 @@ void main() {
         'lock screen', (tester) async {
       await ringOverACall(tester, screenOpen: true);
 
-      await tapAndRunAsync(tester, find.byIcon(Icons.call_end));
+      await tester.tap(find.byIcon(Icons.call_end));
       await tester.pumpAndSettle();
 
       expect(lockscreenShows().last, isTrue);
@@ -689,7 +671,7 @@ void main() {
     ) async {
       await ringOverACall(tester);
 
-      await tapAndRunAsync(tester, find.byIcon(Icons.call_end));
+      await tester.tap(find.byIcon(Icons.call_end));
       await tester.pumpAndSettle();
 
       expect(lockscreenShows().last, isFalse);
@@ -1005,7 +987,7 @@ void main() {
       await pumpShell(tester);
       await ring(tester);
 
-      await tapAndRunAsync(tester, find.byIcon(Icons.call_end));
+      await tester.tap(find.byIcon(Icons.call_end));
 
       expect(SystemRing.instance.ringing.value, isNull);
       expect(find.byType(IncomingCallPage), findsOneWidget);
@@ -1097,7 +1079,7 @@ void main() {
       pushIncomingCall(call());
       await tester.pumpAndSettle();
       expect(find.byType(IncomingCallPage), findsOneWidget);
-      await tapAndRunAsync(tester, find.byIcon(Icons.call_end));
+      await tester.tap(find.byIcon(Icons.call_end));
       await tester.pumpAndSettle();
 
       expect(find.byType(IncomingCallPage), findsNothing);

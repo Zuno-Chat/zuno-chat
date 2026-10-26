@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
@@ -71,7 +72,7 @@ void main() {
   });
 
   Event agedEvent(Duration age) =>
-      textEvent(originServerTs: DateTime.now().subtract(age));
+      textEvent(originServerTs: clock.now().subtract(age));
 
   test('notifies however late a message arrives, since a distributor backlog '
       'can hold it for days', () {

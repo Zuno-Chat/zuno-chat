@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
@@ -25,8 +26,11 @@ void main() {
   });
 
   test('an old resolution is pruned', () async {
-    final longAgo = DateTime.now().subtract(const Duration(minutes: 10));
-    await markCallResolvedOnDisk(prefs, 'stale', now: longAgo);
+    final longAgo = clock.now().subtract(const Duration(minutes: 10));
+    await withClock(
+      Clock.fixed(longAgo),
+      () => markCallResolvedOnDisk(prefs, 'stale'),
+    );
     await markCallResolvedOnDisk(prefs, 'fresh');
 
     expect(readResolvedCallIds(prefs), {'fresh'});
@@ -54,8 +58,9 @@ void main() {
     setUp(() async {
       SharedPreferences.setMockInitialValues({
         'calls.resolved': jsonEncode({
-          'old-fresh': DateTime.now().millisecondsSinceEpoch,
-          'old-stale': DateTime.now()
+          'old-fresh': clock.now().millisecondsSinceEpoch,
+          'old-stale': clock
+              .now()
               .subtract(const Duration(minutes: 10))
               .millisecondsSinceEpoch,
         }),
@@ -79,16 +84,15 @@ void main() {
   test('only the newest entries are kept', () async {
     final start = DateTime(2026, 9, 3, 12);
     for (var i = 0; i < 40; i++) {
-      await markCallResolvedOnDisk(
-        prefs,
-        'call-$i',
-        now: start.add(Duration(seconds: i)),
+      await withClock(
+        Clock.fixed(start.add(Duration(seconds: i))),
+        () => markCallResolvedOnDisk(prefs, 'call-$i'),
       );
     }
 
-    final resolved = readResolvedCallIds(
-      prefs,
-      now: start.add(const Duration(seconds: 40)),
+    final resolved = withClock(
+      Clock.fixed(start.add(const Duration(seconds: 40))),
+      () => readResolvedCallIds(prefs),
     );
     expect(resolved, hasLength(32));
     expect(resolved, contains('call-39'));

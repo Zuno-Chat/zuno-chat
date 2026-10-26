@@ -162,8 +162,7 @@ void main() {
       Room(id: '!left:zuno.im', client: client, membership: Membership.leave),
     );
 
-    await ReadModelPublisher(now: () => DateTime.fromMillisecondsSinceEpoch(7))
-        .start(client, _meta);
+    await ReadModelPublisher().start(client, _meta);
 
     expect(methods(), ['open', 'wipe', 'writeMeta', 'writeRoom', 'writeRoom']);
     expect(

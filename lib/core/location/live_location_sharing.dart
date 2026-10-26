@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -112,7 +113,6 @@ class LiveLocationSharing {
     required this._isOffline,
     this._previewLevel = _fullPreview,
     this._recipients = liveLocationRecipients,
-    this._now = DateTime.now,
   }) : _client = client,
        _capture = capture {
     _subscriptions.addAll([
@@ -130,7 +130,6 @@ class LiveLocationSharing {
   final bool Function() _isOffline;
   final NotificationPreview Function() _previewLevel;
   final Future<List<DeviceKeys>> Function(Room room) _recipients;
-  final DateTime Function() _now;
   final _subscriptions = <StreamSubscription<Object?>>[];
   final _active = <String, _ActiveShare>{};
   final _stateWrites = <String, Future<void>>{};
@@ -139,7 +138,6 @@ class LiveLocationSharing {
     isActive: _active.containsKey,
     writeState: _writeState,
     echoState: _echoState,
-    now: _now,
   );
   final _unreachable = UnreachableDevices();
   final _shares = ValueNotifier<List<OwnLiveShare>>(const []);
@@ -182,7 +180,7 @@ class LiveLocationSharing {
     if (userId == null || deviceId == null) {
       throw const LiveShareStartException(LiveShareStartFailure.failed);
     }
-    final startedAt = _now();
+    final startedAt = clock.now();
     final share = _ActiveShare(
       roomId: room.id,
       shareId: newLiveShareId(),
@@ -371,7 +369,7 @@ class LiveLocationSharing {
   }
 
   void _endDue() {
-    final now = _now();
+    final now = clock.now();
     for (final share in [..._active.values]) {
       if (!share.endsAt.isAfter(now)) unawaited(stop(share.roomId));
     }
@@ -406,7 +404,7 @@ class LiveLocationSharing {
         stateKey: userId,
         senderId: userId,
         eventId: eventId,
-        originServerTs: _now(),
+        originServerTs: clock.now(),
         content: content,
         room: room,
       ),
@@ -478,7 +476,7 @@ class LiveLocationSharing {
   void _refreshMode() {
     final current = _mode;
     if (current == null) return;
-    final now = _now();
+    final now = clock.now();
     var watched = false;
     for (final share in _active.values) {
       share.watchers.removeWhere((_, watcher) => _expired(watcher, now));
@@ -503,7 +501,7 @@ class LiveLocationSharing {
       watcher.expiresAt.difference(now) > liveWatchLifetime;
 
   void _pruneWatchers(_ActiveShare share, Room room, Set<String> ignored) {
-    final now = _now();
+    final now = clock.now();
     share.watchers.removeWhere(
       (_, watcher) =>
           _expired(watcher, now) ||
@@ -526,7 +524,7 @@ class LiveLocationSharing {
     }
     final latest = _latest;
     if (latest == null || _isOffline()) return;
-    final now = _now();
+    final now = clock.now();
     if (!share.endsAt.isAfter(now)) return _endDue();
     final room = _client.getRoomById(share.roomId);
     if (room == null) return;
@@ -679,7 +677,7 @@ class LiveLocationSharing {
       return;
     }
     if (!share.watchers.containsKey(key)) share.firstSends.add(key);
-    share.watchers[key] = _Watcher(device, _now().add(liveWatchLifetime));
+    share.watchers[key] = _Watcher(device, clock.now().add(liveWatchLifetime));
     _refreshMode();
     unawaited(_evaluate(share));
   }

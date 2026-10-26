@@ -181,12 +181,6 @@ void main() {
       mimetype: mimetype,
     );
 
-    Future<void> untilGone(String path) async {
-      for (var i = 0; i < 50 && File(path).existsSync(); i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-      }
-    }
-
     List<String> sharedNames() => [
       for (final path in device.shared.single['paths']! as List)
         p.basename('$path'),
@@ -215,7 +209,7 @@ void main() {
         final path = (device.gallery.single.arguments as Map)['path'] as String;
         expect(p.basename(path), 'clip.mp4');
         expect(device.galleryFilesPresent, [true]);
-        await untilGone(path);
+        await pumpEventQueue();
         expect(File(path).existsSync(), isFalse);
       });
 
@@ -230,7 +224,7 @@ void main() {
           expect(exported.mimeType, 'application/pdf');
           expect(exported.bytes, server.served);
           expect(device.picker.saved, isEmpty);
-          await untilGone(exported.path);
+          await pumpEventQueue();
           expect(File(exported.path).existsSync(), isFalse);
         },
       );
@@ -240,7 +234,7 @@ void main() {
 
         expect(await saveAttachment(document()), isFalse);
         final path = device.exported.single.path;
-        await untilGone(path);
+        await pumpEventQueue();
         expect(File(path).existsSync(), isFalse);
       });
 
@@ -254,7 +248,7 @@ void main() {
           throwsA(isA<PlatformException>()),
         );
         final path = (native.calls.single.arguments as Map)['path'] as String;
-        await untilGone(path);
+        await pumpEventQueue();
         expect(File(path).existsSync(), isFalse);
       });
 
@@ -350,7 +344,7 @@ void main() {
           await saveAttachment(video());
           final saved =
               (device.gallery.single.arguments as Map)['path'] as String;
-          await untilGone(saved);
+          await pumpEventQueue();
 
           expect(File(saved).existsSync(), isFalse);
           expect(File(shared).existsSync(), isTrue);

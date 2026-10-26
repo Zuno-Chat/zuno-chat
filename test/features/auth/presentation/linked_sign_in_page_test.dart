@@ -6,9 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/linked_sign_in.dart';
@@ -16,10 +14,10 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/auth/presentation/linked_sign_in_page.dart';
 
 import '../../../helpers/caught_reports.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_homeserver.dart';
 import '../../../helpers/preferences_container.dart';
-import '../../../helpers/pump_until.dart';
 
 class _UnreachableHomeserver extends HomeserverNotifier {
   @override
@@ -42,8 +40,8 @@ void main() {
     403,
   );
 
-  Client clientAnswering(MockClientHandler answer) =>
-      buildTestClient(httpClient: MockClient(answer))
+  Client clientAnswering(FakeHttpHandler answer) =>
+      buildTestClient(httpClient: FakeHttpClient(answer))
         ..homeserver = Uri.parse('https://example.org');
 
   Client clientRecording(List<Map<String, Object?>> loginBodies) =>
@@ -99,7 +97,7 @@ void main() {
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(bodies.single['token'], 'syl_abcdefgh');
   });
@@ -112,7 +110,7 @@ void main() {
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(bodies.single['token'], 'syl_abcdefgh');
   });
@@ -127,7 +125,7 @@ void main() {
     await tester.enterText(field('Code'), code.typed);
     await tester.showKeyboard(field('Code'));
     await tester.testTextInput.receiveAction(TextInputAction.done);
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(bodies.single['token'], 'syl_abcdefgh');
   });
@@ -145,7 +143,7 @@ void main() {
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(find.text(otherServerCode), findsOneWidget);
     expect(bodies, isEmpty);
@@ -162,7 +160,7 @@ void main() {
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(bodies.single['token'], 'syl_pasted');
   });
@@ -178,7 +176,7 @@ void main() {
       await tester.tap(
         find.widgetWithText(OutlinedButton, 'Sign in with the code'),
       );
-      await pumpRealAsync(tester, rounds: 2);
+      await tester.pump();
     });
 
     expect(find.text(otherServerCode), findsOneWidget);
@@ -200,7 +198,7 @@ void main() {
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(
       find.text('Cannot connect. Check your connection and try again.'),
@@ -216,7 +214,7 @@ void main() {
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(find.text('Enter the code'), findsOneWidget);
     expect(bodies, isEmpty);
@@ -230,7 +228,7 @@ void main() {
     await tester.enterText(field('Code'), 'example.org');
     await tester.showKeyboard(field('Code'));
     await tester.testTextInput.receiveAction(TextInputAction.done);
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(find.text('Enter the code'), findsOneWidget);
     expect(find.text(invalidCode), findsNothing);
@@ -246,7 +244,7 @@ void main() {
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(find.text(invalidCode), findsOneWidget);
   });
@@ -261,7 +259,7 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(bodies.single['token'], 'syl_scanned');
   });
@@ -282,7 +280,7 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(bodies.single['token'], 'syl_scanned');
   });
@@ -301,7 +299,7 @@ void main() {
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(bodies.single['token'], 'syl_abcdefgh');
   });
@@ -317,7 +315,7 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(find.text('That is not a Zuno sign-in code.'), findsOneWidget);
     expect(bodies, isEmpty);
@@ -335,7 +333,7 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(find.text(otherServerCode), findsOneWidget);
     expect(bodies, isEmpty);
@@ -354,7 +352,7 @@ void main() {
 
     final reports = await reportsDuring(() async {
       await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
-      await pumpRealAsync(tester, rounds: 2);
+      await tester.pump();
     });
 
     expect(
@@ -370,7 +368,7 @@ void main() {
     await pumpPage(tester, client: clientRecording(bodies));
 
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(find.byType(LinkedSignInPage), findsOneWidget);
     expect(bodies, isEmpty);
@@ -393,7 +391,7 @@ void main() {
     expect(container.read(signInInFlightProvider), isTrue);
 
     answer.complete(invalidToken());
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
 
     expect(container.read(signInInFlightProvider), isFalse);
   });
@@ -414,7 +412,7 @@ void main() {
     expect(find.byType(LinkedSignInPage), findsOneWidget);
 
     answer.complete(invalidToken());
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pumpAndSettle();
     await navigator.maybePop();
     await tester.pumpAndSettle();
 

@@ -1,22 +1,25 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:image/image.dart' as img;
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/core/matrix/mxc_avatar_image.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/pump_until.dart';
+
+const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
 
 void main() {
   final png = Uint8List.fromList(img.encodePng(img.Image(width: 1, height: 1)));
@@ -36,7 +39,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: MediaCapableFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         if (request.url.pathSegments.last == 'versions') {
           return http.Response(
             jsonEncode({
@@ -53,15 +56,26 @@ void main() {
     client.bearerToken = 'test-token';
     dir = Directory.systemTemp.createTempSync('zuno_avatar');
     disk = DiskAttachmentCache.forTest(dir);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          pathProvider,
+          (call) async =>
+              call.method == 'getApplicationCacheDirectory' ? dir.path : null,
+        );
   });
 
-  tearDown(() => dir.deleteSync(recursive: true));
+  tearDown(() async {
+    await DiskAttachmentCache.instance.clear();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(pathProvider, null);
+    dir.deleteSync(recursive: true);
+  });
 
   MxcAvatarImage provider(AvatarBucket bucket) =>
       MxcAvatarImage(client: client, mxc: mxc, bucket: bucket, disk: disk);
 
   Uri uniqueMxc() =>
-      Uri.parse('mxc://example.org/${DateTime.now().microsecondsSinceEpoch}');
+      Uri.parse('mxc://example.org/${clock.now().microsecondsSinceEpoch}');
 
   Future<ImageInfo> resolve(ImageProvider image) {
     final completer = Completer<ImageInfo>();
@@ -81,14 +95,17 @@ void main() {
     return completer.future;
   }
 
-  Future<void> settle(WidgetTester tester, Widget widget) =>
-      tester.runAsync(() async {
-        await tester.pumpWidget(widget);
-        for (var i = 0; i < 100 && mediaRequests.isEmpty; i++) {
-          await Future<void>.delayed(const Duration(milliseconds: 10));
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      });
+  bool loadFailed(Uri address) =>
+      mediaRequests.isNotEmpty &&
+      !PaintingBinding.instance.imageCache
+          .statusForKey(
+            MxcAvatarImage(
+              client: client,
+              mxc: address,
+              bucket: AvatarBucket.small,
+            ),
+          )
+          .tracked;
 
   Widget host(Uri? avatarUrl) => MaterialApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -159,7 +176,6 @@ void main() {
         resolve(provider(AvatarBucket.small)),
         throwsA(anything),
       );
-      await Future<void>.delayed(Duration.zero);
 
       mediaResponse = () => http.Response.bytes(png, 200);
       await resolve(provider(AvatarBucket.small));
@@ -175,7 +191,6 @@ void main() {
         resolve(provider(AvatarBucket.small)),
         throwsA(anything),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 20));
 
       expect(await disk.get('avatar:$mxc:small', expires: false), isNull);
     });
@@ -221,7 +236,13 @@ void main() {
     tester,
   ) async {
     mediaResponse = () => http.Response.bytes([1, 2, 3], 200);
-    await settle(tester, host(uniqueMxc()));
+    final address = uniqueMxc();
+    await tester.pumpWidget(host(address));
+    await pumpUntil(
+      tester,
+      () => loadFailed(address),
+      reason: 'the avatar to fail decoding',
+    );
     await tester.pump();
 
     expect(find.text('M'), findsOneWidget);
@@ -231,8 +252,8 @@ void main() {
 
   testWidgets('a rebuild does not ask again', (tester) async {
     final address = uniqueMxc();
-    await settle(tester, host(address));
-    await tester.pump();
+    await tester.pumpWidget(host(address));
+    await pumpUntil(tester, () => !shows('M'), reason: 'the avatar to show');
     await tester.pumpWidget(host(address));
     await tester.pump();
 
@@ -285,35 +306,30 @@ void main() {
   ) async {
     mediaResponse = () => http.Response('', 404);
     final address = uniqueMxc();
-    await tester.runAsync(() async {
-      await tester.pumpWidget(
-        MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: Row(
-              children: [
-                MxcAvatar(
-                  client: client,
-                  avatarUrl: address,
-                  fallbackText: 'maya',
-                  toneSeed: '@maya:zuno.chat',
-                ),
-                const CircularProgressIndicator(),
-              ],
-            ),
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: Row(
+            children: [
+              MxcAvatar(
+                client: client,
+                avatarUrl: address,
+                fallbackText: 'maya',
+                toneSeed: '@maya:zuno.chat',
+              ),
+              const CircularProgressIndicator(),
+            ],
           ),
         ),
-      );
-      for (var i = 0; i < 100 && mediaRequests.isEmpty; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      for (var i = 0; i < 20; i++) {
-        await tester.pump(const Duration(milliseconds: 16));
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-      }
-    });
+      ),
+    );
+    await tester.pump();
+    expect(loadFailed(address), isTrue);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
 
     expect(mediaRequests, hasLength(1));
     expect(find.text('M'), findsOneWidget);
@@ -322,8 +338,8 @@ void main() {
 
   testWidgets('once the picture is there, the initial is gone', (tester) async {
     final address = uniqueMxc();
-    await settle(tester, host(address));
-    await tester.pump();
+    await tester.pumpWidget(host(address));
+    await pumpUntil(tester, () => !shows('M'), reason: 'the avatar to show');
 
     expect(find.text('M'), findsNothing);
     expect(find.byType(Image), findsOneWidget);

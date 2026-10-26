@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,7 +26,7 @@ CachedProfileInformation _profile({String? name, Uri? avatar}) =>
     CachedProfileInformation.fromProfile(
       ProfileInformation(displayname: name, avatarUrl: avatar),
       outdated: false,
-      updated: DateTime.now(),
+      updated: clock.now(),
     );
 
 class _ProfileClient extends Client {

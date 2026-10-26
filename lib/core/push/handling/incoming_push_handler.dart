@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:matrix/matrix.dart';
 
@@ -78,7 +79,7 @@ Future<IncomingPushOutcome> _handle(
   required IncomingCallPresenter ring,
   required void Function(Future<void> refinement)? onRefining,
 }) async {
-  final handlingSince = DateTime.now();
+  final handlingSince = clock.now();
   if (kDebugMode) {
     debugPrint('zuno/push: resolving event ${notification.eventId}');
   }
@@ -130,7 +131,7 @@ Future<IncomingPushOutcome> _handle(
         : IncomingPushOutcome.ignored;
   }
   if (kDebugMode) {
-    final age = DateTime.now().difference(event.originServerTs);
+    final age = clock.now().difference(event.originServerTs);
     debugPrint(
       'zuno/push: resolved ${event.type}/${event.messageType} '
       'in ${event.room.id}, sent ${age.inSeconds}s ago',

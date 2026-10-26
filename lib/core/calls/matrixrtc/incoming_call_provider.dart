@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
@@ -19,8 +20,8 @@ class RingRateLimiter {
 
   RingRateLimiter({this.burst = _ringBurst, this.window = _ringWindow});
 
-  bool allow(String senderId, {DateTime? now}) {
-    final at = now ?? DateTime.now();
+  bool allow(String senderId) {
+    final at = clock.now();
     final times = _recentBySender.remove(senderId) ?? <DateTime>[];
     times.removeWhere((t) => at.difference(t) >= window);
     final allowed = times.length < burst;
@@ -40,7 +41,7 @@ final ringRateLimiter = RingRateLimiter();
 IncomingCall? incomingCallFromEvent(Client client, Event event) {
   if (event.senderId == client.userID) return null;
   if (event.messageType != callInviteMsgtype) return null;
-  if (DateTime.now().difference(event.originServerTs) > _maxInviteAge) {
+  if (clock.now().difference(event.originServerTs) > _maxInviteAge) {
     return null;
   }
 

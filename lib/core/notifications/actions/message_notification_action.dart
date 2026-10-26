@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart';
@@ -61,7 +62,7 @@ class NotificationReplyNotSent implements Exception {
 }
 
 String notificationActionTxid() =>
-    'zuno-notification-${DateTime.now().microsecondsSinceEpoch}-'
+    'zuno-notification-${clock.now().microsecondsSinceEpoch}-'
     '${Random.secure().nextInt(1 << 32)}';
 
 Future<void> replyToRoom(

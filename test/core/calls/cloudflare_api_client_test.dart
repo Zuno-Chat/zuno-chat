@@ -5,11 +5,11 @@ import 'dart:io' show SocketException;
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:zuno/core/calls/cloudflare/cloudflare_api_client.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
 
 import '../../helpers/caught_reports.dart';
+import '../../helpers/fake_http.dart';
 
 const _base = '/_synapse/client/zuno/calls/cloudflare';
 const _roomId = '!room:example.org';
@@ -24,7 +24,7 @@ CloudflareApiClient _client(http.Client mock) => CloudflareApiClient(
 void main() {
   test('createSession opens a session for the room\'s call and returns its '
       'sessionId', () async {
-    final mock = MockClient((request) async {
+    final mock = FakeHttpClient((request) async {
       expect(request.url.path, '$_base/sessions/new');
       expect(request.url.queryParameters, {
         'room_id': _roomId,
@@ -41,7 +41,7 @@ void main() {
   test('createSession surfaces a full call with the module\'s limit and never '
       'asks again', () async {
     var asked = 0;
-    final mock = MockClient((request) async {
+    final mock = FakeHttpClient((request) async {
       asked++;
       return http.Response(
         jsonEncode({
@@ -74,7 +74,7 @@ void main() {
       final api = CloudflareApiClient(
         baseUri: () => Uri.parse('https://example.org$_base'),
         authorization: () async => 'Bearer syt_token',
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           asked++;
           return http.Response(
             jsonEncode({
@@ -100,7 +100,7 @@ void main() {
   );
 
   test('createSession treats any other refusal as a module failure', () async {
-    final mock = MockClient(
+    final mock = FakeHttpClient(
       (request) async =>
           http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403),
     );
@@ -120,7 +120,7 @@ void main() {
   test(
     'createSession throws CallsModuleException when sessionId is missing',
     () async {
-      final mock = MockClient(
+      final mock = FakeHttpClient(
         (request) async => http.Response(jsonEncode({}), 200),
       );
       expect(
@@ -131,7 +131,7 @@ void main() {
   );
 
   test('pullRemoteTracks returns the tracks of a clean response', () async {
-    final mock = MockClient(
+    final mock = FakeHttpClient(
       (request) async => http.Response(
         jsonEncode({
           'tracks': [
@@ -152,7 +152,7 @@ void main() {
   test('pushing, pulling, renegotiating or closing throws when the response '
       'carries a top-level errorCode', () async {
     final client = _client(
-      MockClient(
+      FakeHttpClient(
         (request) async => http.Response(
           jsonEncode({
             'errorCode': 'session_not_found',
@@ -206,7 +206,7 @@ void main() {
 
     Future<CallsModuleException> failureOf(http.Response response) async {
       try {
-        await _client(MockClient((_) async => response)).pushLocalTracks(
+        await _client(FakeHttpClient((_) async => response)).pushLocalTracks(
           sessionId: session,
           offer: const CfSessionDescription(sdp: 'sdp', type: 'offer'),
           tracks: [CfTrack.local(mid: '0', trackName: 'audio')],
@@ -290,7 +290,7 @@ void main() {
     test('a retry is logged under the route, not the session', () {
       fakeAsync((async) {
         var calls = 0;
-        final mock = MockClient((request) async {
+        final mock = FakeHttpClient((request) async {
           calls++;
           if (calls == 1) {
             return http.Response(jsonEncode({'retry_after_ms': 100}), 429);
@@ -316,7 +316,7 @@ void main() {
     test('a session the module never names says so without the reply', () {
       expect(
         _client(
-          MockClient(
+          FakeHttpClient(
             (_) async => http.Response(
               jsonEncode({'errorDescription': 'quota for $session'}),
               200,
@@ -337,7 +337,7 @@ void main() {
   test(
     'renegotiate returns null when the response has no sessionDescription',
     () async {
-      final mock = MockClient(
+      final mock = FakeHttpClient(
         (request) async => http.Response(jsonEncode({}), 200),
       );
       final result = await _client(mock).renegotiate(
@@ -351,7 +351,7 @@ void main() {
   test(
     'renegotiate returns the new session description when present',
     () async {
-      final mock = MockClient(
+      final mock = FakeHttpClient(
         (request) async => http.Response(
           jsonEncode({
             'sessionDescription': {'sdp': 'answer-sdp', 'type': 'answer'},
@@ -370,7 +370,7 @@ void main() {
   test(
     'closeTracks force-closes the given mids without a description',
     () async {
-      final mock = MockClient((request) async {
+      final mock = FakeHttpClient((request) async {
         expect(request.url.path, '$_base/sessions/s1/tracks/close');
         expect(jsonDecode(request.body), {
           'tracks': [
@@ -387,7 +387,7 @@ void main() {
   test('a session request retries once on a SocketException and succeeds', () {
     fakeAsync((async) {
       var calls = 0;
-      final mock = MockClient((request) async {
+      final mock = FakeHttpClient((request) async {
         calls++;
         if (calls == 1) throw const SocketException('connection refused');
         return http.Response(jsonEncode({'sessionId': 'sess1'}), 200);
@@ -409,7 +409,7 @@ void main() {
     fakeAsync((async) {
       final paths = <String>[];
       final client = _client(
-        MockClient((request) async {
+        FakeHttpClient((request) async {
           paths.add(request.url.path.split(_base).last);
           throw paths.length.isEven
               ? http.ClientException('Connection closed while receiving data')
@@ -451,7 +451,7 @@ void main() {
       'reports as a ClientException, as native clients do', () {
     fakeAsync((async) {
       var calls = 0;
-      final mock = MockClient((request) async {
+      final mock = FakeHttpClient((request) async {
         calls++;
         if (calls == 1) {
           throw http.ClientException('Connection closed before full header');
@@ -474,7 +474,7 @@ void main() {
     test('a $status is final: no retry, surfaced as CallsModuleException '
         'with its status', () async {
       var calls = 0;
-      final mock = MockClient((request) async {
+      final mock = FakeHttpClient((request) async {
         calls++;
         return http.Response('{"errcode":"M_UNKNOWN_TOKEN"}', status);
       });
@@ -496,7 +496,7 @@ void main() {
   test('a 429 waits retry_after_ms and then retries', () {
     fakeAsync((async) {
       var calls = 0;
-      final mock = MockClient((request) async {
+      final mock = FakeHttpClient((request) async {
         calls++;
         if (calls == 1) {
           return http.Response(
@@ -522,7 +522,7 @@ void main() {
   test('a persistent 429 exhausts the attempts and surfaces', () {
     fakeAsync((async) {
       var calls = 0;
-      final mock = MockClient((request) async {
+      final mock = FakeHttpClient((request) async {
         calls++;
         return http.Response(
           jsonEncode({'errcode': 'M_LIMIT_EXCEEDED', 'retry_after_ms': 100}),
@@ -547,7 +547,7 @@ void main() {
   test('a request the module never answers fails at the deadline', () {
     fakeAsync((async) {
       var calls = 0;
-      final mock = MockClient((request) {
+      final mock = FakeHttpClient((request) {
         calls++;
         return Completer<http.Response>().future;
       });
@@ -570,7 +570,7 @@ void main() {
 
   test('close leaves an injected http client open', () async {
     final injected = _RecordingClient(
-      MockClient(
+      FakeHttpClient(
         (_) async => http.Response(jsonEncode({'sessionId': 'sess1'}), 200),
       ),
     );

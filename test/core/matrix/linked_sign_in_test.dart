@@ -1,13 +1,13 @@
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/linked_sign_in.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/uia_challenge.dart';
 
@@ -128,7 +128,7 @@ void main() {
     }) {
       return buildTestClient(
           userId: '@alice:example.org',
-          httpClient: MockClient((request) async {
+          httpClient: FakeHttpClient((request) async {
             expect(request.method, 'POST');
             expect(request.url.path, '/_matrix/client/v1/login/get_token');
             final body = jsonDecode(request.body) as Map<String, Object?>;
@@ -166,7 +166,10 @@ void main() {
       });
       final now = DateTime(2026, 9, 22, 12);
 
-      final result = await issueLinkedSignInCode(client, now: () => now);
+      final result = await withClock(
+        Clock.fixed(now),
+        () => issueLinkedSignInCode(client),
+      );
 
       expect(result.code.server, 'example.org');
       expect(result.code.token, 'syl_abc');
@@ -208,7 +211,7 @@ void main() {
     Client loginServer() {
       loginBodies = [];
       return buildTestClient(
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           expect(request.url.path, '/_matrix/client/v3/login');
           loginBodies.add(jsonDecode(request.body) as Map<String, Object?>);
           return http.Response(

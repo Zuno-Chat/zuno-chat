@@ -2,12 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/matrixrtc/call_moderation.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
 
 import '../../../helpers/call_membership.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/send_recording_room.dart';
 
@@ -187,7 +187,7 @@ void main() {
       room,
       callId: 'call1',
       userId: _bob,
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         moduleRequests.add(request);
         return moduleAnswer;
       }),

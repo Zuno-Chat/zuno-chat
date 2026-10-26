@@ -1,10 +1,11 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/room_invite.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 class _MemberDatabase extends ForgettingFakeDatabaseApi {
@@ -40,7 +41,7 @@ void main() {
         type: EventTypes.RoomMember,
         stateKey: userId,
         senderId: senderId,
-        originServerTs: DateTime.now(),
+        originServerTs: clock.now(),
         content: {
           'membership': membership,
           'displayname': ?displayName,
@@ -58,7 +59,7 @@ void main() {
         type: EventTypes.RoomName,
         stateKey: '',
         senderId: '@me:example.org',
-        originServerTs: DateTime.now(),
+        originServerTs: clock.now(),
         content: {'name': name},
         room: room,
       ),
@@ -279,7 +280,7 @@ void main() {
     http.Response? Function(http.Request request)? answer,
   }) {
     requests = [];
-    final httpClient = MockClient((request) async {
+    final httpClient = FakeHttpClient((request) async {
       requests.add('${request.method} ${request.url.path}');
       return answer?.call(request) ?? http.Response('{}', 200);
     });
@@ -382,7 +383,7 @@ void main() {
           type: EventTypes.RoomMember,
           stateKey: '@me:example.org',
           senderId: '@bob:example.org',
-          originServerTs: DateTime.now(),
+          originServerTs: clock.now(),
           content: {'membership': 'invite', if (isDirect) 'is_direct': true},
           room: room,
         ),

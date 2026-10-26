@@ -4,16 +4,16 @@ import 'dart:convert';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/call_liveness.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 Client _clientAnswering(FutureOr<http.Response> Function(http.Request) answer) {
   final client = buildTestClient(
     userId: '@me:zuno.im',
-    httpClient: MockClient((request) async => answer(request)),
+    httpClient: FakeHttpClient((request) async => answer(request)),
   );
   client.baseUri = Uri.parse('https://zuno.im');
   client.bearerToken = 'token';

@@ -129,6 +129,9 @@ void main() {
 
     session.end();
     await harness.settle();
+    await harness.untilRenderersReleased(
+      harness.webrtc.where((c) => c.method == 'createVideoRenderer').length,
+    );
 
     expect(harness.count('stopCallForegroundService'), 1);
     expect(harness.wakelockToggles, [true, false]);
@@ -235,16 +238,14 @@ void main() {
       );
 
       session.end();
-      for (var i = 0; i < 5; i++) {
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-        await tester.idle();
-      }
+      await tester.idle();
+      expect(harness.navigatorKey.currentState!.canPop(), isFalse);
 
+      await harness.untilRenderersReleasedWithNoFrame(2);
       expect(
         harness.webrtc.where((c) => c.method == 'videoRendererDispose'),
         hasLength(2),
       );
-      expect(harness.navigatorKey.currentState!.canPop(), isFalse);
     });
 
     testWidgets('a page opened from outside replaces the call screen, which '

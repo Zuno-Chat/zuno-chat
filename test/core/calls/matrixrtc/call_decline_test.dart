@@ -2,13 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/calls/matrixrtc/call_decline.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 
 import '../../../helpers/call_membership.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/send_recording_room.dart';
 
@@ -73,7 +72,7 @@ void main() {
       final client = buildTestClient(
         userId: '@me:x',
         database: SendCapableFakeDatabaseApi(),
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           paths.add(request.url.path);
           return status == 200
               ? http.Response(jsonEncode({'event_id': r'$decline'}), 200)

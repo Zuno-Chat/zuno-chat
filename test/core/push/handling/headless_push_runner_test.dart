@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
 import 'package:zuno/core/push/handling/headless_push_runner.dart';
 import 'package:zuno/core/push/handling/incoming_push_handler.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/headless_ring.dart';
@@ -960,7 +960,7 @@ void main() {
       final avatarFetch = Completer<void>();
       final client = _messageClient(
         avatarUrl: 'mxc://x/alice',
-        httpClient: MockClient((_) async {
+        httpClient: FakeHttpClient((_) async {
           await avatarFetch.future;
           return http.Response('', 404);
         }),

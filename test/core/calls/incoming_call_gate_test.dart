@@ -4,10 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/incoming_call_gate.dart';
 import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
@@ -28,6 +26,7 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import '../../helpers/call_membership.dart';
 import '../../helpers/fake_call_engine.dart';
 import '../../helpers/fake_call_session.dart';
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/fake_permissions.dart';
 import '../../helpers/recording_incoming_call_presenter.dart';
@@ -53,7 +52,7 @@ void main() {
       userId: '@me:example.org',
       deviceId: 'THISPHONE',
       database: SendCapableFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         declines.record(request);
         if (request.method == 'PUT' &&
             request.url.path.contains(callMemberEventType)) {
@@ -107,14 +106,11 @@ void main() {
     IncomingCall call, {
     bool systemRinging = false,
   }) async {
-    final rings = await tester.runAsync(
-      () => container
-          .read(incomingCallGateProvider.notifier)
-          .shouldRing(call, systemRinging: () => systemRinging),
-    );
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    final rings = await container
+        .read(incomingCallGateProvider.notifier)
+        .shouldRing(call, systemRinging: () => systemRinging);
     await tester.pump();
-    return rings!;
+    return rings;
   }
 
   FakeCallSession onACall(
@@ -299,7 +295,6 @@ void main() {
       expect(answered.callId, 'call-0');
       expect(answered.role, CallSessionRole.callee);
       expect(container.read(resolvedCallIdsProvider), contains('call-0'));
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       expect(declined, isEmpty);
       expect(find.textContaining('Missed call'), findsNothing);
     });
@@ -309,17 +304,14 @@ void main() {
       final permissions = installFakePermissions();
       final container = await pumpGate(tester);
       final shared = SendRecordingRoom(client: client);
-      final mine = (await tester.runAsync(() async {
-        final session = CallSession.startOutgoing(
-          shared,
-          CallKind.voice,
-          engineBuilder: FakeCallEngine.new,
-        );
-        await session.phaseStream.firstWhere(
-          (phase) => phase == CallSessionPhase.active,
-        );
-        return session;
-      }))!;
+      final mine = CallSession.startOutgoing(
+        shared,
+        CallKind.voice,
+        engineBuilder: FakeCallEngine.new,
+      );
+      await mine.phaseStream.firstWhere(
+        (phase) => phase == CallSessionPhase.active,
+      );
       container.read(activeCallProvider.notifier).set(mine);
       permissions.onRequest = permissionDenied;
       memberPuts.clear();
@@ -328,7 +320,6 @@ void main() {
         await admit(tester, container, callFrom('0', inRoom: shared)),
         isFalse,
       );
-      await tester.runAsync(pumpEventQueue);
 
       expect(mine.phase, CallSessionPhase.ended);
       expect(

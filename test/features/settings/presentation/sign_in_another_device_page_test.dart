@@ -5,18 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/settings/presentation/sign_in_another_device_page.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/preferences_container.dart';
-import '../../../helpers/pump_until.dart';
 import '../../../helpers/screen_security.dart';
 import '../../../helpers/uia_challenge.dart';
 
@@ -38,7 +36,7 @@ void main() {
   }) {
     return buildTestClient(
         userId: '@alice:example.org',
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           final body = jsonDecode(request.body) as Map<String, Object?>;
           bodies?.add(body);
           return answer(body);
@@ -58,11 +56,7 @@ void main() {
     bodies: bodies,
   );
 
-  Future<void> pumpPage(
-    WidgetTester tester, {
-    required Client client,
-    DateTime Function()? now,
-  }) async {
+  Future<void> pumpPage(WidgetTester tester, {required Client client}) async {
     final container = await containerWithPreferences(
       {},
       overrides: [matrixClientProvider.overrideWithValue(client)],
@@ -82,13 +76,13 @@ void main() {
           .state<NavigatorState>(find.byType(Navigator))
           .push(
             MaterialPageRoute<void>(
-              builder: (_) => SignInAnotherDevicePage(now: now ?? DateTime.now),
+              builder: (_) => const SignInAnotherDevicePage(),
             ),
           ),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
   }
 
   Future<void> confirmPassword(
@@ -97,7 +91,7 @@ void main() {
   ]) async {
     await tester.enterText(field('Password'), password);
     await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
-    await pumpRealAsync(tester, rounds: 4);
+    await tester.pump();
   }
 
   Finder qrImage() =>
@@ -125,13 +119,11 @@ void main() {
   testWidgets('the countdown ticks without repainting the QR code', (
     tester,
   ) async {
-    var clock = DateTime(2026, 9, 22, 12);
-    await pumpPage(tester, client: serverWantingPassword(), now: () => clock);
+    await pumpPage(tester, client: serverWantingPassword());
     await confirmPassword(tester);
     final painter = tester.widget<CustomPaint>(qrImage()).painter;
     expect(find.text('Expires in 5:00'), findsOneWidget);
 
-    clock = clock.add(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('Expires in 4:59'), findsOneWidget);
@@ -143,7 +135,7 @@ void main() {
     await pumpPage(tester, client: serverWantingPassword());
 
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
     await tester.pumpAndSettle();
 
     expect(find.byType(SignInAnotherDevicePage), findsNothing);
@@ -153,24 +145,21 @@ void main() {
   testWidgets('says when the code has expired and makes a new one on request', (
     tester,
   ) async {
-    var clock = DateTime(2026, 9, 22, 12);
     final bodies = <Map<String, Object?>>[];
     await pumpPage(
       tester,
       client: serverWantingPassword(expiresInMs: 1500, bodies: bodies),
-      now: () => clock,
     );
     await confirmPassword(tester);
     expect(find.text('Expires in 0:01'), findsOneWidget);
 
-    clock = clock.add(const Duration(seconds: 2));
     await tester.pump(const Duration(seconds: 2));
 
     expect(find.text('This code has expired.'), findsOneWidget);
     expect(qrImage(), findsNothing);
 
     await tester.tap(find.widgetWithText(FilledButton, 'New code'));
-    await pumpRealAsync(tester, rounds: 2);
+    await tester.pump();
     await confirmPassword(tester);
 
     expect(qrImage(), findsOneWidget);

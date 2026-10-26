@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -134,7 +135,7 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
     ),
     recoveryPromptOnCooldown:
         lastPrompted != null &&
-        DateTime.now().difference(lastPrompted) < securityPromptCooldown,
+        clock.now().difference(lastPrompted) < securityPromptCooldown,
     crashReportsAvailable: ref.watch(sentryConfiguredProvider),
     crashReportingChosen: crashReportingChosen(
       ref.watch(sharedPreferencesProvider),

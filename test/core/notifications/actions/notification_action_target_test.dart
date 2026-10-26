@@ -2,11 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/notifications/actions/notification_action_target.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
 void main() {
@@ -138,7 +137,7 @@ void main() {
         final requests = <Uri>[];
         final client = buildTestClient(
           userId: '@me:example.org',
-          httpClient: MockClient((request) async {
+          httpClient: FakeHttpClient((request) async {
             requests.add(request.url);
             return http.Response(
               jsonEncode({

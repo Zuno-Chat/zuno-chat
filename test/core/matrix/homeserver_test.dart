@@ -5,13 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/network/app_http_overrides.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -19,8 +18,8 @@ void main() {
 
   setUp(contacted.clear);
 
-  MockClient server({Set<String> down = const {}}) =>
-      MockClient((request) async {
+  FakeHttpClient server({Set<String> down = const {}}) =>
+      FakeHttpClient((request) async {
         contacted.add(request.url.host);
         if (down.contains(request.url.host)) {
           throw http.ClientException('offline');
@@ -122,7 +121,7 @@ void main() {
     final network = IOClient(HttpClient());
     addTearDown(network.close);
     final client = buildTestClient(
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         final url = request.url;
         if (url.isScheme('http')) return network.get(url);
         if (url.host == 'example.org' &&

@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,7 +91,7 @@ void main() {
         type: EventTypes.RoomMember,
         stateKey: '@me:x',
         senderId: '@a:x',
-        originServerTs: DateTime.now(),
+        originServerTs: clock.now(),
         content: {'membership': 'invite'},
         room: room,
       ),

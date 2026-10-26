@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
@@ -15,7 +16,6 @@ class LiveShareSweep {
     required this._isActive,
     required this._writeState,
     required this._echoState,
-    required this._now,
   });
 
   final Client _client;
@@ -24,7 +24,6 @@ class LiveShareSweep {
   _writeState;
   final void Function(Room room, String eventId, Map<String, Object?> content)
   _echoState;
-  final DateTime Function() _now;
   final _sweptAt = <String, DateTime>{};
   final _refusedClears = <String, _Refusal>{};
 
@@ -32,7 +31,7 @@ class LiveShareSweep {
     final userId = _client.userID;
     final deviceId = _client.deviceID;
     if (userId == null || deviceId == null) return;
-    final now = _now();
+    final now = clock.now();
     for (final room in _client.rooms) {
       if (room.membership != Membership.join) continue;
       if (_isActive(room.id)) continue;

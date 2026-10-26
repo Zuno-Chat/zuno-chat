@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _prefix = 'security.confirmed_identity.';
@@ -20,7 +21,7 @@ class ConfirmedIdentityStore {
     await _prefs.setString('$_prefix$userId', identityKey);
     await _prefs.setInt(
       '$_atPrefix$userId',
-      DateTime.now().millisecondsSinceEpoch,
+      clock.now().millisecondsSinceEpoch,
     );
   }
 

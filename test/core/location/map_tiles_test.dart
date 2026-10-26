@@ -3,11 +3,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-
 import 'package:zuno/core/location/map_tiles.dart';
 
 import '../../helpers/caught_reports.dart';
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 const _template =
@@ -25,11 +24,11 @@ http.Response _wellKnown(Map<String, Object?> extra) => http.Response(
 
 void main() {
   group('tile source', () {
-    Future<TileSource?> sourceAnswering(MockClientHandler handler) =>
+    Future<TileSource?> sourceAnswering(FakeHttpHandler handler) =>
         fetchTileSource(
           buildTestClient(
             userId: '@a:example.org',
-            httpClient: MockClient(handler),
+            httpClient: FakeHttpClient(handler),
           )..homeserver = Uri.parse('https://api.example.org'),
         );
 
@@ -170,7 +169,7 @@ void main() {
     });
 
     test('is available when the source answers with an image', () async {
-      final client = MockClient(
+      final client = FakeHttpClient(
         (_) async =>
             http.Response('png', 200, headers: {'content-type': 'image/png'}),
       );
@@ -178,7 +177,7 @@ void main() {
       expect(await probeMapTiles(client, source), isTrue);
     });
 
-    for (final (reason, answer) in <(String, MockClientHandler)>[
+    for (final (reason, answer) in <(String, FakeHttpHandler)>[
       ('the key is refused', (_) async => http.Response('Invalid key', 403)),
       (
         'something other than a tile comes back',
@@ -194,7 +193,7 @@ void main() {
       ),
     ]) {
       test('is unavailable when $reason', () async {
-        expect(await probeMapTiles(MockClient(answer), source), isFalse);
+        expect(await probeMapTiles(FakeHttpClient(answer), source), isFalse);
       });
     }
   });

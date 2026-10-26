@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -7,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
+import '../../../../core/files/file_system.dart';
 import '../../../../core/format/human_units.dart';
 import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/cached_attachment_image.dart';
@@ -53,7 +53,7 @@ class MediaImage extends StatelessWidget {
     : image = MemoryImage(bytes);
 
   MediaImage.file(String path, {this.shownAt, super.key})
-    : image = FileImage(File(path));
+    : image = FileImage(fileSystem.file(path));
 
   @override
   Widget build(BuildContext context) => Image(

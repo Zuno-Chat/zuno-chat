@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'dart:io' show SocketException;
 
+import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
@@ -18,6 +17,7 @@ import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/voip/voip_registration.dart';
 import 'package:zuno/core/push/voip/voip_server.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_voip_registration.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -100,14 +100,13 @@ void main() {
   });
 
   LivePushDiagnosticsSource source() {
-    final mock = MockClient((request) => answer(request));
+    final mock = FakeHttpClient((request) => answer(request));
     final client = buildTestClient(userId: '@me:example.org', httpClient: mock);
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
     return LivePushDiagnosticsSource(
       client,
       httpClient: mock,
-      now: () => askedAt,
       voip: registration,
     );
   }
@@ -124,7 +123,10 @@ void main() {
       return http.Response('{}', 404);
     };
 
-    final inputs = await source().load(ios, NotificationDeliveryMode.apns);
+    final inputs = await withClock(
+      Clock.fixed(askedAt),
+      () => source().load(ios, NotificationDeliveryMode.apns),
+    );
 
     expect(inputs.reach, ServerReach.reachable);
     expect(inputs.health?.serverOffset, const Duration(minutes: 2));

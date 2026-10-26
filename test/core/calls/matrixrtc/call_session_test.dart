@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:permission_handler/permission_handler.dart';
@@ -30,6 +29,7 @@ import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_call_engine.dart';
 import '../../../helpers/fake_call_session.dart' show localParticipant;
 import '../../../helpers/fake_device_keys.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_permissions.dart';
 import '../../../helpers/native_method_calls.dart';
@@ -153,7 +153,7 @@ Client buildCallTestClient(
   final client = buildTestClient(
     userId: _me,
     deviceId: 'TESTDEVICE',
-    httpClient: MockClient(handler),
+    httpClient: FakeHttpClient(handler),
   );
   client.baseUri = Uri.parse('https://example.org');
   client.bearerToken = 'test-token';
@@ -2834,7 +2834,7 @@ void main() {
       },
     );
     final requests = <http.Request>[];
-    final module = MockClient((request) async {
+    final module = FakeHttpClient((request) async {
       requests.add(request);
       if (request.url.path == '$base/turn/credentials') {
         return http.Response(jsonEncode({'iceServers': []}), 200);

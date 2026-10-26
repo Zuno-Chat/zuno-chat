@@ -6,11 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 
 import 'package:zuno/core/calls/cloudflare/cloudflare_call_engine.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+
+import '../../../helpers/fake_http.dart';
 
 final _baseUri = Uri.parse(
   'https://example.org/_synapse/client/zuno/calls/cloudflare',
@@ -44,7 +45,7 @@ void main() {
       roomId: '!room:example.org',
       callId: 'call1',
       kind: CallKind.voice,
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         if (request.url.path.endsWith('/sessions/new')) {
           sessions.add(sessions.length + 1);
           return http.Response(
@@ -80,7 +81,7 @@ void main() {
             callId: 'call1',
             kind: CallKind.voice,
             iceServers: servers.future,
-            httpClient: MockClient((request) async {
+            httpClient: FakeHttpClient((request) async {
               sessions.add(sessions.length + 1);
               return http.Response(jsonEncode({'sessionId': 's1'}), 200);
             }),

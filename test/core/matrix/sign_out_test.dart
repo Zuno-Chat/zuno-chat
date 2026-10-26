@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -57,10 +58,7 @@ void main() {
   Future<void> startSharing() => sharing.start(
     client.getRoomById('!family:x')!,
     LiveLocationDuration.hour,
-    LivePosition(
-      geo: const GeoUri(latitude: 1, longitude: 2),
-      at: DateTime.now(),
-    ),
+    LivePosition(geo: const GeoUri(latitude: 1, longitude: 2), at: clock.now()),
   );
 
   test('signs out even when a share cannot be cleared', () async {

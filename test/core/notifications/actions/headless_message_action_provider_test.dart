@@ -4,7 +4,6 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/async/live_isolate_route.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
@@ -13,6 +12,7 @@ import 'package:zuno/core/notifications/actions/headless_message_action_provider
 import 'package:zuno/core/notifications/actions/message_notification_action.dart';
 import 'package:zuno/core/notifications/local_notifications.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/preferences_container.dart';
@@ -36,7 +36,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: SendCapableFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add('${request.method} ${request.url.path}');
         if (request.url.path.contains('/send/')) {
           sent.add(jsonDecode(request.body) as Map<String, Object?>);

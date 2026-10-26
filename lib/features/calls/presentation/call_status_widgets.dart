@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/calls/models/call_quality.dart';
@@ -185,7 +186,6 @@ class EncryptingLabel extends StatefulWidget {
   final CrossAxisAlignment alignment;
   final int? hintMaxLines;
   final DateTime? since;
-  final DateTime Function() now;
 
   const EncryptingLabel({
     this.hintAfter = const Duration(seconds: 8),
@@ -194,7 +194,6 @@ class EncryptingLabel extends StatefulWidget {
     this.alignment = CrossAxisAlignment.end,
     this.hintMaxLines = 3,
     this.since,
-    this.now = DateTime.now,
     super.key,
   });
 
@@ -212,7 +211,7 @@ class _EncryptingLabelState extends State<EncryptingLabel> {
     final since = widget.since;
     final remaining = since == null
         ? widget.hintAfter
-        : widget.hintAfter - widget.now().difference(since);
+        : widget.hintAfter - clock.now().difference(since);
     if (remaining <= Duration.zero) {
       _showHint = true;
       return;

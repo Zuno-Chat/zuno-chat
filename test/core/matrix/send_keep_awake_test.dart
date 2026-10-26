@@ -3,11 +3,10 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-
 import 'package:zuno/core/matrix/send_keep_awake.dart';
 import 'package:zuno/core/matrix/zuno_client.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/hybrid_fake_async.dart';
 
@@ -106,7 +105,7 @@ ZunoClient _client({SendKeepAwake? keepAwake}) =>
     ZunoClient(
         'test',
         database: FakeDatabaseApi(),
-        httpClient: MockClient(
+        httpClient: FakeHttpClient(
           (request) async => http.Response('{"event_id": "\$sent"}', 200),
         ),
         keepAwake: keepAwake,

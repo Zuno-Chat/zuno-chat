@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -121,7 +123,7 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
       );
       return;
     } finally {
-      await uiaSub.cancel();
+      unawaited(uiaSub.cancel());
     }
 
     await runBestEffort(

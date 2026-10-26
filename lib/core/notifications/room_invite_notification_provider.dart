@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -61,7 +62,7 @@ Future<InviteClaim> claimInviteAnnouncement(
     }
     final announcedAt = inviteAnnouncedAt(prefs, roomId);
     if (announcedAt != null) return (won: false, announcedAt: announcedAt);
-    await markInviteAnnouncedOnDisk(prefs, roomId);
+    await markInviteAnnouncedOnDisk(prefs, roomId, now: clock.now());
   } catch (e, s) {
     reportCaught('invite announcement claim', e, s);
   }

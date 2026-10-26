@@ -3,15 +3,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/room_info/presentation/room_permissions_page.dart';
 
 import '../../../helpers/card_layout.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/pump_until.dart';
 
 void main() {
   late Room room;
@@ -23,7 +21,7 @@ void main() {
     refuse = false;
     final client = buildTestClient(
       userId: '@me:example.org',
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request);
         if (refuse) {
           return http.Response('{"errcode":"M_FORBIDDEN","error":"x"}', 403);
@@ -106,11 +104,6 @@ void main() {
     expect(find.text('Change room name'), findsOneWidget);
   });
 
-  Future<void> network(WidgetTester tester) async {
-    await pumpRealAsync(tester, rounds: 3);
-    await tester.pumpAndSettle();
-  }
-
   Map<String, Object?> sentLevels() =>
       jsonDecode(requests.single.body) as Map<String, Object?>;
 
@@ -159,7 +152,7 @@ void main() {
     await tester.tap(find.text('Change room name'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Admin').last);
-    await network(tester);
+    await tester.pumpAndSettle();
 
     expect(requests.single.method, 'PUT');
     expect(requests.single.url.pathSegments, contains('m.room.power_levels'));
@@ -182,7 +175,7 @@ void main() {
     await tester.tap(find.text('Default role for new members'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Read-only').last);
-    await network(tester);
+    await tester.pumpAndSettle();
 
     expect(sentLevels()['users_default'], -1);
     expect(roleOf(tester, 'Default role for new members'), 'Read-only');
@@ -197,12 +190,12 @@ void main() {
     await tester.tap(find.text('Invite people'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Member').last);
-    await network(tester);
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Invite people'));
     await tester.pumpAndSettle();
     await tester.tapAt(const Offset(10, 10));
-    await network(tester);
+    await tester.pumpAndSettle();
 
     expect(requests, isEmpty);
   });
@@ -217,7 +210,7 @@ void main() {
     await tester.tap(find.text('Remove people'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Admin').last);
-    await network(tester);
+    await tester.pumpAndSettle();
 
     expect(requests, hasLength(1));
     expect(find.text('Not saved. Try again.'), findsOneWidget);

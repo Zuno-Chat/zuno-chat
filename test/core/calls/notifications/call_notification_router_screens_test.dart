@@ -5,10 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
@@ -28,6 +26,7 @@ import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_permissions.dart';
@@ -80,7 +79,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: SendCapableFakeDatabaseApi(),
-      httpClient: MockClient(
+      httpClient: FakeHttpClient(
         (request) async =>
             http.Response(jsonEncode({'event_id': r'$evt'}), 200),
       ),

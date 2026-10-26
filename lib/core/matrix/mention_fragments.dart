@@ -1,7 +1,17 @@
 import 'package:matrix/matrix.dart';
 
+import 'matrix_ids.dart';
+
 final roomMentionPattern = RegExp(
   r'(?<![\w@])@room(?![\w])',
+  caseSensitive: false,
+);
+
+const _serverName = r'[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?';
+
+final userMentionPattern = RegExp(
+  '(?<![\\w@])(@(?:\\[[^\\[\\]]+\\]|[$matrixLocalpartChars]+))'
+  '(?::$_serverName)?',
   caseSensitive: false,
 );
 

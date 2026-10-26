@@ -4,19 +4,17 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/room_info/presentation/room_settings_page.dart';
 
 import '../../../helpers/card_layout.dart';
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_attachments.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/pump_until.dart';
 
 void main() {
   late List<http.Request> requests;
@@ -34,7 +32,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: UploadingFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         final custom = respond?.call(request);
         if (custom == null && request.url.pathSegments.contains('media')) {
           return http.Response('', 404);
@@ -103,11 +101,6 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> settle(WidgetTester tester) async {
-    await pumpRealAsync(tester, rounds: 5);
-    await tester.pumpAndSettle();
-  }
-
   Future<void> pickAccess(WidgetTester tester, String label) async {
     await tester.tap(find.text('Room access'));
     await tester.pumpAndSettle();
@@ -139,7 +132,7 @@ void main() {
     expect(requests, isEmpty);
 
     await tester.tap(find.text('Make public'));
-    await settle(tester);
+    await tester.pumpAndSettle();
 
     expect(requests.map((r) => r.url.pathSegments), [
       contains('directory'),
@@ -166,7 +159,7 @@ void main() {
 
     final reports = await reportsDuring(() async {
       await tester.tap(find.text('Make public'));
-      await settle(tester);
+      await tester.pumpAndSettle();
     });
 
     expect(
@@ -205,7 +198,7 @@ void main() {
     expect(find.textContaining('Nobody is removed'), findsOneWidget);
 
     await tester.tap(find.text('Make private'));
-    await settle(tester);
+    await tester.pumpAndSettle();
 
     expect(requests.map((r) => r.url.pathSegments), [
       contains('m.room.join_rules'),
@@ -331,7 +324,7 @@ void main() {
       );
 
       await tester.tap(find.text('Let them ask'));
-      await settle(tester);
+      await tester.pumpAndSettle();
 
       final joinRule = requests.firstWhere(
         (r) => r.url.pathSegments.contains('m.room.join_rules'),
@@ -387,7 +380,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '');
     await tester.tap(find.text('Save'));
-    await settle(tester);
+    await tester.pumpAndSettle();
 
     expect(requests, hasLength(2));
     expect(requests[0].method, 'DELETE');
@@ -439,7 +432,7 @@ void main() {
     await tester.tap(find.text('Room photo'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Remove photo'));
-    await settle(tester);
+    await tester.pumpAndSettle();
 
     expect(requests, hasLength(1));
     expect(requests.single.url.pathSegments, contains('m.room.avatar'));
@@ -466,7 +459,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), value);
     await tester.tap(find.text('Save'));
-    await settle(tester);
+    await tester.pumpAndSettle();
   }
 
   group('the room name', () {
@@ -492,7 +485,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'Chess club');
       await tester.testTextInput.receiveAction(TextInputAction.done);
-      await settle(tester);
+      await tester.pumpAndSettle();
 
       expect(writesOf('m.room.name'), hasLength(1));
     });
@@ -549,7 +542,7 @@ void main() {
       expect(tester.widget<ListTile>(row).onTap, isNull);
 
       gate!.complete();
-      await settle(tester);
+      await tester.pumpAndSettle();
 
       expect(tester.widget<ListTile>(row).onTap, isNotNull);
     });
@@ -725,7 +718,7 @@ void main() {
 
       await openSheet(tester);
       await tester.tap(find.text('Anyone'));
-      await settle(tester);
+      await tester.pumpAndSettle();
 
       expect(bodyOf(writesOf('m.room.history_visibility').single), {
         'history_visibility': 'world_readable',
@@ -743,10 +736,10 @@ void main() {
 
       await openSheet(tester);
       await tester.tap(find.text('Members, from when they joined').last);
-      await settle(tester);
+      await tester.pumpAndSettle();
       await openSheet(tester);
       await tester.tapAt(const Offset(10, 10));
-      await settle(tester);
+      await tester.pumpAndSettle();
 
       expect(requests, isEmpty);
     });
@@ -827,7 +820,7 @@ void main() {
 
       await openSheet(tester);
       await tester.tap(find.text('Anyone'));
-      await settle(tester);
+      await tester.pumpAndSettle();
 
       expect(
         find.text('History setting not saved. Try again.'),
@@ -874,7 +867,7 @@ void main() {
       await openSheet(tester);
 
       await tester.tap(find.text('Choose from gallery'));
-      await settle(tester);
+      await tester.pumpAndSettle();
 
       expect(picker.calls, ['image:gallery']);
       expect(requests.first.url.pathSegments.last, 'upload');
@@ -891,7 +884,7 @@ void main() {
       await openSheet(tester);
 
       await tester.tap(find.text('Take photo'));
-      await settle(tester);
+      await tester.pumpAndSettle();
 
       expect(picker.calls, ['image:camera']);
       expect(requests, isEmpty);
@@ -912,7 +905,7 @@ void main() {
       await openSheet(tester);
 
       await tester.tap(find.text('Choose from gallery'));
-      await settle(tester);
+      await tester.pumpAndSettle();
 
       expect(writesOf('m.room.avatar'), isEmpty);
       expect(find.text('Photo not saved. Try again.'), findsOneWidget);

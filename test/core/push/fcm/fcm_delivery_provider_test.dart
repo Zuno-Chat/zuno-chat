@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -347,19 +348,14 @@ void main() {
   );
 
   group('recheckRegistration on resume', () {
-    var now = DateTime(2031, 1, 1, 9);
-
-    setUp(() {
-      now = DateTime(2031, 1, 1, 9);
-      provider.now = () => now;
-    });
-
     test('re-posts a pusher the homeserver has since dropped', () async {
       await provider.start(client);
       client.pushersOnServer = [];
-      now = now.add(registrationRecheckInterval);
 
-      await provider.recheckRegistration(client);
+      await withClock(
+        Clock.fixed(clock.now().add(registrationRecheckInterval)),
+        () => provider.recheckRegistration(client),
+      );
 
       expect(client.posted, hasLength(2));
       expect(provider.status.value, FcmStatus.ready);
@@ -368,9 +364,11 @@ void main() {
     test('does not ask the homeserver again within the interval', () async {
       await provider.start(client);
       client.pushersOnServer = [];
-      now = now.add(const Duration(minutes: 5));
 
-      await provider.recheckRegistration(client);
+      await withClock(
+        Clock.fixed(clock.now().add(const Duration(minutes: 5))),
+        () => provider.recheckRegistration(client),
+      );
 
       expect(client.posted, hasLength(1));
     });
@@ -380,9 +378,11 @@ void main() {
       client.pushersOnServer = [
         serverPusherJson(appId: fcmAppId, pushkey: 'token-abc'),
       ];
-      now = now.add(registrationRecheckInterval);
 
-      await provider.recheckRegistration(client);
+      await withClock(
+        Clock.fixed(clock.now().add(registrationRecheckInterval)),
+        () => provider.recheckRegistration(client),
+      );
 
       expect(client.posted, hasLength(1));
     });
@@ -430,9 +430,10 @@ void main() {
     });
 
     test('does nothing when not registered at all', () async {
-      now = now.add(registrationRecheckInterval);
-
-      await provider.recheckRegistration(client);
+      await withClock(
+        Clock.fixed(clock.now().add(registrationRecheckInterval)),
+        () => provider.recheckRegistration(client),
+      );
 
       expect(client.posted, isEmpty);
     });

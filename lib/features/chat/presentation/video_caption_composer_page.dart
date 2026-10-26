@@ -1,9 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/files/file_system.dart';
 import '../../../core/l10n/l10n.dart';
 import '../data/composed_video.dart';
 import 'caption_bar.dart';
@@ -113,7 +112,7 @@ class _VideoCaptionComposerPageState extends State<VideoCaptionComposerPage> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.file(File(widget.path));
+    _controller = VideoPlayerController.file(fileSystem.file(widget.path));
     _initializeFuture = reportFailureOf(
       _controller.initialize(),
       label: 'preview video',

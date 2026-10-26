@@ -5,10 +5,10 @@ import 'dart:io' show SocketException;
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/push/zuno_push/zuno_push_api.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
 const _base = '/_synapse/client/zuno/push/v1';
@@ -20,7 +20,7 @@ http.Response _module(Object? body, {int status = 200}) => http.Response(
 );
 
 ZunoPushApi _api(
-  MockClient http, {
+  FakeHttpClient http, {
   Future<String> Function()? bearer,
   Duration timeout = const Duration(seconds: 15),
 }) => ZunoPushApi(
@@ -71,7 +71,7 @@ void main() {
       requests = [];
       reply = (_) => _module({'server_ts': 1790000000123});
       api = _api(
-        MockClient((request) async {
+        FakeHttpClient((request) async {
           requests.add(request);
           return reply(request);
         }),
@@ -360,7 +360,7 @@ void main() {
         http.ClientException('reset'),
         const SocketException('unreachable'),
       ]) {
-        final api = _api(MockClient((_) async => throw error));
+        final api = _api(FakeHttpClient((_) async => throw error));
 
         expect(
           _failure(await api.deleteDevice()).kind,
@@ -373,7 +373,7 @@ void main() {
         'timeout', () {
       fakeAsync((async) {
         final api = _api(
-          MockClient((_) => Completer<http.Response>().future),
+          FakeHttpClient((_) => Completer<http.Response>().future),
           timeout: const Duration(seconds: 5),
         );
         ZunoPushResult<void>? result;
@@ -392,7 +392,7 @@ void main() {
     test('without a session nothing is sent', () async {
       var sent = 0;
       final api = _api(
-        MockClient((_) async {
+        FakeHttpClient((_) async {
           sent++;
           return _module({'server_ts': 1});
         }),
@@ -405,7 +405,7 @@ void main() {
 
     test('a session the server ended is unauthorized', () async {
       final api = _api(
-        MockClient((_) async => _module({'server_ts': 1})),
+        FakeHttpClient((_) async => _module({'server_ts': 1})),
         bearer: () async => throw MatrixException.fromJson({
           'errcode': 'M_UNKNOWN_TOKEN',
           'error': 'Token expired',
@@ -426,7 +426,7 @@ void main() {
       late http.Request request;
       final api = ZunoPushApi.forClient(
         client,
-        httpClient: MockClient((sent) async {
+        httpClient: FakeHttpClient((sent) async {
           request = sent;
           return _module({'server_ts': 1});
         }),

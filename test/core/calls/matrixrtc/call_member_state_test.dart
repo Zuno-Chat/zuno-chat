@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
@@ -21,7 +22,8 @@ Map<String, Object?> _membershipJson({
 
 void main() {
   test('parses non-expired memberships', () {
-    final future = DateTime.now()
+    final future = clock
+        .now()
         .add(const Duration(minutes: 5))
         .millisecondsSinceEpoch;
     final memberships = parseRtcMemberships({
@@ -32,7 +34,8 @@ void main() {
   });
 
   test('filters out an expired membership', () {
-    final past = DateTime.now()
+    final past = clock
+        .now()
         .subtract(const Duration(minutes: 5))
         .millisecondsSinceEpoch;
     final memberships = parseRtcMemberships({
@@ -51,7 +54,8 @@ void main() {
   });
 
   test('an entry of the wrong shape is skipped and the rest are kept', () {
-    final future = DateTime.now()
+    final future = clock
+        .now()
         .add(const Duration(minutes: 5))
         .millisecondsSinceEpoch;
     final memberships = parseRtcMemberships({
@@ -94,7 +98,8 @@ void main() {
   });
 
   test('toJson and parsing round-trip every field', () {
-    final future = DateTime.now()
+    final future = clock
+        .now()
         .add(const Duration(minutes: 5))
         .millisecondsSinceEpoch;
     final original = RtcMembership.tryParse({
@@ -114,7 +119,8 @@ void main() {
   });
 
   test('a membership without a join time reads as the earliest join', () {
-    final future = DateTime.now()
+    final future = clock
+        .now()
         .add(const Duration(minutes: 5))
         .millisecondsSinceEpoch;
     expect(
@@ -218,7 +224,7 @@ void main() {
             type: EventTypes.RoomMember,
             stateKey: id,
             senderId: id,
-            originServerTs: DateTime.now(),
+            originServerTs: clock.now(),
             content: const {'membership': 'join'},
             room: room,
           ),

@@ -1,14 +1,14 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/files/file_system.dart';
+import '../../../core/files/unique_name.dart';
 import '../../../core/matrix/voice_audio_session.dart';
 import '../../../core/matrix/voice_recording.dart';
 import 'message_contents/voice_message.dart';
@@ -123,7 +123,7 @@ class VoiceRecorder extends ChangeNotifier {
     await _stopRecorder();
     final path = _path;
     if (path != null) {
-      final file = File(path);
+      final file = fileSystem.file(path);
       if (await file.exists()) await file.delete();
     }
     _startedAt = null;
@@ -146,10 +146,10 @@ class VoiceRecorder extends ChangeNotifier {
         _giveUp(allowed ? null : VoiceRecordingProblem.microphoneDenied);
         return;
       }
-      final dir = await getTemporaryDirectory();
+      final dir = await temporaryDirectory();
       final path = p.join(
         dir.path,
-        'voice-${DateTime.now().millisecondsSinceEpoch}.${_setup.extension}',
+        'voice-${uniqueName()}.${_setup.extension}',
       );
       await _audio.beginRecording(this);
       await recorder.start(_setup.config, path: path);
@@ -228,7 +228,7 @@ class VoiceRecorder extends ChangeNotifier {
     _clear();
     if (path == null) return;
 
-    final file = File(path);
+    final file = fileSystem.file(path);
     final recorded = await file.readAsBytes();
     await file.delete();
     if (duration < _shortestSent || _disposed) return;

@@ -4,6 +4,7 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 
+import '../async/elapsed.dart';
 import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 
@@ -138,7 +139,7 @@ class ClientLeases {
       _turnTaken = true;
       return wait;
     }
-    final watch = Stopwatch()..start();
+    final watch = startStopwatch();
     final turn = _Turn(Completer<bool>());
     _waiting.add(turn);
     turn.timeout = Timer(wait, () {

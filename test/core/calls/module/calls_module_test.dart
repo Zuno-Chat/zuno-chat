@@ -2,11 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-
 import 'package:zuno/core/calls/cloudflare/cloudflare_routes.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
 void main() {
@@ -183,7 +182,7 @@ void main() {
     test('names the room, the call and the person, as the user', () async {
       final requests = <http.Request>[];
       await remove(
-        MockClient((request) async {
+        FakeHttpClient((request) async {
           requests.add(request);
           return http.Response('{}', 200);
         }),
@@ -202,7 +201,7 @@ void main() {
 
     test('a success with an empty body still counts as removed', () async {
       await expectLater(
-        remove(MockClient((request) async => http.Response('', 200))),
+        remove(FakeHttpClient((request) async => http.Response('', 200))),
         completes,
       );
     });
@@ -213,7 +212,7 @@ void main() {
         var asked = 0;
         await expectLater(
           remove(
-            MockClient((request) async {
+            FakeHttpClient((request) async {
               asked++;
               return http.Response('{"errcode":"M_FORBIDDEN"}', 403);
             }),

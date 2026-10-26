@@ -84,8 +84,6 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   final _recheck = RegistrationRecheck();
 
-  set now(DateTime Function() value) => _recheck.now = value;
-
   Uri? get gatewayUrl => _gatewayUrl;
 
   Uri? get endpointUrl => _endpointUrl;

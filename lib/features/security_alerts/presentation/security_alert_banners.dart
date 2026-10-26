@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -102,7 +103,7 @@ class SecurityAlertBanners extends ConsumerWidget {
     final detail = [
       if (seenAt != null)
         l10n.dateAtTime(
-          labels.day(seenAt, now: DateTime.now()),
+          labels.day(seenAt, now: clock.now()),
           labels.clock(seenAt),
         ),
       ?first.ipAddress,

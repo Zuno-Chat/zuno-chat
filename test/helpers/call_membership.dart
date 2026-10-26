@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
@@ -45,7 +46,7 @@ Event callMemberEvent(
         callId: callId,
         deviceId: deviceId,
         kind: kind,
-        expiresAtMs: DateTime.now().add(expiresIn).millisecondsSinceEpoch,
+        expiresAtMs: clock.now().add(expiresIn).millisecondsSinceEpoch,
         createdAtMs: createdAtMs,
         fociActive: fociActive,
       ).toJson(),

@@ -3,11 +3,10 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/features/blocking/presentation/block_person.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_sync_server.dart';
 
@@ -26,7 +25,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: SyncingFakeDatabaseApi(),
-      httpClient: MockClient((request) {
+      httpClient: FakeHttpClient((request) {
         if (request.url.path.endsWith('/sync')) {
           return Completer<http.Response>().future;
         }

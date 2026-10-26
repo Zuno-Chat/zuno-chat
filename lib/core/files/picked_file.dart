@@ -2,23 +2,24 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../errors/best_effort.dart';
+import 'file_system.dart';
 
 Future<void> discardTemporaryCopy(
   String path, {
   List<Directory>? temporaryRoots,
 }) async {
-  if (!File(path).existsSync()) return;
+  final copy = fileSystem.file(path);
+  if (!copy.existsSync()) return;
   await runBestEffort(() async {
     final roots = temporaryRoots ?? await _appTemporaryRoots();
     bool insideTemporary(String entry) =>
         roots.any((root) => p.isWithin(root.path, entry)) &&
         !roots.any((root) => p.equals(root.path, entry));
     if (!insideTemporary(path)) return;
-    File(path).deleteSync();
-    final folder = File(path).parent;
+    copy.deleteSync();
+    final folder = copy.parent;
     if (insideTemporary(folder.path) && folder.listSync().isEmpty) {
       folder.deleteSync();
     }
@@ -53,6 +54,6 @@ Future<T> trackPickerCopy<T>(
 }
 
 Future<List<Directory>> _appTemporaryRoots() async => [
-  Directory.systemTemp,
-  await getTemporaryDirectory(),
+  fileSystem.systemTempDirectory,
+  await temporaryDirectory(),
 ];

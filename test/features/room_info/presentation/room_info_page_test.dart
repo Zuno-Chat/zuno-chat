@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/l10n/l10n.dart';
@@ -26,9 +25,9 @@ import 'package:zuno/features/room_info/presentation/room_permissions_page.dart'
 import 'package:zuno/features/room_info/presentation/room_settings_page.dart';
 import 'package:zuno/features/room_info/presentation/room_topic.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/preferences_container.dart';
-import '../../../helpers/pump_until.dart';
 import '../../../helpers/real_fonts.dart';
 import '../../../helpers/room_opening_channels.dart';
 import '../../../helpers/route_launcher.dart';
@@ -71,7 +70,7 @@ void main() {
     client = Client(
       'test',
       database: TimelineCapableFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request);
         await gate?.future;
         final refusedSegment = refuseRequestsTo;
@@ -236,7 +235,6 @@ void main() {
       await tester.pumpAndSettle();
     }
     await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
   }
 
@@ -517,7 +515,6 @@ void main() {
     await tester.tap(find.text('Spam'));
     await tester.pump();
     await tester.tap(find.text('Send report'));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
   }
 
@@ -761,10 +758,6 @@ void main() {
     Iterable<http.Request> pushRuleWrites() =>
         requests.where((r) => r.url.path.contains('/pushrules/'));
 
-    Future<void> network(WidgetTester tester) async {
-      await pumpRealAsync(tester, rounds: 4);
-    }
-
     testWidgets('Mute asks the server once and flips to Unmute', (
       tester,
     ) async {
@@ -777,12 +770,12 @@ void main() {
       expect(find.text('Unmute'), findsOneWidget);
 
       await tester.tap(find.text('Unmute'));
-      await network(tester);
+      await tester.pump();
       expect(pushRuleWrites(), hasLength(1));
       expect(pushRuleWrites().single.method, 'PUT');
 
       serverSaysMuted(true);
-      await network(tester);
+      await tester.pump();
       expect(find.text('Unmute'), findsOneWidget);
     });
 
@@ -793,18 +786,18 @@ void main() {
       await pumpPage(tester);
 
       await tester.tap(find.text('Mute'));
-      await network(tester);
+      await tester.pump();
       serverSaysMuted(true);
-      await network(tester);
+      await tester.pump();
 
       await tester.tap(find.text('Unmute'));
-      await network(tester);
+      await tester.pump();
 
       expect(pushRuleWrites().map((r) => r.method), ['PUT', 'DELETE']);
       expect(find.text('Mute'), findsOneWidget);
 
       serverSaysMuted(false);
-      await network(tester);
+      await tester.pump();
       expect(find.text('Mute'), findsOneWidget);
     });
 
@@ -814,7 +807,7 @@ void main() {
       await pumpPage(tester);
 
       await tester.tap(find.text('Mute'));
-      await network(tester);
+      await tester.pump();
 
       expect(find.text('Mute'), findsOneWidget);
       expect(find.text('Not muted. Try again.'), findsOneWidget);
@@ -851,11 +844,6 @@ void main() {
     expect(find.byType(MemberTile), findsNWidgets(2));
     expect(find.text('Ann'), findsOneWidget);
   });
-
-  Future<void> network(WidgetTester tester) async {
-    await pumpRealAsync(tester, rounds: 4);
-    await tester.pumpAndSettle();
-  }
 
   Iterable<http.Request> requestsTo(String segment) =>
       requests.where((r) => r.url.pathSegments.contains(segment));
@@ -937,7 +925,7 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(find.text('Moderator').last);
-      await network(tester);
+      await tester.pumpAndSettle();
 
       final sent =
           jsonDecode(requestsTo('m.room.power_levels').single.body) as Map;
@@ -959,7 +947,7 @@ void main() {
       await tester.tap(find.text('Change role'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Member').last);
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requestsTo('m.room.power_levels'), isEmpty);
     });
@@ -973,7 +961,7 @@ void main() {
       await tester.tap(find.text('Change role'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Admin').last);
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('Role not changed. Try again.'), findsOneWidget);
     });
@@ -996,7 +984,7 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(find.widgetWithText(TextButton, 'Remove'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(jsonDecode(requestsTo('kick').single.body), {
         'user_id': '@ann:example.org',
@@ -1013,7 +1001,7 @@ void main() {
       await tester.tap(find.text('Remove from room'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requestsTo('kick'), isEmpty);
       expect(memberTile('@ann:example.org'), findsOneWidget);
@@ -1028,7 +1016,7 @@ void main() {
       await tester.tap(find.text('Remove from room'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, 'Remove'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('Not removed. Try again.'), findsOneWidget);
       expect(memberTile('@ann:example.org'), findsOneWidget);
@@ -1052,7 +1040,7 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(find.widgetWithText(TextButton, 'Ban'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requestsTo('ban'), hasLength(1));
       expect(memberTile('@ann:example.org'), findsNothing);
@@ -1060,7 +1048,7 @@ void main() {
       expect(find.text('@ann'), findsOneWidget);
 
       await tester.tap(find.text('Unban'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(jsonDecode(requestsTo('unban').single.body), {
         'user_id': '@ann:example.org',
@@ -1077,7 +1065,7 @@ void main() {
       await tester.tap(find.text('Ban from room'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, 'Ban'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('Not banned. Try again.'), findsOneWidget);
       expect(find.text('Banned'), findsNothing);
@@ -1092,7 +1080,7 @@ void main() {
       await pumpPage(tester);
 
       await tester.tap(find.text('Unban'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('Not unbanned. Try again.'), findsOneWidget);
       expect(find.text('Bad'), findsOneWidget);
@@ -1178,7 +1166,7 @@ void main() {
 
       await openMember(tester, 'Ann');
       await tester.tap(find.text('Start a chat'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requestsTo('createRoom'), hasLength(1));
       expect(find.text('Could not start the chat. Try again.'), findsOneWidget);
@@ -1201,7 +1189,7 @@ void main() {
       await pumpPage(tester);
 
       await invite(tester, 'bob');
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(jsonDecode(requestsTo('invite').single.body), {
         'user_id': '@bob:example.org',
@@ -1223,7 +1211,7 @@ void main() {
       await pumpPage(tester);
 
       await invite(tester, 'ann');
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requestsTo('invite'), isEmpty);
       expect(find.text('This person is already a member.'), findsOneWidget);
@@ -1235,7 +1223,7 @@ void main() {
       await pumpPage(tester);
 
       await invite(tester, 'bob');
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('Invitation not sent.'), findsOneWidget);
       expect(memberTile('@bob:example.org'), findsNothing);
@@ -1248,7 +1236,7 @@ void main() {
       await tester.tap(find.text('Invite'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requestsTo('invite'), isEmpty);
     });
@@ -1264,7 +1252,7 @@ void main() {
       Navigator.of(tester.element(find.byType(RoomInfoPage))).pop();
       await tester.pumpAndSettle();
       gate!.complete();
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('Invitation sent'), findsOneWidget);
       ScaffoldMessenger.of(tester.element(find.text('open')))
@@ -1287,7 +1275,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Enable encryption?'), findsOneWidget);
       await tester.tap(find.widgetWithText(TextButton, 'Enable encryption'));
-      await network(tester);
+      await tester.pumpAndSettle();
     }
 
     testWidgets('can be turned on after a warning, and shows at once', (
@@ -1314,7 +1302,7 @@ void main() {
       await tester.tap(find.text('Enable encryption'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requestsTo('m.room.encryption'), isEmpty);
       expect(find.text('Not encrypted'), findsOneWidget);
@@ -1410,7 +1398,7 @@ void main() {
       await tester.tap(find.text('Leave room'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, 'Leave'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requestsTo('leave'), hasLength(1));
       expect(find.byType(RoomInfoPage), findsNothing);
@@ -1424,7 +1412,7 @@ void main() {
       await tester.tap(find.text('Leave room'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requestsTo('leave'), isEmpty);
       expect(find.byType(RoomInfoPage), findsOneWidget);
@@ -1487,7 +1475,7 @@ void main() {
     await tester.fling(find.text('Members (2)'), const Offset(0, 800), 1000);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
-    await network(tester);
+    await tester.pumpAndSettle();
 
     expect(requestsTo('members'), hasLength(2));
   });

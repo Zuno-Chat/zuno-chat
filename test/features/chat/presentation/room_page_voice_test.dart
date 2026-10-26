@@ -56,17 +56,9 @@ void main() {
     });
   });
 
-  Future<void> realWait(WidgetTester tester, int ms) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(Duration(milliseconds: ms)),
-    );
-    await tester.pump(Duration(milliseconds: ms));
-  }
-
   Future<void> drive(WidgetTester tester, {int turns = 20}) async {
     for (var i = 0; i < turns; i++) {
-      await tester.pump(const Duration(milliseconds: 50));
-      await realWait(tester, 20);
+      await tester.pump(const Duration(milliseconds: 70));
     }
   }
 
@@ -87,10 +79,7 @@ void main() {
     WidgetTester tester, {
     PlatformCapabilities? platform,
   }) async {
-    ambientCapabilities = capabilitiesLike(
-      platform ?? iosCapabilities,
-      uploadForegroundService: false,
-    );
+    ambientCapabilities = platform ?? iosCapabilities;
     harness = RoomPageHarness(
       db: SendingFakeDatabaseApi(),
       overrides: [
@@ -215,7 +204,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('0:01'), findsOneWidget);
 
-    await realWait(tester, 350);
+    await tester.pump(const Duration(milliseconds: 350));
     await gesture.up();
     await pumpUntil(
       tester,
@@ -240,7 +229,7 @@ void main() {
     await tester.pump();
     expect(find.text('Release to cancel'), findsOneWidget);
 
-    await realWait(tester, 350);
+    await tester.pump(const Duration(milliseconds: 350));
     await gesture.up();
     await pumpUntil(
       tester,
@@ -285,7 +274,7 @@ void main() {
     await tapMic(tester);
     expect(find.byTooltip('Cancel recording'), findsOneWidget);
 
-    await realWait(tester, 200);
+    await tester.pump(const Duration(milliseconds: 200));
     await tapMic(tester);
     await pumpUntil(
       tester,
@@ -350,6 +339,7 @@ void main() {
       tester,
       recordingDone,
       reason: 'the short recording to be dropped',
+      step: Duration.zero,
     );
 
     expect(voiceMessages(), isEmpty);
@@ -395,7 +385,7 @@ void main() {
 
     final gesture = await holdMic(tester);
     expect(find.text('Slide up to cancel'), findsOneWidget);
-    await realWait(tester, 350);
+    await tester.pump(const Duration(milliseconds: 350));
     await gesture.up();
     await pumpUntil(
       tester,
@@ -421,10 +411,17 @@ void main() {
     await openRoom(tester);
 
     await tapMic(tester);
-    await realWait(tester, 200);
+    await tester.pump(const Duration(milliseconds: 200));
     await tapMic(tester);
-    await drive(tester);
+    await pumpUntil(
+      tester,
+      () =>
+          recorderCalls.contains('stop') &&
+          find.byTooltip('Cancel recording').evaluate().isEmpty,
+      reason: 'the recording to end',
+    );
 
+    expect(uploads, isEmpty);
     expect(voiceMessages(), isEmpty);
     expect(find.byType(SnackBar), findsNothing);
   });
@@ -434,7 +431,7 @@ void main() {
     await openRoom(tester);
 
     await tapMic(tester);
-    await realWait(tester, 200);
+    await tester.pump(const Duration(milliseconds: 200));
     await tapMic(tester);
     await pumpUntil(
       tester,
@@ -452,7 +449,7 @@ void main() {
       required bool Function() until,
     }) async {
       final gesture = await holdMic(tester);
-      await realWait(tester, 350);
+      await tester.pump(const Duration(milliseconds: 350));
       await gesture.up();
       await pumpUntil(tester, until, reason: awaiting);
     }

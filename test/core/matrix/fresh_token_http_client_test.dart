@@ -1,9 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/fresh_token_http_client.dart';
+
+import '../../helpers/fake_http.dart';
 
 void main() {
   late List<http.BaseRequest> sent;
@@ -18,7 +19,7 @@ void main() {
     refreshes = 0;
     refresh = () async => token = 'new';
     client = FreshTokenHttpClient(
-      MockClient((request) async {
+      FakeHttpClient((request) async {
         sent.add(request);
         return http.Response('{}', 200);
       }),

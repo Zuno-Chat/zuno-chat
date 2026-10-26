@@ -7,8 +7,6 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-
 import 'package:zuno/core/calls/cloudflare/cloudflare_call_engine.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
@@ -16,6 +14,7 @@ import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_webrtc.dart';
 
 class SfuRequest {
@@ -60,7 +59,7 @@ class FakeSfu {
   final _midByTrack = <String, String>{};
   final _awaitingAnswer = <String>{};
 
-  late final http.Client client = MockClient(_handle);
+  late final http.Client client = FakeHttpClient(_handle);
 
   Iterable<SfuRequest> _where(String method, String suffix) =>
       requests.where((r) => r.method == method && r.path.endsWith(suffix));

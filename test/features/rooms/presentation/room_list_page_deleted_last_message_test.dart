@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/room_list_page_harness.dart';
 import '../../../helpers/room_opening_channels.dart';
@@ -16,7 +16,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: TimelineCapableFakeDatabaseApi(),
-      httpClient: MockClient((_) async => http.Response('{}', 200)),
+      httpClient: FakeHttpClient((_) async => http.Response('{}', 200)),
     );
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
@@ -48,7 +48,6 @@ void main() {
   Future<void> pumpRoomList(WidgetTester tester) async {
     await pumpRoomListPage(tester, client);
     await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump(const Duration(seconds: 1));
   }
 

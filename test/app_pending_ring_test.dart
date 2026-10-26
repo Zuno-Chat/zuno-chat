@@ -3,10 +3,8 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/app.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
@@ -16,6 +14,7 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
 import 'helpers/fake_call_style_channel.dart';
+import 'helpers/fake_http.dart';
 import 'helpers/fake_local_notifications.dart';
 import 'helpers/fake_matrix.dart';
 import 'helpers/fixed_homeserver.dart';
@@ -37,7 +36,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: SendCapableFakeDatabaseApi(),
-      httpClient: MockClient(
+      httpClient: FakeHttpClient(
         (request) async =>
             http.Response(jsonEncode({'event_id': r'$evt'}), 200),
       ),

@@ -1,14 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/actions/message_notification_action.dart';
 import 'package:zuno/core/notifications/local_notifications.dart';
@@ -25,8 +24,8 @@ import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 import 'package:zuno/features/settings/presentation/settings_page.dart';
 import 'package:zuno/features/verification/presentation/verification_page.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/pump_until.dart';
 import '../../../helpers/room_list_page_harness.dart';
 import '../../../helpers/room_opening_channels.dart';
 import '../../verification/presentation/verification_harness.dart';
@@ -57,7 +56,7 @@ void main() {
     verifications = StreamController<KeyVerification>.broadcast();
     addTearDown(verifications.close);
     client = _StubClient(
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request);
         if (offline) {
           throw http.ClientException('Failed host lookup', request.url);
@@ -112,18 +111,12 @@ void main() {
       ],
     );
     await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     if (settle) {
       await tester.pumpAndSettle();
     } else {
       await tester.pump();
     }
     return container;
-  }
-
-  Future<void> network(WidgetTester tester) async {
-    await pumpRealAsync(tester, rounds: 4);
-    await tester.pumpAndSettle();
   }
 
   Future<void> bounded(WidgetTester tester) async {
@@ -168,7 +161,7 @@ void main() {
 
       expect(find.text('Mark as read'), findsOneWidget);
       await tester.tap(find.text('Mark as read'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(
         jsonDecode(requestsTo('read_markers').single.body),
@@ -194,7 +187,7 @@ void main() {
       await openActions(tester);
 
       await tester.tap(find.text('Mute'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       final rule = requestsTo('pushrules').single;
       expect(rule.method, 'PUT');
@@ -208,7 +201,7 @@ void main() {
 
       expect(find.text('Mute'), findsNothing);
       await tester.tap(find.text('Unmute'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requestsTo('pushrules').single.method, 'DELETE');
     });
@@ -221,7 +214,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Leave room?'), findsOneWidget);
       await tester.tap(find.widgetWithText(TextButton, 'Leave'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requestsTo('leave'), hasLength(1));
     });
@@ -231,7 +224,7 @@ void main() {
       await openActions(tester);
 
       await tester.tapAt(const Offset(10, 10));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requests, isEmpty);
     });
@@ -244,7 +237,7 @@ void main() {
       offline = true;
 
       await tester.tap(find.text('Mute'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(
         find.text('Not muted. Check your connection and try again.'),
@@ -260,7 +253,7 @@ void main() {
 
       await openActions(tester);
       await tester.tap(find.text('Unmute'));
-      await network(tester);
+      await tester.pumpAndSettle();
       expect(
         find.text('Not unmuted. Check your connection and try again.'),
         findsOneWidget,
@@ -271,7 +264,7 @@ void main() {
 
       await openActions(tester);
       await tester.tap(find.text('Mark as read'));
-      await network(tester);
+      await tester.pumpAndSettle();
       expect(
         find.text('Not marked as read. Check your connection and try again.'),
         findsOneWidget,
@@ -291,7 +284,7 @@ void main() {
         replyText: null,
       )),
     );
-    await network(tester);
+    await tester.pumpAndSettle();
 
     expect(
       jsonDecode(requestsTo('read_markers').single.body),
@@ -326,7 +319,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'Chess club');
     await tester.testTextInput.receiveAction(TextInputAction.done);
-    await network(tester);
+    await tester.pumpAndSettle();
 
     expect(requestsTo('createRoom'), hasLength(1));
   });
@@ -443,7 +436,7 @@ void main() {
       expect(find.text('Community name'), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'Rivera family');
       await tester.testTextInput.receiveAction(TextInputAction.done);
-      await network(tester);
+      await tester.pumpAndSettle();
 
       final create = requestsTo('createRoom').single;
       final body = jsonDecode(create.body) as Map<String, Object?>;
@@ -646,7 +639,8 @@ void main() {
         tester,
         prompt: SecurityPromptDecision.setUpRecovery,
         stored: {
-          'security.recovery_prompt_ms': DateTime.now()
+          'security.recovery_prompt_ms': clock
+              .now()
               .subtract(const Duration(days: 1))
               .millisecondsSinceEpoch,
         },

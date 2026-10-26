@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/refresh_deadline_http_client.dart';
 import 'package:zuno/core/matrix/session_refresh.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 class _ClientRowDatabase extends FakeDatabaseApi {
@@ -67,7 +67,7 @@ class _HeldRefreshes extends http.BaseClient {
     if (answer.isCompleted) return;
     answer.complete(
       http.StreamedResponse(
-        Stream.value(
+        fakeTimeBody(
           utf8.encode(
             jsonEncode({
               'access_token': access,
@@ -99,7 +99,7 @@ class _ExpiringClient extends Client {
   String? get deviceID => 'DEVICE';
 
   @override
-  DateTime? get accessTokenExpiresAt => DateTime.now();
+  DateTime? get accessTokenExpiresAt => clock.now();
 }
 
 http.Response _json(int status, Map<String, Object?> body) =>
@@ -108,7 +108,7 @@ http.Response _json(int status, Map<String, Object?> body) =>
 String _sentRefreshToken(http.Request request) =>
     (jsonDecode(request.body) as Map)['refresh_token'] as String;
 
-Client _client(_ClientRowDatabase database, MockClient server) =>
+Client _client(_ClientRowDatabase database, FakeHttpClient server) =>
     buildTestClient(
         userId: '@alice:example.org',
         deviceId: 'DEVICE',
@@ -124,7 +124,7 @@ void main() {
     () async {
       final database = _ClientRowDatabase(refreshToken: 'r0');
       final sent = <String>[];
-      final server = MockClient((request) async {
+      final server = FakeHttpClient((request) async {
         final token = _sentRefreshToken(request);
         sent.add(token);
         if (token == 'r0') {
@@ -150,7 +150,7 @@ void main() {
   test('a refused refresh with nothing newer stored gives up', () async {
     final database = _ClientRowDatabase(refreshToken: 'r0');
     var requests = 0;
-    final server = MockClient((request) async {
+    final server = FakeHttpClient((request) async {
       requests++;
       return _json(401, {'errcode': 'M_UNKNOWN_TOKEN'});
     });
@@ -171,7 +171,7 @@ void main() {
     test('a $label during refresh is not treated as a dead session', () async {
       final database = _ClientRowDatabase(refreshToken: 'r0');
       var requests = 0;
-      final server = MockClient((request) async {
+      final server = FakeHttpClient((request) async {
         requests++;
         return answer();
       });
@@ -240,7 +240,7 @@ void main() {
   test('a session with no refresh token is given up, not retried', () async {
     final database = _ClientRowDatabase();
     var requests = 0;
-    final server = MockClient((request) async {
+    final server = FakeHttpClient((request) async {
       requests++;
       return _json(200, {});
     });

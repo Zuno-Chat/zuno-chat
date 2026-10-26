@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -25,7 +26,7 @@ void main() {
     room,
     eventId: eventId,
     senderId: senderId,
-    originServerTs: at ?? DateTime.now(),
+    originServerTs: at ?? clock.now(),
     content: {
       'msgtype': 'im.zuno.call_invite',
       'call_id': callId,
@@ -74,7 +75,7 @@ void main() {
       invite(
         eventId: r'$1',
         senderId: '@bob:example.org',
-        at: DateTime.now().subtract(const Duration(minutes: 5)),
+        at: clock.now().subtract(const Duration(minutes: 5)),
       ),
     );
     await pumpEventQueue();

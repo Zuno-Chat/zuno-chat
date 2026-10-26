@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -455,12 +456,16 @@ void main() {
 
       test('a summary for a different call still cancels once the ring is '
           'over 45 seconds old', () async {
-        await saveRingingCall(await SharedPreferences.getInstance(), (
-          roomId: room.id,
-          callId: ringingCallId,
-          callerId: '@bob:example.org',
-          isVideo: false,
-        ), now: DateTime.now().subtract(const Duration(seconds: 46)));
+        final prefs = await SharedPreferences.getInstance();
+        await withClock(
+          Clock.fixed(clock.now().subtract(const Duration(seconds: 46))),
+          () => saveRingingCall(prefs, (
+            roomId: room.id,
+            callId: ringingCallId,
+            callerId: '@bob:example.org',
+            isVideo: false,
+          )),
+        );
         client.resolved = callSummary(
           callId: 'call1',
           status: CallSummaryStatus.ended,
@@ -975,7 +980,7 @@ void main() {
     test('says how long ago the message was sent, so a server-side delay '
         'shows up', () async {
       client.resolved = message(
-        originServerTs: DateTime.now().subtract(const Duration(minutes: 7)),
+        originServerTs: clock.now().subtract(const Duration(minutes: 7)),
       );
 
       await handle();
@@ -1259,7 +1264,7 @@ void main() {
       await markInviteAnnouncedOnDisk(
         await SharedPreferences.getInstance(),
         room.id,
-        now: DateTime.now().subtract(const Duration(minutes: 10)),
+        now: clock.now().subtract(const Duration(minutes: 10)),
       );
       installFakeConversationsChannel(noticed: {room.id: r'$event'});
       roomNotificationShowing();

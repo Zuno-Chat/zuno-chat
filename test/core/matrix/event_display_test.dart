@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
@@ -451,7 +452,7 @@ void main() {
         type: EventTypes.RoomMember,
         senderId: '@a:x',
         stateKey: '@a:x',
-        originServerTs: DateTime.now(),
+        originServerTs: clock.now(),
         content: {'membership': 'join', 'displayname': 'Ada'},
         room: room,
       ),

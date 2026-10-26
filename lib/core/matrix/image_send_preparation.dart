@@ -2,10 +2,11 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:blurhash_dart/blurhash_dart.dart';
-import 'package:flutter/foundation.dart' show compute, visibleForTesting;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:image/image.dart' as img;
 import 'package:matrix/matrix.dart';
 
+import '../async/background_work.dart';
 import '../errors/caught_errors.dart';
 import 'media_processing_exception.dart';
 import 'media_quality.dart';
@@ -78,7 +79,10 @@ const _jpegDecodeScales = [8, 4, 2];
 
 Future<String?> blurhashInBackground(Uint8List bytes) async {
   try {
-    return await compute(blurhashOf, bytes);
+    return await runInBackground(
+      () => blurhashOf(bytes),
+      debugName: 'blurhash',
+    );
   } catch (e, s) {
     reportCaught('decode an image for its blurhash', e, s);
     return null;

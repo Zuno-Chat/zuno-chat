@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -138,11 +139,8 @@ String _targetKey(_WatchTarget target) =>
     '${target.roomId}|${target.userId}|${target.deviceId}|${target.shareId}';
 
 class LiveLocationViewing {
-  LiveLocationViewing({
-    required Client client,
-    required this._isOffline,
-    this._now = DateTime.now,
-  }) : _client = client {
+  LiveLocationViewing({required Client client, required this._isOffline})
+    : _client = client {
     _subscriptions.addAll([
       client.onToDeviceEvent.stream.listen(_onToDevice),
       client.onSync.stream.listen(_onSync),
@@ -152,7 +150,6 @@ class LiveLocationViewing {
 
   final Client _client;
   final bool Function() _isOffline;
-  final DateTime Function() _now;
   final _subscriptions = <StreamSubscription<Object?>>[];
   final _positions = <String, Map<String, _Held>>{};
   final _held = <String, _Candidate>{};
@@ -172,7 +169,7 @@ class LiveLocationViewing {
 
   List<LiveShareView> sharesIn(Room room) {
     if (!room.encrypted) return const [];
-    final now = _now();
+    final now = clock.now();
     final ignored = _client.ignoredUsers.toSet();
     final views = <LiveShareView>[];
     DateTime? earliest;
@@ -295,7 +292,7 @@ class LiveLocationViewing {
     _deadline?.cancel();
     _deadline = null;
     if (_disposed) return;
-    final now = _now();
+    final now = clock.now();
     DateTime? next;
     for (final end in _ends.values) {
       if (next == null || end.isBefore(next)) next = end;
@@ -310,7 +307,7 @@ class LiveLocationViewing {
   }
 
   void _onDeadline() {
-    final now = _now();
+    final now = clock.now();
     _expireHeld(now);
     _prune(now);
     for (final MapEntry(key: roomId, value: end) in [..._ends.entries]) {
@@ -328,7 +325,7 @@ class LiveLocationViewing {
     if (device == null) return;
     final message = parseLivePosition(event.content);
     if (message == null) return;
-    final now = _now();
+    final now = clock.now();
     if (message.position.at.isAfter(now.add(_maxFutureSkew))) return;
     if (_client.ignoredUsers.contains(device.userId)) return;
     final candidate = (
@@ -349,7 +346,7 @@ class LiveLocationViewing {
     final state = _liveState(
       room,
       candidate.userId,
-      _now(),
+      clock.now(),
       _client.ignoredUsers.toSet(),
     );
     if (state == null ||
@@ -369,7 +366,7 @@ class LiveLocationViewing {
       deviceId: candidate.deviceId,
       position: candidate.position,
     );
-    if (_now().difference(candidate.position.at) <= _freshFor) {
+    if (clock.now().difference(candidate.position.at) <= _freshFor) {
       _pending.remove(
         _targetKey((
           roomId: room.id,
@@ -413,7 +410,7 @@ class LiveLocationViewing {
   }
 
   void _onSync(SyncUpdate update) {
-    final now = _now();
+    final now = clock.now();
     _expireHeld(now);
     _held.removeWhere((_, candidate) => _take(candidate));
     _prune(now);
@@ -445,7 +442,7 @@ class LiveLocationViewing {
   void _onSyncStatus(SyncStatusUpdate status) {
     if (status.status != SyncStatus.finished || !_deviceListsChanged) return;
     _deviceListsChanged = false;
-    _prune(_now());
+    _prune(clock.now());
     for (final roomId in {..._ends.keys, ..._watchedRooms.keys}) {
       _changes.add(roomId);
     }
@@ -500,7 +497,7 @@ class LiveLocationViewing {
         if (!first && !renew) continue;
         _signaled[key] = target;
         if (first) {
-          _pending[key] = _now();
+          _pending[key] = clock.now();
           _changes.add(target.roomId);
         }
         unawaited(_signal(key, target));
@@ -548,7 +545,7 @@ class LiveLocationViewing {
   Future<DeviceKeys?> _deviceOf(String userId, String deviceId) async {
     final known = _client.userDeviceKeys[userId]?.deviceKeys[deviceId];
     if (known != null) return known;
-    final now = _now();
+    final now = clock.now();
     final lastQuery = _keysQueriedAt[userId];
     if (lastQuery != null &&
         !now.isBefore(lastQuery) &&

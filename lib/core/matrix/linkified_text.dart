@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../navigation/zuno_links.dart';
 import '../ui/zuno_colors.dart';
-import 'matrix_ids.dart';
 import 'mention_fragments.dart';
 import 'urls.dart';
 
@@ -27,14 +26,6 @@ class LinkifiedText extends StatelessWidget {
     super.key,
   });
 
-  static const _serverName = r'[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?';
-
-  static final _userMentionPattern = RegExp(
-    '(?<![\\w@])(@(?:\\[[^\\[\\]]+\\]|[$matrixLocalpartChars]+))'
-    '(?::$_serverName)?',
-    caseSensitive: false,
-  );
-
   TextOverflow get _overflow =>
       maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis;
 
@@ -51,7 +42,7 @@ class LinkifiedText extends StatelessWidget {
       for (final m in roomMentionPattern.allMatches(text))
         (start: m.start, end: m.end, shown: m.group(0)!, link: null),
       if (mentionable.isNotEmpty)
-        for (final m in _userMentionPattern.allMatches(text))
+        for (final m in userMentionPattern.allMatches(text))
           if (mentionable.contains(m.group(1)!.toLowerCase()))
             (start: m.start, end: m.end, shown: m.group(1)!, link: null),
     ]..sort((a, b) => a.start.compareTo(b.start));

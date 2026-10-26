@@ -3,13 +3,15 @@ import 'package:http/http.dart' as http;
 
 import 'package:zuno/core/matrix/refresh_deadline_http_client.dart';
 
+import '../../helpers/fake_http.dart';
+
 class _Recording extends http.BaseClient {
   final received = <http.BaseRequest>[];
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     received.add(request);
-    return http.StreamedResponse(const Stream.empty(), 200);
+    return http.StreamedResponse(fakeTimeBody(const []), 200);
   }
 }
 

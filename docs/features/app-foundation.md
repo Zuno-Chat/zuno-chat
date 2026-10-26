@@ -329,14 +329,14 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 
 - **Untranslated native keys fall back to English** (Android `values/`, the iOS English bundle).
 - **Generated native files are never hand-edited**: the generator overwrites them and a test fails when they are stale.
-- **`flutter analyze` cannot show analyzer-plugin diagnostics**, so CI and the commit routine run root `dart analyze --fatal-infos`, which enforces the `hardcoded_user_text` lint.
+- **`flutter analyze` cannot show analyzer-plugin diagnostics**, so CI and the commit routine run root `dart analyze --fatal-infos`, which enforces the zuno_lints rules: `hardcoded_user_text` and the fake-time rules under Testing.
 - **Kotlin and Swift decision code returns kinds** and only presentation reads strings, so JVM tests stay resource-free.
 - **Android notification channel names are re-registered at each start**, so they follow the language.
 
 ### Errors
 
 - `main()` runs in `runZonedGuarded`, and the global handlers chain onto `FlutterError.onError` and `PlatformDispatcher.onError`. Unhandled errors go to crash reporting (`crash-reporting.md`) and, in debug builds only, to an error SnackBar.
-- **Release builds write nothing below warning to the device log**, because bug reports and debugging tools can read it, and the SDK and plugins log IDs and content. Every Dart entry point and the client's background compute isolates run in a zone that drops `print`, and on Android the process also raises the native log floor for every library in it.
+- **Release builds write nothing below warning to the device log**, because bug reports and debugging tools can read it, and the SDK and plugins log IDs and content. Every Dart entry point and every background isolate (the app's and the SDK's, all started through `runInBackground`) run in a zone that drops `print`, and on Android the process also raises the native log floor for every library in it.
 - A caught failure goes to `reportCaught` (`core/errors/caught_errors.dart`) with its stack, and an expected outcome narrows its catch instead; `crash-reporting.md` has what is sent.
 - A caught error the user sees gets a plain sentence, never the exception's text. The one deliberate exception is the push diagnostics page, which shows the last pusher error as is (`notifications.md`).
 - `isConnectionError` is the one test for a network failure, native ones from the error journal included, and `failureMessage` adds a check-your-connection hint for one.
@@ -357,6 +357,7 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - **The platform, not Dart, decides which language file is used.** A Dart copy of that choice drifts from native text on parent regions and on each OS version's locale data; one owner keeps them identical.
 - **Compaction is the app's own, not the SDK's `SQfLiteEncryptionHelper.applyPragmaKey(ensureIncrementalAutoVacuum:)`**, because that helper also applies the key, and Zuno keys `zuno.db` through sqflite_sqlcipher's own open.
 - **Atomic batches, not a forked plugin.** A batch failing after `BEGIN` can still roll back another engine's write in that window, but only on a full disk, an I/O error or corruption. Owning a fork of the crypto database plugin was judged the bigger risk.
+- **Tests use the real disk through synchronous calls, not `package:file`'s in-memory file system**, because the in-memory one throws a plain `FileSystemException` where `dart:io` throws `PathNotFoundException` (dart-lang/tools#668), and the app relies on that difference.
 
 ## Gotchas
 
@@ -408,6 +409,13 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 
 ## Testing
 
+- **Tests run in fake time, so nothing they wait on may run on the real clock or the real event loop.** App code reads time through `clock`, the disk through `fileSystem` and isolates through `runInBackground`, and zuno_lints enforces all three plus a ban on real-time waits in tests, because guessing how long real work takes failed under full-suite load.
+- **Spans use `startStopwatch()`**, a monotonic stopwatch in the app and the test clock's under fake time, because `clock.stopwatch()` reads the wall clock and a device time correction would move it.
+- **The test config swaps in an instant file system and an inline isolate runner**: the real disk through synchronous calls, and work run in place after the same can-it-reach-an-isolate check `Isolate.run` makes.
+- **Test HTTP goes through `FakeHttpClient`**, because `MockClient` serves bodies whose cancel returns a root-zone future, so SDK responses never finished in fake time.
+- **Anything left unanswered completes outside fake time**: a test answers every platform channel its path calls, and app code awaits a subscription cancel only when the next step needs it, since a broadcast cancel returns the same root-zone future.
+- **Work that is real by nature is waited on by condition**: engine image decoding, flutter_map's tile cache and plugin stream cancels. `test/helpers/pump_until.dart` is the one test file allowed real time, including the device clock for values a library compares with its own (just_audio's playback position).
+- **Singleton state resets per test in the test config**, never by moving a test clock past it.
 - `buildTestClient` never syncs, so a test that reaches `firstSyncProvider` overrides it.
 - A logged-in `ZunoApp` test mocks `zuno/shortcuts` and `zuno/share`, or the launch checks never finish (`test/app_auth_gate_test.dart`).
 - A test that posts a notification under iOS capabilities fakes `zuno/calls`, because the notification service's first setup resets CallKit over it, and the real engine's reply lands on wall-clock time and races a fixed `pumpEventQueue` wait.

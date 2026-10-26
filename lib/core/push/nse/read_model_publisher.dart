@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -81,14 +82,11 @@ Iterable<String> changedRoomIds(SyncUpdate update) => {
 class ReadModelPublisher {
   ReadModelPublisher({
     NseChannel nse = const NseChannel(),
-    DateTime Function()? now,
     Duration debounce = const Duration(seconds: 1),
   }) : _channel = nse,
-       _now = now ?? DateTime.now,
        _debounceDelay = debounce;
 
   final NseChannel _channel;
-  final DateTime Function() _now;
   final Duration _debounceDelay;
   final _published = <String, String>{};
   final _pending = <String>{};
@@ -127,7 +125,7 @@ class ReadModelPublisher {
     await _channel.writeMeta(
       metaJson(
         meta,
-        heartbeatMs: _now().millisecondsSinceEpoch,
+        heartbeatMs: clock.now().millisecondsSinceEpoch,
         extras: extras,
       ),
     );

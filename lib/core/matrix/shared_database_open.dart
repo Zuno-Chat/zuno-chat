@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint, listEquals;
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 
+import '../files/file_system.dart';
+
 const sharedDatabaseWaitBudget = Duration(seconds: 1);
 
 const _firstRetryDelay = Duration(milliseconds: 10);
@@ -99,7 +101,8 @@ Future<bool> readsKeyedTables(sqflite.Database database) async {
 Future<_Header> _readHeader(String path) async {
   final List<int> header;
   try {
-    header = await File(path)
+    header = await fileSystem
+        .file(path)
         .openRead(0, _plaintextHeader.length)
         .expand((chunk) => chunk)
         .toList();

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -14,9 +15,7 @@ import '../../../core/security/screen_security_service.dart';
 import 'uia_password_prompt.dart';
 
 class SignInAnotherDevicePage extends ConsumerStatefulWidget {
-  final DateTime Function() now;
-
-  const SignInAnotherDevicePage({this.now = DateTime.now, super.key});
+  const SignInAnotherDevicePage({super.key});
 
   @override
   ConsumerState<SignInAnotherDevicePage> createState() =>
@@ -59,7 +58,7 @@ class _SignInAnotherDevicePageState
     });
     final client = ref.read(matrixClientProvider);
     try {
-      final issued = await issueLinkedSignInCode(client, now: widget.now);
+      final issued = await issueLinkedSignInCode(client);
       if (!mounted) return;
       setState(() => _issued = issued);
     } catch (e, s) {
@@ -118,7 +117,6 @@ class _SignInAnotherDevicePageState
       const SizedBox(height: 8),
       _Countdown(
         expiresAt: issued.expiresAt,
-        now: widget.now,
         onExpired: () => setState(() => _expired = true),
       ),
       const SizedBox(height: 16),
@@ -151,14 +149,9 @@ class _SignInAnotherDevicePageState
 
 class _Countdown extends StatefulWidget {
   final DateTime expiresAt;
-  final DateTime Function() now;
   final VoidCallback onExpired;
 
-  const _Countdown({
-    required this.expiresAt,
-    required this.now,
-    required this.onExpired,
-  });
+  const _Countdown({required this.expiresAt, required this.onExpired});
 
   @override
   State<_Countdown> createState() => _CountdownState();
@@ -181,7 +174,7 @@ class _CountdownState extends State<_Countdown> {
   }
 
   Duration _left() {
-    final left = widget.expiresAt.difference(widget.now());
+    final left = widget.expiresAt.difference(clock.now());
     return left.isNegative ? Duration.zero : left;
   }
 

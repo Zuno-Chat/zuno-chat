@@ -76,18 +76,6 @@ void main() {
     expect(raised, 0);
   });
 
-  test('a background isolate runs its work under the same floor and hands '
-      'back the result', () async {
-    final result = await computeWithDeviceLogFloor(
-      (int value) => value * 2,
-      21,
-      release: true,
-      capabilities: iosCapabilities,
-    );
-
-    expect(result, 42);
-  });
-
   test('a native floor that cannot be set never stops the app', () {
     final result = runWithDeviceLogFloor(
       () => 'ran',

@@ -30,9 +30,6 @@ void main() {
   int created(CallPageHarness harness) =>
       harness.webrtc.where((c) => c.method == 'createVideoRenderer').length;
 
-  int disposed(CallPageHarness harness) =>
-      harness.webrtc.where((c) => c.method == 'videoRendererDispose').length;
-
   List<String> sources(CallPageHarness harness, int texture) => [
     for (final call in harness.webrtc)
       if (call.method == 'videoRendererSetSrcObject' &&
@@ -59,6 +56,8 @@ void main() {
       remoteParticipant(camera: true),
     ]);
     await harness.settle();
+    final remote = harness.call.remotes.single;
+    final renderer = harness.call.rendererFor(remote.id);
     session.engine.setParticipants([localParticipant(), remoteParticipant()]);
     await harness.settle();
     session.engine.setParticipants([
@@ -68,7 +67,8 @@ void main() {
     await harness.settle();
 
     expect(created(harness), 1);
-    expect(disposed(harness), 0);
+    expect(renderer, isNotNull);
+    expect(harness.call.rendererFor(remote.id), same(renderer));
     await harness.close();
   });
 

@@ -8,14 +8,15 @@ import 'package:http/io_client.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 
+import '../async/background_work.dart';
+import '../async/elapsed.dart';
 import '../calls/matrixrtc/call_member_state.dart' show callMemberEventType;
 import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
-import '../errors/device_log.dart';
+import '../files/file_system.dart';
 import '../location/live_location_protocol.dart' show liveLocationStateType;
 import '../platform/platform_capabilities.dart';
 import '../push/nse/session_exporter.dart';
@@ -135,7 +136,7 @@ Future<Client> _startBackgroundClient({bool waitForStoreLoad = true}) async {
 }
 
 Future<String> _databasePath() async {
-  final support = await getApplicationSupportDirectory();
+  final support = await applicationSupportDirectory();
   return p.join(support.path, _databaseFileName);
 }
 
@@ -147,7 +148,7 @@ Future<Client> _startClient(
 }) async {
   handleSdkLogs();
   final vodInitFuture = ensureVodozemacInitialized();
-  final watch = Stopwatch()..start();
+  final watch = startStopwatch();
 
   ZunoClient? client;
   final syncRequests = SyncRequestCanceller(
@@ -185,7 +186,7 @@ Future<Client> _startClient(
       database: database,
       nativeImplementations: backgroundSync
           ? NativeImplementationsIsolate(
-              computeWithDeviceLogFloor,
+              computeInBackground,
               vodozemacInit: ensureVodozemacInitialized,
             )
           : NativeImplementations.dummy,

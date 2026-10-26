@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:clock/clock.dart';
 import 'package:matrix/encryption/utils/pickle_key.dart';
 import 'package:matrix/encryption/utils/stored_inbound_group_session.dart';
 import 'package:matrix/matrix.dart';
@@ -249,10 +250,7 @@ int? trimPoint({
 int _newestEvent(Map<int, int> decrypted) => decrypted.values.fold(0, max);
 
 class SessionExporter implements InboundSessionEvents {
-  SessionExporter({
-    this._trimmer = const VodozemacMegolmTrimmer(),
-    DateTime Function()? now,
-  }) : _now = now ?? DateTime.now;
+  SessionExporter({this._trimmer = const VodozemacMegolmTrimmer()});
 
   static final instance = SessionExporter();
 
@@ -264,7 +262,6 @@ class SessionExporter implements InboundSessionEvents {
   static const exportedKey = 'nse.session_exported_from';
 
   final MegolmTrimmer _trimmer;
-  final DateTime Function() _now;
   final _dirty = <String>{};
   final _firstSeen = <String, Map<int, DateTime>>{};
   final _graceUntil = <String, DateTime>{};
@@ -281,7 +278,9 @@ class SessionExporter implements InboundSessionEvents {
     required String sessionId,
     required String content,
   }) {
-    final recency = _isForwarded(content) ? 0 : _now().millisecondsSinceEpoch;
+    final recency = _isForwarded(content)
+        ? 0
+        : clock.now().millisecondsSinceEpoch;
     _remember(roomId, sessionId, recency);
     _changed(roomId);
   }
@@ -293,7 +292,7 @@ class SessionExporter implements InboundSessionEvents {
     required String? previous,
     required String indexes,
   }) {
-    final now = _now();
+    final now = clock.now();
     final decrypted = decryptedIndexes(indexes);
     final known = decryptedIndexes(previous).keys.toSet();
     final seen = _firstSeen.putIfAbsent(sessionId, () => {});
@@ -306,7 +305,7 @@ class SessionExporter implements InboundSessionEvents {
   }
 
   Set<String> takeDirtyRooms() {
-    final now = _now();
+    final now = clock.now();
     _firstSeen.removeWhere((_, seen) {
       seen.removeWhere((_, at) => now.difference(at) >= grace);
       return seen.isEmpty;
@@ -467,7 +466,7 @@ class SessionExporter implements InboundSessionEvents {
       final start = trimPoint(
         decrypted: decryptedIndexes(session.indexes),
         firstSeen: _firstSeen[sessionId] ?? const {},
-        now: _now(),
+        now: clock.now(),
         exportedFrom: _exportedFrom[room.id]?[sessionId],
       );
       final trimmed = _trimmer.trim(
@@ -491,7 +490,7 @@ class SessionExporter implements InboundSessionEvents {
   bool _excluded(Room room) {
     if (room.pushRuleState == PushRuleState.dontNotify) return true;
     final last = room.lastEvent?.originServerTs;
-    return last != null && _now().difference(last) > idleAfter;
+    return last != null && clock.now().difference(last) > idleAfter;
   }
 
   Map<String, String> _owners(Client client) {

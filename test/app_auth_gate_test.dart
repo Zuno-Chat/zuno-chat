@@ -9,11 +9,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
-
 import 'package:zuno/app.dart';
 import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
@@ -62,6 +60,7 @@ import 'helpers/call_channel_mocks.dart';
 import 'helpers/fake_call_session.dart';
 import 'helpers/fake_call_style_channel.dart';
 import 'helpers/fake_calls_channel.dart';
+import 'helpers/fake_http.dart';
 import 'helpers/fake_local_notifications.dart';
 import 'helpers/fake_matrix.dart';
 import 'helpers/fake_permissions.dart';
@@ -75,7 +74,7 @@ class _IdleSyncClient extends Client {
     : super(
         'test',
         database: StoredEventsFakeDatabaseApi(),
-        httpClient: MockClient((_) async => http.Response('{}', 200)),
+        httpClient: FakeHttpClient((_) async => http.Response('{}', 200)),
       );
 
   @override

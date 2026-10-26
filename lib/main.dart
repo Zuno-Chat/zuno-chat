@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
@@ -15,6 +14,7 @@ import 'core/errors/best_effort.dart';
 import 'core/errors/crash_reporting.dart';
 import 'core/errors/device_log.dart';
 import 'core/errors/global_error_handler.dart';
+import 'core/files/file_system.dart';
 import 'core/l10n/app_locale.dart';
 import 'core/matrix/attachment_cache.dart';
 import 'core/matrix/client_startup.dart';
@@ -88,7 +88,7 @@ Future<void> _runApp(List<String> args) async {
   await repairLeftRoomsOnce(client, preferences);
   unawaited(
     runBestEffort(
-      () async => removeLegacyPlaintextCopies(await getTemporaryDirectory()),
+      () async => removeLegacyPlaintextCopies(await temporaryDirectory()),
       label: 'remove the plaintext copies older builds left behind',
     ),
   );

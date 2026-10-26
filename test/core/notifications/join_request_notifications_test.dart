@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -54,7 +55,7 @@ void main() {
       type: EventTypes.RoomMember,
       stateKey: _me,
       senderId: '@admin:example.org',
-      originServerTs: DateTime.now(),
+      originServerTs: clock.now(),
       content: {'membership': 'invite'},
       room: room,
     );
@@ -132,7 +133,7 @@ void main() {
           type: EventTypes.RoomMember,
           stateKey: '@maya:x',
           senderId: '@maya:x',
-          originServerTs: DateTime.now(),
+          originServerTs: clock.now(),
           content: {'membership': 'knock', 'displayname': 'Maya'},
           room: room,
         ),
@@ -188,7 +189,7 @@ void main() {
             type: EventTypes.RoomMember,
             stateKey: userId,
             senderId: membership == 'knock' ? userId : _me,
-            originServerTs: DateTime.now(),
+            originServerTs: clock.now(),
             content: {'membership': membership, 'displayname': 'Maya'},
             room: room,
           );

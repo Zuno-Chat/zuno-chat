@@ -5,6 +5,7 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
 
 import '../../../helpers/fake_video_player.dart';
+import '../../../helpers/pump_until.dart';
 import '../../../helpers/route_launcher.dart';
 
 void main() {
@@ -138,23 +139,27 @@ void main() {
     for (final uri in player.opened) uri.split('/').last,
   ];
 
-  Future<int> playersHeld(WidgetTester tester) async {
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-    return player.opened.length -
-        player.calls.where((c) => c == 'dispose').length;
-  }
+  int disposed() => player.calls.where((c) => c == 'dispose').length;
+
+  int playersHeld() => player.opened.length - disposed();
+
+  Future<void> untilDisposed(WidgetTester tester, int count) => pumpUntil(
+    tester,
+    () => disposed() >= count,
+    reason: '$count players to be let go',
+  );
 
   testWidgets('only the video on screen holds a player', (tester) async {
     await open(tester, [clip('a.mp4'), clip('b.mp4'), clip('c.mp4')]);
 
     expect(opened(), ['a.mp4']);
-    expect(await playersHeld(tester), 1);
+    expect(playersHeld(), 1);
 
     await swipeNext(tester);
+    await untilDisposed(tester, 1);
 
     expect(opened(), ['a.mp4', 'b.mp4']);
-    expect(await playersHeld(tester), 1);
+    expect(playersHeld(), 1);
     expect(find.byType(VideoPlayer), findsOneWidget);
   });
 
@@ -167,8 +172,10 @@ void main() {
     await tester.drag(find.byType(PageView), const Offset(800, 0));
     await tester.pumpAndSettle();
 
+    await untilDisposed(tester, 1);
+
     expect(find.text('1 of 2'), findsOneWidget);
-    expect(await playersHeld(tester), 0);
+    expect(playersHeld(), 0);
   });
 
   testWidgets('a video swiped past keeps its size and length, one never '
@@ -194,8 +201,9 @@ void main() {
 
     await tester.tap(find.byTooltip('Remove this item'));
     await tester.pumpAndSettle();
+    await untilDisposed(tester, 1);
 
-    expect(await playersHeld(tester), 0);
+    expect(playersHeld(), 0);
     expect(find.text('Add a caption'), findsOneWidget);
   });
 
@@ -205,8 +213,10 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
+    await untilDisposed(tester, 1);
+
     expect(closed, isTrue);
-    expect(await playersHeld(tester), 0);
+    expect(playersHeld(), 0);
   });
 
   testWidgets('removing the last item steps back to the one before', (

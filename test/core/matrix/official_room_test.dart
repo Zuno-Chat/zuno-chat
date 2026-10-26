@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -28,7 +29,7 @@ Room _room({required String creator, bool tagged = true}) {
       eventId: '\$create',
       type: EventTypes.RoomCreate,
       senderId: creator,
-      originServerTs: DateTime.now(),
+      originServerTs: clock.now(),
       content: {'creator': creator},
       room: room,
       stateKey: '',

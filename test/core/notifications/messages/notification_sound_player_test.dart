@@ -7,6 +7,7 @@ import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/caught_reports.dart';
+import '../../../helpers/test_clock.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -59,42 +60,44 @@ void main() {
     group('prepareMessageNotification', () {
       const room = '!room:example.org';
       late List<String> logs;
-      var fakeNow = DateTime(2030);
+      final clockedTest = testsOnClock(() => DateTime(2030));
 
       setUp(() {
         logs = recordDebugPrints();
-        fakeNow = fakeNow.add(const Duration(days: 1));
-        player.now = () => fakeNow;
         SharedPreferences.setMockInitialValues({
           messageToneEnabledKey: true,
           messageVibrationEnabledKey: true,
         });
       });
 
-      tearDown(() => player.now = DateTime.now);
+      clockedTest(
+        'asks for the tone (the sound channel) when the tone setting is '
+        'on',
+        () async {
+          expect(await player.prepareMessageNotification(roomId: room), (
+            alert: MessageAlert.tone,
+            vibrate: true,
+          ));
+        },
+      );
 
-      test('asks for the tone (the sound channel) when the tone setting is '
-          'on', () async {
-        expect(await player.prepareMessageNotification(roomId: room), (
-          alert: MessageAlert.tone,
-          vibrate: true,
-        ));
-      });
+      clockedTest(
+        'asks for silence but still a buzz when only the tone setting is '
+        'off',
+        () async {
+          SharedPreferences.setMockInitialValues({
+            messageToneEnabledKey: false,
+            messageVibrationEnabledKey: true,
+          });
 
-      test('asks for silence but still a buzz when only the tone setting is '
-          'off', () async {
-        SharedPreferences.setMockInitialValues({
-          messageToneEnabledKey: false,
-          messageVibrationEnabledKey: true,
-        });
+          expect(await player.prepareMessageNotification(roomId: room), (
+            alert: MessageAlert.silent,
+            vibrate: true,
+          ));
+        },
+      );
 
-        expect(await player.prepareMessageNotification(roomId: room), (
-          alert: MessageAlert.silent,
-          vibrate: true,
-        ));
-      });
-
-      test('follows settings the caller already read instead of reading '
+      clockedTest('follows settings the caller already read instead of reading '
           'them again', () async {
         expect(
           await player.prepareMessageNotification(
@@ -110,22 +113,28 @@ void main() {
         );
       });
 
-      test('preparing never buzzes itself; the buzz is a separate step so it '
-          'can follow the post', () async {
-        await player.prepareMessageNotification(roomId: room);
+      clockedTest(
+        'preparing never buzzes itself; the buzz is a separate step so it '
+        'can follow the post',
+        () async {
+          await player.prepareMessageNotification(roomId: room);
 
-        expect(calls.map((c) => c.method), isNot(contains('vibrate')));
-      });
+          expect(calls.map((c) => c.method), isNot(contains('vibrate')));
+        },
+      );
 
-      test('vibrateForMessage buzzes with the message pattern', () async {
-        await player.vibrateForMessage();
+      clockedTest(
+        'vibrateForMessage buzzes with the message pattern',
+        () async {
+          await player.vibrateForMessage();
 
-        final vibrate = calls.singleWhere((c) => c.method == 'vibrate');
-        expect(vibrate.arguments['pattern'], messageVibrationPattern);
-        expect(vibrate.arguments['repeat'], -1);
-      });
+          final vibrate = calls.singleWhere((c) => c.method == 'vibrate');
+          expect(vibrate.arguments['pattern'], messageVibrationPattern);
+          expect(vibrate.arguments['repeat'], -1);
+        },
+      );
 
-      test(
+      clockedTest(
         'no vibrator on the device is logged as that, not as a failure',
         () async {
           hasVibrator = false;
@@ -144,23 +153,26 @@ void main() {
         },
       );
 
-      test('a failing vibration platform is swallowed, never thrown at the '
-          'poster, and logged with what failed', () async {
-        vibrateError = PlatformException(code: 'muted');
+      clockedTest(
+        'a failing vibration platform is swallowed, never thrown at the '
+        'poster, and logged with what failed',
+        () async {
+          vibrateError = PlatformException(code: 'muted');
 
-        await player.vibrateForMessage();
+          await player.vibrateForMessage();
 
-        expect(
-          logs,
-          contains(
-            predicate<String>(
-              (m) => m.startsWith('zuno/caught: message vibration:'),
+          expect(
+            logs,
+            contains(
+              predicate<String>(
+                (m) => m.startsWith('zuno/caught: message vibration:'),
+              ),
             ),
-          ),
-        );
-      });
+          );
+        },
+      );
 
-      test('both settings off is logged as a deliberate skip, and is '
+      clockedTest('both settings off is logged as a deliberate skip, and is '
           'silent', () async {
         SharedPreferences.setMockInitialValues({
           messageToneEnabledKey: false,
@@ -178,36 +190,42 @@ void main() {
         );
       });
 
-      test('a second call within the rate limit for the same room is logged '
-          'as a skip and is a silent update: no buzz, and the notification '
-          'stays on the sound channel so the tone is not cut off', () async {
-        await player.prepareMessageNotification(roomId: room);
-        logs.clear();
-        calls.clear();
+      clockedTest(
+        'a second call within the rate limit for the same room is logged '
+        'as a skip and is a silent update: no buzz, and the notification '
+        'stays on the sound channel so the tone is not cut off',
+        () async {
+          await player.prepareMessageNotification(roomId: room);
+          logs.clear();
+          calls.clear();
 
-        final result = await player.prepareMessageNotification(roomId: room);
+          final result = await player.prepareMessageNotification(roomId: room);
 
-        expect(result, (alert: MessageAlert.silentUpdate, vibrate: false));
-        expect(calls, isEmpty);
-        expect(
-          logs,
-          contains('zuno/sound: message tone skipped, rate-limited'),
-        );
-      });
+          expect(result, (alert: MessageAlert.silentUpdate, vibrate: false));
+          expect(calls, isEmpty);
+          expect(
+            logs,
+            contains('zuno/sound: message tone skipped, rate-limited'),
+          );
+        },
+      );
 
-      test('with the tone setting off there is nothing to keep playing, so '
-          'a same-room burst is plain silent', () async {
-        SharedPreferences.setMockInitialValues({
-          messageToneEnabledKey: false,
-          messageVibrationEnabledKey: true,
-        });
-        await player.prepareMessageNotification(roomId: room);
+      clockedTest(
+        'with the tone setting off there is nothing to keep playing, so '
+        'a same-room burst is plain silent',
+        () async {
+          SharedPreferences.setMockInitialValues({
+            messageToneEnabledKey: false,
+            messageVibrationEnabledKey: true,
+          });
+          await player.prepareMessageNotification(roomId: room);
 
-        expect(await player.prepareMessageNotification(roomId: room), (
-          alert: MessageAlert.silent,
-          vibrate: false,
-        ));
-      });
+          expect(await player.prepareMessageNotification(roomId: room), (
+            alert: MessageAlert.silent,
+            vibrate: false,
+          ));
+        },
+      );
     });
   });
 }

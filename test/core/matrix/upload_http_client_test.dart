@@ -7,9 +7,10 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
-import 'package:http/testing.dart';
 
 import 'package:zuno/core/matrix/upload_http_client.dart';
+
+import '../../helpers/fake_http.dart';
 
 final _uploadUrl = Uri.parse('https://example.org/_matrix/media/v3/upload');
 
@@ -29,7 +30,7 @@ class _Server extends http.BaseClient {
 
   void answer({Stream<List<int>>? body}) => _answers.last.complete(
     http.StreamedResponse(
-      body ?? Stream.value(utf8.encode('{"content_uri":"mxc://a/b"}')),
+      body ?? fakeTimeBody(utf8.encode('{"content_uri":"mxc://a/b"}')),
       200,
     ),
   );
@@ -74,7 +75,7 @@ void main() {
   test('an upload reports progress chunk by chunk up to 1.0 to its scope, '
       'and its response passes through', () async {
     final client = UploadHttpClient(
-      MockClient(
+      FakeHttpClient(
         (request) async => http.Response(jsonEncode({'ok': true}), 200),
       ),
     );
@@ -98,7 +99,7 @@ void main() {
 
   test('progress reaches only the scope the upload runs in', () async {
     final client = UploadHttpClient(
-      MockClient((request) async => http.Response('{}', 200)),
+      FakeHttpClient((request) async => http.Response('{}', 200)),
     );
     addTearDown(client.close);
     final first = <double>[];

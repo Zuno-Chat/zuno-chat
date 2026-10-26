@@ -2,12 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 
 import 'package:zuno/core/network/app_http_overrides.dart';
 import 'package:zuno/core/push/unified_push/matrix_unified_push_gateway.dart';
 
 import '../../../helpers/caught_reports.dart';
+import '../../../helpers/fake_http.dart';
 
 void main() {
   final endpoint = Uri.parse('https://ntfy.example.org/up/abc123?token=xyz');
@@ -15,7 +15,7 @@ void main() {
   test(
     'discovers a built-in gateway when the endpoint host answers correctly',
     () async {
-      final mock = MockClient((request) async {
+      final mock = FakeHttpClient((request) async {
         expect(
           request.url.toString(),
           'https://ntfy.example.org/_matrix/push/v1/notify',
@@ -45,7 +45,7 @@ void main() {
     ('a request that throws', () async => throw Exception('network down')),
   ]) {
     test('falls back to the public gateway on $name', () async {
-      final mock = MockClient((request) => answer());
+      final mock = FakeHttpClient((request) => answer());
       final gateway = await resolveMatrixGatewayUrl(endpoint, httpClient: mock);
       expect(gateway, fallbackMatrixGatewayUrl);
     });
@@ -53,7 +53,7 @@ void main() {
 
   test('an http distributor uses the public gateway without reporting the '
       'refused discovery as a failure', () async {
-    final mock = MockClient(
+    final mock = FakeHttpClient(
       (request) async => throw CleartextRefusedException(request.url),
     );
     late Uri gateway;

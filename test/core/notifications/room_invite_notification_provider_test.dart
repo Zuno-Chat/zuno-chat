@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -37,7 +38,7 @@ void main() {
       type: type,
       stateKey: stateKey,
       senderId: senderId,
-      originServerTs: DateTime.now(),
+      originServerTs: clock.now(),
       content: {'membership': membership},
       room: room,
     );
@@ -61,7 +62,7 @@ void main() {
         type: EventTypes.RoomName,
         stateKey: '',
         senderId: '@alice:example.org',
-        originServerTs: DateTime.now(),
+        originServerTs: clock.now(),
         content: {'name': 'Weekend plans'},
         room: room,
       ),
@@ -102,7 +103,7 @@ void main() {
       type: EventTypes.RoomMember,
       stateKey: '@me:example.org',
       senderId: '@alice:example.org',
-      originServerTs: DateTime.now(),
+      originServerTs: clock.now(),
       content: {'membership': 'invite'},
       room: room,
     );
@@ -156,7 +157,7 @@ void main() {
       type: EventTypes.RoomMember,
       stateKey: '@me:example.org',
       senderId: '@alice:example.org',
-      originServerTs: DateTime.now(),
+      originServerTs: clock.now(),
       content: {'membership': 'invite'},
       room: room,
     );
@@ -234,7 +235,7 @@ void main() {
                       stateKey: '@me:example.org',
                       senderId: '@me:example.org',
                       eventId: r'$join',
-                      originServerTs: DateTime.now(),
+                      originServerTs: clock.now(),
                       content: {'membership': 'join'},
                     ),
                   ],

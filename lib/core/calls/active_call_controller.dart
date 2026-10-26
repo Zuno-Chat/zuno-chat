@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -466,7 +467,7 @@ class ActiveCallController extends ChangeNotifier {
         if (!participant.isLocal) participant,
     ];
     if (_remotes.isNotEmpty && _talkingSince == null) {
-      _talkingSince = DateTime.now();
+      _talkingSince = clock.now();
       _talkedLongEnoughTimer = Timer(_callConfirmPromptDelay, () {
         _talkedLongEnough = true;
         _notify();

@@ -4,15 +4,14 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/calls/matrixrtc/call_decline.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/notifications/call_decline_action.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/recording_incoming_call_presenter.dart';
@@ -54,7 +53,7 @@ void main() {
     final client = buildTestClient(
       userId: '@me:example.org',
       database: SendCapableFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         if (request.method == 'PUT' && request.url.path.contains('/send/')) {
           steps.add('send');
           sendPaths.add(request.url.path);

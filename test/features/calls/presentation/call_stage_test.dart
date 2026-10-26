@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -124,19 +125,16 @@ void main() {
   group('the advice after 8 seconds', () {
     testWidgets('counts from when encrypting began, not from when this '
         'widget appeared', (tester) async {
-      var now = DateTime(2026, 9, 20, 12, 0, 6);
       await pump(
         tester,
         VideoCallHeader(
           name: 'Ann',
           status: CallStatus.encrypting,
-          encryptingSince: DateTime(2026, 9, 20, 12),
-          now: () => now,
+          encryptingSince: clock.now().subtract(const Duration(seconds: 6)),
         ),
       );
       expect(find.text(_encryptingHint), findsNothing);
 
-      now = now.add(const Duration(seconds: 2));
       await tester.pump(const Duration(seconds: 2));
       expect(find.text(_encryptingHint), findsOneWidget);
     });
@@ -184,8 +182,9 @@ void main() {
         VideoCallHeader(
           name: 'Ann Lindqvist',
           status: CallStatus.talking,
-          talkingSince: DateTime(2026, 9, 20, 12),
-          now: () => DateTime(2026, 9, 20, 12, 2, 41),
+          talkingSince: clock.now().subtract(
+            const Duration(minutes: 2, seconds: 41),
+          ),
         ),
       );
 

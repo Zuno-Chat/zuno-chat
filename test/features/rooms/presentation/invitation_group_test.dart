@@ -3,18 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/rooms/presentation/invitation_group.dart';
 import 'package:zuno/features/rooms/presentation/room_invite_page.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/pump_until.dart';
 
 void main() {
   late Client client;
@@ -32,7 +30,7 @@ void main() {
     client = Client(
       'test',
       database: ForgettingFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request);
         await gate?.future;
         if (offline) {
@@ -104,10 +102,6 @@ void main() {
       ),
     );
     await tester.pump();
-  }
-
-  Future<void> network(WidgetTester tester) async {
-    await pumpRealAsync(tester, rounds: 4);
   }
 
   Iterable<String> calls() => requests.map((r) => r.url.pathSegments.last);
@@ -263,7 +257,7 @@ void main() {
     ]);
 
     await tester.tap(find.text('Join'));
-    await network(tester);
+    await tester.pump();
 
     expect(calls(), ['join']);
     expect(notifications.methods, contains('cancel'));
@@ -276,7 +270,7 @@ void main() {
     ]);
 
     await tester.tap(find.text('Decline'));
-    await network(tester);
+    await tester.pump();
 
     expect(calls(), ['leave', 'forget']);
     expect(notifications.methods, contains('cancel'));
@@ -303,7 +297,7 @@ void main() {
     );
 
     gate!.complete();
-    await network(tester);
+    await tester.pump();
 
     expect(
       tester
@@ -326,7 +320,7 @@ void main() {
       offline = true;
 
       await tester.tap(find.text(answer));
-      await network(tester);
+      await tester.pump();
 
       expect(
         find.text('$failed Check your connection and try again.'),

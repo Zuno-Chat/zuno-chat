@@ -5,9 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/device_safety.dart';
@@ -15,8 +13,8 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_splash.dart';
 import 'package:zuno/features/auth/presentation/signed_out_entry.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/pump_until.dart';
 
 void main() {
   final contacted = <Uri>[];
@@ -28,8 +26,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  MockClient server({Set<String> down = const {}}) =>
-      MockClient((request) async {
+  FakeHttpClient server({Set<String> down = const {}}) =>
+      FakeHttpClient((request) async {
         contacted.add(request.url);
         if (down.contains(request.url.host)) {
           throw http.ClientException('offline');
@@ -55,14 +53,6 @@ void main() {
         }
         return http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403);
       });
-
-  Future<void> settle(WidgetTester tester) async {
-    await pumpRealAsync(
-      tester,
-      rounds: 40,
-      step: const Duration(milliseconds: 50),
-    );
-  }
 
   Future<void> pumpEntry(
     WidgetTester tester, {
@@ -91,7 +81,7 @@ void main() {
         ),
       ),
     );
-    await settle(tester);
+    await tester.pumpAndSettle();
   }
 
   testWidgets('signs in to zuno.chat without asking for a server, and '
@@ -116,7 +106,7 @@ void main() {
 
     down.clear();
     await tester.tap(find.text('Try again'));
-    await settle(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('Username'), findsOneWidget);
   });
@@ -130,7 +120,6 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'example.org');
     await tester.tap(find.text('Continue'));
-    await settle(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('Username'), findsOneWidget);
@@ -151,7 +140,7 @@ void main() {
     await pumpEntry(tester, risks: {DeviceRisk.rooted});
 
     await tester.tap(find.text('Continue anyway'));
-    await settle(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('This device may not be safe'), findsNothing);
     expect(find.text('Username'), findsOneWidget);

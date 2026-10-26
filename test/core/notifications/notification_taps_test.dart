@@ -159,6 +159,7 @@ void main() {
         declines.add,
       );
       addTearDown(sub.cancel);
+      final lastSent = LocalNotifications.instance.onHeadlessDecline.first;
 
       backgroundHandler()(declineResponse('not json'));
       backgroundHandler()(declineResponse(jsonEncode({'roomId': 1})));
@@ -170,9 +171,10 @@ void main() {
           payload: ringPayload(),
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+      backgroundHandler()(declineResponse(ringPayload()));
+      await lastSent;
 
-      expect(declines, isEmpty);
+      expect([for (final decline in declines) decline.callId], ['call1']);
     });
   });
 

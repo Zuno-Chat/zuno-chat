@@ -7,9 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
-
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
@@ -25,6 +23,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
 import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
@@ -92,7 +91,7 @@ void main() {
       userId: '@me:example.org',
       deviceId: 'THISPHONE',
       database: SendCapableFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         declines.record(request);
         return http.Response(jsonEncode({'event_id': r'$evt'}), 200);
       }),
@@ -128,7 +127,6 @@ void main() {
   Future<void> deliverAndSettle(WidgetTester tester, Event event) async {
     client.onTimelineEvent.add(event);
     await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
   }
 
@@ -165,7 +163,6 @@ void main() {
 
   Future<void> declineOnRingScreen(WidgetTester tester) async {
     await tester.tap(find.widgetWithIcon(IconButton, Icons.call_end));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
   }
 

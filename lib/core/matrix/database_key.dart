@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'dart:math';
 
 import '../errors/best_effort.dart';
+import '../files/file_system.dart';
 import '../security/secret_store.dart';
 import 'database_raw_key.dart';
 
@@ -64,7 +64,7 @@ Future<void> discardDatabaseCipher({
 Future<void> _deleteDatabaseFiles(String path) async {
   try {
     for (final suffix in const ['', '-wal', '-shm', '-journal']) {
-      final file = File('$path$suffix');
+      final file = fileSystem.file('$path$suffix');
       if (await file.exists()) await file.delete();
     }
   } catch (e) {

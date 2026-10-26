@@ -1,12 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/ring_identity.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 class _ProfilesDatabaseApi extends FakeDatabaseApi {
@@ -39,7 +39,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: db,
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request.url.path);
         return http.Response('{}', 404);
       }),

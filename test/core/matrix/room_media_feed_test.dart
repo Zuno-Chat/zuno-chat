@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -115,7 +116,7 @@ void main() {
         eventId: r'$gone',
         type: EventTypes.Message,
         senderId: '@a:example.org',
-        originServerTs: DateTime.now(),
+        originServerTs: clock.now(),
         content: {},
         room: room,
         unsigned: {
@@ -345,7 +346,7 @@ void main() {
           eventId: r'$r',
           type: EventTypes.Redaction,
           senderId: '@a:example.org',
-          originServerTs: DateTime.now(),
+          originServerTs: clock.now(),
           content: {'redacts': r'$old'},
           room: room,
         ),

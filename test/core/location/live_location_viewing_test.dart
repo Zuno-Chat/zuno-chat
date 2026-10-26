@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -8,6 +9,7 @@ import 'package:zuno/core/location/live_location_viewing.dart';
 
 import '../../helpers/fake_device_keys.dart';
 import '../../helpers/fake_live_location.dart';
+import '../../helpers/test_clock.dart';
 
 class _ViewingClient extends LiveLocationTestClient {
   final keyQueries = <Set<String>>[];
@@ -34,12 +36,12 @@ void main() {
   late DateTime now;
   late bool offline;
   late LiveLocationViewing viewing;
+  final testClock = Clock(() => now);
 
-  LiveLocationViewing build() => LiveLocationViewing(
-    client: client,
-    isOffline: () => offline,
-    now: () => now,
-  );
+  final clockedTest = testsOnClock(() => now);
+
+  LiveLocationViewing build() =>
+      LiveLocationViewing(client: client, isOffline: () => offline);
 
   setUp(() {
     client = _ViewingClient();
@@ -63,7 +65,7 @@ void main() {
     setSelfSignedTestDevices(client, '@alex:x', ['PHONE']);
     setSelfSignedTestDevices(client, '@bea:x', ['TABLET']);
     setSelfSignedTestDevices(client, '@me:x', ['MINE', 'LAPTOP']);
-    viewing = build();
+    viewing = withClock(testClock, build);
   });
 
   tearDown(() => viewing.dispose());
@@ -130,7 +132,7 @@ void main() {
       client.toDevice.where((m) => m.type == liveLocationWatchType).toList();
 
   group('positions', () {
-    test('a trusted position for a live share shows', () async {
+    clockedTest('a trusted position for a live share shows', () async {
       share('@alex:x');
       final changed = viewing.changedRooms.first;
 
@@ -144,7 +146,7 @@ void main() {
       expect(view.fromThisDevice, false);
     });
 
-    test('ignores positions it cannot trust or place', () async {
+    clockedTest('ignores positions it cannot trust or place', () async {
       share('@alex:x');
       setSelfSignedTestDevices(client, '@alex:x', ['PHONE', 'WATCH']);
 
@@ -162,18 +164,21 @@ void main() {
       expect(viewing.sharesIn(room).single.position, isNull);
     });
 
-    test('a newer position replaces an older one, never the reverse', () async {
-      share('@alex:x');
-      final later = now.add(const Duration(seconds: 30));
-      const moved = GeoUri(latitude: 52.51, longitude: 13.4);
+    clockedTest(
+      'a newer position replaces an older one, never the reverse',
+      () async {
+        share('@alex:x');
+        final later = now.add(const Duration(seconds: 30));
+        const moved = GeoUri(latitude: 52.51, longitude: 13.4);
 
-      await deliver(position(geo: moved, at: later));
-      await deliver(position(at: now));
+        await deliver(position(geo: moved, at: later));
+        await deliver(position(at: now));
 
-      expect(viewing.sharesIn(room).single.position?.geo, moved);
-    });
+        expect(viewing.sharesIn(room).single.position?.geo, moved);
+      },
+    );
 
-    test(
+    clockedTest(
       'a position that beats its state is shown once the state lands',
       () async {
         await deliver(position());
@@ -187,7 +192,7 @@ void main() {
       },
     );
 
-    test('a held position is dropped after a minute', () async {
+    clockedTest('a held position is dropped after a minute', () async {
       await deliver(position());
 
       now = now.add(const Duration(seconds: 61));
@@ -224,7 +229,7 @@ void main() {
       room: room,
     );
 
-    test('is the sender\'s share with the same id', () {
+    clockedTest('is the sender\'s share with the same id', () {
       final alex = view('@alex:x', 'share1');
 
       expect(
@@ -233,14 +238,14 @@ void main() {
       );
     });
 
-    test('is none once the sender moved on to a newer share', () {
+    clockedTest('is none once the sender moved on to a newer share', () {
       expect(
         liveShareStartedBy([view('@alex:x', 'newer')], start('@alex:x')),
         isNull,
       );
     });
 
-    test('is none for a message that starts nothing', () {
+    clockedTest('is none for a message that starts nothing', () {
       final text = Event(
         type: EventTypes.Message,
         senderId: '@alex:x',
@@ -255,7 +260,7 @@ void main() {
   });
 
   group('status', () {
-    test(
+    clockedTest(
       'waits, goes live, then reads as not updating after 15 minutes',
       () async {
         share('@alex:x');
@@ -278,7 +283,7 @@ void main() {
       },
     );
 
-    test('a share is over at its end time', () async {
+    clockedTest('a share is over at its end time', () async {
       share('@alex:x', lasting: const Duration(minutes: 15));
 
       now = now.add(const Duration(minutes: 15));
@@ -286,7 +291,7 @@ void main() {
       expect(viewing.sharesIn(room), isEmpty);
     });
 
-    test(
+    clockedTest(
       'a share is over once its sender left, and its position goes',
       () async {
         share('@alex:x');
@@ -302,40 +307,43 @@ void main() {
       },
     );
 
-    test('a share is over once its device is gone', () async {
+    clockedTest('a share is over once its device is gone', () async {
       share('@alex:x');
       setSelfSignedTestDevices(client, '@alex:x', ['NEWPHONE']);
 
       expect(viewing.sharesIn(room), isEmpty);
     });
 
-    test('an unencrypted room shows no live shares', () {
+    clockedTest('an unencrypted room shows no live shares', () {
       share('@alex:x');
       room.isEncrypted = false;
 
       expect(viewing.sharesIn(room), isEmpty);
     });
 
-    test('a sharer whose membership is not loaded yet is not shown', () {
+    clockedTest('a sharer whose membership is not loaded yet is not shown', () {
       share('@alex:x');
       room.states[EventTypes.RoomMember]?.remove('@alex:x');
 
       expect(viewing.sharesIn(room), isEmpty);
     });
 
-    test('someone this account blocked is neither shown nor watched', () async {
-      share('@alex:x');
-      client.ignored.add('@alex:x');
-      await deliver(position());
+    clockedTest(
+      'someone this account blocked is neither shown nor watched',
+      () async {
+        share('@alex:x');
+        client.ignored.add('@alex:x');
+        await deliver(position());
 
-      expect(viewing.sharesIn(room), isEmpty);
-      final handle = viewing.watch('!family:x');
-      await pumpEventQueue();
-      expect(watches(), isEmpty);
-      handle.close();
-    });
+        expect(viewing.sharesIn(room), isEmpty);
+        final handle = viewing.watch('!family:x');
+        await pumpEventQueue();
+        expect(watches(), isEmpty);
+        handle.close();
+      },
+    );
 
-    test('malformed or out-of-range state never breaks the room', () {
+    clockedTest('malformed or out-of-range state never breaks the room', () {
       room.setState(
         Event(
           type: liveLocationStateType,
@@ -353,7 +361,7 @@ void main() {
       expect(() => viewing.watch('!family:x').close(), returnsNormally);
     });
 
-    test('a waiting share leaves at its end time without any sync', () {
+    clockedTest('a waiting share leaves at its end time without any sync', () {
       fakeAsync((async) {
         viewing.dispose();
         viewing = build();
@@ -362,7 +370,6 @@ void main() {
         final changed = <String>[];
         viewing.changedRooms.listen(changed.add);
 
-        now = now.add(const Duration(minutes: 15));
         async.elapse(const Duration(minutes: 15));
 
         expect(changed, contains('!family:x'));
@@ -370,28 +377,31 @@ void main() {
       });
     });
 
-    test('a device found gone after the key refresh ends its share', () async {
-      share('@alex:x');
-      await deliver(position());
-      final changed = <String>[];
-      final subscription = viewing.changedRooms.listen(changed.add);
+    clockedTest(
+      'a device found gone after the key refresh ends its share',
+      () async {
+        share('@alex:x');
+        await deliver(position());
+        final changed = <String>[];
+        final subscription = viewing.changedRooms.listen(changed.add);
 
-      client.onSync.add(
-        SyncUpdate(
-          nextBatch: 'n',
-          deviceLists: DeviceListsUpdate(changed: ['@alex:x']),
-        ),
-      );
-      setSelfSignedTestDevices(client, '@alex:x', ['NEWPHONE']);
-      client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
-      await pumpEventQueue();
+        client.onSync.add(
+          SyncUpdate(
+            nextBatch: 'n',
+            deviceLists: DeviceListsUpdate(changed: ['@alex:x']),
+          ),
+        );
+        setSelfSignedTestDevices(client, '@alex:x', ['NEWPHONE']);
+        client.onSyncStatus.add(SyncStatusUpdate(SyncStatus.finished));
+        await pumpEventQueue();
 
-      expect(changed, contains('!family:x'));
-      expect(viewing.sharesIn(room), isEmpty);
-      await subscription.cancel();
-    });
+        expect(changed, contains('!family:x'));
+        expect(viewing.sharesIn(room), isEmpty);
+        await subscription.cancel();
+      },
+    );
 
-    test('a cleared share is over and its position goes', () async {
+    clockedTest('a cleared share is over and its position goes', () async {
       share('@alex:x');
       await deliver(position());
 
@@ -413,7 +423,7 @@ void main() {
       expect(viewing.sharesIn(room).single.position, isNull);
     });
 
-    test('this device\'s own share is marked as such', () {
+    clockedTest('this device\'s own share is marked as such', () {
       share('@me:x', deviceId: 'MINE');
       share('@alex:x');
 
@@ -429,7 +439,7 @@ void main() {
   group('refreshing once watching begins', () {
     LiveShareView alex() => viewing.sharesIn(room).single;
 
-    test('a stale share reads as updating', () async {
+    clockedTest('a stale share reads as updating', () async {
       share('@alex:x');
       await deliver(position(at: now.subtract(const Duration(minutes: 4))));
       expect(alex().refreshingAt(now), isFalse);
@@ -441,7 +451,7 @@ void main() {
       handle.close();
     });
 
-    test('a fresh share does not', () async {
+    clockedTest('a fresh share does not', () async {
       share('@alex:x');
       await deliver(position(at: now.subtract(const Duration(seconds: 20))));
 
@@ -452,7 +462,7 @@ void main() {
       handle.close();
     });
 
-    test(
+    clockedTest(
       'a stale fix arriving after watching began reads as updating too',
       () async {
         share('@alex:x');
@@ -466,7 +476,7 @@ void main() {
       },
     );
 
-    test(
+    clockedTest(
       'the first fresh fix ends it, a resend of the stale one does not',
       () async {
         share('@alex:x');
@@ -484,7 +494,7 @@ void main() {
       },
     );
 
-    test('gives up after two minutes without a fresh fix', () async {
+    clockedTest('gives up after two minutes without a fresh fix', () async {
       share('@alex:x');
       await deliver(position(at: now.subtract(const Duration(minutes: 4))));
       final handle = viewing.watch('!family:x');
@@ -498,19 +508,22 @@ void main() {
       handle.close();
     });
 
-    test('once updated, a watched share ageing again does not', () async {
-      share('@alex:x');
-      final handle = viewing.watch('!family:x');
-      await pumpEventQueue();
-      await deliver(position());
+    clockedTest(
+      'once updated, a watched share ageing again does not',
+      () async {
+        share('@alex:x');
+        final handle = viewing.watch('!family:x');
+        await pumpEventQueue();
+        await deliver(position());
 
-      now = now.add(const Duration(minutes: 1, seconds: 30));
+        now = now.add(const Duration(minutes: 1, seconds: 30));
 
-      expect(alex().refreshingAt(now), isFalse);
-      handle.close();
-    });
+        expect(alex().refreshingAt(now), isFalse);
+        handle.close();
+      },
+    );
 
-    test('ends with the watch', () async {
+    clockedTest('ends with the watch', () async {
       share('@alex:x');
       await deliver(position(at: now.subtract(const Duration(minutes: 4))));
       final handle = viewing.watch('!family:x');
@@ -521,7 +534,7 @@ void main() {
       expect(alex().refreshingAt(now), isFalse);
     });
 
-    test('a watch that fails to send leaves nothing updating', () async {
+    clockedTest('a watch that fails to send leaves nothing updating', () async {
       share('@carl:x', deviceId: 'DESK');
 
       final handle = viewing.watch('!family:x');
@@ -531,32 +544,38 @@ void main() {
       handle.close();
     });
 
-    test('nothing reads as updating while the watch cannot go out', () async {
-      share('@alex:x');
-      await deliver(position(at: now.subtract(const Duration(minutes: 4))));
-      offline = true;
+    clockedTest(
+      'nothing reads as updating while the watch cannot go out',
+      () async {
+        share('@alex:x');
+        await deliver(position(at: now.subtract(const Duration(minutes: 4))));
+        offline = true;
 
-      final handle = viewing.watch('!family:x');
-      await pumpEventQueue();
+        final handle = viewing.watch('!family:x');
+        await pumpEventQueue();
 
-      expect(alex().refreshingAt(now), isFalse);
-      handle.close();
-    });
+        expect(alex().refreshingAt(now), isFalse);
+        handle.close();
+      },
+    );
 
-    test('nothing reads as updating when the watch reached no one', () async {
-      share('@alex:x');
-      await deliver(position(at: now.subtract(const Duration(minutes: 4))));
-      client.noOlmSession.add('PHONE');
+    clockedTest(
+      'nothing reads as updating when the watch reached no one',
+      () async {
+        share('@alex:x');
+        await deliver(position(at: now.subtract(const Duration(minutes: 4))));
+        client.noOlmSession.add('PHONE');
 
-      final handle = viewing.watch('!family:x');
-      await pumpEventQueue();
+        final handle = viewing.watch('!family:x');
+        await pumpEventQueue();
 
-      expect(watches(), hasLength(1));
-      expect(alex().refreshingAt(now), isFalse);
-      handle.close();
-    });
+        expect(watches(), hasLength(1));
+        expect(alex().refreshingAt(now), isFalse);
+        handle.close();
+      },
+    );
 
-    test('a watch that reached no one is tried again on renewal', () {
+    clockedTest('a watch that reached no one is tried again on renewal', () {
       fakeAsync((async) {
         viewing.dispose();
         viewing = build();
@@ -577,35 +596,38 @@ void main() {
   });
 
   group('watching', () {
-    test('signals the sharing device on open, renews, and ends on close', () {
-      fakeAsync((async) {
-        viewing.dispose();
-        viewing = build();
-        share('@alex:x');
-        share('@me:x', deviceId: 'MINE');
+    clockedTest(
+      'signals the sharing device on open, renews, and ends on close',
+      () {
+        fakeAsync((async) {
+          viewing.dispose();
+          viewing = build();
+          share('@alex:x');
+          share('@me:x', deviceId: 'MINE');
 
-        final handle = viewing.watch('!family:x');
-        async.flushMicrotasks();
-        expect(watches().single.devices, ['@alex:x/PHONE']);
-        expect(parseLiveWatch(watches().single.content), (
-          roomId: '!family:x',
-          shareId: 'share1',
-          active: true,
-        ));
+          final handle = viewing.watch('!family:x');
+          async.flushMicrotasks();
+          expect(watches().single.devices, ['@alex:x/PHONE']);
+          expect(parseLiveWatch(watches().single.content), (
+            roomId: '!family:x',
+            shareId: 'share1',
+            active: true,
+          ));
 
-        async.elapse(const Duration(seconds: 60));
-        expect(watches(), hasLength(2));
+          async.elapse(const Duration(seconds: 60));
+          expect(watches(), hasLength(2));
 
-        handle.close();
-        async.flushMicrotasks();
-        expect(parseLiveWatch(watches().last.content)?.active, false);
+          handle.close();
+          async.flushMicrotasks();
+          expect(parseLiveWatch(watches().last.content)?.active, false);
 
-        async.elapse(const Duration(minutes: 5));
-        expect(watches(), hasLength(3));
-      });
-    });
+          async.elapse(const Duration(minutes: 5));
+          expect(watches(), hasLength(3));
+        });
+      },
+    );
 
-    test('two handles on a room share one watch', () async {
+    clockedTest('two handles on a room share one watch', () async {
       share('@alex:x');
 
       final first = viewing.watch('!family:x');
@@ -620,7 +642,7 @@ void main() {
       expect(parseLiveWatch(watches().last.content)?.active, false);
     });
 
-    test('covers a share that appears while watching', () async {
+    clockedTest('covers a share that appears while watching', () async {
       final handle = viewing.watch('!family:x');
       await pumpEventQueue();
       expect(watches(), isEmpty);
@@ -633,7 +655,7 @@ void main() {
       handle.close();
     });
 
-    test('sends nothing offline and signals once back', () async {
+    clockedTest('sends nothing offline and signals once back', () async {
       share('@alex:x');
       offline = true;
 
@@ -648,7 +670,7 @@ void main() {
       handle.close();
     });
 
-    test(
+    clockedTest(
       'fetches the sharing device\'s keys when they are not known yet',
       () async {
         share('@carl:x', deviceId: 'DESK');

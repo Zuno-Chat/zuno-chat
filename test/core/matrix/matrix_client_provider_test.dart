@@ -686,12 +686,6 @@ void main() {
         await obtainDatabaseCipher();
       });
 
-      Future<void> until(bool Function() done) async {
-        for (var i = 0; i < 600 && !done(); i++) {
-          await Future<void>.delayed(const Duration(milliseconds: 10));
-        }
-      }
-
       test('a cold start opens with the cached key when it fits the '
           'file', () async {
         secrets['matrix_database_raw_key'] = '$saltHex:$rawKey';
@@ -706,7 +700,7 @@ void main() {
         final passphrase = secrets['matrix_database_cipher'];
 
         await create();
-        await until(() => secrets.containsKey('matrix_database_raw_key'));
+        await pumpEventQueue();
 
         expect(opened.first['password'], passphrase);
         expect(
@@ -722,7 +716,7 @@ void main() {
           pause: noPause,
         );
         addTearDown(started.dispose);
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await pumpEventQueue();
 
         expect(
           secretReads.where((key) => key == 'matrix_database_raw_key'),

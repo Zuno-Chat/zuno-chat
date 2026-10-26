@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:isolate';
 import 'dart:ui' show IsolateNameServer;
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:matrix/matrix.dart' show Client;
@@ -146,9 +147,6 @@ class LocalNotifications {
 
   PlatformCapabilities get _capabilities =>
       _injectedCapabilities ?? ambientCapabilities;
-
-  @visibleForTesting
-  DateTime Function() now = DateTime.now;
 
   final plugin = FlutterLocalNotificationsPlugin();
   bool _ready = false;
@@ -465,7 +463,7 @@ class LocalNotifications {
   bool _senderGaveUp(LiveRouteMessage? route) {
     final sentAt = route?.body['sentAt'];
     if (sentAt is! int) return false;
-    final age = now().millisecondsSinceEpoch - sentAt;
+    final age = clock.now().millisecondsSinceEpoch - sentAt;
     return age > liveRouteDoneWithin.inMilliseconds;
   }
 

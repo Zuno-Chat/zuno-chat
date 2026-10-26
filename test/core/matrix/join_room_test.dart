@@ -2,11 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/join_room.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -17,7 +16,7 @@ void main() {
     requests = [];
     client = buildTestClient(
       userId: '@me:example.org',
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request);
         if (request.url.path.contains('/join/')) {
           return http.Response(
@@ -81,7 +80,7 @@ void main() {
   test('a refused join throws and waits for nothing', () async {
     client = buildTestClient(
       userId: '@me:example.org',
-      httpClient: MockClient(
+      httpClient: FakeHttpClient(
         (_) async => http.Response(
           jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'no'}),
           403,

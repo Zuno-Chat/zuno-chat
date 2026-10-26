@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:light_compressor/light_compressor.dart';
 
 import '../errors/caught_errors.dart';
+import '../files/unique_name.dart';
 import 'media_processing_exception.dart';
 import 'media_quality.dart';
 
@@ -40,7 +41,7 @@ Future<String> reencodeVideo(
       ios: IOSConfig(saveInGallery: false),
       isMinBitrateCheckEnabled: false,
       video: Video(
-        videoName: 'video_${DateTime.now().microsecondsSinceEpoch}',
+        videoName: 'video_${uniqueName()}',
         videoBitrateInMbps: bitrateMbps,
         videoWidth: target?.width,
         videoHeight: target?.height,

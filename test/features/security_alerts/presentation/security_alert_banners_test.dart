@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -157,7 +158,7 @@ void main() {
     });
 
     testWidgets('a sign-in shows where and when it was seen', (tester) async {
-      final seenAt = DateTime.now();
+      final seenAt = clock.now();
       await pump(
         tester,
         const SecurityAlertBanners.account(),

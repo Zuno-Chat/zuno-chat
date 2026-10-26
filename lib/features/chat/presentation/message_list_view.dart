@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
@@ -106,7 +107,7 @@ class _MessageListViewState extends State<MessageListView> {
     final positions = {
       for (var i = 0; i < messages.length; i++) messages[i].eventId: i,
     };
-    final now = DateTime.now();
+    final now = clock.now();
     final labels = DateLabels.of(context);
     final hasEndRow = loadingMore || exhausted;
     final leading = 1 + singles.length + (orphaned.isEmpty ? 0 : 1);

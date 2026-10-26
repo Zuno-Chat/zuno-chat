@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:ui';
 
+import 'package:clock/clock.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,6 +12,7 @@ import 'package:zuno/core/notifications/actions/message_notification_action.dart
 import 'package:zuno/core/notifications/local_notifications.dart';
 
 import '../../helpers/fake_local_notifications.dart';
+import '../../helpers/hybrid_fake_async.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -178,10 +181,13 @@ void main() {
       );
       expect(await handed, isFalse);
 
-      main.now = () =>
-          DateTime.now().add(liveRouteDoneWithin + const Duration(seconds: 1));
       final taken = <HeadlessCallDecline>[];
-      final sub = main.onHeadlessDecline.listen(taken.add);
+      final sub = withClock(
+        Clock.fixed(
+          clock.now().add(liveRouteDoneWithin + const Duration(seconds: 1)),
+        ),
+        () => main.onHeadlessDecline.listen(taken.add),
+      );
       addTearDown(sub.cancel);
       await pumpEventQueue();
 
@@ -200,9 +206,12 @@ void main() {
       );
       await pumpEventQueue();
 
-      main.now = () =>
-          DateTime.now().add(liveRouteDoneWithin - const Duration(seconds: 1));
-      final kept = await main.onHeadlessDecline.first;
+      final kept = await withClock(
+        Clock.fixed(
+          clock.now().add(liveRouteDoneWithin - const Duration(seconds: 1)),
+        ),
+        () => main.onHeadlessDecline.first,
+      );
 
       expect(kept.callId, 'call1');
     });
@@ -219,11 +228,18 @@ void main() {
     test('a route whose isolate is gone costs only a short probe, not the '
         'wait for an answer', () async {
       strangerTakes(declinePortName);
-      final clock = Stopwatch()..start();
+      final time = FakeAsync();
+      bool? handedOff;
 
-      expect(await handOffToLiveIsolate(declinePortName, decline), isFalse);
+      time.run((_) {
+        handOffToLiveIsolate(
+          declinePortName,
+          decline,
+        ).then((value) => handedOff = value);
+      });
+      await time.advance(liveRouteProbeWithin);
 
-      expect(clock.elapsed, lessThan(liveRouteAcceptWithin));
+      expect(handedOff, isFalse);
     });
 
     test('a live route answers the probe, a gone one does not', () async {
@@ -271,7 +287,8 @@ void main() {
       IsolateNameServer.lookupPortByName(declinePortName)!.send({
         ...decline,
         'replyTo': replies.sendPort,
-        'sentAt': DateTime.now()
+        'sentAt': clock
+            .now()
             .subtract(const Duration(seconds: 10))
             .millisecondsSinceEpoch,
       });
@@ -305,18 +322,28 @@ void main() {
         busyMain.sendPort,
         messageActionPortName,
       );
-      busyMain.listen((message) async {
-        if (message is Map && message['ping'] is SendPort) {
-          await Future<void>.delayed(const Duration(milliseconds: 1200));
-          answerPing(message);
-          return;
-        }
-        LiveRouteMessage.from(message)!
-          ..accept()
-          ..finish();
+      final time = FakeAsync();
+      bool? handedOff;
+      time.run((_) {
+        busyMain.listen((message) async {
+          if (message is Map && message['ping'] is SendPort) {
+            await Future<void>.delayed(const Duration(milliseconds: 1200));
+            answerPing(message);
+            return;
+          }
+          LiveRouteMessage.from(message)!
+            ..accept()
+            ..finish();
+        });
+        handOffToLiveIsolate(
+          messageActionPortName,
+          {},
+        ).then((value) => handedOff = value);
       });
 
-      expect(await handOffToLiveIsolate(messageActionPortName, {}), isTrue);
+      await time.advance(liveRouteProbeWithin);
+
+      expect(handedOff, isTrue);
     });
 
     test('the app takes an action and the hand-off lasts until it is '
@@ -365,10 +392,13 @@ void main() {
         isFalse,
       );
 
-      main.now = () =>
-          DateTime.now().add(liveRouteDoneWithin + const Duration(seconds: 1));
       final taken = <HandedMessageAction>[];
-      final sub = main.onMessageAction.listen(taken.add);
+      final sub = withClock(
+        Clock.fixed(
+          clock.now().add(liveRouteDoneWithin + const Duration(seconds: 1)),
+        ),
+        () => main.onMessageAction.listen(taken.add),
+      );
       addTearDown(sub.cancel);
       await pumpEventQueue();
 

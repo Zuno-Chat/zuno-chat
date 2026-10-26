@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,12 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/local_notifications.dart';
 import 'package:zuno/core/notifications/messages/message_notification_content.dart';
 import 'package:zuno/core/notifications/messages/message_notifications.dart';
-import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
+import '../../../helpers/test_clock.dart';
 
 void main() {
   group('silencedMessageChannels', () {
@@ -52,58 +53,57 @@ void main() {
   });
 
   group('showMessage sound channel', () {
-    var fakeNow = DateTime(2031);
+    final clockedTest = testsOnClock(() => DateTime(2031));
 
-    setUp(() {
-      fakeNow = fakeNow.add(const Duration(days: 1));
-      NotificationSoundPlayer.instance.now = () => fakeNow;
-    });
+    clockedTest(
+      'posts an alerting notification on the messages channel when the '
+      'message tone setting is on',
+      () async {
+        SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
+        final notifications = installFakeLocalNotifications();
+        installSilentNotificationSideChannels();
 
-    tearDown(() => NotificationSoundPlayer.instance.now = DateTime.now);
+        await MessageNotifications.instance.showMessage(
+          const MessageNotificationContent(
+            roomId: '!room:example.org',
+            title: 'Alice',
+            body: 'hi',
+          ),
+          preview: NotificationPreview.full,
+        );
 
-    test('posts an alerting notification on the messages channel when the '
-        'message tone setting is on', () async {
-      SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
-      final notifications = installFakeLocalNotifications();
-      installSilentNotificationSideChannels();
+        final specifics = notifications.lastPlatformSpecifics;
+        expect(specifics['channelId'], messagesChannelId);
+        expect(specifics['channelName'], 'Chat messages');
+        expect(specifics['silent'], isFalse);
+        expect(specifics['onlyAlertOnce'], isFalse);
+      },
+    );
 
-      await MessageNotifications.instance.showMessage(
-        const MessageNotificationContent(
-          roomId: '!room:example.org',
-          title: 'Alice',
-          body: 'hi',
-        ),
-        preview: NotificationPreview.full,
-      );
+    clockedTest(
+      'posts a silent notification on the same channel when the message '
+      'tone setting is off',
+      () async {
+        SharedPreferences.setMockInitialValues({messageToneEnabledKey: false});
+        final notifications = installFakeLocalNotifications();
+        installSilentNotificationSideChannels();
 
-      final specifics = notifications.lastPlatformSpecifics;
-      expect(specifics['channelId'], messagesChannelId);
-      expect(specifics['channelName'], 'Chat messages');
-      expect(specifics['silent'], isFalse);
-      expect(specifics['onlyAlertOnce'], isFalse);
-    });
+        await MessageNotifications.instance.showMessage(
+          const MessageNotificationContent(
+            roomId: '!room:example.org',
+            title: 'Alice',
+            body: 'hi',
+          ),
+          preview: NotificationPreview.full,
+        );
 
-    test('posts a silent notification on the same channel when the message '
-        'tone setting is off', () async {
-      SharedPreferences.setMockInitialValues({messageToneEnabledKey: false});
-      final notifications = installFakeLocalNotifications();
-      installSilentNotificationSideChannels();
+        final specifics = notifications.lastPlatformSpecifics;
+        expect(specifics['channelId'], messagesChannelId);
+        expect(specifics['silent'], isTrue);
+      },
+    );
 
-      await MessageNotifications.instance.showMessage(
-        const MessageNotificationContent(
-          roomId: '!room:example.org',
-          title: 'Alice',
-          body: 'hi',
-        ),
-        preview: NotificationPreview.full,
-      );
-
-      final specifics = notifications.lastPlatformSpecifics;
-      expect(specifics['channelId'], messagesChannelId);
-      expect(specifics['silent'], isTrue);
-    });
-
-    test(
+    clockedTest(
       'posts a group message on the group channel, not the direct one',
       () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
@@ -127,7 +127,7 @@ void main() {
       },
     );
 
-    test('a second message in the same room within the rate limit is an '
+    clockedTest('a second message in the same room within the rate limit is an '
         'only-alert-once update, not a silent one, so Android mutes it '
         'instead of cutting off the tone still playing', () async {
       SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
@@ -169,8 +169,6 @@ void main() {
       });
       final notifications = installFakeLocalNotifications();
       installSilentNotificationSideChannels();
-      NotificationSoundPlayer.instance.now = () => DateTime(2031, 3);
-      addTearDown(() => NotificationSoundPlayer.instance.now = DateTime.now);
       const vibration = MethodChannel('zuno/vibration');
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -180,13 +178,16 @@ void main() {
       });
       addTearDown(() => messenger.setMockMethodCallHandler(vibration, null));
 
-      await MessageNotifications.instance.showMessage(
-        const MessageNotificationContent(
-          roomId: '!room:example.org',
-          title: 'Alice',
-          body: 'hi',
+      await withClock(
+        Clock.fixed(DateTime(2031, 3)),
+        () => MessageNotifications.instance.showMessage(
+          const MessageNotificationContent(
+            roomId: '!room:example.org',
+            title: 'Alice',
+            body: 'hi',
+          ),
+          preview: NotificationPreview.full,
         ),
-        preview: NotificationPreview.full,
       );
 
       expect(notifications.methods, containsAllInOrder(['show', 'vibrate']));
@@ -196,16 +197,14 @@ void main() {
   group('showMessage dedupe', () {
     var fakeNow = DateTime(2031, 6);
     late RecordedNotifications notifications;
+    final clockedTest = testsOnClock(() => fakeNow);
 
     setUp(() {
-      fakeNow = fakeNow.add(const Duration(days: 1));
-      NotificationSoundPlayer.instance.now = () => fakeNow;
+      fakeNow = DateTime(2031, 6);
       SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
       notifications = installFakeLocalNotifications();
       installSilentNotificationSideChannels();
     });
-
-    tearDown(() => NotificationSoundPlayer.instance.now = DateTime.now);
 
     Future<void> post({String roomId = '!room:example.org', String? eventId}) =>
         MessageNotifications.instance.showMessage(
@@ -218,7 +217,7 @@ void main() {
           preview: NotificationPreview.full,
         );
 
-    test('skips an event it already notified, so a sync catch-up cannot '
+    clockedTest('skips an event it already notified, so a sync catch-up cannot '
         're-alert what a push already showed', () async {
       await post(eventId: r'$e1');
       await post(eventId: r'$e1');
@@ -226,7 +225,7 @@ void main() {
       expect(notifications.shown, hasLength(1));
     });
 
-    test('skips an event another isolate already notified', () async {
+    clockedTest('skips an event another isolate already notified', () async {
       await markEventNotifiedOnDisk(
         await SharedPreferences.getInstance(),
         r'$pushed',
@@ -237,21 +236,21 @@ void main() {
       expect(notifications.shown, isEmpty);
     });
 
-    test('a different event in the same room still posts', () async {
+    clockedTest('a different event in the same room still posts', () async {
       await post(eventId: r'$e1');
       await post(eventId: r'$e2');
 
       expect(notifications.shown, hasLength(2));
     });
 
-    test('a post without an eventId is never deduped', () async {
+    clockedTest('a post without an eventId is never deduped', () async {
       await post();
       await post();
 
       expect(notifications.shown, hasLength(2));
     });
 
-    test('a skipped post does not take the tone slot, so the next room '
+    clockedTest('a skipped post does not take the tone slot, so the next room '
         'still alerts', () async {
       await post(eventId: r'$e1');
       fakeNow = fakeNow.add(const Duration(seconds: 3));

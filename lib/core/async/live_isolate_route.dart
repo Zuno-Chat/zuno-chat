@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:ui' show IsolateNameServer;
 
+import 'package:clock/clock.dart';
+
 const liveRouteProbeWithin = _staleAfter;
 const liveRouteAcceptWithin = Duration(seconds: 4);
 const liveRouteDoneWithin = Duration(seconds: 25);
@@ -51,7 +53,7 @@ Future<bool> handOffToLiveIsolate(
     port.send({
       ...message,
       'replyTo': replies.sendPort,
-      'sentAt': DateTime.now().millisecondsSinceEpoch,
+      'sentAt': clock.now().millisecondsSinceEpoch,
     });
     if (!await _nextAnswer(answers, acceptWithin)) return false;
     if (answers.current != _accepted) return false;
@@ -86,7 +88,7 @@ class LiveRouteMessage {
   bool get stale {
     final sentAt = _sentAt;
     if (sentAt == null) return false;
-    final age = DateTime.now().millisecondsSinceEpoch - sentAt;
+    final age = clock.now().millisecondsSinceEpoch - sentAt;
     return age > _staleAfter.inMilliseconds;
   }
 

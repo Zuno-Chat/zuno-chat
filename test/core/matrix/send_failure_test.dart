@@ -1,13 +1,13 @@
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/send_failure.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 class _PlaceholderDatabase extends FakeDatabaseApi {
@@ -34,7 +34,7 @@ void main() {
     eventId: 'txid-1',
     type: EventTypes.Message,
     senderId: '@me:example.org',
-    originServerTs: DateTime.now(),
+    originServerTs: clock.now(),
     content: const {'msgtype': 'm.video', 'body': 'video.mp4'},
     status: status,
     room: room,
@@ -75,7 +75,7 @@ void main() {
       final client = buildTestClient(
         userId: '@me:example.org',
         database: db,
-        httpClient: MockClient(
+        httpClient: FakeHttpClient(
           (_) async => http.Response(
             jsonEncode({'errcode': 'M_NOT_FOUND', 'error': 'gone'}),
             404,
@@ -91,7 +91,7 @@ void main() {
       eventId: 'txid-1',
       type: EventTypes.Message,
       senderId: '@me:example.org',
-      originServerTs: DateTime.now(),
+      originServerTs: clock.now(),
       content: const {'msgtype': 'm.video', 'body': 'video.mp4'},
       status: status,
       room: placeholderRoom,

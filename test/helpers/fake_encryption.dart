@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/encryption/utils/ssss_cache.dart';
 import 'package:matrix/matrix.dart';
 
+import 'fake_http.dart';
 import 'fake_matrix.dart';
 
 class EncryptionDatabase extends FakeDatabaseApi {
@@ -111,7 +111,7 @@ class DecryptingTestClient extends Client {
     : super(
         'test',
         database: TimelineCapableFakeDatabaseApi(),
-        httpClient: MockClient((_) async => http.Response('{}', 200)),
+        httpClient: FakeHttpClient((_) async => http.Response('{}', 200)),
       );
 
   final FakeRoomDecryption decryption;

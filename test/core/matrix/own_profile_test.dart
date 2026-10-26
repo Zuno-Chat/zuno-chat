@@ -1,10 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/own_profile.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -15,7 +14,7 @@ void main() {
     requests = 0;
     client = buildTestClient(
       userId: '@alex:example.org',
-      httpClient: MockClient((_) async {
+      httpClient: FakeHttpClient((_) async {
         requests++;
         return http.Response('{}', 200);
       }),

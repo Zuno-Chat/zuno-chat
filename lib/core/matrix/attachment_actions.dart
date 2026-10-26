@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:gal/gal.dart';
@@ -11,6 +10,7 @@ import 'package:share_plus/share_plus.dart' show XFile;
 import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
 import '../files/file_export.dart';
+import '../files/file_system.dart';
 import '../l10n/l10n.dart';
 import '../platform/platform_capabilities.dart';
 import '../share/outbound_share.dart';
@@ -84,7 +84,7 @@ Future<T> _fromHandedOverCopy<T>(
   } finally {
     unawaited(
       runBestEffort(
-        () => Directory(p.dirname(path)).delete(recursive: true),
+        () => fileSystem.directory(p.dirname(path)).delete(recursive: true),
         label: 'delete a saved copy',
       ),
     );

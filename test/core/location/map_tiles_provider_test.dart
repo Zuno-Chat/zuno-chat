@@ -7,9 +7,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/location/map_tile_cache.dart';
 import 'package:zuno/core/location/map_tiles.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
@@ -17,12 +15,13 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/network/app_http_overrides.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 const _template = 'https://tiles.example.org/{z}/{x}/{y}.png';
 const _credit = '© OpenStreetMap contributors';
 
-class _TileServerClient extends MockClient {
+class _TileServerClient extends FakeHttpClient {
   _TileServerClient(super.fn);
 
   bool closed = false;
@@ -59,7 +58,7 @@ void main() {
     logins = StreamController<bool>.broadcast();
     client = buildTestClient(
       userId: '@a:example.org',
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         wellKnownFetches++;
         return http.Response(
           jsonEncode({
@@ -202,7 +201,7 @@ void main() {
     test('sends its user agent with every tile request', () {
       final tiles = MapTiles(
         source: source,
-        httpClient: MockClient((_) async => _image()),
+        httpClient: FakeHttpClient((_) async => _image()),
         userAgent: 'Zuno/1.2.3',
       );
 
@@ -212,7 +211,7 @@ void main() {
     test('without a user agent leaves the header to the platform', () {
       final tiles = MapTiles(
         source: source,
-        httpClient: MockClient((_) async => _image()),
+        httpClient: FakeHttpClient((_) async => _image()),
       );
 
       expect(tiles.tileProvider.headers, isNot(contains('User-Agent')));
@@ -221,7 +220,7 @@ void main() {
     test('live maps keep tiles in memory only, with the same user agent', () {
       final tiles = MapTiles(
         source: source,
-        httpClient: MockClient((_) async => _image()),
+        httpClient: FakeHttpClient((_) async => _image()),
         userAgent: 'Zuno/1.2.3',
       );
 
@@ -233,7 +232,7 @@ void main() {
     test('caches tiles in the shared tile cache unless given one', () {
       final tiles = MapTiles(
         source: source,
-        httpClient: MockClient((_) async => _image()),
+        httpClient: FakeHttpClient((_) async => _image()),
       );
 
       expect(

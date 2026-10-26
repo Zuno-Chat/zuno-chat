@@ -7,9 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -18,6 +16,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/preferences_container.dart';
 import '../../../helpers/room_opening_channels.dart';
@@ -112,7 +111,7 @@ class RoomPageHarness {
 
     final httpClient = UploadHttpClient(
       _AbortHonoringClient(
-        MockClient((request) async {
+        FakeHttpClient((request) async {
           requests.add(request.url.path);
           httpRequests.add(request);
           final custom = await respond?.call(request);
@@ -216,7 +215,6 @@ class RoomPageHarness {
   Future<void> settle(WidgetTester tester) async {
     for (var i = 0; i < 3; i++) {
       await tester.pump();
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     }
     await tester.pump(const Duration(seconds: 1));
   }
@@ -224,9 +222,6 @@ class RoomPageHarness {
   Future<void> drive(WidgetTester tester, {int turns = 12}) async {
     for (var i = 0; i < turns; i++) {
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 20)),
-      );
     }
   }
 

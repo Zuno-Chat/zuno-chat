@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart'
     show debugPrint, kDebugMode, visibleForTesting;
 import 'package:flutter/services.dart' show MethodChannel;
@@ -22,10 +23,14 @@ class NotificationSoundPlayer {
   DateTime? _lastMessageToneAt;
   String? _lastMessageToneRoomId;
 
-  DateTime Function() now = DateTime.now;
+  @visibleForTesting
+  void forgetForTest() {
+    _lastMessageToneAt = null;
+    _lastMessageToneRoomId = null;
+  }
 
   void recordNoticeAlert(String roomId) {
-    _lastMessageToneAt = now();
+    _lastMessageToneAt = clock.now();
     _lastMessageToneRoomId = roomId;
   }
 
@@ -44,7 +49,7 @@ class NotificationSoundPlayer {
       roomId: roomId,
       lastToneRoomId: _lastMessageToneRoomId,
       lastToneAt: _lastMessageToneAt,
-      now: now(),
+      now: clock.now(),
     );
     if (alert != MessageAlert.tone) {
       if (kDebugMode) {
@@ -55,7 +60,7 @@ class NotificationSoundPlayer {
         vibrate: false,
       );
     }
-    _lastMessageToneAt = now();
+    _lastMessageToneAt = clock.now();
     _lastMessageToneRoomId = roomId;
     return (
       alert: settings.messageTone ? MessageAlert.tone : MessageAlert.silent,

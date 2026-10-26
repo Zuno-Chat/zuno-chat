@@ -3,10 +3,11 @@ import 'dart:io';
 
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
+import '../files/file_system.dart';
+import '../files/unique_name.dart';
 import 'image_send_preparation.dart' show blurhashInBackground, matrixImageFile;
 import 'media_quality.dart';
 import 'native_image_resizer.dart';
@@ -80,7 +81,7 @@ Future<PreparedVideo> prepareVideoForSend(
     audioCodec: probe?.audioCodec,
     reduceMediaSize: reduceMediaSize,
   );
-  final dir = workDir ?? await getTemporaryDirectory();
+  final dir = workDir ?? await temporaryDirectory();
   String? output;
   var outWidth = width;
   var outHeight = height;
@@ -101,10 +102,7 @@ Future<PreparedVideo> prepareVideoForSend(
 
     switch (plan) {
       case RemuxVideo():
-        final remuxed = p.join(
-          dir.path,
-          'video_send_${DateTime.now().microsecondsSinceEpoch}.mp4',
-        );
+        final remuxed = p.join(dir.path, 'video_send_${uniqueName()}.mp4');
         if (await native.remux(path, remuxed)) {
           output = remuxed;
         } else {
@@ -120,7 +118,7 @@ Future<PreparedVideo> prepareVideoForSend(
       case ReencodeVideo():
         await reencodeInto(plan);
     }
-    final bytes = await File(output!).readAsBytes();
+    final bytes = await fileSystem.file(output!).readAsBytes();
     final thumb = await thumbnail;
     onProgress?.call(1);
     return PreparedVideo(
@@ -144,7 +142,7 @@ Future<PreparedVideo> prepareVideoForSend(
     if (produced != null) {
       unawaited(
         runBestEffort(
-          () => File(produced).delete(),
+          () => fileSystem.file(produced).delete(),
           label: 'delete a prepared video',
         ),
       );

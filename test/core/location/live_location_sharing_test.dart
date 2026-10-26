@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -18,6 +19,7 @@ import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_device_keys.dart';
 import '../../helpers/fake_live_location.dart';
+import '../../helpers/test_clock.dart';
 
 void main() {
   const here = GeoUri(latitude: 52.5, longitude: 13.4, uncertaintyMeters: 3);
@@ -29,6 +31,9 @@ void main() {
   late List<DeviceKeys> recipients;
   late NotificationPreview preview;
   late LiveLocationSharing sharing;
+  final testClock = Clock(() => now);
+
+  final clockedTest = testsOnClock(() => now);
 
   GeoUri northBy(double meters) => GeoUri(
     latitude: here.latitude + meters / 111319.49,
@@ -66,7 +71,6 @@ void main() {
     isOffline: () => offline,
     previewLevel: () => preview,
     recipients: (_) async => recipients,
-    now: () => now,
   );
 
   setUp(() {
@@ -83,7 +87,7 @@ void main() {
       client.userDeviceKeys['@alex:x']!.deviceKeys['PHONE']!,
       client.userDeviceKeys['@bea:x']!.deviceKeys['TABLET']!,
     ];
-    sharing = build();
+    sharing = withClock(testClock, build);
   });
 
   tearDown(() => sharing.dispose());
@@ -173,7 +177,7 @@ void main() {
       client.toDevice.where((m) => m.type == liveLocationPositionType).toList();
 
   group('starting', () {
-    test(
+    clockedTest(
       'publishes the share, announces it and sends the first position',
       () async {
         await startSharing();
@@ -201,7 +205,7 @@ void main() {
       },
     );
 
-    test('is refused where the room does not allow it', () async {
+    clockedTest('is refused where the room does not allow it', () async {
       room.allowState = false;
 
       await expectLater(
@@ -218,7 +222,7 @@ void main() {
       expect(client.stateWrites, isEmpty);
     });
 
-    test('is refused while this device already shares there', () async {
+    clockedTest('is refused while this device already shares there', () async {
       await startSharing();
 
       await expectLater(
@@ -233,7 +237,7 @@ void main() {
       );
     });
 
-    test('fails cleanly when capture cannot start', () async {
+    clockedTest('fails cleanly when capture cannot start', () async {
       capture.startError = const LiveCaptureUnavailable();
 
       await expectLater(
@@ -251,28 +255,31 @@ void main() {
       expect(sharing.needsSync.value, false);
     });
 
-    test('stops capture again when the server refuses the state', () async {
-      client.stateWriteError = MatrixException.fromJson({
-        'errcode': 'M_FORBIDDEN',
-        'error': 'no',
-      });
+    clockedTest(
+      'stops capture again when the server refuses the state',
+      () async {
+        client.stateWriteError = MatrixException.fromJson({
+          'errcode': 'M_FORBIDDEN',
+          'error': 'no',
+        });
 
-      await expectLater(
-        sharing.start(room, LiveLocationDuration.hour, at(here)),
-        throwsA(
-          isA<LiveShareStartException>().having(
-            (e) => e.reason,
-            'reason',
-            LiveShareStartFailure.notAllowed,
+        await expectLater(
+          sharing.start(room, LiveLocationDuration.hour, at(here)),
+          throwsA(
+            isA<LiveShareStartException>().having(
+              (e) => e.reason,
+              'reason',
+              LiveShareStartFailure.notAllowed,
+            ),
           ),
-        ),
-      );
-      expect(capture.calls, ['start', 'stop']);
-      expect(sharing.shares.value, isEmpty);
-      expect(room.sent, isEmpty);
-    });
+        );
+        expect(capture.calls, ['start', 'stop']);
+        expect(sharing.shares.value, isEmpty);
+        expect(room.sent, isEmpty);
+      },
+    );
 
-    test('keeps sync needed from the moment a share starts', () async {
+    clockedTest('keeps sync needed from the moment a share starts', () async {
       client.holdStateWrites = Completer();
 
       final starting = sharing.start(room, LiveLocationDuration.hour, at(here));
@@ -286,7 +293,7 @@ void main() {
       expect(sharing.shares.value, hasLength(1));
     });
 
-    test('sends nothing before its state is published', () async {
+    clockedTest('sends nothing before its state is published', () async {
       client.holdStateWrites = Completer();
       final starting = sharing.start(room, LiveLocationDuration.hour, at(here));
       await pumpEventQueue();
@@ -302,42 +309,52 @@ void main() {
       expect(positions(), hasLength(1));
     });
 
-    test('a stop during start lands after the publish, never before', () async {
-      client.holdStateWrites = Completer();
-      final starting = sharing.start(room, LiveLocationDuration.hour, at(here));
-      await pumpEventQueue();
+    clockedTest(
+      'a stop during start lands after the publish, never before',
+      () async {
+        client.holdStateWrites = Completer();
+        final starting = sharing.start(
+          room,
+          LiveLocationDuration.hour,
+          at(here),
+        );
+        await pumpEventQueue();
 
-      final stopping = sharing.stop('!family:x');
-      client.holdStateWrites!.complete();
-      client.holdStateWrites = null;
-      await starting;
-      await stopping;
+        final stopping = sharing.stop('!family:x');
+        client.holdStateWrites!.complete();
+        client.holdStateWrites = null;
+        await starting;
+        await stopping;
 
-      expect(client.stateWrites.map((w) => w.content.isEmpty), [false, true]);
-      expect(liveShareStateOf(room, '@me:x'), isNull);
-    });
+        expect(client.stateWrites.map((w) => w.content.isEmpty), [false, true]);
+        expect(liveShareStateOf(room, '@me:x'), isNull);
+      },
+    );
   });
 
   group('sending', () {
-    test('follows the policy and releases each fix\'s wake lock', () async {
-      await startSharing();
-      final start = now;
+    clockedTest(
+      'follows the policy and releases each fix\'s wake lock',
+      () async {
+        await startSharing();
+        final start = now;
 
-      now = start.add(const Duration(seconds: 30));
-      capture.fix(at(northBy(20)), 1);
-      await pumpEventQueue();
-      expect(positions(), hasLength(1));
-      expect(capture.released, [1]);
+        now = start.add(const Duration(seconds: 30));
+        capture.fix(at(northBy(20)), 1);
+        await pumpEventQueue();
+        expect(positions(), hasLength(1));
+        expect(capture.released, [1]);
 
-      now = start.add(const Duration(minutes: 5));
-      capture.fix(at(northBy(20)), 2);
-      await pumpEventQueue();
-      expect(positions(), hasLength(2));
-      expect(positions().last.devices, ['@alex:x/PHONE', '@bea:x/TABLET']);
-      expect(capture.released, [1, 2]);
-    });
+        now = start.add(const Duration(minutes: 5));
+        capture.fix(at(northBy(20)), 2);
+        await pumpEventQueue();
+        expect(positions(), hasLength(2));
+        expect(positions().last.devices, ['@alex:x/PHONE', '@bea:x/TABLET']);
+        expect(capture.released, [1, 2]);
+      },
+    );
 
-    test(
+    clockedTest(
       'a watcher gets a position at once, then precise updates alone',
       () async {
         await startSharing();
@@ -356,7 +373,7 @@ void main() {
       },
     );
 
-    test(
+    clockedTest(
       'drops back to coarse only after half a minute with no watcher',
       () async {
         await startSharing();
@@ -375,7 +392,7 @@ void main() {
       },
     );
 
-    test('a watch lapses two minutes after its last renewal', () async {
+    clockedTest('a watch lapses two minutes after its last renewal', () async {
       await startSharing();
       final start = now;
       client.onToDeviceEvent.add(watch());
@@ -391,7 +408,7 @@ void main() {
       expect(capture.mode, LiveLocationMode.coarse);
     });
 
-    test(
+    clockedTest(
       'toggling a watch cannot force sends faster than five seconds',
       () async {
         await startSharing();
@@ -410,7 +427,7 @@ void main() {
       },
     );
 
-    test('ignores watches it cannot trust or place', () async {
+    clockedTest('ignores watches it cannot trust or place', () async {
       await startSharing();
 
       for (final ignored in [
@@ -427,7 +444,7 @@ void main() {
       expect(positions(), hasLength(1));
     });
 
-    test('a removed member stops receiving at once', () async {
+    clockedTest('a removed member stops receiving at once', () async {
       await startSharing();
       final start = now;
       client.onToDeviceEvent.add(watch());
@@ -443,40 +460,47 @@ void main() {
       expect(positions().last.devices, ['@alex:x/PHONE']);
     });
 
-    test('someone this account blocked never receives or watches', () async {
-      client.ignored.add('@bea:x');
-      await startSharing();
+    clockedTest(
+      'someone this account blocked never receives or watches',
+      () async {
+        client.ignored.add('@bea:x');
+        await startSharing();
 
-      client.onToDeviceEvent.add(watch());
-      await pumpEventQueue();
+        client.onToDeviceEvent.add(watch());
+        await pumpEventQueue();
 
-      expect(positions().single.devices, ['@alex:x/PHONE']);
-      expect(capture.mode, LiveLocationMode.coarse);
-    });
+        expect(positions().single.devices, ['@alex:x/PHONE']);
+        expect(capture.mode, LiveLocationMode.coarse);
+      },
+    );
 
-    test('sends nothing offline and the newest position once back', () async {
-      await startSharing();
-      final start = now;
-      offline = true;
+    clockedTest(
+      'sends nothing offline and the newest position once back',
+      () async {
+        await startSharing();
+        final start = now;
+        offline = true;
 
-      now = start.add(const Duration(minutes: 5));
-      capture.fix(at(northBy(300)), 1);
-      now = start.add(const Duration(minutes: 6));
-      capture.fix(at(northBy(600)), 2);
-      await pumpEventQueue();
-      expect(positions(), hasLength(1));
-      expect(capture.released, [1, 2]);
+        now = start.add(const Duration(minutes: 5));
+        capture.fix(at(northBy(300)), 1);
+        now = start.add(const Duration(minutes: 6));
+        capture.fix(at(northBy(600)), 2);
+        await pumpEventQueue();
+        expect(positions(), hasLength(1));
+        expect(capture.released, [1, 2]);
 
-      offline = false;
-      sharing.onConnectivityRestored();
-      await pumpEventQueue();
+        offline = false;
+        sharing.onConnectivityRestored();
+        await pumpEventQueue();
 
-      expect(positions(), hasLength(2));
-      expect(
-        parseLivePosition(positions().last.content)?.position.geo.toUriString(),
-        northBy(600).toUriString(),
-      );
-    });
+        expect(positions(), hasLength(2));
+        expect(
+          parseLivePosition(positions().last.content)?.position.geo
+              .toUriString(),
+          northBy(600).toUriString(),
+        );
+      },
+    );
 
     group('what a failed send reports', () {
       late List<String> logs;
@@ -486,34 +510,41 @@ void main() {
       Iterable<String> caught() =>
           logs.where((line) => line.startsWith('zuno/caught:'));
 
-      test('a position that does not go out is reported as the send', () async {
-        client.sendError = Exception('unreachable');
+      clockedTest(
+        'a position that does not go out is reported as the send',
+        () async {
+          client.sendError = Exception('unreachable');
 
-        await startSharing();
+          await startSharing();
 
-        expect(caught(), [
-          'zuno/caught: live location position send: _Exception',
-        ]);
-      });
+          expect(caught(), [
+            'zuno/caught: live location position send: _Exception',
+          ]);
+        },
+      );
 
-      test('recipients that cannot be listed are reported as the round, not '
-          'the send', () async {
-        sharing.dispose();
-        sharing = LiveLocationSharing(
-          client: client,
-          capture: capture,
-          isOffline: () => offline,
-          recipients: (_) async => throw StateError('no members'),
-          now: () => now,
-        );
+      clockedTest(
+        'recipients that cannot be listed are reported as the round, not '
+        'the send',
+        () async {
+          sharing.dispose();
+          sharing = LiveLocationSharing(
+            client: client,
+            capture: capture,
+            isOffline: () => offline,
+            recipients: (_) async => throw StateError('no members'),
+          );
 
-        await startSharing();
+          await startSharing();
 
-        expect(caught(), ['zuno/caught: live location send round: StateError']);
-      });
+          expect(caught(), [
+            'zuno/caught: live location send round: StateError',
+          ]);
+        },
+      );
     });
 
-    test(
+    clockedTest(
       'a failed send waits for its next turn, or for the connection',
       () async {
         await startSharing();
@@ -535,7 +566,7 @@ void main() {
       },
     );
 
-    test(
+    clockedTest(
       'keeps one send in flight and sends only the newest after it',
       () async {
         await startSharing();
@@ -576,7 +607,7 @@ void main() {
         await pumpEventQueue();
       }
 
-      test('is skipped on the next round to everyone', () async {
+      clockedTest('is skipped on the next round to everyone', () async {
         await startSharing();
         expect(positions().single.devices, ['@alex:x/PHONE', '@bea:x/TABLET']);
 
@@ -586,7 +617,7 @@ void main() {
         expect(positions().last.devices, ['@alex:x/PHONE']);
       });
 
-      test('is tried again after half an hour', () async {
+      clockedTest('is tried again after half an hour', () async {
         await startSharing();
 
         await fixAfter(const Duration(minutes: 25), northBy(300), 1);
@@ -596,7 +627,7 @@ void main() {
         expect(positions().last.devices, ['@alex:x/PHONE', '@bea:x/TABLET']);
       });
 
-      test('is tried again once its owner\'s devices change', () async {
+      clockedTest('is tried again once its owner\'s devices change', () async {
         await startSharing();
 
         client.onSync.add(
@@ -611,7 +642,7 @@ void main() {
         expect(positions().last.devices, ['@alex:x/PHONE', '@bea:x/TABLET']);
       });
 
-      test('another user\'s device change keeps it skipped', () async {
+      clockedTest('another user\'s device change keeps it skipped', () async {
         await startSharing();
 
         client.onSync.add(
@@ -626,7 +657,7 @@ void main() {
         expect(positions().last.devices, ['@alex:x/PHONE']);
       });
 
-      test('gets positions at once when it starts watching', () async {
+      clockedTest('gets positions at once when it starts watching', () async {
         await startSharing();
         client.noOlmSession.remove('TABLET');
 
@@ -638,18 +669,21 @@ void main() {
         expect(positions().last.devices, ['@alex:x/PHONE', '@bea:x/TABLET']);
       });
 
-      test('a watch that was not Olm-encrypted proves nothing', () async {
-        await startSharing();
+      clockedTest(
+        'a watch that was not Olm-encrypted proves nothing',
+        () async {
+          await startSharing();
 
-        client.onToDeviceEvent.add(watch(senderKey: null));
-        await pumpEventQueue();
-        await fixAfter(const Duration(minutes: 5), northBy(300), 1);
+          client.onToDeviceEvent.add(watch(senderKey: null));
+          await pumpEventQueue();
+          await fixAfter(const Duration(minutes: 5), northBy(300), 1);
 
-        expect(positions().last.devices, ['@alex:x/PHONE']);
-      });
+          expect(positions().last.devices, ['@alex:x/PHONE']);
+        },
+      );
     });
 
-    test('a clock moved back does not stall newer fixes', () async {
+    clockedTest('a clock moved back does not stall newer fixes', () async {
       await startSharing();
       final start = now;
       capture.fix(at(northBy(1)), 1);
@@ -667,22 +701,25 @@ void main() {
   });
 
   group('stopping', () {
-    test('clears the state before capture stops, then sends nothing', () async {
-      await startSharing();
+    clockedTest(
+      'clears the state before capture stops, then sends nothing',
+      () async {
+        await startSharing();
 
-      await sharing.stop('!family:x');
-      capture.fix(at(northBy(500)), 1);
-      await pumpEventQueue();
+        await sharing.stop('!family:x');
+        capture.fix(at(northBy(500)), 1);
+        await pumpEventQueue();
 
-      expect(client.stateWrites.last.content, isEmpty);
-      expect(capture.calls.last, 'stop');
-      expect(sharing.shares.value, isEmpty);
-      expect(sharing.needsSync.value, false);
-      expect(positions(), hasLength(1));
-      expect(liveShareStateOf(room, '@me:x'), isNull);
-    });
+        expect(client.stateWrites.last.content, isEmpty);
+        expect(capture.calls.last, 'stop');
+        expect(sharing.shares.value, isEmpty);
+        expect(sharing.needsSync.value, false);
+        expect(positions(), hasLength(1));
+        expect(liveShareStateOf(room, '@me:x'), isNull);
+      },
+    );
 
-    test(
+    clockedTest(
       'keeps capture running while the clear is still being written',
       () async {
         await startSharing();
@@ -699,25 +736,28 @@ void main() {
       },
     );
 
-    test('several shares run on one capture until the last stops', () async {
-      final other = addRoom('!alex:x')
-        ..direct = true
-        ..title = 'Alex';
-      await startSharing();
-      await startSharing(into: other);
+    clockedTest(
+      'several shares run on one capture until the last stops',
+      () async {
+        final other = addRoom('!alex:x')
+          ..direct = true
+          ..title = 'Alex';
+        await startSharing();
+        await startSharing(into: other);
 
-      expect(capture.calls.where((c) => c == 'start'), hasLength(1));
-      expect(capture.notice?.text, 'In 1 chat and 1 room');
+        expect(capture.calls.where((c) => c == 'start'), hasLength(1));
+        expect(capture.notice?.text, 'In 1 chat and 1 room');
 
-      await sharing.stop('!family:x');
-      expect(capture.running, true);
-      expect(capture.notice?.text, 'With Alex');
+        await sharing.stop('!family:x');
+        expect(capture.running, true);
+        expect(capture.notice?.text, 'With Alex');
 
-      await sharing.stop('!alex:x');
-      expect(capture.running, false);
-    });
+        await sharing.stop('!alex:x');
+        expect(capture.running, false);
+      },
+    );
 
-    test('ends when its time is up', () {
+    clockedTest('ends when its time is up', () {
       fakeAsync((async) {
         sharing.dispose();
         sharing = build();
@@ -727,7 +767,6 @@ void main() {
         async.flushMicrotasks();
         expect(sharing.shares.value, hasLength(1));
 
-        now = now.add(const Duration(minutes: 15));
         async.elapse(const Duration(minutes: 15));
 
         expect(sharing.shares.value, isEmpty);
@@ -735,7 +774,7 @@ void main() {
       });
     });
 
-    test('ends by the wall clock even when its timer is late', () async {
+    clockedTest('ends by the wall clock even when its timer is late', () async {
       await startSharing(duration: LiveLocationDuration.quarterHour);
 
       now = now.add(const Duration(minutes: 16));
@@ -747,23 +786,26 @@ void main() {
       expect(client.stateWrites.last.content, isEmpty);
     });
 
-    test('ends without writing when the server shows it replaced', () async {
-      await startSharing();
-      final writes = client.stateWrites.length;
-      client.serverState['!family:x'] = {
-        'share_id': 'newer',
-        'device_id': 'LAPTOP',
-        'ends_ts': now.add(const Duration(hours: 1)).millisecondsSinceEpoch,
-      };
+    clockedTest(
+      'ends without writing when the server shows it replaced',
+      () async {
+        await startSharing();
+        final writes = client.stateWrites.length;
+        client.serverState['!family:x'] = {
+          'share_id': 'newer',
+          'device_id': 'LAPTOP',
+          'ends_ts': now.add(const Duration(hours: 1)).millisecondsSinceEpoch,
+        };
 
-      sync(roomId: '!family:x', timeline: [ownStateEvent({})]);
-      await pumpEventQueue();
+        sync(roomId: '!family:x', timeline: [ownStateEvent({})]);
+        await pumpEventQueue();
 
-      expect(sharing.shares.value, isEmpty);
-      expect(client.stateWrites, hasLength(writes));
-    });
+        expect(sharing.shares.value, isEmpty);
+        expect(client.stateWrites, hasLength(writes));
+      },
+    );
 
-    test(
+    clockedTest(
       'keeps going when a late echo is older than the server state',
       () async {
         await startSharing();
@@ -779,17 +821,20 @@ void main() {
       },
     );
 
-    test('ends without writing once this account left the room', () async {
-      await startSharing();
-      final writes = client.stateWrites.length;
-      room.membership = Membership.leave;
+    clockedTest(
+      'ends without writing once this account left the room',
+      () async {
+        await startSharing();
+        final writes = client.stateWrites.length;
+        room.membership = Membership.leave;
 
-      sync(roomId: '!family:x');
-      await pumpEventQueue();
+        sync(roomId: '!family:x');
+        await pumpEventQueue();
 
-      expect(sharing.shares.value, isEmpty);
-      expect(client.stateWrites, hasLength(writes));
-    });
+        expect(sharing.shares.value, isEmpty);
+        expect(client.stateWrites, hasLength(writes));
+      },
+    );
 
     MatrixEvent redaction(String redacts) => MatrixEvent(
       type: EventTypes.Redaction,
@@ -800,7 +845,7 @@ void main() {
       content: const {},
     );
 
-    test('stops when its start message is deleted', () async {
+    clockedTest('stops when its start message is deleted', () async {
       await startSharing();
 
       sync(roomId: '!family:x', timeline: [redaction(r'$start-!family:x')]);
@@ -810,28 +855,31 @@ void main() {
       expect(client.stateWrites.last.content, isEmpty);
     });
 
-    test('a resent start message also stops the share when deleted', () async {
-      room.sendFails = true;
-      await startSharing();
-      client.onTimelineEvent.add(
-        Event(
-          type: EventTypes.Message,
-          senderId: '@me:x',
-          eventId: r'$resent',
-          originServerTs: now,
-          content: room.sent.single,
-          room: room,
-        ),
-      );
-      await pumpEventQueue();
+    clockedTest(
+      'a resent start message also stops the share when deleted',
+      () async {
+        room.sendFails = true;
+        await startSharing();
+        client.onTimelineEvent.add(
+          Event(
+            type: EventTypes.Message,
+            senderId: '@me:x',
+            eventId: r'$resent',
+            originServerTs: now,
+            content: room.sent.single,
+            room: room,
+          ),
+        );
+        await pumpEventQueue();
 
-      sync(roomId: '!family:x', timeline: [redaction(r'$resent')]);
-      await pumpEventQueue();
+        sync(roomId: '!family:x', timeline: [redaction(r'$resent')]);
+        await pumpEventQueue();
 
-      expect(sharing.shares.value, isEmpty);
-    });
+        expect(sharing.shares.value, isEmpty);
+      },
+    );
 
-    test('stops every share when location is lost', () async {
+    clockedTest('stops every share when location is lost', () async {
       await startSharing();
       final lost = sharing.captureLost.first;
 
@@ -843,7 +891,7 @@ void main() {
       expect(client.stateWrites.last.content, isEmpty);
     });
 
-    test('a capture that ended on its own stops quietly', () async {
+    clockedTest('a capture that ended on its own stops quietly', () async {
       await startSharing();
       var reported = false;
       final subscription = sharing.captureLost.listen((_) => reported = true);
@@ -856,7 +904,7 @@ void main() {
       await subscription.cancel();
     });
 
-    test('stops every share from the notification', () async {
+    clockedTest('stops every share from the notification', () async {
       await startSharing();
 
       capture.requestStop();
@@ -866,7 +914,7 @@ void main() {
       expect(client.stateWrites.last.content, isEmpty);
     });
 
-    test('stopping everything is bounded when the server hangs', () {
+    clockedTest('stopping everything is bounded when the server hangs', () {
       fakeAsync((async) {
         sharing.dispose();
         sharing = build();
@@ -890,7 +938,7 @@ void main() {
   });
 
   group('stopping from here', () {
-    test('stops this device\'s share', () async {
+    clockedTest('stops this device\'s share', () async {
       await startSharing();
 
       await sharing.stopIn('!family:x');
@@ -899,7 +947,7 @@ void main() {
       expect(client.stateWrites.last.content, isEmpty);
     });
 
-    test('ends a share this account runs on another device', () async {
+    clockedTest('ends a share this account runs on another device', () async {
       ownShareFrom('LAPTOP', shareId: 'elsewhere');
 
       await sharing.stopIn('!family:x');
@@ -923,7 +971,7 @@ void main() {
       room: room,
     );
 
-    test('stops this device\'s share', () async {
+    clockedTest('stops this device\'s share', () async {
       await startSharing();
 
       await sharing.stopShareStartedBy(startMessage());
@@ -932,7 +980,7 @@ void main() {
       expect(client.stateWrites.last.content, isEmpty);
     });
 
-    test('ends the share this account runs on another device', () async {
+    clockedTest('ends the share this account runs on another device', () async {
       ownShareFrom('LAPTOP', shareId: 'elsewhere');
 
       await sharing.stopShareStartedBy(startMessage(shareId: 'elsewhere'));
@@ -940,7 +988,7 @@ void main() {
       expect(client.stateWrites.single.content, isEmpty);
     });
 
-    test('someone else\'s start message stops nothing', () async {
+    clockedTest('someone else\'s start message stops nothing', () async {
       await startSharing();
       final writes = client.stateWrites.length;
 
@@ -950,7 +998,7 @@ void main() {
       expect(client.stateWrites, hasLength(writes));
     });
 
-    test('an older start message of mine stops nothing', () async {
+    clockedTest('an older start message of mine stops nothing', () async {
       await startSharing();
       final writes = client.stateWrites.length;
 
@@ -962,7 +1010,7 @@ void main() {
   });
 
   group('leftovers from an earlier run', () {
-    test('an open share naming this device is cleared once', () async {
+    clockedTest('an open share naming this device is cleared once', () async {
       sharing.dispose();
       ownShareFrom('MINE');
 
@@ -975,7 +1023,7 @@ void main() {
       expect(client.stateWrites.single.content, isEmpty);
     });
 
-    test('an expired leftover is left alone', () async {
+    clockedTest('an expired leftover is left alone', () async {
       sharing.dispose();
       ownShareFrom('MINE', lasting: const Duration(minutes: -1));
 
@@ -985,39 +1033,42 @@ void main() {
       expect(client.stateWrites, isEmpty);
     });
 
-    test('a refused clear is not retried until permissions change', () async {
-      sharing.dispose();
-      ownShareFrom('MINE');
-      client.stateWriteError = MatrixException.fromJson({
-        'errcode': 'M_FORBIDDEN',
-        'error': 'no',
-      });
+    clockedTest(
+      'a refused clear is not retried until permissions change',
+      () async {
+        sharing.dispose();
+        ownShareFrom('MINE');
+        client.stateWriteError = MatrixException.fromJson({
+          'errcode': 'M_FORBIDDEN',
+          'error': 'no',
+        });
 
-      sharing = build();
-      await pumpEventQueue();
-      now = now.add(const Duration(minutes: 2));
-      sync();
-      await pumpEventQueue();
-      expect(client.serverStateReads, hasLength(1));
+        sharing = build();
+        await pumpEventQueue();
+        now = now.add(const Duration(minutes: 2));
+        sync();
+        await pumpEventQueue();
+        expect(client.serverStateReads, hasLength(1));
 
-      room.setState(
-        Event(
-          type: EventTypes.RoomPowerLevels,
-          stateKey: '',
-          senderId: '@admin:x',
-          eventId: r'$power',
-          originServerTs: now,
-          content: const {},
-          room: room,
-        ),
-      );
-      now = now.add(const Duration(minutes: 2));
-      sync();
-      await pumpEventQueue();
-      expect(client.serverStateReads, hasLength(2));
-    });
+        room.setState(
+          Event(
+            type: EventTypes.RoomPowerLevels,
+            stateKey: '',
+            senderId: '@admin:x',
+            eventId: r'$power',
+            originServerTs: now,
+            content: const {},
+            room: room,
+          ),
+        );
+        now = now.add(const Duration(minutes: 2));
+        sync();
+        await pumpEventQueue();
+        expect(client.serverStateReads, hasLength(2));
+      },
+    );
 
-    test('a share from another of my devices is left alone', () async {
+    clockedTest('a share from another of my devices is left alone', () async {
       sharing.dispose();
       ownShareFrom('LAPTOP');
 
@@ -1027,57 +1078,63 @@ void main() {
       expect(client.stateWrites, isEmpty);
     });
 
-    test('after rejoining, a share left over from before is cleared', () async {
-      ownShareFrom('LAPTOP');
+    clockedTest(
+      'after rejoining, a share left over from before is cleared',
+      () async {
+        ownShareFrom('LAPTOP');
 
-      sync(
-        roomId: '!family:x',
-        timeline: [
-          MatrixEvent(
-            type: EventTypes.RoomMember,
-            stateKey: '@me:x',
-            senderId: '@me:x',
-            eventId: r'$rejoin',
-            originServerTs: now,
-            content: const {'membership': 'join'},
-            unsigned: const {
-              'prev_content': {'membership': 'leave'},
-            },
-          ),
-        ],
-      );
-      await pumpEventQueue();
+        sync(
+          roomId: '!family:x',
+          timeline: [
+            MatrixEvent(
+              type: EventTypes.RoomMember,
+              stateKey: '@me:x',
+              senderId: '@me:x',
+              eventId: r'$rejoin',
+              originServerTs: now,
+              content: const {'membership': 'join'},
+              unsigned: const {
+                'prev_content': {'membership': 'leave'},
+              },
+            ),
+          ],
+        );
+        await pumpEventQueue();
 
-      expect(client.stateWrites.single.content, isEmpty);
-    });
+        expect(client.stateWrites.single.content, isEmpty);
+      },
+    );
 
-    test('a profile change while joined is not taken for a rejoin', () async {
-      ownShareFrom('LAPTOP');
+    clockedTest(
+      'a profile change while joined is not taken for a rejoin',
+      () async {
+        ownShareFrom('LAPTOP');
 
-      sync(
-        roomId: '!family:x',
-        timeline: [
-          MatrixEvent(
-            type: EventTypes.RoomMember,
-            stateKey: '@me:x',
-            senderId: '@me:x',
-            eventId: r'$rename',
-            originServerTs: now,
-            content: const {'membership': 'join', 'displayname': 'Me'},
-            unsigned: const {
-              'prev_content': {'membership': 'join'},
-            },
-          ),
-        ],
-      );
-      await pumpEventQueue();
+        sync(
+          roomId: '!family:x',
+          timeline: [
+            MatrixEvent(
+              type: EventTypes.RoomMember,
+              stateKey: '@me:x',
+              senderId: '@me:x',
+              eventId: r'$rename',
+              originServerTs: now,
+              content: const {'membership': 'join', 'displayname': 'Me'},
+              unsigned: const {
+                'prev_content': {'membership': 'join'},
+              },
+            ),
+          ],
+        );
+        await pumpEventQueue();
 
-      expect(client.stateWrites, isEmpty);
-    });
+        expect(client.stateWrites, isEmpty);
+      },
+    );
   });
 
   group('notice', () {
-    test('at Nothing counts the chat instead of naming it', () async {
+    clockedTest('at Nothing counts the chat instead of naming it', () async {
       preview = NotificationPreview.nothing;
 
       await startSharing();
@@ -1086,21 +1143,24 @@ void main() {
       expect(capture.notice?.roomId, '!family:x');
     });
 
-    test('choosing Nothing while sharing takes the name off, and going back '
-        'puts it on again', () async {
-      await startSharing();
-      expect(capture.notice?.text, 'In Family');
+    clockedTest(
+      'choosing Nothing while sharing takes the name off, and going back '
+      'puts it on again',
+      () async {
+        await startSharing();
+        expect(capture.notice?.text, 'In Family');
 
-      preview = NotificationPreview.nothing;
-      await sharing.refreshNotice();
-      expect(capture.notice?.text, 'In 1 room');
+        preview = NotificationPreview.nothing;
+        await sharing.refreshNotice();
+        expect(capture.notice?.text, 'In 1 room');
 
-      preview = NotificationPreview.nameOnly;
-      await sharing.refreshNotice();
-      expect(capture.notice?.text, 'In Family');
-    });
+        preview = NotificationPreview.nameOnly;
+        await sharing.refreshNotice();
+        expect(capture.notice?.text, 'In Family');
+      },
+    );
 
-    test('a refresh with nothing shared starts nothing', () async {
+    clockedTest('a refresh with nothing shared starts nothing', () async {
       preview = NotificationPreview.nothing;
 
       await sharing.refreshNotice();
@@ -1109,21 +1169,24 @@ void main() {
       expect(capture.notice, isNull);
     });
 
-    test('without chat names, a single chat is counted like several', () {
-      final alex = addRoom('!alex:x')
-        ..direct = true
-        ..title = 'Alex';
-      final ends = now.add(const Duration(hours: 1));
+    clockedTest(
+      'without chat names, a single chat is counted like several',
+      () {
+        final alex = addRoom('!alex:x')
+          ..direct = true
+          ..title = 'Alex';
+        final ends = now.add(const Duration(hours: 1));
 
-      expect(
-        liveLocationNotice(englishLocalizations, [
-          (room: alex, endsAt: ends),
-        ], namesChats: false).text,
-        'In 1 chat',
-      );
-    });
+        expect(
+          liveLocationNotice(englishLocalizations, [
+            (room: alex, endsAt: ends),
+          ], namesChats: false).text,
+          'In 1 chat',
+        );
+      },
+    );
 
-    test('names the chat, the room, or counts them', () {
+    clockedTest('names the chat, the room, or counts them', () {
       final alex = addRoom('!alex:x')
         ..direct = true
         ..title = 'Alex';
@@ -1181,7 +1244,7 @@ void main() {
   });
 
   group('who may receive', () {
-    test('joined, trusted, not blocked, and never this device', () {
+    clockedTest('joined, trusted, not blocked, and never this device', () {
       setSelfSignedTestDevices(client, '@me:x', ['MINE', 'LAPTOP']);
       setTestDevices(client, '@carl:x', {'UNSIGNED': null});
       member(room, '@carl:x', 'join');
@@ -1203,7 +1266,7 @@ void main() {
       expect(peer('@eve:x', 'LAPTOP'), false);
     });
 
-    test('a member whose membership is not loaded is not a peer', () {
+    clockedTest('a member whose membership is not loaded is not a peer', () {
       room.states[EventTypes.RoomMember]?.remove('@alex:x');
 
       expect(
@@ -1216,7 +1279,7 @@ void main() {
       );
     });
 
-    test('an unencrypted room cannot share live location', () {
+    clockedTest('an unencrypted room cannot share live location', () {
       final open = _UnencryptedRoom(id: '!open:x', client: client);
 
       expect(

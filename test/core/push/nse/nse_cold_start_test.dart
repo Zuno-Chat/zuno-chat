@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/join_requests.dart';
@@ -18,6 +17,7 @@ import 'package:zuno/core/push/nse/opaque_thread_ids.dart';
 import 'package:zuno/core/push/nse/read_model_publisher.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_megolm_sessions.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -73,7 +73,7 @@ void main() {
             userId: '@mwong:zuno.im',
             deviceId: 'PHONE',
             database: SessionStoreFakeDatabaseApi(),
-            httpClient: MockClient((_) async => http.Response('{}', 404)),
+            httpClient: FakeHttpClient((_) async => http.Response('{}', 404)),
           )
           ..accessToken = 'syt_token'
           ..homeserver = Uri.parse('https://zuno.im');

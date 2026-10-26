@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
+import '../files/file_system.dart';
 import '../platform/platform_capabilities.dart';
 
 const _extensionOverrides = {
@@ -30,15 +30,16 @@ Future<File> playableMediaFile(
   required PlatformCapabilities capabilities,
   Directory? linkDirectory,
 }) async {
-  if (!capabilities.playerNeedsMediaType) return cached;
-  final dir = linkDirectory ?? await getTemporaryDirectory();
-  final link = Link(
+  final source = fileSystem.file(cached);
+  if (!capabilities.playerNeedsMediaType) return source;
+  final dir = linkDirectory ?? await temporaryDirectory();
+  final link = fileSystem.link(
     p.join(
       dir.path,
-      '${p.basename(cached.path)}${_extension(mimetype, fileName, fallbackExtension)}',
+      '${p.basename(source.path)}${_extension(mimetype, fileName, fallbackExtension)}',
     ),
   );
   if (await link.exists()) await link.delete();
-  await link.create(cached.absolute.path);
-  return File(link.path);
+  await link.create(source.absolute.path);
+  return fileSystem.file(link.path);
 }

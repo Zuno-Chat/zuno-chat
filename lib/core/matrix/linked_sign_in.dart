@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:clock/clock.dart';
 import 'package:matrix/matrix.dart';
 
 import '../l10n/l10n.dart';
@@ -34,10 +35,7 @@ class IssuedSignInCode {
   const IssuedSignInCode({required this.code, required this.expiresAt});
 }
 
-Future<IssuedSignInCode> issueLinkedSignInCode(
-  Client client, {
-  DateTime Function() now = DateTime.now,
-}) async {
+Future<IssuedSignInCode> issueLinkedSignInCode(Client client) async {
   GenerateLoginTokenResponse? response;
   await client.uiaRequestBackground<void>((auth) async {
     response = await client.generateLoginToken(auth: auth);
@@ -48,7 +46,7 @@ Future<IssuedSignInCode> issueLinkedSignInCode(
       server: client.userID!.domain!,
       token: granted.loginToken,
     ),
-    expiresAt: now().add(Duration(milliseconds: granted.expiresInMs)),
+    expiresAt: clock.now().add(Duration(milliseconds: granted.expiresInMs)),
   );
 }
 

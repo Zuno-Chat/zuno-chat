@@ -4,7 +4,6 @@ import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/async/live_isolate_route.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
@@ -14,6 +13,7 @@ import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/local_notifications.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/preferences_container.dart';
@@ -31,7 +31,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:x',
       database: SendCapableFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         if (request.method == 'PUT' && request.url.path.contains('/send/')) {
           sent.add(jsonDecode(request.body) as Map<String, Object?>);
         }

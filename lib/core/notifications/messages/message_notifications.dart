@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -178,7 +179,7 @@ class MessageNotifications {
       senderName: content.senderName ?? title,
       senderAvatarUrl: senderAvatarUrl ?? previous?.senderAvatarUrl,
       text: content.text ?? content.body,
-      timestamp: content.timestamp ?? DateTime.now(),
+      timestamp: content.timestamp ?? clock.now(),
       placeholder: placeholder,
       imageUri: imageUri ?? previous?.imageUri,
       imageMimeType: imageMimeType ?? previous?.imageMimeType,

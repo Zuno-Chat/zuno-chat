@@ -3,9 +3,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../../errors/caught_errors.dart';
+import '../../files/file_system.dart';
 
 class NotificationAvatarCache {
   NotificationAvatarCache({Future<Directory> Function()? directory})
@@ -17,8 +17,8 @@ class NotificationAvatarCache {
   Future<Directory>? _ready;
 
   static Future<Directory> _defaultDirectory() async {
-    final support = await getApplicationSupportDirectory();
-    return Directory(p.join(support.path, 'notification_avatars'));
+    final support = await applicationSupportDirectory();
+    return fileSystem.directory(p.join(support.path, 'notification_avatars'));
   }
 
   Future<Directory?> _cacheDirectory() async {
@@ -32,7 +32,7 @@ class NotificationAvatarCache {
   }
 
   Future<Directory> _prepare() async {
-    final dir = await _directory();
+    final dir = fileSystem.directory(await _directory());
     await dir.create(recursive: true);
     return dir;
   }
@@ -41,7 +41,7 @@ class NotificationAvatarCache {
     final dir = await _cacheDirectory();
     if (dir == null) return null;
     final name = base64Url.encode(utf8.encode(avatarUrl.toString()));
-    return File(p.join(dir.path, name));
+    return fileSystem.file(p.join(dir.path, name));
   }
 
   Future<Uint8List?> read(Uri avatarUrl) async {

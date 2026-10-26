@@ -4,11 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -16,9 +13,9 @@ import 'package:zuno/features/blocking/presentation/block_person.dart';
 import 'package:zuno/features/communities/presentation/community_page.dart';
 import 'package:zuno/features/rooms/presentation/room_invite_page.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/pump_until.dart';
 import '../../../helpers/route_launcher.dart';
 
 void main() {
@@ -38,7 +35,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: ForgettingFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request);
         if (offline) {
           throw http.ClientException('Failed host lookup', request.url);
@@ -101,13 +98,6 @@ void main() {
     );
   }
 
-  Future<void> settleNetwork(WidgetTester tester) async {
-    for (var i = 0; i < 3; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      await tester.pumpAndSettle();
-    }
-  }
-
   Future<void> openInvite(
     WidgetTester tester, {
     BlockPerson? blockPerson,
@@ -132,7 +122,7 @@ void main() {
       ),
     );
     await tester.tap(find.text('open'));
-    await settleNetwork(tester);
+    await tester.pumpAndSettle();
   }
 
   Iterable<String> requestedPaths() => requests.map((r) => r.url.path);
@@ -174,11 +164,9 @@ void main() {
     );
 
     Future<void> settleJoin() async {
-      await pumpRealAsync(
-        tester,
-        rounds: 4,
-        step: const Duration(milliseconds: 200),
-      );
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
     }
 
     await tester.tap(find.widgetWithText(FilledButton, 'Join'));
@@ -211,7 +199,7 @@ void main() {
     await tester.tap(find.text('Spam'));
     await tester.pump();
     await tester.tap(sheetSendButton);
-    await settleNetwork(tester);
+    await tester.pumpAndSettle();
 
     final report = requests.firstWhere((r) => r.url.path.endsWith('/report'));
     expect(
@@ -229,7 +217,7 @@ void main() {
     await openInvite(tester);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Decline'));
-    await settleNetwork(tester);
+    await tester.pumpAndSettle();
 
     expect(
       requestedPaths()
@@ -247,7 +235,7 @@ void main() {
     await openInvite(tester);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Decline'));
-    await settleNetwork(tester);
+    await tester.pumpAndSettle();
 
     expect(requestedPaths().where((p) => p.endsWith('/leave')), hasLength(1));
     expect(requestedPaths().where((p) => p.endsWith('/forget')), isEmpty);
@@ -264,7 +252,7 @@ void main() {
     await tester.tap(find.text('Spam'));
     await tester.pump();
     await tester.tap(sheetSendButton);
-    await settleNetwork(tester);
+    await tester.pumpAndSettle();
 
     expect(requestedPaths().where((p) => p.endsWith('/leave')), hasLength(1));
     expect(requestedPaths().where((p) => p.endsWith('/forget')), hasLength(1));
@@ -280,7 +268,7 @@ void main() {
     await tester.tap(find.text('Spam'));
     await tester.pump();
     await tester.tap(sheetSendButton);
-    await settleNetwork(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('The report was not sent. Try again.'), findsOneWidget);
     expect(requestedPaths().where((p) => p.endsWith('/leave')), isEmpty);
@@ -294,7 +282,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Report and decline'));
     await tester.pumpAndSettle();
     await tester.tapAt(const Offset(10, 10));
-    await settleNetwork(tester);
+    await tester.pumpAndSettle();
 
     expect(requestedPaths().where((p) => p.endsWith('/report')), isEmpty);
     expect(requestedPaths().where((p) => p.endsWith('/leave')), isEmpty);
@@ -322,7 +310,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Block @bob:example.org?'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, 'Block'));
-    await settleNetwork(tester);
+    await tester.pumpAndSettle();
 
     expect(blocked, ['@bob:example.org']);
     expect(find.byType(RoomInvitePage), findsNothing);
@@ -338,7 +326,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Block and decline'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-    await settleNetwork(tester);
+    await tester.pumpAndSettle();
 
     expect(blocked, isEmpty);
     expect(requestedPaths().where((p) => p.endsWith('/leave')), isEmpty);
@@ -353,7 +341,7 @@ void main() {
     await openInvite(tester);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Join'));
-    await settleNetwork(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('Could not join.'), findsOneWidget);
     expect(find.textContaining('M_FORBIDDEN'), findsNothing);
@@ -369,7 +357,7 @@ void main() {
     offline = true;
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Decline'));
-    await settleNetwork(tester);
+    await tester.pumpAndSettle();
 
     expect(
       find.text('Could not decline. Check your connection and try again.'),

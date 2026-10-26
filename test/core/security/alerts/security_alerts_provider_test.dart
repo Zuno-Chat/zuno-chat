@@ -4,10 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/alerts/known_devices_store.dart';
 import 'package:zuno/core/security/alerts/security_alert.dart';
@@ -16,6 +14,7 @@ import 'package:zuno/core/security/alerts/security_alerts_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../../helpers/fake_device_keys.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
@@ -312,7 +311,7 @@ void main() {
         buildTestClient(
             userId: _me,
             deviceId: 'THIS',
-            httpClient: MockClient((request) async {
+            httpClient: FakeHttpClient((request) async {
               if (request.url.path.endsWith('/devices/PIXEL')) {
                 return http.Response(
                   jsonEncode({

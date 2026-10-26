@@ -110,8 +110,7 @@ void main() {
     fallbackDurationMs: fallbackDurationMs,
   );
 
-  Future<void> settleDeletes() =>
-      Future<void>.delayed(const Duration(milliseconds: 50));
+  Future<void> settleDeletes() => pumpEventQueue();
 
   setUp(() {
     workDir = Directory.systemTemp.createTempSync('zuno_video_send');

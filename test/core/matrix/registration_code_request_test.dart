@@ -5,10 +5,9 @@ import 'dart:io' show HandshakeException, SocketException;
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-
 import 'package:zuno/core/matrix/registration_code_request.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -29,7 +28,7 @@ void main() {
   test('the address is posted as JSON', () async {
     late http.Request sent;
     final client = buildTestClient(
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         sent = request;
         return http.Response('{}', 202);
       }),
@@ -78,7 +77,7 @@ void main() {
       TimeoutException('slow'),
     ]) {
       final client = buildTestClient(
-        httpClient: MockClient((_) async => throw failure),
+        httpClient: FakeHttpClient((_) async => throw failure),
       )..homeserver = Uri.parse('https://example.org');
 
       expect(
@@ -92,7 +91,7 @@ void main() {
   test('a homeserver that never answers reads as offline', () {
     fakeAsync((async) {
       final client = buildTestClient(
-        httpClient: MockClient((_) => Completer<http.Response>().future),
+        httpClient: FakeHttpClient((_) => Completer<http.Response>().future),
       )..homeserver = Uri.parse('https://example.org');
 
       RegistrationCodeOutcome? outcome;

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -108,9 +109,6 @@ class RingCoordinator extends Notifier<void> {
   final _syncRung = <String>{};
   NativeRing? _pendingGeneric;
   Timer? _genericDeadline;
-
-  @visibleForTesting
-  DateTime Function() now = DateTime.now;
 
   @override
   void build() {
@@ -227,7 +225,10 @@ class RingCoordinator extends Notifier<void> {
   void _bindPendingGeneric() {
     final generic = _pendingGeneric;
     if (generic == null) return;
-    final fresh = newestFreshCall(ref.read(matrixClientProvider), now: now());
+    final fresh = newestFreshCall(
+      ref.read(matrixClientProvider),
+      now: clock.now(),
+    );
     if (fresh == null) return;
     unawaited(_bindGeneric(generic, fresh.call));
   }

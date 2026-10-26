@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/files/file_system.dart';
 import '../../../core/files/picked_file.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
@@ -143,7 +145,7 @@ Future<void> _sendLocation(
   switch (choice) {
     case SendPin(:final geo):
       try {
-        await sendLocationPin(room, geo, at: DateTime.now());
+        await sendLocationPin(room, geo, at: clock.now());
       } catch (e, s) {
         reportCaughtType('send location pin', e, s);
         _say(messenger, l10n.chatLocationNotSent);
@@ -230,7 +232,7 @@ class _AttachmentFlow {
       if (media.isNotEmpty) await _composeAndSend(media);
       for (final file in others) {
         await _sender.sendFile(
-          await file.readAsBytes(),
+          await fileSystem.file(file.path).readAsBytes(),
           name: file.name,
           mimeType: file.mimeType,
         );

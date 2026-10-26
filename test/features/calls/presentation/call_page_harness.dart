@@ -113,11 +113,35 @@ class CallPageHarness extends CallChannelMocks {
   }
 
   Future<void> settle() async {
-    await pumpRealAsync(
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
+
+  int get releasedRenderers =>
+      webrtc.where((c) => c.method == 'videoRendererDispose').length;
+
+  Future<void> untilRenderersReleased(int count) async {
+    await pumpUntil(
       tester,
-      rounds: 5,
-      step: const Duration(milliseconds: 100),
+      () => releasedRenderers >= count,
+      reason: '$count video renderers to be released',
     );
+    await tester.pump();
+  }
+
+  Future<void> untilRenderersReleasedWithNoFrame(int count) async {
+    const turns = 20;
+    for (var turn = 0; releasedRenderers < count; turn++) {
+      if (turn == turns) {
+        fail(
+          'Gave up after $turns real-async turns waiting, with no frame, '
+          'for $count video renderers to be released',
+        );
+      }
+      await tester.runAsync(() async {});
+      await tester.idle();
+    }
   }
 
   Future<void> close() async {

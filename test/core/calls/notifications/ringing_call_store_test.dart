@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
@@ -35,11 +36,15 @@ void main() {
 
   test('a stale record is ignored rather than rung for', () async {
     final prefs = await emptyPrefs();
-    await saveRingingCall(prefs, call);
+    final postedAt = DateTime(2030, 1, 1, 12);
+    await withClock(Clock.fixed(postedAt), () => saveRingingCall(prefs, call));
 
-    final later = DateTime.now().add(const Duration(seconds: 46));
+    final read = withClock(
+      Clock.fixed(postedAt.add(const Duration(seconds: 46))),
+      () => readRingingCall(prefs),
+    );
 
-    expect(readRingingCall(prefs, now: later), isNull);
+    expect(read, isNull);
   });
 
   test('a corrupt record is ignored instead of throwing', () async {

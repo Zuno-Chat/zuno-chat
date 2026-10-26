@@ -1,16 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -19,9 +17,9 @@ import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/communities/presentation/community_page.dart';
 import 'package:zuno/features/rooms/presentation/chat_row.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/layout_matrix.dart';
-import '../../../helpers/pump_until.dart';
 import '../../../helpers/room_opening_channels.dart';
 import '../../../helpers/route_launcher.dart';
 
@@ -78,7 +76,7 @@ void main() {
       eventId: '\$msg-$id',
       senderId: '@maya:example.org',
       content: {'msgtype': 'm.text', 'body': 'Spare shoes in 41'},
-      originServerTs: DateTime.now(),
+      originServerTs: clock.now(),
     );
     client.rooms.add(room);
     putState(club, EventTypes.SpaceChild, {
@@ -134,7 +132,7 @@ void main() {
     client = buildTestClient(
       userId: _me,
       database: stored,
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request);
         final path = Uri.decodeComponent(request.url.path);
         if (offline) {
@@ -257,11 +255,6 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> network(WidgetTester tester) async {
-    await pumpRealAsync(tester, rounds: 4);
-    await tester.pumpAndSettle();
-  }
-
   testWidgets('shows the community, its members and access, and the rooms '
       'you are in', (tester) async {
     member('!gear:example.org', 'Gear swap');
@@ -328,7 +321,6 @@ void main() {
     await tester.pump();
 
     await tester.tap(find.widgetWithText(FilledButton, 'Join'));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
 
     final join = requests.firstWhere(
@@ -454,7 +446,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Gear swap');
     client.rooms.add(created);
     await tester.tap(find.text('Create'));
-    await pumpRealAsync(tester, rounds: 4);
+    await tester.pump();
 
     expect(
       requests.map((r) => r.url.path),
@@ -480,7 +472,7 @@ void main() {
     await tester.tap(find.text('Ask to join'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Create'));
-    await pumpRealAsync(tester, rounds: 4);
+    await tester.pump();
 
     final create = requests.firstWhere(
       (r) => r.url.path.endsWith('/createRoom'),
@@ -534,7 +526,7 @@ void main() {
       offline = true;
 
       await tester.tap(find.widgetWithText(FilledButton, 'Join'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(
         find.text(
@@ -554,7 +546,7 @@ void main() {
       offline = true;
 
       await tester.tap(find.widgetWithText(FilledButton, 'Ask'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(
         find.text(
@@ -580,7 +572,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'Gear swap');
       await tester.tap(find.text('Create'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(
         find.text('Room created, but not added to Climbing club.'),
@@ -599,7 +591,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'Gear swap');
       await tester.tap(find.text('Create'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(
         find.text(
@@ -623,7 +615,7 @@ void main() {
           matching: find.text('Invite'),
         ),
       );
-      await pumpRealAsync(tester, rounds: 4);
+      await tester.pump();
     }
 
     testWidgets('sends the invitation to someone on this server', (
@@ -665,7 +657,7 @@ void main() {
       eventId: r'$newer',
       senderId: '@leo:example.org',
       content: {'msgtype': 'm.text', 'body': 'Chalk bags on sale'},
-      originServerTs: DateTime.now(),
+      originServerTs: clock.now(),
     );
     client.onSync.add(
       SyncUpdate(
@@ -722,7 +714,7 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(find.widgetWithText(FilledButton, 'Ask'));
-      await pumpRealAsync(tester, rounds: 3);
+      await tester.pump();
 
       expect(
         requests.map((r) => Uri.decodeComponent(r.url.path)),
@@ -739,7 +731,7 @@ void main() {
       ]);
       await tester.pump();
       await tester.tap(find.widgetWithText(FilledButton, 'Ask'));
-      await pumpRealAsync(tester, rounds: 3);
+      await tester.pump();
 
       await tester.tap(find.widgetWithText(OutlinedButton, 'Requested'));
       await tester.pumpAndSettle();
@@ -752,7 +744,7 @@ void main() {
       await tester.tap(find.widgetWithText(OutlinedButton, 'Requested'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Withdraw'));
-      await pumpRealAsync(tester, rounds: 3);
+      await tester.pump();
 
       expect(
         requests.map((r) => Uri.decodeComponent(r.url.path)),
@@ -770,7 +762,7 @@ void main() {
 
     Future<void> openMembers(WidgetTester tester) async {
       await tester.tap(find.text('24 members'));
-      await network(tester);
+      await tester.pumpAndSettle();
     }
 
     setUp(() {
@@ -830,7 +822,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Ban Maya?'), findsOneWidget);
       await tester.tap(find.text('Ban'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requests.map((r) => r.url.path), contains(endsWith('/ban')));
     });
@@ -847,7 +839,7 @@ void main() {
       await tester.tap(find.text('Change role'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Moderator').last);
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('Role not changed. Try again.'), findsOneWidget);
     });
@@ -864,7 +856,7 @@ void main() {
       await tester.tap(find.text('Remove from community'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('Not removed. Try again.'), findsOneWidget);
     });
@@ -882,7 +874,7 @@ void main() {
       await tester.tap(find.text('Change role'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Moderator').last);
-      await network(tester);
+      await tester.pumpAndSettle();
 
       final levels = requests.lastWhere(
         (r) => r.url.path.contains('m.room.power_levels'),
@@ -910,7 +902,7 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(find.text('Remove'));
-      await network(tester);
+      await tester.pumpAndSettle();
 
       expect(requests.map((r) => r.url.path), contains(endsWith('/kick')));
     });
@@ -952,7 +944,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Leave community?'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, 'Leave'));
-    await network(tester);
+    await tester.pumpAndSettle();
 
     expect(requests.where((r) => r.url.path.endsWith('/leave')), isNotEmpty);
     expect(find.byType(CommunityPage), findsNothing);

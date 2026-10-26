@@ -1,14 +1,14 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/client_lease.dart';
 import 'package:zuno/core/matrix/zuno_client.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
 
@@ -85,7 +85,7 @@ ZunoClient _slowLoadingClient(_SlowLoadingStore store) => ZunoClient(
   'Zuno',
   database: store,
   appClient: false,
-  httpClient: MockClient((_) => Completer<http.Response>().future),
+  httpClient: FakeHttpClient((_) => Completer<http.Response>().future),
 );
 
 class _ClearCountingStore extends FakeDatabaseApi {
@@ -110,7 +110,7 @@ class _ExpiringClient extends ZunoClient {
       );
 
   @override
-  DateTime? get accessTokenExpiresAt => DateTime.now();
+  DateTime? get accessTokenExpiresAt => clock.now();
 }
 
 final _failedWithDiskError = isA<Exception>().having(

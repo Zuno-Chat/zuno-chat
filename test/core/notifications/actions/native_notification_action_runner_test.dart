@@ -4,14 +4,13 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/notifications/actions/message_notification_action.dart';
 import 'package:zuno/core/notifications/actions/native_notification_action_runner.dart';
 import 'package:zuno/core/notifications/actions/native_notification_actions_channel.dart';
 import 'package:zuno/core/notifications/actions/notification_action_target.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -50,7 +49,7 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: SendCapableFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         final path = request.url.path;
         final step = switch (path) {
           _ when path.contains('/send/') => 'send',

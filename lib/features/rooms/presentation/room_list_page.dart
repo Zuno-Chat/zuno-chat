@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/encryption.dart';
@@ -300,7 +301,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     if (store.promptInFlight) return;
     final lastPrompted = store.lastPrompted();
     if (lastPrompted != null &&
-        DateTime.now().difference(lastPrompted) < securityPromptCooldown) {
+        clock.now().difference(lastPrompted) < securityPromptCooldown) {
       return;
     }
     final pendingSteps = await ref.read(onboardingStepsProvider.future);

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -484,7 +485,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     final asked = ref.watch(joinRequestsProvider);
     final canInvite = community.canInvite;
     final canAddRooms = community.canChangeStateEvent(EventTypes.SpaceChild);
-    final now = DateTime.now();
+    final now = clock.now();
     final labels = DateLabels.of(context);
     final l10n = context.l10n;
     final bottomInset = MediaQuery.paddingOf(context).bottom;

@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
@@ -36,12 +35,12 @@ import 'package:zuno/features/verification/presentation/approve_this_device_page
 
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_encryption.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_permissions.dart';
 import '../../../helpers/fake_unified_push.dart';
 import '../../../helpers/layout_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
-import '../../../helpers/pump_until.dart';
 
 const _userId = '@alex:example.org';
 
@@ -259,7 +258,7 @@ void main() {
     final client =
         buildTestClient(
             userId: _userId,
-            httpClient: MockClient((_) async {
+            httpClient: FakeHttpClient((_) async {
               await saved.future;
               return http.Response('{}', 200);
             }),
@@ -281,9 +280,6 @@ void main() {
     expect(find.text('Set up recovery'), findsWidgets);
 
     saved.complete();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
     await tester.pumpAndSettle();
 
     expect(find.text('Set up recovery'), findsWidgets);
@@ -464,7 +460,7 @@ void main() {
       await pumpFlow(tester, [
         OnboardingStep.profile,
         OnboardingStep.setUpRecovery,
-      ], httpClient: MockClient((_) async => http.Response('{}', 200)));
+      ], httpClient: FakeHttpClient((_) async => http.Response('{}', 200)));
       await tester.showKeyboard(nameField);
       await tester.enterText(nameField, 'Alex');
       await tester.pump();
@@ -1048,7 +1044,7 @@ void main() {
       final client = buildTestClient(
         userId: _userId,
         database: UploadingFakeDatabaseApi(),
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           requests.add(request);
           return http.Response(
             jsonEncode({'content_uri': 'mxc://example.org/me'}),
@@ -1067,14 +1063,12 @@ void main() {
       );
 
       await tester.tap(find.byType(StepHero));
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pumpAndSettle();
 
       expect(find.bySemanticsLabel('Change photo'), findsOneWidget);
       expect(tester.widget<StepHero>(find.byType(StepHero)).image, isNotNull);
 
       await tester.tap(find.text('Save'));
-      await pumpRealAsync(tester, rounds: 4);
       await tester.pumpAndSettle();
 
       expect(requests.map((r) => r.url.pathSegments.last), [

@@ -2,14 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/communities.dart';
 import 'package:zuno/core/matrix/room_permission.dart';
 import 'package:zuno/core/matrix/room_roles.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 class _StoredMembers extends FakeDatabaseApi {
@@ -464,7 +463,7 @@ void main() {
       server = () => http.Response(jsonEncode({'event_id': r'$pl2'}), 200);
       final client = buildTestClient(
         userId: '@me:example.org',
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           requests.add(request);
           return server();
         }),

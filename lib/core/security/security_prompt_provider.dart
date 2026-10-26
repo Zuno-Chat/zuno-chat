@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,7 +24,7 @@ class SecurityPromptStore {
   Future<DateTime> firstUse() async {
     final stored = _prefs.getInt(_firstUseKey);
     if (stored != null) return DateTime.fromMillisecondsSinceEpoch(stored);
-    final now = DateTime.now();
+    final now = clock.now();
     await _prefs.setInt(_firstUseKey, now.millisecondsSinceEpoch);
     return now;
   }
@@ -39,7 +40,7 @@ class SecurityPromptStore {
   }
 
   Future<void> markPrompted() {
-    final now = DateTime.now();
+    final now = clock.now();
     _lastPromptedInMemory = now;
     return _prefs.setInt(_lastPromptedKey, now.millisecondsSinceEpoch);
   }
@@ -60,7 +61,7 @@ final securityPromptProvider = FutureProvider<SecurityPromptDecision>((
     status: accountSecurityStatus(facts),
     firstUse: await store.firstUse(),
     lastPrompted: store.lastPrompted(),
-    now: DateTime.now(),
+    now: clock.now(),
     deviceCount: client.userDeviceKeys[client.userID]?.deviceKeys.length ?? 1,
     hasConversations: client.rooms.any(
       (room) => room.membership == Membership.join && !room.isSpace,

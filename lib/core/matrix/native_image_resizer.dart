@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 
+import '../async/background_work.dart';
 import '../errors/caught_errors.dart';
 import '../platform/platform_capabilities.dart';
 import 'photo_location.dart';
@@ -70,7 +70,10 @@ ResizedImage? _untouched(Uint8List bytes) {
 
 Future<ResizedImage?> _untouchedInBackground(Uint8List bytes) async {
   try {
-    return await compute(_untouched, bytes);
+    return await runInBackground(
+      () => _untouched(bytes),
+      debugName: 'untouched image',
+    );
   } catch (e, s) {
     reportCaught('read an image to send untouched', e, s);
     return null;

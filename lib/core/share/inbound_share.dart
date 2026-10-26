@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart' show MatrixFile, MessageTypes;
 import 'package:mime/mime.dart';
 
 import '../errors/caught_errors.dart';
+import '../files/file_system.dart';
 import '../navigation/held_broadcast.dart';
 import '../platform/platform_capabilities.dart';
 
@@ -66,11 +67,11 @@ Future<String> _sharedFileType(XFile file) async {
 }
 
 Future<List<int>?> _headerOf(XFile file) async {
+  final header = fileSystem
+      .file(file.path)
+      .openRead(0, defaultMagicNumbersMaxLength);
   try {
-    return [
-      await for (final chunk in file.openRead(0, defaultMagicNumbersMaxLength))
-        ...chunk,
-    ];
+    return [await for (final chunk in header) ...chunk];
   } on FileSystemException {
     return null;
   }

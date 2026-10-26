@@ -103,6 +103,7 @@ void main() {
   testWidgets('shows a spinner while it saves, and ignores more taps', (
     tester,
   ) async {
+    server.holdDownloads();
     await pumpFile(tester, file());
 
     await tester.tap(find.byType(InkWell));
@@ -111,6 +112,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(tester.widget<InkWell>(find.byType(InkWell)).onTap, isNull);
 
+    server.releaseDownloads();
     await saveBy(tester, until: () => device.exported.isNotEmpty);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });

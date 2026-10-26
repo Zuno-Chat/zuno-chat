@@ -2,10 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/push/pushers/pusher_reconciliation.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/pusher_recording_client.dart';
 
@@ -20,7 +20,7 @@ void main() {
   const pushkey = 'fZx9Q:APA91bHun4MxP5egoKMwt2K';
 
   Client clientAnswering(Future<http.Response> Function() respond) =>
-      buildTestClient(httpClient: MockClient((_) => respond()))
+      buildTestClient(httpClient: FakeHttpClient((_) => respond()))
         ..homeserver = Uri.parse('https://example.org')
         ..accessToken = 'token';
 

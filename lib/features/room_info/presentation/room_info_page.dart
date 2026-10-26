@@ -103,7 +103,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
       reportCaught('mute from room info', e, s);
       refused = true;
     } finally {
-      await sub.cancel();
+      unawaited(sub.cancel());
     }
     if (!mounted) return;
     setState(() {

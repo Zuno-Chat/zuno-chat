@@ -417,7 +417,7 @@ void main() {
         localParticipant(camera: true),
         remoteParticipant(),
       ]);
-      await harness.settle();
+      await harness.untilRenderersReleased(1);
       expect(harness.pictureInPictureEligible, isFalse);
       expect(harness.pictureInPictureVideo, (streamId: null, ownerTag: null));
       await harness.close();
@@ -497,7 +497,7 @@ void main() {
       expect(created, 2);
 
       session.engine.setParticipants([localParticipant(camera: true)]);
-      await harness.settle();
+      await harness.untilRenderersReleased(1);
 
       expect(
         harness.webrtc.where((c) => c.method == 'videoRendererDispose'),
@@ -635,6 +635,7 @@ void main() {
         failure: const CallConnectionLost(),
       );
       await harness.settle();
+      await harness.untilRenderersReleased(2);
 
       expect(find.text('Connection lost'), findsOneWidget);
       expect(

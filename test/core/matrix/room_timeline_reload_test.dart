@@ -2,12 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/room_timeline_reload.dart';
 import 'package:zuno/core/matrix/sync_coordinator.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 class _RoomStore extends StoredEventsFakeDatabaseApi with SendCapableDatabase {
@@ -91,7 +90,7 @@ void main() {
     final client = buildTestClient(
       userId: '@me:example.org',
       database: db,
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         if (!request.url.path.endsWith('/messages')) {
           return http.Response('{}', 200);
         }

@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:matrix/matrix.dart';
 
 const callMemberEventType = 'm.call.member';
@@ -30,7 +31,7 @@ class RtcMembership {
     required this.fociActive,
   });
 
-  bool get isExpired => DateTime.now().millisecondsSinceEpoch > expiresAtMs;
+  bool get isExpired => clock.now().millisecondsSinceEpoch > expiresAtMs;
 
   static RtcMembership? tryParse(Object? json) {
     if (json case {

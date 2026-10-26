@@ -1,12 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/event_display.dart';
 import 'package:zuno/features/rooms/data/chat_row_data.dart';
 
 import '../../../helpers/date_labels.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
 void main() {
@@ -18,7 +17,7 @@ void main() {
     client = Client(
       'test',
       database: TimelineCapableFakeDatabaseApi(),
-      httpClient: MockClient((_) async => http.Response('{}', 200)),
+      httpClient: FakeHttpClient((_) async => http.Response('{}', 200)),
     );
     client.setUserId('@me:example.org');
     room = buildTestRoom(client, notificationCount: 3)..partial = false;

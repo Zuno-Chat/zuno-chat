@@ -5,5 +5,8 @@ import 'native_method_calls.dart';
 void installRoomOpeningChannels() {
   installFakeLocalNotifications();
   installFakeCallsChannel();
-  silenceMethodChannels(const ['com.llfbandit.record/messages']);
+  silenceMethodChannels(const [
+    'com.llfbandit.record/messages',
+    'zuno/upload_service',
+  ]);
 }

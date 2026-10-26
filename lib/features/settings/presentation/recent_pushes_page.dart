@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -85,7 +86,7 @@ class _RecentPushesPageState extends ConsumerState<RecentPushesPage> {
 }
 
 String _receivedLabel(DateTime at, DateLabels labels) {
-  final day = labels.chatList(at, now: DateTime.now());
-  final clock = labels.clock(at);
-  return day == clock ? clock : labels.l10n.pushReceivedDayTime(day, clock);
+  final day = labels.chatList(at, now: clock.now());
+  final time = labels.clock(at);
+  return day == time ? time : labels.l10n.pushReceivedDayTime(day, time);
 }

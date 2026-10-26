@@ -2,14 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/communities.dart';
 import 'package:zuno/core/matrix/room_access.dart';
 import 'package:zuno/core/matrix/room_permission.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 const _me = '@me:example.org';
@@ -488,7 +487,7 @@ void main() {
       respond = null;
       client = buildTestClient(
         userId: _me,
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           requests.add(request);
           final custom = respond?.call(request);
           if (custom != null) return custom;

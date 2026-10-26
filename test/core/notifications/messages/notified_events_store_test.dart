@@ -1,6 +1,9 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
+
+import '../../../helpers/test_clock.dart';
 
 void main() {
   late SharedPreferences prefs;
@@ -54,42 +57,50 @@ void main() {
     const room = '!room:example.org';
     final noon = DateTime(2031, 3, 1, 12);
 
-    test('an announced invitation is remembered with when it was '
+    final clockedTest = testsOnClock(() => noon);
+
+    clockedTest('an announced invitation is remembered with when it was '
         'announced', () async {
       await markInviteAnnouncedOnDisk(prefs, room, now: noon);
 
-      expect(inviteAnnouncedAt(prefs, room, now: noon), noon);
-      expect(inviteAnnouncedAt(prefs, '!other:example.org', now: noon), isNull);
+      expect(inviteAnnouncedAt(prefs, room), noon);
+      expect(inviteAnnouncedAt(prefs, '!other:example.org'), isNull);
     });
 
-    test('forgetting one leaves the others', () async {
+    clockedTest('forgetting one leaves the others', () async {
       await markInviteAnnouncedOnDisk(prefs, room, now: noon);
       await markInviteAnnouncedOnDisk(prefs, '!other:example.org', now: noon);
 
       expect(await forgetInviteAnnouncementsOnDisk(prefs, [room]), isTrue);
 
-      expect(inviteAnnouncedAt(prefs, room, now: noon), isNull);
-      expect(inviteAnnouncedAt(prefs, '!other:example.org', now: noon), noon);
+      expect(inviteAnnouncedAt(prefs, room), isNull);
+      expect(inviteAnnouncedAt(prefs, '!other:example.org'), noon);
     });
 
-    test('forgetting rooms never announced writes nothing', () async {
+    clockedTest('forgetting rooms never announced writes nothing', () async {
       expect(await forgetInviteAnnouncementsOnDisk(prefs, [room]), isFalse);
       expect(prefs.getKeys(), isEmpty);
     });
 
-    test('an announcement older than the invite memory is gone', () async {
-      await markInviteAnnouncedOnDisk(prefs, room, now: noon);
+    clockedTest(
+      'an announcement older than the invite memory is gone',
+      () async {
+        await markInviteAnnouncedOnDisk(prefs, room, now: noon);
 
-      expect(
-        inviteAnnouncedAt(prefs, room, now: noon.add(inviteAnnouncementMemory)),
-        isNull,
-      );
-    });
+        expect(
+          withClock(
+            Clock.fixed(noon.add(inviteAnnouncementMemory)),
+            () => inviteAnnouncedAt(prefs, room),
+          ),
+          isNull,
+        );
+      },
+    );
 
-    test('a corrupt stored value reads as nothing announced', () async {
+    clockedTest('a corrupt stored value reads as nothing announced', () async {
       await prefs.setString('notifications.announced_invites', '[1,2]');
 
-      expect(inviteAnnouncedAt(prefs, room, now: noon), isNull);
+      expect(inviteAnnouncedAt(prefs, room), isNull);
     });
   });
 }

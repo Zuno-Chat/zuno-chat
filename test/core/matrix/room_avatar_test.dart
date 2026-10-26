@@ -3,11 +3,10 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/room_avatar.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -19,7 +18,7 @@ void main() {
     final client = buildTestClient(
       userId: '@me:example.org',
       database: MediaCapableFakeDatabaseApi(),
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         if (request.url.pathSegments.last == 'config') {
           return http.Response('{}', 200);
         }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,6 +106,7 @@ void main() {
   late _FakeServer server;
   late VoipRegistration registration;
   late Client client;
+  final registeredAt = DateTime.fromMillisecondsSinceEpoch(1789999999000);
 
   setUp(() {
     ambientCapabilities = capabilitiesLike(iosCapabilities, voipRing: true);
@@ -119,13 +121,15 @@ void main() {
     });
     client = buildTestClient(userId: '@me:zuno.im', deviceId: 'PHONE')
       ..bearerToken = 'token';
-    registration = VoipRegistration(server: (_) => server)
-      ..now = () => DateTime.fromMillisecondsSinceEpoch(1789999999000);
+    registration = VoipRegistration(server: (_) => server);
   });
 
   test('a first start rotates the key, opens the session and registers '
       'the token with the development app id', () async {
-    await registration.start(client);
+    await withClock(
+      Clock.fixed(registeredAt),
+      () => registration.start(client),
+    );
 
     expect(native.calls.take(3), ['status', 'rotateKey', 'setSession']);
     expect(native.sessions, [true]);
@@ -259,12 +263,15 @@ void main() {
     );
     server.reply = (_) => refused;
 
-    await registration.start(client);
+    await withClock(
+      Clock.fixed(registeredAt),
+      () => registration.start(client),
+    );
 
     expect(registration.state.value, VoipRegistrationState.failed);
     final refusal = registration.lastRefusal.value as VoipRefusedByServer;
     expect(refusal.reply, refused);
-    expect(refusal.at, DateTime.fromMillisecondsSinceEpoch(1789999999000));
+    expect(refusal.at, registeredAt);
     registration.retryDelay = (_) => const Duration(hours: 1);
     await registration.stop(client);
     expect(registration.lastRefusal.value, isNull);

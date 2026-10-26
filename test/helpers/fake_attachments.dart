@@ -6,12 +6,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/attachment_cache.dart';
 
+import 'fake_http.dart';
 import 'fake_matrix.dart';
 
 const _pathProvider = MethodChannel('plugins.flutter.io/path_provider');
@@ -29,6 +28,14 @@ class AttachmentServer {
   final missing = <String>{};
   late final Client client;
   late final Room room;
+  Completer<void>? _hold;
+
+  void holdDownloads() => _hold = Completer<void>();
+
+  void releaseDownloads() {
+    _hold?.complete();
+    _hold = null;
+  }
 
   static String mediaId(String eventId) => eventId.substring(1);
 
@@ -86,7 +93,7 @@ AttachmentServer installAttachmentServer() {
   server.client = buildTestClient(
     userId: '@me:example.org',
     database: MediaCapableFakeDatabaseApi(),
-    httpClient: MockClient((request) async {
+    httpClient: FakeHttpClient((request) async {
       if (request.url.path.endsWith('/versions')) {
         return http.Response(
           jsonEncode({
@@ -96,6 +103,7 @@ AttachmentServer installAttachmentServer() {
         );
       }
       server.downloads.add(request.url);
+      await server._hold?.future;
       if (server.missing.any((id) => request.url.path.endsWith('/$id'))) {
         return http.Response(
           jsonEncode({'errcode': 'M_NOT_FOUND', 'error': 'gone'}),
@@ -117,19 +125,6 @@ AttachmentServer installAttachmentServer() {
     if (server.root.existsSync()) server.root.deleteSync(recursive: true);
   });
   return server;
-}
-
-Future<void> pumpWhileFetching(
-  WidgetTester tester, {
-  int rounds = 50,
-  bool Function()? until,
-}) async {
-  for (var i = 0; i < rounds && !(until?.call() ?? false); i++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 10)),
-    );
-    await tester.pump();
-  }
 }
 
 final class FakePickedFile extends PlatformFile {

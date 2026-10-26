@@ -5,12 +5,11 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/client_lease.dart';
 import 'package:zuno/core/notifications/actions/message_notification_action.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
 
@@ -150,7 +149,7 @@ void main() {
         userId: '@me:example.org',
         deviceId: sendable ? null : 'DEV',
         database: sendable ? SendCapableFakeDatabaseApi() : null,
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           requests.add('${request.method} ${request.url.path}');
           lockCalls.add('request');
           if (failures > 0) {
@@ -532,7 +531,7 @@ void main() {
       final client = buildTestClient(
         userId: '@me:example.org',
         database: SendCapableFakeDatabaseApi(),
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           if (request.url.path.contains('/send/')) {
             if (refuse) {
               return http.Response('{"errcode":"M_UNKNOWN"}', 500);

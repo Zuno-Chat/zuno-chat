@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -51,7 +52,7 @@ void main() {
 
   testWidgets('an encrypted call shows the lock and a clock that ticks on its '
       'own', (tester) async {
-    var now = DateTime(2026, 9, 20, 12, 0, 41);
+    final talkingSince = clock.now().subtract(const Duration(seconds: 41));
     var outerBuilds = 0;
     await pump(
       tester,
@@ -60,8 +61,7 @@ void main() {
           outerBuilds++;
           return CallStatusLine(
             status: CallStatus.talking,
-            talkingSince: DateTime(2026, 9, 20, 12),
-            now: () => now,
+            talkingSince: talkingSince,
           );
         },
       ),
@@ -71,7 +71,6 @@ void main() {
     expect(find.byIcon(Icons.lock_outline), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('Encrypted')), findsOneWidget);
 
-    now = now.add(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('0:42'), findsOneWidget);
     expect(outerBuilds, 1);
@@ -100,13 +99,13 @@ void main() {
       ),
     );
 
-    final clock = tester.renderObject(
+    final timer = tester.renderObject(
       find.descendant(
         of: find.byType(CallTimer),
         matching: find.byType(RepaintBoundary),
       ),
     );
-    expect(clock.isRepaintBoundary, isTrue);
+    expect(timer.isRepaintBoundary, isTrue);
     expect(
       find.descendant(of: find.byType(CallTimer), matching: find.byType(Text)),
       findsOneWidget,

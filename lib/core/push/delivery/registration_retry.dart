@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
+
 const registrationRecheckInterval = Duration(hours: 6);
 
 const maxRegistrationRetryDelay = Duration(minutes: 30);
@@ -39,14 +41,12 @@ class RegistrationRetry {
 }
 
 class RegistrationRecheck {
-  DateTime Function() now = DateTime.now;
-
   DateTime? _last;
 
-  void markChecked() => _last = now();
+  void markChecked() => _last = clock.now();
 
   bool claimDue() {
-    final at = now();
+    final at = clock.now();
     final last = _last;
     if (last != null && at.difference(last) < registrationRecheckInterval) {
       return false;

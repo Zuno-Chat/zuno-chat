@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/communities.dart';
 import 'package:zuno/core/ui/empty_state.dart';
@@ -14,6 +12,7 @@ import 'package:zuno/features/rooms/presentation/chat_list_view.dart';
 import 'package:zuno/features/rooms/presentation/chat_row.dart';
 import 'package:zuno/features/rooms/presentation/invitation_group.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/layout_matrix.dart';
 
@@ -24,7 +23,7 @@ void main() {
     client = Client(
       'test',
       database: TimelineCapableFakeDatabaseApi(),
-      httpClient: MockClient((_) async => http.Response('{}', 200)),
+      httpClient: FakeHttpClient((_) async => http.Response('{}', 200)),
     );
     client.setUserId('@me:example.org');
   });
@@ -100,7 +99,6 @@ void main() {
           const AssetImage(chatWallpaperAsset)
               .obtainKey(createLocalImageConfiguration(context)),
     );
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
 
     expect(imageCache.containsKey(key!), isTrue);
   });

@@ -158,7 +158,7 @@ RecordedNotifications installFakeLocalNotifications({
 }
 
 void installSilentNotificationSideChannels() => silenceMethodChannels(const [
-  'vibration',
+  'zuno/vibration',
   'zuno/conversations',
   'zuno/wake_lock',
 ]);

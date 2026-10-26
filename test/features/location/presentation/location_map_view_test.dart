@@ -3,7 +3,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
@@ -11,6 +10,8 @@ import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/map_tiles.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
 import 'package:zuno/features/location/presentation/location_map_view.dart';
+
+import '../../../helpers/fake_http.dart';
 
 const _geo = GeoUri(latitude: 52.5163, longitude: 13.3777);
 
@@ -32,7 +33,7 @@ Widget _host({
           urlTemplate: 'https://tiles.example.org/{z}/{x}/{y}.png',
           attribution: attribution,
         ),
-        httpClient: MockClient((_) async => http.Response('', 404)),
+        httpClient: FakeHttpClient((_) async => http.Response('', 404)),
         userAgent: _agent,
         cachingProvider: const DisabledMapCachingProvider(),
       ),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -229,7 +230,7 @@ void main() {
     await prefs.setString(NseServices.buildKey, '1|2.1+40');
     await prefs.setInt(
       NseCredentialKeeper.mintedKey,
-      DateTime.now().millisecondsSinceEpoch,
+      clock.now().millisecondsSinceEpoch,
     );
     unread = [room.id];
     await threadIds.tokenFor(room.id);
@@ -270,7 +271,7 @@ void main() {
     await nse.start();
     await prefs.setInt(
       NseCredentialKeeper.mintedKey,
-      DateTime.now().subtract(const Duration(hours: 2)).millisecondsSinceEpoch,
+      clock.now().subtract(const Duration(hours: 2)).millisecondsSinceEpoch,
     );
     outcomes = [
       {'kind': 'counter', 'key': 'nse.c.20261002.o.auth', 'count': 1},

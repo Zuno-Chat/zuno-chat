@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -14,12 +12,12 @@ import 'package:zuno/core/navigation/zuno_links.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/auth/presentation/register_page.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/fixed_homeserver.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/preferences_container.dart';
-import '../../../helpers/pump_until.dart';
 
 const _tokenThenDummyFlows = [
   {
@@ -85,7 +83,6 @@ void main() {
     String username = 'alice',
     String password = 'correct horse battery staple',
     String? code,
-    int turns = 1,
   }) async {
     if (code != null) await tester.enterText(field('Sign-up code'), code);
     await tester.enterText(field('Username'), username);
@@ -95,7 +92,7 @@ void main() {
       find.widgetWithText(FilledButton, 'Create account'),
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
-    await pumpRealAsync(tester, rounds: turns);
+    await tester.pump();
   }
 
   void useTallScreen(WidgetTester tester) {
@@ -191,11 +188,11 @@ void main() {
     var answered = 0;
     await pumpRegisterPage(
       tester,
-      httpClient: MockClient((_) async => responses[answered++]),
+      httpClient: FakeHttpClient((_) async => responses[answered++]),
       requiresCode: true,
     );
 
-    await fillAndSubmit(tester, code: 'ABCDEFGH23', turns: 4);
+    await fillAndSubmit(tester, code: 'ABCDEFGH23');
 
     expect(find.text('That code is not valid or has expired.'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Send a new code'), findsOneWidget);
@@ -293,7 +290,7 @@ void main() {
     var requests = 0;
     await pumpRegisterPage(
       tester,
-      httpClient: MockClient((_) async {
+      httpClient: FakeHttpClient((_) async {
         requests++;
         return http.Response('{}', 500);
       }),
@@ -312,7 +309,7 @@ void main() {
     useTallScreen(tester);
     await pumpRegisterPage(
       tester,
-      httpClient: MockClient(
+      httpClient: FakeHttpClient(
         (_) async => http.Response(
           jsonEncode({
             'errcode': 'M_LIMIT_EXCEEDED',
@@ -352,14 +349,13 @@ void main() {
     final answer = Completer<http.Response>();
     await pumpRegisterPage(
       tester,
-      httpClient: MockClient((_) => answer.future),
+      httpClient: FakeHttpClient((_) => answer.future),
     );
 
-    await fillAndSubmit(tester, turns: 0);
+    await fillAndSubmit(tester);
     await tester.pumpWidget(const SizedBox());
 
     answer.complete(http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -371,19 +367,18 @@ void main() {
     final answer = Completer<http.Response>();
     await pumpRegisterPage(
       tester,
-      httpClient: MockClient((_) => answer.future),
+      httpClient: FakeHttpClient((_) => answer.future),
     );
     final container = ProviderScope.containerOf(
       tester.element(find.byType(RegisterPage)),
     );
 
-    await fillAndSubmit(tester, turns: 0);
-    await tester.pump();
+    await fillAndSubmit(tester);
 
     expect(container.read(signInInFlightProvider), isTrue);
 
     answer.complete(http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403));
-    await pumpRealAsync(tester, rounds: 3);
+    await tester.pump();
 
     expect(container.read(signInInFlightProvider), isFalse);
   });
@@ -408,20 +403,19 @@ void main() {
     final answer = Completer<http.Response>();
     await pumpRegisterPage(
       tester,
-      httpClient: MockClient((_) => answer.future),
+      httpClient: FakeHttpClient((_) => answer.future),
       pushed: true,
     );
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));
 
-    await fillAndSubmit(tester, turns: 0);
-    await tester.pump();
+    await fillAndSubmit(tester);
     await navigator.maybePop();
     await tester.pumpAndSettle();
 
     expect(find.byType(RegisterPage), findsOneWidget);
 
     answer.complete(http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403));
-    await pumpRealAsync(tester, rounds: 3);
+    await tester.pumpAndSettle();
     expect(find.widgetWithText(FilledButton, 'Create account'), findsOneWidget);
     await navigator.maybePop();
     await tester.pumpAndSettle();
@@ -437,7 +431,7 @@ void main() {
       final bodies = <Map<String, Object?>>[];
       await pumpRegisterPage(
         tester,
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           bodies.add(jsonDecode(request.body) as Map<String, Object?>);
           return switch (bodies.length) {
             1 => http.Response(
@@ -454,7 +448,7 @@ void main() {
         }),
         requiresCode: true,
       );
-      await fillAndSubmit(tester, code: 'ABCDEFGH23', turns: 3);
+      await fillAndSubmit(tester, code: 'ABCDEFGH23');
       expect(bodies, hasLength(2));
       return bodies;
     }
@@ -463,7 +457,6 @@ void main() {
       final bodies = await pumpInterrupted(tester);
 
       await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump();
 
       expect(bodies[2]['auth'], {

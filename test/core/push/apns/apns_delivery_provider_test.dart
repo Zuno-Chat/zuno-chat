@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -42,7 +43,7 @@ void main() {
   late PusherRecordingClient client;
   late int tokenReads;
   late int environmentReads;
-  late DateTime now;
+  late Duration recheckedAhead;
   String? deviceToken;
   late Future<String?> Function() readEnvironment;
 
@@ -61,12 +62,14 @@ void main() {
           environmentReads++;
           return readEnvironment();
         }
-        ..retryDelay = ((_) => const Duration(days: 1))
-        ..now = (() => now);
+        ..retryDelay = ((_) => const Duration(days: 1));
 
-  Future<void> recheckAfterInterval() async {
-    now = now.add(registrationRecheckInterval);
-    await provider.recheckRegistration(client);
+  Future<void> recheckAfterInterval() {
+    recheckedAhead += registrationRecheckInterval;
+    return withClock(
+      Clock.fixed(clock.now().add(recheckedAhead)),
+      () => provider.recheckRegistration(client),
+    );
   }
 
   setUp(() {
@@ -76,7 +79,7 @@ void main() {
     environmentReads = 0;
     readEnvironment = () async => 'development';
     deviceToken = _token;
-    now = DateTime(2026, 9, 27, 12);
+    recheckedAhead = Duration.zero;
     provider = providerWith(registration: true);
   });
 

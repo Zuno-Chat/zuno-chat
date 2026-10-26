@@ -40,9 +40,6 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
-    for (var i = 0; i < 3; i++) {
-      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    }
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.byType(RoomPage), findsOneWidget);

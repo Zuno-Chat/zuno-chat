@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
@@ -24,7 +25,7 @@ void main() {
         type: EventTypes.RoomMember,
         stateKey: userId,
         senderId: userId,
-        originServerTs: DateTime.now(),
+        originServerTs: clock.now(),
         content: {'membership': membership, 'displayname': ?displayName},
         room: room,
       ),
@@ -47,7 +48,7 @@ void main() {
         type: EventTypes.RoomName,
         stateKey: '',
         senderId: '@me:example.org',
-        originServerTs: DateTime.now(),
+        originServerTs: clock.now(),
         content: {'name': name},
         room: room,
       ),

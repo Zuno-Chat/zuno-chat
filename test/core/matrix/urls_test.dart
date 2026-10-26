@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:zuno/core/async/elapsed.dart';
 import 'package:zuno/core/matrix/urls.dart';
 
 void main() {
@@ -59,14 +59,14 @@ void main() {
     });
 
     test('a link trailed by a flood of brackets is found quickly', () {
-      final stopwatch = Stopwatch()..start();
+      final stopwatch = startStopwatch();
       final found = links('https://x.example/${')' * 100000}');
       expect(stopwatch.elapsed, lessThan(const Duration(seconds: 2)));
       expect(found, ['https://x.example/']);
     });
 
     test('a link trailed by a flood of punctuation is found quickly', () {
-      final stopwatch = Stopwatch()..start();
+      final stopwatch = startStopwatch();
       final found = links('https://x.example/(a)${').' * 50000}');
       expect(stopwatch.elapsed, lessThan(const Duration(seconds: 2)));
       expect(found, ['https://x.example/(a)']);

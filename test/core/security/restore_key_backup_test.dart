@@ -2,10 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:zuno/core/security/restore_key_backup.dart';
 
 import '../../helpers/fake_encryption.dart';
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -26,7 +26,7 @@ void main() {
       requested = [];
       final client = EncryptedTestClient(
         userId: '@me:example.org',
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           requested.add(request.url.path);
           if (!hasBackup) {
             return http.Response(

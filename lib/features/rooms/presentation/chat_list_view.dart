@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
@@ -112,7 +113,7 @@ class _ChatListViewState extends State<ChatListView> {
       );
     }
 
-    final now = DateTime.now();
+    final now = clock.now();
     final labels = DateLabels.of(context);
     final positions = {for (var i = 0; i < rows.length; i++) rows[i].id: i};
 

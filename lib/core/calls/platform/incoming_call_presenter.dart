@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -125,7 +126,7 @@ abstract class RememberingIncomingCallPresenter
       avatarBytes: avatarBytes,
       waiting: waiting,
     );
-    _presented = (callId: callId, at: DateTime.now());
+    _presented = (callId: callId, at: clock.now());
     return RingOutcome.shown;
   });
 
@@ -136,7 +137,7 @@ abstract class RememberingIncomingCallPresenter
     final presented = _presented;
     if (presented != null &&
         presented.callId == callId &&
-        DateTime.now().difference(presented.at) < SystemRing.lifetime) {
+        clock.now().difference(presented.at) < SystemRing.lifetime) {
       try {
         if ((await rememberedRing())?.callId == callId) return true;
       } catch (e, s) {

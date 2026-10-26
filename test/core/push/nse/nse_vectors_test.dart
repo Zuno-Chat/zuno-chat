@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
@@ -119,7 +120,7 @@ void main() {
           content: Map<String, dynamic>.from(event['content'] as Map),
           senderId: sender,
           eventId: r'$vector',
-          originServerTs: DateTime.now().subtract(
+          originServerTs: clock.now().subtract(
             Duration(milliseconds: vector['age_ms'] as int),
           ),
           stateKey: event['state_key'] as String?,

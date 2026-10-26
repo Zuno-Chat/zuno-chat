@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
@@ -107,7 +108,7 @@ class UploadingFakeDatabaseApi extends MediaCapableFakeDatabaseApi {
   @override
   Future<({Map<String, Object?> content, DateTime savedAt})?>
   getCustomCacheObject(String cacheKey) async =>
-      (content: const <String, Object?>{}, savedAt: DateTime.now());
+      (content: const <String, Object?>{}, savedAt: clock.now());
 }
 
 http.Response? notAMemberAnswer(http.BaseRequest request) =>
@@ -151,7 +152,7 @@ class ExpiringTokenClient extends Client {
   final Duration expiresIn;
 
   @override
-  DateTime? get accessTokenExpiresAt => DateTime.now().add(expiresIn);
+  DateTime? get accessTokenExpiresAt => clock.now().add(expiresIn);
 
   @override
   Future<void> dispose({bool closeDatabase = true}) async {}
@@ -195,7 +196,7 @@ Event buildTestEvent(
     eventId: eventId,
     type: type,
     senderId: senderId,
-    originServerTs: originServerTs ?? DateTime.now(),
+    originServerTs: originServerTs ?? clock.now(),
     content: content,
     room: room,
     stateKey: stateKey,

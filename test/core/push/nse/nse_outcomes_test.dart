@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -47,7 +48,7 @@ void main() {
   );
 
   test('an invitation the extension showed is never announced again', () async {
-    final shownAt = DateTime.now().millisecondsSinceEpoch;
+    final shownAt = clock.now().millisecondsSinceEpoch;
     replies['takeMarks'] = [
       {'kind': 'invite', 'room': room.id, 'ts': shownAt},
     ];

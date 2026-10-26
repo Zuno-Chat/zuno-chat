@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -8,8 +7,10 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 import 'package:vodozemac/vodozemac.dart' as vod;
 
+import '../async/background_work.dart';
 import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
+import '../files/file_system.dart';
 import '../security/secret_store.dart';
 import 'shared_database_open.dart';
 import 'vodozemac_init.dart';
@@ -51,7 +52,7 @@ Uint8List pbkdf2HmacSha512(
 Future<String> deriveDatabaseRawKey(String passphrase, List<int> salt) {
   final password = utf8.encode(passphrase);
   final fileSalt = Uint8List.fromList(salt);
-  return Isolate.run(
+  return runInBackground(
     () => _rawKeyLiteral(
       pbkdf2HmacSha512(
         password,
@@ -66,7 +67,7 @@ Future<String> deriveDatabaseRawKey(String passphrase, List<int> salt) {
 Future<String> deriveDatabaseRawKeyNatively(String passphrase, List<int> salt) {
   final password = utf8.encode(passphrase);
   final fileSalt = Uint8List.fromList(salt);
-  return Isolate.run(() async {
+  return runInBackground(() async {
     await ensureVodozemacInitialized();
     final key = vod.CryptoUtils.pbkdf2(
       passphrase: password,
@@ -198,7 +199,8 @@ _CachedKey? _parse(String? entry) {
 Future<Uint8List?> _fileSalt(String path) async {
   final List<int> header;
   try {
-    header = await File(path)
+    header = await fileSystem
+        .file(path)
         .openRead(0, _sqlCipherSaltLength)
         .expand((chunk) => chunk)
         .toList();

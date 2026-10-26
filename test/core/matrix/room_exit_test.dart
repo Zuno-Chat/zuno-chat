@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/room_exit.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -19,7 +19,7 @@ void main() {
     bool offline = false,
   }) {
     requests = [];
-    final httpClient = MockClient((request) async {
+    final httpClient = FakeHttpClient((request) async {
       requests.add('${request.method} ${request.url.path}');
       if (offline) {
         throw http.ClientException('Failed host lookup', request.url);
@@ -217,10 +217,7 @@ void main() {
         await tapExit(tester, joinedRoom(exitClient(refuseLeave: true)));
 
         await tester.tap(find.widgetWithText(TextButton, 'Leave'));
-        for (var i = 0; i < 3; i++) {
-          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-          await tester.pumpAndSettle();
-        }
+        await tester.pumpAndSettle();
       } finally {
         debugPrint = originalDebugPrint;
       }

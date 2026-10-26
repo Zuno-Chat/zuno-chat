@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
@@ -51,15 +52,12 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
   LivePushDiagnosticsSource(
     this.client, {
     http.Client? httpClient,
-    DateTime Function()? now,
     VoipRegistration? voip,
   }) : _injectedHttpClient = httpClient,
-       _now = now ?? DateTime.now,
        _voip = voip ?? voipRegistration;
 
   final Client client;
   final http.Client? _injectedHttpClient;
-  final DateTime Function() _now;
   final VoipRegistration _voip;
 
   @override
@@ -78,7 +76,7 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
     );
     return PushDiagnosticsInputs(
       capabilities: capabilities,
-      now: _now(),
+      now: clock.now(),
       appVersion: '${info.version} (build ${info.buildNumber})',
       snapshot: PushDiagnosticsSnapshot.fromChannel(snapshot),
       voip: voip,
@@ -175,7 +173,7 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
   Future<(ServerHealth?, ServerReach)> _health() async {
     final api = _openApi();
     if (api == null) return (null, ServerReach.unreachable);
-    final askedAt = _now();
+    final askedAt = clock.now();
     try {
       switch (await api.health()) {
         case ZunoPushOk(:final value, :final serverTs):

@@ -8,7 +8,6 @@ import 'package:zuno/core/notifications/local_notifications.dart';
 import 'package:zuno/core/notifications/messages/message_notification_content.dart';
 import 'package:zuno/core/notifications/messages/message_notifications.dart';
 import 'package:zuno/core/notifications/messages/notification_ids.dart';
-import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -16,6 +15,7 @@ import 'package:zuno/core/push/nse/opaque_thread_ids.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/test_clock.dart';
 
 const _roomId = '!room:example.org';
 
@@ -140,14 +140,7 @@ void main() {
     });
 
     group('alerting', () {
-      var fakeNow = DateTime(2031);
-
-      setUp(() {
-        fakeNow = fakeNow.add(const Duration(days: 1));
-        NotificationSoundPlayer.instance.now = () => fakeNow;
-      });
-
-      tearDown(() => NotificationSoundPlayer.instance.now = DateTime.now);
+      final clockedTest = testsOnClock(() => DateTime(2031));
 
       const message = MessageNotificationContent(
         roomId: _roomId,
@@ -156,7 +149,7 @@ void main() {
         eventId: r'$1',
       );
 
-      test('with the message tone on, a new message sounds, lights the '
+      clockedTest('with the message tone on, a new message sounds, lights the '
           'screen and shows its banner while Zuno is open, and stays in the '
           'list', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
@@ -172,7 +165,7 @@ void main() {
         expect(ios['presentList'], isTrue);
       });
 
-      test('a quiet message goes to the list without a banner, sound or '
+      clockedTest('a quiet message goes to the list without a banner, sound or '
           'lighting the screen', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
 
@@ -196,7 +189,7 @@ void main() {
         expect(ios['presentList'], isTrue);
       });
 
-      test('a second message in the same room inside the tone interval '
+      clockedTest('a second message in the same room inside the tone interval '
           'updates the list without a banner or sound', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
         await service.showMessage(message, preview: NotificationPreview.full);
@@ -224,7 +217,7 @@ void main() {
         expect(ios['presentList'], isTrue);
       });
 
-      test('with the message tone off, a new message lights the screen '
+      clockedTest('with the message tone off, a new message lights the screen '
           'without sound', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: false});
 
@@ -236,7 +229,7 @@ void main() {
         expect(ios['interruptionLevel'], 1);
       });
 
-      test(
+      clockedTest(
         'refining a message already on screen does not light it again',
         () async {
           SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});

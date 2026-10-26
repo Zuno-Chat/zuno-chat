@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
@@ -257,7 +258,7 @@ class LiveLocationHarness {
   }) => sharing.start(
     room,
     LiveLocationDuration.hour,
-    LivePosition(geo: geo, at: DateTime.now()),
+    LivePosition(geo: geo, at: clock.now()),
   );
 
   void member(String userId, String name) => room.setState(
@@ -266,7 +267,7 @@ class LiveLocationHarness {
       stateKey: userId,
       senderId: userId,
       eventId: '\$member-$userId',
-      originServerTs: DateTime.now(),
+      originServerTs: clock.now(),
       content: {'membership': 'join', 'displayname': name},
       room: room,
     ),
@@ -278,7 +279,7 @@ class LiveLocationHarness {
     String shareId = 'share1',
     Duration lasting = const Duration(hours: 1),
   }) {
-    final now = DateTime.now();
+    final now = clock.now();
     room.setState(
       Event(
         type: liveLocationStateType,
@@ -315,7 +316,7 @@ class LiveLocationHarness {
         content: livePositionContent(
           roomId: room.id,
           shareId: shareId,
-          position: LivePosition(geo: geo, at: at ?? DateTime.now()),
+          position: LivePosition(geo: geo, at: at ?? clock.now()),
         ),
         encryptedContent: {'sender_key': 'curve-$deviceId'},
       ),
@@ -326,10 +327,10 @@ class LiveLocationHarness {
     type: EventTypes.Message,
     senderId: senderId,
     eventId: '\$start-$senderId',
-    originServerTs: DateTime.now(),
+    originServerTs: clock.now(),
     content: liveLocationStartContent(
       shareId: shareId,
-      endsAt: DateTime.now().add(const Duration(hours: 1)),
+      endsAt: clock.now().add(const Duration(hours: 1)),
       duration: LiveLocationDuration.hour,
     ),
     room: room,

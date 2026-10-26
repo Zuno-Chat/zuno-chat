@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/misc.dart';
@@ -519,7 +520,7 @@ void main() {
       tester,
     ) async {
       const me = '@me:example.org';
-      final now = DateTime.now();
+      final now = clock.now();
       await openRoom(
         tester,
         () => [
@@ -658,7 +659,7 @@ void main() {
   });
 
   testWidgets('a live location offers no Copy', (tester) async {
-    final now = DateTime.now();
+    final now = clock.now();
     await openRoom(
       tester,
       () => [

@@ -1,17 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
+import '../files/file_system.dart';
+import '../files/unique_name.dart';
 
 String attachmentCacheKey(Event event, {required bool thumbnail}) =>
     '${event.eventId}:${thumbnail ? 'thumb' : 'full'}';
@@ -40,13 +41,6 @@ void _remember(int generation, String key, Uint8List bytes) {
   }
 }
 
-final _random = Random.secure();
-
-String _uniqueName() => [
-  for (var i = 0; i < 16; i++)
-    _random.nextInt(256).toRadixString(16).padLeft(2, '0'),
-].join();
-
 class AttachmentCache {
   AttachmentCache._();
 
@@ -60,7 +54,7 @@ class AttachmentCache {
   Uint8List? get(String key) {
     final entry = _entries[key];
     if (entry == null) return null;
-    if (DateTime.now().difference(entry.storedAt) > _ttl) {
+    if (clock.now().difference(entry.storedAt) > _ttl) {
       _entries.remove(key);
       return null;
     }
@@ -71,7 +65,7 @@ class AttachmentCache {
 
   void put(String key, Uint8List bytes) {
     _entries.remove(key);
-    _entries[key] = _Entry(bytes, DateTime.now());
+    _entries[key] = _Entry(bytes, clock.now());
     if (_entries.length > _maxEntries) {
       _entries.remove(_entries.keys.first);
     }
@@ -97,7 +91,7 @@ typedef _Stored = ({
 
 class DiskAttachmentCache {
   DiskAttachmentCache._() : _pinned = null;
-  DiskAttachmentCache.forTest(Directory dir) : _pinned = dir;
+  DiskAttachmentCache.forTest(Directory dir) : _pinned = dir.path;
 
   static final instance = DiskAttachmentCache._();
 
@@ -108,30 +102,32 @@ class DiskAttachmentCache {
   static const _maxTotalBytes = 256 * 1024 * 1024;
   static const _sweepInterval = Duration(minutes: 5);
 
-  final Directory? _pinned;
-  Directory? _located;
+  final String? _pinned;
+  String? _located;
   DateTime? _lastSweep;
   Future<void>? _sweepInFlight;
 
-  Future<Directory> _directory() async =>
-      _pinned ??
-      (_located ??= Directory(
-        p.join((await getApplicationCacheDirectory()).path, _dirName),
-      ));
+  Future<Directory> _directory() async => fileSystem.directory(
+    _pinned ??
+        (_located ??= p.join(
+          (await applicationCacheDirectory()).path,
+          _dirName,
+        )),
+  );
 
   String _fileNameFor(String key) =>
       sha256.convert(utf8.encode(key)).toString().substring(0, 32);
 
-  Future<File> _fileFor(String key, {required bool expires}) async => File(
-    p.joinAll([
-      (await _directory()).path,
-      if (!expires) _keptDirName,
-      _fileNameFor(key),
-    ]),
-  );
+  Future<File> _fileFor(String key, {required bool expires}) async =>
+      fileSystem.file(
+        p.joinAll([
+          (await _directory()).path,
+          if (!expires) _keptDirName,
+          _fileNameFor(key),
+        ]),
+      );
 
-  bool _isExpired(DateTime modified) =>
-      DateTime.now().difference(modified) > _ttl;
+  bool _isExpired(DateTime modified) => clock.now().difference(modified) > _ttl;
 
   Future<File?> file(String key, {bool expires = true}) async {
     try {
@@ -144,7 +140,7 @@ class DiskAttachmentCache {
       }
       unawaited(
         runBestEffort(
-          () => file.setLastModified(DateTime.now()),
+          () => file.setLastModified(clock.now()),
           label: 'touch a cached attachment',
         ),
       );
@@ -196,12 +192,15 @@ class DiskAttachmentCache {
     bool expires = true,
   }) async {
     final file = await _fileFor(key, expires: expires);
-    final part = File(
-      p.join((await _directory()).path, '${_uniqueName()}.part'),
+    final part = fileSystem.file(
+      p.join((await _directory()).path, '${uniqueName()}.part'),
     );
     try {
       await _writeFor(generation, part, () => part.writeAsBytes(bytes));
-      await _writeFor(generation, file, () => part.rename(file.path));
+      await _writeFor(generation, file, () async {
+        await part.rename(file.path);
+        await file.setLastModified(clock.now());
+      });
     } catch (_) {
       await _delete(part, label: 'drop a partly cached attachment');
       rethrow;
@@ -211,15 +210,15 @@ class DiskAttachmentCache {
   }
 
   Future<File> _handOver(int generation, String name, File source) async {
-    final folder = Directory(
-      p.join((await _directory()).path, _handoverDirName, _uniqueName()),
+    final folder = fileSystem.directory(
+      p.join((await _directory()).path, _handoverDirName, uniqueName()),
     );
-    final copy = File(p.join(folder.path, name));
+    final copy = fileSystem.file(p.join(folder.path, name));
     try {
       await _writeFor(generation, folder, () async {
         await folder.create(recursive: true);
         await source.copy(copy.path);
-        await copy.setLastModified(DateTime.now());
+        await copy.setLastModified(clock.now());
       });
     } catch (_) {
       await _delete(folder, label: 'drop a partial hand-over copy');
@@ -274,12 +273,12 @@ class DiskAttachmentCache {
 
   Future<void> sweep() => _sweepInFlight ??= _sweep().whenComplete(() {
     _sweepInFlight = null;
-    _lastSweep = DateTime.now();
+    _lastSweep = clock.now();
   });
 
   void _sweepSoon() {
     final last = _lastSweep;
-    if (last != null && DateTime.now().difference(last) < _sweepInterval) {
+    if (last != null && clock.now().difference(last) < _sweepInterval) {
       return;
     }
     unawaited(sweep());

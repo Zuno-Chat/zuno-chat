@@ -2,14 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/communities.dart';
 import 'package:zuno/core/matrix/room_permission.dart';
 import 'package:zuno/core/matrix/room_roles.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 RoomPermission _find(String id) =>
@@ -44,7 +43,7 @@ void main() {
 
   group('setRoomPermissionLevel', () {
     test('the new value is readable immediately, before any sync', () async {
-      final httpClient = MockClient(
+      final httpClient = FakeHttpClient(
         (request) async =>
             http.Response(jsonEncode({'event_id': r'$evt'}), 200),
       );

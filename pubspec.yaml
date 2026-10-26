@@ -55,6 +55,7 @@ dependencies:
   vodozemac: ^0.9.0
   path: ^1.9.1
   path_provider: ^2.1.6
+  file: ^7.0.1
   image_picker: ^1.2.4
   # Already a transitive dep of image_picker (XFile's own package) —
   # listed directly because looks_like_video.dart imports it by name.

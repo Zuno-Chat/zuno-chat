@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:ui';
 
+import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -604,12 +605,15 @@ void main() {
         'not hold the cancel back', () async {
       final presenter = _FakeRememberingPresenter();
       final prefs = await SharedPreferences.getInstance();
-      await saveRingingCall(prefs, (
-        roomId: '!room:example.org',
-        callId: 'call1',
-        callerId: '@bob:example.org',
-        isVideo: true,
-      ), now: DateTime.now().subtract(const Duration(seconds: 46)));
+      await withClock(
+        Clock.fixed(clock.now().subtract(const Duration(seconds: 46))),
+        () => saveRingingCall(prefs, (
+          roomId: '!room:example.org',
+          callId: 'call1',
+          callerId: '@bob:example.org',
+          isVideo: true,
+        )),
+      );
 
       await presenter.cancelIncoming(
         roomId: '!room:example.org',

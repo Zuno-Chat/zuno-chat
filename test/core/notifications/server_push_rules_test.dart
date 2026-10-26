@@ -3,12 +3,11 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/server_push_rules.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 Map<String, Object?> _ruleJson(
@@ -57,7 +56,7 @@ PushRuleSet _rules({
   final client = buildTestClient(
     userId: '@me:example.org',
     deviceId: 'DEV',
-    httpClient: MockClient((request) async {
+    httpClient: FakeHttpClient((request) async {
       if (request.method == 'PUT' && request.url.path.contains('/pushrules/')) {
         puts.add(request);
       }

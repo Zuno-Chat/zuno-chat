@@ -1,9 +1,9 @@
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/data/failed_reason.dart';
@@ -15,6 +15,7 @@ import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart'
 import 'package:zuno/core/push/unified_push/unified_push_pusher.dart';
 import 'package:zuno/core/push/unified_push/unified_push_registration_store.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_unified_push.dart';
 
@@ -28,7 +29,7 @@ void main() {
     provider = UnifiedPushDeliveryProvider()
       ..distributorIgnoresBatteryOptimizations = ((_) async => true)
       ..gatewayHttpClient = (() =>
-          MockClient((_) async => http.Response('not found', 404)));
+          FakeHttpClient((_) async => http.Response('not found', 404)));
   });
 
   test(
@@ -167,7 +168,7 @@ void main() {
       final client = buildTestClient(
         userId: '@me:example.org',
         deviceId: 'TESTDEVICE',
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           if (request.url.path.contains('pushers/set')) {
             posts.add(request.body);
           }
@@ -200,7 +201,7 @@ void main() {
       final c = buildTestClient(
         userId: '@me:example.org',
         deviceId: 'TESTDEVICE',
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           if (request.url.path.contains('pushers/set')) {
             posts.add(request.body);
             return http.Response('{}', 200);
@@ -280,7 +281,7 @@ void main() {
       final c = buildTestClient(
         userId: '@me:example.org',
         deviceId: 'TESTDEVICE',
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           if (request.url.path.contains('pushers/set')) {
             posts.add(request.body);
             if (failDelete) {
@@ -402,7 +403,7 @@ void main() {
     final c = buildTestClient(
       userId: '@me:example.org',
       deviceId: 'TESTDEVICE',
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         if (request.url.path.contains('pushers/set')) {
           if (failPost?.call() ?? false) {
             return http.Response('{"errcode":"M_UNKNOWN"}', 500);
@@ -570,11 +571,7 @@ void main() {
   });
 
   group('recheckRegistration on resume', () {
-    var now = DateTime(2031, 1, 1, 9);
-
     setUp(() async {
-      now = DateTime(2031, 1, 1, 9);
-      provider.now = () => now;
       SharedPreferences.setMockInitialValues({});
       await saveUnifiedPushRegistration(
         await SharedPreferences.getInstance(),
@@ -589,9 +586,11 @@ void main() {
       await provider.start(env.client);
       expect(provider.status.value, UnifiedPushStatus.ready);
       final before = env.pusherPosts.length;
-      now = now.add(registrationRecheckInterval);
 
-      await provider.recheckRegistration(env.client);
+      await withClock(
+        Clock.fixed(clock.now().add(registrationRecheckInterval)),
+        () => provider.recheckRegistration(env.client),
+      );
 
       expect(env.pusherPosts.length, before + 1);
     });
@@ -601,9 +600,11 @@ void main() {
       fake.distributor = 'io.heckel.ntfy';
       await provider.start(env.client);
       final before = env.pusherPosts.length;
-      now = now.add(const Duration(minutes: 5));
 
-      await provider.recheckRegistration(env.client);
+      await withClock(
+        Clock.fixed(clock.now().add(const Duration(minutes: 5))),
+        () => provider.recheckRegistration(env.client),
+      );
 
       expect(env.pusherPosts.length, before);
     });

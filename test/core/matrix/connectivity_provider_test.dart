@@ -5,14 +5,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
 
@@ -25,7 +24,7 @@ void main() {
     Client clientAnswering(Future<http.Response> Function() answer) {
       requested = [];
       final client = buildTestClient(
-        httpClient: MockClient((request) {
+        httpClient: FakeHttpClient((request) {
           requested.add(request.url);
           return answer();
         }),
@@ -95,7 +94,7 @@ void main() {
       fakeAsync((async) {
         final network = StreamController<bool>();
         final client = buildTestClient(
-          httpClient: MockClient((_) => Completer<http.Response>().future),
+          httpClient: FakeHttpClient((_) => Completer<http.Response>().future),
         );
         client.homeserver = Uri.parse('https://example.org');
         final container = ProviderContainer(

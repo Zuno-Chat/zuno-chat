@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -26,12 +28,16 @@ void main() {
     ),
   );
 
-  Future<void> pumpUntilShown(WidgetTester tester) => pumpWhileFetching(
-    tester,
-    rounds: 500,
-    until: () =>
-        find.text('${server.served.length} bytes').evaluate().isNotEmpty,
-  );
+  Future<void> pumpFetch(WidgetTester tester) async {
+    var fetched = false;
+    tester
+        .widget<FutureBuilder<Uint8List>>(find.byType(FutureBuilder<Uint8List>))
+        .future!
+        .then((_) => fetched = true, onError: (Object _) => fetched = true);
+    await tester.pump();
+    expect(fetched, isTrue);
+    await tester.pump();
+  }
 
   testWidgets('an image already in memory shows at once', (tester) async {
     final event = server.attachment();
@@ -54,8 +60,7 @@ void main() {
     await pumpImage(tester, event);
     expect(find.text('loading'), findsOneWidget);
 
-    await pumpUntilShown(tester);
-    await tester.pump();
+    await pumpFetch(tester);
 
     expect(find.text('${server.served.length} bytes'), findsOneWidget);
     expect(server.downloads, hasLength(1));
@@ -68,9 +73,9 @@ void main() {
     server.goneFromServer(event);
 
     await pumpImage(tester, event);
-    await pumpWhileFetching(tester);
-    await tester.pump();
+    await pumpFetch(tester);
 
+    expect(server.downloads, hasLength(1));
     expect(find.text('loading'), findsOneWidget);
   });
 
@@ -100,7 +105,6 @@ void main() {
     testWidgets('a video without one shows the stand-in and downloads '
         'nothing', (tester) async {
       await pumpThumbnail(tester, video());
-      await pumpWhileFetching(tester);
       await tester.pump();
 
       expect(find.text('no thumbnail'), findsOneWidget);
@@ -124,8 +128,7 @@ void main() {
       tester,
     ) async {
       await pumpThumbnail(tester, video(thumbnailId: 'clip-thumb'));
-      await pumpUntilShown(tester);
-      await tester.pump();
+      await pumpFetch(tester);
 
       expect(find.text('${server.served.length} bytes'), findsOneWidget);
       expect(server.downloads.single.path, endsWith('/clip-thumb'));
@@ -135,8 +138,7 @@ void main() {
       tester,
     ) async {
       await pumpThumbnail(tester, server.attachment());
-      await pumpUntilShown(tester);
-      await tester.pump();
+      await pumpFetch(tester);
 
       expect(find.text('${server.served.length} bytes'), findsOneWidget);
       expect(server.downloads.single.path, endsWith('/attachment'));

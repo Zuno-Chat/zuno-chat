@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -73,12 +74,14 @@ void main() {
     LiveLocationSharing? sharing,
   }) async {
     final liveLocation = sharing ?? _sharing(LiveLocationTestClient());
-    addTearDown(liveLocation.dispose);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           if (client != null) matrixClientProvider.overrideWithValue(client),
-          liveLocationSharingProvider.overrideWithValue(liveLocation),
+          liveLocationSharingProvider.overrideWith((ref) {
+            ref.onDispose(liveLocation.dispose);
+            return liveLocation;
+          }),
         ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -227,7 +230,7 @@ void main() {
       LiveLocationDuration.hour,
       LivePosition(
         geo: const GeoUri(latitude: 1, longitude: 2),
-        at: DateTime.now(),
+        at: clock.now(),
       ),
     );
 
@@ -257,12 +260,7 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    Future<void> finish(WidgetTester tester) async {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 50)),
-      );
-      await tester.pumpAndSettle();
-    }
+    Future<void> untilDeleted(WidgetTester tester) => tester.pumpAndSettle();
 
     testWidgets('asks for the password, erases the account, then clears '
         'this device', (tester) async {
@@ -274,7 +272,7 @@ void main() {
       );
 
       await enterPassword(tester, 'hunter2');
-      await finish(tester);
+      await untilDeleted(tester);
 
       expect(client.passwords, ['hunter2']);
       expect(client.erasures, [true]);
@@ -287,7 +285,7 @@ void main() {
       expect(client.journal, isEmpty);
 
       await enterPassword(tester, 'hunter2');
-      await finish(tester);
+      await untilDeleted(tester);
 
       expect(client.journal, ['call ended', 'deactivated']);
     });
@@ -298,18 +296,18 @@ void main() {
       answer(tester, call());
 
       await enterPassword(tester, 'hunter2');
-      await finish(tester);
+      await untilDeleted(tester);
 
       expect(client.journal, ['call ended', 'deactivated']);
     });
 
     testWidgets('a live share stops once the password is in, before the '
         'account goes', (tester) async {
-      await tester.runAsync(share);
+      await share();
       await reachPassword(tester);
 
       await enterPassword(tester, 'hunter2');
-      await finish(tester);
+      await untilDeleted(tester);
 
       expect(client.journal, [
         'share published',
@@ -321,11 +319,11 @@ void main() {
     testWidgets('cancelling the password leaves the call and the share alone', (
       tester,
     ) async {
-      await tester.runAsync(share);
+      await share();
       await reachPassword(tester, activeCall: call());
 
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-      await finish(tester);
+      await tester.pumpAndSettle();
 
       expect(client.journal, ['share published']);
       expect(sharing.shares.value, isNotEmpty);
@@ -355,7 +353,7 @@ void main() {
       ),
     ]) {
       testWidgets(name, (tester) async {
-        if (sharingNow) await tester.runAsync(share);
+        if (sharingNow) await share();
         await reachPassword(tester, activeCall: inCall ? call() : null);
 
         expect(find.text(notice), findsOneWidget);
@@ -378,7 +376,7 @@ void main() {
       await enterPassword(tester, 'wrong');
       expect(find.text('Wrong password.'), findsOneWidget);
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-      await finish(tester);
+      await tester.pumpAndSettle();
 
       expect(client.journal, ['call ended']);
       expect(client.clears, isEmpty);
@@ -416,7 +414,7 @@ void main() {
     ) async {
       await reachPassword(tester);
       await enterPassword(tester, 'hunter2');
-      await finish(tester);
+      await untilDeleted(tester);
 
       client.onUiaRequest.add(
         UiaRequest(request: (auth) async => throw uiaPasswordChallenge()),

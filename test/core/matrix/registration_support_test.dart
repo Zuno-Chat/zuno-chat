@@ -6,15 +6,14 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
 
 import '../../helpers/caught_reports.dart';
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/fixed_homeserver.dart';
 import '../../helpers/hybrid_fake_async.dart';
@@ -131,7 +130,7 @@ void main() {
     test('POSTs an empty body to the homeserver register endpoint', () async {
       late Uri requested;
       final client = buildTestClient(
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           requested = request.url;
           expect(request.method, 'POST');
           expect(request.body, '{}');
@@ -164,7 +163,7 @@ void main() {
     ]) {
       test('$label is inconclusive rather than thrown', () async {
         final client = buildTestClient(
-          httpClient: MockClient((_) async => throw failure),
+          httpClient: FakeHttpClient((_) async => throw failure),
         )..homeserver = Uri.parse('https://example.org');
 
         expect(
@@ -177,7 +176,7 @@ void main() {
     test('a homeserver that never answers is inconclusive', () {
       fakeAsync((async) {
         final client = buildTestClient(
-          httpClient: MockClient((_) => Completer<http.Response>().future),
+          httpClient: FakeHttpClient((_) => Completer<http.Response>().future),
         )..homeserver = Uri.parse('https://example.org');
 
         RegistrationSupport? support;
@@ -191,7 +190,7 @@ void main() {
     test('a non-JSON body is inconclusive rather than thrown, and no '
         'failure to report', () async {
       final client = buildTestClient(
-        httpClient: MockClient(
+        httpClient: FakeHttpClient(
           (_) async => http.Response('<html>nope</html>', 401),
         ),
       )..homeserver = Uri.parse('https://example.org');
@@ -207,7 +206,7 @@ void main() {
 
     test('a probe that fails some other way is reported', () async {
       final client = buildTestClient(
-        httpClient: MockClient((_) async => throw Exception('closed')),
+        httpClient: FakeHttpClient((_) async => throw Exception('closed')),
       )..homeserver = Uri.parse('https://example.org');
 
       final reports = await reportsDuring(
@@ -224,7 +223,7 @@ void main() {
     ) {
       var probes = 0;
       final client = buildTestClient(
-        httpClient: MockClient((_) => answer(++probes)),
+        httpClient: FakeHttpClient((_) => answer(++probes)),
       )..homeserver = Uri.parse('https://example.org');
       final container = ProviderContainer(
         overrides: [
@@ -649,7 +648,7 @@ void main() {
     ) {
       final requests = <http.Request>[];
       final client = buildTestClient(
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           requests.add(request);
           return answers[requests.length - 1]();
         }),

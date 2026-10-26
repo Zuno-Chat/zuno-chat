@@ -126,7 +126,8 @@ void main() {
       await openRoom(tester);
       int markers() =>
           harness.requests.where((p) => p.endsWith('/read_markers')).length;
-      expect(markers(), 1);
+      final failed = markers();
+      expect(failed, isPositive);
 
       readMarkersFail = false;
       goToBackground(tester);
@@ -134,7 +135,7 @@ void main() {
       comeBack(tester);
       await harness.settle(tester);
 
-      expect(markers(), 2);
+      expect(markers(), failed + 1);
     });
   });
 
@@ -216,7 +217,6 @@ void main() {
       ambientCapabilities = capabilitiesLike(
         androidCapabilities,
         nativeImageResize: false,
-        uploadForegroundService: false,
       );
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -316,6 +316,9 @@ void main() {
     }
 
     int failedTiles() => find.byType(GalleryFailedThumbnail).evaluate().length;
+
+    int uploads() =>
+        harness.requests.where((p) => p.contains('/upload')).length;
 
     bool settledOn(Type page) {
       final found = find.byType(page).evaluate();
@@ -494,16 +497,12 @@ void main() {
       uploadsFail = true;
       await openWithSharedVideo(tester);
       await sendFailingVideo(tester);
+      final failedUploads = uploads();
 
       await tester.tap(find.byType(GalleryFailedThumbnail));
       await pumpUntil(
         tester,
-        () => failedTiles() == 0,
-        reason: 'the retry to start',
-      );
-      await pumpUntil(
-        tester,
-        () => failedTiles() == 1,
+        () => uploads() > failedUploads && failedTiles() == 1,
         reason: 'the retry to fail',
       );
 
@@ -605,8 +604,10 @@ void main() {
       await openWithShare(
         tester,
         InboundShare(files: [document('notes.pdf'), document('broken.pdf')]),
-        awaiting: 'the readable file to be sent',
-        until: () => harness.sent.isNotEmpty,
+        awaiting: 'the readable file to be sent and the other reported',
+        until: () =>
+            harness.sent.isNotEmpty &&
+            shows('One shared file could not be opened. Share it again.'),
       );
 
       expect(

@@ -2,13 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/room_access.dart';
 import 'package:zuno/core/matrix/room_permission.dart';
 import 'package:zuno/core/matrix/room_roles.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 
 void setJoinRule(Room room, String rule) => room.setState(
@@ -106,7 +105,7 @@ void main() {
       listingResponse = null;
       final client = buildTestClient(
         userId: '@me:example.org',
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           requests.add(request);
           final refusal = listingResponse;
           if (refusal != null &&
@@ -301,7 +300,7 @@ void main() {
       createResponse = null;
       client = buildTestClient(
         userId: '@me:example.org',
-        httpClient: MockClient((request) async {
+        httpClient: FakeHttpClient((request) async {
           requests.add(request);
           return createResponse ??
               http.Response(jsonEncode({'room_id': '!new:example.org'}), 200);

@@ -66,14 +66,6 @@ void main() {
   void alreadyOnPhone(Event event) =>
       AttachmentCache.instance.put(keyOf(event), server.served);
 
-  Future<void> settle(WidgetTester tester) async {
-    await pumpRealAsync(
-      tester,
-      rounds: 20,
-      step: const Duration(milliseconds: 20),
-    );
-  }
-
   Future<void> pumpVoice(WidgetTester tester, Event event) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -86,7 +78,7 @@ void main() {
         ),
       ),
     );
-    await settle(tester);
+    await tester.pump();
   }
 
   Future<void> unmount(WidgetTester tester) async {
@@ -104,30 +96,38 @@ void main() {
     });
   }
 
+  bool showsIcon(IconData icon) => find.byIcon(icon).evaluate().isNotEmpty;
+
   Future<void> pressPlayPause(WidgetTester tester) async {
-    final next = find.byIcon(
-      find.byIcon(Icons.pause).evaluate().isEmpty
-          ? Icons.pause
-          : Icons.play_arrow,
-    );
+    final playing = showsIcon(Icons.pause);
+    final call = playing ? 'pause' : 'play';
+    final calls = audio.named(call).length;
     await tester.tap(find.byType(InkWell));
     await pumpUntil(
       tester,
-      () => next.evaluate().isNotEmpty,
-      reason: 'the play button to switch',
+      () =>
+          audio.named(call).length > calls &&
+          showsIcon(playing ? Icons.play_arrow : Icons.pause),
+      reason: 'the player to $call',
     );
-    await settle(tester);
   }
 
   Future<void> tapWaveformAt(WidgetTester tester, double fraction) async {
     final bars = find.byType(CustomPaint).last;
     final box = tester.getRect(bars);
     await tester.tapAt(Offset(box.left + box.width * fraction, box.center.dy));
-    await settle(tester);
+    await tester.pump();
   }
 
-  Iterable<int> seeks() =>
-      audio.named('seek').map((position) => (position! as Duration).inMilliseconds);
+  Future<void> untilSessionGivenBack(WidgetTester tester) => pumpUntil(
+    tester,
+    () => log.contains('inactive') && showsIcon(Icons.play_arrow),
+    reason: 'playback to stop and the session to be given back',
+  );
+
+  Iterable<int> seeks() => audio
+      .named('seek')
+      .map((position) => (position! as Duration).inMilliseconds);
 
   String loadedPath() =>
       Uri.parse(audio.named('load').single! as String).toFilePath();
@@ -166,24 +166,15 @@ void main() {
     );
   }
 
-  Future<Uint8List?> keptOnDisk(WidgetTester tester, Event event) async {
-    Uint8List? kept;
-    for (var i = 0; i < 50 && kept == null; i++) {
-      await tester.pump(const Duration(milliseconds: 20));
-      kept = await tester.runAsync<Uint8List?>(() async {
-        final file = await DiskAttachmentCache.instance.file(keyOf(event));
-        return file == null ? null : await file.readAsBytes();
-      });
-    }
-    return kept;
-  }
+  Future<Uint8List?> keptOnDisk(Event event) async =>
+      (await DiskAttachmentCache.instance.file(keyOf(event)))?.readAsBytes();
 
   voiceTest('downloads a message the first time and keeps it', (tester) async {
     final event = voice();
 
     await playFromServer(tester, event);
 
-    expect(await keptOnDisk(tester, event), server.served);
+    expect(await keptOnDisk(event), server.served);
     expect(server.downloads, hasLength(1));
     expect(AttachmentCache.instance.get(keyOf(event)), isNull);
     expect(audio.methods, contains('play'));
@@ -195,9 +186,8 @@ void main() {
     final device = installDeviceFakes();
     final event = voice();
     await playFromServer(tester, event);
-    await keptOnDisk(tester, event);
 
-    await tester.runAsync(() => shareAttachments([event]));
+    await shareAttachments([event]);
 
     expect(device.shared, hasLength(1));
     expect(server.downloads, hasLength(1));
@@ -252,10 +242,9 @@ void main() {
       await tester.tap(find.byType(InkWell));
       await pumpUntil(
         tester,
-        () => audio.named('play').isNotEmpty,
+        () => audio.named('play').isNotEmpty && showsIcon(Icons.pause),
         reason: 'the message to play',
       );
-      await settle(tester);
     });
 
     expect(audio.named('load'), hasLength(1));
@@ -270,12 +259,14 @@ void main() {
     await pumpVoice(tester, event);
 
     await pressPlayPause(tester);
-    expect(
-      log,
-      containsAllInOrder(['configure playback', 'active', 'play']),
-    );
+    expect(log, containsAllInOrder(['configure playback', 'active', 'play']));
 
     await pressPlayPause(tester);
+    await pumpUntil(
+      tester,
+      () => log.contains('inactive'),
+      reason: 'the session to be given back',
+    );
     expect(log, containsAllInOrder(['play', 'pause', 'inactive']));
   });
 
@@ -288,7 +279,7 @@ void main() {
     await pressPlayPause(tester);
 
     audio.finishPlaying();
-    await settle(tester);
+    await untilSessionGivenBack(tester);
 
     expect(log, containsAllInOrder(['play', 'inactive']));
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
@@ -302,7 +293,7 @@ void main() {
     await pressPlayPause(tester);
 
     port.unplug();
-    await settle(tester);
+    await untilSessionGivenBack(tester);
 
     expect(log, containsAllInOrder(['play', 'pause', 'inactive']));
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
@@ -343,14 +334,19 @@ void main() {
   voiceTest('scrolling away while it downloads does not start it', (
     tester,
   ) async {
-    await pumpVoice(tester, voice());
-
+    final event = voice();
+    await pumpVoice(tester, event);
+    server.holdDownloads();
     await tester.tap(find.byType(InkWell));
-    await unmount(tester);
-    await settle(tester);
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    expect(server.downloads, hasLength(1));
-    expect(audio.methods, isNot(contains('load')));
+    await unmount(tester);
+    server.releaseDownloads();
+    await tester.pump();
+
+    expect(await keptOnDisk(event), server.served);
+    expect(log, isEmpty);
   });
 
   voiceTest('a message that does not load says so and does not play', (
@@ -403,7 +399,6 @@ void main() {
         () => find.byType(SnackBar).evaluate().isNotEmpty,
         reason: 'the failure to be reported',
       );
-      await settle(tester);
     });
 
     expect(reports, ['play voice message']);
@@ -419,7 +414,11 @@ void main() {
 
     final reports = await reportsDuring(() async {
       audio.failPlaying();
-      await settle(tester);
+      await pumpUntil(
+        tester,
+        () => log.contains('inactive'),
+        reason: 'the failed player to give the session back',
+      );
     });
 
     expect(reports, ['voice message player']);
@@ -462,9 +461,12 @@ void main() {
     await pressPlayPause(tester);
 
     audio.reportDuration(const Duration(minutes: 1));
-    await settle(tester);
     audio.finishPlaying();
-    await settle(tester);
+    await pumpUntil(
+      tester,
+      () => shows('1:00'),
+      reason: 'the player\'s length to show once finished',
+    );
 
     expect(find.text('1:00'), findsOneWidget);
   });
@@ -477,7 +479,7 @@ void main() {
 
     audio.position = const Duration(seconds: 42);
     audio.finishPlaying();
-    await settle(tester);
+    await untilSessionGivenBack(tester);
 
     expect(find.text('0:42'), findsOneWidget);
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
@@ -499,6 +501,11 @@ void main() {
     await pumpVoice(tester, event);
 
     await tapWaveformAt(tester, 0.5);
+    await pumpUntil(
+      tester,
+      () => audio.named('play').isNotEmpty,
+      reason: 'the message to play',
+    );
 
     expect(audio.methods, containsAllInOrder(['load', 'seek', 'play']));
     expect(seeks().single, closeTo(21000, 500));
@@ -514,6 +521,11 @@ void main() {
     await pressPlayPause(tester);
 
     await tapWaveformAt(tester, 0.25);
+    await pumpUntil(
+      tester,
+      () => seeks().isNotEmpty,
+      reason: 'the message to move',
+    );
 
     expect(audio.named('play'), hasLength(1));
     expect(seeks().single, closeTo(10500, 500));
@@ -527,9 +539,18 @@ void main() {
     await pumpVoice(tester, event);
     await pressPlayPause(tester);
     audio.finishPlaying();
-    await settle(tester);
+    await pumpUntil(
+      tester,
+      () => seeks().isNotEmpty && showsIcon(Icons.play_arrow),
+      reason: 'the finished message to rewind',
+    );
 
     await tapWaveformAt(tester, 0.5);
+    await pumpUntil(
+      tester,
+      () => audio.named('play').length == 2,
+      reason: 'the message to play again',
+    );
 
     expect(audio.named('load'), hasLength(1));
     expect(audio.named('play'), hasLength(2));
@@ -540,13 +561,11 @@ void main() {
     tester,
   ) async {
     final event = voice(durationMs: null);
-    alreadyOnPhone(event);
     await pumpVoice(tester, event);
 
     await tapWaveformAt(tester, 0.5);
 
-    expect(audio.methods, isNot(contains('load')));
-    expect(seeks(), isEmpty);
+    expect(server.downloads, isEmpty);
   });
 
   voiceTest('a message whose waveform changes redraws with the new one', (

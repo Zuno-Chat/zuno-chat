@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart'
     show ValueListenable, debugPrint, visibleForTesting;
 import 'package:flutter/widgets.dart'
@@ -556,7 +557,7 @@ class CallSession {
       );
       _reconcileRemoteMemberships();
       _setPhase(CallSessionPhase.active);
-      _activeAt = DateTime.now();
+      _activeAt = clock.now();
     } catch (e) {
       if (_hangUp == null) {
         if (e is CallRemovedException) {
@@ -861,8 +862,8 @@ class CallSession {
       callId: callId,
       deviceId: _myDeviceId,
       kind: kind.name,
-      expiresAtMs: DateTime.now().add(_membershipTtl).millisecondsSinceEpoch,
-      createdAtMs: _joinedAtMs ??= DateTime.now().millisecondsSinceEpoch,
+      expiresAtMs: clock.now().add(_membershipTtl).millisecondsSinceEpoch,
+      createdAtMs: _joinedAtMs ??= clock.now().millisecondsSinceEpoch,
       fociActive: foci,
     );
     _membershipRequested = true;
@@ -997,7 +998,7 @@ class CallSession {
         ? CallEndReason.missed
         : CallEndReason.hungUp;
     final durationMs = switch (_activeAt) {
-      final activeAt? => DateTime.now().difference(activeAt).inMilliseconds,
+      final activeAt? => clock.now().difference(activeAt).inMilliseconds,
       null => 0,
     };
 

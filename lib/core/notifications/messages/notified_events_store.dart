@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/caught_errors.dart';
@@ -63,32 +64,26 @@ Map<String, int> _announcedInvites(SharedPreferences prefs, DateTime now) {
   };
 }
 
-DateTime? inviteAnnouncedAt(
-  SharedPreferences prefs,
-  String roomId, {
-  DateTime? now,
-}) {
-  final at = _announcedInvites(prefs, now ?? DateTime.now())[roomId];
+DateTime? inviteAnnouncedAt(SharedPreferences prefs, String roomId) {
+  final at = _announcedInvites(prefs, clock.now())[roomId];
   return at == null ? null : DateTime.fromMillisecondsSinceEpoch(at);
 }
 
 Future<void> markInviteAnnouncedOnDisk(
   SharedPreferences prefs,
   String roomId, {
-  DateTime? now,
+  required DateTime now,
 }) {
-  final at = now ?? DateTime.now();
-  final announced = _announcedInvites(prefs, at)
-    ..[roomId] = at.millisecondsSinceEpoch;
+  final announced = _announcedInvites(prefs, now)
+    ..[roomId] = now.millisecondsSinceEpoch;
   return prefs.setString(_announcedInvitesKey, jsonEncode(announced));
 }
 
 Future<bool> forgetInviteAnnouncementsOnDisk(
   SharedPreferences prefs,
-  Iterable<String> roomIds, {
-  DateTime? now,
-}) async {
-  final announced = _announcedInvites(prefs, now ?? DateTime.now());
+  Iterable<String> roomIds,
+) async {
+  final announced = _announcedInvites(prefs, clock.now());
   final before = announced.length;
   final settled = roomIds.toSet();
   announced.removeWhere((roomId, _) => settled.contains(roomId));

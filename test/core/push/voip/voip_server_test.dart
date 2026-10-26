@@ -2,10 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:zuno/core/push/voip/voip_server.dart';
 import 'package:zuno/core/push/zuno_push/zuno_push_api.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
 http.Response _module(Object? body, {int status = 200}) => http.Response(
@@ -21,7 +21,7 @@ ZunoPushVoipServer _server(
   () => ZunoPushApi(
     homeserver: Uri.parse('https://matrix.example.org'),
     bearer: () async => 'Bearer syt_token',
-    httpClient: MockClient((request) {
+    httpClient: FakeHttpClient((request) {
       requests?.add(request);
       return answer(request);
     }),

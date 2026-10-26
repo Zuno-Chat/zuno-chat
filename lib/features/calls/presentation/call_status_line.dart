@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/calls/models/call_status.dart';
@@ -11,7 +12,6 @@ class CallStatusLine extends StatelessWidget {
   final CallStatus status;
   final DateTime? talkingSince;
   final DateTime? encryptingSince;
-  final DateTime Function() now;
   final TextStyle? style;
   final TextStyle? hintStyle;
   final CrossAxisAlignment alignment;
@@ -21,7 +21,6 @@ class CallStatusLine extends StatelessWidget {
     required this.status,
     this.talkingSince,
     this.encryptingSince,
-    this.now = DateTime.now,
     this.style,
     this.hintStyle,
     this.alignment = CrossAxisAlignment.center,
@@ -55,7 +54,6 @@ class CallStatusLine extends StatelessWidget {
         alignment: alignment,
         hintMaxLines: null,
         since: encryptingSince,
-        now: now,
       ),
       CallStatus.talking => Row(
         mainAxisSize: MainAxisSize.min,
@@ -67,7 +65,7 @@ class CallStatusLine extends StatelessWidget {
             semanticLabel: l10n.callsEncrypted,
           ),
           const SizedBox(width: 4),
-          if (since != null) CallTimer(since: since, now: now, style: style),
+          if (since != null) CallTimer(since: since, style: style),
         ],
       ),
     };
@@ -76,15 +74,9 @@ class CallStatusLine extends StatelessWidget {
 
 class CallTimerSuffix extends StatelessWidget {
   final DateTime since;
-  final DateTime Function() now;
   final TextStyle? style;
 
-  const CallTimerSuffix({
-    super.key,
-    required this.since,
-    this.now = DateTime.now,
-    this.style,
-  });
+  const CallTimerSuffix({super.key, required this.since, this.style});
 
   @override
   Widget build(BuildContext context) => FittedBox(
@@ -93,7 +85,7 @@ class CallTimerSuffix extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(' · ', style: style),
-        CallTimer(since: since, now: now, style: style),
+        CallTimer(since: since, style: style),
       ],
     ),
   );
@@ -101,15 +93,9 @@ class CallTimerSuffix extends StatelessWidget {
 
 class CallTimer extends StatefulWidget {
   final DateTime since;
-  final DateTime Function() now;
   final TextStyle? style;
 
-  const CallTimer({
-    super.key,
-    required this.since,
-    this.now = DateTime.now,
-    this.style,
-  });
+  const CallTimer({super.key, required this.since, this.style});
 
   @override
   State<CallTimer> createState() => _CallTimerState();
@@ -136,7 +122,7 @@ class _CallTimerState extends State<CallTimer> {
   @override
   Widget build(BuildContext context) => RepaintBoundary(
     child: Text(
-      formatDuration(widget.now().difference(widget.since)),
+      formatDuration(clock.now().difference(widget.since)),
       style: widget.style,
     ),
   );

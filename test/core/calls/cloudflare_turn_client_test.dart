@@ -4,9 +4,10 @@ import 'dart:io' show SocketException;
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:zuno/core/calls/cloudflare/cloudflare_turn_client.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
+
+import '../../helpers/fake_http.dart';
 
 final _credentialsUri = Uri.parse(
   'https://example.org/_synapse/client/zuno/calls/cloudflare/turn/credentials',
@@ -26,7 +27,7 @@ http.Response _servers() =>
 
 void main() {
   test('posts the Matrix bearer with no body and returns iceServers', () async {
-    final mock = MockClient((request) async {
+    final mock = FakeHttpClient((request) async {
       expect(request.method, 'POST');
       expect(request.url, _credentialsUri);
       expect(request.headers['Authorization'], 'Bearer syt_token');
@@ -64,7 +65,7 @@ void main() {
   for (final MapEntry(key: status, value: name) in finalStatuses.entries) {
     test(name, () async {
       var calls = 0;
-      final mock = MockClient((request) async {
+      final mock = FakeHttpClient((request) async {
         calls++;
         return http.Response('{"errcode":"M_UNKNOWN"}', status);
       });
@@ -88,7 +89,7 @@ void main() {
   test(
     'throws CallsModuleException when the response has no iceServers field',
     () {
-      final mock = MockClient(
+      final mock = FakeHttpClient(
         (request) async => http.Response(
           jsonEncode({
             'iceServers': {'username': 'u1', 'credential': 'c1'},
@@ -117,7 +118,7 @@ void main() {
         'succeeds', () {
       fakeAsync((async) {
         var calls = 0;
-        final mock = MockClient((request) async {
+        final mock = FakeHttpClient((request) async {
           calls++;
           if (calls == 1) throw dropped;
           return _servers();
@@ -136,7 +137,7 @@ void main() {
   test('a 429 waits retry_after_ms and then retries', () {
     fakeAsync((async) {
       var calls = 0;
-      final mock = MockClient((request) async {
+      final mock = FakeHttpClient((request) async {
         calls++;
         if (calls == 1) {
           return http.Response(
@@ -159,7 +160,7 @@ void main() {
 
   test('an authorization failure is not retried', () async {
     var calls = 0;
-    final mock = MockClient((request) async => _servers());
+    final mock = FakeHttpClient((request) async => _servers());
     await expectLater(
       fetchCloudflareIceServers(
         credentialsUri: _credentialsUri,

@@ -1,7 +1,6 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
+import '../../../core/files/file_system.dart';
 import '../../../core/l10n/l10n.dart';
 import '../data/composed_image.dart';
 import 'caption_bar.dart';
@@ -100,7 +99,7 @@ class _ImageCaptionComposerPageState extends State<ImageCaptionComposerPage> {
                 itemBuilder: (context, i) => InteractiveViewer(
                   child: Center(
                     child: Image.file(
-                      File(_images[i].path),
+                      fileSystem.file(_images[i].path),
                       cacheWidth: previewDecodeWidth(context),
                       errorBuilder: (_, _, _) =>
                           const Icon(Icons.broken_image_outlined, size: 64),

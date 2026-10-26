@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'call_notification_service.dart' show RingingCallInfo;
@@ -9,9 +10,8 @@ const _maxAge = Duration(seconds: 45);
 
 Future<void> saveRingingCall(
   SharedPreferences prefs,
-  RingingCallInfo call, {
-  DateTime? now,
-}) async {
+  RingingCallInfo call,
+) async {
   await prefs.setString(
     _ringingCallKey,
     jsonEncode({
@@ -19,19 +19,19 @@ Future<void> saveRingingCall(
       'callId': call.callId,
       'callerId': call.callerId,
       'isVideo': call.isVideo,
-      'postedAt': (now ?? DateTime.now()).millisecondsSinceEpoch,
+      'postedAt': clock.now().millisecondsSinceEpoch,
     }),
   );
 }
 
-RingingCallInfo? readRingingCall(SharedPreferences prefs, {DateTime? now}) {
+RingingCallInfo? readRingingCall(SharedPreferences prefs) {
   final decoded = _readStored(prefs);
   if (decoded == null) return null;
   final roomId = decoded['roomId'];
   final callId = decoded['callId'];
   final postedAt = decoded['postedAt'];
   if (roomId is! String || callId is! String || postedAt is! int) return null;
-  if (_ageOf(postedAt, now) > _maxAge) return null;
+  if (_ageOf(postedAt) > _maxAge) return null;
   final callerId = decoded['callerId'];
   return (
     roomId: roomId,
@@ -44,13 +44,13 @@ RingingCallInfo? readRingingCall(SharedPreferences prefs, {DateTime? now}) {
 Future<void> clearRingingCall(SharedPreferences prefs) =>
     prefs.remove(_ringingCallKey);
 
-Duration? ringAgeFor(SharedPreferences prefs, String callId, {DateTime? now}) {
+Duration? ringAgeFor(SharedPreferences prefs, String callId) {
   final decoded = _readStored(prefs);
   if (decoded == null) return null;
   if (decoded['callId'] != callId) return null;
   final postedAt = decoded['postedAt'];
   if (postedAt is! int) return null;
-  final age = _ageOf(postedAt, now);
+  final age = _ageOf(postedAt);
   return age >= Duration.zero ? age : null;
 }
 
@@ -66,5 +66,5 @@ Map<String, Object?>? _readStored(SharedPreferences prefs) {
   return decoded is Map<String, Object?> ? decoded : null;
 }
 
-Duration _ageOf(int postedAt, DateTime? now) => (now ?? DateTime.now())
-    .difference(DateTime.fromMillisecondsSinceEpoch(postedAt));
+Duration _ageOf(int postedAt) =>
+    clock.now().difference(DateTime.fromMillisecondsSinceEpoch(postedAt));

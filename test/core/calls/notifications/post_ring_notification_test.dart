@@ -3,10 +3,8 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
@@ -15,6 +13,7 @@ import 'package:zuno/core/calls/notifications/ring_notification.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 
 import '../../../helpers/fake_call_style_channel.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
@@ -174,7 +173,7 @@ void main() {
       buildTestClient(
           userId: '@me:example.org',
           database: MediaCapableFakeDatabaseApi(),
-          httpClient: MockClient((request) async {
+          httpClient: FakeHttpClient((request) async {
             if (request.url.path.endsWith('/versions')) {
               return http.Response(
                 jsonEncode({

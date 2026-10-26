@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,7 +106,7 @@ void main() {
         LiveLocationDuration.hour,
         LivePosition(
           geo: const GeoUri(latitude: 1, longitude: 2),
-          at: DateTime.now(),
+          at: clock.now(),
         ),
       ),
     );

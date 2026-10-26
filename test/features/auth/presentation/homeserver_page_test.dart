@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/homeserver_input.dart';
@@ -14,15 +12,15 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/auth/presentation/homeserver_page.dart';
 
 import '../../../helpers/caught_reports.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_homeserver.dart';
-import '../../../helpers/pump_until.dart';
 
 void main() {
   late ProviderContainer container;
 
-  MockClient server({Set<String> down = const {}}) =>
-      MockClient((request) async {
+  FakeHttpClient server({Set<String> down = const {}}) =>
+      FakeHttpClient((request) async {
         if (down.contains(request.url.host)) {
           throw http.ClientException('offline');
         }
@@ -78,7 +76,7 @@ void main() {
   Future<void> submit(WidgetTester tester, String server) async {
     await tester.enterText(find.byType(TextField), server);
     await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
-    await pumpRealAsync(tester, rounds: 10);
+    await tester.pumpAndSettle();
   }
 
   testWidgets('the address is not autocorrected and keeps its URL keyboard', (
@@ -149,7 +147,9 @@ void main() {
       'failure to report', (tester) async {
     await pumpHomeserverPage(
       tester,
-      httpClient: MockClient((_) async => http.Response('<html></html>', 404)),
+      httpClient: FakeHttpClient(
+        (_) async => http.Response('<html></html>', 404),
+      ),
       pushed: true,
     );
 
@@ -169,7 +169,7 @@ void main() {
     final answer = Completer<http.Response>();
     await pumpHomeserverPage(
       tester,
-      httpClient: MockClient((_) => answer.future),
+      httpClient: FakeHttpClient((_) => answer.future),
     );
 
     await tester.enterText(find.byType(TextField), 'example.org');
@@ -178,7 +178,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
 
     answer.complete(http.Response('not a homeserver', 500));
-    await pumpRealAsync(tester, rounds: 5);
+    await tester.pump();
 
     expect(tester.takeException(), isNull);
   });

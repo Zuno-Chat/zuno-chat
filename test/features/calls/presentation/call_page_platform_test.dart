@@ -708,9 +708,9 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(rendererCalls(harness, texture), ['detach']);
+      expect(harness.rendererReleaseStarted(texture), isFalse);
 
-      await harness.settle();
-      await harness.settle();
+      await harness.untilRenderersReleased(1);
       expect(rendererCalls(harness, texture), ['detach', 'dispose']);
       await harness.close();
     });
@@ -733,8 +733,7 @@ void main() {
           );
 
       session.engine.setParticipants([localParticipant()]);
-      await harness.settle();
-      await harness.settle();
+      await harness.untilRenderersReleased(1);
 
       expect(rendererCalls(harness, texture), ['detach', 'dispose']);
       await harness.close();
@@ -758,8 +757,7 @@ void main() {
       harness.webrtc.clear();
 
       session.end();
-      await harness.settle();
-      await harness.settle();
+      await harness.untilRenderersReleased(2);
 
       expect(rendererCalls(harness, texture), ['detach', 'dispose']);
       expect(rendererCalls(harness, local['textureId']), ['detach', 'dispose']);
@@ -776,8 +774,10 @@ void main() {
       final (session, texture) = await remoteOnCamera(harness);
 
       session.engine.setParticipants([localParticipant()]);
-      await harness.settle();
+      await tester.pump();
+      expect(harness.rendererReleaseStarted(texture), isTrue);
 
+      await harness.untilRenderersReleased(1);
       expect(rendererCalls(harness, texture), ['dispose']);
       await harness.close();
     });

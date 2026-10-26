@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../async/serial_lock.dart';
@@ -12,17 +13,16 @@ const _maxEntries = 32;
 
 Future<void> markCallResolvedOnDisk(
   SharedPreferences prefs,
-  String callId, {
-  DateTime? now,
-}) async {
-  final at = now ?? DateTime.now();
+  String callId,
+) async {
+  final at = clock.now();
   await _moveLegacyValue(prefs, now: at);
   await prefs.setInt('$_keyPrefix$callId', at.millisecondsSinceEpoch);
   await _prune(prefs, now: at);
 }
 
-Set<String> readResolvedCallIds(SharedPreferences prefs, {DateTime? now}) {
-  final cutoff = _cutoff(now ?? DateTime.now());
+Set<String> readResolvedCallIds(SharedPreferences prefs) {
+  final cutoff = _cutoff(clock.now());
   return {
     for (final entry in _legacyEntries(prefs).entries)
       if (entry.value >= cutoff) entry.key,

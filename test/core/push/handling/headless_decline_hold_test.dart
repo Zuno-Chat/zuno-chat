@@ -7,7 +7,6 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/async/live_isolate_route.dart';
@@ -21,6 +20,7 @@ import 'package:zuno/core/push/handling/headless_decline_hold.dart';
 import 'package:zuno/core/push/handling/headless_push_runner.dart';
 
 import '../../../helpers/fake_call_style_channel.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/hybrid_fake_async.dart';
@@ -64,12 +64,16 @@ void main() {
         isTrue,
       );
       final runner = HeadlessPushRunner();
+      final time = FakeAsync();
+      var returned = false;
 
-      final stopwatch = Stopwatch()..start();
-      await awaitHeadlessDecline(runner).timeout(const Duration(seconds: 2));
-      stopwatch.stop();
+      time.run((_) {
+        awaitHeadlessDecline(runner).whenComplete(() => returned = true);
+      });
+      await time.settle();
 
-      expect(stopwatch.elapsed, lessThan(const Duration(milliseconds: 500)));
+      expect(returned, isTrue);
+      expect(time.elapsed, Duration.zero);
     },
   );
 
@@ -313,7 +317,7 @@ void main() {
       await time.advance(const Duration(seconds: 5));
       expect(held, isTrue);
       expect(LocalNotifications.instance.stillHoldsDeclinePort(), isTrue);
-      _tapDeclineWhileHeadless(initializeArguments!);
+      time.run((_) => _tapDeclineWhileHeadless(initializeArguments!));
       await time.settle();
 
       expect(held, isFalse);
@@ -422,7 +426,7 @@ Client _clientSending(List<Map<String, Object?>> sent) {
   final client = buildTestClient(
     userId: '@me:example.org',
     database: SendCapableFakeDatabaseApi(),
-    httpClient: MockClient((request) async {
+    httpClient: FakeHttpClient((request) async {
       if (request.method == 'PUT' && request.url.path.contains('/send/')) {
         sent.add(jsonDecode(request.body) as Map<String, Object?>);
       }

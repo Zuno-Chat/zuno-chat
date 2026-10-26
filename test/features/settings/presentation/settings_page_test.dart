@@ -285,9 +285,6 @@ void main() {
     await tester.tap(find.text('Sign out'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Sign out').last);
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 50)),
-    );
     await tester.pumpAndSettle();
 
     expect(client.journal, ['call ended', 'logged out']);

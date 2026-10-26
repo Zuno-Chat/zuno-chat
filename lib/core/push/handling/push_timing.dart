@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
+import '../../async/elapsed.dart';
+
 class PushTiming {
   PushTiming(this.label, {int Function()? elapsedMs}) {
     _elapsed = elapsedMs ?? () => _watch.elapsedMilliseconds;
   }
 
   final String label;
-  final _watch = Stopwatch()..start();
+  final _watch = startStopwatch();
   late final int Function() _elapsed;
   final _marks = <(String, int)>[];
 

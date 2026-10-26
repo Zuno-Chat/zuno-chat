@@ -4,13 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/auth/presentation/register_page.dart';
 import 'package:zuno/features/auth/presentation/registration_code_page.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
 void main() {
@@ -20,7 +19,7 @@ void main() {
   }) async {
     final requests = <http.Request>[];
     final client = buildTestClient(
-      httpClient: MockClient((request) async {
+      httpClient: FakeHttpClient((request) async {
         requests.add(request);
         return respond?.call() ?? http.Response('{}', 202);
       }),
@@ -41,7 +40,6 @@ void main() {
   Future<void> send(WidgetTester tester, String email) async {
     await tester.enterText(find.byType(TextField), email);
     await tester.tap(find.widgetWithText(FilledButton, 'Send code'));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
   }
 
