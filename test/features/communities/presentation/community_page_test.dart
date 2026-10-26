@@ -639,14 +639,19 @@ void main() {
       expect(find.text('Invitation sent'), findsOneWidget);
     });
 
-    testWidgets('an invitation that fails says so', (tester) async {
+    testWidgets('an invitation lost to the connection says to check it', (
+      tester,
+    ) async {
       await pump(tester);
       more.complete(const []);
       offline = true;
 
       await invite(tester);
 
-      expect(find.text('Invitation not sent. Try again.'), findsOneWidget);
+      expect(
+        find.text('Invitation not sent. Check your connection and try again.'),
+        findsOneWidget,
+      );
     });
   });
 

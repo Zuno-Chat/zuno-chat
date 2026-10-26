@@ -272,27 +272,108 @@ void main() {
     });
   });
 
+  late List<String> requests;
+
+  Client recordingClient({
+    Map<String, User Function(Room)> members = const {},
+    http.Response? Function(http.Request request)? answer,
+  }) {
+    requests = [];
+    final httpClient = MockClient((request) async {
+      requests.add('${request.method} ${request.url.path}');
+      return answer?.call(request) ?? http.Response('{}', 200);
+    });
+    return Client(
+        'test',
+        database: _MemberDatabase(members),
+        httpClient: httpClient,
+      )
+      ..setUserId('@me:example.org')
+      ..homeserver = Uri.parse('https://example.org')
+      ..accessToken = 'test-token';
+  }
+
+  group('inviting someone', () {
+    late http.Response inviteAnswer;
+
+    setUp(() {
+      inviteAnswer = http.Response('{}', 200);
+      final client = recordingClient(
+        answer: (request) => request.url.path.endsWith('/invite')
+            ? inviteAnswer
+            : notAMemberAnswer(request),
+      );
+      room = buildTestRoom(client)..membership = Membership.join;
+    });
+
+    String? membershipOf(String userId) =>
+        room.getState(EventTypes.RoomMember, userId)?.content['membership']
+            as String?;
+
+    test('sends an invitation to someone not in the room', () async {
+      expect(await inviteToRoom(room, '@bob:example.org'), InviteOutcome.sent);
+      expect(requests.where((r) => r.endsWith('/invite')), hasLength(1));
+    });
+
+    test('shows the person as invited at once', () async {
+      await inviteToRoom(room, '@bob:example.org');
+
+      expect(membershipOf('@bob:example.org'), 'invite');
+    });
+
+    test('invites someone who left again', () async {
+      setMember('@bob:example.org', membership: 'leave');
+
+      expect(await inviteToRoom(room, '@bob:example.org'), InviteOutcome.sent);
+    });
+
+    test('sends nothing to someone already in the room', () async {
+      setMember('@bob:example.org', membership: 'join');
+
+      expect(
+        await inviteToRoom(room, '@bob:example.org'),
+        InviteOutcome.alreadyMember,
+      );
+      expect(requests, isEmpty);
+    });
+
+    test('sends nothing to someone already invited', () async {
+      setMember('@bob:example.org', membership: 'invite');
+
+      expect(
+        await inviteToRoom(room, '@bob:example.org'),
+        InviteOutcome.alreadyInvited,
+      );
+      expect(requests, isEmpty);
+    });
+
+    test('a refused invitation fails and shows nobody as invited', () async {
+      inviteAnswer = http.Response(
+        '{"errcode": "M_FORBIDDEN", "error": "Not allowed"}',
+        403,
+      );
+
+      await expectLater(
+        inviteToRoom(room, '@bob:example.org'),
+        throwsA(isA<MatrixException>()),
+      );
+      expect(membershipOf('@bob:example.org'), isNull);
+    });
+
+    test('an unknown username fails', () async {
+      inviteAnswer = http.Response(
+        '{"errcode": "M_NOT_FOUND", "error": "Unknown user"}',
+        404,
+      );
+
+      await expectLater(
+        inviteToRoom(room, '@nobody:example.org'),
+        throwsA(isA<MatrixException>()),
+      );
+    });
+  });
+
   group('declining an invitation', () {
-    late List<String> requests;
-
-    Client declineClient({
-      Map<String, User Function(Room)> members = const {},
-    }) {
-      requests = [];
-      final httpClient = MockClient((request) async {
-        requests.add('${request.method} ${request.url.path}');
-        return http.Response('{}', 200);
-      });
-      return Client(
-          'test',
-          database: _MemberDatabase(members),
-          httpClient: httpClient,
-        )
-        ..setUserId('@me:example.org')
-        ..homeserver = Uri.parse('https://example.org')
-        ..accessToken = 'test-token';
-    }
-
     Room invitedRoom(Client client, {required bool isDirect}) {
       final room = buildTestRoom(client)..membership = Membership.invite;
       room.setState(
@@ -310,7 +391,7 @@ void main() {
     }
 
     test('a declined direct chat is left and then forgotten', () async {
-      final client = declineClient();
+      final client = recordingClient();
 
       await declineInvite(invitedRoom(client, isDirect: true));
 
@@ -323,7 +404,7 @@ void main() {
     });
 
     test('a declined group invitation is left but kept', () async {
-      final client = declineClient();
+      final client = recordingClient();
 
       await declineInvite(invitedRoom(client, isDirect: false));
 
@@ -332,7 +413,7 @@ void main() {
     });
 
     test('a restored invitation is still recognised as direct', () async {
-      final client = declineClient(
+      final client = recordingClient(
         members: {
           '@me:example.org': (r) => User.fromState(
             stateKey: '@me:example.org',

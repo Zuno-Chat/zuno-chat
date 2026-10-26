@@ -1,15 +1,76 @@
+import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
+import '../errors/connection_error.dart';
 import '../l10n/l10n.dart';
+import 'local_username_dialog.dart';
 import 'matrix_ids.dart';
+import 'optimistic_room_state.dart';
 import 'room_exit.dart';
 import 'room_title.dart';
 
 bool isIncomingInvite(Room room) => room.membership == Membership.invite;
 
-bool isUnknownInvitee(Object error) =>
-    error is MatrixException && error.error == MatrixError.M_NOT_FOUND;
+enum InviteOutcome { sent, alreadyMember, alreadyInvited }
+
+Future<String?> inviteFromDialog(
+  BuildContext context,
+  Room room, {
+  required String title,
+}) async {
+  final l10n = context.l10n;
+  final userId = await showLocalUsernameDialog(
+    context,
+    client: room.client,
+    title: title,
+    actionLabel: l10n.commonInvite,
+  );
+  if (userId == null || !context.mounted) return null;
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final outcome = await inviteToRoom(room, userId);
+    messenger.showSnackBar(
+      SnackBar(content: Text(_inviteOutcomeText(l10n, outcome))),
+    );
+    return outcome == InviteOutcome.sent ? userId : null;
+  } catch (e, s) {
+    final noAccount =
+        e is MatrixException && e.error == MatrixError.M_NOT_FOUND;
+    if (!noAccount) reportCaught('invite', e, s);
+    final failed = l10n.commonInvitationNotSent;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          noAccount
+              ? l10n.commonInviteeNoAccount
+              : failureMessage(l10n, e, failed: failed),
+        ),
+      ),
+    );
+    return null;
+  }
+}
+
+Future<InviteOutcome> inviteToRoom(Room room, String userId) async {
+  final member = await room.requestUser(userId, requestProfile: false);
+  if (member?.membership == Membership.join) {
+    return InviteOutcome.alreadyMember;
+  }
+  if (member?.membership == Membership.invite) {
+    return InviteOutcome.alreadyInvited;
+  }
+  await room.invite(userId);
+  applyOptimisticMembership(room, userId, Membership.invite);
+  return InviteOutcome.sent;
+}
+
+String _inviteOutcomeText(AppLocalizations l10n, InviteOutcome outcome) =>
+    switch (outcome) {
+      InviteOutcome.sent => l10n.commonInvitationSent,
+      InviteOutcome.alreadyMember => l10n.commonInviteeAlreadyMember,
+      InviteOutcome.alreadyInvited => l10n.commonInvitationAlreadySent,
+    };
 
 String? inviterId(Room room) {
   final ownMember = ownInviteMember(room);

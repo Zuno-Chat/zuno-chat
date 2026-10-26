@@ -9,7 +9,6 @@ import '../../../core/calls/end_call.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/bearer_authorization.dart';
-import '../../../core/matrix/local_username_dialog.dart';
 import '../../../core/matrix/room_exit.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/room_timeline_reload.dart';
@@ -32,7 +31,9 @@ List<PopupMenuEntry<void>> roomMenuItems(
     ),
     if (!room.isDirectChat && room.canInvite)
       PopupMenuItem(
-        onTap: () => unawaited(_addMembers(context, room)),
+        onTap: () => unawaited(
+          inviteFromDialog(context, room, title: l10n.chatAddMembers),
+        ),
         child: Text(l10n.chatAddMembers),
       ),
     if (ref.read(platformCapabilitiesProvider).homeScreenShortcuts)
@@ -50,28 +51,6 @@ List<PopupMenuEntry<void>> roomMenuItems(
       child: Text(roomExitLabel(room, l10n)),
     ),
   ];
-}
-
-Future<void> _addMembers(BuildContext context, Room room) async {
-  final l10n = context.l10n;
-  final userId = await showLocalUsernameDialog(
-    context,
-    client: room.client,
-    title: l10n.chatAddMembers,
-    actionLabel: l10n.commonInvite,
-  );
-  if (userId == null || !context.mounted) return;
-
-  final messenger = ScaffoldMessenger.of(context);
-  try {
-    await room.invite(userId);
-    messenger.showSnackBar(SnackBar(content: Text(l10n.commonInvitationSent)));
-  } catch (e, s) {
-    if (!isUnknownInvitee(e)) reportCaught('invite', e, s);
-    messenger.showSnackBar(
-      SnackBar(content: Text(l10n.commonInvitationNotSent)),
-    );
-  }
 }
 
 Future<void> _addToHomeScreen(BuildContext context, Room room) async {

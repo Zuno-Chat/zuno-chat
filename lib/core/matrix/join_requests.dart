@@ -8,6 +8,7 @@ import '../errors/best_effort.dart';
 import '../settings/app_preferences_provider.dart';
 import 'matrix_client_provider.dart';
 import 'optimistic_room_state.dart';
+import 'room_invite.dart';
 
 final joinRequestsProvider =
     NotifierProvider<JoinRequestsNotifier, Set<String>>(
@@ -89,18 +90,9 @@ List<User> pendingJoinRequests(Room room) => room
 bool canAnswerJoinRequests(Room room) =>
     room.membership == Membership.join && room.canInvite && room.canKick;
 
-Future<void> letIn(Room room, String userId) async {
-  await room.invite(userId);
-  _showMembership(room, userId, Membership.invite);
-}
+Future<void> letIn(Room room, String userId) => inviteToRoom(room, userId);
 
 Future<void> declineJoinRequest(Room room, String userId) async {
   await room.kick(userId);
-  _showMembership(room, userId, Membership.leave);
+  applyOptimisticMembership(room, userId, Membership.leave);
 }
-
-void _showMembership(Room room, String userId, Membership membership) =>
-    applyOptimisticRoomState(room, EventTypes.RoomMember, {
-      ...?room.getState(EventTypes.RoomMember, userId)?.content,
-      'membership': membership.name,
-    }, stateKey: userId);

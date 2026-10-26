@@ -13,4 +13,4 @@ New
 • Answer a call while on a call.
 • Review privacy settings in setup.
 
-Fixed 154 bugs.
+Fixed 156 bugs.

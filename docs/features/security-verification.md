@@ -391,7 +391,7 @@ the commonest words of ordinary prose break any run.
 - **A contact with a master key gets no room keys on an unapproved device**,
   so messages stay undecryptable there until they approve it, which is the
   default key policy working, not a bug.
-- **matrix 14.0.0's `directlyVerifiedOnly` counts only devices checked one by
+- **matrix's `directlyVerifiedOnly` counts only devices checked one by
   one**, not a confirmed person's other devices as its own doc promises, so
   Confirmed people only reaches fewer devices than it says until
   famedly/matrix-dart-sdk#2518 ships.

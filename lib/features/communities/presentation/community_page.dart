@@ -14,7 +14,6 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/communities.dart';
 import '../../../core/matrix/join_requests.dart';
 import '../../../core/matrix/join_room.dart';
-import '../../../core/matrix/local_username_dialog.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/optimistic_room_state.dart';
 import '../../../core/matrix/room_access.dart';
@@ -261,28 +260,11 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     }
   }
 
-  Future<void> _invite() async {
-    final userId = await showLocalUsernameDialog(
-      context,
-      client: _client,
-      title: context.l10n.communitiesInviteTitle,
-      actionLabel: context.l10n.commonInvite,
-    );
-    if (userId == null || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    try {
-      await _community.invite(userId);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.commonInvitationSent)),
-      );
-    } catch (e, s) {
-      if (!isUnknownInvitee(e)) reportCaught('invite to community', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.commonInvitationNotSent)),
-      );
-    }
-  }
+  Future<void> _invite() => inviteFromDialog(
+    context,
+    _community,
+    title: context.l10n.communitiesInviteTitle,
+  );
 
   Future<void> _newRoom() async {
     final l10n = context.l10n;
@@ -464,10 +446,11 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     final l10n = context.l10n;
     try {
       await (ban ? community.ban(user.id) : community.kick(user.id));
-      applyOptimisticRoomState(community, EventTypes.RoomMember, {
-        ...?community.getState(EventTypes.RoomMember, user.id)?.content,
-        'membership': (ban ? Membership.ban : Membership.leave).name,
-      }, stateKey: user.id);
+      applyOptimisticMembership(
+        community,
+        user.id,
+        ban ? Membership.ban : Membership.leave,
+      );
       if (mounted) setState(() {});
     } catch (e, s) {
       reportCaught(ban ? 'ban from community' : 'remove from community', e, s);

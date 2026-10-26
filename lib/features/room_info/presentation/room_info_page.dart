@@ -13,7 +13,6 @@ import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/abuse_report.dart';
-import '../../../core/matrix/local_username_dialog.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/optimistic_room_state.dart';
@@ -191,29 +190,12 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
   }
 
   Future<void> _invite() async {
-    final client = widget.room.client;
-    final userId = await showLocalUsernameDialog(
+    final invited = await inviteFromDialog(
       context,
-      client: client,
+      widget.room,
       title: context.l10n.roomInfoInviteToRoom,
-      actionLabel: context.l10n.commonInvite,
     );
-    if (userId == null || !mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    try {
-      await widget.room.invite(userId);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.commonInvitationSent)),
-      );
-      _showMembership(userId, Membership.invite);
-    } catch (e, s) {
-      if (!isUnknownInvitee(e)) reportCaught('invite', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.commonInvitationNotSent)),
-      );
-    }
+    if (invited != null) _listMembership(invited, Membership.invite);
   }
 
   Future<void> _changeMemberRole(User user) async {
@@ -241,11 +223,11 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
   }
 
   void _showMembership(String userId, Membership membership) {
-    final room = widget.room;
-    applyOptimisticRoomState(room, EventTypes.RoomMember, {
-      ...?room.getState(EventTypes.RoomMember, userId)?.content,
-      'membership': membership.name,
-    }, stateKey: userId);
+    applyOptimisticMembership(widget.room, userId, membership);
+    _listMembership(userId, membership);
+  }
+
+  void _listMembership(String userId, Membership membership) {
     final participants = _participants;
     if (!mounted || participants == null) return;
     setState(() {
@@ -253,7 +235,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
         for (final user in participants)
           if (user.id != userId) user,
         if (membership == Membership.invite)
-          room.unsafeGetUserFromMemoryOrFallback(userId),
+          widget.room.unsafeGetUserFromMemoryOrFallback(userId),
       ]);
     });
   }

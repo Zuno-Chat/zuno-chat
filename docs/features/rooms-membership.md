@@ -115,6 +115,8 @@ files.
 - **An invitation is nothing but `m.room.member` state**, with no separate entity behind it.
 - **Sender and receiver views are deliberately asymmetric.** The sender sees no profile for an invitee who has not accepted, because the server hands over their member state before they have agreed to anything, so the room is titled with the typed username until then. The receiver sees the inviter's name and avatar in full, because "who is this?" is the whole question.
 - **One notification per invitation.** Two paths can announce it: the live path listens to `client.onNotification`, since an invitation is stripped state and not a timeline event, and the push path uses `inviteNotificationFor`, since the default push handler drops `m.room.member`. Each claims the room before posting, and a sync that shows the room joined or left releases the claim.
+- **Sending an invitation looks the person up first**, because the SDK's invite silently skips anyone already joined or invited and reports nothing, so only the lookup can say "already a member" or "invitation already sent". Every invite path shares it, and a sent invitation shows the person as invited before sync confirms it.
+- **An invitation to an encrypted room returns only once sync shows it**, because the SDK waits so the next message's keys reach the invitee; that wait has no timeout.
 - **Tapping an invitation opens `RoomInvitePage`**, never the room, which has no timeline or composer yet.
 - **Join opens the room only once sync shows it joined** (`room.join(waitForSync: true)`), so it never opens while still an invitation locally. Decline does not wait, because the SDK's wait has no timeout and a repeated leave creates no event to end it.
 

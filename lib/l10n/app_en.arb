@@ -907,7 +907,14 @@
   "@commonDone": {
     "description": "Button: finish and close"
   },
-  "commonInvitationNotSent": "Invitation not sent. Try again.",
+  "commonInvitationAlreadySent": "Invitation already sent",
+  "@commonInvitationAlreadySent": {
+    "description": "Snack bar after inviting someone whose invitation to the room or community is still pending, so nothing new was sent"
+  },
+  "commonInvitationNotSent": "Invitation not sent.",
+  "@commonInvitationNotSent": {
+    "description": "Snack bar when an invitation to a room or community fails; a connection failure adds the check-your-connection sentence after it"
+  },
   "commonInvitationSent": "Invitation sent",
   "@commonInvitationSent": {
     "description": "Snack bar after inviting someone to a room or community"
@@ -915,6 +922,14 @@
   "commonInvite": "Invite",
   "@commonInvite": {
     "description": "Button: invite the person entered or chosen"
+  },
+  "commonInviteeAlreadyMember": "This person is already a member.",
+  "@commonInviteeAlreadyMember": {
+    "description": "Snack bar after inviting someone who is already a member of the room or community, so no invitation was sent"
+  },
+  "commonInviteeNoAccount": "No account has this username. Check it and try again.",
+  "@commonInviteeNoAccount": {
+    "description": "Snack bar when the username entered for an invitation belongs to no account, usually a typo; \"it\" is the username"
   },
   "commonJoin": "Join",
   "@commonJoin": {

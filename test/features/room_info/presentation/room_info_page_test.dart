@@ -1216,6 +1216,19 @@ void main() {
       );
     });
 
+    testWidgets('someone already in is told apart and sent nothing', (
+      tester,
+    ) async {
+      seedAdminRoom();
+      await pumpPage(tester);
+
+      await invite(tester, 'ann');
+      await network(tester);
+
+      expect(requestsTo('invite'), isEmpty);
+      expect(find.text('This person is already a member.'), findsOneWidget);
+    });
+
     testWidgets('a refused invitation says so', (tester) async {
       seedAdminRoom();
       refuseRequestsTo = 'invite';
@@ -1224,7 +1237,7 @@ void main() {
       await invite(tester, 'bob');
       await network(tester);
 
-      expect(find.text('Invitation not sent. Try again.'), findsOneWidget);
+      expect(find.text('Invitation not sent.'), findsOneWidget);
       expect(memberTile('@bob:example.org'), findsNothing);
     });
 

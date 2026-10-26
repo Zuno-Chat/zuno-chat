@@ -15,3 +15,12 @@ void applyOptimisticRoomState(
     ),
   );
 }
+
+void applyOptimisticMembership(
+  Room room,
+  String userId,
+  Membership membership,
+) => applyOptimisticRoomState(room, EventTypes.RoomMember, {
+  ...?room.getState(EventTypes.RoomMember, userId)?.content,
+  'membership': membership.name,
+}, stateKey: userId);

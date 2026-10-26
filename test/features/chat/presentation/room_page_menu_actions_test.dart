@@ -117,6 +117,12 @@ void main() {
       final request = requestsEndingWith('/invite').single;
       expect(jsonDecode(request.body), {'user_id': '@carol:example.org'});
       expect(find.text('Invitation sent'), findsOneWidget);
+      expect(
+        harness.room
+            .getState(EventTypes.RoomMember, '@carol:example.org')
+            ?.content['membership'],
+        'invite',
+      );
     });
 
     testWidgets('a refused invitation says so', (tester) async {
@@ -125,7 +131,25 @@ void main() {
 
       await invite(tester, 'carol');
 
-      expect(find.text('Invitation not sent. Try again.'), findsOneWidget);
+      expect(find.text('Invitation not sent.'), findsOneWidget);
+    });
+
+    testWidgets('a username with no account says so', (tester) async {
+      await openRoom(tester);
+      final respond = harness.respond;
+      harness.respond = (request) => request.url.path.endsWith('/invite')
+          ? http.Response(
+              jsonEncode({'errcode': 'M_NOT_FOUND', 'error': 'Unknown user'}),
+              404,
+            )
+          : respond?.call(request);
+
+      await invite(tester, 'nobody');
+
+      expect(
+        find.text('No account has this username. Check it and try again.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('Cancel invites nobody', (tester) async {
