@@ -124,7 +124,7 @@ jobs:
           channel: stable
           flutter-version: 3.47.5
           cache: true
-      - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a
+      - uses: ruby/setup-ruby@26e5b7d197ebf60545ee9667bcbace0be11ccaec
         with:
           bundler-cache: true
       - env:
@@ -215,7 +215,7 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90
         with:
           xcode-version: '27.0'
-      - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a
+      - uses: ruby/setup-ruby@26e5b7d197ebf60545ee9667bcbace0be11ccaec
         with:
           bundler-cache: true
       - uses: actions/download-artifact@v8
@@ -241,7 +241,7 @@ jobs:
     environment: release
     steps:
       - uses: actions/checkout@v7
-      - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a
+      - uses: ruby/setup-ruby@26e5b7d197ebf60545ee9667bcbace0be11ccaec
         with:
           bundler-cache: true
       - uses: actions/download-artifact@v8
