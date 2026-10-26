@@ -23,18 +23,18 @@ class _ClientRowDatabase extends FakeDatabaseApi {
   Future<Map<String, dynamic>?> getClient(String name) async => Map.of(row);
 
   @override
-  Future<void> updateClient(
-    String homeserverUrl,
-    String token,
+  Future<void> storeClient({
+    required String homeserverUrl,
+    required String token,
     DateTime? tokenExpiresAt,
     String? refreshToken,
-    String userId,
+    required String userId,
     String? deviceId,
     String? deviceName,
     String? prevBatch,
     String? olmAccount,
     String? oidcClientId,
-  ) async {
+  }) async {
     row['token'] = token;
     row['refresh_token'] = refreshToken;
   }

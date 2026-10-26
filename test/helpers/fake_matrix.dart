@@ -110,6 +110,12 @@ class UploadingFakeDatabaseApi extends MediaCapableFakeDatabaseApi {
       (content: const <String, Object?>{}, savedAt: DateTime.now());
 }
 
+http.Response? notAMemberAnswer(http.BaseRequest request) =>
+    request.method == 'GET' &&
+        request.url.pathSegments.contains(EventTypes.RoomMember)
+    ? http.Response('{"errcode":"M_NOT_FOUND","error":"Not a member"}', 404)
+    : null;
+
 Client buildTestClient({
   String? userId,
   String? deviceId,

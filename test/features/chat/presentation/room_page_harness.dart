@@ -129,7 +129,7 @@ class RoomPageHarness {
             sent.add(jsonDecode(request.body) as Map<String, Object?>);
             return http.Response('{"event_id":"\$sent"}', 200);
           }
-          return http.Response('{}', 200);
+          return notAMemberAnswer(request) ?? http.Response('{}', 200);
         }),
       ),
     );
