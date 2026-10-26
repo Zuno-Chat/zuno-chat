@@ -5,8 +5,8 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-
 import 'package:zuno/core/calls/cloudflare/cloudflare_turn_client.dart';
+import 'package:zuno/core/calls/module/calls_module.dart';
 
 final _credentialsUri = Uri.parse(
   'https://example.org/_synapse/client/zuno/calls/cloudflare/turn/credentials',
@@ -31,7 +31,6 @@ void main() {
       expect(request.url, _credentialsUri);
       expect(request.headers['Authorization'], 'Bearer syt_token');
       expect(request.body, isEmpty);
-      expect(request.headers.containsKey('content-type'), isFalse);
       return http.Response(
         jsonEncode({
           'iceServers': [
@@ -57,7 +56,7 @@ void main() {
   });
 
   const finalStatuses = {
-    401: 'a 401 is final and surfaces as CloudflareTurnException',
+    401: 'a 401 is final and surfaces as CallsModuleException',
     403: 'does not retry a 4xx response',
     502: 'a 5xx is final: the module already retried Cloudflare',
   };
@@ -72,7 +71,7 @@ void main() {
       await expectLater(
         _fetch(mock),
         throwsA(
-          isA<CloudflareTurnException>()
+          isA<CallsModuleException>()
               .having((e) => e.statusCode, 'statusCode', status)
               .having(
                 (e) => e.message,
@@ -86,7 +85,7 @@ void main() {
   }
 
   test(
-    'throws CloudflareTurnException when the response has no iceServers field',
+    'throws CallsModuleException when the response has no iceServers field',
     () {
       final mock = MockClient(
         (request) async => http.Response(
@@ -99,7 +98,7 @@ void main() {
       expect(
         _fetch(mock),
         throwsA(
-          isA<CloudflareTurnException>().having(
+          isA<CallsModuleException>().having(
             (e) => e.message,
             'message',
             'TURN credentials returned no ICE servers',

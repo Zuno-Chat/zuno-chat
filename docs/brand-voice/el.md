@@ -74,6 +74,7 @@ The Greek column gives the article, which shows the gender, and the plural where
 | join (a call) | Συμμετοχή / συμμετέχω (συμμετάσχετε) | For rooms the verb is «μπαίνω» (§1.6). |
 | speaker | το ηχείο | The phone dialer's word. "Turn speaker on" → «Ενεργοποίηση ηχείου». |
 | mute / unmute | Σίγαση / Κατάργηση σίγασης | Covers the microphone and room notifications alike. "Muted" → «Σε σίγαση». |
+| mute someone, remove from a call | θέτω σε σίγαση (έθεσε, τέθηκε) · Αφαίρεση από την κλήση / αφαιρώ από την κλήση | Call moderation. "{name} muted you" → «{name} σας έθεσε σε σίγαση». "{name} was not muted." → «{name} δεν τέθηκε σε σίγαση.» "You were removed from this call." → «Αφαιρεθήκατε από αυτή την κλήση.» |
 | camera, microphone | η κάμερα · το μικρόφωνο | "Switch camera" → «Εναλλαγή κάμερας». |
 | connection, connecting, reconnecting | η σύνδεση · Σύνδεση… · Επανασύνδεση… | "Weak connection" → «Αδύναμη σύνδεση». "Poor connection" → «Κακή σύνδεση». "Poor connection, video reduced" → «Κακή σύνδεση, μειωμένη ποιότητα βίντεο». |
 | picture-in-picture, minimize | εικόνα σε εικόνα · Ελαχιστοποίηση | Both are OS labels. |

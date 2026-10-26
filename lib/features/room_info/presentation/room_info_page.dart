@@ -264,7 +264,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
       targetUserId: user.id,
     ).isNotEmpty;
     final manageable = canManageMember(room, user.id);
-    final canRemove = manageable && room.canKick;
+    final canRemove = canRemoveMember(room, user.id);
     final canBanUser = manageable && room.canBan;
 
     final action = await showSheet<_MemberAction>(

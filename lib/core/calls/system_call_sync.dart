@@ -119,8 +119,7 @@ class _SystemCallBinding {
   Future<void> applySystemMute(SystemMute mute) async {
     if (mute.callId != session.callId || _ended) return;
     _muted = mute.muted;
-    await session.engine.setMicrophoneMuted(mute.muted);
-    unawaited(session.refreshMembership());
+    await session.setMicrophoneMuted(mute.muted);
   }
 
   void fail(String callId) {

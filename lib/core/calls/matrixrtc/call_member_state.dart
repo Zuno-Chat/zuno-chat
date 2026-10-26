@@ -64,16 +64,25 @@ class RtcMembership {
   };
 }
 
-String? callMembershipEventId(Room room, String callId, {String? excluding}) {
+typedef CallJoin = ({String userId, String? eventId, RtcMembership membership});
+
+Iterable<CallJoin> callJoins(Room room, String callId) sync* {
   final states = room.states[callMemberEventType] ?? const {};
   for (final MapEntry(key: userId, value: state) in states.entries) {
-    if (userId == excluding || state is! MatrixEvent) continue;
-    if (parseRtcMemberships(state.content).any((m) => m.callId == callId)) {
-      return state.eventId;
+    final eventId = state is MatrixEvent ? state.eventId : null;
+    for (final membership in parseRtcMemberships(state.content)) {
+      if (membership.callId == callId) {
+        yield (userId: userId, eventId: eventId, membership: membership);
+      }
     }
   }
-  return null;
 }
+
+String? callMembershipEventId(Room room, String callId, {String? excluding}) =>
+    callJoins(room, callId)
+        .where((join) => join.userId != excluding && join.eventId != null)
+        .firstOrNull
+        ?.eventId;
 
 List<RtcMembership> parseRtcMemberships(
   Map<String, Object?>? content, {
@@ -90,7 +99,9 @@ List<RtcMembership> parseRtcMemberships(
 
 bool answeredOnAnotherDevice(Room room, String callId) {
   final client = room.client;
-  final own = room.states[callMemberEventType]?[client.userID];
-  return parseRtcMemberships(own?.content)
-      .any((m) => m.callId == callId && m.deviceId != client.deviceID);
+  return callJoins(room, callId).any(
+    (join) =>
+        join.userId == client.userID &&
+        join.membership.deviceId != client.deviceID,
+  );
 }

@@ -39,7 +39,7 @@ const _videoSender = 'local-video';
 typedef _SenderCryptor = ({RTCRtpSender sender, FrameCryptor cryptor});
 
 class CloudflareCallEngine implements CallEngine {
-  final CloudflareApiClient _api;
+  late final CloudflareApiClient _api;
   final WebRtcBackend _webRtc;
   final String _roomId;
   final String _callId;
@@ -86,7 +86,7 @@ class CloudflareCallEngine implements CallEngine {
   final _negotiationLock = SerialLock();
 
   bool _isLiveConnection(RTCPeerConnection pc) =>
-      !_left && identical(_pc, pc) && !identical(_brokenPc, pc);
+      !_left && !_removed && identical(_pc, pc) && !identical(_brokenPc, pc);
 
   CloudflareCallEngine({
     required Uri Function() baseUri,
@@ -100,18 +100,20 @@ class CloudflareCallEngine implements CallEngine {
     this._webRtc = const WebRtcBackend(),
     PlatformCapabilities? capabilities,
   }) : _injectedCapabilities = capabilities,
-       _api = CloudflareApiClient(
-         baseUri: baseUri,
-         authorization: authorization,
-         httpClient: httpClient,
-       ),
        _iceServers = iceServers ?? Future.value(const []),
        _kind = kind,
        _media = LocalMedia(
          _webRtc,
          lowDataMode: lowDataMode,
          cameraEnabled: kind == CallKind.video,
-       );
+       ) {
+    _api = CloudflareApiClient(
+      baseUri: baseUri,
+      authorization: authorization,
+      httpClient: httpClient,
+      onRemoved: _onRemoved,
+    );
+  }
 
   final PlatformCapabilities? _injectedCapabilities;
 
@@ -307,6 +309,15 @@ class CloudflareCallEngine implements CallEngine {
     }
   }
 
+  void _onRemoved() {
+    if (_left || _removed) return;
+    _cancelDisconnectTimer();
+    _detachConnectionCallbacks(_pc);
+    _setStatus(CallEngineStatus.removed);
+  }
+
+  bool get _removed => _status == CallEngineStatus.removed;
+
   Future<void> _preferVideoCodecs(
     RTCPeerConnection pc,
     RTCRtpTransceiver transceiver,
@@ -402,6 +413,10 @@ class CloudflareCallEngine implements CallEngine {
   );
 
   void _setStatus(CallEngineStatus status) {
+    if (_status == CallEngineStatus.removed &&
+        status != CallEngineStatus.disconnected) {
+      return;
+    }
     _status = status;
     if (_statusController.isClosed) return;
     _statusController.add(status);
@@ -712,7 +727,7 @@ class CloudflareCallEngine implements CallEngine {
     _reconnecting = true;
     _setStatus(CallEngineStatus.reconnecting);
     try {
-      while (!_left) {
+      while (!_left && !_removed) {
         _reconnectAttempts++;
         if (_reconnectAttempts > _maxReconnectAttempts) {
           _setStatus(CallEngineStatus.failed);
@@ -735,7 +750,7 @@ class CloudflareCallEngine implements CallEngine {
           _notifyLocalStateChanged();
           return;
         } catch (e, s) {
-          if (_left) return;
+          if (_left || _removed) return;
           reportCaught('rejoin the call', e, s);
         }
       }

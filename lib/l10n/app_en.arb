@@ -369,6 +369,71 @@
       }
     }
   },
+  "callsMutedBy": "{name} muted you",
+  "@callsMutedBy": {
+    "description": "Notice on the call screen while you stay muted: someone in charge of the room turned your microphone off. You can turn it back on.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "callsMutePerson": "Mute",
+  "@callsMutePerson": {
+    "description": "Action in the options for another person in a group call: turn their microphone off. They can turn it back on."
+  },
+  "callsMutePersonFailed": "{name} was not muted.",
+  "@callsMutePersonFailed": {
+    "description": "Error after trying to mute someone in a call. A connection hint may follow.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "callsPersonOptions": "Show options",
+  "@callsPersonOptions": {
+    "description": "Screen-reader hint for the hold action on a person in a group call: shows the options to mute them or remove them from the call"
+  },
+  "callsRemovedBy": "{name} removed you from the call.",
+  "@callsRemovedBy": {
+    "description": "Shown after the call ends because someone in charge of the room removed you from it",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "callsRemovedFromCall": "You were removed from this call.",
+  "@callsRemovedFromCall": {
+    "description": "Shown when the call ends or will not join because you were removed from it"
+  },
+  "callsRemoveFromCall": "Remove from call",
+  "@callsRemoveFromCall": {
+    "description": "Action in the options for another person in a group call: end the call for them. They cannot rejoin this call."
+  },
+  "callsRemoveFromCallBody": "They cannot rejoin this call. They stay in the room and can join the next call.",
+  "@callsRemoveFromCallBody": {
+    "description": "Body of the confirmation before removing someone from a call"
+  },
+  "callsRemoveFromCallTitle": "Remove {name} from the call?",
+  "@callsRemoveFromCallTitle": {
+    "description": "Title of the confirmation before removing someone from a call",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "callsRemovePersonFailed": "{name} was not removed.",
+  "@callsRemovePersonFailed": {
+    "description": "Error after trying to remove someone from a call. A connection hint may follow.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "callsOnCallWith": "On a call with {name}",
   "@callsOnCallWith": {
     "description": "Top line of the ring screen while you are on another call; name is that call's chat or room",
@@ -4147,7 +4212,7 @@
   },
   "roomInfoRemove": "Remove",
   "@roomInfoRemove": {
-    "description": "Dialog button: remove the member from the room or community"
+    "description": "Dialog button: remove the member from the room, the community or the call"
   },
   "roomInfoRemoveCommunityBody": "They are removed from the community and can rejoin if invited again. They stay in rooms they already joined.",
   "roomInfoRemoveFromRoom": "Remove from room",

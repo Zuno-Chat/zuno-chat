@@ -46,6 +46,7 @@ class FakeSfu {
   int refusedPushes = 0;
   bool connectOnPush = false;
   bool reuseMids = false;
+  bool removedFromCall = false;
   String? answerSdp;
   String? offerSdp;
   Completer<void>? sessionGate;
@@ -85,6 +86,12 @@ class FakeSfu {
     final recorded = SfuRequest(request.method, path, body);
     requests.add(recorded);
 
+    if (removedFromCall) {
+      return _json({
+        'errcode': 'IM.ZUNO.CALL_REMOVED',
+        'error': 'Removed from this call',
+      }, 403);
+    }
     if (path == '/sessions/new') {
       await sessionGate?.future;
       if (sessionStatus case final status?) {

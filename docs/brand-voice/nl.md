@@ -75,6 +75,7 @@ Dutch for `lib/l10n/app_nl.arb`, written for the Netherlands and Flanders alike.
 | hang up, End call | Ophangen | Both. |
 | join (a call) | Deelnemen | |
 | speaker, mute, unmute | luidspreker · Dempen · Dempen opheffen | "Muted" → «Gedempt». "{name} is muted" → «{name} heeft het geluid gedempt». |
+| mute someone, remove from the call | Dempen · Verwijderen uit oproep | Another person is muted directly: "{name} muted you" → «{name} heeft je gedempt». A failure is «Kon {name} niet …», since «{name} is niet gedempt» reads as a state. "Rejoin" → «opnieuw deelnemen». A person's "Show options" → «Opties tonen». |
 | camera, microphone | camera · microfoon | |
 | connection, connecting, reconnecting | verbinding · Verbinden… · Opnieuw verbinden… | "Weak connection" → «Zwakke verbinding». "Poor connection" → «Slechte verbindingskwaliteit». "Calling…" → «Bellen…». |
 | picture-in-picture, minimize | beeld-in-beeld · Minimaliseren | |

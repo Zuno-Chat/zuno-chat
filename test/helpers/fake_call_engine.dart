@@ -100,8 +100,10 @@ class FakeCallEngine implements CallEngine {
   Object? cameraError;
 
   @override
-  Future<void> setMicrophoneMuted(bool muted) async =>
-      microphoneMutedRequests.add(muted);
+  Future<void> setMicrophoneMuted(bool muted) async {
+    microphoneMutedRequests.add(muted);
+    micMuted = muted;
+  }
 
   @override
   Future<void> setCameraEnabled(bool enabled) async {
@@ -140,18 +142,19 @@ class FakeCallEngine implements CallEngine {
         }
       : null;
 
-  int updateRemoteParticipantCalls = 0;
+  final updatedRemotes = <VoipParticipantId>[];
+  final removedRemotes = <VoipParticipantId>[];
 
   @override
   void updateRemoteParticipant(
     VoipParticipantId id,
     Map<String, Object?> fociInfo,
   ) {
-    updateRemoteParticipantCalls++;
+    updatedRemotes.add(id);
   }
 
   @override
-  void removeRemoteParticipant(VoipParticipantId id) {}
+  void removeRemoteParticipant(VoipParticipantId id) => removedRemotes.add(id);
 
   @override
   Future<void> setEncryptionKey(Uint8List key) async {

@@ -71,6 +71,8 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | hang up, End call | Rozłącz | Both. |
 | join (a call) | Dołącz | |
 | speaker, mute, unmute | głośnik · Wycisz · Wyłącz wyciszenie | "Muted" → «Wyciszono». "{name} is muted" → «{name} ma wyciszony mikrofon». |
+| mute (someone in a call) | Wycisz · wyciszenie | "{name} muted you" → «{name} wycisza Twój mikrofon». "{name} was not muted." → «Nie udało się wyciszyć: {name}.» |
+| remove from the call | Wyrzuć z połączenia | "{name} removed you from the call." → «{name} wyrzuca Cię z połączenia.» "You were removed from this call." → «Wyrzucono Cię z tego połączenia.» "Remove {name} from the call?" → «Wyrzucić z połączenia: {name}?» |
 | camera, microphone | kamera · mikrofon | |
 | connection, connecting, reconnecting | połączenie · Łączenie… · Ponowne łączenie… | "Weak connection" → «Słabe połączenie». "Poor connection" → «Niska jakość połączenia». "Calling…" → «Dzwonienie…». |
 | picture-in-picture, minimize | obraz w obrazie · Minimalizuj | |

@@ -24,6 +24,18 @@ class _StoredMembers extends FakeDatabaseApi {
   }
 }
 
+void setCreate(Room room, {required String creator, String version = '10'}) =>
+    room.setState(
+      buildTestEvent(
+        room,
+        eventId: r'$create',
+        senderId: creator,
+        type: EventTypes.RoomCreate,
+        stateKey: '',
+        content: {'room_version': version},
+      ),
+    );
+
 void main() {
   void setPowerLevels(Room room, Map<String, Object?> content) {
     room.setState(
@@ -212,6 +224,94 @@ void main() {
     test('you can never manage yourself', () {
       final room = roomAs('@admin:example.org', {'@admin:example.org': 100});
       expect(canManageMember(room, '@admin:example.org'), isFalse);
+    });
+
+    test('ranks anyone else the same way when named', () {
+      final room = roomAs('@me:example.org', {
+        '@mod:example.org': 50,
+        '@bob:example.org': 0,
+      });
+      expect(
+        canManageMember(room, '@bob:example.org', actorId: '@mod:example.org'),
+        isTrue,
+      );
+      expect(
+        canManageMember(room, '@mod:example.org', actorId: '@bob:example.org'),
+        isFalse,
+      );
+      expect(
+        canManageMember(room, '@mod:example.org', actorId: '@mod:example.org'),
+        isFalse,
+      );
+    });
+  });
+
+  group('canRemoveMember, for someone else', () {
+    late Room room;
+
+    setUp(() {
+      room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+      setPowerLevels(room, {
+        'kick': 50,
+        'users': {
+          '@admin:example.org': 100,
+          '@mod:example.org': 50,
+          '@me:example.org': 50,
+        },
+      });
+    });
+
+    bool can(String actor, String target) =>
+        canRemoveMember(room, target, actorId: actor);
+
+    test('anyone who can remove people acts on those ranked below them', () {
+      expect(can('@mod:example.org', '@bob:example.org'), isTrue);
+      expect(can('@admin:example.org', '@mod:example.org'), isTrue);
+      expect(can('@admin:example.org', '@bob:example.org'), isTrue);
+    });
+
+    test('nobody acts on an equal, someone above them or themselves', () {
+      expect(can('@mod:example.org', '@me:example.org'), isFalse);
+      expect(can('@mod:example.org', '@admin:example.org'), isFalse);
+      expect(can('@admin:example.org', '@admin:example.org'), isFalse);
+    });
+
+    test('a member without the permission acts on nobody', () {
+      expect(can('@bob:example.org', '@ann:example.org'), isFalse);
+    });
+
+    test('follows the room\'s own "Remove people" level', () {
+      setPowerLevels(room, {
+        'kick': 100,
+        'users': {'@admin:example.org': 100, '@mod:example.org': 50},
+      });
+
+      expect(can('@mod:example.org', '@bob:example.org'), isFalse);
+      expect(can('@admin:example.org', '@bob:example.org'), isTrue);
+    });
+
+    test('a creator of a room that makes creators owners outranks every '
+        'admin', () {
+      setCreate(room, creator: '@ann:example.org', version: '12');
+
+      expect(can('@ann:example.org', '@admin:example.org'), isTrue);
+      expect(can('@admin:example.org', '@ann:example.org'), isFalse);
+    });
+  });
+
+  group('canRemoveMember', () {
+    test('needs both the remove permission and a higher rank', () {
+      final room = roomAs('@mod:example.org', {
+        '@mod:example.org': 50,
+        '@othermod:example.org': 50,
+      });
+      expect(canRemoveMember(room, '@bob:example.org'), isTrue);
+      expect(canRemoveMember(room, '@othermod:example.org'), isFalse);
+    });
+
+    test('nobody below the remove level removes anyone', () {
+      final room = roomAs('@member:example.org', {'@member:example.org': 10});
+      expect(canRemoveMember(room, '@bob:example.org'), isFalse);
     });
   });
 

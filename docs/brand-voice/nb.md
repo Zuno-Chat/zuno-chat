@@ -74,6 +74,7 @@ Norwegian Bokmål for `lib/l10n/app_nb.arb`, written for Norway. The rules all l
 | hang up, End call | Legg på | Both. |
 | join (a call) | Bli med | |
 | speaker, mute, unmute | høyttaler · Slå av lyd · Slå på lyd | "Muted" → «Lyd av». "{name} is muted" → «{name} har slått av lyden». |
+| mute someone, remove from the call | Slå av lyd · Fjern fra anropet | Muting another person is «slå av lyden for»: "{name} muted you" → «{name} har slått av lyden for deg». "Rejoin" → «bli med igjen». A person's "Show options" → «Vis alternativer». |
 | camera, microphone | kamera · mikrofon | |
 | connection, connecting, reconnecting | tilkobling · Kobler til… · Kobler til på nytt… | "Weak connection" → «Svak tilkobling». "Poor connection" → «Dårlig tilkoblingskvalitet». "Calling…" → «Ringer…». |
 | picture-in-picture, minimize | bilde-i-bilde · Minimer | |

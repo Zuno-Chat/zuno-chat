@@ -14,22 +14,26 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../errors/backoff.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
+import '../../l10n/l10n.dart';
 import '../../matrix/bearer_authorization.dart';
 import '../../matrix/ephemeral_to_device.dart';
 import '../../matrix/olm_sender.dart';
+import '../../matrix/room_roles.dart';
 import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
-import '../cloudflare/calls_module.dart';
 import '../cloudflare/cloudflare_call_engine.dart';
+import '../cloudflare/cloudflare_routes.dart';
 import '../models/call_engine_status.dart';
 import '../models/call_failure.dart';
 import '../models/call_kind.dart';
 import '../models/voip_participant_id.dart';
+import '../module/calls_module.dart';
 import '../notifications/call_notification_service.dart';
 import 'call_decline.dart';
 import 'call_encryption_key_event.dart';
 import 'call_member_state.dart';
 import 'call_membership_writer.dart';
+import 'call_moderation.dart';
 import 'call_summary_message.dart';
 import 'ice_servers.dart';
 
@@ -37,7 +41,20 @@ enum CallSessionRole { caller, callee }
 
 enum CallSessionPhase { ringing, connecting, active, ended }
 
-enum CallEndReason { hungUp, declinedByThem, missed, failed }
+enum CallEndReason { hungUp, declinedByThem, missed, failed, removed }
+
+extension CallEndMessage on CallSession {
+  String? endMessage(AppLocalizations l10n) => switch (endReason) {
+    CallEndReason.removed => switch (removedBy) {
+      final moderator? => l10n.callsRemovedBy(
+        room.unsafeGetUserFromMemoryOrFallback(moderator).calcDisplayname(),
+      ),
+      null => l10n.callsRemovedFromCall,
+    },
+    CallEndReason.failed => failure?.message(l10n),
+    _ => null,
+  };
+}
 
 const _ringTimeout = Duration(seconds: 45);
 const emptyCallTimeout = Duration(seconds: 15);
@@ -87,6 +104,7 @@ class CallSession {
 
   CallEndReason? endReason;
   CallFailure? failure;
+  String? removedBy;
 
   DateTime? _activeAt;
   Timer? _aloneTimer;
@@ -96,12 +114,14 @@ class CallSession {
   StreamSubscription<ToDeviceEvent>? _toDeviceSub;
   StreamSubscription<Event>? _declineSub;
   StreamSubscription<Event>? _summarySub;
+  StreamSubscription<Event>? _moderationSub;
   StreamSubscription<void>? _localStateSub;
   StreamSubscription<CallEngineStatus>? _statusSub;
   StreamSubscription<LoginState>? _loginSub;
   bool _endedLocally = false;
 
   final Set<VoipParticipantId> _knownRemote = {};
+  final Set<String> _removedUserIds = {};
   final Map<VoipParticipantId, String?> _knownRemoteSessions = {};
   bool _everHadRemote = false;
   bool get everHadRemote => _everHadRemote;
@@ -180,7 +200,62 @@ class CallSession {
     _roomSub = client.onSync.stream.listen((update) {
       if (_leftRoom(update)) unawaited(_endLocally());
     });
+    _moderationSub = client.onTimelineEvent.stream.listen(_handleModeration);
   }
+
+  void _handleModeration(Event event) {
+    if (event.room.id != _roomId || ending) return;
+    final moderation = CallModeration.fromEvent(event);
+    if (moderation == null || moderation.callId != callId) return;
+    final moderator = event.senderId;
+    if (!canRemoveMember(room, moderation.userId, actorId: moderator)) return;
+    switch (moderation) {
+      case CallRemoval(:final userId) when userId == _myUserId:
+        removedBy = moderator;
+        endReason = CallEndReason.removed;
+        unawaited(hangUp());
+      case CallRemoval(:final userId):
+        _removedUserIds.add(userId);
+        _pendingKeys.removeWhere((id, _) => id.userId == userId);
+        _reconcileRemoteMemberships();
+      case CallMute(:final userId, :final membershipCreatedTs)
+          when userId == _myUserId &&
+              _membershipLive &&
+              membershipCreatedTs == _joinedAtMs &&
+              !_microphoneMuted:
+        unawaited(
+          runBestEffort(
+            () => setMicrophoneMuted(true, by: moderator),
+            label: 'mute at a moderator\'s request',
+          ),
+        );
+      case CallMute():
+        return;
+    }
+  }
+
+  bool get _microphoneMuted =>
+      _engine?.participants.where((p) => p.isLocal).firstOrNull?.audioMuted ??
+      false;
+
+  String? _mutedBy;
+  String? get mutedBy => _mutedBy;
+
+  Future<void> setMicrophoneMuted(bool muted, {String? by}) async {
+    _mutedBy = muted ? by : null;
+    await engine.setMicrophoneMuted(muted);
+    unawaited(refreshMembership());
+  }
+
+  Future<void> mute(String userId) =>
+      muteInCall(room, callId: callId, userId: userId);
+
+  Future<void> remove(String userId) => removeFromCall(
+    room,
+    callId: callId,
+    userId: userId,
+    httpClient: callsHttpClient,
+  );
 
   Future<void> _endLocally() async {
     if (_phase == CallSessionPhase.ended || _endedLocally) return;
@@ -464,10 +539,16 @@ class CallSession {
       if (await _abandonEngineIfEnded()) return;
 
       _statusSub = built.statusStream.listen((status) {
-        if (status != CallEngineStatus.failed) return;
         if (_phase == CallSessionPhase.ended) return;
-        failure = const CallConnectionLost();
-        endReason = CallEndReason.failed;
+        switch (status) {
+          case CallEngineStatus.failed:
+            failure = const CallConnectionLost();
+            endReason = CallEndReason.failed;
+          case CallEngineStatus.removed:
+            endReason = CallEndReason.removed;
+          default:
+            return;
+        }
         unawaited(hangUp());
       });
       _toDeviceSub = client.onToDeviceEvent.stream.listen(_handleToDeviceEvent);
@@ -492,8 +573,12 @@ class CallSession {
       _activeAt = DateTime.now();
     } catch (e) {
       if (_hangUp == null) {
-        failure = _failureOf(e);
-        endReason = CallEndReason.failed;
+        if (e is CallRemovedException) {
+          endReason = CallEndReason.removed;
+        } else {
+          failure = _failureOf(e);
+          endReason = CallEndReason.failed;
+        }
       }
       rethrow;
     }
@@ -505,7 +590,8 @@ class CallSession {
   static bool _shownToUser(Object error) =>
       _isForbidden(error) ||
       error is MicrophoneUnavailable ||
-      error is CallFullException;
+      error is CallFullException ||
+      error is CallRemovedException;
 
   static CallFailure _failureOf(Object error) => switch (error) {
     _ when _isForbidden(error) => const CallNoPermissionToStart(),
@@ -654,15 +740,18 @@ class CallSession {
     }
   }
 
-  Set<VoipParticipantId> _currentCallParticipants() {
-    final states = room.states[callMemberEventType] ?? const {};
-    return {
-      for (final entry in states.entries)
-        for (final membership in parseRtcMemberships(entry.value.content))
-          if (membership.callId == callId)
-            VoipParticipantId(userId: entry.key, deviceId: membership.deviceId),
-    };
-  }
+  Iterable<CallJoin> _callMemberships() => callJoins(
+    room,
+    callId,
+  ).where((join) => !_removedUserIds.contains(join.userId));
+
+  Set<VoipParticipantId> _currentCallParticipants() => {
+    for (final join in _callMemberships())
+      VoipParticipantId(
+        userId: join.userId,
+        deviceId: join.membership.deviceId,
+      ),
+  };
 
   static const _keyRelayReportAfter = 3;
 
@@ -805,40 +894,35 @@ class CallSession {
     final eng = _engine;
     if (eng == null) return;
     if (_roomSeen && client.getRoomById(_roomId) == null) return;
-    final states = room.states[callMemberEventType] ?? const {};
     final seenThisPass = <VoipParticipantId>{};
 
-    for (final entry in states.entries) {
-      final userId = entry.key;
+    for (final (:userId, :membership, eventId: _) in _callMemberships()) {
       if (userId == _myUserId) continue;
-      for (final membership in parseRtcMemberships(entry.value.content)) {
-        if (membership.callId != callId) continue;
-        final id = VoipParticipantId(
-          userId: userId,
-          deviceId: membership.deviceId,
-        );
-        seenThisPass.add(id);
-        if (_pendingKeys.remove(id) case final pending?) {
-          _applyEncryptionKey(pending, from: id);
-        }
-        final remoteSessionId = switch (membership.fociActive['sessionId']) {
-          final String sessionId => sessionId,
-          _ => null,
-        };
-        final isNewDevice = _knownRemote.add(id);
-        if (isNewDevice || _knownRemoteSessions[id] != remoteSessionId) {
-          _knownRemoteSessions[id] = remoteSessionId;
-          _relayEncryptionKeyTo(id);
-        }
-        if (!_everHadRemote) {
-          _everHadRemote = true;
-          if (!_remoteJoinedController.isClosed) {
-            _remoteJoinedController.add(null);
-          }
-        }
-        _aloneTimer?.cancel();
-        eng.updateRemoteParticipant(id, membership.fociActive);
+      final id = VoipParticipantId(
+        userId: userId,
+        deviceId: membership.deviceId,
+      );
+      seenThisPass.add(id);
+      if (_pendingKeys.remove(id) case final pending?) {
+        _applyEncryptionKey(pending, from: id);
       }
+      final remoteSessionId = switch (membership.fociActive['sessionId']) {
+        final String sessionId => sessionId,
+        _ => null,
+      };
+      final isNewDevice = _knownRemote.add(id);
+      if (isNewDevice || _knownRemoteSessions[id] != remoteSessionId) {
+        _knownRemoteSessions[id] = remoteSessionId;
+        _relayEncryptionKeyTo(id);
+      }
+      if (!_everHadRemote) {
+        _everHadRemote = true;
+        if (!_remoteJoinedController.isClosed) {
+          _remoteJoinedController.add(null);
+        }
+      }
+      _aloneTimer?.cancel();
+      eng.updateRemoteParticipant(id, membership.fociActive);
     }
 
     for (final id in _knownRemote.difference(seenThisPass)) {
@@ -879,6 +963,7 @@ class CallSession {
     _toDeviceSub,
     _declineSub,
     _summarySub,
+    _moderationSub,
     _localStateSub,
     _statusSub,
     _loginSub,
@@ -940,7 +1025,9 @@ class CallSession {
     required int durationMs,
   }) async {
     if (role == CallSessionRole.callee && !_membershipRequested) {
-      if (reason == CallEndReason.failed) return;
+      if (reason == CallEndReason.failed || reason == CallEndReason.removed) {
+        return;
+      }
       await runBestEffort(
         () => declineCall(room, callId),
         label: 'decline a call we never joined',

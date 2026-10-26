@@ -165,6 +165,21 @@ Room buildTestRoom(
   return Room(id: id, client: client, notificationCount: notificationCount);
 }
 
+void setPowerLevels(
+  Room room,
+  Map<String, Object?> content, {
+  String senderId = '@creator:example.org',
+}) => room.setState(
+  buildTestEvent(
+    room,
+    eventId: r'$powerlevels',
+    senderId: senderId,
+    type: EventTypes.RoomPowerLevels,
+    stateKey: '',
+    content: content,
+  ),
+);
+
 Event buildTestEvent(
   Room room, {
   required String eventId,

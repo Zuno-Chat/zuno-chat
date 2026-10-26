@@ -69,6 +69,8 @@ Brazilian Portuguese for `lib/l10n/app_pt.arb`, the base Portuguese file, writte
 | hang up, End call | Encerrar chamada / encerrar | |
 | join (a call) | Entrar / entrar na chamada | |
 | speaker, mute, unmute | o alto-falante · Silenciar · Ativar som | "Muted" → «Silenciado». |
+| mute (someone in a call) | Silenciar / silenciar | "{name} muted you" → «{name} silenciou você». "{name} was not muted." → «Não foi possível silenciar {name}.» |
+| remove from the call | Remover da chamada / remover da chamada | "{name} removed you from the call." → «{name} removeu você da chamada.» "You were removed from this call." → «Removeram você desta chamada.», since «removido» would force a gender. "rejoin" → «entrar de novo». |
 | camera, microphone | a câmera · o microfone | "Switch camera" → «Trocar câmera». |
 | connection, connecting, reconnecting | a conexão · Conectando… · Reconectando… | "Weak connection" → «Conexão fraca». "Poor connection" → «Conexão ruim». |
 | picture-in-picture, minimize | picture-in-picture · Minimizar | |

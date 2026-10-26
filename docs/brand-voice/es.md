@@ -70,6 +70,7 @@ Spanish for `lib/l10n/app_es.arb`, written for Spain and served to every Spanish
 | hang up, End call | Colgar | Both. |
 | join (a call) | Unirse / unirse a la llamada | |
 | speaker, mute, unmute | el altavoz · Silenciar · Activar micrófono | "Muted" → «Silenciado». "{name} is muted" → «{name} tiene el micrófono silenciado». |
+| mute someone, remove from a call | silenciar a {name} · Expulsar de la llamada / expulsar de la llamada | Call moderation; removing is the kick action (§1.6), never «quitar». "{name} muted you" → «{name} ha silenciado tu micrófono». "{name} removed you from the call." → «{name} te ha expulsado de la llamada.» "You were removed from this call." → «Se te ha expulsado de esta llamada.» |
 | camera, microphone | la cámara · el micrófono | |
 | connection, connecting, reconnecting | la conexión · Conectando… · Reconectando… | "Weak connection" → «Conexión débil». "Poor connection" → «Mala conexión». "Calling…" → «Llamando…». |
 | picture-in-picture, minimize | imagen en imagen · Minimizar | |

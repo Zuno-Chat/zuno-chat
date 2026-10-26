@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
 import 'optimistic_room_state.dart';
+import 'room_permission.dart';
 
 enum RoomRole { readOnly, member, moderator, admin }
 
@@ -34,10 +35,26 @@ RoomRole ownRoomRole(Room room) => roomRoleForLevel(room.ownPowerLevel.level);
 RoomRole roomRoleOfUser(Room room, String userId) =>
     roomRoleForLevel(room.getPowerLevelByUserId(userId).level);
 
-bool canManageMember(Room room, String targetUserId) {
-  if (targetUserId == room.client.userID) return false;
-  return room.getPowerLevelByUserId(targetUserId).level <
-      room.ownPowerLevel.level;
+bool canManageMember(Room room, String targetUserId, {String? actorId}) =>
+    memberManager(room, actorId: actorId)(targetUserId);
+
+bool Function(String targetUserId) memberManager(Room room, {String? actorId}) {
+  final actor = actorId ?? room.client.userID;
+  if (actor == null) return (_) => false;
+  final actorLevel = room.getPowerLevelByUserId(actor).level;
+  return (targetUserId) =>
+      targetUserId != actor &&
+      room.getPowerLevelByUserId(targetUserId).level < actorLevel;
+}
+
+bool canRemoveMember(Room room, String targetUserId, {String? actorId}) =>
+    memberRemover(room, actorId: actorId)(targetUserId);
+
+bool Function(String targetUserId) memberRemover(Room room, {String? actorId}) {
+  final mayRemove = actorId == null
+      ? room.canKick
+      : hasRoomPermission(room, actorId, 'kick');
+  return mayRemove ? memberManager(room, actorId: actorId) : (_) => false;
 }
 
 List<RoomRole> assignableRolesFor(Room room, {required String targetUserId}) {

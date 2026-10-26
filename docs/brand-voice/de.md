@@ -70,6 +70,7 @@ German for `lib/l10n/app_de.arb`, written for Germany and served to every German
 | hang up, End call | Auflegen | Both. |
 | join (a call) | Beitreten / dem Anruf beitreten | |
 | speaker, mute, unmute | der Lautsprecher · Stummschalten · Stummschaltung aufheben | "Muted" → «Stummgeschaltet». "{name} is muted" → «{name} ist stummgeschaltet». |
+| mute someone, remove from a call | Stummschalten / stummschalten · Aus dem Anruf entfernen / aus dem Anruf entfernen | Call moderation. "{name} muted you" → «{name} hat dich stummgeschaltet». "{name} removed you from the call." → «{name} hat dich aus dem Anruf entfernt.» "You were removed from this call." → «Du wurdest aus diesem Anruf entfernt.» |
 | camera, microphone | die Kamera · das Mikrofon | |
 | connection, connecting, reconnecting | die Verbindung · Verbindung wird hergestellt… · Verbindung wird wiederhergestellt… | "Weak connection" → «Schwache Verbindung». "Poor connection" → «Schlechte Verbindung». "Calling…" → «Wird angerufen…». |
 | picture-in-picture, minimize | Bild-in-Bild · Minimieren | |

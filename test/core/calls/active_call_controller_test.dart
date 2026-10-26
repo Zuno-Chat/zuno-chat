@@ -10,6 +10,7 @@ import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/call_waiting_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
+import 'package:zuno/core/calls/models/call_failure.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/call_status.dart';
 import 'package:zuno/core/calls/models/call_surface.dart';
@@ -17,10 +18,12 @@ import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/platform/call_tone_player.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 
 import '../../helpers/call_channel_mocks.dart';
 import '../../helpers/fake_call_engine.dart';
 import '../../helpers/fake_call_session.dart';
+import '../../helpers/fake_matrix.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -101,6 +104,107 @@ void main() {
       {'route': 'speaker'},
       {'route': 'earpiece'},
     ]);
+  });
+
+  group('moderation', () {
+    Future<(FakeCallSession, ActiveCallController)> onACall() async {
+      CallChannelMocks();
+      final container = containerWithControllers();
+      final call = voiceCall();
+      container.read(activeCallProvider.notifier).set(call);
+      await pumpEventQueue();
+      return (call, container.read(activeCallControllerProvider)!);
+    }
+
+    test('names whoever the call says muted us', () async {
+      final (call, controller) = await onACall();
+      expect(controller.mutedBy, isNull);
+
+      call.mutedBy = '@ann:example.org';
+
+      expect(controller.mutedBy?.calcDisplayname(), 'Ann');
+    });
+
+    test('the mute button asks the call to flip the microphone', () async {
+      final (call, controller) = await onACall();
+      call.engine.setParticipants([localParticipant(muted: true)]);
+      await pumpEventQueue();
+
+      await controller.toggleMute();
+
+      expect(call.engine.microphoneMutedRequests, [false]);
+    });
+
+    test(
+      'is offered on others only to someone in charge of the room',
+      () async {
+        final (call, controller) = await onACall();
+        final ann = remoteParticipant();
+
+        expect(controller.moderationGate()(ann), isFalse);
+
+        setPowerLevels(call.room, {
+          'users': {'@me:example.org': 50},
+        });
+
+        expect(controller.moderationGate()(ann), isTrue);
+        expect(controller.moderationGate()(localParticipant()), isFalse);
+      },
+    );
+
+    test('mute and remove ask the call for that person', () async {
+      final (call, controller) = await onACall();
+
+      await controller.mute(remoteParticipant());
+      await controller.remove(remoteParticipant());
+
+      expect(call.mutedPeople, ['@ann:example.org']);
+      expect(call.removedPeople, ['@ann:example.org']);
+    });
+  });
+
+  group('the message once the call ends', () {
+    String? messageFor(void Function(FakeCallSession call) end) {
+      final call = voiceCall();
+      end(call);
+      return call.endMessage(englishLocalizations);
+    }
+
+    test('names whoever removed us', () {
+      expect(
+        messageFor(
+          (call) => call
+            ..endReason = CallEndReason.removed
+            ..removedBy = '@ann:example.org',
+        ),
+        'Ann removed you from the call.',
+      );
+    });
+
+    test('says we were removed when the server alone told us', () {
+      expect(
+        messageFor((call) => call.endReason = CallEndReason.removed),
+        'You were removed from this call.',
+      );
+    });
+
+    test('reads a failure as its own sentence', () {
+      expect(
+        messageFor(
+          (call) => call
+            ..endReason = CallEndReason.failed
+            ..failure = const CallConnectionLost(),
+        ),
+        'Connection lost',
+      );
+    });
+
+    test('says nothing about a plain hang-up', () {
+      expect(
+        messageFor((call) => call.endReason = CallEndReason.hungUp),
+        isNull,
+      );
+    });
   });
 
   group('the waiting tone', () {

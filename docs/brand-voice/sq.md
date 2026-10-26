@@ -74,6 +74,8 @@ Albanian for `lib/l10n/app_sq.arb`, written in standard Albanian for Albania and
 | hang up, End call | Mbyll thirrjen | Both. «Mbyll» alone is Close. |
 | join (a call) | Bashkohu | |
 | speaker, mute, unmute | altoparlant · Hesht · Hiq heshtjen | "Muted" → «Heshtur». "{name} is muted" → «{name} e ka mikrofonin të heshtur». |
+| mute (someone in a call) | Hesht · heshtje | "{name} muted you" → «{name} ta heshti mikrofonin». "{name} was not muted." → «Mikrofoni nuk u hesht: {name}.», since «{name} nuk u hesht» also reads as falling silent. |
+| remove from the call | Hiq nga thirrja | "{name} removed you from the call." → «{name} të hoqi nga thirrja.» "You were removed from this call." → «U hoqe nga kjo thirrje.» "Remove {name} from the call?" → «Të hiqet {name} nga thirrja?» |
 | camera, microphone | kamerë · mikrofon | |
 | connection, connecting, reconnecting | lidhje · Po lidhet… · Po rilidhet… | "Weak connection" → «Lidhje e dobët». "Poor connection" → «Cilësi e ulët lidhjeje». "Calling…" → «Po thërret…». |
 | picture-in-picture, minimize | figurë brenda figurës · Minimizo | |

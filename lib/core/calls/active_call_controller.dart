@@ -20,6 +20,7 @@ import 'call_picture_in_picture.dart';
 import 'call_proximity.dart';
 import 'call_waiting_provider.dart';
 import 'cloudflare/webrtc_backend.dart';
+import 'matrixrtc/call_moderation.dart';
 import 'matrixrtc/call_session.dart';
 import 'models/call_engine_participant.dart';
 import 'models/call_engine_status.dart';
@@ -155,6 +156,11 @@ class ActiveCallController extends ChangeNotifier {
 
   CallEngineParticipant? get local => _local;
 
+  User? get mutedBy => switch (session.mutedBy) {
+    final moderator? => userOf(moderator),
+    null => null,
+  };
+
   List<CallEngineParticipant> get remotes => _remotes;
 
   RTCVideoRenderer? rendererFor(VoipParticipantId id) => _renderers[id];
@@ -209,14 +215,17 @@ class ActiveCallController extends ChangeNotifier {
     _releaseIfDone();
   }
 
-  User? userFor(CallEngineParticipant participant) {
-    final room = session.room;
-    final userId = participant.isLocal
-        ? room.client.userID
-        : participant.id.userId;
-    if (userId == null) return null;
-    return room.unsafeGetUserFromMemoryOrFallback(userId);
-  }
+  User? userFor(CallEngineParticipant participant) =>
+      switch (_userIdOf(participant)) {
+        final userId? => userOf(userId),
+        null => null,
+      };
+
+  String? _userIdOf(CallEngineParticipant participant) =>
+      participant.isLocal ? session.room.client.userID : participant.id.userId;
+
+  User userOf(String userId) =>
+      session.room.unsafeGetUserFromMemoryOrFallback(userId);
 
   bool encrypting(CallEngineParticipant participant) {
     if (participant.isLocal) return !participant.encrypted;
@@ -249,11 +258,8 @@ class ActiveCallController extends ChangeNotifier {
     _audioOutput.unwatch();
   }
 
-  Future<void> toggleMute() async {
-    final muted = _local?.audioMuted ?? false;
-    await session.engine.setMicrophoneMuted(!muted);
-    unawaited(session.refreshMembership());
-  }
+  Future<void> toggleMute() =>
+      session.setMicrophoneMuted(!(_local?.audioMuted ?? false));
 
   Future<bool> toggleCamera() async {
     final turningOn =
@@ -270,6 +276,20 @@ class ActiveCallController extends ChangeNotifier {
   }
 
   Future<void> switchCamera() => session.engine.switchCamera();
+
+  bool Function(CallEngineParticipant participant) moderationGate() {
+    final canModerate = callModerationGate(session.room);
+    return (participant) => switch (_userIdOf(participant)) {
+      final userId? => canModerate(userId),
+      null => false,
+    };
+  }
+
+  Future<void> mute(CallEngineParticipant participant) =>
+      session.mute(participant.id.userId);
+
+  Future<void> remove(CallEngineParticipant participant) =>
+      session.remove(participant.id.userId);
 
   Future<void> toggleSpeaker() =>
       _setAudioRoute(toggledRoute(_audioRoute, _headsets));
@@ -636,10 +656,9 @@ class ActiveCallController extends ChangeNotifier {
     _audioOutput.unwatch();
     await _deviceEffects.run(_releaseDevice);
     _releaseMedia();
-    final failure = session.failure;
-    if (session.endReason == CallEndReason.failed && failure != null) {
+    if (session.endMessage(deviceLocalizations()) case final message?) {
       globalScaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text(failure.message(deviceLocalizations()))),
+        SnackBar(content: Text(message)),
       );
     }
     _releaseIfDone();

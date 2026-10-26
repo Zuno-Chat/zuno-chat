@@ -12,20 +12,23 @@ import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zuno/core/calls/call_engine.dart';
-import 'package:zuno/core/calls/cloudflare/calls_module.dart';
 import 'package:zuno/core/calls/matrixrtc/call_encryption_key_event.dart';
 import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
+import 'package:zuno/core/calls/matrixrtc/call_moderation.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_failure.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/calls/models/voip_participant_id.dart';
+import 'package:zuno/core/calls/module/calls_module.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/app_lifecycle.dart';
 import '../../../helpers/call_membership.dart';
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_call_engine.dart';
+import '../../../helpers/fake_call_session.dart' show localParticipant;
 import '../../../helpers/fake_device_keys.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_permissions.dart';
@@ -37,6 +40,11 @@ const _me = '@me:example.org';
 const _bob = '@bob:example.org';
 const _caller = '@caller:example.org';
 const _mallory = '@mallory:example.org';
+
+int _publishedJoinTime(String body) =>
+    parseRtcMemberships(jsonDecode(body) as Map<String, Object?>)
+        .single
+        .createdAtMs;
 
 class _PublishCountingClient extends Client {
   _PublishCountingClient() : super('test', database: FakeDatabaseApi()) {
@@ -517,11 +525,11 @@ void main() {
       expect(session.endReason, CallEndReason.failed);
       expect(session.failure, const CallConnectionLost());
 
-      final callsBeforeSeed = engine.updateRemoteParticipantCalls;
+      final callsBeforeSeed = engine.updatedRemotes.length;
       joinTheCall(raceRoom, _bob);
       await sync(raceClient);
 
-      expect(engine.updateRemoteParticipantCalls, callsBeforeSeed);
+      expect(engine.updatedRemotes.length, callsBeforeSeed);
     });
   });
 
@@ -2450,14 +2458,12 @@ void main() {
       await session.refreshMembership();
       await pumpEventQueue();
 
-      int joinedAt(String body) {
-        final memberships = (jsonDecode(body) as Map)['memberships'] as List;
-        return memberships.single['created_ts'] as int;
-      }
-
       expect(publishes, hasLength(2));
-      expect(joinedAt(publishes.first), greaterThan(0));
-      expect(joinedAt(publishes.last), joinedAt(publishes.first));
+      expect(_publishedJoinTime(publishes.first), greaterThan(0));
+      expect(
+        _publishedJoinTime(publishes.last),
+        _publishedJoinTime(publishes.first),
+      );
     });
   });
 
@@ -2893,7 +2899,7 @@ void main() {
       await sync();
 
       expect(session.phase, CallSessionPhase.active);
-      expect(engine.updateRemoteParticipantCalls, greaterThan(0));
+      expect(engine.updatedRemotes.length, greaterThan(0));
       expect(session.room, same(rebuilt));
     });
 
@@ -3041,6 +3047,228 @@ void main() {
       expect(engine.leaveCalls, 1);
       expect(engine.disposeCalls, 1);
       expect(requests, isEmpty);
+    });
+  });
+
+  group('moderation', () {
+    const mod = '@mod:example.org';
+
+    Event removal(
+      Room r, {
+      String sender = mod,
+      required String userId,
+      String callId = 'call1',
+    }) => buildTestEvent(
+      r,
+      eventId: '\$remove-$userId-$callId',
+      senderId: sender,
+      type: callRemoveEventType,
+      content: {'call_id': callId, 'user_id': userId},
+    );
+
+    Event mute(
+      Room r, {
+      String sender = mod,
+      String userId = _me,
+      required int joinedAt,
+    }) => buildTestEvent(
+      r,
+      eventId: '\$mute-$userId-$joinedAt',
+      senderId: sender,
+      type: callMuteEventType,
+      content: {
+        'call_id': 'call1',
+        'user_id': userId,
+        'membership_created_ts': joinedAt,
+      },
+    );
+
+    ({
+      CallSession session,
+      FakeCallEngine engine,
+      SendRecordingRoom room,
+      List<String> puts,
+    })
+    joined() {
+      final puts = <String>[];
+      final r = sendRoom(loggingMemberPuts(puts));
+      setPowerLevels(r, {
+        'users': {mod: 50},
+      });
+      final engine = FakeCallEngine();
+      final session = incoming(inRoom: r, engine: engine, key: testKey());
+      return (session: session, engine: engine, room: r, puts: puts);
+    }
+
+    void deliver(Event event) => event.room.client.onTimelineEvent.add(event);
+
+    test('someone who outranks us removing us ends the call as removed by '
+        'them, clears our membership and posts nothing', () async {
+      final call = joined();
+      joinTheCall(call.room, mod, deviceId: 'MOD');
+      await call.session.accept();
+
+      deliver(removal(call.room, userId: _me));
+      await untilPhase(call.session, CallSessionPhase.ended);
+      await call.session.hangUpFinished;
+
+      expect(call.session.endReason, CallEndReason.removed);
+      expect(call.session.removedBy, mod);
+      expect(call.session.failure, isNull);
+      expect(jsonDecode(call.puts.last), {'memberships': <Object?>[]});
+      expect(call.room.attempts, isEmpty);
+    });
+
+    for (final (reason, sender, callId) in [
+      ('someone who does not outrank us', _bob, 'call1'),
+      ('another call', mod, 'another-call'),
+    ]) {
+      test('a removal from $reason is ignored', () async {
+        final call = joined();
+        await call.session.accept();
+
+        deliver(
+          removal(call.room, sender: sender, userId: _me, callId: callId),
+        );
+        await pumpEventQueue();
+
+        expect(call.session.phase, CallSessionPhase.active);
+      });
+    }
+
+    test('a callee removed while it still rings declines nothing', () async {
+      final call = joined();
+
+      deliver(removal(call.room, userId: _me));
+      await untilPhase(call.session, CallSessionPhase.ended);
+      await call.session.hangUpFinished;
+
+      expect(call.session.endReason, CallEndReason.removed);
+      expect(call.room.attempts, isEmpty);
+    });
+
+    test('someone else removed leaves our call at once and is never pulled '
+        'again, even while their membership stays', () async {
+      final call = joined();
+      joinTheCall(call.room, _bob, deviceId: 'BOB');
+      joinTheCall(call.room, _caller, deviceId: 'CALLER');
+      await call.session.accept();
+      const bobId = VoipParticipantId(userId: _bob, deviceId: 'BOB');
+      expect(call.engine.updatedRemotes, contains(bobId));
+
+      deliver(removal(call.room, userId: _bob));
+      await pumpEventQueue();
+      call.engine.updatedRemotes.clear();
+      await sync(call.room.client);
+
+      expect(call.engine.removedRemotes, [bobId]);
+      expect(call.engine.updatedRemotes, isNot(contains(bobId)));
+      expect(call.session.phase, CallSessionPhase.active);
+    });
+
+    test(
+      'the server cutting us off ends the call as removed, naming nobody',
+      () async {
+        final call = joined();
+        await call.session.accept();
+
+        call.engine.setStatus(CallEngineStatus.removed);
+        await untilPhase(call.session, CallSessionPhase.ended);
+
+        expect(call.session.endReason, CallEndReason.removed);
+        expect(call.session.removedBy, isNull);
+        expect(call.session.failure, isNull);
+      },
+    );
+
+    test('joining a call we were removed from ends as removed, reported '
+        'nowhere', () async {
+      final logs = recordDebugPrints();
+      final r = sendRoom();
+      final session = incoming(
+        inRoom: r,
+        engine: FakeCallEngine(
+          failJoin: true,
+          joinError: const CallRemovedException(),
+        ),
+      );
+
+      await expectLater(session.accept(), throwsA(isA<CallRemovedException>()));
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.ended);
+      expect(session.endReason, CallEndReason.removed);
+      expect(session.failure, isNull);
+      expect(r.attempts, isEmpty);
+      expect(reported(logs), isEmpty);
+    });
+
+    test('a mute aimed at our join mutes the microphone, republishes and '
+        'names who did it until we unmute', () async {
+      final call = joined();
+      await call.session.accept();
+      final published = call.puts.length;
+
+      deliver(mute(call.room, joinedAt: _publishedJoinTime(call.puts.first)));
+      await pumpEventQueue();
+
+      expect(call.engine.microphoneMutedRequests, [true]);
+      expect(call.session.mutedBy, mod);
+      expect(call.puts.length, greaterThan(published));
+
+      await call.session.setMicrophoneMuted(false);
+
+      expect(call.session.mutedBy, isNull);
+    });
+
+    for (final (reason, build)
+        in <(String, Event Function(SendRecordingRoom, int))>[
+          (
+            'an earlier join of ours',
+            (r, joinedAt) => mute(r, joinedAt: joinedAt - 1),
+          ),
+          (
+            'someone who does not outrank us',
+            (r, joinedAt) => mute(r, sender: _bob, joinedAt: joinedAt),
+          ),
+          (
+            'someone else',
+            (r, joinedAt) => mute(r, userId: _bob, joinedAt: joinedAt),
+          ),
+        ]) {
+      test('a mute aimed at $reason changes nothing', () async {
+        final call = joined();
+        await call.session.accept();
+
+        deliver(build(call.room, _publishedJoinTime(call.puts.first)));
+        await pumpEventQueue();
+
+        expect(call.engine.microphoneMutedRequests, isEmpty);
+        expect(call.session.mutedBy, isNull);
+      });
+    }
+
+    test('a mute while we are already muted names nobody', () async {
+      final call = joined();
+      await call.session.accept();
+      call.engine.setParticipants([localParticipant(muted: true)]);
+
+      deliver(mute(call.room, joinedAt: _publishedJoinTime(call.puts.first)));
+      await pumpEventQueue();
+
+      expect(call.engine.microphoneMutedRequests, isEmpty);
+      expect(call.session.mutedBy, isNull);
+    });
+
+    test('muting someone asks for this call', () async {
+      final call = joined();
+      joinTheCall(call.room, _bob, deviceId: 'BOB');
+      await call.session.accept();
+
+      await call.session.mute(_bob);
+
+      expect(call.room.requests.single.type, callMuteEventType);
+      expect(call.room.requests.single.content['call_id'], 'call1');
     });
   });
 }

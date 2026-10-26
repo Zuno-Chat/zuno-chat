@@ -39,12 +39,14 @@ class CallBadge extends StatelessWidget {
   final String label;
   final String? semanticLabel;
   final int maxLines;
+  final bool liveRegion;
 
   const CallBadge({
     required this.label,
     this.icon,
     this.semanticLabel,
     this.maxLines = 1,
+    this.liveRegion = false,
     super.key,
   });
 
@@ -53,6 +55,7 @@ class CallBadge extends StatelessWidget {
     final icon = this.icon;
     return Semantics(
       container: true,
+      liveRegion: liveRegion,
       label: semanticLabel ?? label,
       child: ExcludeSemantics(
         child: Material(

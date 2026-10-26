@@ -17,7 +17,7 @@ the only source of truth.
 | Access | `room_access.dart` treats access as one concept over two server facts, the join rule and the directory listing (table under Decisions). |
 | Room info | `lib/features/room_info/`: header, quick actions, members, settings, permissions and media. Which sections show depends on the kind of room (table below). |
 | Shared rules | `room_exit.dart` (the exit rule), `room_title.dart` (the one title every surface shows), `optimistic_room_state.dart`. |
-| Roles | `room_roles.dart`: read-only `-1`, member `0`, moderator `50`, admin `100`, where any other level reads as the tier below it. It also decides who may manage whom (`canManageMember`, `assignableRolesFor`). |
+| Roles | `room_roles.dart`: read-only `-1`, member `0`, moderator `50`, admin `100`, where any other level reads as the tier below it. It also decides who may manage and who may remove whom (`canManageMember`, `canRemoveMember`, `assignableRolesFor`). |
 | Permissions | `room_permission.dart`: the permission catalog, where each entry is one field of `m.room.power_levels`, and the defaults for new rooms. `RoomPermissionsPage` shows it for rooms and communities. |
 | Call gating | `call_member_state.dart`: `canPublishCallMemberState` and `hasSomeoneToCall`, used by every call button. |
 | Invitations | `room_invite.dart`: pure functions that decide how an invitation is displayed and notified, shared by the chat list, the chat header, `RoomInvitePage` and both notification paths. |
@@ -99,6 +99,7 @@ files.
 - **Some permissions are deliberately absent from the catalog.** Server ACLs are left out because Zuno has no federation, room upgrade because it needs its own design, and widgets because they are ruled out (`../decisions/excluded.md`).
 - **Permission editing is admin-only**, stricter than the room's own level. Every value the page writes is at most 100, so Matrix's rule that the sender must outrank both the old and the new value holds by construction.
 - **Member actions narrow the server's rule.** Only admins make admins, moderators can only move someone down, nobody edits themselves, and role changes need the power-levels permission (admin-only by default), so the UI never offers an action the server would refuse.
+- **Removing someone is one rule for a room, a community and a call**: the remove permission plus a higher rank (`calls.md`).
 - **The owner is the sender of the create event**, listed first and badged, but still an admin underneath. Ownership is a label, never a permission gate, because below room version 12 the creator can be demoted.
 - **Calls need someone to call.** Call buttons require both the call permission and at least one other joined member, read from the room summary, so calls are never offered in pending or emptied rooms.
 

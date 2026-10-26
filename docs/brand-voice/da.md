@@ -74,6 +74,7 @@ Danish for `lib/l10n/app_da.arb`, written for Denmark. The rules all languages s
 | hang up, End call | Læg på | Both. |
 | join (a call) | Deltag | |
 | speaker, mute, unmute | højttaler · Slå lyd fra · Slå lyd til | "Muted" → «Lyd fra». "{name} is muted" → «{name} har slået lyden fra». |
+| mute someone, remove from the call | Slå lyd fra · Fjern fra opkaldet | Muting another person is «slå lyden fra for»: "{name} muted you" → «{name} har slået lyden fra for dig». "Rejoin" → «deltage igen». A person's "Show options" → «Vis valgmuligheder». |
 | camera, microphone | kamera · mikrofon | |
 | connection, connecting, reconnecting | forbindelse · Opretter forbindelse… · Genopretter forbindelse… | "Weak connection" → «Svag forbindelse». "Poor connection" → «Dårlig forbindelseskvalitet». "Calling…" → «Ringer op…». |
 | picture-in-picture, minimize | billede-i-billede · Minimer | |

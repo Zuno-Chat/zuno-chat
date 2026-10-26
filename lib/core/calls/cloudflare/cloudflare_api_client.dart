@@ -1,10 +1,6 @@
-import 'dart:convert';
-import 'dart:io' show SocketException;
-
 import 'package:http/http.dart' as http;
 
-import '../../errors/retry_backoff.dart';
-import 'calls_module.dart';
+import '../module/calls_module.dart';
 
 class CfSessionDescription {
   final String sdp;
@@ -92,17 +88,6 @@ class CfTracksResult {
   );
 }
 
-class CloudflareCallsException implements Exception {
-  final String message;
-  final int? statusCode;
-  final Duration? retryAfter;
-
-  CloudflareCallsException(this.message, {this.statusCode, this.retryAfter});
-
-  @override
-  String toString() => 'CloudflareCallsException: $message';
-}
-
 class _Endpoint {
   const _Endpoint(this.method, this.route, {this.safeToResend = false});
 
@@ -125,7 +110,7 @@ const _closeTracks = _Endpoint(
 
 void _throwIfRefused(Map<String, dynamic> json, _Endpoint endpoint) {
   if (json['errorCode'] == null) return;
-  throw CloudflareCallsException(
+  throw CallsModuleException(
     '${moduleErrorCode(json) ?? 'an error'} from $endpoint',
   );
 }
@@ -134,12 +119,14 @@ class CloudflareApiClient {
   final Uri Function() baseUri;
   final Future<String> Function() authorization;
   final http.Client httpClient;
+  final void Function()? onRemoved;
   final bool _ownsHttpClient;
 
   CloudflareApiClient({
     required this.baseUri,
     required this.authorization,
     http.Client? httpClient,
+    this.onRemoved,
   }) : httpClient = httpClient ?? http.Client(),
        _ownsHttpClient = httpClient == null;
 
@@ -158,62 +145,26 @@ class CloudflareApiClient {
     );
   }
 
-  static const _maxAttempts = 3;
-  static const _baseDelay = Duration(milliseconds: 150);
-  static const _maxDelay = Duration(milliseconds: 1500);
-  static const _requestDeadline = Duration(seconds: 15);
-
   Future<Map<String, dynamic>> _send(
     _Endpoint endpoint, {
     String? sessionId,
     Map<String, String>? query,
     Map<String, Object?>? body,
-  }) => retryWithBackoff(
-    () => _sendOnce(endpoint, _uri(endpoint, sessionId, query), body),
-    label: '$endpoint',
-    maxAttempts: _maxAttempts,
-    baseDelay: _baseDelay,
-    maxDelay: _maxDelay,
-    retryIf: (error) =>
-        (endpoint.safeToResend && error is SocketException) ||
-        (error is CloudflareCallsException && error.statusCode == 429),
-    retryAfter: (error) =>
-        error is CloudflareCallsException ? error.retryAfter : null,
-  );
-
-  Future<Map<String, dynamic>> _sendOnce(
-    _Endpoint endpoint,
-    Uri uri,
-    Map<String, Object?>? body,
-  ) async {
-    final response = await _request(endpoint.method, uri, body);
-    if (callFullOf(response) case final full?) throw full;
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw CloudflareCallsException(
-        moduleFailure(response, '$endpoint'),
-        statusCode: response.statusCode,
-        retryAfter: retryAfterOf(response),
+  }) async {
+    try {
+      return await sendToCallsModule(
+        method: endpoint.method,
+        uri: _uri(endpoint, sessionId, query),
+        request: '$endpoint',
+        authorization: authorization,
+        body: body,
+        resendable: endpoint.safeToResend,
+        httpClient: httpClient,
       );
+    } on CallRemovedException {
+      onRemoved?.call();
+      rethrow;
     }
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  }
-
-  Future<http.Response> _request(
-    String method,
-    Uri uri,
-    Map<String, Object?>? body,
-  ) async {
-    final headers = {
-      'Authorization': await authorization(),
-      'Content-Type': 'application/json',
-    };
-    final encoded = body == null ? null : jsonEncode(body);
-    final pending = switch (method) {
-      'POST' => httpClient.post(uri, headers: headers, body: encoded),
-      'PUT' => httpClient.put(uri, headers: headers, body: encoded),
-      _ => throw ArgumentError('Unsupported method $method'),
-    };
-    return pending.timeout(_requestDeadline);
   }
 
   Future<String> createSession({
@@ -227,7 +178,7 @@ class CloudflareApiClient {
     final sessionId = json['sessionId'] as String?;
     if (sessionId == null) {
       final code = moduleErrorCode(json);
-      throw CloudflareCallsException(
+      throw CallsModuleException(
         '$_newSession returned no session${code == null ? '' : ': $code'}',
       );
     }

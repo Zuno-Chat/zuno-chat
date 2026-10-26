@@ -213,6 +213,43 @@ void main() {
     }
   });
 
+  group('hasRoomPermission', () {
+    Room roomWith(Map<String, Object?> powerLevels) {
+      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+      setPowerLevels(room, powerLevels);
+      return room;
+    }
+
+    test('anyone at or above the permission level has it', () {
+      final room = roomWith({
+        'kick': 50,
+        'users': {'@mod:example.org': 50, '@admin:example.org': 100},
+      });
+
+      expect(hasRoomPermission(room, '@mod:example.org', 'kick'), isTrue);
+      expect(hasRoomPermission(room, '@admin:example.org', 'kick'), isTrue);
+    });
+
+    test('anyone below the level does not', () {
+      final room = roomWith({
+        'kick': 100,
+        'users': {'@mod:example.org': 50},
+      });
+
+      expect(hasRoomPermission(room, '@mod:example.org', 'kick'), isFalse);
+      expect(hasRoomPermission(room, '@member:example.org', 'kick'), isFalse);
+    });
+
+    test('a missing level reads as the catalog fallback', () {
+      final room = roomWith({
+        'users': {'@mod:example.org': 50},
+      });
+
+      expect(hasRoomPermission(room, '@mod:example.org', 'kick'), isTrue);
+      expect(hasRoomPermission(room, '@member:example.org', 'kick'), isFalse);
+    });
+  });
+
   group('community rules', () {
     test('cover members, rooms and settings, and nothing a community '
         'lacks', () {

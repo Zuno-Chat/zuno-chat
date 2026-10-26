@@ -70,6 +70,8 @@ European Portuguese for `lib/l10n/app_pt_PT.arb`, written for Portugal. The rule
 | hang up, End call | Terminar chamada / terminar | |
 | join (a call) | Participar / participar na chamada | |
 | speaker, mute, unmute | o altifalante · Silenciar · Ativar som | "Muted" → «Silenciado». |
+| mute (someone in a call) | Silenciar / silenciar | "{name} muted you" → «{name} silenciou o seu microfone», since «-o/-a» would agree with the reader. "{name} was not muted." → «Não foi possível silenciar {name}.» |
+| remove from the call | Remover da chamada / remover da chamada | "{name} removed you from the call." → «{name} removeu a sua conta da chamada.» "You were removed from this call." → «A sua conta foi removida desta chamada.», as with rooms (§1.11). "rejoin" → «voltar a participar». |
 | camera, microphone | a câmara · o microfone | "Switch camera" → «Mudar de câmara». |
 | connection, connecting, reconnecting | a ligação · A estabelecer ligação… · A restabelecer ligação… | "Weak connection" → «Ligação fraca». "Poor connection" → «Má ligação». "Calling…" → «A chamar…». The sign-in button's "Connecting…" → «A ligar…». |
 | picture-in-picture, minimize | ecrã no ecrã · Minimizar | |

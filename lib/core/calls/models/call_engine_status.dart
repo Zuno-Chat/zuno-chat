@@ -4,4 +4,5 @@ enum CallEngineStatus {
   reconnecting,
   disconnected,
   failed,
+  removed,
 }

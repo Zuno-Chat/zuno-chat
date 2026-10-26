@@ -74,6 +74,7 @@ Swedish for `lib/l10n/app_sv.arb`, written for Sweden. The rules all languages s
 | hang up, End call | Lägg på | Both. |
 | join (a call) | Anslut | |
 | speaker, mute, unmute | högtalare · Stäng av ljud · Slå på ljud | "Muted" → «Ljud av». "{name} is muted" → «{name} har stängt av ljudet». |
+| mute someone, remove from the call | Stäng av ljud · Ta bort från samtalet | Muting another person is «stänga av ljudet för»: "{name} muted you" → «{name} har stängt av ljudet för dig». "Rejoin" → «ansluta igen». A person's "Show options" → «Visa alternativ». |
 | camera, microphone | kamera · mikrofon | |
 | connection, connecting, reconnecting | anslutning · Ansluter… · Återansluter… | "Weak connection" → «Svag anslutning». "Poor connection" → «Dålig anslutningskvalitet». "Calling…" → «Ringer…». |
 | picture-in-picture, minimize | bild-i-bild · Minimera | |

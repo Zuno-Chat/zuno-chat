@@ -52,6 +52,14 @@ class FakeCallSession implements CallSession {
   CallEndReason? endReason;
   @override
   CallFailure? failure;
+  @override
+  String? removedBy;
+  @override
+  String? mutedBy;
+
+  final mutedPeople = <String>[];
+  final removedPeople = <String>[];
+  Object? moderationError;
 
   @override
   Future<void> hangUpFinished = Future<void>.value();
@@ -74,6 +82,25 @@ class FakeCallSession implements CallSession {
 
   @override
   Future<void> refreshMembership() async => membershipRefreshes++;
+
+  @override
+  Future<void> setMicrophoneMuted(bool muted, {String? by}) async {
+    mutedBy = muted ? by : null;
+    await engine.setMicrophoneMuted(muted);
+    membershipRefreshes++;
+  }
+
+  @override
+  Future<void> mute(String userId) async {
+    if (moderationError case final error?) throw error;
+    mutedPeople.add(userId);
+  }
+
+  @override
+  Future<void> remove(String userId) async {
+    if (moderationError case final error?) throw error;
+    removedPeople.add(userId);
+  }
 
   @override
   Future<void> hangUp({bool byUser = false, bool summarized = false}) async {
@@ -130,9 +157,11 @@ CallEngineParticipant remoteParticipant({
   String userId = '@ann:example.org',
   bool camera = false,
   bool encrypted = true,
+  bool muted = false,
 }) => CallEngineParticipant(
   id: VoipParticipantId(userId: userId, deviceId: 'ANN'),
   isLocal: false,
+  audioMuted: muted,
   videoEnabled: camera,
   videoStream: camera ? FakeMediaStream('$userId-video') : null,
   encrypted: encrypted,

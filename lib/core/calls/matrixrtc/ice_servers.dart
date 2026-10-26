@@ -3,7 +3,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../errors/caught_errors.dart';
 import '../../matrix/bearer_authorization.dart';
-import '../cloudflare/calls_module.dart';
+import '../cloudflare/cloudflare_routes.dart';
 import '../cloudflare/cloudflare_turn_client.dart';
 
 const _turnBudget = Duration(seconds: 5);

@@ -6,9 +6,8 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-
-import 'package:zuno/core/calls/cloudflare/calls_module.dart';
 import 'package:zuno/core/calls/cloudflare/cloudflare_api_client.dart';
+import 'package:zuno/core/calls/module/calls_module.dart';
 
 import '../../helpers/caught_reports.dart';
 
@@ -67,6 +66,39 @@ void main() {
     expect(asked, 1);
   });
 
+  test(
+    'a removal from the call is reported once and never asked again',
+    () async {
+      var asked = 0;
+      var removed = 0;
+      final api = CloudflareApiClient(
+        baseUri: () => Uri.parse('https://example.org$_base'),
+        authorization: () async => 'Bearer syt_token',
+        httpClient: MockClient((request) async {
+          asked++;
+          return http.Response(
+            jsonEncode({
+              'errcode': 'IM.ZUNO.CALL_REMOVED',
+              'error': 'Removed from this call',
+            }),
+            403,
+          );
+        }),
+        onRemoved: () => removed++,
+      );
+
+      await expectLater(
+        api.pullRemoteTracks(
+          sessionId: 'sess1',
+          tracks: [CfTrack.remote(sessionId: 'sess2', trackName: 'audio')],
+        ),
+        throwsA(isA<CallRemovedException>()),
+      );
+      expect(asked, 1);
+      expect(removed, 1);
+    },
+  );
+
   test('createSession treats any other refusal as a module failure', () async {
     final mock = MockClient(
       (request) async =>
@@ -76,7 +108,7 @@ void main() {
     await expectLater(
       _client(mock).createSession(roomId: _roomId, callId: _callId),
       throwsA(
-        isA<CloudflareCallsException>().having(
+        isA<CallsModuleException>().having(
           (e) => e.statusCode,
           'statusCode',
           403,
@@ -86,14 +118,14 @@ void main() {
   });
 
   test(
-    'createSession throws CloudflareCallsException when sessionId is missing',
+    'createSession throws CallsModuleException when sessionId is missing',
     () async {
       final mock = MockClient(
         (request) async => http.Response(jsonEncode({}), 200),
       );
       expect(
         _client(mock).createSession(roomId: _roomId, callId: _callId),
-        throwsA(isA<CloudflareCallsException>()),
+        throwsA(isA<CallsModuleException>()),
       );
     },
   );
@@ -138,14 +170,14 @@ void main() {
         offer: const CfSessionDescription(sdp: 'sdp', type: 'offer'),
         tracks: [CfTrack.local(mid: '0', trackName: 'mic')],
       ),
-      throwsA(isA<CloudflareCallsException>()),
+      throwsA(isA<CallsModuleException>()),
     );
     await expectLater(
       client.pullRemoteTracks(
         sessionId: 's1',
         tracks: [CfTrack.remote(sessionId: 'remote', trackName: 'audio')],
       ),
-      throwsA(isA<CloudflareCallsException>()),
+      throwsA(isA<CallsModuleException>()),
     );
     await expectLater(
       client.renegotiate(
@@ -153,7 +185,7 @@ void main() {
         offer: const CfSessionDescription(sdp: 'sdp', type: 'answer'),
       ),
       throwsA(
-        isA<CloudflareCallsException>().having(
+        isA<CallsModuleException>().having(
           (e) => e.message,
           'message',
           'session_not_found from PUT /sessions/{id}/renegotiate',
@@ -162,7 +194,7 @@ void main() {
     );
     await expectLater(
       client.closeTracks(sessionId: 's1', mids: ['0']),
-      throwsA(isA<CloudflareCallsException>()),
+      throwsA(isA<CallsModuleException>()),
     );
   });
 
@@ -172,14 +204,14 @@ void main() {
 
     setUp(() => logs = recordDebugPrints());
 
-    Future<CloudflareCallsException> failureOf(http.Response response) async {
+    Future<CallsModuleException> failureOf(http.Response response) async {
       try {
         await _client(MockClient((_) async => response)).pushLocalTracks(
           sessionId: session,
           offer: const CfSessionDescription(sdp: 'sdp', type: 'offer'),
           tracks: [CfTrack.local(mid: '0', trackName: 'audio')],
         );
-      } on CloudflareCallsException catch (error) {
+      } on CallsModuleException catch (error) {
         expect(logs.join('\n'), isNot(contains(session)));
         return error;
       }
@@ -200,7 +232,7 @@ void main() {
 
       expect(
         error.toString(),
-        'CloudflareCallsException: HTTP 404 from '
+        'CallsModuleException: HTTP 404 from '
         'POST /sessions/{id}/tracks/new: session_error',
       );
       expect(error.statusCode, 404);
@@ -292,7 +324,7 @@ void main() {
           ),
         ).createSession(roomId: _roomId, callId: _callId),
         throwsA(
-          isA<CloudflareCallsException>().having(
+          isA<CallsModuleException>().having(
             (e) => e.message,
             'message',
             'POST /sessions/new returned no session',
@@ -379,7 +411,9 @@ void main() {
       final client = _client(
         MockClient((request) async {
           paths.add(request.url.path.split(_base).last);
-          throw const SocketException('connection reset by peer');
+          throw paths.length.isEven
+              ? http.ClientException('Connection closed while receiving data')
+              : const SocketException('connection reset by peer');
         }),
       );
       const description = CfSessionDescription(sdp: 'sdp', type: 'offer');
@@ -409,35 +443,35 @@ void main() {
         '/sessions/s1/renegotiate',
         '/sessions/s1/tracks/close',
       ]);
-      expect(errors, [for (var i = 0; i < 4; i++) isA<SocketException>()]);
+      expect(errors, hasLength(4));
     });
   });
 
-  test('does not retry a generic http.ClientException', () {
+  test('a session request also retries a dropped connection the http client '
+      'reports as a ClientException, as native clients do', () {
     fakeAsync((async) {
       var calls = 0;
       final mock = MockClient((request) async {
         calls++;
-        throw http.ClientException('Connection closed before full header');
-      });
-      Object? error;
-      () async {
-        try {
-          await _client(mock).createSession(roomId: _roomId, callId: _callId);
-        } catch (e) {
-          error = e;
+        if (calls == 1) {
+          throw http.ClientException('Connection closed before full header');
         }
-      }();
+        return http.Response(jsonEncode({'sessionId': 'sess1'}), 200);
+      });
+      String? sessionId;
+      _client(mock)
+          .createSession(roomId: _roomId, callId: _callId)
+          .then((id) => sessionId = id);
 
       async.elapse(const Duration(seconds: 5));
 
-      expect(calls, 1);
-      expect(error, isA<http.ClientException>());
+      expect(calls, 2);
+      expect(sessionId, 'sess1');
     });
   });
 
   for (final status in [401, 500]) {
-    test('a $status is final: no retry, surfaced as CloudflareCallsException '
+    test('a $status is final: no retry, surfaced as CallsModuleException '
         'with its status', () async {
       var calls = 0;
       final mock = MockClient((request) async {
@@ -448,7 +482,7 @@ void main() {
       await expectLater(
         _client(mock).createSession(roomId: _roomId, callId: _callId),
         throwsA(
-          isA<CloudflareCallsException>().having(
+          isA<CallsModuleException>().having(
             (e) => e.statusCode,
             'statusCode',
             status,
@@ -506,7 +540,7 @@ void main() {
 
       async.elapse(const Duration(seconds: 5));
       expect(calls, 3);
-      expect(error, isA<CloudflareCallsException>());
+      expect(error, isA<CallsModuleException>());
     });
   });
 

@@ -29,7 +29,7 @@ flowchart LR
 | `CallSession` | `lib/core/calls/matrixrtc/` | Matrix-side signaling and the call lifecycle: invite, decline, ring timeout, `m.call.member` publish and reconcile, the call key, hang-up and the summary |
 | `CallEngine` → `CloudflareCallEngine` | `lib/core/calls/cloudflare/` | Media: one peer connection and one Cloudflare session per call, with every participant's tracks muxed onto it |
 | `LocalMedia` | same | Our microphone and camera: opened at call start, muted, switched and closed; the engine publishes what it holds |
-| `calls_module.dart` | same | Speaks Cloudflare's own API to the module, which adds the app id and credentials server-side. Only signaling goes through it; media flows straight between the device and the SFU |
+| Calls module client | `lib/core/calls/module/` | Every request to the `zuno_calls` module goes through one function: the Matrix bearer, the deadline, retries and the module's refusals. The Cloudflare client speaks Cloudflare's own API through it, and the module adds the app id and credentials server-side. Only signaling goes through it; media flows straight between the device and the SFU |
 | `ActiveCallController` | `lib/core/calls/` | The device side of the active call for its whole life: renderers, audio route, call tones, foreground service, wake lock, lock-screen display, ear sensor, picture-in-picture and teardown. It starts when `activeCallProvider` gets a session, with no frame |
 | `CallPage` → `CallView`, `CallLayer` | `lib/features/calls/presentation/` | `CallPage` is the call screen and only draws. `CallLayer` sits above the Navigator and shows a minimized call and Android picture-in-picture. `CallView` only lays out plain values |
 | Ring routing | `IncomingCallGate`, `lib/core/calls/notifications/`; iOS `RingCoordinator` | Deciding whether an invite rings, then presenting, cancelling, answering and declining rings |
@@ -77,8 +77,8 @@ stateDiagram-v2
   camera change made while ringing carries into the call. Every end path
   releases it, and one built after the call ended is released at once.
 - **A call ends** as hung up, declined by either side, missed (the
-  caller's ring timed out with nobody joined) or failed. A failure carries
-  a user-facing message.
+  caller's ring timed out with nobody joined), removed by a moderator, or
+  failed. A removal or a failure carries a user-facing message.
 - **A callee left alone ends the call by itself**, on both platforms: it
   hangs up when nobody else is there a short while after it connects, and
   ends when the call's summary arrives before anyone was, since the caller
@@ -143,6 +143,7 @@ stateDiagram-v2
   | A caller whose invite was never delivered | Nothing, so hanging up during the microphone prompt is silent |
   | A callee that never joined | A decline |
   | A callee whose connect failed before it joined | Nothing, so its other phones can still answer |
+  | A callee removed before it joined | Nothing, since it is out of the call either way |
   | A callee the summary reached before anyone joined | Nothing: the call is already summarized |
   | A caller giving up its call for a crossed one (see Ringing) | Nothing, so no false missed call is posted |
   | Anyone else | The summary: declined, missed or ended |
@@ -161,6 +162,31 @@ stateDiagram-v2
   `sessions/new` names its room and call, and the module refuses a full call
   with a 403 `IM.ZUNO.CALL_FULL` carrying its `max_participants`, which the
   app shows as is.
+
+**Moderation.** In a group room, never a direct chat, anyone with the room's
+"Remove people" permission can hold someone ranked below them in the call to
+mute them or remove them from it.
+
+- **One rule decides who may remove whom** in rooms, communities and calls,
+  and every phone checks an arriving mute or removal against it, so one from
+  someone without the rank is ignored.
+- **Mute and removal are hidden `im.zuno.call.*` event types with an
+  `m.reference` to the target's call membership**, so they never push and
+  older versions and other clients never show them.
+- **A mute is a request the target's app obeys and the person can undo.** It
+  names the join it applies to, so a late one never mutes a later join, and
+  the call names who muted you until you unmute.
+- **Every mute goes through the call** (the button, the system call and a
+  moderator), so the call knows who muted you and drops that the moment you
+  unmute.
+- **The module enforces a removal.** The app asks it first, and it cuts the
+  person off and refuses them for the rest of the call with a 403
+  `IM.ZUNO.CALL_REMOVED`; only then does the app tell the call.
+- **A removed person's call ends as removed**, from the room event (naming
+  who removed them) or from the module refusing any call request, which is
+  never retried.
+- **Everyone already in the call drops a removed person at once**: no pulls,
+  no key relay, and their membership no longer counts as someone in the call.
 
 ### Media
 
@@ -183,7 +209,7 @@ sequenceDiagram
 |---|---|
 | ICE is gathered whole before an offer goes out | Cloudflare's REST signaling takes candidates only inside the offer, so there is no trickle ICE |
 | A lost connection, or a publish or pull whose exchange fails, rejoins with a new session and peer connection, a few times, before the call ends as "Connection lost" | Cloudflare sessions cannot ICE-restart, and a session left with an unanswered SFU offer refuses every later change (406 `invalid_session_description`), which no rollback or forced close repairs |
-| Only `sessions/new` is re-sent after a dropped connection; track changes are retried only on 429 | The SFU may already have applied a lost request, and a repeat lands on a session that no longer expects it |
+| Only `sessions/new` is re-sent after a dropped connection, however the HTTP client reports it; track changes are retried only on 429 | The SFU may already have applied a lost request, and a repeat lands on a session that no longer expects it; native HTTP clients report every dropped connection as a client error |
 | TURN credentials are minted through the module when the engine is built at call start, and a failed mint means no TURN, not a failed call | Only some networks need TURN |
 | A black placeholder stands in whenever the camera is not sending, and a track is advertised only once it has sent bytes | Cloudflare drops a published track that receives no packets for 30 s, and advertising earlier lets someone pull a track the SFU does not have yet |
 | Opus goes out without DTX | A muted microphone with DTX sends nothing, so the 30 s rule would drop the audio track |
@@ -575,7 +601,7 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | A placeholder, not separate publish and receive connections (as in partytracks) | Separate connections make every camera toggle a re-publish and a re-pull by every viewer |
 | No automatic voice downgrade, and voice to video is one way | A downgrade needs distributed coordination and risks flicker, and an off camera costs little |
 | Screen share is not built | Android capture needs its own MediaProjection consent and foreground-service type |
-| New mid-call facts ride `fociInfo`; new signaling is an `im.zuno.*` msgtype | Both sides already reconcile `fociInfo`, and a msgtype gets timeline plumbing for free |
+| New mid-call facts ride `fociInfo`; new signaling that must push or show is an `im.zuno.*` msgtype, and signaling that must stay invisible is its own `im.zuno.*` event type | Both sides already reconcile `fociInfo`, a msgtype gets timeline plumbing for free, and an unknown event type is hidden by older versions and other clients, where an unknown msgtype shows as text |
 | A call-lifetime controller outside the call screen, drawn by an app-level layer | A lock-screen answer may never build the screen, and the screen, the bar, the window and picture-in-picture share one set of renderers |
 | Microphone and camera open at call start, not at join | The controls act on them before the call connects |
 | Android call audio is native, not flutter_webrtc's AudioSwitch | AudioSwitch entered call mode only on microphone capture and stuck to the last chosen device, so ringback and the route waited on the microphone |
@@ -600,7 +626,7 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   first roster is still being applied.
 - The engine's local participant carries a placeholder ID, not your Matrix
   ID, so the call screen resolves you from the signed-in account, or your
-  own tile shows no avatar.
+  own tile shows no avatar and offers to moderate you.
 - `hangUp()` is memoized rather than phase-guarded, because several
   callers race it and the phase changes only at the end of teardown.
 - Negotiation rounds run one at a time through a serial lock, but teardown
@@ -629,9 +655,9 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 - The calls module resolves against `client.homeserver`, the
   well-known-resolved base, not the address typed at login, and per
   request, so building an engine never fails.
-- Calls-module errors (sessions, tracks, TURN) name the request by a fixed
-  route template and carry only the module's error code, never a session
-  ID or the response body, because their text reaches crash reports
+- Calls-module errors (sessions, tracks, TURN, removal) name the request by
+  a fixed route template and carry only the module's error code, never a
+  session ID or the response body, because their text reaches crash reports
   (`crash-reporting.md`).
 - After a flutter_webrtc bump, check the Android placeholder on a device,
   because it reaches plugin internals by reflection and fails quietly.

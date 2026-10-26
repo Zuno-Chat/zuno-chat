@@ -19,6 +19,7 @@ import '../../chat/presentation/room_page.dart';
 import '../../verification/presentation/confirm_person.dart';
 import '../../verification/presentation/why_confirm_sheet.dart';
 import 'call_confirm_prompt.dart';
+import 'call_person_sheet.dart';
 import 'call_view.dart';
 
 final _screens = Expando<Route<void>>('call screen route');
@@ -145,13 +146,18 @@ class _CallPageState extends ConsumerState<CallPage> {
     );
   }
 
-  CallViewParticipant _viewOf(CallEngineParticipant participant) =>
-      CallViewParticipant(
-        participant: participant,
-        renderer: call.rendererFor(participant.id),
-        user: call.userFor(participant),
-        encrypting: call.encrypting(participant),
-      );
+  CallViewParticipant _viewOf(
+    CallEngineParticipant participant, {
+    required bool Function(CallEngineParticipant) canModerate,
+  }) => CallViewParticipant(
+    participant: participant,
+    renderer: call.rendererFor(participant.id),
+    user: call.userFor(participant),
+    encrypting: call.encrypting(participant),
+    onOptions: canModerate(participant)
+        ? () => unawaited(showCallPersonOptions(context, call, participant))
+        : null,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -223,13 +229,17 @@ class _CallPageState extends ConsumerState<CallPage> {
 
   Widget _buildCall(BuildContext context, String? confirmUserId) {
     final local = call.local;
+    final canModerate = call.moderationGate();
     return CallView(
       room: call.session.room,
       kind: call.session.kind,
       connecting: call.connecting,
       status: call.status,
-      local: local == null ? null : _viewOf(local),
-      remote: [for (final participant in call.remotes) _viewOf(participant)],
+      local: local == null ? null : _viewOf(local, canModerate: canModerate),
+      remote: [
+        for (final participant in call.remotes)
+          _viewOf(participant, canModerate: canModerate),
+      ],
       talkingSince: call.talkingSince,
       reconnecting: call.reconnecting,
       quality: call.quality,
@@ -248,6 +258,7 @@ class _CallPageState extends ConsumerState<CallPage> {
           ? null
           : () => _explainConfirming(context, confirmUserId),
       unvouchedDeviceWarning: _unvouchedDeviceWarning(context),
+      mutedBy: call.mutedBy?.calcDisplayname(),
     );
   }
 }

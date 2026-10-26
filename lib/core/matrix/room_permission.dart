@@ -177,6 +177,14 @@ typedef PermissionGroup = ({
 RoomPermission _catalogEntry(String id) =>
     roomPermissions.firstWhere((permission) => permission.id == id);
 
+bool hasRoomPermission(Room room, String userId, String permissionId) {
+  final content =
+      room.getState(EventTypes.RoomPowerLevels)?.content ??
+      const <String, Object?>{};
+  return room.getPowerLevelByUserId(userId).level >=
+      _catalogEntry(permissionId).read(content);
+}
+
 final List<PermissionGroup> roomPermissionGroups = [
   for (final (title, section) in <(LocalizedText, RoomPermissionSection)>[
     ((l10n) => l10n.matrixPermissionGroupBasic, RoomPermissionSection.basic),

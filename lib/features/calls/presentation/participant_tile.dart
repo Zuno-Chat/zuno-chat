@@ -9,6 +9,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'call_status_widgets.dart';
+import 'person_options_hold.dart';
 
 class ParticipantTile extends StatefulWidget {
   final CallEngineParticipant participant;
@@ -20,6 +21,7 @@ class ParticipantTile extends StatefulWidget {
   final bool showMuted;
   final double borderRadius;
   final Color? background;
+  final VoidCallback? onLongPress;
 
   const ParticipantTile({
     required this.participant,
@@ -31,6 +33,7 @@ class ParticipantTile extends StatefulWidget {
     this.showMuted = true,
     this.borderRadius = ZunoRadius.medium,
     this.background,
+    this.onLongPress,
     super.key,
   });
 
@@ -173,10 +176,14 @@ class _ParticipantTileState extends State<ParticipantTile> {
         ],
       ),
     );
-    if (widget.borderRadius == 0) return content;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(widget.borderRadius),
-      child: content,
+    return PersonOptionsHold(
+      onLongPress: widget.onLongPress,
+      child: widget.borderRadius == 0
+          ? content
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(widget.borderRadius),
+              child: content,
+            ),
     );
   }
 }

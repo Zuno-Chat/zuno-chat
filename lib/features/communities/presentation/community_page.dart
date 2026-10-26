@@ -378,7 +378,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     return [
       if (assignableRolesFor(community, targetUserId: user.id).isNotEmpty)
         _MemberAction.changeRole,
-      if (manageable && community.canKick) _MemberAction.remove,
+      if (canRemoveMember(community, user.id)) _MemberAction.remove,
       if (manageable && community.canBan) _MemberAction.ban,
     ];
   }

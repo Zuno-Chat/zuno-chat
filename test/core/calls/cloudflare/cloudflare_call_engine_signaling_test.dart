@@ -4,11 +4,9 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
-
-import 'package:zuno/core/calls/cloudflare/calls_module.dart';
-import 'package:zuno/core/calls/cloudflare/cloudflare_api_client.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/calls/module/calls_module.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/caught_reports.dart';
@@ -532,7 +530,7 @@ void main() {
       inCall((call) {
         call.sfu.sessionStatus = 500;
 
-        expect(call.join, throwsA(isA<CloudflareCallsException>()));
+        expect(call.join, throwsA(isA<CallsModuleException>()));
 
         expect(call.engine.status, CallEngineStatus.failed);
         expect(call.pc.disposed, isTrue);
@@ -572,6 +570,21 @@ void main() {
           hasLength(1),
         );
         expect(call.sfu.pushes, isEmpty);
+      });
+    });
+
+    test('joining a call we were removed from fails the join as removed, '
+        'asked once and never reported', () {
+      inCall((call) {
+        call.sfu.removedFromCall = true;
+
+        expect(call.join, throwsA(isA<CallRemovedException>()));
+        expect(call.engine.status, CallEngineStatus.removed);
+        expect(
+          call.sfu.requests.where((r) => r.path == '/sessions/new'),
+          hasLength(1),
+        );
+        expect(caught(), isEmpty);
       });
     });
 
@@ -790,7 +803,7 @@ void main() {
 
         expect(caught(), [
           startsWith(
-            'zuno/caught: pull remote tracks: CloudflareCallsException: '
+            'zuno/caught: pull remote tracks: CallsModuleException: '
             'HTTP 500 from PUT /sessions/{id}/renegotiate',
           ),
         ]);
@@ -813,6 +826,63 @@ void main() {
           call.sfu.requests.where((r) => r.path == '/sessions/new'),
           hasLength(4),
         );
+      });
+    });
+
+    test('a pull refused because we were removed ends the call as removed, '
+        'with no rejoin and nothing reported', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.mediaFlows();
+        call.sfu.removedFromCall = true;
+        call.remoteJoins();
+
+        call.async.elapse(const Duration(seconds: 30));
+        call.flush();
+
+        expect(call.engine.status, CallEngineStatus.removed);
+        expect(
+          call.sfu.requests.where((r) => r.path == '/sessions/new'),
+          hasLength(1),
+        );
+        expect(caught(), isEmpty);
+      });
+    });
+
+    test('a rejoin refused because we were removed ends the call as removed '
+        'at once, rather than retrying', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.mediaFlows();
+        call.sfu.removedFromCall = true;
+        call.pc.onConnectionState?.call(
+          RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+        );
+
+        call.async.elapse(const Duration(seconds: 30));
+        call.flush();
+
+        expect(call.engine.status, CallEngineStatus.removed);
+        expect(
+          call.sfu.requests.where((r) => r.path == '/sessions/new'),
+          hasLength(2),
+        );
+        expect(caught(), isEmpty);
+      });
+    });
+
+    test('a connection that recovers after the removal never revives the '
+        'call', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.sfu.removedFromCall = true;
+        call.remoteJoins();
+        call.pc.onConnectionState?.call(
+          RTCPeerConnectionState.RTCPeerConnectionStateConnected,
+        );
+        call.flush();
+
+        expect(call.engine.status, CallEngineStatus.removed);
       });
     });
 

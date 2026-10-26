@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
-import 'package:zuno/core/calls/cloudflare/calls_module.dart';
+import 'package:zuno/core/calls/cloudflare/cloudflare_routes.dart';
+import 'package:zuno/core/calls/module/calls_module.dart';
 
 import '../../../helpers/fake_matrix.dart';
 
@@ -97,7 +101,32 @@ void main() {
     }
   });
 
-  group('callFullOf', () {
+  group('moduleRefusalOf', () {
+    test('reads a full call with the module\'s limit', () {
+      final refusal = moduleRefusalOf(
+        http.Response(
+          '{"errcode":"IM.ZUNO.CALL_FULL","max_participants":8}',
+          403,
+        ),
+      );
+
+      expect(
+        refusal,
+        isA<CallFullException>().having((e) => e.maxParticipants, 'limit', 8),
+      );
+    });
+
+    test('reads someone it removed from the call', () {
+      final refusal = moduleRefusalOf(
+        http.Response(
+          '{"errcode":"IM.ZUNO.CALL_REMOVED","error":"Removed from this call"}',
+          403,
+        ),
+      );
+
+      expect(refusal, isA<CallRemovedException>());
+    });
+
     for (final (reason, response) in [
       (
         'a full-call code on another status',
@@ -107,11 +136,15 @@ void main() {
         ),
       ),
       (
+        'a removal code on another status',
+        http.Response('{"errcode":"IM.ZUNO.CALL_REMOVED"}', 500),
+      ),
+      (
         'another refusal',
         http.Response('{"errcode":"M_FORBIDDEN","max_participants":8}', 403),
       ),
       (
-        'a refusal without the limit',
+        'a full call without the limit',
         http.Response('{"errcode":"IM.ZUNO.CALL_FULL"}', 403),
       ),
       (
@@ -131,9 +164,69 @@ void main() {
       ('a body that is not JSON', http.Response('Forbidden', 403)),
     ]) {
       test('is null for $reason', () {
-        expect(callFullOf(response), isNull);
+        expect(moduleRefusalOf(response), isNull);
       });
     }
+  });
+
+  group('requestCallRemoval', () {
+    Future<void> remove(http.Client mock) => requestCallRemoval(
+      buildTestClient()
+        ..homeserver = Uri.parse('https://example.org')
+        ..accessToken = 'syt_token',
+      roomId: '!room:example.org',
+      callId: 'call1',
+      userId: '@bob:example.org',
+      httpClient: mock,
+    );
+
+    test('names the room, the call and the person, as the user', () async {
+      final requests = <http.Request>[];
+      await remove(
+        MockClient((request) async {
+          requests.add(request);
+          return http.Response('{}', 200);
+        }),
+      );
+
+      final request = requests.single;
+      expect(request.method, 'POST');
+      expect(request.url.path, '/_synapse/client/zuno/calls/remove');
+      expect(request.url.queryParameters, {
+        'room_id': '!room:example.org',
+        'call_id': 'call1',
+      });
+      expect(request.headers['Authorization'], 'Bearer syt_token');
+      expect(jsonDecode(request.body), {'user_id': '@bob:example.org'});
+    });
+
+    test('a success with an empty body still counts as removed', () async {
+      await expectLater(
+        remove(MockClient((request) async => http.Response('', 200))),
+        completes,
+      );
+    });
+
+    test(
+      'a refusal fails with the module\'s code and is never retried',
+      () async {
+        var asked = 0;
+        await expectLater(
+          remove(
+            MockClient((request) async {
+              asked++;
+              return http.Response('{"errcode":"M_FORBIDDEN"}', 403);
+            }),
+          ),
+          throwsA(
+            isA<CallsModuleException>()
+                .having((e) => e.statusCode, 'statusCode', 403)
+                .having((e) => e.message, 'message', contains('M_FORBIDDEN')),
+          ),
+        );
+        expect(asked, 1);
+      },
+    );
   });
 
   group('retryAfterOf', () {

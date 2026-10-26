@@ -19,18 +19,21 @@ import 'call_stage.dart';
 import 'call_status_line.dart';
 import 'call_status_widgets.dart';
 import 'participant_tile.dart';
+import 'person_options_hold.dart';
 
 class CallViewParticipant {
   final CallEngineParticipant participant;
   final RTCVideoRenderer? renderer;
   final User? user;
   final bool encrypting;
+  final VoidCallback? onOptions;
 
   const CallViewParticipant({
     required this.participant,
     required this.renderer,
     required this.user,
     required this.encrypting,
+    this.onOptions,
   });
 }
 
@@ -54,6 +57,7 @@ class CallView extends StatefulWidget {
   final String? confirmName;
   final VoidCallback? onConfirmPerson;
   final String? unvouchedDeviceWarning;
+  final String? mutedBy;
   final SnapCorner selfCorner;
   final ValueChanged<SnapCorner> onSelfCornerChanged;
 
@@ -80,6 +84,7 @@ class CallView extends StatefulWidget {
     this.confirmName,
     this.onConfirmPerson,
     this.unvouchedDeviceWarning,
+    this.mutedBy,
   });
 
   List<CallViewParticipant> get present => connecting ? const [] : remote;
@@ -162,6 +167,7 @@ class _CallViewState extends State<CallView> {
         showMuted: false,
         borderRadius: 0,
         background: Colors.black,
+        onLongPress: other.onOptions,
       );
     } else {
       stage = SafeArea(
@@ -249,6 +255,13 @@ class _CallViewState extends State<CallView> {
                         onPressed: onConfirmPerson,
                       ),
                     ),
+                  if (widget.mutedBy case final moderator?)
+                    CallBadge(
+                      key: const ValueKey('mutedBy'),
+                      icon: Icons.mic_off_outlined,
+                      label: context.l10n.callsMutedBy(moderator),
+                      liveRegion: true,
+                    ),
                   FittedBox(
                     key: const ValueKey('controls'),
                     fit: BoxFit.scaleDown,
@@ -279,20 +292,23 @@ class _CallViewState extends State<CallView> {
     final room = widget.room;
     final user = other?.user;
     final name = user?.calcDisplayname() ?? _roomTitle;
-    return VoiceCallStage(
-      avatarBuilder: (radius) => MxcAvatar(
-        client: room.client,
-        avatarUrl: user?.avatarUrl ?? room.avatar,
-        fallbackText: name,
-        toneSeed: user?.id ?? roomToneSeed(room),
-        radius: radius,
+    return PersonOptionsHold(
+      onLongPress: other?.onOptions,
+      child: VoiceCallStage(
+        avatarBuilder: (radius) => MxcAvatar(
+          client: room.client,
+          avatarUrl: user?.avatarUrl ?? room.avatar,
+          fallbackText: name,
+          toneSeed: user?.id ?? roomToneSeed(room),
+          radius: radius,
+        ),
+        name: name,
+        status: status,
+        talkingSince: widget.talkingSince,
+        encryptingSince: _encryptingSince,
+        remoteMuted: other?.participant.audioMuted ?? false,
+        remoteWeak: other?.participant.lowBandwidth ?? false,
       ),
-      name: name,
-      status: status,
-      talkingSince: widget.talkingSince,
-      encryptingSince: _encryptingSince,
-      remoteMuted: other?.participant.audioMuted ?? false,
-      remoteWeak: other?.participant.lowBandwidth ?? false,
     );
   }
 
@@ -360,6 +376,7 @@ class _CallViewState extends State<CallView> {
                     name: entry.participant.isLocal
                         ? context.l10n.commonYou
                         : entry.user?.calcDisplayname(),
+                    onLongPress: entry.onOptions,
                   ),
               ],
             ),

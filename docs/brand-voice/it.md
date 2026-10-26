@@ -70,6 +70,7 @@ Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `transla
 | hang up, End call | Termina chiamata | Both. |
 | join (a call) | Partecipa / partecipare alla chiamata | |
 | speaker, mute, unmute | l’altoparlante · Disattiva microfono · Attiva microfono | "Muted" → «Microfono disattivato». "{name} is muted" → «Microfono di {name} disattivato». |
+| mute someone, remove from a call | disattivare il microfono di {name} · Rimuovi dalla chiamata / rimuovere dalla chiamata | Call moderation. "{name} muted you" → «{name} ha disattivato il tuo microfono». "{name} removed you from the call." → «{name} ha rimosso il tuo account dalla chiamata.» "You were removed from this call." → «Il tuo account è stato rimosso da questa chiamata.» As in the room update (§1.11), «ti ha rimosso» would agree with the reader. |
 | camera, microphone | la fotocamera · il microfono | |
 | connection, connecting, reconnecting | la connessione · Connessione in corso… · Riconnessione in corso… | "Weak connection" → «Connessione debole». "Poor connection" → «Connessione scarsa». "Calling…" → «Chiamata in corso…». |
 | picture-in-picture, minimize | picture in picture · Riduci | |

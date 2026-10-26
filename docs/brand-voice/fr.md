@@ -70,6 +70,7 @@ French for `lib/l10n/app_fr.arb`, written for France and served to every French-
 | hang up, End call | Raccrocher | Both. |
 | join (a call) | Rejoindre / rejoindre l’appel | |
 | speaker, mute, unmute | le haut-parleur · Couper le micro · Réactiver le micro | "Muted" → «Micro coupé». "{name} is muted" → «Micro de {name} coupé». |
+| mute someone, remove from a call | couper le micro de {name} · Retirer de l’appel / retirer de l’appel | Call moderation. "{name} muted you" → «{name} a coupé votre micro». "{name} removed you from the call." → «{name} vous a fait quitter l’appel.» "You were removed from this call." → «L’accès à cet appel vous a été retiré.» «vous a retiré» would agree with the reader (§1.11). |
 | camera, microphone | la caméra · le micro | |
 | connection, connecting, reconnecting | la connexion · Connexion… · Reconnexion… | "Weak connection" → «Connexion faible». "Poor connection" → «Mauvaise connexion». "Calling…" → «Appel en cours…». |
 | picture-in-picture, minimize | image dans l’image · Réduire | |
