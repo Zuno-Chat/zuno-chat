@@ -31,6 +31,7 @@ void main() {
       expect(request.url, _credentialsUri);
       expect(request.headers['Authorization'], 'Bearer syt_token');
       expect(request.body, isEmpty);
+      expect(request.headers.containsKey('content-type'), isFalse);
       return http.Response(
         jsonEncode({
           'iceServers': [

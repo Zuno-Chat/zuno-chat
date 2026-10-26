@@ -16,6 +16,7 @@ import '../models/call_engine_status.dart';
 import '../models/call_kind.dart';
 import '../models/call_quality.dart';
 import '../models/voip_participant_id.dart';
+import '../module/calls_module.dart';
 import 'call_quality_policy.dart';
 import 'cloudflare_api_client.dart';
 import 'local_media.dart';
@@ -311,12 +312,11 @@ class CloudflareCallEngine implements CallEngine {
 
   void _onRemoved() {
     if (_left || _removed) return;
+    _removed = true;
     _cancelDisconnectTimer();
     _detachConnectionCallbacks(_pc);
     _setStatus(CallEngineStatus.removed);
   }
-
-  bool get _removed => _status == CallEngineStatus.removed;
 
   Future<void> _preferVideoCodecs(
     RTCPeerConnection pc,
@@ -413,7 +413,8 @@ class CloudflareCallEngine implements CallEngine {
   );
 
   void _setStatus(CallEngineStatus status) {
-    if (_status == CallEngineStatus.removed &&
+    if (_removed &&
+        status != CallEngineStatus.removed &&
         status != CallEngineStatus.disconnected) {
       return;
     }
@@ -584,7 +585,7 @@ class CloudflareCallEngine implements CallEngine {
     );
     final sessionId = results[0] as String;
     final pc = results[1] as RTCPeerConnection;
-    if (_left) {
+    if (_left || _removed) {
       await _disposePeerConnection(pc);
       return;
     }
@@ -692,7 +693,7 @@ class CloudflareCallEngine implements CallEngine {
   }
 
   void _handleConnectionState(RTCPeerConnectionState state) {
-    if (_left) return;
+    if (_left || _removed) return;
     _peerConnected =
         state == RTCPeerConnectionState.RTCPeerConnectionStateConnected;
     switch (state) {
@@ -958,6 +959,7 @@ class CloudflareCallEngine implements CallEngine {
   }
 
   bool _left = false;
+  bool _removed = false;
 
   PlaceholderVideo? _placeholderVideo;
   bool _placeholderUnavailable = false;
@@ -1397,7 +1399,9 @@ class CloudflareCallEngine implements CallEngine {
     }
     if (remote.pullErrors[trackName] == errorCode) return;
     remote.pullErrors[trackName] = errorCode;
-    reportCaught('pull $trackName', errorCode);
+    if (errorCode != callRemovedErrorCode) {
+      reportCaught('pull $trackName', errorCode);
+    }
   }
 
   Future<void> _adoptRemoteTransceivers(

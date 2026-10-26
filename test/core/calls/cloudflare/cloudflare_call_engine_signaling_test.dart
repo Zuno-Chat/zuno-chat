@@ -877,12 +877,30 @@ void main() {
         call.joinEncrypted();
         call.sfu.removedFromCall = true;
         call.remoteJoins();
-        call.pc.onConnectionState?.call(
+        for (final state in [
+          RTCPeerConnectionState.RTCPeerConnectionStateClosed,
           RTCPeerConnectionState.RTCPeerConnectionStateConnected,
-        );
+        ]) {
+          call.engine.handleConnectionStateForTest(state);
+        }
         call.flush();
 
         expect(call.engine.status, CallEngineStatus.removed);
+      });
+    });
+
+    test('someone the server removed is refused per track, which is '
+        'expected and never reported', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.mediaFlows();
+        call.sfu
+          ..missingTracks.addAll(['audio', 'video'])
+          ..missingTrackCode = 'IM.ZUNO.CALL_REMOVED';
+        call.remoteJoins();
+
+        expect(call.engine.status, isNot(CallEngineStatus.removed));
+        expect(caught(), isEmpty);
       });
     });
 

@@ -100,6 +100,7 @@ files.
 - **Permission editing is admin-only**, stricter than the room's own level. Every value the page writes is at most 100, so Matrix's rule that the sender must outrank both the old and the new value holds by construction.
 - **Member actions narrow the server's rule.** Only admins make admins, moderators can only move someone down, nobody edits themselves, and role changes need the power-levels permission (admin-only by default), so the UI never offers an action the server would refuse.
 - **Removing someone is one rule for a room, a community and a call**: the remove permission plus a higher rank (`calls.md`).
+- **A permission level that is not a number reads as unset**, as the SDK reads it, so a room whose power levels came from another client never breaks the permissions screen or a permission check.
 - **The owner is the sender of the create event**, listed first and badged, but still an admin underneath. Ownership is a label, never a permission gate, because below room version 12 the creator can be demoted.
 - **Calls need someone to call.** Call buttons require both the call permission and at least one other joined member, read from the room summary, so calls are never offered in pending or emptied rooms.
 

@@ -232,15 +232,15 @@ void main() {
         '@bob:example.org': 0,
       });
       expect(
-        canManageMember(room, '@bob:example.org', actorId: '@mod:example.org'),
+        memberManager(room, actorId: '@mod:example.org')('@bob:example.org'),
         isTrue,
       );
       expect(
-        canManageMember(room, '@mod:example.org', actorId: '@bob:example.org'),
+        memberManager(room, actorId: '@bob:example.org')('@mod:example.org'),
         isFalse,
       );
       expect(
-        canManageMember(room, '@mod:example.org', actorId: '@mod:example.org'),
+        memberManager(room, actorId: '@mod:example.org')('@mod:example.org'),
         isFalse,
       );
     });
@@ -262,7 +262,7 @@ void main() {
     });
 
     bool can(String actor, String target) =>
-        canRemoveMember(room, target, actorId: actor);
+        memberRemover(room, actorId: actor)(target);
 
     test('anyone who can remove people acts on those ranked below them', () {
       expect(can('@mod:example.org', '@bob:example.org'), isTrue);

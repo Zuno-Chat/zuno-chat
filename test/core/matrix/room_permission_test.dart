@@ -124,6 +124,19 @@ void main() {
   });
 
   group('read()', () {
+    test('a level that is not a number reads as unset, never throws', () {
+      expect(_find('kick').read({'kick': '100'}), 50);
+      expect(
+        _find('room_name').read({
+          'state_default': '0',
+          'events': {EventTypes.RoomName: '0'},
+        }),
+        50,
+      );
+      expect(_find('room_name').read({'events': 'not a map'}), 50);
+      expect(_find('notify_room').read({'notifications': 'nope'}), 50);
+    });
+
     test('a state-event override falls back to state_default when unset', () {
       expect(_find('room_name').read({'state_default': 50}), 50);
       expect(_find('room_name').read({}), 50);

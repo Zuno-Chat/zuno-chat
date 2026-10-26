@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import '../../errors/best_effort.dart';
 import '../../matrix/room_roles.dart';
 import '../module/calls_module.dart';
 import 'call_member_state.dart';
@@ -9,8 +10,10 @@ import 'call_summary_message.dart';
 const callMuteEventType = 'im.zuno.call.mute';
 const callRemoveEventType = 'im.zuno.call.remove';
 
-bool Function(String targetId) callModerationGate(Room room) =>
-    room.isDirectChat ? (_) => false : memberRemover(room);
+bool Function(String targetId) callModerationGate(
+  Room room, {
+  String? actorId,
+}) => room.isDirectChat ? (_) => false : memberRemover(room, actorId: actorId);
 
 sealed class CallModeration {
   const CallModeration({required this.callId, required this.userId});
@@ -70,7 +73,7 @@ Future<void> muteInCall(
     callMuteEventType,
     callId: callId,
     userId: userId,
-    membershipEventId: join.eventId,
+    membershipEventId: join.eventId!,
     extra: {'membership_created_ts': join.membership.createdAtMs},
   );
 }
@@ -90,34 +93,23 @@ Future<void> removeFromCall(
   );
   final join = _referencedJoin(room, callId, userId);
   if (join == null) return;
-  await _tellCall(
-    room,
-    callRemoveEventType,
-    callId: callId,
-    userId: userId,
-    membershipEventId: join.eventId,
-    txid: 'zuno-remove-$callId-$userId',
+  await runBestEffort(
+    () => _tellCall(
+      room,
+      callRemoveEventType,
+      callId: callId,
+      userId: userId,
+      membershipEventId: join.eventId!,
+      txid: 'zuno-remove-$callId-$userId',
+    ),
+    label: 'tell the call about a removal',
   );
 }
 
-({String eventId, RtcMembership membership})? _referencedJoin(
-  Room room,
-  String callId,
-  String userId,
-) {
-  for (final join in callJoins(room, callId)) {
-    if (join
-        case (
-          userId: final joined,
-          eventId: final String eventId,
-          :final membership,
-        )
-        when joined == userId) {
-      return (eventId: eventId, membership: membership);
-    }
-  }
-  return null;
-}
+CallJoin? _referencedJoin(Room room, String callId, String userId) => callJoins(
+  room,
+  callId,
+).where((join) => join.userId == userId && join.eventId != null).firstOrNull;
 
 Future<void> _tellCall(
   Room room,

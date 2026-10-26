@@ -157,8 +157,8 @@ class ActiveCallController extends ChangeNotifier {
   CallEngineParticipant? get local => _local;
 
   User? get mutedBy => switch (session.mutedBy) {
-    final moderator? => userOf(moderator),
-    null => null,
+    final moderator? when _local?.audioMuted ?? false => userOf(moderator),
+    _ => null,
   };
 
   List<CallEngineParticipant> get remotes => _remotes;

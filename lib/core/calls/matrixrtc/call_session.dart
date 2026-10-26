@@ -18,7 +18,6 @@ import '../../l10n/l10n.dart';
 import '../../matrix/bearer_authorization.dart';
 import '../../matrix/ephemeral_to_device.dart';
 import '../../matrix/olm_sender.dart';
-import '../../matrix/room_roles.dart';
 import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
 import '../cloudflare/cloudflare_call_engine.dart';
@@ -121,7 +120,6 @@ class CallSession {
   bool _endedLocally = false;
 
   final Set<VoipParticipantId> _knownRemote = {};
-  final Set<String> _removedUserIds = {};
   final Map<VoipParticipantId, String?> _knownRemoteSessions = {};
   bool _everHadRemote = false;
   bool get everHadRemote => _everHadRemote;
@@ -208,19 +206,17 @@ class CallSession {
     final moderation = CallModeration.fromEvent(event);
     if (moderation == null || moderation.callId != callId) return;
     final moderator = event.senderId;
-    if (!canRemoveMember(room, moderation.userId, actorId: moderator)) return;
+    if (moderation.userId != _myUserId ||
+        !callModerationGate(room, actorId: moderator)(_myUserId)) {
+      return;
+    }
     switch (moderation) {
-      case CallRemoval(:final userId) when userId == _myUserId:
+      case CallRemoval():
         removedBy = moderator;
         endReason = CallEndReason.removed;
         unawaited(hangUp());
-      case CallRemoval(:final userId):
-        _removedUserIds.add(userId);
-        _pendingKeys.removeWhere((id, _) => id.userId == userId);
-        _reconcileRemoteMemberships();
-      case CallMute(:final userId, :final membershipCreatedTs)
-          when userId == _myUserId &&
-              _membershipLive &&
+      case CallMute(:final membershipCreatedTs)
+          when _membershipLive &&
               membershipCreatedTs == _joinedAtMs &&
               !_microphoneMuted:
         unawaited(
@@ -538,19 +534,9 @@ class CallSession {
       await built.join();
       if (await _abandonEngineIfEnded()) return;
 
-      _statusSub = built.statusStream.listen((status) {
-        if (_phase == CallSessionPhase.ended) return;
-        switch (status) {
-          case CallEngineStatus.failed:
-            failure = const CallConnectionLost();
-            endReason = CallEndReason.failed;
-          case CallEngineStatus.removed:
-            endReason = CallEndReason.removed;
-          default:
-            return;
-        }
-        unawaited(hangUp());
-      });
+      _statusSub = built.statusStream.listen(_followEngineStatus);
+      _followEngineStatus(built.status);
+      if (ending) return;
       _toDeviceSub = client.onToDeviceEvent.stream.listen(_handleToDeviceEvent);
       _localStateSub = built.localStateChangedStream.listen(
         (_) => unawaited(
@@ -582,6 +568,20 @@ class CallSession {
       }
       rethrow;
     }
+  }
+
+  void _followEngineStatus(CallEngineStatus status) {
+    if (_phase == CallSessionPhase.ended) return;
+    switch (status) {
+      case CallEngineStatus.failed:
+        failure = const CallConnectionLost();
+        endReason = CallEndReason.failed;
+      case CallEngineStatus.removed:
+        endReason = CallEndReason.removed;
+      default:
+        return;
+    }
+    unawaited(hangUp());
   }
 
   static bool _isForbidden(Object error) =>
@@ -740,13 +740,8 @@ class CallSession {
     }
   }
 
-  Iterable<CallJoin> _callMemberships() => callJoins(
-    room,
-    callId,
-  ).where((join) => !_removedUserIds.contains(join.userId));
-
   Set<VoipParticipantId> _currentCallParticipants() => {
-    for (final join in _callMemberships())
+    for (final join in callJoins(room, callId))
       VoipParticipantId(
         userId: join.userId,
         deviceId: join.membership.deviceId,
@@ -896,7 +891,7 @@ class CallSession {
     if (_roomSeen && client.getRoomById(_roomId) == null) return;
     final seenThisPass = <VoipParticipantId>{};
 
-    for (final (:userId, :membership, eventId: _) in _callMemberships()) {
+    for (final (:userId, :membership, eventId: _) in callJoins(room, callId)) {
       if (userId == _myUserId) continue;
       final id = VoipParticipantId(
         userId: userId,

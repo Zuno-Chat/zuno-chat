@@ -35,8 +35,8 @@ RoomRole ownRoomRole(Room room) => roomRoleForLevel(room.ownPowerLevel.level);
 RoomRole roomRoleOfUser(Room room, String userId) =>
     roomRoleForLevel(room.getPowerLevelByUserId(userId).level);
 
-bool canManageMember(Room room, String targetUserId, {String? actorId}) =>
-    memberManager(room, actorId: actorId)(targetUserId);
+bool canManageMember(Room room, String targetUserId) =>
+    memberManager(room)(targetUserId);
 
 bool Function(String targetUserId) memberManager(Room room, {String? actorId}) {
   final actor = actorId ?? room.client.userID;
@@ -47,8 +47,8 @@ bool Function(String targetUserId) memberManager(Room room, {String? actorId}) {
       room.getPowerLevelByUserId(targetUserId).level < actorLevel;
 }
 
-bool canRemoveMember(Room room, String targetUserId, {String? actorId}) =>
-    memberRemover(room, actorId: actorId)(targetUserId);
+bool canRemoveMember(Room room, String targetUserId) =>
+    memberRemover(room)(targetUserId);
 
 bool Function(String targetUserId) memberRemover(Room room, {String? actorId}) {
   final mayRemove = actorId == null

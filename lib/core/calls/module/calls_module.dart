@@ -39,6 +39,8 @@ class CallFullException implements Exception {
   String toString() => 'CallFullException: $maxParticipants people at most';
 }
 
+const callRemovedErrorCode = 'IM.ZUNO.CALL_REMOVED';
+
 class CallRemovedException implements Exception {
   const CallRemovedException();
 
@@ -56,7 +58,7 @@ Exception? moduleRefusalOf(http.Response response) {
       }
           when maxParticipants >= 1 =>
         CallFullException(maxParticipants),
-      {'errcode': 'IM.ZUNO.CALL_REMOVED'} => const CallRemovedException(),
+      {'errcode': callRemovedErrorCode} => const CallRemovedException(),
       _ => null,
     };
   } on FormatException {
@@ -94,7 +96,7 @@ Future<Map<String, dynamic>> sendToCallsModule({
   Future<Map<String, dynamic>> sendOnce() async {
     final headers = {
       'Authorization': await authorization(),
-      'Content-Type': 'application/json',
+      if (encoded != null) 'Content-Type': 'application/json',
     };
     final response = await switch (method) {
       'POST' => client.post(uri, headers: headers, body: encoded),

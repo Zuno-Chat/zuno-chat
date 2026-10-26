@@ -167,26 +167,27 @@ stateDiagram-v2
 "Remove people" permission can hold someone ranked below them in the call to
 mute them or remove them from it.
 
-- **One rule decides who may remove whom** in rooms, communities and calls,
-  and every phone checks an arriving mute or removal against it, so one from
-  someone without the rank is ignored.
+- **One rule decides who may remove whom** in rooms, communities and calls.
+  The target's phone checks an arriving mute or removal against it, chats
+  excluded on both sides, so one from someone without the rank is ignored.
 - **Mute and removal are hidden `im.zuno.call.*` event types with an
   `m.reference` to the target's call membership**, so they never push and
   older versions and other clients never show them.
 - **A mute is a request the target's app obeys and the person can undo.** It
-  names the join it applies to, so a late one never mutes a later join, and
-  the call names who muted you until you unmute.
+  names the join it applies to, so a late one never mutes a later join.
 - **Every mute goes through the call** (the button, the system call and a
-  moderator), so the call knows who muted you and drops that the moment you
-  unmute.
-- **The module enforces a removal.** The app asks it first, and it cuts the
-  person off and refuses them for the rest of the call with a 403
-  `IM.ZUNO.CALL_REMOVED`; only then does the app tell the call.
+  moderator), and the call names who muted you only while you stay muted.
+- **Only the module decides a removal.** It cuts the person off and refuses
+  them for the rest of the call with a 403 `IM.ZUNO.CALL_REMOVED`, and
+  answers only once their tracks are closed, so the call key never has to
+  change, which older versions could not follow. The removal is done once it
+  answers; telling the call is best effort.
 - **A removed person's call ends as removed**, from the room event (naming
-  who removed them) or from the module refusing any call request, which is
-  never retried.
-- **Everyone already in the call drops a removed person at once**: no pulls,
-  no key relay, and their membership no longer counts as someone in the call.
+  who removed them) or from the module refusing any call request, including
+  one made while joining, which is never retried.
+- **Nobody else tracks a removal.** The removed person's app leaving the
+  call is what drops them for everyone, late joiners included, and the
+  module's per-track refusal of their tracks is expected, never reported.
 
 ### Media
 

@@ -26,9 +26,14 @@ class RoomPermission {
 }
 
 Map<String, Object?> _nestedMap(Map<String, Object?> content, String key) =>
-    Map<String, Object?>.from(
-      (content[key] as Map?)?.cast<String, Object?>() ?? {},
-    );
+    switch (content[key]) {
+      final Map nested => Map<String, Object?>.from(
+        nested.cast<String, Object?>(),
+      ),
+      _ => <String, Object?>{},
+    };
+
+int? _levelOf(Object? value) => value is int ? value : null;
 
 RoomPermission _stateEventOverride(
   String id,
@@ -40,8 +45,8 @@ RoomPermission _stateEventOverride(
   label: label,
   section: section,
   read: (c) =>
-      _nestedMap(c, 'events')[eventType] as int? ??
-      c['state_default'] as int? ??
+      _levelOf(_nestedMap(c, 'events')[eventType]) ??
+      _levelOf(c['state_default']) ??
       50,
   write: (c, level) {
     final events = _nestedMap(c, 'events');
@@ -60,7 +65,7 @@ RoomPermission _directField(
   id: id,
   label: label,
   section: section,
-  read: (c) => c[field] as int? ?? fallback,
+  read: (c) => _levelOf(c[field]) ?? fallback,
   write: (c, level) => c[field] = level,
 );
 
@@ -73,7 +78,7 @@ RoomPermission _notificationField(
   id: id,
   label: label,
   section: RoomPermissionSection.advanced,
-  read: (c) => _nestedMap(c, 'notifications')[type] as int? ?? fallback,
+  read: (c) => _levelOf(_nestedMap(c, 'notifications')[type]) ?? fallback,
   write: (c, level) {
     final notifications = _nestedMap(c, 'notifications');
     notifications[type] = level;

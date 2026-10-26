@@ -3147,23 +3147,50 @@ void main() {
       expect(call.room.attempts, isEmpty);
     });
 
-    test('someone else removed leaves our call at once and is never pulled '
-        'again, even while their membership stays', () async {
+    test('someone else\'s removal leaves our call alone: their own app '
+        'leaving is what drops them', () async {
       final call = joined();
       joinTheCall(call.room, _bob, deviceId: 'BOB');
-      joinTheCall(call.room, _caller, deviceId: 'CALLER');
       await call.session.accept();
       const bobId = VoipParticipantId(userId: _bob, deviceId: 'BOB');
-      expect(call.engine.updatedRemotes, contains(bobId));
 
       deliver(removal(call.room, userId: _bob));
       await pumpEventQueue();
-      call.engine.updatedRemotes.clear();
+      expect(call.engine.removedRemotes, isEmpty);
+      expect(call.session.phase, CallSessionPhase.active);
+
+      leaveTheCall(call.room, _bob);
       await sync(call.room.client);
 
       expect(call.engine.removedRemotes, [bobId]);
-      expect(call.engine.updatedRemotes, isNot(contains(bobId)));
-      expect(call.session.phase, CallSessionPhase.active);
+    });
+
+    test('a removal the engine heard while joining ends the call as '
+        'removed', () async {
+      final r = sendRoom();
+      final engine = _RemovedWhileJoiningEngine();
+      final session = incoming(inRoom: r, engine: engine, key: testKey());
+
+      await session.accept();
+      await untilPhase(session, CallSessionPhase.ended);
+
+      expect(session.endReason, CallEndReason.removed);
+    });
+
+    test('a mute in a direct chat is ignored, whatever the roles', () async {
+      final call = joined();
+      call.room.client.accountData['m.direct'] = BasicEvent(
+        type: 'm.direct',
+        content: {
+          mod: [call.room.id],
+        },
+      );
+      await call.session.accept();
+
+      deliver(mute(call.room, joinedAt: _publishedJoinTime(call.puts.first)));
+      await pumpEventQueue();
+
+      expect(call.engine.microphoneMutedRequests, isEmpty);
     });
 
     test(
@@ -3314,6 +3341,14 @@ class _ListenedFlag extends ValueNotifier<bool> {
   _ListenedFlag() : super(false);
 
   bool get listened => hasListeners;
+}
+
+class _RemovedWhileJoiningEngine extends FakeCallEngine {
+  @override
+  Future<void> join() async {
+    await super.join();
+    setStatus(CallEngineStatus.removed);
+  }
 }
 
 class _EarlySessionEngine extends FakeCallEngine {

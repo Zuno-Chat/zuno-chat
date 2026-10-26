@@ -232,11 +232,13 @@ void main() {
       expect(room.attempts, isEmpty);
     });
 
-    test('fails when the call is not told, so it can be tried again', () async {
+    test('a removal the server made stands even when the call cannot be '
+        'told', () async {
       joinCall(room, userId: _bob, deviceId: 'BOB', callId: 'call1');
       room.undelivered = true;
 
-      await expectLater(remove(), throwsA(isA<CallModerationNotSent>()));
+      await expectLater(remove(), completes);
+      expect(moduleRequests, hasLength(1));
     });
   });
 }

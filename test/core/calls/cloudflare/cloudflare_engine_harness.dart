@@ -39,6 +39,7 @@ class FakeSfu {
   final requests = <SfuRequest>[];
   final pulledTracks = <Map<String, dynamic>>[];
   final missingTracks = <String>{};
+  String missingTrackCode = 'not_found_track_error';
   int? sessionStatus;
   Map<String, Object?>? sessionRefusal;
   int? renegotiateStatus;
@@ -154,7 +155,7 @@ class FakeSfu {
             if (missingTracks.contains(track['trackName']))
               {
                 ...track,
-                'errorCode': 'not_found_track_error',
+                'errorCode': missingTrackCode,
                 'errorDescription': 'Track not found',
               },
         ],

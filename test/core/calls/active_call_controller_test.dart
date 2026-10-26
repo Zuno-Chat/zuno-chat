@@ -118,11 +118,24 @@ void main() {
 
     test('names whoever the call says muted us', () async {
       final (call, controller) = await onACall();
+      call.engine.setParticipants([localParticipant(muted: true)]);
+      await pumpEventQueue();
       expect(controller.mutedBy, isNull);
 
       call.mutedBy = '@ann:example.org';
 
       expect(controller.mutedBy?.calcDisplayname(), 'Ann');
+    });
+
+    test('names nobody while the microphone is live, whoever the call says '
+        'muted us', () async {
+      final (call, controller) = await onACall();
+      call.engine.setParticipants([localParticipant()]);
+      await pumpEventQueue();
+
+      call.mutedBy = '@ann:example.org';
+
+      expect(controller.mutedBy, isNull);
     });
 
     test('the mute button asks the call to flip the microphone', () async {
