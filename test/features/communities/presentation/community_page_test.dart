@@ -184,6 +184,7 @@ void main() {
             200,
           );
         }
+        if (notAMemberAnswer(request) case final answer?) return answer;
         if (path.contains('/state/')) {
           return http.Response(jsonEncode({'event_id': r'$state'}), 200);
         }

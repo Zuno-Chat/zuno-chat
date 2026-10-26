@@ -242,18 +242,14 @@ void main() {
       final sdk = await MatrixSdkDatabase.init('zuno', database: await open());
       native.calls.clear();
 
-      await sdk.insertClient(
-        'zuno',
-        'https://example.org',
-        'token',
-        null,
-        null,
-        '@me:example.org',
-        'DEVICE',
-        'Phone',
-        'prev-batch',
-        'olm-account',
-        null,
+      await sdk.storeClient(
+        homeserverUrl: 'https://example.org',
+        token: 'token',
+        userId: '@me:example.org',
+        deviceId: 'DEVICE',
+        deviceName: 'Phone',
+        prevBatch: 'prev-batch',
+        olmAccount: 'olm-account',
       );
 
       expect(labels(), ['batch']);

@@ -41,7 +41,7 @@ dependencies:
     path: packages/zuno_notifications
 
   flutter_riverpod: ^3.4.2
-  matrix: ^14.0.0
+  matrix: ^14.2.0
   mime: ^2.1.0
   flutter_secure_storage: ^11.2.0
   # SQLCipher-backed drop-in for sqflite — the Matrix SDK's local database
@@ -51,8 +51,8 @@ dependencies:
   # already takes, so this substitutes at the open call and nowhere else.
   # See lib/core/matrix/database_key.dart.
   sqflite_sqlcipher: ^3.1.0+1
-  flutter_vodozemac: ^0.8.1
-  vodozemac: ^0.8.0
+  flutter_vodozemac: ^0.9.0
+  vodozemac: ^0.9.0
   path: ^1.9.1
   path_provider: ^2.1.6
   image_picker: ^1.2.4
@@ -114,8 +114,8 @@ dependencies:
   blurhash_dart: ^1.2.1
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
-  geolocator: ^14.1.1
-  sentry_flutter: ^10.1.0
+  geolocator: ^14.1.2
+  sentry_flutter: ^10.2.0
 dev_dependencies:
   # Deterministic time for the poll/timeout loops on the call paths
   # (await_room.dart) — a real 10s wait is not a test.
