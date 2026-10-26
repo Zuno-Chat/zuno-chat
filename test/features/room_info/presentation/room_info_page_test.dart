@@ -92,7 +92,7 @@ void main() {
             request.url.pathSegments.contains('state')) {
           return http.Response(jsonEncode({'event_id': r'$state'}), 200);
         }
-        return http.Response('{}', 200);
+        return notAMemberAnswer(request) ?? http.Response('{}', 200);
       }),
     );
     client.setUserId('@me:example.org');
