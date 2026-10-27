@@ -23,6 +23,7 @@ import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_roles.dart';
 import '../../../core/matrix/room_title.dart';
+import '../../../core/ui/failure_notice.dart';
 import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../../core/ui/row_memo.dart';
@@ -557,7 +558,10 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
                   _roomRow(room, corrections, now, labels),
               ],
               if (_failed)
-                _LoadFailed(onRetry: _loadMore)
+                FailureNotice(
+                  message: context.l10n.communitiesLoadFailed,
+                  onRetry: _loadMore,
+                )
               else if (joinable == null)
                 const Padding(
                   padding: EdgeInsets.all(24),
@@ -738,32 +742,6 @@ class _JoinableRoom extends StatelessWidget {
                           : l10n.commonJoin,
                     ),
                   ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LoadFailed extends StatelessWidget {
-  final VoidCallback onRetry;
-
-  const _LoadFailed({required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-      child: Column(
-        children: [
-          Text(
-            context.l10n.communitiesLoadFailed,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          TextButton(
-            onPressed: onRetry,
-            child: Text(context.l10n.commonTryAgain),
           ),
         ],
       ),

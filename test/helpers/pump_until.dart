@@ -40,16 +40,32 @@ Future<void> pumpUntil(
   }
 }
 
+Future<ImageInfo> resolveImage(ImageProvider image) {
+  final resolved = Completer<ImageInfo>();
+  final stream = image.resolve(ImageConfiguration.empty);
+  late final ImageStreamListener listener;
+  listener = ImageStreamListener(
+    (info, _) {
+      stream.removeListener(listener);
+      if (!resolved.isCompleted) resolved.complete(info);
+    },
+    onError: (error, stackTrace) {
+      stream.removeListener(listener);
+      if (!resolved.isCompleted) resolved.completeError(error, stackTrace);
+    },
+  );
+  stream.addListener(listener);
+  return resolved.future;
+}
+
 Future<ImageInfo> pumpUntilImageLoads(
   WidgetTester tester,
   ImageProvider image,
 ) async {
-  ImageInfo? loaded;
-  final stream = image.resolve(ImageConfiguration.empty);
-  final listener = ImageStreamListener((info, _) => loaded = info);
-  stream.addListener(listener);
-  await pumpUntil(tester, () => loaded != null, reason: 'the image to load');
-  stream.removeListener(listener);
+  final resolved = resolveImage(image);
+  var settled = false;
+  resolved.whenComplete(() => settled = true).ignore();
+  await pumpUntil(tester, () => settled, reason: 'the image to load');
   await tester.pump();
-  return loaded!;
+  return resolved;
 }

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/format/human_units.dart';
-import '../../chat/presentation/message_contents/media_message.dart';
+import '../../../core/matrix/cover_image.dart';
+import '../../../core/ui/zuno_colors.dart';
 
 class RoomMediaThumb extends StatelessWidget {
   final Event event;
@@ -56,17 +57,17 @@ class _VideoBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(4, 2, 6, 2),
       decoration: BoxDecoration(
-        color: Colors.black54,
+        color: mediaScrimColor,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.play_arrow, size: 14, color: Colors.white),
+          const Icon(Icons.play_arrow, size: 14, color: onMediaColor),
           if (durationMs != null)
             Text(
               formatDuration(Duration(milliseconds: durationMs)),
-              style: theme.textTheme.labelSmall?.copyWith(color: Colors.white),
+              style: theme.textTheme.labelSmall?.copyWith(color: onMediaColor),
             ),
         ],
       ),

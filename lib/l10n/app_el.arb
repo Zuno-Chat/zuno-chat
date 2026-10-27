@@ -760,7 +760,7 @@
   "matrixUploadingPhoto": "Μεταφόρτωση φωτογραφίας…",
   "matrixUploadingVideo": "Μεταφόρτωση βίντεο…",
   "matrixUsernameHint": "όνομα χρήστη",
-  "matrixVideoLoadFailed": "Το βίντεο δεν φορτώθηκε. Δοκιμάστε ξανά.",
+  "matrixVideoLoadFailed": "Το βίντεο δεν φορτώθηκε.",
   "navigationEmailNotOpened": "Το email δεν άνοιξε. Στείλτε μήνυμα στη διεύθυνση {address} από την εφαρμογή email σας.",
   "navigationLinkNotOpened": "Ο σύνδεσμος δεν άνοιξε. Επισκεφθείτε τη διεύθυνση {address} σε ένα πρόγραμμα περιήγησης.",
   "notificationsActionSwitchToUnifiedPush": "Αλλαγή σε UnifiedPush",

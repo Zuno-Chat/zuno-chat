@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/l10n/l10n.dart';
+import '../../../../core/matrix/cover_image.dart';
 import '../../../../core/ui/zuno_colors.dart';
 import '../../../../core/ui/zuno_theme.dart';
 import '../../data/pending_attachment_send.dart';

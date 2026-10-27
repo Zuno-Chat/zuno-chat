@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -77,24 +76,6 @@ void main() {
   Uri uniqueMxc() =>
       Uri.parse('mxc://example.org/${clock.now().microsecondsSinceEpoch}');
 
-  Future<ImageInfo> resolve(ImageProvider image) {
-    final completer = Completer<ImageInfo>();
-    final stream = image.resolve(ImageConfiguration.empty);
-    late final ImageStreamListener listener;
-    listener = ImageStreamListener(
-      (info, _) {
-        stream.removeListener(listener);
-        if (!completer.isCompleted) completer.complete(info);
-      },
-      onError: (error, _) {
-        stream.removeListener(listener);
-        if (!completer.isCompleted) completer.completeError(error);
-      },
-    );
-    stream.addListener(listener);
-    return completer.future;
-  }
-
   bool loadFailed(Uri address) =>
       mediaRequests.isNotEmpty &&
       !PaintingBinding.instance.imageCache
@@ -131,8 +112,8 @@ void main() {
     tester,
   ) async {
     await tester.runAsync(() async {
-      final info = await resolve(provider(AvatarBucket.small));
-      await resolve(provider(AvatarBucket.small));
+      final info = await resolveImage(provider(AvatarBucket.small));
+      await resolveImage(provider(AvatarBucket.small));
 
       expect(info.image.width, 1);
       expect(mediaRequests, hasLength(1));
@@ -151,7 +132,7 @@ void main() {
     tester,
   ) async {
     await tester.runAsync(() async {
-      await resolve(provider(AvatarBucket.large));
+      await resolveImage(provider(AvatarBucket.large));
 
       final query = mediaRequests.single.url.queryParameters;
       expect(query['width'], '320');
@@ -161,9 +142,9 @@ void main() {
 
   testWidgets('a fresh image cache reads the avatar from disk', (tester) async {
     await tester.runAsync(() async {
-      await resolve(provider(AvatarBucket.small));
+      await resolveImage(provider(AvatarBucket.small));
       PaintingBinding.instance.imageCache.clear();
-      await resolve(provider(AvatarBucket.small));
+      await resolveImage(provider(AvatarBucket.small));
 
       expect(mediaRequests, hasLength(1));
     });
@@ -173,12 +154,12 @@ void main() {
     await tester.runAsync(() async {
       mediaResponse = () => http.Response('', 404);
       await expectLater(
-        resolve(provider(AvatarBucket.small)),
+        resolveImage(provider(AvatarBucket.small)),
         throwsA(anything),
       );
 
       mediaResponse = () => http.Response.bytes(png, 200);
-      await resolve(provider(AvatarBucket.small));
+      await resolveImage(provider(AvatarBucket.small));
 
       expect(mediaRequests, hasLength(2));
     });
@@ -188,7 +169,7 @@ void main() {
     await tester.runAsync(() async {
       mediaResponse = () => http.Response.bytes([1, 2, 3], 200);
       await expectLater(
-        resolve(provider(AvatarBucket.small)),
+        resolveImage(provider(AvatarBucket.small)),
         throwsA(anything),
       );
 

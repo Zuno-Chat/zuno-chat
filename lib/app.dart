@@ -21,6 +21,7 @@ import 'core/l10n/l10n.dart';
 import 'core/location/live_location_capture.dart';
 import 'core/location/live_location_sharing.dart';
 import 'core/location/live_location_viewing.dart';
+import 'core/matrix/cached_attachment_image.dart';
 import 'core/matrix/connection_monitor.dart';
 import 'core/matrix/connectivity_provider.dart';
 import 'core/matrix/currently_open_room_provider.dart';
@@ -242,6 +243,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     }, fireImmediately: true);
     ref.listenManual(isOfflineProvider, (previous, next) {
       if (!becameOnline(previous, next)) return;
+      retryFailedAttachmentImages();
       final client = ref.read(matrixClientProvider);
       if (!client.isLogged()) return;
       unawaited(

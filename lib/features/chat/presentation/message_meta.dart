@@ -31,8 +31,8 @@ class MessageMeta extends StatelessWidget {
     final Color iconColor;
     final Color readColor;
     if (onMedia) {
-      color = Colors.white;
-      iconColor = Colors.white70;
+      color = onMediaColor;
+      iconColor = onMediaVariantColor;
       readColor = colors.primaryContainer;
     } else {
       color = own

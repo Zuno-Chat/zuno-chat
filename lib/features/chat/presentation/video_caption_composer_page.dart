@@ -4,6 +4,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/file_system.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/ui/zuno_colors.dart';
 import '../data/composed_video.dart';
 import 'caption_bar.dart';
 
@@ -76,7 +77,7 @@ class ComposerVideoPreview extends StatelessWidget {
                         : const Icon(
                             Icons.play_arrow,
                             size: 64,
-                            color: Colors.white70,
+                            color: onMediaVariantColor,
                           ),
                   ),
                 ],

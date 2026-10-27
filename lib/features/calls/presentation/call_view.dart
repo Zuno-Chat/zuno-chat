@@ -15,6 +15,7 @@ import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/corner_snap.dart';
+import '../../../core/ui/zuno_colors.dart';
 import 'call_controls.dart';
 import 'call_stage.dart';
 import 'call_status_line.dart';
@@ -167,7 +168,7 @@ class _CallViewState extends State<CallView> {
         showStatus: false,
         showMuted: false,
         borderRadius: 0,
-        background: Colors.black,
+        background: mediaBackdropColor,
         onLongPress: other.onOptions,
       );
     } else {
@@ -178,7 +179,7 @@ class _CallViewState extends State<CallView> {
     }
 
     return Scaffold(
-      backgroundColor: fullVideo || group ? Colors.black : null,
+      backgroundColor: fullVideo || group ? mediaBackdropColor : null,
       body: CustomMultiChildLayout(
         delegate: _CallLayout(
           stageUnderDock: fullVideo,
@@ -321,9 +322,9 @@ class _CallViewState extends State<CallView> {
       icon: const Icon(Icons.close_fullscreen),
       style: IconButton.styleFrom(
         backgroundColor: overVideo
-            ? Colors.black54
+            ? mediaScrimColor
             : colors.surfaceContainerHighest,
-        foregroundColor: overVideo ? Colors.white : colors.onSurface,
+        foregroundColor: overVideo ? onMediaColor : colors.onSurface,
       ),
     );
   }

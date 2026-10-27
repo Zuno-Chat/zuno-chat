@@ -107,6 +107,40 @@ void main() {
     expect(server.downloads, hasLength(1));
   });
 
+  testWidgets('a failed download loads again once the connection is back', (
+    tester,
+  ) async {
+    final event = server.attachment();
+    server.goneFromServer(event);
+
+    await pumpImage(tester, event);
+    await pumpUntilDownloaded(tester);
+    await tester.pump();
+
+    server.missing.clear();
+    retryFailedAttachmentImages();
+    await tester.pump();
+    await pumpUntilShown(tester);
+
+    expect(server.downloads, hasLength(2));
+    expect(find.text('loading'), findsNothing);
+  });
+
+  testWidgets('a loaded image is left alone when the connection is back', (
+    tester,
+  ) async {
+    final event = server.attachment();
+    cache(event);
+    await pumpImage(tester, event);
+    await pumpUntilShown(tester);
+    final shown = tester.element(picture);
+
+    retryFailedAttachmentImages();
+    await tester.pump();
+
+    expect(tester.element(picture), same(shown));
+  });
+
   group('with a blurhash', () {
     Event withBlurhash() => server.attachment(info: photoWithBlurhash);
 

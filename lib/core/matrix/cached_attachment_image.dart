@@ -8,6 +8,17 @@ import 'package:matrix/matrix.dart';
 import 'attachment_cache.dart';
 import 'blurhash_image.dart';
 
+final class _Reconnects extends ChangeNotifier {
+  void reconnected() => notifyListeners();
+}
+
+final _reconnects = _Reconnects();
+
+void retryFailedAttachmentImages() => _reconnects.reconnected();
+
+@visibleForTesting
+Listenable get attachmentImageRetries => _reconnects;
+
 class CachedAttachmentImage extends StatefulWidget {
   final Event event;
   final bool thumbnail;
@@ -36,6 +47,8 @@ class CachedAttachmentImage extends StatefulWidget {
 class _CachedAttachmentImageState extends State<CachedAttachmentImage> {
   var _attempt = 0;
 
+  void _retry() => setState(() => _attempt++);
+
   Widget get _standIn {
     final blurhash = BlurhashImage.of(
       widget.event,
@@ -63,11 +76,10 @@ class _CachedAttachmentImageState extends State<CachedAttachmentImage> {
   }
 
   Widget _failed(Object error) {
-    final failure = widget.failure;
-    if (failure == null) return _standIn;
-    return failure(
-      error is _DownloadFailed ? () => setState(() => _attempt++) : null,
-    );
+    final retry = error is _DownloadFailed ? _retry : null;
+    final shown = widget.failure?.call(retry) ?? _standIn;
+    if (retry == null) return shown;
+    return _RetryOnReconnect(retry: retry, child: shown);
   }
 
   @override
@@ -88,6 +100,35 @@ class _CachedAttachmentImageState extends State<CachedAttachmentImage> {
       errorBuilder: (context, error, _) => _failed(error),
     );
   }
+}
+
+class _RetryOnReconnect extends StatefulWidget {
+  final VoidCallback retry;
+  final Widget child;
+
+  const _RetryOnReconnect({required this.retry, required this.child});
+
+  @override
+  State<_RetryOnReconnect> createState() => _RetryOnReconnectState();
+}
+
+class _RetryOnReconnectState extends State<_RetryOnReconnect> {
+  @override
+  void initState() {
+    super.initState();
+    _reconnects.addListener(_retry);
+  }
+
+  @override
+  void dispose() {
+    _reconnects.removeListener(_retry);
+    super.dispose();
+  }
+
+  void _retry() => widget.retry();
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _DownloadFailed implements Exception {

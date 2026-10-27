@@ -175,11 +175,12 @@ one rule for what counts.
   out at the media's own size, until its first frame paints, so there is
   no blank gap between download and decode. Thumbnails never spin (no
   blurhash means their empty box); full-screen viewers add a spinner, and
-  a failed download says so with Retry.
+  a failed load says so with Try again.
 - **One image provider downloads and decodes each attachment**
   (`CachedAttachmentImage`), keyed by event, so a decoded picture survives
-  rebuilds and byte-cache churn, and a failed download is tried again only
-  when the image is shown afresh or on Retry.
+  rebuilds and byte-cache churn. A failed download is tried again when the
+  connection comes back, when the image is shown afresh or on Try again;
+  one that downloaded but cannot be decoded is not.
 - **Reply quotes** fetch their target once per room visit through
   `getEventById`, which decrypts a stored event with the keys held now. A
   target still encrypted is fetched again once the room's late keys arrive

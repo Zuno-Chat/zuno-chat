@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/ui/zuno_colors.dart';
 
 class QrScannerPage extends StatefulWidget {
   final String? title;
@@ -179,7 +180,7 @@ class ScannerCaption extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      color: Colors.black54,
+      color: mediaScrimColor,
       child: SafeArea(
         top: false,
         child: Padding(
@@ -187,7 +188,7 @@ class ScannerCaption extends StatelessWidget {
           child: Text(
             text,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: onMediaColor),
           ),
         ),
       ),

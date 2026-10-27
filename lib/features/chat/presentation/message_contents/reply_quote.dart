@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../../core/l10n/l10n.dart';
+import '../../../../core/matrix/cover_image.dart';
 import '../../../../core/matrix/quoted_message_box.dart';
 import '../../../../core/ui/zuno_theme.dart';
 import '../../data/message_kinds.dart';
 import '../message_bubble.dart';
 import '../reply_target_cache.dart';
-import 'media_message.dart';
 
 class ReplyQuote extends StatefulWidget {
   final Timeline timeline;

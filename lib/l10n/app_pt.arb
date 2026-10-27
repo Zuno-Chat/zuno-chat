@@ -761,7 +761,7 @@
   "matrixUploadingPhoto": "Enviando foto…",
   "matrixUploadingVideo": "Enviando vídeo…",
   "matrixUsernameHint": "nome de usuário",
-  "matrixVideoLoadFailed": "O vídeo não carregou. Tente novamente.",
+  "matrixVideoLoadFailed": "O vídeo não carregou.",
   "navigationEmailNotOpened": "Não foi possível abrir o e-mail. Escreva para {address} pelo seu e-mail.",
   "navigationLinkNotOpened": "Não foi possível abrir o link. Acesse {address} em um navegador.",
   "notificationsActionSwitchToUnifiedPush": "Mudar para UnifiedPush",

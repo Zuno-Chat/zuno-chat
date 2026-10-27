@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../l10n/l10n.dart';
+import '../ui/viewer_scaffold.dart';
 import 'attachment_action_buttons.dart';
 import 'cached_attachment_image.dart';
 import 'image_caption.dart';
@@ -37,16 +38,11 @@ class _GalleryViewerPageState extends State<GalleryViewerPage> {
   @override
   Widget build(BuildContext context) {
     final caption = imageCaption(widget.events[_page]);
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Text(
-          context.l10n.matrixGalleryPosition(_page + 1, widget.events.length),
-        ),
-        actions: [AttachmentActionButtons(event: widget.events[_page])],
+    return ViewerScaffold(
+      title: Text(
+        context.l10n.matrixGalleryPosition(_page + 1, widget.events.length),
       ),
+      actions: [AttachmentActionButtons(event: widget.events[_page])],
       body: Column(
         children: [
           Expanded(
@@ -61,11 +57,7 @@ class _GalleryViewerPageState extends State<GalleryViewerPage> {
           if (caption != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              child: Text(
-                caption,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white),
-              ),
+              child: Text(caption, textAlign: TextAlign.center),
             ),
         ],
       ),
@@ -89,7 +81,7 @@ class _GalleryPage extends StatelessWidget {
         Center(child: CachedAttachmentImage(event: event, thumbnail: true)),
         IconButton(
           iconSize: 64,
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.onSurface,
           icon: const Icon(Icons.play_circle_outline),
           tooltip: context.l10n.matrixPlay,
           onPressed: () => Navigator.of(context).push(

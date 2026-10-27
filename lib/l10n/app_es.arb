@@ -760,7 +760,7 @@
   "matrixUploadingPhoto": "Subiendo foto…",
   "matrixUploadingVideo": "Subiendo vídeo…",
   "matrixUsernameHint": "nombre de usuario",
-  "matrixVideoLoadFailed": "No se ha podido cargar el vídeo. Vuelve a intentarlo.",
+  "matrixVideoLoadFailed": "No se ha podido cargar el vídeo.",
   "navigationEmailNotOpened": "No se ha podido abrir el correo. Escribe a {address} desde tu correo.",
   "navigationLinkNotOpened": "No se ha podido abrir el enlace. Visita {address} en un navegador.",
   "notificationsActionSwitchToUnifiedPush": "Cambiar a UnifiedPush",

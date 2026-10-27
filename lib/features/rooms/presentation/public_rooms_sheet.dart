@@ -7,6 +7,7 @@ import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/security/zuno_text_field.dart';
+import '../../../core/ui/failure_notice.dart';
 import '../../../core/ui/sheet.dart';
 import 'room_kind_avatar.dart';
 
@@ -200,19 +201,11 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
   Widget _body() {
     if (_failed) {
       return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              widget.communities
-                  ? context.l10n.roomsCouldNotLoadCommunities
-                  : context.l10n.roomsCouldNotLoadRooms,
-            ),
-            TextButton(
-              onPressed: _search,
-              child: Text(context.l10n.commonRetry),
-            ),
-          ],
+        child: FailureNotice(
+          message: widget.communities
+              ? context.l10n.roomsCouldNotLoadCommunities
+              : context.l10n.roomsCouldNotLoadRooms,
+          onRetry: _search,
         ),
       );
     }

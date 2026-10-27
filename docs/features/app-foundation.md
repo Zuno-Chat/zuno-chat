@@ -73,8 +73,8 @@ Colors, type, shape and transitions are set here and nowhere else, and screens r
 
 | File | Holds |
 |---|---|
-| `zuno_theme.dart` | The light and dark themes: a seeded `ColorScheme` with the key roles pinned, Roboto at weights 400, 500 and 700 only (older Android has no 600 and snaps to bold), and the component themes. |
-| `zuno_colors.dart` | The brand colors and the `ZunoColors` extension for what Material has no slot for, such as the outgoing bubble. |
+| `zuno_theme.dart` | The light and dark themes: a seeded `ColorScheme` with the key roles pinned, Roboto at weights 400, 500 and 700 only (older Android has no 600 and snaps to bold), and the component themes. Also the black theme the full-screen photo and video viewers wear in either mode. |
+| `zuno_colors.dart` | The brand colors, the over-media colors and the `ZunoColors` extension for what Material has no slot for, such as the outgoing bubble. Anything drawn over a photo, video, camera or call takes the over-media colors (backdrop, scrim and what sits on them), never the theme's, because media is dark in both modes. |
 | `zuno_motion.dart` | `ZunoDurations`, the Android slide transition and `ForwardExitPageRoute`. |
 | `zuno_splash.dart` | `ZunoSplash`, matched to the OS launch screen (Decisions). |
 
@@ -94,6 +94,8 @@ Shared pieces:
 | `RowMemo` | Returns the identical widget for an equal record from the same SDK object, so a list row rebuilds only when its value-equal record changes, and never keeps a `Room` the SDK has replaced. |
 | `RouteSettled` | `onRouteSettled()` fires once the push slide has finished, for work that would otherwise land mid-slide. |
 | `AlertBanner` | Every in-screen warning banner: the security alerts and the delivery failure. An attention or notice tone, at most one action and an optional ✕. |
+| `FailureNotice` | A message that something did not load, with Try again when it can be retried; Retry is only for compact controls such as tiles and list rows. |
+| `ViewerScaffold` | The full-screen photo and video viewers: their black theme and app bar. |
 | `TopBannerFrame` | App-wide top banners (the call bar, the offline notice). They stack and slide in and out, and the content keeps its own status-bar inset, moving only by what that inset cannot hide. The slide re-lays out the content each frame, as the keyboard does: the one exception to animating position only. |
 | `KeepClearArea`, `showSheet` | Bottom chrome the floating call window keeps clear of: the composer, the home bar, caption bars. Every bottom sheet opens through `showSheet`, which marks the whole sheet. |
 

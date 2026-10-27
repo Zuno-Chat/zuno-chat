@@ -10,6 +10,7 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/ui/corner_snap.dart';
 import '../../../core/ui/keep_clear.dart';
+import '../../../core/ui/zuno_colors.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'participant_tile.dart';
@@ -122,7 +123,7 @@ class _CallWindowState extends State<CallWindow> {
           child: Theme(
             data: zunoDarkTheme,
             child: Material(
-              color: Colors.black,
+              color: mediaBackdropColor,
               elevation: 6,
               borderRadius: BorderRadius.circular(ZunoRadius.medium),
               child: ParticipantTile(

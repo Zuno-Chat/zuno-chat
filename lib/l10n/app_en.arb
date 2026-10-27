@@ -1069,7 +1069,7 @@
   },
   "commonRetry": "Retry",
   "@commonRetry": {
-    "description": "Button: try the failed step again"
+    "description": "Compact button on a tile, list row or banner: try the failed step again"
   },
   "commonReview": "Review",
   "@commonReview": {
@@ -1110,7 +1110,7 @@
   },
   "commonTryAgain": "Try again",
   "@commonTryAgain": {
-    "description": "Button: try the failed step again"
+    "description": "Button under a message saying something failed: try the failed step again"
   },
   "commonUsername": "Username",
   "@commonUsername": {
@@ -3206,7 +3206,7 @@
   "@matrixUsernameHint": {
     "description": "Hint in the field for a username after @ (lowercase)"
   },
-  "matrixVideoLoadFailed": "Video did not load. Try again.",
+  "matrixVideoLoadFailed": "Video did not load.",
   "navigationEmailNotOpened": "Email not opened. Write to {address} from your email.",
   "@navigationEmailNotOpened": {
     "placeholders": {

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/calls/models/call_quality.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/ui/zuno_colors.dart';
 
 class ConnectionQualityPill extends StatelessWidget {
   final CallQuality quality;
@@ -60,7 +61,7 @@ class CallBadge extends StatelessWidget {
       label: semanticLabel ?? label,
       child: ExcludeSemantics(
         child: Material(
-          color: Colors.black54,
+          color: mediaScrimColor,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -68,7 +69,7 @@ class CallBadge extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 14, color: Colors.white),
+                  Icon(icon, size: 14, color: onMediaColor),
                   const SizedBox(width: 5),
                 ],
                 Flexible(
@@ -77,7 +78,7 @@ class CallBadge extends StatelessWidget {
                     maxLines: maxLines,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium!
-                        .copyWith(color: Colors.white),
+                        .copyWith(color: onMediaColor),
                   ),
                 ),
               ],
@@ -104,7 +105,7 @@ class ConfirmPersonPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final foreground = overVideo ? Colors.white : theme.colorScheme.onSurface;
+    final foreground = overVideo ? onMediaColor : theme.colorScheme.onSurface;
     final label = context.l10n.verificationConfirmPerson(name);
     const shape = StadiumBorder();
     return Semantics(
@@ -114,7 +115,7 @@ class ConfirmPersonPill extends StatelessWidget {
       child: ExcludeSemantics(
         child: Material(
           color: overVideo
-              ? Colors.black54
+              ? mediaScrimColor
               : theme.colorScheme.surfaceContainerHigh,
           shape: shape,
           child: InkWell(
@@ -160,17 +161,14 @@ class ReconnectingNotice extends StatelessWidget {
       label: label,
       child: ExcludeSemantics(
         child: Container(
-          color: Colors.black54,
+          color: mediaScrimColor,
           alignment: Alignment.center,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CircularProgressIndicator(color: Colors.white),
+              const CircularProgressIndicator(color: onMediaColor),
               const SizedBox(height: 16),
-              Text(
-                label,
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.9)),
-              ),
+              Text(label, style: TextStyle(color: onMediaColor)),
             ],
           ),
         ),
@@ -189,7 +187,7 @@ class EncryptingLabel extends StatefulWidget {
 
   const EncryptingLabel({
     this.hintAfter = const Duration(seconds: 8),
-    this.style = const TextStyle(color: Colors.white, fontSize: 11),
+    this.style = const TextStyle(color: onMediaColor, fontSize: 11),
     this.hintStyle,
     this.alignment = CrossAxisAlignment.end,
     this.hintMaxLines = 3,

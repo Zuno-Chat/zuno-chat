@@ -760,7 +760,7 @@
   "matrixUploadingPhoto": "Laddar upp bild…",
   "matrixUploadingVideo": "Laddar upp video…",
   "matrixUsernameHint": "användarnamn",
-  "matrixVideoLoadFailed": "Videon kunde inte läsas in. Försök igen.",
+  "matrixVideoLoadFailed": "Videon kunde inte läsas in.",
   "navigationEmailNotOpened": "E-postappen öppnades inte. Skriv till {address} från din e-post.",
   "navigationLinkNotOpened": "Länken öppnades inte. Gå till {address} i en webbläsare.",
   "notificationsActionSwitchToUnifiedPush": "Byt till UnifiedPush",

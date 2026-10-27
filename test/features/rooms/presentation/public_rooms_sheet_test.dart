@@ -261,7 +261,7 @@ void main() {
     expect(find.text('Chess club'), findsNothing);
 
     failing = false;
-    await tester.tap(find.text('Retry'));
+    await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
 
     expect(find.text('Could not load rooms'), findsNothing);

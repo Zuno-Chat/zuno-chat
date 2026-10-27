@@ -51,7 +51,7 @@ class CallControls extends StatelessWidget {
     final speakerOn = audioRoute == CallAudioRoute.speaker;
     final colors = Theme.of(context).colorScheme;
     return Material(
-      color: overVideo ? Colors.black54 : colors.surfaceContainerLowest,
+      color: overVideo ? mediaScrimColor : colors.surfaceContainerLowest,
       borderRadius: BorderRadius.circular(36),
       child: Padding(
         padding: const EdgeInsets.all(6),
@@ -131,7 +131,9 @@ class _ControlButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final quiet = overVideo ? Colors.white24 : colors.surfaceContainerHighest;
+    final quiet = overVideo
+        ? onMediaFaintColor
+        : colors.surfaceContainerHighest;
     final background = fill ?? (on ? colors.onSurface : quiet);
     final foreground = ink ?? (on ? colors.surface : colors.onSurface);
     final disabled = onPressed == null;

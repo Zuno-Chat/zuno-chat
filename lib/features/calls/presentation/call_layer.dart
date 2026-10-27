@@ -7,6 +7,7 @@ import '../../../core/calls/models/call_surface.dart';
 import '../../../core/navigation/global_navigator.dart';
 import '../../../core/ui/keep_clear.dart';
 import '../../../core/ui/top_banner_frame.dart';
+import '../../../core/ui/zuno_colors.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'call_bar.dart';
 import 'call_page.dart';
@@ -109,7 +110,7 @@ class _PictureInPictureTile extends StatelessWidget {
     return Theme(
       data: zunoDarkTheme,
       child: Material(
-        color: Colors.black,
+        color: mediaBackdropColor,
         child: remote == null
             ? const SizedBox.expand()
             : ParticipantTile(

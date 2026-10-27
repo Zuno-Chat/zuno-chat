@@ -12,6 +12,7 @@ abstract final class ZunoRadius {
 
 final zunoLightTheme = _theme(_lightScheme, ZunoColors.light);
 final zunoDarkTheme = _theme(_darkScheme, ZunoColors.dark);
+final zunoViewerTheme = _theme(_viewerScheme, ZunoColors.dark);
 
 final _lightScheme = ColorScheme.fromSeed(seedColor: zunoAmber).copyWith(
   surfaceContainerLowest: const Color(0xFFFFFFFF),
@@ -64,6 +65,13 @@ final _darkScheme =
       onInverseSurface: const Color(0xFF2B2620),
       surfaceTint: Colors.transparent,
     );
+
+final _viewerScheme = _darkScheme.copyWith(
+  surface: mediaBackdropColor,
+  onSurface: onMediaColor,
+  onSurfaceVariant: onMediaVariantColor,
+  primary: onMediaColor,
+);
 
 const _textTheme = TextTheme(
   headlineMedium: TextStyle(

@@ -21,6 +21,7 @@ import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/l10n/app_language.dart';
 import 'package:zuno/core/l10n/app_locale.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/cached_attachment_image.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/currently_open_room_provider.dart';
@@ -932,6 +933,26 @@ void main() {
 
       expect(unifiedPush.registrations, 0);
     });
+  });
+
+  testWidgets('once back online, images that failed to download load again', (
+    tester,
+  ) async {
+    var retries = 0;
+    void counted() => retries++;
+    attachmentImageRetries.addListener(counted);
+    addTearDown(() => attachmentImageRetries.removeListener(counted));
+    await pumpApp(tester);
+    await settle(tester);
+
+    connection.add(ConnectionStatus.noInternet);
+    await settle(tester);
+    expect(retries, 0);
+
+    connection.add(ConnectionStatus.online);
+    await settle(tester);
+
+    expect(retries, 1);
   });
 
   testWidgets('the connection banner says what is wrong, and goes once back '

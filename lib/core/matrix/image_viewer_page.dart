@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../ui/viewer_scaffold.dart';
 import 'attachment_action_buttons.dart';
 import 'viewer_photo.dart';
 
@@ -11,13 +12,8 @@ class ImageViewerPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        actions: [AttachmentActionButtons(event: event)],
-      ),
+    return ViewerScaffold(
+      actions: [AttachmentActionButtons(event: event)],
       body: ViewerPhoto(event: event),
     );
   }

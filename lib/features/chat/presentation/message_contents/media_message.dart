@@ -1,22 +1,16 @@
-import 'dart:async';
-import 'dart:math' as math;
-import 'dart:typed_data';
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
-import '../../../../core/files/file_system.dart';
 import '../../../../core/format/human_units.dart';
 import '../../../../core/l10n/l10n.dart';
-import '../../../../core/matrix/cached_attachment_image.dart';
+import '../../../../core/matrix/cover_image.dart';
 import '../../../../core/matrix/gallery_viewer_page.dart';
 import '../../../../core/matrix/image_viewer_page.dart';
 import '../../../../core/matrix/media_gallery_group.dart';
 import '../../../../core/matrix/media_size.dart';
 import '../../../../core/matrix/video_viewer_page.dart';
+import '../../../../core/ui/zuno_colors.dart';
 import '../../data/pending_attachment_send.dart';
-import '../preview_decode_width.dart';
 import 'pending_attachment_tile.dart';
 
 const mediaInset = 4.0;
@@ -37,81 +31,14 @@ Widget _mediaOverlayBadge(String text) {
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
     decoration: BoxDecoration(
-      color: Colors.black.withValues(alpha: 0.55),
+      color: mediaScrimColor,
       borderRadius: BorderRadius.circular(8),
     ),
     child: Text(
       text,
-      style: const TextStyle(color: Colors.white, fontSize: 11),
+      style: const TextStyle(color: onMediaColor, fontSize: 11),
     ),
   );
-}
-
-class MediaImage extends StatelessWidget {
-  final ImageProvider image;
-  final double? shownAt;
-
-  MediaImage.memory(Uint8List bytes, {this.shownAt, super.key})
-    : image = MemoryImage(bytes);
-
-  MediaImage.file(String path, {this.shownAt, super.key})
-    : image = FileImage(fileSystem.file(path));
-
-  @override
-  Widget build(BuildContext context) =>
-      Image(image: _coverDecoded(context, image, shownAt), fit: BoxFit.cover);
-}
-
-ImageProvider _coverDecoded(
-  BuildContext context,
-  ImageProvider image,
-  double? shownAt,
-) => CoverDecode(image, decodeWidth(context, shownAt: shownAt));
-
-const _widestCoverBox = 2;
-
-class CoverDecode extends ImageProvider<(Object, int)> {
-  final ImageProvider image;
-  final int side;
-
-  const CoverDecode(this.image, this.side);
-
-  @override
-  Future<(Object, int)> obtainKey(ImageConfiguration configuration) =>
-      image.obtainKey(configuration).then((key) => (key, side));
-
-  @override
-  ImageStreamCompleter loadImage(
-    (Object, int) key,
-    ImageDecoderCallback decode,
-  ) =>
-      image.loadImage(
-        key.$1,
-        (buffer, {getTargetSize}) => decode(buffer, getTargetSize: _coverSize),
-      )..addEphemeralErrorListener(
-        (_, _) => scheduleMicrotask(
-          () => PaintingBinding.instance.imageCache.evict(key),
-        ),
-      );
-
-  ui.TargetImageSize _coverSize(int width, int height) {
-    final scale = [
-      1.0,
-      side / math.min(width, height),
-      side * _widestCoverBox / math.max(width, height),
-    ].reduce(math.min);
-    return ui.TargetImageSize(
-      width: math.max(1, (width * scale).round()),
-      height: math.max(1, (height * scale).round()),
-    );
-  }
-
-  @override
-  bool operator ==(Object other) =>
-      other is CoverDecode && other.image == image && other.side == side;
-
-  @override
-  int get hashCode => Object.hash(image, side);
 }
 
 Widget _videoBubbleMedia(Event event, PendingAttachmentSend? pending) {
@@ -126,25 +53,11 @@ Widget _videoBubbleMedia(Event event, PendingAttachmentSend? pending) {
   );
 }
 
-Widget attachmentThumbnail(
-  Event event, {
-  required Widget placeholder,
-  double? shownAt,
-}) {
-  return CachedAttachmentImage(
-    event: event,
-    thumbnail: true,
-    placeholder: placeholder,
-    fit: BoxFit.cover,
-    image: (context, attachment) => _coverDecoded(context, attachment, shownAt),
-  );
-}
-
 Widget _mediaMetaBadge(Widget meta) {
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
     decoration: BoxDecoration(
-      color: Colors.black54,
+      color: mediaScrimColor,
       borderRadius: BorderRadius.circular(10),
     ),
     child: meta,
@@ -313,19 +226,19 @@ class _GalleryThumbnail extends StatelessWidget {
               child: Icon(
                 Icons.play_circle_outline,
                 size: 36,
-                color: Colors.white,
+                color: onMediaColor,
               ),
             ),
           if (pending != null)
             ColoredBox(
-              color: Colors.black45,
+              color: mediaScrimColor,
               child: Center(
                 child: SizedBox(
                   width: 28,
                   height: 28,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: onMediaColor,
                     value: pending.progress,
                   ),
                 ),
@@ -333,12 +246,12 @@ class _GalleryThumbnail extends StatelessWidget {
             ),
           if (overflow > 0)
             ColoredBox(
-              color: Colors.black54,
+              color: mediaScrimColor,
               child: Center(
                 child: Text(
                   '+$overflow',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: onMediaColor,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
@@ -377,16 +290,16 @@ class GalleryFailedThumbnail extends StatelessWidget {
           else
             ColoredBox(color: colors.surfaceContainerHighest),
           ColoredBox(
-            color: Colors.black54,
+            color: mediaScrimColor,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.refresh_outlined, color: Colors.white),
+                const Icon(Icons.refresh_outlined, color: onMediaColor),
                 const SizedBox(height: 2),
                 Text(
                   context.l10n.commonRetry,
                   style: Theme.of(context).textTheme.labelSmall
-                      ?.copyWith(color: Colors.white),
+                      ?.copyWith(color: onMediaColor),
                 ),
               ],
             ),
@@ -483,13 +396,13 @@ class VideoMessage extends StatelessWidget {
           if (pending == null)
             Container(
               decoration: const BoxDecoration(
-                color: Colors.black45,
+                color: mediaScrimColor,
                 shape: BoxShape.circle,
               ),
               padding: const EdgeInsets.all(8),
               child: const Icon(
                 Icons.play_arrow,
-                color: Colors.white,
+                color: onMediaColor,
                 size: 32,
               ),
             ),

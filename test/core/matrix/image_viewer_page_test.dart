@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/image_viewer_page.dart';
+import 'package:zuno/core/ui/zuno_theme.dart';
 
 import '../../helpers/fake_attachments.dart';
 import '../../helpers/pump_until.dart';
@@ -19,6 +20,7 @@ void main() {
         MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          theme: zunoLightTheme,
           home: ImageViewerPage(event: event),
         ),
       );
@@ -43,6 +45,21 @@ void main() {
     );
     expect(find.byTooltip('Share'), findsOneWidget);
     expect(find.byTooltip('Save'), findsOneWidget);
+  });
+
+  testWidgets('is black with white controls in the light theme too', (
+    tester,
+  ) async {
+    server.holdDownloads();
+
+    await pumpViewer(tester, server.attachment());
+
+    final theme = Theme.of(tester.element(find.byType(Scaffold)));
+    expect(theme.scaffoldBackgroundColor, Colors.black);
+    expect(theme.appBarTheme.foregroundColor, Colors.white);
+    expect(theme.colorScheme.primary, Colors.white);
+
+    server.releaseDownloads();
   });
 
   testWidgets('while it loads, its blurhash shows under a spinner', (
@@ -74,7 +91,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
 
     server.missing.clear();
-    await tester.tap(find.text('Retry'));
+    await tester.tap(find.text('Try again'));
     await tester.pump();
 
     expect(find.text('Photo did not load.'), findsNothing);

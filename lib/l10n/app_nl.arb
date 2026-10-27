@@ -760,7 +760,7 @@
   "matrixUploadingPhoto": "Foto uploaden…",
   "matrixUploadingVideo": "Video uploaden…",
   "matrixUsernameHint": "gebruikersnaam",
-  "matrixVideoLoadFailed": "Video is niet geladen. Probeer het opnieuw.",
+  "matrixVideoLoadFailed": "Video is niet geladen.",
   "navigationEmailNotOpened": "E-mail niet geopend. Stuur vanuit je e-mail een bericht naar {address}.",
   "navigationLinkNotOpened": "Link niet geopend. Ga in een browser naar {address}.",
   "notificationsActionSwitchToUnifiedPush": "Overschakelen naar UnifiedPush",

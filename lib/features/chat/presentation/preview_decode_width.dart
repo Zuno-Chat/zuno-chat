@@ -1,11 +1,8 @@
 import 'package:flutter/widgets.dart';
 
-const _zoomHeadroom = 1.5;
+import '../../../core/matrix/cover_image.dart';
 
-int decodeWidth(BuildContext context, {double? shownAt}) =>
-    ((shownAt ?? MediaQuery.sizeOf(context).width) *
-            MediaQuery.devicePixelRatioOf(context))
-        .round();
+const _zoomHeadroom = 1.5;
 
 int previewDecodeWidth(BuildContext context) =>
     (decodeWidth(context) * _zoomHeadroom).round();

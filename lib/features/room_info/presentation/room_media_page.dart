@@ -12,6 +12,7 @@ import '../../../core/matrix/attachment_action_buttons.dart';
 import '../../../core/matrix/attachment_actions.dart';
 import '../../../core/matrix/gallery_viewer_page.dart';
 import '../../../core/matrix/room_media_feed.dart';
+import '../../../core/ui/failure_notice.dart';
 import '../../chat/presentation/file_name_text.dart';
 import 'room_media_thumb.dart';
 
@@ -220,29 +221,24 @@ class _LoadFooter extends StatelessWidget {
     required this.emptyText,
   });
 
-  String? _stalledMessage(AppLocalizations l10n) {
-    if (feed.failed) return l10n.roomInfoCouldNotLoadMedia;
-    if (isEmpty) return l10n.roomInfoNothingRecent;
-    return null;
-  }
-
   Widget _stalledContent(BuildContext context) {
     final l10n = context.l10n;
-    final message = _stalledMessage(l10n);
+    void loadMore() => loadRoomMedia(feed.loadMore);
+    if (feed.failed) {
+      return FailureNotice(
+        message: l10n.roomInfoCouldNotLoadMedia,
+        onRetry: loadMore,
+      );
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (message != null)
+        if (isEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(message),
+            child: Text(l10n.roomInfoNothingRecent),
           ),
-        TextButton(
-          onPressed: () => loadRoomMedia(feed.loadMore),
-          child: Text(
-            feed.failed ? l10n.commonTryAgain : l10n.roomInfoLoadOlder,
-          ),
-        ),
+        TextButton(onPressed: loadMore, child: Text(l10n.roomInfoLoadOlder)),
       ],
     );
   }

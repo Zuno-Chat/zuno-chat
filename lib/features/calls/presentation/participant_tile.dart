@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/calls/models/call_engine_participant.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
+import '../../../core/ui/zuno_colors.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'call_status_widgets.dart';
 import 'person_options_hold.dart';
@@ -94,7 +95,7 @@ class _ParticipantTileState extends State<ParticipantTile> {
     if (!widget.showStatus) return null;
     if (encrypting) {
       return Material(
-        color: Colors.black54,
+        color: mediaScrimColor,
         borderRadius: BorderRadius.circular(12),
         child: const Padding(
           padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -113,7 +114,7 @@ class _ParticipantTileState extends State<ParticipantTile> {
     final muted = widget.showMuted && participant.audioMuted;
     if (name == null) {
       if (!muted) return null;
-      return const Icon(Icons.mic_off_outlined, color: Colors.white, size: 18);
+      return const Icon(Icons.mic_off_outlined, color: onMediaColor, size: 18);
     }
     return CallBadge(
       icon: muted ? Icons.mic_off_outlined : null,

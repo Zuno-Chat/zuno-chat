@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/calls/models/call_status.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/ui/zuno_colors.dart';
 import 'call_status_line.dart';
 import 'call_status_widgets.dart';
 
@@ -151,7 +152,7 @@ class VideoCallHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final label = theme.textTheme.labelLarge!.copyWith(color: Colors.white);
+    final label = theme.textTheme.labelLarge!.copyWith(color: onMediaColor);
     final talking = status == CallStatus.talking;
     final since = talkingSince;
     final l10n = context.l10n;
@@ -168,7 +169,7 @@ class VideoCallHeader extends StatelessWidget {
                 Icon(
                   Icons.lock_outline,
                   size: 15,
-                  color: Colors.white,
+                  color: onMediaColor,
                   semanticLabel: l10n.callsEncrypted,
                 ),
                 const SizedBox(width: 6),
@@ -186,7 +187,7 @@ class VideoCallHeader extends StatelessWidget {
                 Icon(
                   Icons.mic_off_outlined,
                   size: 16,
-                  color: Colors.white,
+                  color: onMediaColor,
                   semanticLabel: l10n.callsNameMuted(name),
                 ),
               ],
@@ -206,7 +207,7 @@ class VideoCallHeader extends StatelessWidget {
               encryptingSince: encryptingSince,
               style: label,
               hintStyle: theme.textTheme.bodySmall!.copyWith(
-                color: Colors.white,
+                color: onMediaColor,
               ),
               alignment: CrossAxisAlignment.start,
             ),
@@ -229,7 +230,7 @@ class _Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: Colors.black54,
+    color: mediaScrimColor,
     borderRadius: BorderRadius.circular(radius),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),

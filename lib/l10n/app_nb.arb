@@ -760,7 +760,7 @@
   "matrixUploadingPhoto": "Laster opp bilde…",
   "matrixUploadingVideo": "Laster opp video…",
   "matrixUsernameHint": "brukernavn",
-  "matrixVideoLoadFailed": "Videoen ble ikke lastet inn. Prøv igjen.",
+  "matrixVideoLoadFailed": "Videoen ble ikke lastet inn.",
   "navigationEmailNotOpened": "E-postappen ble ikke åpnet. Skriv til {address} fra e-posten din.",
   "navigationLinkNotOpened": "Lenken ble ikke åpnet. Gå til {address} i en nettleser.",
   "notificationsActionSwitchToUnifiedPush": "Bytt til UnifiedPush",

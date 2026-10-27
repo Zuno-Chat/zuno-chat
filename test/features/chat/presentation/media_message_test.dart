@@ -1,15 +1,13 @@
 import 'dart:io';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:image/image.dart' as img;
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/cached_attachment_image.dart';
+import 'package:zuno/core/matrix/cover_image.dart';
 import 'package:zuno/core/matrix/gallery_viewer_page.dart';
 import 'package:zuno/core/matrix/image_viewer_page.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
@@ -23,7 +21,6 @@ import 'package:zuno/features/chat/presentation/message_contents/pending_attachm
 
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/pump_until.dart';
 
 const _meta = Text('09:41');
 
@@ -129,100 +126,6 @@ void main() {
         find.descendant(of: within, matching: find.byType(MediaImage)),
       )
       .shownAt;
-
-  group('MediaImage', () {
-    Uint8List photo(int width, int height) =>
-        img.encodePng(img.Image(width: width, height: height));
-
-    Future<(int, int)> decode(
-      WidgetTester tester,
-      Uint8List bytes, {
-      double? shownAt,
-    }) async {
-      tester.view.physicalSize = const Size(1080, 2400);
-      tester.view.devicePixelRatio = 3;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Center(
-            child: SizedBox.square(
-              dimension: 120,
-              child: MediaImage.memory(bytes, shownAt: shownAt),
-            ),
-          ),
-        ),
-      );
-      ui.Image? decoded() =>
-          tester.widget<RawImage>(find.byType(RawImage)).image;
-      await pumpUntil(
-        tester,
-        () => decoded() != null,
-        reason: 'the photo to decode',
-      );
-      final image = decoded()!;
-      return (image.width, image.height);
-    }
-
-    testWidgets('a wide photo is decoded tall enough to cover its box', (
-      tester,
-    ) async {
-      expect(await decode(tester, photo(1600, 1200), shownAt: 120), (480, 360));
-    });
-
-    testWidgets('a tall photo is decoded wide enough to cover its box', (
-      tester,
-    ) async {
-      expect(await decode(tester, photo(1200, 1600), shownAt: 120), (360, 480));
-    });
-
-    testWidgets('a panorama is decoded no longer than twice its box', (
-      tester,
-    ) async {
-      expect(await decode(tester, photo(4000, 400), shownAt: 120), (720, 72));
-      expect(await decode(tester, photo(400, 4000), shownAt: 120), (72, 720));
-    });
-
-    testWidgets('a photo smaller than its box is never enlarged', (
-      tester,
-    ) async {
-      expect(await decode(tester, photo(64, 48), shownAt: 120), (64, 48));
-    });
-
-    testWidgets('without a size it covers the width of the screen', (
-      tester,
-    ) async {
-      expect(await decode(tester, photo(1600, 1200)), (1440, 1080));
-    });
-
-    testWidgets('a photo that cannot be decoded raises no error', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: SizedBox.square(
-            dimension: 120,
-            child: MediaImage.memory(Uint8List(64), shownAt: 120),
-          ),
-        ),
-      );
-      var failed = false;
-      tester
-          .widget<Image>(find.byType(Image))
-          .image
-          .resolve(ImageConfiguration.empty)
-          .addListener(
-            ImageStreamListener((_, _) {}, onError: (_, _) => failed = true),
-          );
-      await pumpUntil(tester, () => failed, reason: 'the decode to fail');
-      await tester.pump();
-
-      expect(tester.takeException(), isNull);
-    });
-  });
 
   group('mediaAspectRatio', () {
     test('is unknown without sensible dimensions', () {

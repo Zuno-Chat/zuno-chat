@@ -7,11 +7,12 @@ import 'package:video_player/video_player.dart';
 import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
 import '../platform/platform_capabilities.dart';
+import '../ui/failure_notice.dart';
+import '../ui/viewer_scaffold.dart';
 import 'attachment_action_buttons.dart';
 import 'attachment_actions.dart';
 import 'attachment_cache.dart';
 import 'playable_media_file.dart';
-import 'viewer_status.dart';
 
 class VideoViewerPage extends StatefulWidget {
   final Event event;
@@ -58,6 +59,11 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
     }
   }
 
+  void _retry() {
+    setState(() => _error = null);
+    unawaited(_load());
+  }
+
   @override
   void dispose() {
     _controller?.dispose();
@@ -72,23 +78,21 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        actions: [AttachmentActionButtons(event: widget.event)],
-      ),
+    return ViewerScaffold(
+      actions: [AttachmentActionButtons(event: widget.event)],
       body: Center(child: _buildBody(context)),
     );
   }
 
   Widget _buildBody(BuildContext context) {
     if (_error != null) {
-      return ViewerNotice(text: context.l10n.matrixVideoLoadFailed);
+      return FailureNotice(
+        message: context.l10n.matrixVideoLoadFailed,
+        onRetry: _retry,
+      );
     }
     final controller = _controller;
-    if (controller == null) return viewerProgress;
+    if (controller == null) return const CircularProgressIndicator();
     return GestureDetector(
       onTap: _togglePlay,
       child: AspectRatio(
@@ -101,10 +105,10 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
               animation: controller,
               builder: (context, _) => controller.value.isPlaying
                   ? const SizedBox.shrink()
-                  : const Icon(
+                  : Icon(
                       Icons.play_arrow,
                       size: 72,
-                      color: Colors.white70,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
             ),
             VideoProgressIndicator(controller, allowScrubbing: true),

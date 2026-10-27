@@ -11,7 +11,7 @@ import 'package:image_picker_platform_interface/image_picker_platform_interface.
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/blurhash_image.dart';
-import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
+import 'package:zuno/core/matrix/cover_image.dart';
 
 import 'fake_http.dart';
 import 'fake_matrix.dart';

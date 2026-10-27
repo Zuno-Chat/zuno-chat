@@ -760,7 +760,7 @@
   "matrixUploadingPhoto": "Po ngarkohet fotoja…",
   "matrixUploadingVideo": "Po ngarkohet videoja…",
   "matrixUsernameHint": "emri i përdoruesit",
-  "matrixVideoLoadFailed": "Videoja nuk u ngarkua. Provo sërish.",
+  "matrixVideoLoadFailed": "Videoja nuk u ngarkua.",
   "navigationEmailNotOpened": "Email-i nuk u hap. Shkruaj në {address} nga email-i yt.",
   "navigationLinkNotOpened": "Linku nuk u hap. Vizito {address} në një shfletues.",
   "notificationsActionSwitchToUnifiedPush": "Kalo te UnifiedPush",

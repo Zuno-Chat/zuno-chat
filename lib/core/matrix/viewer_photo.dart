@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../l10n/l10n.dart';
+import '../ui/failure_notice.dart';
 import 'cached_attachment_image.dart';
-import 'viewer_status.dart';
 
 class ViewerPhoto extends StatelessWidget {
   final Event event;
@@ -16,10 +16,10 @@ class ViewerPhoto extends StatelessWidget {
       child: CachedAttachmentImage(
         event: event,
         thumbnail: false,
-        progress: viewerProgress,
-        failure: (retry) => ViewerNotice(
-          text: context.l10n.matrixPhotoDidNotLoad,
-          retry: retry,
+        progress: const CircularProgressIndicator(),
+        failure: (retry) => FailureNotice(
+          message: context.l10n.matrixPhotoDidNotLoad,
+          onRetry: retry,
         ),
       ),
     ),

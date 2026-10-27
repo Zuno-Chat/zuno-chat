@@ -7,6 +7,12 @@ const callEndColor = Color(0xFFD32F2F);
 const callAcceptColor = Color(0xFF188038);
 const onCallActionColor = Color(0xFFFFFFFF);
 
+const mediaBackdropColor = Colors.black;
+const mediaScrimColor = Colors.black54;
+const onMediaColor = Colors.white;
+const onMediaVariantColor = Colors.white70;
+const onMediaFaintColor = Colors.white24;
+
 const avatarTones = <Color>[
   Color(0xFFC98F8F),
   Color(0xFF93AD8C),
