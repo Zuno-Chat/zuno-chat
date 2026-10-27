@@ -8,15 +8,18 @@ needed, and looks out for you. Plain, calm and principled, never loud.
 ## Why Zuno exists
 
 - **A safe place for your people.** Friends and family talk without being watched.
-- **An alternative to surveillance.** Messaging should not be a data business.
 - **Privacy without effort.** Strong protection that feels like any chat app.
-- **Independence.** No advertisers and no investors to answer to. This is the
-  core identity: state it as fact, never as a boast or a plea.
+- **Free and open source.** Built in the open and free for anyone to use, with
+  no ads and no tracking. This is the core identity: state it as fact, never
+  as a boast or a plea.
+- **An app, not a service.** Zuno connects to any Matrix server. zuno.chat is
+  one server among many, never the product.
 
 ## Audience
 
 Everyday people, not privacy experts. After a week, they should be at ease
-and stop wondering who is reading.
+and stop wondering who is reading. The site and store listing also speak to
+people who run a server for their family, friends or community.
 
 ## Traits
 
@@ -26,7 +29,7 @@ and stop wondering who is reading.
 | Protective | Stops people before a mistake they cannot undo | Nagging about routine actions |
 | Confident | Says it once, without hedging | Superlatives or bravado |
 | Minimal | The fewest words that do the job | Dropping the next step or a consequence |
-| Defiant | Plainly refuses the data business | Outrage or attacks on others |
+| Defiant | Plainly refuses ads and tracking | Outrage or attacks on others |
 | Reassuring | Explains why something that looks scary is fine | Hiding a real risk |
 
 When traits pull apart:
@@ -60,22 +63,27 @@ When traits pull apart:
 | recovery code | recovery key, security key, passphrase |
 | sign in, sign out | log in, log out |
 
-The app avoids the server: name it only where a privacy point depends on it.
-Matrix never appears in the app.
+The app avoids the server: name it only where a privacy point, or who sends
+or receives something, depends on it. Zuno is the app, never the server: the
+server sends sign-up codes and receives reports. Matrix never appears in the
+app.
 
 ## Claims and limits
 
 - Absolutes only where the design guarantees them. Never "100% secure",
   "unhackable" or "military-grade".
-- Accounts are username-only. No phone number is collected, and an account is
-  not tied to an email address — one is used only to send a single-use sign-up
-  code, and it is not stored with the account. Pair it with its limits: a
-  username containing a real name still identifies someone, and there is no
-  email to reset a lost password.
+- Accounts belong to the server. Zuno never asks for a phone number: sign-up
+  is a username and a password, and where the server sends a sign-up code,
+  the email address is used only for that code and is not stored with the
+  account. Pair it with its limits: a username containing a real name still
+  identifies someone, and there is no email to reset a lost password.
 - Name limits where they matter, unprompted. Encryption protects what people
   say. It does not hide that they talked, and it cannot stop a screenshot or
   a compromised device.
-- Matrix appears on the site only, as the reason the encryption can be trusted.
+- Wherever calls or notifications are promised, say they need a server set up
+  for Zuno, such as zuno.chat.
+- Matrix appears on the site and store listing only: as what Zuno connects
+  to, and as the reason the encryption can be trusted.
 
 ## By surface
 
@@ -83,17 +91,17 @@ Matrix never appears in the app.
 |---|---|
 | App | Plainest. No dry edge. Avoid the server; never Matrix. Sign-up never suggests a phone number is needed; an email address appears only at the sign-up code step, with its one purpose stated. |
 | Notifications | Shortest. Messages, calls and invites only; never to pull people back in. |
-| Site and store listing | Lead with the problem, matter-of-fact. A dry line allowed, sparingly. Independence, the single server and username-only accounts are the story. |
+| Site and store listing | Lead with what Zuno is, matter-of-fact. A dry line allowed, sparingly. Free and open source, any Matrix server and encryption by default are the story; zuno.chat is one place to make an account, never the product. |
 | Support and social | Same rules. Answer in the first sentence. |
 
 ## By moment
 
-**Pitch.** Name the problem as fact, then what Zuno does instead.
-- Write: "Many chat apps are paid for with data about the people who use them. Zuno has no advertisers and no investors."
+**Pitch.** Say what Zuno is as fact, then what it lets people do.
+- Write: "Zuno is a free, open-source chat app. It works with any Matrix server: zuno.chat, the one your friends already use, or your own."
 - Not: "Big tech is spying on you. Take back your privacy!"
 
 **Dry edge** (site and social only). Understated, never at someone's expense.
-- Write: "Your messages are none of Zuno's business."
+- Write: "Your messages are none of your server's business."
 - Not: "Unlike those other apps, this one actually respects you."
 
 **Error.** What happened, then what to do. No apology, no blame, no raw error text.
@@ -114,7 +122,7 @@ that nobody can undo it. The button repeats the action.
 - Not: "Awesome, your password was successfully updated."
 
 **Donation** (app). One static line in Settings. Never a prompt, badge or popup.
-- Write: "Donations help pay for running Zuno."
+- Write: "Donations help pay for building Zuno."
 - Not: "Enjoying Zuno? Support us today."
 
 **Release notes** (store "What's new"). Features under "New", one bullet

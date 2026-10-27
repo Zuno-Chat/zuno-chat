@@ -116,6 +116,7 @@ Spanish for `lib/l10n/app_es.arb`, written for Spain and served to every Spanish
 | remove (a person) | Expulsar / expulsar | The kick action. |
 | ban | Vetar / quitar el veto | "Banned" heading → «Personas vetadas». |
 | report | Denunciar · la denuncia | Reasons: «Acoso», «Contenido ilegal», «Spam», «Otro motivo». |
+| the people who run your server | las personas que gestionan tu servidor | Who receives reports. "They" drops out: «No pueden leer…». |
 | public / private | pública / privada | Feminine, agreeing with sala and comunidad. |
 | topic, description, address, ID | el tema · la descripción · la dirección · el ID | Room alias → «la dirección de la sala». |
 | hostname | el nombre del servidor | |
@@ -171,6 +172,8 @@ Spanish for `lib/l10n/app_es.arb`, written for Spain and served to every Spanish
 | app, home screen, shortcut, launcher | la app · la pantalla de inicio · el acceso directo · el launcher | «app» is feminine. |
 | recent apps, app switcher | las apps recientes · el selector de apps | |
 | Open source licenses, Source code | Licencias de código abierto · Código fuente | |
+| free and open source | gratuito y de código abierto | "Free" is the price. |
+| building Zuno (what donations pay for) | el desarrollo de Zuno | Never «el funcionamiento», which makes Zuno a service. |
 
 ### 1.11 Settled phrases
 

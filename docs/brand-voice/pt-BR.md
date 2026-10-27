@@ -115,6 +115,7 @@ Brazilian Portuguese for `lib/l10n/app_pt.arb`, the base Portuguese file, writte
 | remove (a person or item) | Remover / remover | The kick action. |
 | ban | Banir / remover banimento | "Banned" heading → «Banidos». |
 | report | Denunciar · a denúncia | Reasons: «Assédio», «Conteúdo ilegal», «Spam», «Outro motivo». |
+| the people who run your server | as pessoas que gerenciam seu servidor | Who receives reports. "They" → «elas». |
 | public / private | pública / privada | Feminine, agreeing with sala and comunidade. |
 | topic, description, address, ID | o tópico · a descrição · o endereço · o ID | |
 | hostname | o nome do servidor | |
@@ -169,6 +170,8 @@ Brazilian Portuguese for `lib/l10n/app_pt.arb`, the base Portuguese file, writte
 | app, home screen, shortcut, launcher | o app · a tela inicial · o atalho · o app de tela inicial | |
 | recent apps, app switcher | os apps recentes · o seletor de apps | |
 | Open source licenses, Source code | Licenças de código aberto · Código-fonte | |
+| free and open source | gratuito e de código aberto | "Free" is the price. |
+| building Zuno (what donations pay for) | o desenvolvimento do Zuno | Never «o funcionamento», which makes Zuno a service. |
 
 ### 1.11 Settled phrases
 

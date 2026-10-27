@@ -120,6 +120,7 @@ Danish for `lib/l10n/app_da.arb`, written for Denmark. The rules all languages s
 | leave | Forlad · forlade | "{people} left" → «{people} er gået». |
 | ban | Udeluk / Ophæv udelukkelse · udelukkelse | "Banned" heading → «Udelukkede». "{sender} unbanned {people}" → «{sender} ophævede udelukkelsen af {people}». Never «bloker». |
 | report | Rapporter · rapport | Reasons: «Chikane», «Ulovligt indhold», «Spam», «Anden årsag». |
+| the people who run your server | dem, der driver din server | Who receives reports, never Zuno. "They" → «de». |
 | public / private | offentlig / privat | Agree with the noun («et offentligt rum», «et privat fællesskab»); a label serving both is «Offentlig adgang» / «Privat adgang» / «Adgang efter anmodning» / «Adgang for fællesskabet». "Make public" → «Gør offentlig». |
 | topic, description, address, ID | emne · beskrivelse · adresse · ID | Room alias → «rumadresse». |
 | hostname | servernavn | |
@@ -174,6 +175,8 @@ Danish for `lib/l10n/app_da.arb`, written for Denmark. The rules all languages s
 | Appearance / About / Advanced, version, build | Udseende / Om / Avanceret · version · build | |
 | feedback, crash reports | feedback · nedbrudsrapporter | "Send feedback" → «Send feedback». |
 | donate, privacy, Privacy policy, Terms | Donér · privatliv · Privatlivspolitik · Vilkår | |
+| building Zuno (what donations pay for) | udviklingen af Zuno | Never «driften», which is running a server. |
+| free and open source | gratis og open source | "Zuno is free and open source." → «Zuno er gratis og open source.» |
 | browser, underscore | browser · understregning | |
 | app, home screen, shortcut, launcher | app · hjemmeskærm · genvej · launcher | A chat app is «beskedapp». |
 | recent apps, app switcher | seneste apps · appskifter | |

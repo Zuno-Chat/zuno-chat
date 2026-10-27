@@ -2,7 +2,7 @@
 
 With Zuno closed, an iOS call rings from a server-sent VoIP push, while a running app still rings from sync. Messages keep `event_id_only` alert pushes, and a read-only notification service extension (NSE) fetches and decrypts their content. Android is untouched. The mechanics are in `../features/notifications.md` (push, the extension, the `zuno_push` contract) and `../features/calls.md` (the ring).
 
-- **Ring from the server.** Apple reserves the NSE ring API, behind the filtering entitlement, for servers that cannot tell a call from a message. Zuno's server can: the `zuno_push` Synapse module watches `m.call.member`, which is clear state, and sends through stock Sygnal. A server ring needs no notification permission, room keys or entitlement.
+- **Ring from the server.** Apple reserves the NSE ring API, behind the filtering entitlement, for servers that cannot tell a call from a message. A server running `zuno_push` can: the Synapse module watches `m.call.member`, which is clear state, and sends through stock Sygnal. A server ring needs no notification permission, room keys or entitlement.
 - **Ring parity with Android.** The module decides with Synapse's own power-level and push-rule evaluation, so a closed iPhone rings exactly when a closed Android app would. A hand-written check would drift, missing room-v12 creators (every new Zuno DM) and mute settings changed in other clients.
 - **Rings are sent at least once.** The module re-sends a ring that a crash interrupted, and the device drops duplicates by the call's UUID.
 - **A sealed, fixed-size VoIP payload under a per-device key**, so Apple learns only that a call arrived. The key id and expiry stay in clear, so the device can drop a stale ring even before first unlock.

@@ -116,6 +116,7 @@ German for `lib/l10n/app_de.arb`, written for Germany and served to every German
 | remove (a person) | Entfernen / entfernen | The kick action. |
 | ban | Sperren / Sperre aufheben | "Banned" heading → «Gesperrte Personen». "{sender} unbanned {people}" → «{sender} hat die Sperre für {people} aufgehoben». |
 | report | Melden · die Meldung | Reasons: «Belästigung», «Illegale Inhalte», «Spam», «Anderer Grund». |
+| the people who run your server | die Betreiber deines Servers | Who receives reports, never Zuno. A role, generic masculine like the role badges. "They" → «die Betreiber», since «Sie» reads as formal address. |
 | public / private | öffentlich / privat | As labels: «Öffentlich», «Privat». |
 | topic, description, address, ID | das Thema · die Beschreibung · die Adresse · die ID | Room alias → «die Raumadresse». |
 | hostname | der Servername | |
@@ -168,6 +169,8 @@ German for `lib/l10n/app_de.arb`, written for Germany and served to every German
 | Appearance / About / Advanced, version, build | Darstellung / Info / Erweitert · die Version · der Build | |
 | feedback, crash reports | das Feedback · die Absturzberichte | "Send feedback" → «Feedback senden». |
 | donate, privacy, Privacy policy, Terms | spenden · der Datenschutz · Datenschutzerklärung · Nutzungsbedingungen | |
+| building Zuno (what donations pay for) | die Entwicklung von Zuno | Never «Betrieb», which is running a server. |
+| free and open source | kostenlos und Open Source | "Zuno is free and open source." → «Zuno ist kostenlos und Open Source.» |
 | app, home screen, shortcut, launcher | die App · der Startbildschirm · die Verknüpfung · der Launcher | |
 | recent apps, app switcher | die zuletzt verwendeten Apps · die App-Übersicht | |
 | Open source licenses, Source code | Open-Source-Lizenzen · Quellcode | |

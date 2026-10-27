@@ -14,4 +14,4 @@ New
 • Review privacy settings in setup.
 • Photo previews while loading.
 
-Fixed 161 bugs.
+Fixed 162 bugs.

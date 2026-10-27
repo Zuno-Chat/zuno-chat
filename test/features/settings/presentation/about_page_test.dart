@@ -111,7 +111,7 @@ void main() {
     await pumpAbout(tester);
 
     expect(find.text('Donate'), findsOneWidget);
-    expect(find.text('Donations help pay for running Zuno.'), findsOneWidget);
+    expect(find.text('Donations help pay for building Zuno.'), findsOneWidget);
   });
 
   testWidgets('hides Donate where the store forbids payment links', (
@@ -120,7 +120,7 @@ void main() {
     await pumpAbout(tester, capabilities: iosCapabilities);
 
     expect(find.text('Donate'), findsNothing);
-    expect(find.text('Donations help pay for running Zuno.'), findsNothing);
+    expect(find.text('Donations help pay for building Zuno.'), findsNothing);
     expect(find.text('Privacy policy'), findsOneWidget);
     expect(find.text('Terms'), findsOneWidget);
     expectEveryRowOnACard();

@@ -117,6 +117,7 @@ European Portuguese for `lib/l10n/app_pt_PT.arb`, written for Portugal. The rule
 | remove (a person or item) | Remover / remover | The kick action. |
 | ban | Banir / anular banimento | "Banned" heading → «Banidos». |
 | report | Denunciar · a denúncia | Reasons: «Assédio», «Conteúdo ilegal», «Spam», «Outro motivo». |
+| the people who run your server | as pessoas que gerem o seu servidor | Who receives reports. "They" drops out: «Não conseguem ler…». |
 | public / private | pública / privada | Feminine, agreeing with sala and comunidade. |
 | topic, description, address, ID | o tópico · a descrição · o endereço · o ID | Room alias → «o endereço da sala». |
 | hostname | o nome do servidor | |
@@ -171,6 +172,8 @@ European Portuguese for `lib/l10n/app_pt_PT.arb`, written for Portugal. The rule
 | app, home screen, shortcut, launcher | a app · o ecrã principal · o atalho · o iniciador | «app» is feminine. |
 | recent apps, app switcher | as apps recentes · o seletor de apps | |
 | Open source licenses, Source code | Licenças de código aberto · Código-fonte | |
+| free and open source | gratuito e de código aberto | "Free" is the price. |
+| building Zuno (what donations pay for) | o desenvolvimento do Zuno | Never «o funcionamento», which makes Zuno a service. |
 
 ### 1.11 Settled phrases
 

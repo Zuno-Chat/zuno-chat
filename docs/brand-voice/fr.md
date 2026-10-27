@@ -116,6 +116,7 @@ French for `lib/l10n/app_fr.arb`, written for France and served to every French-
 | remove (a person) | Retirer / retirer | The kick action. |
 | ban | Bannir / lever le bannissement | "Banned" heading → «Personnes bannies». |
 | report | Signaler · le signalement | Reasons: «Harcèlement», «Contenu illégal», «Spam», «Autre motif». |
+| the people who run your server | les personnes qui gèrent votre serveur | Who receives reports. "They" → «elles». |
 | public / private | public / privé | Where one label serves both a salon (m.) and a communauté (f.), recast so nothing agrees: «Accès public», «Passer en privé». |
 | topic, description, address, ID | le sujet · la description · l’adresse · l’identifiant | "Room ID" → «Identifiant du salon». Room alias → «l’adresse du salon». |
 | hostname | le nom du serveur | |
@@ -170,6 +171,8 @@ French for `lib/l10n/app_fr.arb`, written for France and served to every French-
 | app, home screen, shortcut, launcher | l’app · l’écran d’accueil · le raccourci · le lanceur d’applications | «app» is feminine. |
 | recent apps, app switcher | les apps récentes · le sélecteur d’apps | |
 | Open source licenses, Source code | Licences open source · Code source | |
+| free and open source | gratuit et open source | "Free" is the price. |
+| building Zuno (what donations pay for) | le développement de Zuno | Never «le fonctionnement», which makes Zuno a service. |
 
 ### 1.11 Settled phrases
 

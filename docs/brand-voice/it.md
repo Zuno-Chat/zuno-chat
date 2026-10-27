@@ -116,6 +116,7 @@ Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `transla
 | remove (a person) | Rimuovi / rimuovere | The kick action. |
 | ban | Banna / revoca il ban | "Banned" heading → «Persone bannate». |
 | report | Segnala · la segnalazione | Reasons: «Molestie», «Contenuti illegali», «Spam», «Altro motivo». |
+| the people who run your server | le persone che gestiscono il tuo server | Who receives reports. "They" drops out: «Non possono leggere…». |
 | public / private | pubblica / privata | Feminine, agreeing with stanza and comunità. |
 | topic, description, address, ID | l’argomento · la descrizione · l’indirizzo · l’ID | Room alias → «l’indirizzo della stanza». |
 | hostname | il nome del server | |
@@ -171,6 +172,8 @@ Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `transla
 | app, home screen, shortcut, launcher | l’app · la schermata Home · la scorciatoia · il launcher | «app» is feminine. |
 | recent apps, app switcher | le app recenti · il selettore app | |
 | Open source licenses, Source code | Licenze open source · Codice sorgente | |
+| free and open source | gratuito e open source | "Free" is the price. |
+| building Zuno (what donations pay for) | lo sviluppo di Zuno | "Donations help pay for building Zuno" → «…coprire i costi di sviluppo di Zuno». Never «gestione», which makes Zuno a service. |
 
 ### 1.11 Settled phrases
 

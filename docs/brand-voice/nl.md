@@ -121,6 +121,7 @@ Dutch for `lib/l10n/app_nl.arb`, written for the Netherlands and Flanders alike.
 | leave | Verlaten | "{people} left" → «{people} is vertrokken». |
 | ban | Verbannen / Verbanning opheffen · verbanning | "Banned" heading → «Verbannen». "{sender} unbanned {people}" → «{sender} heeft de verbanning van {people} opgeheven». Never «blokkeren». |
 | report | Rapporteren · rapport | «melding» is a notification. Reasons: «Intimidatie», «Illegale inhoud», «Spam», «Andere reden». |
+| the people who run your server | de mensen achter je server | Who receives reports, never Zuno. Never «beheerders», which are room admins. "They" → «zij». |
 | public / private | openbaar / privé | A label serving both rooms and communities is «Openbare toegang» / «Privétoegang» / «Toegang op verzoek» / «Toegang voor de community». "Make public" → «Openbaar maken». |
 | topic, description, address, ID | onderwerp · beschrijving · adres · ID | Room alias → «kameradres». |
 | hostname | servernaam | |
@@ -175,6 +176,8 @@ Dutch for `lib/l10n/app_nl.arb`, written for the Netherlands and Flanders alike.
 | Appearance / About / Advanced, version, build | Weergave / Over / Geavanceerd · versie · build | |
 | feedback, crash reports | feedback · crashrapporten | "Send feedback" → «Feedback sturen». |
 | donate, privacy, Privacy policy, Terms | Doneren · privacy · Privacybeleid · Voorwaarden | |
+| building Zuno (what donations pay for) | de ontwikkeling van Zuno | |
+| free and open source | gratis en open source | "Zuno is free and open source." → «Zuno is gratis en open source.» |
 | browser, underscore | browser · liggend streepje | |
 | app, home screen, shortcut, launcher | app · startscherm · snelkoppeling · launcher | A chat app is «berichtenapp». |
 | recent apps, app switcher | recente apps · appkiezer | |

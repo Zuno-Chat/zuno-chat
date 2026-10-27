@@ -514,7 +514,7 @@ void main() {
     final store = await pumpFlow(tester, [OnboardingStep.welcome]);
 
     expect(find.text('Welcome to Zuno'), findsOneWidget);
-    expect(find.textContaining('advertisers'), findsOneWidget);
+    expect(find.textContaining('free and open source'), findsOneWidget);
 
     await tester.tap(find.text('Get started'));
     await tester.pumpAndSettle();

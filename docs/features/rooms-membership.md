@@ -2,8 +2,8 @@
 
 The chat list, room creation and access, room info and settings, the 4-tier
 role model, invitations, the room media feed, and person-level moderation
-(block, report). Zuno targets one self-hosted, non-federated homeserver, and
-that single fact shapes ID entry, permission defaults and what discovery can
+(block, report). Zuno is built for a homeserver without federation, whichever
+server that is, and that single fact shapes ID entry, permission defaults and what discovery can
 mean. Screens call the `matrix` SDK directly, and live Matrix room state is
 the only source of truth.
 

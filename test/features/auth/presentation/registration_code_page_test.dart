@@ -43,6 +43,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> tapHaveCode(WidgetTester tester) async {
+    final button = find.widgetWithText(TextButton, 'I already have a code');
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+  }
+
   testWidgets('a sent code leads to the account form, naming the address', (
     tester,
   ) async {
@@ -97,7 +103,10 @@ void main() {
 
     await send(tester, 'alex@example.org');
 
-    expect(find.text('Zuno could not send a code. Try again.'), findsOneWidget);
+    expect(
+      find.text('The server could not send a code. Try again.'),
+      findsOneWidget,
+    );
     expect(
       tester
           .widget<FilledButton>(find.widgetWithText(FilledButton, 'Send code'))
@@ -124,7 +133,7 @@ void main() {
   testWidgets('skipping goes straight to the account form', (tester) async {
     await pumpCodePage(tester);
 
-    await tester.tap(find.widgetWithText(TextButton, 'I already have a code'));
+    await tapHaveCode(tester);
     await tester.pumpAndSettle();
 
     expect(find.byType(RegisterPage), findsOneWidget);
@@ -158,9 +167,7 @@ void main() {
       await pumpCodePage(tester);
       await tester.showKeyboard(find.byType(TextField));
 
-      await tester.tap(
-        find.widgetWithText(TextButton, 'I already have a code'),
-      );
+      await tapHaveCode(tester);
       await tester.pumpAndSettle();
       tester.state<NavigatorState>(find.byType(Navigator)).pop();
       await tester.pumpAndSettle();

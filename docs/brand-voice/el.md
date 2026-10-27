@@ -121,6 +121,7 @@ The Greek column gives the article, which shows the gender, and the plural where
 | ban | Αποβολή / αποβάλλω (αποβλήθηκε) | "Unban" → «Άρση αποβολής», in the timeline «ήρε την αποβολή» (ήρατε). "Banned" heading → «Αποβολές». Never «αποκλεισμός», which is block. |
 | withdraw (an invitation) | Ανάκληση πρόσκλησης / ανακαλώ (ανακάλεσε) | «{sender} ανακάλεσε την πρόσκληση για τον χρήστη {people}». |
 | report | Αναφορά / αναφέρω | Reasons: «Παρενόχληση», «Παράνομο περιεχόμενο», «Ανεπιθύμητο περιεχόμενο» (Spam), «Κάτι άλλο». |
+| the people who run your server | όσοι διαχειρίζονται τον διακομιστή σας | Who a report goes to: «Η αναφορά πηγαίνει σε όσους διαχειρίζονται τον διακομιστή σας». The later "they" drops out: «Δεν μπορούν να διαβάσουν…». Never «το Zuno», and never «τα άτομα», which blurs with the reported «αυτό το άτομο». |
 | public / private | Δημόσια / Ιδιωτική | Feminine, so it agrees with both αίθουσα and κοινότητα. |
 | topic, description | το θέμα · η περιγραφή | |
 | address, room alias, ID | η (κύρια) διεύθυνση · το ψευδώνυμο αίθουσας · το αναγνωριστικό | "Room ID" → «Αναγνωριστικό αίθουσας». |
@@ -179,9 +180,11 @@ The Greek column gives the article, which shows the gender, and the plural where
 | feedback, crash reports | τα σχόλια · οι αναφορές κατάρρευσης | "Send feedback" → «Αποστολή σχολίων». |
 | crash, error | η κατάρρευση · το σφάλμα | "Send crash and error reports" → «Αποστολή αναφορών κατάρρευσης και σφαλμάτων». Never «λάθος», which is "wrong": «Λάθος κωδικός πρόσβασης». |
 | donate, privacy, Privacy policy, Terms | η δωρεά · το απόρρητο · Πολιτική απορρήτου · Όροι | |
+| building Zuno (what donations pay for) | η ανάπτυξη του Zuno | "Donations help pay for building Zuno." → «Οι δωρεές βοηθούν να καλύπτεται το κόστος ανάπτυξης του Zuno.» |
 | app, home screen, shortcut, launcher | η εφαρμογή · η αρχική οθόνη · η συντόμευση · η εφαρμογή εκκίνησης | |
 | recent apps, app switcher | οι πρόσφατες εφαρμογές · η εναλλαγή εφαρμογών | |
 | Open source licenses, Source code | Άδειες ανοιχτού κώδικα · Πηγαίος κώδικας | |
+| free and open source | δωρεάν και ανοιχτού κώδικα | "Zuno is free and open source." → «Το Zuno είναι δωρεάν και ανοιχτού κώδικα.» |
 
 ### 1.11 Settled phrases
 
@@ -317,7 +320,7 @@ Statement and first-person buttons: «Ταιριάζουν», «Δεν ταιρ�
 | `chatNotSentRetry` | Not sent · Tap to retry | Δεν στάλθηκε · Πατήστε για επανάληψη |
 | `callsFailureOnAnotherDevice` | You are in this call on another device. Hang up there to join here. | Συμμετέχετε σε αυτή την κλήση από άλλη συσκευή. Τερματίστε την κλήση εκεί για να συμμετάσχετε από εδώ. |
 | `settingsAccountPasswordChanged` | Password changed | Ο κωδικός πρόσβασης άλλαξε |
-| `onboardingWelcomeBody` | Many chat apps are paid for with data about the people who use them. Zuno has no advertisers and no investors. Your messages are end-to-end encrypted, and it works like any chat app. | Πολλές εφαρμογές συνομιλίας πληρώνονται με δεδομένα για τους ανθρώπους που τις χρησιμοποιούν. Το Zuno δεν έχει διαφημιστές ούτε επενδυτές. Τα μηνύματά σας κρυπτογραφούνται από άκρο σε άκρο και το Zuno λειτουργεί όπως κάθε εφαρμογή συνομιλίας. |
+| `onboardingWelcomeBody` | Zuno is free and open source. Your messages are end-to-end encrypted, and it works like any chat app. | Το Zuno είναι δωρεάν και ανοιχτού κώδικα. Τα μηνύματά σας κρυπτογραφούνται από άκρο σε άκρο και το Zuno λειτουργεί όπως κάθε εφαρμογή συνομιλίας. |
 | `blockingTitle` | Block {name}? | Να αποκλειστεί ο χρήστης {name}; |
 | `matrixStateNameChanged` | `{sender} changed the room name to \"{name}\"` | `{sender} άλλαξε το όνομα της αίθουσας σε «{name}»` |
 | `chatDeleteTitle` | `{count, plural, one{Delete message?} other{Delete {count} items?}}` | `{count, plural, one{Να διαγραφεί το μήνυμα;} other{Να διαγραφούν {count} στοιχεία;}}` |

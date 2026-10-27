@@ -25,7 +25,8 @@ void main() {
                 result = await showReportSheet(
                   context,
                   title: 'Report message',
-                  explanation: 'The report goes to Zuno.',
+                  explanation:
+                      'The report goes to the people who run your server.',
                   sendLabel: sendLabel,
                   onSend: onSend,
                 );
@@ -53,7 +54,10 @@ void main() {
       );
 
       expect(find.text('Report message'), findsOneWidget);
-      expect(find.text('The report goes to Zuno.'), findsOneWidget);
+      expect(
+        find.text('The report goes to the people who run your server.'),
+        findsOneWidget,
+      );
       for (final reason in ReportReason.values) {
         expect(find.text(reason.label(englishLocalizations)), findsOneWidget);
       }

@@ -58,7 +58,7 @@
       }
     }
   },
-  "authCodeEmailExplainer": "Zuno sends a single-use code to your email address to keep automated sign-ups out. The address is used only to send the code and to limit how often codes are requested. It is not stored with your account.",
+  "authCodeEmailExplainer": "The server sends a single-use code to your email address to keep automated sign-ups out. The address is used only to send the code and to limit how often codes are requested. It is not stored with your account.",
   "authCodeLabel": "Code",
   "@authCodeLabel": {
     "description": "Field label: the sign-in code typed from another device"
@@ -140,7 +140,7 @@
   },
   "authSignInWithCode": "Sign in with the code",
   "authSignInWithOtherDevice": "Sign in with your other device",
-  "authSignUpCodeHelper": "From the email Zuno sent",
+  "authSignUpCodeHelper": "From the sign-up email",
   "authSignUpCodeLabel": "Sign-up code",
   "@authSignUpCodeLabel": {
     "description": "Field label: the code received by email to create an account"
@@ -804,8 +804,8 @@
       }
     }
   },
-  "chatReportExplainDirect": "The report goes to Zuno. It names the message and who sent it, not what it says. Zuno cannot read your messages, so describe what happened.",
-  "chatReportExplainGroup": "The report goes to Zuno. It names the message and who sent it, not what it says. Room admins can remove messages and people. A report is for what they cannot fix.",
+  "chatReportExplainDirect": "The report goes to the people who run your server. It names the message and who sent it, not what it says. They cannot read your messages, so describe what happened.",
+  "chatReportExplainGroup": "The report goes to the people who run your server. It names the message and who sent it, not what it says. Room admins can remove messages and people. A report is for what they cannot fix.",
   "chatReportTitle": "Report message",
   "@chatReportTitle": {
     "description": "Sheet title: report a message"
@@ -2142,7 +2142,7 @@
   "matrixCodeInvalidEmail": "That email address does not look right.",
   "matrixCodeOffline": "No connection. Try again.",
   "matrixCodeRateLimited": "Too many code requests. Try again later.",
-  "matrixCodeServerError": "Zuno could not send a code. Try again.",
+  "matrixCodeServerError": "The server could not send a code. Try again.",
   "matrixCodeUnavailable": "New accounts are not being created right now.",
   "matrixCompressingPhoto": "Compressing photo…",
   "@matrixCompressingPhoto": {
@@ -3645,7 +3645,7 @@
     "description": "Button during setup: skip this step"
   },
   "onboardingTurnOnNotifications": "Turn on notifications",
-  "onboardingWelcomeBody": "Many chat apps are paid for with data about the people who use them. Zuno has no advertisers and no investors. Your messages are end-to-end encrypted, and it works like any chat app.",
+  "onboardingWelcomeBody": "Zuno is free and open source. Your messages are end-to-end encrypted, and it works like any chat app.",
   "onboardingWelcomeTitle": "Welcome to Zuno",
   "permissionsCameraUsage": "Zuno uses the camera for video calls, photos and videos you take, and scanning sign-in and verification codes.",
   "@permissionsCameraUsage": {
@@ -4230,8 +4230,8 @@
       }
     }
   },
-  "roomInfoReportExplainDirect": "The report goes to Zuno and names this person. Zuno cannot read your messages, so describe what happened.",
-  "roomInfoReportExplainGroup": "The report goes to Zuno and names this person. Room admins can remove people from this room. A report is for what they cannot fix.",
+  "roomInfoReportExplainDirect": "The report goes to the people who run your server and names this person. They cannot read your messages, so describe what happened.",
+  "roomInfoReportExplainGroup": "The report goes to the people who run your server and names this person. Room admins can remove people from this room. A report is for what they cannot fix.",
   "roomInfoReportPerson": "Report {name}",
   "@roomInfoReportPerson": {
     "description": "Row and sheet title: report this person",
@@ -4490,7 +4490,7 @@
   "@roomsReportInvitation": {
     "description": "Sheet title: report an invitation"
   },
-  "roomsReportInvitationExplain": "The report goes to Zuno and names who invited you. The invitation is declined once the report is sent.",
+  "roomsReportInvitationExplain": "The report goes to the people who run your server and names who invited you. The invitation is declined once the report is sent.",
   "roomsRoomName": "Room name",
   "@roomsRoomName": {
     "description": "Field label and hint: the name of a room"
@@ -4672,7 +4672,7 @@
   "@settingsAboutDonate": {
     "description": "Row on the About screen: donate to Zuno"
   },
-  "settingsAboutDonateSubtitle": "Donations help pay for running Zuno.",
+  "settingsAboutDonateSubtitle": "Donations help pay for building Zuno.",
   "settingsAboutEncryptionLibraryVersion": "Encryption library version",
   "settingsAboutHiddenMessages": "Show hidden messages",
   "settingsAboutHiddenMessagesSubtitle": "Shows the call-signaling events Zuno normally hides, marked apart from real messages",
@@ -5289,7 +5289,7 @@
   "settingsWhyConfirmingServer": "Zuno asks the server which devices belong to your friend. A dishonest server could answer with one of its own and read along. Encryption alone does not stop that, because the wrong source was asked.",
   "settingsWhyInterruptsBody": "Almost never. A new sign-in on your own account, and a person whose security details changed after you confirmed them. Both mean something you can act on. Everything else stays out of your way.",
   "settingsWhyInterruptsHeading": "When Zuno interrupts you",
-  "settingsWhyIntroEncrypted": "Your messages are encrypted on your device before they are sent, and only the devices in the chat can decrypt them. Not Zuno, and not the server they pass through.",
+  "settingsWhyIntroEncrypted": "Your messages are encrypted on your device before they are sent, and only the devices in the chat can decrypt them. Not even the server they pass through can.",
   "settingsWhyIntroLimits": "Encryption protects what you say. It does not hide who you talk to, and it cannot stop a screenshot or a compromised device.",
   "settingsWhyRecoveryHeading": "Why a recovery code",
   "settingsWhyRecoveryLocked": "The ability to decrypt your messages lives on your devices, not on the server. That is what keeps them private. It also means that if you lose every device you own, your old messages stay locked forever.",

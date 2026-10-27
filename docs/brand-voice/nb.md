@@ -120,6 +120,7 @@ Norwegian Bokmål for `lib/l10n/app_nb.arb`, written for Norway. The rules all l
 | leave | Forlat | "{people} left" → «{people} gikk». |
 | ban | Utesteng / Opphev utestengelse · utestengelse | "Banned" heading → «Utestengte». "{sender} unbanned {people}" → «{sender} opphevet utestengelsen av {people}». Never «blokker». |
 | report | Rapporter · rapport | Reasons: «Trakassering», «Ulovlig innhold», «Spam», «Annen årsak». |
+| the people who run your server | de som driver serveren din · til dem som driver serveren din | Who receives reports, never Zuno. "They" → «de». When the sentence goes on, a comma closes the clause: «går til dem som driver serveren din, og navngir …». |
 | public / private | offentlig / privat | Agree with the noun («et offentlig rom», «et privat fellesskap»); a label serving both is «Offentlig tilgang» / «Privat tilgang» / «Tilgang etter forespørsel» / «Tilgang for fellesskapet». "Make public" → «Gjør offentlig». |
 | topic, description, address, ID | emne · beskrivelse · adresse · ID | Room alias → «romadresse». |
 | hostname | servernavn | |
@@ -174,6 +175,8 @@ Norwegian Bokmål for `lib/l10n/app_nb.arb`, written for Norway. The rules all l
 | Appearance / About / Advanced, version, build | Utseende / Om / Avansert · versjon · build | |
 | feedback, crash reports | tilbakemelding · krasjrapporter | "Send feedback" → «Send tilbakemelding». |
 | donate, privacy, Privacy policy, Terms | Doner · personvern · Personvernerklæring · Vilkår | |
+| building Zuno (what donations pay for) | utviklingen av Zuno | Never «driften», which is running a server. |
+| free and open source | gratis og har åpen kildekode | "Zuno is free and open source." → «Zuno er gratis og har åpen kildekode.» |
 | browser, underscore | nettleser · understrek | |
 | app, home screen, shortcut, launcher | app · startskjerm · snarvei · launcher | A chat app is «meldingsapp». |
 | recent apps, app switcher | nylige apper · appveksleren | |

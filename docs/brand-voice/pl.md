@@ -109,7 +109,7 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | account, password | konto · hasło | "Wrong password." → «Nieprawidłowe hasło.» "Confirm password" (the repeat field) → «Powtórz hasło». |
 | username, display name | nazwa użytkownika · nazwa wyświetlana | |
 | profile, profile photo | profil · zdjęcie profilowe | |
-| email address | adres e-mail | |
+| email address | adres e-mail | The email itself is «wiadomość e-mail»; the sign-up email, in a short helper, «e-mail rejestracyjny». |
 | invite | Zaproś · zaproszenie | The "Invited" badge → «Zaproszono». |
 | withdraw (an invitation) | Wycofaj zaproszenie · wycofanie zaproszenia | Timeline: «{sender} wycofuje zaproszenie: {people}», «{sender} wycofuje Twoje zaproszenie». |
 | join (a room or community) | Dołącz · dołączyć | "{people} joined" → «{people} dołącza». |
@@ -117,6 +117,7 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | leave | Opuść · opuścić | "{people} left" → «{people} wychodzi». |
 | ban | Zbanuj / Odbanuj · zbanowanie | "Banned" heading → «Zbanowane osoby». Never «zablokuj». Timeline: «{sender} banuje: {people}», «{sender} odbanowuje: {people}». |
 | report | Zgłoś · zgłoszenie | Reasons: «Nękanie», «Nielegalne treści», «Spam», «Inny powód». |
+| the people who run your server | osoby, które prowadzą Twój serwer | Who a report goes to: «Zgłoszenie trafia do osób, które prowadzą Twój serwer». Refer back with «one»: «Nie mogą one czytać…». Never «Zuno», and never «administratorzy», the room role. |
 | public / private | publiczny / prywatny | Agree with the noun described; a label serving both rooms and communities is «Dostęp publiczny» / «Dostęp prywatny». "Make public" → «Ustaw dostęp publiczny». |
 | topic, description, address, ID | temat · opis · adres · ID | Room alias → «adres pokoju». |
 | hostname | nazwa serwera | |
@@ -170,9 +171,11 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | feedback, crash reports | opinia · raporty o awariach | "Send feedback" → «Wyślij opinię». |
 | crash, error | awaria · błąd | "Send crash and error reports" → «Wysyłaj raporty o awariach i błędach». |
 | donate, privacy, Privacy policy, Terms | Wesprzyj · prywatność · Polityka prywatności · Warunki korzystania | |
+| building Zuno (what donations pay for) | rozwój Zuno | "Donations help pay for building Zuno." → «Darowizny pomagają opłacić rozwój Zuno.» |
 | app, home screen, shortcut, launcher | aplikacja · ekran główny · skrót · launcher | A chat app is «komunikator». |
 | recent apps, app switcher | ostatnie aplikacje · przełącznik aplikacji | |
 | Open source licenses, Source code | Licencje open source · Kod źródłowy | |
+| free and open source | bezpłatne · ma otwarty kod źródłowy | "Zuno is free and open source." → «Zuno jest bezpłatne i ma otwarty kod źródłowy.» Zuno takes the neuter. |
 
 ### 1.11 Settled phrases
 
