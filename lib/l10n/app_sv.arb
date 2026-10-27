@@ -630,6 +630,7 @@
   "matrixPermissionRoomTopic": "Ändra ämne",
   "matrixPermissionStateDefault": "Ändra inställningar",
   "matrixPermissionUsersDefault": "Standardroll för nya medlemmar",
+  "matrixPhotoDidNotLoad": "Bilden lästes inte in.",
   "matrixPlay": "Spela upp",
   "matrixReportReasonHarassment": "Trakasserier",
   "matrixReportReasonIllegal": "Olagligt innehåll",

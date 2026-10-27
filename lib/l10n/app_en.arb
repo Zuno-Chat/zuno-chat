@@ -2336,6 +2336,10 @@
     "description": "Permission name: who can change room settings"
   },
   "matrixPermissionUsersDefault": "Default role for new members",
+  "matrixPhotoDidNotLoad": "Photo did not load.",
+  "@matrixPhotoDidNotLoad": {
+    "description": "Full-screen photo viewer: the photo could not be downloaded or shown"
+  },
   "matrixPlay": "Play",
   "@matrixPlay": {
     "description": "Tooltip on the play button of a video"

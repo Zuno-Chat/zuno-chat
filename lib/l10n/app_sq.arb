@@ -630,6 +630,7 @@
   "matrixPermissionRoomTopic": "Ndryshimi i temës",
   "matrixPermissionStateDefault": "Ndryshimi i cilësimeve",
   "matrixPermissionUsersDefault": "Roli i paracaktuar për personat e rinj",
+  "matrixPhotoDidNotLoad": "Fotoja nuk u ngarkua.",
   "matrixPlay": "Luaj",
   "matrixReportReasonHarassment": "Ngacmim",
   "matrixReportReasonIllegal": "Përmbajtje e paligjshme",

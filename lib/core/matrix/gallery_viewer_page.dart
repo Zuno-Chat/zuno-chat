@@ -6,6 +6,7 @@ import 'attachment_action_buttons.dart';
 import 'cached_attachment_image.dart';
 import 'image_caption.dart';
 import 'video_viewer_page.dart';
+import 'viewer_photo.dart';
 
 class GalleryViewerPage extends StatefulWidget {
   final List<Event> events;
@@ -79,20 +80,13 @@ class _GalleryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isVideo = event.messageType == MessageTypes.Video;
-    final image = CachedAttachmentImage(
-      event: event,
-      thumbnail: isVideo,
-      placeholder: const Center(child: CircularProgressIndicator()),
-      builder: (context, bytes) => Image.memory(bytes),
-    );
-    if (!isVideo) {
-      return InteractiveViewer(child: Center(child: image));
+    if (event.messageType != MessageTypes.Video) {
+      return ViewerPhoto(event: event);
     }
     return Stack(
       alignment: Alignment.center,
       children: [
-        Center(child: image),
+        Center(child: CachedAttachmentImage(event: event, thumbnail: true)),
         IconButton(
           iconSize: 64,
           color: Colors.white,

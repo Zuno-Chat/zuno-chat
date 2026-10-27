@@ -1,53 +1,157 @@
-import 'dart:typed_data';
+import 'dart:async';
+import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import 'attachment_cache.dart';
+import 'blurhash_image.dart';
 
-class CachedAttachmentImage extends StatelessWidget {
+class CachedAttachmentImage extends StatefulWidget {
   final Event event;
   final bool thumbnail;
+  final ImageProvider Function(BuildContext context, ImageProvider attachment)?
+  image;
+  final BoxFit? fit;
   final Widget placeholder;
-  final Widget? noThumbnail;
-  final Widget Function(BuildContext context, Uint8List bytes) builder;
+  final Widget? progress;
+  final Widget Function(VoidCallback? retry)? failure;
 
   const CachedAttachmentImage({
     required this.event,
     required this.thumbnail,
-    required this.placeholder,
-    required this.builder,
-    this.noThumbnail,
+    this.image,
+    this.fit,
+    this.placeholder = const SizedBox.shrink(),
+    this.progress,
+    this.failure,
     super.key,
   });
 
-  bool get _videoWithoutThumbnail =>
-      thumbnail &&
-      event.messageType == MessageTypes.Video &&
-      !event.hasThumbnail;
+  @override
+  State<CachedAttachmentImage> createState() => _CachedAttachmentImageState();
+}
 
-  String get _cacheKey => attachmentCacheKey(event, thumbnail: thumbnail);
+class _CachedAttachmentImageState extends State<CachedAttachmentImage> {
+  var _attempt = 0;
 
-  Future<Uint8List> _fetch() => fetchCachedAttachment(_cacheKey, () async {
-    final file = await event.downloadAndDecryptAttachment(
-      getThumbnail: thumbnail,
+  Widget get _standIn {
+    final blurhash = BlurhashImage.of(
+      widget.event,
+      thumbnail: widget.thumbnail,
     );
-    return file.bytes;
-  });
+    if (blurhash == null) return widget.placeholder;
+    return Image(
+      image: blurhash,
+      fit: BoxFit.cover,
+      excludeFromSemantics: true,
+    );
+  }
+
+  Widget get _waiting {
+    final progress = widget.progress;
+    if (progress == null) return _standIn;
+    return Stack(
+      alignment: Alignment.center,
+      fit: StackFit.passthrough,
+      children: [
+        _standIn,
+        Center(child: progress),
+      ],
+    );
+  }
+
+  Widget _failed(Object error) {
+    final failure = widget.failure;
+    if (failure == null) return _standIn;
+    return failure(
+      error is _DownloadFailed ? () => setState(() => _attempt++) : null,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (_videoWithoutThumbnail) return noThumbnail ?? placeholder;
-    final cached = AttachmentCache.instance.get(_cacheKey);
-    if (cached != null) return builder(context, cached);
-
-    return FutureBuilder<Uint8List>(
-      future: _fetch(),
-      builder: (context, snapshot) {
-        final bytes = snapshot.data;
-        if (bytes == null) return placeholder;
-        return builder(context, bytes);
-      },
+    final event = widget.event;
+    if (widget.thumbnail &&
+        event.messageType == MessageTypes.Video &&
+        !event.hasThumbnail) {
+      return _standIn;
+    }
+    final attachment = _AttachmentImage(event, thumbnail: widget.thumbnail);
+    return Image(
+      key: ValueKey(_attempt),
+      image: widget.image?.call(context, attachment) ?? attachment,
+      fit: widget.fit,
+      frameBuilder: (context, child, frame, synchronous) =>
+          frame == null && !synchronous ? _waiting : child,
+      errorBuilder: (context, error, _) => _failed(error),
     );
   }
+}
+
+class _DownloadFailed implements Exception {
+  final Object cause;
+
+  const _DownloadFailed(this.cause);
+
+  @override
+  String toString() => 'attachment download failed: $cause';
+}
+
+class _AttachmentImage extends ImageProvider<(Type, String)> {
+  final Event event;
+  final bool thumbnail;
+
+  const _AttachmentImage(this.event, {required this.thumbnail});
+
+  String get _cacheKey => attachmentCacheKey(event, thumbnail: thumbnail);
+
+  @override
+  Future<(Type, String)> obtainKey(ImageConfiguration configuration) =>
+      SynchronousFuture((_AttachmentImage, _cacheKey));
+
+  @override
+  ImageStreamCompleter loadImage(
+    (Type, String) key,
+    ImageDecoderCallback decode,
+  ) => MultiFrameImageStreamCompleter(
+    codec: _load(key, decode),
+    scale: 1,
+    debugLabel: _cacheKey,
+  );
+
+  Future<ui.Codec> _load(
+    (Type, String) key,
+    ImageDecoderCallback decode,
+  ) async {
+    try {
+      return await decode(
+        await ui.ImmutableBuffer.fromUint8List(await _download()),
+      );
+    } catch (_) {
+      scheduleMicrotask(() => PaintingBinding.instance.imageCache.evict(key));
+      rethrow;
+    }
+  }
+
+  Future<Uint8List> _download() async {
+    try {
+      return await fetchCachedAttachment(_cacheKey, () async {
+        final file = await event.downloadAndDecryptAttachment(
+          getThumbnail: thumbnail,
+        );
+        return file.bytes;
+      });
+    } catch (e) {
+      throw _DownloadFailed(e);
+    }
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _AttachmentImage && other._cacheKey == _cacheKey;
+
+  @override
+  int get hashCode => _cacheKey.hashCode;
 }

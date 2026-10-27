@@ -631,6 +631,7 @@
   "matrixPermissionRoomTopic": "Alterar tópico",
   "matrixPermissionStateDefault": "Alterar configurações",
   "matrixPermissionUsersDefault": "Função padrão para novos membros",
+  "matrixPhotoDidNotLoad": "Não foi possível carregar a foto.",
   "matrixPlay": "Reproduzir",
   "matrixReportReasonHarassment": "Assédio",
   "matrixReportReasonIllegal": "Conteúdo ilegal",

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import 'attachment_action_buttons.dart';
-import 'cached_attachment_image.dart';
+import 'viewer_photo.dart';
 
 class ImageViewerPage extends StatelessWidget {
   final Event event;
@@ -18,13 +18,7 @@ class ImageViewerPage extends StatelessWidget {
         foregroundColor: Colors.white,
         actions: [AttachmentActionButtons(event: event)],
       ),
-      body: CachedAttachmentImage(
-        event: event,
-        thumbnail: false,
-        placeholder: const Center(child: CircularProgressIndicator()),
-        builder: (context, bytes) =>
-            InteractiveViewer(child: Center(child: Image.memory(bytes))),
-      ),
+      body: ViewerPhoto(event: event),
     );
   }
 }

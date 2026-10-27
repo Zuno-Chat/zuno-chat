@@ -170,6 +170,16 @@ one rule for what counts.
   or media grid cell decodes so the shorter side fills its box and the
   longer side stays bounded, never enlarged; full-screen viewers decode
   full size for zoom.
+- **A blurhash stands in until the picture is on screen.** A received
+  photo or video thumbnail shows the event's `xyz.amorgan.blurhash`, laid
+  out at the media's own size, until its first frame paints, so there is
+  no blank gap between download and decode. Thumbnails never spin (no
+  blurhash means their empty box); full-screen viewers add a spinner, and
+  a failed download says so with Retry.
+- **One image provider downloads and decodes each attachment**
+  (`CachedAttachmentImage`), keyed by event, so a decoded picture survives
+  rebuilds and byte-cache churn, and a failed download is tried again only
+  when the image is shown afresh or on Retry.
 - **Reply quotes** fetch their target once per room visit through
   `getEventById`, which decrypts a stored event with the keys held now. A
   target still encrypted is fetched again once the room's late keys arrive

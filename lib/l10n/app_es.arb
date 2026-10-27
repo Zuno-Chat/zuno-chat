@@ -630,6 +630,7 @@
   "matrixPermissionRoomTopic": "Cambiar tema",
   "matrixPermissionStateDefault": "Cambiar ajustes",
   "matrixPermissionUsersDefault": "Rol predeterminado para miembros nuevos",
+  "matrixPhotoDidNotLoad": "La foto no se ha cargado.",
   "matrixPlay": "Reproducir",
   "matrixReportReasonHarassment": "Acoso",
   "matrixReportReasonIllegal": "Contenido ilegal",

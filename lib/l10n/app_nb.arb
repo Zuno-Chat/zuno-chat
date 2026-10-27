@@ -630,6 +630,7 @@
   "matrixPermissionRoomTopic": "Endre emne",
   "matrixPermissionStateDefault": "Endre innstillinger",
   "matrixPermissionUsersDefault": "Standardrolle for nye medlemmer",
+  "matrixPhotoDidNotLoad": "Bildet ble ikke lastet inn.",
   "matrixPlay": "Spill av",
   "matrixReportReasonHarassment": "Trakassering",
   "matrixReportReasonIllegal": "Ulovlig innhold",

@@ -630,6 +630,7 @@
   "matrixPermissionRoomTopic": "Αλλαγή θέματος",
   "matrixPermissionStateDefault": "Αλλαγή ρυθμίσεων",
   "matrixPermissionUsersDefault": "Προεπιλεγμένος ρόλος για νέα μέλη",
+  "matrixPhotoDidNotLoad": "Η φωτογραφία δεν φορτώθηκε.",
   "matrixPlay": "Αναπαραγωγή",
   "matrixReportReasonHarassment": "Παρενόχληση",
   "matrixReportReasonIllegal": "Παράνομο περιεχόμενο",

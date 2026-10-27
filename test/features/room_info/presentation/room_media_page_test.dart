@@ -7,7 +7,6 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/gallery_viewer_page.dart';
 import 'package:zuno/core/matrix/room_media_feed.dart';
-import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/room_info/presentation/room_media_page.dart';
 import 'package:zuno/features/room_info/presentation/room_media_thumb.dart';
 
@@ -117,7 +116,7 @@ void main() {
     await pumpPage(tester, feedOf([photo]));
 
     final cell = tester.getSize(find.byType(RoomMediaThumb)).width;
-    expect(tester.widget<MediaImage>(find.byType(MediaImage)).shownAt, cell);
+    expectThumbnailsShownAt(tester, [cell]);
   });
 
   testWidgets('opens the swipe viewer at the tapped item', (tester) async {

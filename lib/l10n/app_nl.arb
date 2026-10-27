@@ -630,6 +630,7 @@
   "matrixPermissionRoomTopic": "Onderwerp wijzigen",
   "matrixPermissionStateDefault": "Instellingen wijzigen",
   "matrixPermissionUsersDefault": "Standaardrol voor nieuwe leden",
+  "matrixPhotoDidNotLoad": "Foto niet geladen.",
   "matrixPlay": "Afspelen",
   "matrixReportReasonHarassment": "Intimidatie",
   "matrixReportReasonIllegal": "Illegale inhoud",

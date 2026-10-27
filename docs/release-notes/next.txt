@@ -1,16 +1,17 @@
 New
 • Share your live location.
-• Picture-in-picture for iPhone video calls.
+• Picture-in-picture on iPhone calls.
 • Restore from a recovery code file.
-• Minimize a call and keep using Zuno.
+• Minimize a call.
 • Mute, speaker or camera off while a call rings.
 • Move your own view in a video call.
-• Opt-in crash reports now cover errors too.
+• Crash reports now cover errors too.
 • See how Zuno protects you.
 • Double-tap to react with a heart.
 • Use Zuno in more languages.
 • See who is calling in a group.
 • Answer a call while on a call.
 • Review privacy settings in setup.
+• Photo previews while loading.
 
-Fixed 157 bugs.
+Fixed 159 bugs.

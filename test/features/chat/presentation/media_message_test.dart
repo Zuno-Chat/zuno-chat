@@ -9,6 +9,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
+import 'package:zuno/core/matrix/cached_attachment_image.dart';
 import 'package:zuno/core/matrix/gallery_viewer_page.dart';
 import 'package:zuno/core/matrix/image_viewer_page.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
@@ -277,7 +278,9 @@ void main() {
         ImageMessage(event: event, mediaMeta: _meta, showTimeOverlay: true),
       );
 
-      expect(shownAt(tester, find.byType(ImageMessage)), isNull);
+      expectThumbnailsShownAt(tester, [
+        screenWidth(tester),
+      ], within: find.byType(ImageMessage));
     });
 
     testWidgets('a captioned photo leaves the time to the caption', (
@@ -295,7 +298,7 @@ void main() {
       expect(find.text('09:41'), findsNothing);
     });
 
-    testWidgets('a photo of unknown size is kept short, spinning until '
+    testWidgets('a photo of unknown size is kept short, an empty frame until '
         'it loads', (tester) async {
       server.holdDownloads();
       await pumpIn(
@@ -322,7 +325,8 @@ void main() {
             .maxHeight,
         200,
       );
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(AspectRatioPlaceholder), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
 
       server.releaseDownloads();
       await tester.pump();
@@ -512,8 +516,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(AspectRatioPlaceholder), findsNothing);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(CachedAttachmentImage), findsOneWidget);
 
       server.releaseDownloads();
       await tester.pump();
@@ -548,15 +551,11 @@ void main() {
 
       await pumpIn(tester, gallery(events));
 
-      expect(
-        [
-          for (final image in tester.widgetList<MediaImage>(
-            find.byType(MediaImage),
-          ))
-            image.shownAt,
-        ],
-        [screenWidth(tester) / 2, screenWidth(tester) / 2, screenWidth(tester)],
-      );
+      expectThumbnailsShownAt(tester, [
+        screenWidth(tester) / 2,
+        screenWidth(tester) / 2,
+        screenWidth(tester),
+      ], within: find.byType(GalleryMessage));
     });
 
     testWidgets('two items sit side by side as squares', (tester) async {

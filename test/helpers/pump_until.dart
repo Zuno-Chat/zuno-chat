@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 bool shows(String text) => find.text(text).evaluate().isNotEmpty;
@@ -37,4 +38,18 @@ Future<void> pumpUntil(
       () => Future<void>.delayed(const Duration(milliseconds: 20)),
     );
   }
+}
+
+Future<ImageInfo> pumpUntilImageLoads(
+  WidgetTester tester,
+  ImageProvider image,
+) async {
+  ImageInfo? loaded;
+  final stream = image.resolve(ImageConfiguration.empty);
+  final listener = ImageStreamListener((info, _) => loaded = info);
+  stream.addListener(listener);
+  await pumpUntil(tester, () => loaded != null, reason: 'the image to load');
+  stream.removeListener(listener);
+  await tester.pump();
+  return loaded!;
 }

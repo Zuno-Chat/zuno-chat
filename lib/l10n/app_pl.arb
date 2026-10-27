@@ -630,6 +630,7 @@
   "matrixPermissionRoomTopic": "Zmiana tematu",
   "matrixPermissionStateDefault": "Zmiana ustawień",
   "matrixPermissionUsersDefault": "Domyślna rola nowych członków",
+  "matrixPhotoDidNotLoad": "Nie udało się wczytać zdjęcia.",
   "matrixPlay": "Odtwórz",
   "matrixReportReasonHarassment": "Nękanie",
   "matrixReportReasonIllegal": "Nielegalne treści",

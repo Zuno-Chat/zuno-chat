@@ -4,11 +4,14 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
+import 'package:zuno/core/matrix/blurhash_image.dart';
+import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 
 import 'fake_http.dart';
 import 'fake_matrix.dart';
@@ -18,6 +21,38 @@ const _pathProvider = MethodChannel('plugins.flutter.io/path_provider');
 final onePixelPng = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
 );
+
+const testBlurhash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj';
+
+const photoWithBlurhash = {
+  'w': 400,
+  'h': 300,
+  'xyz.amorgan.blurhash': testBlurhash,
+};
+
+final blurhashStandIn = find.byWidgetPredicate(
+  (widget) => widget is Image && widget.image is BlurhashImage,
+);
+
+void expectThumbnailsShownAt(
+  WidgetTester tester,
+  List<double> widths, {
+  Finder? within,
+}) {
+  final images = find.byWidgetPredicate(
+    (widget) => widget is Image && widget.image is CoverDecode,
+  );
+  final pixelRatio = tester.view.devicePixelRatio;
+  expect(
+    [
+      for (final image in tester.widgetList<Image>(
+        within == null ? images : find.descendant(of: within, matching: images),
+      ))
+        (image.image as CoverDecode).side,
+    ],
+    [for (final width in widths) (width * pixelRatio).round()],
+  );
+}
 
 class AttachmentServer {
   AttachmentServer._(this.root);
@@ -52,6 +87,7 @@ class AttachmentServer {
     String? filename,
     String mimetype = 'image/png',
     String? thumbnailId,
+    Map<String, Object?> info = const {},
   }) => buildTestEvent(
     room,
     eventId: eventId,
@@ -66,6 +102,7 @@ class AttachmentServer {
         'mimetype': mimetype,
         if (thumbnailId != null)
           'thumbnail_url': 'mxc://example.org/$thumbnailId',
+        ...info,
       },
     },
   );
@@ -120,6 +157,9 @@ AttachmentServer installAttachmentServer() {
   AttachmentCache.instance.clear();
   addTearDown(() async {
     AttachmentCache.instance.clear();
+    PaintingBinding.instance.imageCache
+      ..clear()
+      ..clearLiveImages();
     await DiskAttachmentCache.instance.clear();
     messenger.setMockMethodCallHandler(_pathProvider, null);
     if (server.root.existsSync()) server.root.deleteSync(recursive: true);

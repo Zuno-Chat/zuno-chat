@@ -11,6 +11,7 @@ import 'attachment_action_buttons.dart';
 import 'attachment_actions.dart';
 import 'attachment_cache.dart';
 import 'playable_media_file.dart';
+import 'viewer_status.dart';
 
 class VideoViewerPage extends StatefulWidget {
   final Event event;
@@ -84,16 +85,10 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
 
   Widget _buildBody(BuildContext context) {
     if (_error != null) {
-      return Text(
-        context.l10n.matrixVideoLoadFailed,
-        style: const TextStyle(color: Colors.white70),
-        textAlign: TextAlign.center,
-      );
+      return ViewerNotice(text: context.l10n.matrixVideoLoadFailed);
     }
     final controller = _controller;
-    if (controller == null) {
-      return const CircularProgressIndicator(color: Colors.white);
-    }
+    if (controller == null) return viewerProgress;
     return GestureDetector(
       onTap: _togglePlay,
       child: AspectRatio(

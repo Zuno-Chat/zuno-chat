@@ -13,6 +13,7 @@ import '../../../../core/matrix/cached_attachment_image.dart';
 import '../../../../core/matrix/gallery_viewer_page.dart';
 import '../../../../core/matrix/image_viewer_page.dart';
 import '../../../../core/matrix/media_gallery_group.dart';
+import '../../../../core/matrix/media_size.dart';
 import '../../../../core/matrix/video_viewer_page.dart';
 import '../../data/pending_attachment_send.dart';
 import '../preview_decode_width.dart';
@@ -27,8 +28,9 @@ const _tallestMediaRatio = 9 / 16;
 const _widestMediaRatio = 16 / 9;
 
 double? mediaAspectRatio(int? width, int? height) {
-  if (width == null || height == null || width <= 0 || height <= 0) return null;
-  return (width / height).clamp(_tallestMediaRatio, _widestMediaRatio);
+  final size = mediaSize(width, height);
+  if (size == null) return null;
+  return (size.$1 / size.$2).clamp(_tallestMediaRatio, _widestMediaRatio);
 }
 
 Widget _mediaOverlayBadge(String text) {
@@ -56,19 +58,23 @@ class MediaImage extends StatelessWidget {
     : image = FileImage(fileSystem.file(path));
 
   @override
-  Widget build(BuildContext context) => Image(
-    image: _CoverDecode(image, decodeWidth(context, shownAt: shownAt)),
-    fit: BoxFit.cover,
-  );
+  Widget build(BuildContext context) =>
+      Image(image: _coverDecoded(context, image, shownAt), fit: BoxFit.cover);
 }
+
+ImageProvider _coverDecoded(
+  BuildContext context,
+  ImageProvider image,
+  double? shownAt,
+) => CoverDecode(image, decodeWidth(context, shownAt: shownAt));
 
 const _widestCoverBox = 2;
 
-class _CoverDecode extends ImageProvider<(Object, int)> {
+class CoverDecode extends ImageProvider<(Object, int)> {
   final ImageProvider image;
   final int side;
 
-  const _CoverDecode(this.image, this.side);
+  const CoverDecode(this.image, this.side);
 
   @override
   Future<(Object, int)> obtainKey(ImageConfiguration configuration) =>
@@ -102,7 +108,7 @@ class _CoverDecode extends ImageProvider<(Object, int)> {
 
   @override
   bool operator ==(Object other) =>
-      other is _CoverDecode && other.image == image && other.side == side;
+      other is CoverDecode && other.image == image && other.side == side;
 
   @override
   int get hashCode => Object.hash(image, side);
@@ -116,30 +122,23 @@ Widget _videoBubbleMedia(Event event, PendingAttachmentSend? pending) {
   }
   return attachmentThumbnail(
     event,
-    placeholder: _thumbnailSpinner,
-    noThumbnail: const AspectRatioPlaceholder(),
+    placeholder: const AspectRatioPlaceholder(),
   );
 }
 
 Widget attachmentThumbnail(
   Event event, {
   required Widget placeholder,
-  Widget? noThumbnail,
   double? shownAt,
 }) {
   return CachedAttachmentImage(
     event: event,
     thumbnail: true,
     placeholder: placeholder,
-    noThumbnail: noThumbnail,
-    builder: (context, bytes) => MediaImage.memory(bytes, shownAt: shownAt),
+    fit: BoxFit.cover,
+    image: (context, attachment) => _coverDecoded(context, attachment, shownAt),
   );
 }
-
-const _thumbnailSpinner = SizedBox(
-  height: 120,
-  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-);
 
 Widget _mediaMetaBadge(Widget meta) {
   return Container(
@@ -432,7 +431,10 @@ class ImageMessage extends StatelessWidget {
           Positioned.fill(
             child: pending?.previewBytes != null
                 ? MediaImage.memory(pending!.previewBytes!)
-                : attachmentThumbnail(event, placeholder: _thumbnailSpinner),
+                : attachmentThumbnail(
+                    event,
+                    placeholder: const AspectRatioPlaceholder(),
+                  ),
           ),
           if (showTimeOverlay)
             Positioned(right: 6, bottom: 6, child: _mediaMetaBadge(mediaMeta)),

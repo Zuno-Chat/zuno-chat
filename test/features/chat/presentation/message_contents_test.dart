@@ -13,7 +13,6 @@ import 'package:zuno/features/chat/presentation/file_name_text.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
 import 'package:zuno/features/chat/presentation/message_contents/call_summary_tile.dart';
 import 'package:zuno/features/chat/presentation/message_contents/file_message.dart';
-import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/reactions_row.dart';
 import 'package:zuno/features/chat/presentation/message_contents/reply_quote.dart';
 import 'package:zuno/features/chat/presentation/message_contents/voice_message.dart';
@@ -254,10 +253,7 @@ void main() {
       ),
     );
 
-    expect(
-      tester.widget<MediaImage>(find.byType(MediaImage)).shownAt,
-      quotedThumbnailSize,
-    );
+    expectThumbnailsShownAt(tester, [quotedThumbnailSize]);
   });
 
   testWidgets('a reply quote never looks up from build', (tester) async {
