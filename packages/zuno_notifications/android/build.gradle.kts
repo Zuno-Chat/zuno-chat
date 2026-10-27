@@ -28,7 +28,7 @@ plugins {
 android {
     namespace = "im.zuno.chat.zuno_notifications"
 
-    compileSdk = 36
+    compileSdk = 37
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
